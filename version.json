@@ -1,6 +1,6 @@
 {
- "versionCode": 10,
-"versionName": "1.2-test"
+  "versionCode": 10,
+  "versionName": "1.2-test",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v1.1/IPTV-release.apk",
-  "notes": "Guide tab shows favorites, buffering improvements, changelog viewer"
+  "notes": "Updater test"
 }
