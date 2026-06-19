@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v1.1 (build 13) - 2026-06-18 23:04
+- Player UI overhaul: touch zones for channel change, resize button in overlay, favorites drawer with close button, buttons show on tap
+
+## v1.1 (build 12) - 2026-06-17 20:04
+- Add resize mode button to player; add |US| category filter support
+
 ## v1.1 (build 11) - 2026-06-16 00:34
 - Confirmed provider has no catch-up archive flags; REPLAY label dormant; updater working end-to-end
 

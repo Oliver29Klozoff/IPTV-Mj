@@ -17,11 +17,10 @@
         app:use_controller="false"
         app:show_timeout="5000" />
 
-    <LinearLayout
+    <RelativeLayout
         android:id="@+id/epgOverlay"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:background="#99000000"
         android:padding="12dp"
         android:visibility="gone"
@@ -33,6 +32,9 @@
             android:id="@+id/tvChannelTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentBottom="true"
+            android:layout_toStartOf="@id/btnResize"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -41,7 +43,10 @@
             android:id="@+id/tvEpgNow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_alignParentStart="true"
+            android:layout_above="@id/tvChannelTitle"
+            android:layout_marginBottom="2dp"
+            android:layout_toStartOf="@id/btnResize"
             android:textColor="#CCCCCC"
             android:textSize="13sp" />
 
@@ -49,21 +54,40 @@
             android:id="@+id/tvEpgNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_alignParentStart="true"
+            android:layout_above="@id/tvEpgNow"
+            android:layout_marginBottom="2dp"
+            android:layout_toStartOf="@id/btnResize"
             android:textColor="#888888"
             android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/tvResizeMode"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="#00E5FF"
-            android:textSize="12sp"
-            android:text="FIT" />
+        <ImageButton
+            android:id="@+id/btnResize"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_crop"
+            android:tint="#00E5FF" />
 
-    </LinearLayout>
+    </RelativeLayout>
 
+    <!-- Top left: Guide -->
+    <ImageButton
+        android:id="@+id/btnGuide"
+        android:visibility="gone"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_agenda"
+        android:tint="#00E5FF"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Top right: Close -->
     <ImageButton
         android:id="@+id/btnBack"
         android:layout_width="48dp"
@@ -72,69 +96,87 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:tint="#FFFFFF"
-        android:visibility="visible"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <ImageButton
-        android:id="@+id/btnPreviousChannel"
         android:visibility="gone"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginBottom="80dp"
-        android:background="#66000000"
-        android:src="@android:drawable/ic_media_previous"
-        android:tint="#00E5FF"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <ImageButton
-        android:id="@+id/btnNextChannel"
-        android:visibility="gone"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="80dp"
-        android:background="#66000000"
-        android:src="@android:drawable/ic_media_next"
-        android:tint="#00E5FF"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <ImageButton
-        android:id="@+id/btnGuide"
-        android:visibility="gone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_agenda"
-        android:tint="#00E5FF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <ImageButton
-        android:id="@+id/btnResize"
-        android:visibility="gone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_crop"
-        android:tint="#00E5FF"
-        app:layout_constraintEnd_toStartOf="@id/btnGuide"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvFavoritesGuide"
-        android:visibility="gone"
-        android:layout_width="340dp"
+    <!-- Channel zones -->
+    <View
+        android:id="@+id/zonePrevious"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="#CC000000"
-        android:paddingTop="8dp"
+        android:background="@android:color/transparent"
+        android:foreground="?attr/selectableItemBackground"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintWidth_percent="0.18"
+        app:layout_constraintHeight_percent="0.6"
+        app:layout_constraintVertical_bias="0.5"
+        app:layout_constraintHorizontal_bias="0"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <View
+        android:id="@+id/zoneNext"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        android:foreground="?attr/selectableItemBackground"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintWidth_percent="0.18"
+        app:layout_constraintHeight_percent="0.6"
+        app:layout_constraintVertical_bias="0.5"
+        app:layout_constraintHorizontal_bias="1" />
+
+    <!-- Favorites guide drawer - LAST so it renders on top of zones -->
+    <LinearLayout
+        android:id="@+id/guideContainer"
+        android:layout_width="340dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:background="#CC000000"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Favorites"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnCloseGuide"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:tint="#FFFFFF" />
+
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvFavoritesGuide"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingTop="4dp" />
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
