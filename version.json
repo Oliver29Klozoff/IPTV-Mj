@@ -1,1 +1,6 @@
-{"versionCode": 15,"versionName": "1.1","apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v1.1-build15/IPTV-release.apk","notes": "Test in-app update download"}
+{
+  "versionCode": 15,
+  "versionName": "1.1",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v1.1-build15/IPTV-release.apk",
+  "notes": "Update to build 15"
+}
