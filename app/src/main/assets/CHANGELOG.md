@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 17) - 2026-06-19 00:23
+- Add download progress bar for in-app updates
+
 ## v1.1 (build 16) - 2026-06-19 00:15
 - Version display fix, in-app updater improvements
 

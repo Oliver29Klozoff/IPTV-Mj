@@ -1,6 +1,8 @@
 package com.iptvapp.ui.settings
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -165,6 +167,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun downloadAndInstall(apkUrl: String, versionName: String) {
         binding.tvUpdateStatus.text = "Downloading update..."
+        binding.progressEpgRefresh.visibility = View.VISIBLE
+        binding.progressEpgRefresh.progress = 0
         val fileName = "IPTV-update-$versionName.apk"
         val file = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         if (file.exists()) file.delete()
@@ -178,11 +182,36 @@ class SettingsActivity : AppCompatActivity() {
         val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val downloadId = dm.enqueue(request)
 
+        val progressHandler = Handler(Looper.getMainLooper())
+        val progressRunnable = object : Runnable {
+            override fun run() {
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor = dm.query(query)
+                if (cursor.moveToFirst()) {
+                    val downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                    val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                    if (total > 0) {
+                        val pct = (downloaded * 100 / total).toInt()
+                        binding.progressEpgRefresh.progress = pct
+                        binding.tvUpdateStatus.text = "Downloading... $pct%"
+                    }
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                        progressHandler.postDelayed(this, 500)
+                    }
+                }
+                cursor.close()
+            }
+        }
+        progressHandler.post(progressRunnable)
+
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
                 if (id == downloadId) {
                     unregisterReceiver(this)
+                    progressHandler.removeCallbacks(progressRunnable)
+                    binding.progressEpgRefresh.progress = 100
                     binding.tvUpdateStatus.text = "Download complete. Installing..."
                     val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         FileProvider.getUriForFile(
