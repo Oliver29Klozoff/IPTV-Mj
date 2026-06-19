@@ -214,6 +214,7 @@ class SettingsActivity : AppCompatActivity() {
                     progressHandler.removeCallbacks(progressRunnable)
                     binding.progressEpgRefresh.progress = 100
                     binding.tvUpdateStatus.text = "Download complete. Installing..."
+                    Toast.makeText(this@SettingsActivity, "Receiver fired! canInstall=${packageManager.canRequestPackageInstalls()}", Toast.LENGTH_LONG).show()
                     val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         FileProvider.getUriForFile(
                             this@SettingsActivity,

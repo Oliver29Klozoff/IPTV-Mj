@@ -1,1 +1,1 @@
-{"versionCode": 21,"versionName": "1.1","apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v1.1-build21/IPTV-release.apk","notes": "Fix VOD and series loading; fetch in background to keep live channels fast"}
+{"versionCode": 22,"versionName": "1.1","apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v1.1-build22/IPTV-release.apk","notes": "Fix OOM crash on large VOD/series responses"}

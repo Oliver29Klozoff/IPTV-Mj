@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 22) - 2026-06-19 01:14
+- Fix OOM crash caused by OkHttp BODY logging on large VOD/series responses
+
 ## v1.1 (build 21) - 2026-06-19 01:03
 - Fix VOD and series loading; fetch in background to keep live channels fast
 
