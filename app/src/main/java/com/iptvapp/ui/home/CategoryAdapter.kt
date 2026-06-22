@@ -1,4 +1,4 @@
-package com.iptvapp.ui.home
+﻿package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -15,6 +15,11 @@ class CategoryAdapter(
 
     private var selectedPosition = 0
     private var favoriteCategoryIds: Set<String> = emptySet()
+
+    fun resetSelection() {
+        selectedPosition = 0
+        notifyDataSetChanged()
+    }
 
     fun submitFavoriteCategoryIds(ids: Set<String>) {
         favoriteCategoryIds = ids

@@ -4,6 +4,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.app.PictureInPictureParams
+import android.os.Build
+import android.util.Rational
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -295,6 +298,33 @@ class PlayerActivity : AppCompatActivity() {
                 guideAdapter.submitEpgText(textMap)
             }
             binding.guideContainer.visibility = View.VISIBLE
+        }
+    }
+
+    private fun enterPip() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val aspectRatio = Rational(16, 9)
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(aspectRatio)
+                .build()
+            enterPictureInPictureMode(params)
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        enterPip()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            binding.epgOverlay.visibility = android.view.View.GONE
+            binding.btnBack.visibility = android.view.View.GONE
+            binding.btnGuide.visibility = android.view.View.GONE
+            binding.btnResize.visibility = android.view.View.GONE
+        } else {
+            binding.btnResize.visibility = android.view.View.VISIBLE
         }
     }
 

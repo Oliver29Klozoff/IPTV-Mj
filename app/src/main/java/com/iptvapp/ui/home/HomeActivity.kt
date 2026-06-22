@@ -48,17 +48,30 @@ class HomeActivity : AppCompatActivity() {
         setupMenu()
         observeViewModel()
         viewModel.loadAll()
+        observeTabVisibility()
     }
 
     override fun onStart() {
         super.onStart()
-        initMiniPlayer()
+        if (miniPlayer == null) {
+            initMiniPlayer()
+        } else {
+            miniPlayer?.play()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        miniPlayer?.release()
+        miniPlayer = null
     }
 
     override fun onStop() {
         super.onStop()
-        miniPlayer?.release()
-        miniPlayer = null
+        // Only pause if truly going to background, not when opening another activity
+        if (!isChangingConfigurations) {
+            miniPlayer?.pause()
+        }
     }
 
     private fun initMiniPlayer() {
@@ -128,7 +141,7 @@ class HomeActivity : AppCompatActivity() {
             onCategoryLongClick = { category ->
                 if (binding.tabLayout.selectedTabPosition == 0) {
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
-                    Toast.makeText(this, "Favorite updated", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
                 }
             }
         )
@@ -214,8 +227,14 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
-        categoryAdapter.submitList(viewModel.liveCategories.value)
-        viewModel.reloadCurrentLiveCategory()
+        val cats = viewModel.liveCategories.value
+        categoryAdapter.resetSelection()
+        categoryAdapter.submitList(cats)
+        if (cats.isNotEmpty()) {
+            viewModel.selectLiveCategory(cats.first().categoryId)
+        } else {
+            viewModel.reloadCurrentLiveCategory()
+        }
     }
 
     private fun showFavCategories() {
@@ -266,6 +285,21 @@ class HomeActivity : AppCompatActivity() {
             putExtra("stream_ids", streamIds)
         }
         startActivity(intent)
+    }
+
+    private fun observeTabVisibility() {
+        lifecycleScope.launch {
+            viewModel.showMovies.collect { show: Boolean ->
+                val tab = binding.tabLayout.getTabAt(2)
+                tab?.view?.visibility = if (show) View.VISIBLE else View.GONE
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.showSeries.collect { show: Boolean ->
+                val tab = binding.tabLayout.getTabAt(3)
+                tab?.view?.visibility = if (show) View.VISIBLE else View.GONE
+            }
+        }
     }
 
     private fun observeViewModel() {

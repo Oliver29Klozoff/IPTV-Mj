@@ -36,6 +36,8 @@ class PreferencesManager @Inject constructor(
         val EPG_AUTO_REFRESH_HOURS = intPreferencesKey("epg_auto_refresh_hours")
         val EPG_REFRESH_MISSING_ONLY = booleanPreferencesKey("epg_refresh_missing_only")
         val USA_ONLY_CHANNELS = booleanPreferencesKey("usa_only_channels")
+        val SHOW_MOVIES = booleanPreferencesKey("show_movies")
+        val SHOW_SERIES = booleanPreferencesKey("show_series")
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
     }
 
@@ -126,6 +128,12 @@ class PreferencesManager @Inject constructor(
             prefs[Keys.USA_ONLY_CHANNELS] = enabled
         }
     }
+
+        val showMovies: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_MOVIES] ?: true }
+    val showSeries: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_SERIES] ?: true }
+
+    suspend fun setShowMovies(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_MOVIES] = enabled } }
+    suspend fun setShowSeries(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_SERIES] = enabled } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

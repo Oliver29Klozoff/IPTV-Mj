@@ -11,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -104,6 +105,14 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 prefs.setUsaOnlyChannels(isChecked)
             }
+        }
+
+        binding.cbShowMovies.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setShowMovies(isChecked) }
+        }
+
+        binding.cbShowSeries.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setShowSeries(isChecked) }
         }
 
         binding.rgAutoEpgRefresh.setOnCheckedChangeListener { _, checkedId ->
@@ -331,6 +340,8 @@ class SettingsActivity : AppCompatActivity() {
 
             binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
             binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
+            binding.cbShowMovies.isChecked = prefs.showMovies.first()
+            binding.cbShowSeries.isChecked = prefs.showSeries.first()
 
             when (prefs.epgAutoRefreshHours.first()) {
                 6 -> binding.rbAuto6.isChecked = true
@@ -377,8 +388,10 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun observeCurrentEpgWork(workId: UUID) {
+        android.util.Log.d("EPG_DEBUG", "Observing work ID: $workId")
         workManager.getWorkInfoByIdLiveData(workId).observe(this) { info ->
-            if (info == null) return@observe
+            if (info == null) { android.util.Log.d("EPG_DEBUG", "WorkInfo is null"); return@observe }
+            android.util.Log.d("EPG_DEBUG", "State=${info.state} progress=${info.progress.getInt(EpgRefreshWorker.KEY_PROGRESS,0)} tags=${info.tags}")
 
             val progress = info.progress.getInt(EpgRefreshWorker.KEY_PROGRESS, 0)
             val status = info.progress.getString(EpgRefreshWorker.KEY_STATUS)

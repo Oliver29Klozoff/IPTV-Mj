@@ -18,6 +18,7 @@ import com.iptvapp.util.Resource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import androidx.work.ForegroundInfo
 import java.io.IOException
 
 @HiltWorker
@@ -28,6 +29,17 @@ class EpgRefreshWorker @AssistedInject constructor(
     private val db: IptvDatabase,
     private val prefs: PreferencesManager
 ) : CoroutineWorker(appContext, workerParams) {
+
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        createNotificationChannel()
+        val notification = androidx.core.app.NotificationCompat.Builder(appContext, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Refreshing EPG")
+            .setContentText("Starting...")
+            .setOngoing(true)
+            .build()
+        return ForegroundInfo(NOTIFICATION_ID, notification)
+    }
 
     override suspend fun doWork(): Result {
         createNotificationChannel()
@@ -86,10 +98,8 @@ class EpgRefreshWorker @AssistedInject constructor(
 
                 val result = repository.fetchEpg(channel.streamId)
                 if (result is Resource.Error) {
-                    val msg = result.message ?: "Network error"
-                    Log.w("EpgRefreshWorker", "Transient error for ${channel.name}: $msg")
-                    updateProgress(notificationManager, beforePercent, "Retrying: $msg")
-                    return Result.retry()
+                    val msg = result.message ?: "Unknown error"
+                    Log.w("EpgRefreshWorker", "Skipping ${channel.name}: $msg")
                 }
 
                 val done = index + 1

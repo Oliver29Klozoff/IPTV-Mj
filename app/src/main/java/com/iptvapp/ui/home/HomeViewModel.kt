@@ -52,6 +52,9 @@ class HomeViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
 
+    val showMovies = prefs.showMovies
+    val showSeries = prefs.showSeries
+
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
 
@@ -65,9 +68,7 @@ class HomeViewModel @Inject constructor(
         if (name.isNullOrBlank()) return false
         val n = name.trim().uppercase()
         return n.startsWith("US|") || n.contains("|US|")
-    }
-
-    fun loadAll() {
+    }    fun loadAll() {
         viewModelScope.launch {
             _loading.value = true
             repository.fetchLiveCategories()

@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 32) - 2026-06-22 17:07
+- Movies/Series tab toggles in settings, category long-press restored, mini player keeps playing when going to settings, EPG skips errored channels
+
 ## v1.1 (build 29) - 2026-06-22 15:32
 - Portrait mode home/login, mini player on home screen, single tap plays in mini player, double tap opens fullscreen
 
