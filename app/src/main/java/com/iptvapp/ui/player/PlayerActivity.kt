@@ -43,6 +43,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.epgOverlay.visibility = View.GONE
         binding.btnBack.visibility = View.GONE
         binding.btnGuide.visibility = View.GONE
+        binding.btnPlayPause.visibility = View.GONE
     }
 
     private var streamUrl: String = ""
@@ -102,19 +103,13 @@ class PlayerActivity : AppCompatActivity() {
     private fun setupChannelZones() {
         binding.zonePrevious.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
-            if (binding.epgOverlay.visibility == View.VISIBLE) {
-                previousChannel()
-            } else {
-                showOverlay()
-            }
+            previousChannel()
+            showOverlay()
         }
         binding.zoneNext.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
-            if (binding.epgOverlay.visibility == View.VISIBLE) {
-                nextChannel()
-            } else {
-                showOverlay()
-            }
+            nextChannel()
+            showOverlay()
         }
     }
 
@@ -138,6 +133,15 @@ class PlayerActivity : AppCompatActivity() {
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
                 binding.playerView.resizeMode = resizeModes[resizeModeIndex]
+                binding.btnPlayPause.setOnClickListener {
+                    if (player?.isPlaying == true) {
+                        player?.pause()
+                    } else {
+                        player?.play()
+                    }
+                    updatePlayPauseButton()
+                    resetHideTimer()
+                }
                 binding.playerView.setOnClickListener {
                     if (binding.epgOverlay.visibility == View.VISIBLE) {
                         hideHandler.removeCallbacks(hideRunnable)
@@ -153,6 +157,7 @@ class PlayerActivity : AppCompatActivity() {
                             Player.STATE_READY -> {
                                 retryCount = 0
                                 showOverlay()
+                                updatePlayPauseButton()
                             }
                             Player.STATE_BUFFERING -> {
                                 binding.epgOverlay.visibility = View.GONE
@@ -197,7 +202,16 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun updatePlayPauseButton() {
+        val isPlaying = player?.isPlaying ?: false
+        binding.btnPlayPause.setImageResource(
+            if (isPlaying) android.R.drawable.ic_media_pause
+            else android.R.drawable.ic_media_play
+        )
+    }
+
     private fun showOverlay() {
+        binding.btnPlayPause.visibility = View.VISIBLE
         binding.tvChannelTitle.text = streamTitle
         binding.epgOverlay.visibility = View.VISIBLE
         binding.btnBack.visibility = View.VISIBLE

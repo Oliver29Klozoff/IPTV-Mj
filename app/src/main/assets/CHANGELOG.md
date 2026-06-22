@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 33) - 2026-06-22 17:20
+- Play/pause button in player, single tap channel switching, no double tap needed
+
 ## v1.1 (build 32) - 2026-06-22 17:07
 - Movies/Series tab toggles in settings, category long-press restored, mini player keeps playing when going to settings, EPG skips errored channels
 
