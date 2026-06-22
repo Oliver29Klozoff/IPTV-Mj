@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v1.1 (build 27) - 2026-06-22 13:52
+- Port rkinnc fixes: playback retry, ExoPlayer lifecycle, UpdateChecker hardening, EPG retry, response checks, observer dedup
+
+## v1.1 (build 26) - 2026-06-19 17:37
+- Long-press or star tap to favorite channels; favorites tab shows flat channel list
+
+## v1.1 (build 25) - 2026-06-19 02:01
+- Fix in-app install trigger using progress polling instead of broadcast receiver
+
 ## v1.1 (build 24) - 2026-06-19 01:55
 - New CRT retro app icon
 

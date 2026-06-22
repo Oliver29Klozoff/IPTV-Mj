@@ -222,7 +222,28 @@ class SettingsActivity : AppCompatActivity() {
                         binding.tvUpdateStatus.text = "Downloading... $pct%"
                     }
                     val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                    if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        progressHandler.removeCallbacks(this)
+                        binding.progressEpgRefresh.progress = 100
+                        binding.tvUpdateStatus.text = "Download complete. Installing..."
+                        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            FileProvider.getUriForFile(this@SettingsActivity, "${packageName}.provider", file)
+                        } else { Uri.fromFile(file) }
+                        val canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+                        if (!canInstall) {
+                            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply { data = Uri.parse("package:$packageName") })
+                            binding.tvUpdateStatus.text = "Allow installs, then tap Check for Updates again."
+                        } else {
+                            val install = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            try { startActivity(install) } catch (e: Exception) {
+                                binding.tvUpdateStatus.text = "Error: ${e.message}"
+                            }
+                        }
+                    } else {
                         progressHandler.postDelayed(this, 500)
                     }
                 }

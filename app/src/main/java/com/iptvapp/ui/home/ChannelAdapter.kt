@@ -1,4 +1,4 @@
-package com.iptvapp.ui.home
+﻿package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -41,6 +41,12 @@ class ChannelAdapter(
 
             binding.root.setOnClickListener {
                 onChannelClick(item)
+            }
+
+            // Both long-press on the row AND tap on the star toggle the favorite
+            binding.root.setOnLongClickListener {
+                onFavoriteClick(item)
+                true
             }
 
             binding.ivFavorite.setOnClickListener {

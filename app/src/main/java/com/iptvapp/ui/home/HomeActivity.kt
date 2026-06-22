@@ -1,4 +1,4 @@
-package com.iptvapp.ui.home
+﻿package com.iptvapp.ui.home
 
 import android.content.Intent
 import android.os.Bundle
@@ -27,9 +27,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var guideAdapter: GuideAdapter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-UpdateChecker(this).check(lifecycleScope)
+        UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -60,7 +61,7 @@ UpdateChecker(this).check(lifecycleScope)
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
                     Toast.makeText(
                         this,
-                        "Favorite updated: ${category.categoryName}",
+                        "Favorite updated: ",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -76,16 +77,15 @@ UpdateChecker(this).check(lifecycleScope)
             },
             onFavoriteClick = { channel ->
                 viewModel.toggleChannelFavorite(channel.streamId)
+                val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             }
         )
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
                 lifecycleScope.launch {
-                    val url = viewModel.getVodStreamUrl(
-                        vod.streamId,
-                        vod.containerExtension
-                    )
+                    val url = viewModel.getVodStreamUrl(vod.streamId, vod.containerExtension)
                     openPlayer(url, vod.name, vod.streamId)
                 }
             },
@@ -106,6 +106,7 @@ UpdateChecker(this).check(lifecycleScope)
                 }
             }
         )
+
         binding.rvCategories.layoutManager = LinearLayoutManager(this)
         binding.rvCategories.adapter = categoryAdapter
 
@@ -150,8 +151,7 @@ UpdateChecker(this).check(lifecycleScope)
                 }
             }
         }
-
-}
+    }
 
     private fun showVod() {
         binding.rvCategories.visibility = View.VISIBLE

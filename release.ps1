@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$Tag
 )
 
@@ -8,7 +8,7 @@ $code = [regex]::Match($gradle, 'versionCode (\d+)').Groups[1].Value
 $name = [regex]::Match($gradle, 'versionName "([^"]+)"').Groups[1].Value
 
 # Consistent APK name, always the same
-$apkName = "IPTV-release.apk"
+$apkName = "MKTV.apk"
 $apkUrl = "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/$Tag/$apkName"
 
 # Build the release APK
