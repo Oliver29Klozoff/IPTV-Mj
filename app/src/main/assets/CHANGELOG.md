@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 29) - 2026-06-22 15:32
+- Portrait mode home/login, mini player on home screen, single tap plays in mini player, double tap opens fullscreen
+
 ## v1.1 (build 28) - 2026-06-22 14:18
 - MKTV rebrand: app name and icon updated
 

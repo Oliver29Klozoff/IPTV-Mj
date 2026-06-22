@@ -34,9 +34,6 @@ class HomeViewModel @Inject constructor(
     private val _favoriteLiveCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val favoriteLiveCategories: StateFlow<List<CategoryEntity>> = _favoriteLiveCategories
 
-    private val _favoriteItems = MutableStateFlow<List<FavoriteListItem>>(emptyList())
-    val favoriteItems: StateFlow<List<FavoriteListItem>> = _favoriteItems
-
     private val _vodCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val vodCategories: StateFlow<List<CategoryEntity>> = _vodCategories
 
@@ -83,7 +80,6 @@ class HomeViewModel @Inject constructor(
             _loading.value = false
         }
 
-        // Start observers once — cancel previous if loadAll is called again
         observerJob?.cancel()
         observerJob = viewModelScope.launch {
             launch {
@@ -93,30 +89,24 @@ class HomeViewModel @Inject constructor(
                         else categories
                     }
                     .collectLatest { filtered ->
-                        _liveCategories.value = filtered
+                        val favCategoryIds = repository.getFavoriteLiveCategoryIds().first()
+                        val sorted = filtered.sortedWith(compareByDescending { it.categoryId in favCategoryIds })
+                        _liveCategories.value = sorted
                         updateFavoriteCategories(filtered)
-                        if (selectedLiveCategoryId == null && filtered.isNotEmpty()) {
-                            selectLiveCategory(filtered.first().categoryId)
+                        if (filtered.isNotEmpty()) {
+                            val currentValid = filtered.any { it.categoryId == selectedLiveCategoryId }
+                            if (!currentValid) selectLiveCategory(filtered.first().categoryId)
                         }
                     }
             }
-
             launch {
-                repository.getVodCategories().collectLatest {
-                    _vodCategories.value = it
-                }
+                repository.getVodCategories().collectLatest { _vodCategories.value = it }
             }
-
             launch {
-                repository.getAllVod().collectLatest {
-                    _vod.value = it
-                }
+                repository.getAllVod().collectLatest { _vod.value = it }
             }
-
             launch {
-                repository.getAllSeries().collectLatest {
-                    _series.value = it
-                }
+                repository.getAllSeries().collectLatest { _series.value = it }
             }
         }
     }
@@ -130,10 +120,19 @@ class HomeViewModel @Inject constructor(
         selectedLiveCategoryId = categoryId
         searchJob?.cancel()
         channelJob?.cancel()
-
         channelJob = viewModelScope.launch {
-            repository.getChannelsByCategory(categoryId).collectLatest { channels ->
-                _channels.value = channels
+            repository.getChannelsByCategory(categoryId).collectLatest {
+                _channels.value = it
+            }
+        }
+    }
+
+    fun selectFavCategory(categoryId: String) {
+        searchJob?.cancel()
+        channelJob?.cancel()
+        channelJob = viewModelScope.launch {
+            repository.getChannelsByCategory(categoryId).collectLatest {
+                _channels.value = it
             }
         }
     }
@@ -141,7 +140,6 @@ class HomeViewModel @Inject constructor(
     fun selectVodCategory(categoryId: String) {
         selectedVodCategoryId = categoryId
         vodJob?.cancel()
-
         vodJob = viewModelScope.launch {
             repository.getVodByCategory(categoryId).collectLatest {
                 _vod.value = it
@@ -152,31 +150,20 @@ class HomeViewModel @Inject constructor(
     fun loadEpgForChannels(channels: List<ChannelEntity>) {
         viewModelScope.launch {
             val visibleChannels = channels.take(50)
-
-            visibleChannels.forEach { channel ->
-                repository.fetchEpg(channel.streamId)
-            }
-
+            visibleChannels.forEach { repository.fetchEpg(it.streamId) }
             val ids = visibleChannels.map { it.streamId }
-
-            if (ids.isEmpty()) {
-                _channelEpgText.value = emptyMap()
-                return@launch
-            }
+            if (ids.isEmpty()) { _channelEpgText.value = emptyMap(); return@launch }
             val epgEntries = repository.getEpgForStreams(ids).first()
             val epgByStream = epgEntries.groupBy { it.streamId }
-
             _channelEpgText.value = visibleChannels.associate { channel ->
                 val programs = epgByStream[channel.streamId].orEmpty()
                 val now = programs.firstOrNull()
                 val next = programs.drop(1).firstOrNull()
-
                 val text = when {
                     now != null && next != null -> "NOW: ${now.title}   NEXT: ${next.title}"
                     now != null -> "NOW: ${now.title}"
                     else -> "No guide data"
                 }
-
                 channel.streamId to text
             }
         }
@@ -189,9 +176,7 @@ class HomeViewModel @Inject constructor(
         } else {
             channelJob?.cancel()
             channelJob = viewModelScope.launch {
-                repository.getAllChannels().collectLatest {
-                    _channels.value = it
-                }
+                repository.getAllChannels().collectLatest { _channels.value = it }
             }
         }
     }
@@ -199,54 +184,25 @@ class HomeViewModel @Inject constructor(
     fun showFavoriteChannels() {
         searchJob?.cancel()
         channelJob?.cancel()
-
         channelJob = viewModelScope.launch {
             repository.getFavoriteChannels().collectLatest { favorites ->
                 _channels.value = favorites
-
-                val categories = _liveCategories.value.associateBy { it.categoryId }
-
-                _favoriteItems.value = favorites
-                    .groupBy { it.categoryId ?: "unknown" }
-                    .flatMap { entry ->
-                        val categoryId = entry.key
-                        val categoryName = categories[categoryId]?.categoryName ?: "Other Favorites"
-
-                        listOf(
-                            FavoriteListItem.Header(categoryId, categoryName)
-                        ) + entry.value.map {
-                            FavoriteListItem.Channel(it)
-                        }
-                    }
             }
         }
     }
 
     fun loadGuide() {
         guideJob?.cancel()
-
         guideJob = viewModelScope.launch {
             _loading.value = true
-
             val guideChannels = repository.getFavoriteChannels().first()
-
-            guideChannels.forEach { channel ->
-                repository.fetchEpg(channel.streamId)
-            }
-
+            guideChannels.forEach { repository.fetchEpg(it.streamId) }
             val ids = guideChannels.map { it.streamId }
-            val epgEntries = if (ids.isEmpty()) emptyList()
-            else repository.getEpgForStreams(ids).first()
-
+            val epgEntries = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
             val epgByStream = epgEntries.groupBy { it.streamId }
-
             _guideRows.value = guideChannels.map { channel ->
-                GuideRow(
-                    channel = channel,
-                    programs = epgByStream[channel.streamId].orEmpty()
-                )
+                GuideRow(channel = channel, programs = epgByStream[channel.streamId].orEmpty())
             }
-
             _loading.value = false
         }
     }
@@ -254,28 +210,21 @@ class HomeViewModel @Inject constructor(
     fun searchChannels(query: String) {
         searchJob?.cancel()
         channelJob?.cancel()
-
         searchJob = viewModelScope.launch {
             if (query.isBlank()) {
                 selectedLiveCategoryId?.let { selectLiveCategory(it) }
             } else {
-                repository.searchChannels(query).collectLatest {
-                    _channels.value = it
-                }
+                repository.searchChannels(query).collectLatest { _channels.value = it }
             }
         }
     }
 
     fun toggleChannelFavorite(streamId: Int) {
-        viewModelScope.launch {
-            repository.toggleChannelFavorite(streamId)
-        }
+        viewModelScope.launch { repository.toggleChannelFavorite(streamId) }
     }
 
     fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
-        viewModelScope.launch {
-            repository.setLiveCategoryFavorite(categoryId, isFavorite)
-        }
+        viewModelScope.launch { repository.setLiveCategoryFavorite(categoryId, isFavorite) }
     }
 
     fun toggleLiveCategoryFavorite(categoryId: String) {
@@ -286,8 +235,27 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    suspend fun getLiveStreamUrl(streamId: Int): String =
-        repository.getLiveStreamUrl(streamId)
+    suspend fun getRecentChannel(): com.iptvapp.data.local.entities.ChannelEntity? {
+        return repository.getRecentChannels().first().firstOrNull()
+    }
+
+    suspend fun markChannelWatched(streamId: Int) {
+        repository.markChannelWatched(streamId)
+    }
+
+    suspend fun getEpgText(streamId: Int): String {
+        repository.fetchEpg(streamId)
+        val epg = repository.getEpgForStream(streamId).first()
+        val now = epg.firstOrNull()
+        val next = epg.drop(1).firstOrNull()
+        return when {
+            now != null && next != null -> "NOW: ${now.title}   NEXT: ${next.title}"
+            now != null -> "NOW: ${now.title}"
+            else -> ""
+        }
+    }
+
+    suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)
 
     suspend fun getVodStreamUrl(streamId: Int, extension: String): String =
         repository.getVodStreamUrl(streamId, extension)

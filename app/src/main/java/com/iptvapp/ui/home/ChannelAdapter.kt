@@ -11,6 +11,7 @@ import com.iptvapp.databinding.ItemChannelBinding
 
 class ChannelAdapter(
     private val onChannelClick: (ChannelEntity) -> Unit,
+    private val onChannelDoubleClick: (ChannelEntity) -> Unit = {},
     private val onFavoriteClick: (ChannelEntity) -> Unit
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
@@ -39,8 +40,15 @@ class ChannelAdapter(
                 else android.R.drawable.btn_star_big_off
             )
 
+            var lastClickTime = 0L
             binding.root.setOnClickListener {
-                onChannelClick(item)
+                val now = System.currentTimeMillis()
+                if (now - lastClickTime < 400) {
+                    onChannelDoubleClick(item)
+                } else {
+                    onChannelClick(item)
+                }
+                lastClickTime = now
             }
 
             // Both long-press on the row AND tap on the star toggle the favorite

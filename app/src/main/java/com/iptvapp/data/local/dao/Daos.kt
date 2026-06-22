@@ -1,4 +1,4 @@
-package com.iptvapp.data.local.dao
+﻿package com.iptvapp.data.local.dao
 
 import androidx.room.*
 import com.iptvapp.data.local.entities.*
@@ -58,10 +58,10 @@ interface CategoryDao {
 @Dao
 interface VodDao {
 
-    @Query("SELECT * FROM vod_streams ORDER BY name ASC")
+    @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC")
     fun getAllVod(): Flow<List<VodEntity>>
 
-    @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY name ASC")
+    @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY added DESC, name ASC")
     fun getVodByCategory(categoryId: String): Flow<List<VodEntity>>
 
     @Query("SELECT * FROM vod_streams WHERE isFavorite = 1 ORDER BY name ASC")

@@ -51,7 +51,7 @@ class PlayerActivity : AppCompatActivity() {
         AspectRatioFrameLayout.RESIZE_MODE_FILL,
         AspectRatioFrameLayout.RESIZE_MODE_ZOOM
     )
-    private var resizeModeIndex = 2
+    private var resizeModeIndex = 0
 
     @Inject
     lateinit var repository: XtreamRepository
@@ -81,8 +81,17 @@ class PlayerActivity : AppCompatActivity() {
         binding.tvChannelTitle.text = streamTitle
         binding.btnBack.setOnClickListener { finish() }
 
+        val streamIds = intent.getIntArrayExtra("stream_ids")
+
         lifecycleScope.launch {
-            channels = repository.getAllChannels().first()
+            channels = if (streamIds != null && streamIds.isNotEmpty()) {
+                val all = repository.getAllChannels().first()
+                val idSet = streamIds.toSet()
+                val idOrder = streamIds.withIndex().associate { it.value to it.index }
+                all.filter { it.streamId in idSet }.sortedBy { idOrder[it.streamId] }
+            } else {
+                repository.getAllChannels().first()
+            }
             currentIndex = channels.indexOfFirst { it.streamId == streamId }
         }
     }
@@ -160,10 +169,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun scheduleRetry() {
-        if (retryCount >= maxRetries) {
-            finish()
-            return
-        }
+        if (retryCount >= maxRetries) { finish(); return }
         retryJob?.cancel()
         retryJob = lifecycleScope.launch {
             val backoffMs = (2000L * (retryCount + 1)).coerceAtMost(16000L)
