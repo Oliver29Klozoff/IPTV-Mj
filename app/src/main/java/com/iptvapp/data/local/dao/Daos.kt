@@ -39,6 +39,9 @@ interface ChannelDao {
 
     @Query("SELECT COUNT(*) FROM channels")
     suspend fun getCount(): Int
+
+    @Query("SELECT COUNT(*) FROM channels WHERE isFavorite = 1")
+    suspend fun getFavoriteCount(): Int
 }
 
 @Dao
@@ -104,6 +107,8 @@ interface SeriesDao {
 
 @Dao
 interface EpgDao {
+    @Query("SELECT COUNT(*) FROM epg_entries")
+    suspend fun getEpgCount(): Int
 
     @Query("SELECT * FROM epg_entries WHERE streamId = :streamId ORDER BY startTimestamp ASC")
     fun getEpgForStream(streamId: Int): Flow<List<EpgEntity>>

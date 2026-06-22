@@ -1,4 +1,4 @@
-package com.iptvapp.ui.settings
+﻿package com.iptvapp.ui.settings
 
 import android.os.Bundle
 import android.os.Handler
@@ -38,6 +38,10 @@ import android.os.Build
 import android.os.Environment
 import androidx.core.content.FileProvider
 import java.io.File
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -70,6 +74,7 @@ class SettingsActivity : AppCompatActivity() {
 
         loadSettings()
         observeEpgRefreshWork()
+        setupDebug()
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
@@ -470,6 +475,70 @@ class SettingsActivity : AppCompatActivity() {
                 val hoursAhead = (newest - nowSeconds) / 3600
                 "EPG Cache: covers about $hoursAhead hours ahead"
             }
+        }
+    }
+
+    private fun setupDebug() {
+        refreshDebugInfo()
+        binding.btnRefreshDebug.setOnClickListener { refreshDebugInfo() }
+        binding.btnCopyDebug.setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("debug", binding.tvDebugInfo.text))
+            Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun refreshDebugInfo() {
+        lifecycleScope.launch {
+            val sb = StringBuilder()
+            try {
+                val pInfo = packageManager.getPackageInfo(packageName, 0)
+                sb.appendLine("=== APP ===")
+                sb.appendLine("Version: ${pInfo.versionName} (${pInfo.longVersionCode})")
+                sb.appendLine("Package: $packageName")
+                sb.appendLine("")
+                sb.appendLine("=== DEVICE ===")
+                sb.appendLine("Model: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+                sb.appendLine("Android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+                sb.appendLine("")
+                sb.appendLine("=== NETWORK ===")
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val network = cm.activeNetwork
+                val caps = cm.getNetworkCapabilities(network)
+                val netType = when {
+                    caps == null -> "No network"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Cellular"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+                    else -> "Unknown"
+                }
+                sb.appendLine("Connection: $netType")
+                sb.appendLine("")
+                sb.appendLine("=== DATABASE ===")
+                val channelCount = db.channelDao().getCount()
+                val vodCount = db.vodDao().getCount()
+                val epgCount = db.epgDao().getEpgCount()
+                val favCount = db.channelDao().getFavoriteCount()
+                sb.appendLine("Channels: $channelCount")
+                sb.appendLine("Favorites: $favCount")
+                sb.appendLine("VOD: $vodCount")
+                sb.appendLine("EPG entries: $epgCount")
+                sb.appendLine("")
+                sb.appendLine("=== PREFERENCES ===")
+                val format = prefs.preferredFormat.first()
+                val usaOnly = prefs.usaOnlyChannels.first()
+                val lastRefresh = prefs.lastEpgRefreshTime.first()
+                val autoHours = prefs.epgAutoRefreshHours.first()
+                sb.appendLine("Stream format: $format")
+                sb.appendLine("USA only: $usaOnly")
+                sb.appendLine("Auto EPG refresh: ${if (autoHours == 0) "off" else "every ${autoHours}h"}")
+                val lastRefreshStr = if (lastRefresh == 0L) "Never" else
+                    java.text.SimpleDateFormat("MMM d yyyy h:mm a", java.util.Locale.getDefault()).format(java.util.Date(lastRefresh))
+                sb.appendLine("Last EPG refresh: $lastRefreshStr")
+            } catch (e: Exception) {
+                sb.appendLine("Error collecting debug info: ${e.message}")
+            }
+            binding.tvDebugInfo.text = sb.toString()
         }
     }
 

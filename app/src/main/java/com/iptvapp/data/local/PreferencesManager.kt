@@ -1,4 +1,4 @@
-package com.iptvapp.data.local
+﻿package com.iptvapp.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -68,7 +68,7 @@ class PreferencesManager @Inject constructor(
         .map { it[Keys.EPG_REFRESH_MISSING_ONLY] ?: false }
 
     val usaOnlyChannels: Flow<Boolean> = context.dataStore.data
-        .map { it[Keys.USA_ONLY_CHANNELS] ?: false }
+        .map { it[Keys.USA_ONLY_CHANNELS] ?: true }
 
     val favoriteLiveCategoryIds: Flow<Set<String>> = context.dataStore.data
         .map { it[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet() }
