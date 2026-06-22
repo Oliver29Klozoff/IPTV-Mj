@@ -1,11 +1,11 @@
-package com.iptvapp.update
+﻿package com.iptvapp.update
 
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
@@ -16,11 +16,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class UpdateChecker(
     private val context: Context
 ) {
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
 
     private val versionJsonUrl =
         "https://raw.githubusercontent.com/Oliver29Klozoff/IPTV-Mj/main/version.json"
@@ -29,7 +33,10 @@ class UpdateChecker(
         scope.launch(Dispatchers.IO) {
             try {
                 val request = Request.Builder().url(versionJsonUrl).build()
-                val body = client.newCall(request).execute().body?.string() ?: return@launch
+                val body = client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@launch
+                    response.body?.string() ?: return@launch
+                }
                 val json = JSONObject(body)
 
                 val latestCode = json.getLong("versionCode")
@@ -51,17 +58,17 @@ class UpdateChecker(
     }
 
     private fun getInstalledVersionCode(): Long {
-       return try {
-    val info = context.packageManager.getPackageInfo(context.packageName, 0)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        info.longVersionCode
-    } else {
-        @Suppress("DEPRECATION")
-        info.versionCode.toLong()
-    }
-} catch (_: Exception) {
-    0L
-}
+        return try {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+        } catch (_: Exception) {
+            0L
+        }
     }
 
     private fun showUpdateDialog(versionName: String, notes: String, apkUrl: String) {
@@ -85,21 +92,40 @@ class UpdateChecker(
             .show()
     }
 
+    private fun canInstallUnknownSources(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+    }
+
     private fun downloadAndInstall(apkUrl: String) {
+        if (!canInstallUnknownSources()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            }
+            Toast.makeText(context, "Please allow installing from unknown sources", Toast.LENGTH_LONG).show()
+            return
+        }
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val request = Request.Builder().url(apkUrl).build()
-                val response = client.newCall(request).execute()
-
-                if (!response.isSuccessful) throw Exception("HTTP " + response.code + " for " + apkUrl)
-
                 val apkFile = File(context.externalCacheDir ?: context.cacheDir, "IPTV-update.apk")
 
-                response.body?.byteStream()?.use { input ->
-                    apkFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                } ?: throw Exception("Empty APK response")
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) throw Exception("HTTP ${response.code} for $apkUrl")
+                    response.body?.byteStream()?.use { input ->
+                        apkFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    } ?: throw Exception("Empty APK response")
+                }
 
                 withContext(Dispatchers.Main) {
                     installApk(apkFile)

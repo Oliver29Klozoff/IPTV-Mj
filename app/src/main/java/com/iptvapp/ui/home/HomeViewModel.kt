@@ -1,4 +1,4 @@
-package com.iptvapp.ui.home
+﻿package com.iptvapp.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -61,10 +62,12 @@ class HomeViewModel @Inject constructor(
     private var vodJob: Job? = null
     private var searchJob: Job? = null
     private var guideJob: Job? = null
+    private var observerJob: Job? = null
 
-private fun isUsCategory(name: String?): Boolean {
+    private fun isUsCategory(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
-        val n = name.trim().uppercase(); return n.startsWith("US|") || n.contains("|US|")
+        val n = name.trim().uppercase()
+        return n.startsWith("US|") || n.contains("|US|")
     }
 
     fun loadAll() {
@@ -72,30 +75,30 @@ private fun isUsCategory(name: String?): Boolean {
             _loading.value = true
             repository.fetchLiveCategories()
             repository.fetchLiveStreams()
-            // Fetch VOD and series in background after live content
             launch {
                 repository.fetchVodCategories()
                 repository.fetchVodStreams()
                 repository.fetchSeries()
             }
             _loading.value = false
+        }
 
-
+        // Start observers once — cancel previous if loadAll is called again
+        observerJob?.cancel()
+        observerJob = viewModelScope.launch {
             launch {
-                repository.getLiveCategories().collectLatest { categories ->
-                    prefs.usaOnlyChannels.collectLatest { usaOnly ->
-                        val filtered = if (usaOnly) {
-                            categories.filter { isUsCategory(it.categoryName) }
-                        } else {
-                            categories
-                        }
+                repository.getLiveCategories()
+                    .combine(prefs.usaOnlyChannels) { categories, usaOnly ->
+                        if (usaOnly) categories.filter { isUsCategory(it.categoryName) }
+                        else categories
+                    }
+                    .collectLatest { filtered ->
                         _liveCategories.value = filtered
                         updateFavoriteCategories(filtered)
                         if (selectedLiveCategoryId == null && filtered.isNotEmpty()) {
                             selectLiveCategory(filtered.first().categoryId)
                         }
                     }
-                }
             }
 
             launch {
@@ -117,10 +120,12 @@ private fun isUsCategory(name: String?): Boolean {
             }
         }
     }
+
     private suspend fun updateFavoriteCategories(categories: List<CategoryEntity>) {
         val favoriteIds = repository.getFavoriteLiveCategoryIds().first()
         _favoriteLiveCategories.value = categories.filter { it.categoryId in favoriteIds }
     }
+
     fun selectLiveCategory(categoryId: String) {
         selectedLiveCategoryId = categoryId
         searchJob?.cancel()
@@ -128,9 +133,8 @@ private fun isUsCategory(name: String?): Boolean {
 
         channelJob = viewModelScope.launch {
             repository.getChannelsByCategory(categoryId).collectLatest { channels ->
-
-    _channels.value = channels
-}
+                _channels.value = channels
+            }
         }
     }
 
@@ -231,11 +235,8 @@ private fun isUsCategory(name: String?): Boolean {
             }
 
             val ids = guideChannels.map { it.streamId }
-            val epgEntries = if (ids.isEmpty()) {
-                emptyList()
-            } else {
-                repository.getEpgForStreams(ids).first()
-            }
+            val epgEntries = if (ids.isEmpty()) emptyList()
+            else repository.getEpgForStreams(ids).first()
 
             val epgByStream = epgEntries.groupBy { it.streamId }
 

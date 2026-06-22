@@ -1,4 +1,4 @@
-package com.iptvapp.worker
+﻿package com.iptvapp.worker
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,9 +14,11 @@ import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
+import com.iptvapp.util.Resource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import java.io.IOException
 
 @HiltWorker
 class EpgRefreshWorker @AssistedInject constructor(
@@ -72,8 +74,8 @@ class EpgRefreshWorker @AssistedInject constructor(
                     return Result.failure()
                 }
 
-                val beforeStatus = "Refreshing ${channel.name}"
                 val beforePercent = (index * 100) / total
+                val beforeStatus = "Refreshing ${channel.name}"
 
                 setProgress(
                     Data.Builder()
@@ -82,7 +84,13 @@ class EpgRefreshWorker @AssistedInject constructor(
                         .build()
                 )
 
-                repository.fetchEpg(channel.streamId)
+                val result = repository.fetchEpg(channel.streamId)
+                if (result is Resource.Error) {
+                    val msg = result.message ?: "Network error"
+                    Log.w("EpgRefreshWorker", "Transient error for ${channel.name}: $msg")
+                    updateProgress(notificationManager, beforePercent, "Retrying: $msg")
+                    return Result.retry()
+                }
 
                 val done = index + 1
                 val percent = (done * 100) / total
@@ -115,6 +123,11 @@ class EpgRefreshWorker @AssistedInject constructor(
                     .putString(KEY_STATUS, "EPG refresh complete")
                     .build()
             )
+        } catch (e: IOException) {
+            val errorText = "EPG network error: ${e.message ?: "Unknown"}"
+            Log.w("EpgRefreshWorker", errorText, e)
+            updateProgress(notificationManager, 0, errorText)
+            Result.retry()
         } catch (e: Exception) {
             val errorText = "EPG refresh failed: ${e.javaClass.simpleName}: ${e.message ?: "Unknown error"}"
             Log.e("EpgRefreshWorker", errorText, e)
@@ -137,11 +150,6 @@ class EpgRefreshWorker @AssistedInject constructor(
         }
     }
 
-    private fun isUsCategory(name: String?): Boolean {
-        if (name.isNullOrBlank()) return false
-        return name.trim().uppercase().startsWith("US|")
-    }
-
     private fun updateProgress(
         notificationManager: NotificationManager,
         progress: Int,
@@ -157,17 +165,9 @@ class EpgRefreshWorker @AssistedInject constructor(
             .build()
 
         try {
-            try {
             notificationManager.notify(NOTIFICATION_ID, notification)
         } catch (_: SecurityException) {
             // Android 13+ notification permission may be denied.
-            // Do not fail the EPG refresh because notification display failed.
-        } catch (_: Exception) {
-            // Keep worker running even if notification display fails.
-        }
-        } catch (_: SecurityException) {
-            // Android 13+ notification permission may be denied.
-            // Do not fail the EPG refresh because notification display failed.
         } catch (_: Exception) {
             // Keep worker running even if notification display fails.
         }

@@ -1,4 +1,4 @@
-package com.iptvapp.data.repository
+﻿package com.iptvapp.data.repository
 
 import android.util.Base64
 import com.iptvapp.data.api.*
@@ -46,8 +46,8 @@ class XtreamRepository @Inject constructor(
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getLiveCategories(b.apiUrl(), c.username, c.password)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
-
             db.categoryDao().deleteCategoriesByType("live")
             db.categoryDao().upsertCategories(list.map {
                 CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
@@ -63,6 +63,7 @@ class XtreamRepository @Inject constructor(
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             val existing = db.channelDao().getAllChannels().first().associateBy { it.streamId }
             db.channelDao().upsertChannels(list.map {
@@ -110,7 +111,6 @@ class XtreamRepository @Inject constructor(
 
     suspend fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
         db.channelDao().setFavoriteForCategory(categoryId, isFavorite)
-
         if (isFavorite) {
             prefs.addFavoriteLiveCategoryId(categoryId)
         } else {
@@ -127,6 +127,7 @@ class XtreamRepository @Inject constructor(
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             db.vodDao().upsertVod(list.map {
                 VodEntity(
@@ -143,14 +144,16 @@ class XtreamRepository @Inject constructor(
         }
     }
 
-
     suspend fun fetchVodCategories(): Resource<List<Category>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getVodCategories(b.apiUrl(), c.username, c.password)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             db.categoryDao().deleteCategoriesByType("vod")
-            db.categoryDao().upsertCategories(list.map { CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod") })
+            db.categoryDao().upsertCategories(list.map {
+                CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod")
+            })
             list
         }
     }
@@ -159,7 +162,8 @@ class XtreamRepository @Inject constructor(
 
     fun getVodByCategory(categoryId: String): Flow<List<VodEntity>> = db.vodDao().getVodByCategory(categoryId)
 
-    suspend fun getVodStreamUrl(streamId: Int, containerExtension: String): String = urlBuilder().vodStreamUrl(streamId, containerExtension)
+    suspend fun getVodStreamUrl(streamId: Int, containerExtension: String): String =
+        urlBuilder().vodStreamUrl(streamId, containerExtension)
 
     fun getAllVod(): Flow<List<VodEntity>> = db.vodDao().getAllVod()
 
@@ -167,6 +171,7 @@ class XtreamRepository @Inject constructor(
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getSeries(b.apiUrl(), c.username, c.password)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             db.seriesDao().upsertSeries(list.map {
                 SeriesEntity(
@@ -189,6 +194,7 @@ class XtreamRepository @Inject constructor(
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getShortEpg(b.apiUrl(), c.username, c.password, streamId = streamId)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body()?.epgListings ?: emptyList()
             val entities = list.map {
                 EpgEntity(

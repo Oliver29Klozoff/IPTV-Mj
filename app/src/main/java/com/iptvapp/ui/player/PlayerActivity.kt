@@ -1,15 +1,17 @@
-package com.iptvapp.ui.player
+﻿package com.iptvapp.ui.player
 
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -20,6 +22,8 @@ import com.iptvapp.ui.home.ChannelAdapter
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -55,10 +59,16 @@ class PlayerActivity : AppCompatActivity() {
     private var channels: List<ChannelEntity> = emptyList()
     private var currentIndex: Int = -1
 
+    private var retryCount = 0
+    private val maxRetries = 5
+    private var retryJob: Job? = null
+    private var channelSwitchJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
         setupFavoritesGuide()
         setupResizeButton()
@@ -75,8 +85,6 @@ class PlayerActivity : AppCompatActivity() {
             channels = repository.getAllChannels().first()
             currentIndex = channels.indexOfFirst { it.streamId == streamId }
         }
-
-        initPlayer()
     }
 
     private fun setupChannelZones() {
@@ -106,13 +114,13 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun initPlayer() {
+    private fun buildPlayer(): ExoPlayer {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(50000, 120000, 5000, 10000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        player = ExoPlayer.Builder(this)
+        return ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
             .build()
             .also { exoPlayer ->
@@ -127,26 +135,57 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 }
 
-                val mediaItem = MediaItem.fromUri(streamUrl)
-                exoPlayer.setMediaItem(mediaItem)
-                exoPlayer.prepare()
-                exoPlayer.playWhenReady = true
-
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         when (state) {
-                            Player.STATE_READY -> showOverlay()
+                            Player.STATE_READY -> {
+                                retryCount = 0
+                                showOverlay()
+                            }
                             Player.STATE_BUFFERING -> {
                                 binding.epgOverlay.visibility = View.GONE
                                 binding.btnBack.visibility = View.GONE
                                 binding.btnGuide.visibility = View.GONE
                             }
-                            Player.STATE_ENDED -> finish()
+                            Player.STATE_ENDED -> scheduleRetry()
                             else -> {}
                         }
                     }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        scheduleRetry()
+                    }
                 })
             }
+    }
+
+    private fun scheduleRetry() {
+        if (retryCount >= maxRetries) {
+            finish()
+            return
+        }
+        retryJob?.cancel()
+        retryJob = lifecycleScope.launch {
+            val backoffMs = (2000L * (retryCount + 1)).coerceAtMost(16000L)
+            delay(backoffMs)
+            retryCount++
+            player?.let {
+                it.setMediaItem(MediaItem.fromUri(streamUrl))
+                it.prepare()
+                it.playWhenReady = true
+            }
+        }
+    }
+
+    private fun loadStream(url: String) {
+        retryCount = 0
+        retryJob?.cancel()
+        streamUrl = url
+        player?.let {
+            it.setMediaItem(MediaItem.fromUri(url))
+            it.prepare()
+            it.playWhenReady = true
+        }
     }
 
     private fun showOverlay() {
@@ -173,16 +212,15 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun playChannel(channel: ChannelEntity) {
-        lifecycleScope.launch {
+        channelSwitchJob?.cancel()
+        channelSwitchJob = lifecycleScope.launch {
             streamId = channel.streamId
             streamTitle = channel.name
-            streamUrl = repository.getLiveStreamUrl(channel.streamId)
+            val url = repository.getLiveStreamUrl(channel.streamId)
             binding.tvChannelTitle.text = streamTitle
             val idx = channels.indexOfFirst { it.streamId == channel.streamId }
             if (idx >= 0) currentIndex = idx
-            player?.setMediaItem(MediaItem.fromUri(streamUrl))
-            player?.prepare()
-            player?.play()
+            loadStream(url)
         }
     }
 
@@ -259,19 +297,23 @@ class PlayerActivity : AppCompatActivity() {
         if (hasFocus) hideSystemBars()
     }
 
-    override fun onPause() {
-        super.onPause()
-        player?.pause()
+    override fun onStart() {
+        super.onStart()
+        if (player == null) {
+            player = buildPlayer()
+            loadStream(streamUrl)
+        }
     }
 
-    override fun onResume() {
-        super.onResume()
-        player?.play()
+    override fun onStop() {
+        super.onStop()
+        retryJob?.cancel()
+        player?.release()
+        player = null
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        player?.release()
-        player = null
+        hideHandler.removeCallbacks(hideRunnable)
     }
 }
