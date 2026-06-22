@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 28) - 2026-06-22 14:18
+- MKTV rebrand: app name and icon updated
+
 ## v1.1 (build 27) - 2026-06-22 13:52
 - Port rkinnc fixes: playback retry, ExoPlayer lifecycle, UpdateChecker hardening, EPG retry, response checks, observer dedup
 
