@@ -1,6 +1,5 @@
 package com.iptvapp.ui.login
 
-
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -14,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.databinding.ActivityLoginBinding
 import com.iptvapp.ui.home.HomeActivity
@@ -21,6 +21,7 @@ import com.iptvapp.util.Resource
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
 
@@ -30,13 +31,18 @@ class LoginActivity : AppCompatActivity() {
     private val viewModel: LoginViewModel by viewModels()
 
     @Inject lateinit var prefs: PreferencesManager
+    @Inject lateinit var db: IptvDatabase
 
     private val restoreLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             lifecycleScope.launch {
-                restoreBackup(uri)
+                try {
+                    restoreBackup(uri)
+                } catch (e: Exception) {
+                    android.util.Log.e("RESTORE", "Restore failed", e)
+                }
                 goToHome()
             }
         } else {
@@ -65,12 +71,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun setupUI() {
         binding.etPassword.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                attemptLogin()
-                true
-            } else {
-                false
-            }
+            if (actionId == EditorInfo.IME_ACTION_DONE) { attemptLogin(); true } else false
         }
         binding.btnLogin.setOnClickListener { attemptLogin() }
     }
@@ -89,12 +90,8 @@ class LoginActivity : AppCompatActivity() {
                     is Resource.Loading -> setLoading(true)
                     is Resource.Success -> {
                         setLoading(false)
-
-                        val epgUrl = binding.etEpgUrl.text?.toString()?.trim().orEmpty()
-                        if (epgUrl.isNotEmpty()) {
-                            prefs.setEpgUrl(epgUrl)
-                        }
-
+                        val epgUrl = binding.etEpgUrl?.text?.toString()?.trim().orEmpty()
+                        if (epgUrl.isNotEmpty()) prefs.setEpgUrl(epgUrl)
                         askRestoreAfterLogin()
                     }
                     is Resource.Error -> {
@@ -111,61 +108,57 @@ class LoginActivity : AppCompatActivity() {
     private fun askRestoreAfterLogin() {
         MaterialAlertDialogBuilder(this)
             .setTitle("Restore backup?")
-            .setMessage("Choose the backup file you want to restore, or skip this step.")
+            .setMessage("Choose a backup file to restore your favorites and settings, or skip.")
             .setPositiveButton("Choose Backup") { _, _ ->
                 restoreLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
             }
-            .setNegativeButton("Skip") { _, _ ->
-                goToHome()
-            }
+            .setNegativeButton("Skip") { _, _ -> goToHome() }
             .setCancelable(false)
             .show()
     }
 
     private suspend fun restoreBackup(uri: Uri) {
         val jsonText = contentResolver.openInputStream(uri)
-            ?.bufferedReader()
-            ?.use { it.readText() }
-            ?: return
+            ?.bufferedReader()?.use { it.readText() } ?: return
 
         val json = JSONObject(jsonText)
+        android.util.Log.d("RESTORE", "Restoring from backup")
 
+        // Credentials
         val serverUrl = json.optString("serverUrl", "")
         val username = json.optString("username", "")
         val password = json.optString("password", "")
-        val epgUrl = json.optString("epgUrl", "")
-
-        if (serverUrl.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
+        if (serverUrl.isNotEmpty() && username.isNotEmpty()) {
             prefs.saveCredentials(serverUrl, username, password)
         }
 
-        if (epgUrl.isNotEmpty()) {
-            prefs.setEpgUrl(epgUrl)
+        // Prefs
+        json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let { prefs.setEpgUrl(it) }
+        json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
+        if (json.has("epgAutoRefreshHours")) prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
+        if (json.has("epgRefreshMissingOnly")) prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
+        if (json.has("usaOnlyChannels")) prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
+        if (json.has("showMovies")) prefs.setShowMovies(json.optBoolean("showMovies", true))
+        if (json.has("showSeries")) prefs.setShowSeries(json.optBoolean("showSeries", true))
+
+        // Favorite categories
+        val favCatArray = json.optJSONArray("favoriteCategoryIds")
+        if (favCatArray != null) {
+            val ids = (0 until favCatArray.length()).map { favCatArray.getString(it) }.toSet()
+            android.util.Log.d("RESTORE", "Restoring ${ids.size} favorite categories")
+            prefs.setFavoriteLiveCategoryIds(ids)
         }
 
-        json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let {
-            prefs.setPreferredFormat(it)
+        // Favorite channels - store for later since channels may not be in DB yet
+        val favChanArray = json.optJSONArray("favoriteChannelIds")
+        if (favChanArray != null) {
+            val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
+            android.util.Log.d("RESTORE", "Saving ${ids.size} favorite channel IDs for later restore")
+            // Save as a pending restore list in prefs
+            prefs.setPendingFavoriteChannelIds(ids.toSet())
         }
 
-        if (json.has("epgAutoRefreshHours")) {
-            prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
-        }
-
-        if (json.has("epgRefreshMissingOnly")) {
-            prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
-        }
-
-        if (json.has("usaOnlyChannels")) {
-            prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
-        }
-
-        if (json.has("showMovies")) {
-            prefs.setShowMovies(json.optBoolean("showMovies", true))
-        }
-
-        if (json.has("showSeries")) {
-            prefs.setShowSeries(json.optBoolean("showSeries", true))
-        }
+        android.util.Log.d("RESTORE", "Restore complete")
     }
 
     private fun setLoading(loading: Boolean) {
@@ -176,32 +169,6 @@ class LoginActivity : AppCompatActivity() {
 
     private fun showError(message: String?) {
         Snackbar.make(binding.root, message ?: "Error", Snackbar.LENGTH_LONG).show()
-    }
-    private fun showKeyboard(view: View) {
-        view.requestFocus()
-        view.postDelayed({
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
-        }, 200)
-    }
-
-    private fun setupKeyboardFields() {
-        val fields = listOf(binding.etServerUrl, binding.etUsername, binding.etPassword, binding.etEpgUrl)
-
-        fields.forEach { field ->
-            field.isFocusable = true
-            field.isFocusableInTouchMode = true
-            field.setOnClickListener {
-                showKeyboard(field)
-            }
-            field.setOnFocusChangeListener { view, hasFocus ->
-                if (hasFocus) {
-                    showKeyboard(view)
-                }
-            }
-        }
-
-        showKeyboard(binding.etServerUrl)
     }
 
     private fun goToHome() {

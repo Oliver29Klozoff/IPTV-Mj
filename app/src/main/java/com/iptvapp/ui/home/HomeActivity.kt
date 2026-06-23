@@ -1,4 +1,4 @@
-package com.iptvapp.ui.home
+﻿package com.iptvapp.ui.home
 
 import android.content.Intent
 import android.os.Bundle
@@ -24,6 +24,7 @@ import com.iptvapp.data.local.entities.ChannelEntity
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
+    private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private lateinit var binding: ActivityHomeBinding
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
@@ -47,8 +48,20 @@ class HomeActivity : AppCompatActivity() {
         setupSearch()
         setupMenu()
         observeViewModel()
+        binding.rvChannels.visibility = android.view.View.INVISIBLE
+        binding.rvCategories.visibility = android.view.View.INVISIBLE
         viewModel.loadAll()
         observeTabVisibility()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            val recent = viewModel.getRecentChannel()
+            if (recent != null && recent.streamId != currentMiniStreamId) {
+                playInMiniPlayer(recent)
+            }
+        }
     }
 
     override fun onStart() {
@@ -241,9 +254,22 @@ class HomeActivity : AppCompatActivity() {
             viewModel.searchChannels(binding.etSearch.text.toString())
             true
         }
+        binding.etSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val query = s.toString()
+                if (query.length >= 2 || query.isEmpty()) {
+                    searchDebounceJob?.cancel()
+                    searchDebounceJob = lifecycleScope.launch {
+                        kotlinx.coroutines.delay(300)
+                        viewModel.searchChannels(query)
+                    }
+                }
+            }
+        })
     }
-
-    private fun showLive() {
+        private fun showLive() {
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
@@ -326,8 +352,12 @@ class HomeActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         lifecycleScope.launch {
-            viewModel.loading.collect {
-                binding.progressBar.visibility = if (it) View.VISIBLE else View.GONE
+            viewModel.loading.collect { isLoading ->
+                binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+                if (!isLoading) {
+                    binding.rvChannels.visibility = View.VISIBLE
+                    binding.rvCategories.visibility = View.VISIBLE
+                }
             }
         }
         lifecycleScope.launch {
