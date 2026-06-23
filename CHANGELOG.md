@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.6 - 2026-06-23 16:34
+- Fix backup/restore with favorites and categories, live search with debounce, channel highlight on home screen
+
 ## v2.4 - 2026-06-23 11:53
 - Release v2.4
 

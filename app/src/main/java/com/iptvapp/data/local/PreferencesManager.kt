@@ -1,4 +1,4 @@
-package com.iptvapp.data.local
+﻿package com.iptvapp.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -40,6 +40,7 @@ class PreferencesManager @Inject constructor(
         val SHOW_MOVIES = booleanPreferencesKey("show_movies")
         val SHOW_SERIES = booleanPreferencesKey("show_series")
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
+        val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
     }
 
@@ -161,6 +162,16 @@ class PreferencesManager @Inject constructor(
             })
         }
         context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
+    }
+
+    val pendingFavoriteChannelIds: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_FAV_CHANNEL_IDS] ?: emptySet() }
+
+    suspend fun setPendingFavoriteChannelIds(ids: Set<Int>) {
+        context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = ids.map { id -> id.toString() }.toSet() }
+    }
+
+    suspend fun clearPendingFavoriteChannelIds() {
+        context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = emptySet() }
     }
 
     suspend fun setFavoriteLiveCategoryIds(ids: Set<String>) {

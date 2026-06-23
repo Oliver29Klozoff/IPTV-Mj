@@ -1,4 +1,4 @@
-package com.iptvapp.ui.settings
+﻿package com.iptvapp.ui.settings
 
 import com.iptvapp.util.enableTvFocusHighlight
 
@@ -101,7 +101,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.root.enableTvFocusHighlight()
 
         binding.btnBackup.setOnClickListener {
-            backupFileLauncher.launch("iptv_backup.json")
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            backupFileLauncher.launch("MKTV_backup_${ts}.json")
         }
 
         binding.btnRestore.setOnClickListener {
@@ -255,6 +256,8 @@ class SettingsActivity : AppCompatActivity() {
                     return@launch
                 }
                 val json = JSONObject(file.readText())
+                android.util.Log.d("RESTORE", "JSON keys: ${(0 until json.length()).map { json.names()?.getString(it) }}")
+                android.util.Log.d("RESTORE", "favoriteChannelIds: ${json.optJSONArray("favoriteChannelIds")}")
                 prefs.setEpgUrl(json.optString("epgUrl", ""))
                 prefs.setPreferredFormat(json.optString("preferredFormat", "m3u8"))
                 prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
@@ -273,9 +276,13 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 val favChanArray = json.optJSONArray("favoriteChannelIds")
                 if (favChanArray != null) {
-                    val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
-                    db.channelDao().clearAllFavorites()
-                    ids.forEach { db.channelDao().setFavorite(it, true) }
+                        val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
+                        android.util.Log.d("RESTORE", "Restoring ${ids.size} favorite channels: $ids")
+                        val existingIds = db.channelDao().getAllChannelIds().toSet()
+                        android.util.Log.d("RESTORE", "Existing channel count: ${existingIds.size}")
+                        db.channelDao().clearAllFavorites()
+                        ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
+                        android.util.Log.d("RESTORE", "Done restoring favorites")
                 }
                 binding.tvBackupStatus.text = ""
                 loadSettings()
@@ -324,7 +331,7 @@ class SettingsActivity : AppCompatActivity() {
                     val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
                     dir.mkdirs()
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                    val backupFile = File(dir, "MKTV_${timestamp}.json")
+                    val backupFile = File(dir, "MKTV_backup_${timestamp}.json")
                     backupFile.writeText(prettyJson)
                     binding.tvBackupStatus.text = ""
                 } catch (e: Exception) {
@@ -740,7 +747,11 @@ class SettingsActivity : AppCompatActivity() {
             put("usaOnlyChannels", prefs.usaOnlyChannels.first())
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
-        }
+              val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
+              put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
+              val favChannels = db.channelDao().getFavoriteChannelIds()
+              put("favoriteChannelIds", JSONArray(favChannels))
+          }
 
         contentResolver.openOutputStream(uri)?.use { output ->
             output.write(json.toString(2).toByteArray())
@@ -781,6 +792,28 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("epgRefreshMissingOnly")) {
             prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
         }
+
+        // Restore favorite categories
+        val favCatArray = json.optJSONArray("favoriteCategoryIds")
+        if (favCatArray != null) {
+            val ids = (0 until favCatArray.length()).map { favCatArray.getString(it) }.toSet()
+            prefs.setFavoriteLiveCategoryIds(ids)
+        }
+
+        // Restore favorite channels
+        val favChanArray = json.optJSONArray("favoriteChannelIds")
+        if (favChanArray != null) {
+            val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
+            val existingIds = db.channelDao().getAllChannelIds().toSet()
+            db.channelDao().clearAllFavorites()
+            ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
+            // Save pending IDs for channels not yet loaded
+            val missingIds = ids.filter { it !in existingIds }.toSet()
+            if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
+        }
+
+        binding.tvBackupStatus.text = "Restored successfully"
+        loadSettings()
 
         if (json.has("usaOnlyChannels")) {
             prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))

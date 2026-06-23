@@ -1,4 +1,4 @@
-package com.iptvapp.data.local.dao
+﻿package com.iptvapp.data.local.dao
 
 import androidx.room.*
 import com.iptvapp.data.local.entities.*
@@ -33,6 +33,9 @@ interface ChannelDao {
 
     @Query("SELECT streamId FROM channels WHERE isFavorite = 1")
     suspend fun getFavoriteChannelIds(): List<Int>
+
+    @Query("SELECT streamId FROM channels")
+    suspend fun getAllChannelIds(): List<Int>
 
     @Query("UPDATE channels SET isFavorite = 0")
     suspend fun clearAllFavorites()

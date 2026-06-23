@@ -21,10 +21,10 @@
             android:gravity="center_vertical" android:background="#1A1A1A"
             android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="STREAM" android:textColor="#00E5FF"
+                android:layout_weight="1" android:text="STREAM" android:textColor="#008CFF"
                 android:textSize="14sp" android:textStyle="bold" />
             <TextView android:id="@+id/arrowStream" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#00E5FF" android:textSize="14sp" />
+                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sectionStream" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:orientation="vertical"
@@ -58,23 +58,23 @@
             android:gravity="center_vertical" android:background="#1A1A1A"
             android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="DISPLAY" android:textColor="#00E5FF"
+                android:layout_weight="1" android:text="DISPLAY" android:textColor="#008CFF"
                 android:textSize="14sp" android:textStyle="bold" />
             <TextView android:id="@+id/arrowDisplay" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#00E5FF" android:textSize="14sp" />
+                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sectionDisplay" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:orientation="vertical"
             android:background="#111111" android:padding="16dp" android:visibility="gone">
             <CheckBox android:id="@+id/cbUsaOnlyChannels" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:text="Show USA Channels Only"
-                android:textColor="#FFFFFF" android:buttonTint="#00E5FF" />
+                android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
             <CheckBox android:id="@+id/cbShowMovies" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Show Movies Tab" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" android:checked="true" />
+                android:text="Show Movies Tab" android:textColor="#FFFFFF" android:buttonTint="#008CFF" android:checked="true" />
             <CheckBox android:id="@+id/cbShowSeries" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Show Series Tab" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" android:checked="true" />
+                android:text="Show Series Tab" android:textColor="#FFFFFF" android:buttonTint="#008CFF" android:checked="true" />
         </LinearLayout>
 
         <!-- EPG SECTION -->
@@ -83,10 +83,10 @@
             android:gravity="center_vertical" android:background="#1A1A1A"
             android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="EPG" android:textColor="#00E5FF"
+                android:layout_weight="1" android:text="EPG" android:textColor="#008CFF"
                 android:textSize="14sp" android:textStyle="bold" />
             <TextView android:id="@+id/arrowEpg" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#00E5FF" android:textSize="14sp" />
+                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sectionEpg" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:orientation="vertical"
@@ -113,7 +113,7 @@
             <CheckBox android:id="@+id/cbRefreshMissingOnly" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginTop="12dp"
                 android:text="Refresh only channels missing guide data"
-                android:textColor="#FFFFFF" android:buttonTint="#00E5FF" />
+                android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="16dp" android:text="Auto Refresh EPG"
                 android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
@@ -137,20 +137,20 @@
             android:gravity="center_vertical" android:background="#1A1A1A"
             android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="UPDATES" android:textColor="#00E5FF"
+                android:layout_weight="1" android:text="UPDATES" android:textColor="#008CFF"
                 android:textSize="14sp" android:textStyle="bold" />
             <TextView android:id="@+id/arrowUpdates" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#00E5FF" android:textSize="14sp" />
+                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sectionUpdates" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:orientation="vertical"
             android:background="#111111" android:padding="16dp" android:visibility="gone">
             <Button android:id="@+id/btnWhatsNew" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:text="What's New / Changelog"
-                android:textColor="#000000" android:backgroundTint="#00E5FF" />
+                android:textColor="#000000" android:backgroundTint="#008CFF" />
             <Button android:id="@+id/btnCheckUpdate" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Check for Updates" android:textColor="#000000" android:backgroundTint="#00E5FF" />
+                android:text="Check for Updates" android:textColor="#000000" android:backgroundTint="#008CFF" />
             <TextView android:id="@+id/tvUpdateStatus" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
                 android:gravity="center" android:text="" android:textColor="#CCCCCC" android:textSize="13sp" />
@@ -162,10 +162,10 @@
             android:gravity="center_vertical" android:background="#1A1A1A"
             android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="BACKUP &amp; RESTORE" android:textColor="#00E5FF"
+                android:layout_weight="1" android:text="BACKUP &amp; RESTORE" android:textColor="#008CFF"
                 android:textSize="14sp" android:textStyle="bold" />
             <TextView android:id="@+id/arrowBackup" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#00E5FF" android:textSize="14sp" />
+                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/sectionBackup" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:orientation="vertical"
@@ -175,7 +175,7 @@
                 <Button android:id="@+id/btnBackupSettings" android:layout_width="0dp"
                     android:layout_height="wrap_content" android:layout_weight="1"
                     android:layout_marginEnd="4dp" android:text="Backup"
-                    android:textColor="#000000" android:backgroundTint="#00E5FF" />
+                    android:textColor="#000000" android:backgroundTint="#008CFF" />
                 <Button android:id="@+id/btnRestoreSettings" android:layout_width="0dp"
                     android:layout_height="wrap_content" android:layout_weight="1"
                     android:layout_marginStart="4dp" android:text="Restore"
@@ -186,7 +186,7 @@
                 android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
             <Button android:id="@+id/btnSendDebugReport" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Send Debug Report" android:textColor="#000000" android:backgroundTint="#00E5FF" />
+                android:text="Send Debug Report" android:textColor="#000000" android:backgroundTint="#008CFF" />
             <TextView android:id="@+id/tvReportStatus" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="4dp"
                 android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
