@@ -69,15 +69,15 @@
             android:layout_alignParentBottom="true"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_crop"
-            android:tint="#00E5FF" />
+            android:tint="#008CFF" />
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_above="@id/tvChannelTitle"
             android:layout_marginBottom="4dp"
-            android:progressTint="#00E5FF"
-            android:thumbTint="#00E5FF"
+            android:progressTint="#008CFF"
+            android:thumbTint="#008CFF"
             android:visibility="gone" />
     </RelativeLayout>
 
@@ -91,7 +91,7 @@
         android:layout_marginTop="24dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_agenda"
-        android:tint="#00E5FF"
+        android:tint="#008CFF"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

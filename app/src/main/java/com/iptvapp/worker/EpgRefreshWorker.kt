@@ -1,4 +1,4 @@
-﻿package com.iptvapp.worker
+package com.iptvapp.worker
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

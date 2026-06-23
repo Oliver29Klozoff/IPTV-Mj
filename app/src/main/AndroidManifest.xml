@@ -22,6 +22,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.IptvApp"
         android:usesCleartextTraffic="true">
+        <activity
+            android:name=".ui.splash.SplashActivity"
+            android:exported="true"
+            android:screenOrientation="fullSensor">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         android:banner="@drawable/tv_banner"
 
         <activity
@@ -44,7 +54,7 @@
         <activity android:name=".ui.login.LoginActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize" android:theme="@style/AppTheme.Splash">
 
 </activity>
 

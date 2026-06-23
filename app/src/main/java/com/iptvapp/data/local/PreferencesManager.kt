@@ -1,4 +1,4 @@
-﻿package com.iptvapp.data.local
+package com.iptvapp.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import javax.inject.Inject
@@ -39,6 +40,7 @@ class PreferencesManager @Inject constructor(
         val SHOW_MOVIES = booleanPreferencesKey("show_movies")
         val SHOW_SERIES = booleanPreferencesKey("show_series")
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
+        val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -140,6 +142,25 @@ class PreferencesManager @Inject constructor(
             val current = prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet()
             prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] = current + categoryId
         }
+    }
+
+    suspend fun getExtraServers(): List<Triple<String,String,String>> {
+        val json = context.dataStore.data.first()[Keys.EXTRA_SERVERS] ?: "[]"
+        val arr = org.json.JSONArray(json)
+        return (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            Triple(obj.getString("url"), obj.getString("user"), obj.getString("pass"))
+        }
+    }
+
+    suspend fun saveExtraServers(servers: List<Triple<String,String,String>>) {
+        val arr = org.json.JSONArray()
+        servers.forEach { (url, user, pass) ->
+            arr.put(org.json.JSONObject().apply {
+                put("url", url); put("user", user); put("pass", pass)
+            })
+        }
+        context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
     }
 
     suspend fun setFavoriteLiveCategoryIds(ids: Set<String>) {

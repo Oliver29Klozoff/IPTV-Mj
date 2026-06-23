@@ -1,4 +1,4 @@
-﻿package com.iptvapp.ui
+package com.iptvapp.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -36,7 +36,7 @@ class SplashActivity : AppCompatActivity() {
         binding.tvSplashName.startAnimation(anim)
 
         lifecycleScope.launch {
-            delay(2200)
+            delay(4000)
             val creds = prefs.credentials.first()
             val intent = if (creds.isLoggedIn) {
                 Intent(this@SplashActivity, HomeActivity::class.java)

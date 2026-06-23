@@ -1,4 +1,4 @@
-﻿package com.iptvapp.ui.home
+package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -46,7 +46,7 @@ class ChannelAdapter(
                 else android.R.drawable.btn_star_big_off
             )
             binding.ivFavorite.setColorFilter(
-                if (item.isFavorite) android.graphics.Color.parseColor("#00E5FF")
+                if (item.isFavorite) android.graphics.Color.parseColor("#008CFF")
                 else android.graphics.Color.parseColor("#444444")
             )
 

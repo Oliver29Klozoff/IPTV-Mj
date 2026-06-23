@@ -1,4 +1,4 @@
-﻿package com.iptvapp
+package com.iptvapp
 
 import android.app.Application
 import android.content.Context

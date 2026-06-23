@@ -1,1 +1,21 @@
-<?xml version="1.0" encoding="utf-8"?><androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#0F0F0F"><ImageView android:id="@+id/ivSplashLogo" android:layout_width="0dp" android:layout_height="0dp" android:src="@drawable/splash_logo" android:scaleType="fitCenter" android:adjustViewBounds="true" app:layout_constraintWidth_percent="0.85" app:layout_constraintDimensionRatio="1:1" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toTopOf="@+id/tvSplashName" app:layout_constraintVertical_chainStyle="packed" app:layout_constraintVertical_bias="0.4" android:layout_marginBottom="20dp" /><TextView android:id="@+id/tvSplashName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MKTV" android:textColor="#FFFFFF" android:textSize="40sp" android:textStyle="bold" android:letterSpacing="0.3" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@+id/ivSplashLogo" app:layout_constraintBottom_toTopOf="@+id/tvSplashTagline" android:layout_marginBottom="6dp" /><TextView android:id="@+id/tvSplashTagline" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Your Premium IPTV Experience" android:textColor="#666666" android:textSize="14sp" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toBottomOf="@+id/tvSplashName" app:layout_constraintBottom_toBottomOf="parent" /></androidx.constraintlayout.widget.ConstraintLayout>
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <ImageView
+        android:id="@+id/ivSplashLogo"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:src="@drawable/splash_logo" />
+
+    <TextView
+        android:id="@+id/tvSplashName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+</FrameLayout>

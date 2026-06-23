@@ -51,7 +51,7 @@
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:src="@android:drawable/btn_star_big_off"
-        android:tint="#00E5FF" />
+        android:tint="#008CFF" />
 
 </LinearLayout>
 

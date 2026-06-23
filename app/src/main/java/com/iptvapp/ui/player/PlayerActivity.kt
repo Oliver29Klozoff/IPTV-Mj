@@ -1,4 +1,4 @@
-﻿package com.iptvapp.ui.player
+package com.iptvapp.ui.player
 
 import android.app.AlertDialog
 import android.app.PictureInPictureParams
