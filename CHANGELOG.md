@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.7 - 2026-06-23 17:09
+- Disable VOD/Series fetch to prevent OOM crash, fix debug report token, search debounce, restore favorites fix
+
 ## v2.6 - 2026-06-23 16:34
 - Fix backup/restore with favorites and categories, live search with debounce, channel highlight on home screen
 

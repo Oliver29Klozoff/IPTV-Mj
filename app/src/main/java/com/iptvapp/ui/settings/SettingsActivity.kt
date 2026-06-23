@@ -343,6 +343,10 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun sendDebugReport() {
+        binding.btnSendDebugReport.isEnabled = false
+        binding.btnSendDebugReport.isEnabled = false
+        binding.btnSendDebugReport.text = "Collecting..."
+                binding.tvReportStatus.text = "Step 1: collecting device info..."
         binding.tvReportStatus.text = ""
         lifecycleScope.launch {
             try {
@@ -357,12 +361,13 @@ class SettingsActivity : AppCompatActivity() {
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
                     else -> "Unknown"
                 }
-                val channelCount = db.channelDao().getCount()
-                val favCount = db.channelDao().getFavoriteCount()
-                val vodCount = db.vodDao().getCount()
-                val epgCount = db.epgDao().getEpgCount()
+                val channelCount = try { db.channelDao().getCount() } catch (_: Exception) { -1 }
+                val favCount = try { db.channelDao().getFavoriteCount() } catch (_: Exception) { -1 }
+                val vodCount = try { db.vodDao().getCount() } catch (_: Exception) { -1 }
+                val epgCount = try { db.epgDao().getEpgCount() } catch (_: Exception) { -1 }
                 val format = prefs.preferredFormat.first()
                 val usaOnly = prefs.usaOnlyChannels.first()
+                binding.tvReportStatus.text = "Step 2: reading crash log..."
                 val crashLog = IptvApplication.getCrashLog(this@SettingsActivity)
                 val debugText = """
                     App: v${pInfo.versionName} (${pInfo.longVersionCode})
