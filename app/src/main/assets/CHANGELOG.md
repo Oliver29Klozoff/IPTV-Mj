@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 35) - 2026-06-23 02:02
+- Collapsible settings sections, crash log in debug report, QR backup with MKTV logo, timestamped backup files
+
 ## v1.1 (build 34) - 2026-06-23 01:02
 - VOD progress tracking and resume, seek bar, QR backup, backup/restore settings with credentials and favorites, Android TV/Shield support, D-pad focus highlight
 

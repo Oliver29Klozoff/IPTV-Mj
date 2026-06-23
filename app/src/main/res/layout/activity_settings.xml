@@ -7,53 +7,195 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="28dp">
-        <Button android:id="@+id/btnBack" android:layout_width="140dp" android:layout_height="48dp" android:text="Back" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="Settings" android:textColor="#FFFFFF" android:textSize="28sp" android:textStyle="bold" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="EPG URL" android:textColor="#FFFFFF" android:textSize="18sp" />
-        <EditText android:id="@+id/etEpgUrl" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:background="@drawable/search_bg" android:hint="Enter XMLTV / EPG URL" android:inputType="textUri" android:paddingHorizontal="14dp" android:textColor="#FFFFFF" android:textColorHint="#777777" />
-        <Button android:id="@+id/btnSaveEpg" android:layout_width="220dp" android:layout_height="52dp" android:layout_marginTop="14dp" android:text="Save EPG URL" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="34dp" android:text="Stream Format" android:textColor="#FFFFFF" android:textSize="18sp" />
-        <RadioGroup android:id="@+id/rgFormat" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal">
-            <RadioButton android:id="@+id/rbM3u8" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="m3u8" android:textColor="#FFFFFF" />
-            <RadioButton android:id="@+id/rbTs" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="28dp" android:text="ts" android:textColor="#FFFFFF" />
-        </RadioGroup>
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="Display Options" android:textColor="#FFFFFF" android:textSize="18sp" />
-        <CheckBox android:id="@+id/cbUsaOnlyChannels" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Show USA Channels Only" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" />
-        <CheckBox android:id="@+id/cbShowMovies" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Show Movies Tab" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" android:checked="true" />
-        <CheckBox android:id="@+id/cbShowSeries" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Show Series Tab" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" android:checked="true" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="EPG Refresh" android:textColor="#FFFFFF" android:textSize="18sp" />
-        <Button android:id="@+id/btnRefreshEpg" android:layout_width="220dp" android:layout_height="52dp" android:layout_marginTop="12dp" android:text="Refresh EPG" />
-        <ProgressBar android:id="@+id/progressEpgRefresh" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="18dp" android:layout_marginTop="12dp" android:max="100" android:progress="0" android:visibility="gone" />
-        <Button android:id="@+id/btnCancelEpgRefresh" android:layout_width="220dp" android:layout_height="52dp" android:layout_marginTop="10dp" android:text="Cancel Refresh" android:visibility="gone" />
-        <TextView android:id="@+id/tvEpgRefreshStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="" android:textColor="#CCCCCC" android:textSize="14sp" />
-        <TextView android:id="@+id/tvLastEpgRefresh" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Last EPG Refresh: Never" android:textColor="#AAAAAA" android:textSize="14sp" />
-        <TextView android:id="@+id/tvEpgCacheAge" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="EPG Cache Age: Unknown" android:textColor="#AAAAAA" android:textSize="14sp" />
-        <CheckBox android:id="@+id/cbRefreshMissingOnly" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Refresh only channels missing guide data" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="Auto Refresh EPG" android:textColor="#FFFFFF" android:textSize="18sp" />
-        <RadioGroup android:id="@+id/rgAutoEpgRefresh" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="vertical">
-            <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" />
-            <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" />
-            <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" />
-            <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" />
-        </RadioGroup>
-        <Button android:id="@+id/btnWhatsNew" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="What's New / Changelog" android:textColor="#000000" android:backgroundTint="#00E5FF" />
-        <Button android:id="@+id/btnCheckUpdate" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Check for Updates" android:textColor="#000000" android:backgroundTint="#00E5FF" />
-        <TextView android:id="@+id/tvUpdateStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:gravity="center" android:text="" android:textColor="#CCCCCC" android:textSize="13sp" />
-        <TextView android:id="@+id/tvVersion" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" android:gravity="center" android:text="v1.0" android:textColor="#666666" android:textSize="12sp" />
-                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2A2A" android:layout_marginTop="24dp" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="BACKUP &amp; RESTORE" android:textColor="#00E5FF" android:textSize="13sp" android:textStyle="bold" />
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
-            <Button android:id="@+id/btnBackupSettings" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="4dp" android:text="Backup" android:textColor="#000000" android:backgroundTint="#00E5FF" />
-            <Button android:id="@+id/btnRestoreSettings" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="4dp" android:text="Restore" android:textColor="#FFFFFF" android:backgroundTint="#444444" />
+        android:padding="16dp">
+
+        <Button android:id="@+id/btnBack" android:layout_width="140dp" android:layout_height="48dp" android:text="Back" android:layout_marginBottom="8dp" />
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Settings" android:textColor="#FFFFFF" android:textSize="28sp"
+            android:textStyle="bold" android:layout_marginBottom="16dp" />
+
+        <!-- STREAM SECTION -->
+        <LinearLayout android:id="@+id/headerStream" android:layout_width="match_parent"
+            android:layout_height="52dp" android:orientation="horizontal"
+            android:gravity="center_vertical" android:background="#1A1A1A"
+            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="STREAM" android:textColor="#00E5FF"
+                android:textSize="14sp" android:textStyle="bold" />
+            <TextView android:id="@+id/arrowStream" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="▼" android:textColor="#00E5FF" android:textSize="14sp" />
         </LinearLayout>
-        <TextView android:id="@+id/tvBackupStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2A2A" android:layout_marginTop="24dp" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="DEBUG INFO" android:textColor="#00E5FF" android:textSize="13sp" android:textStyle="bold" />
-        <ScrollView android:layout_width="match_parent" android:layout_height="200dp" android:layout_marginTop="8dp" android:background="#1A1A1A">
-            <TextView android:id="@+id/tvDebugInfo" android:layout_width="match_parent" android:layout_height="wrap_content" android:fontFamily="monospace" android:padding="8dp" android:textColor="#AAAAAA" android:textSize="11sp" />
-        </ScrollView>
-        <Button android:id="@+id/btnCopyDebug" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Copy Debug Info" android:textColor="#000000" android:backgroundTint="#00E5FF" />
-        <Button android:id="@+id/btnRefreshDebug" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Refresh Debug Info" android:textColor="#FFFFFF" android:backgroundTint="#444444" />
+        <LinearLayout android:id="@+id/sectionStream" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:background="#111111" android:padding="16dp" android:visibility="gone">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="EPG URL" android:textColor="#FFFFFF" android:textSize="14sp" />
+            <EditText android:id="@+id/etEpgUrl" android:layout_width="match_parent"
+                android:layout_height="52dp" android:layout_marginTop="8dp"
+                android:background="@drawable/search_bg" android:hint="Enter XMLTV / EPG URL"
+                android:inputType="textUri" android:paddingHorizontal="14dp"
+                android:textColor="#FFFFFF" android:textColorHint="#777777" />
+            <Button android:id="@+id/btnSaveEpg" android:layout_width="220dp"
+                android:layout_height="52dp" android:layout_marginTop="12dp" android:text="Save EPG URL" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:text="Stream Format"
+                android:textColor="#FFFFFF" android:textSize="14sp" />
+            <RadioGroup android:id="@+id/rgFormat" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+                <RadioButton android:id="@+id/rbM3u8" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="m3u8" android:textColor="#FFFFFF" />
+                <RadioButton android:id="@+id/rbTs" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginStart="28dp"
+                    android:text="ts" android:textColor="#FFFFFF" />
+            </RadioGroup>
+        </LinearLayout>
+
+        <!-- DISPLAY SECTION -->
+        <LinearLayout android:id="@+id/headerDisplay" android:layout_width="match_parent"
+            android:layout_height="52dp" android:orientation="horizontal"
+            android:gravity="center_vertical" android:background="#1A1A1A"
+            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="DISPLAY" android:textColor="#00E5FF"
+                android:textSize="14sp" android:textStyle="bold" />
+            <TextView android:id="@+id/arrowDisplay" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="▼" android:textColor="#00E5FF" android:textSize="14sp" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sectionDisplay" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:background="#111111" android:padding="16dp" android:visibility="gone">
+            <CheckBox android:id="@+id/cbUsaOnlyChannels" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Show USA Channels Only"
+                android:textColor="#FFFFFF" android:buttonTint="#00E5FF" />
+            <CheckBox android:id="@+id/cbShowMovies" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="Show Movies Tab" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" android:checked="true" />
+            <CheckBox android:id="@+id/cbShowSeries" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="Show Series Tab" android:textColor="#FFFFFF" android:buttonTint="#00E5FF" android:checked="true" />
+        </LinearLayout>
+
+        <!-- EPG SECTION -->
+        <LinearLayout android:id="@+id/headerEpg" android:layout_width="match_parent"
+            android:layout_height="52dp" android:orientation="horizontal"
+            android:gravity="center_vertical" android:background="#1A1A1A"
+            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="EPG" android:textColor="#00E5FF"
+                android:textSize="14sp" android:textStyle="bold" />
+            <TextView android:id="@+id/arrowEpg" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="▼" android:textColor="#00E5FF" android:textSize="14sp" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sectionEpg" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:background="#111111" android:padding="16dp" android:visibility="gone">
+            <Button android:id="@+id/btnRefreshEpg" android:layout_width="220dp"
+                android:layout_height="52dp" android:text="Refresh EPG" />
+            <ProgressBar android:id="@+id/progressEpgRefresh"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="18dp"
+                android:layout_marginTop="12dp" android:max="100" android:progress="0"
+                android:visibility="gone" />
+            <Button android:id="@+id/btnCancelEpgRefresh" android:layout_width="220dp"
+                android:layout_height="52dp" android:layout_marginTop="10dp"
+                android:text="Cancel Refresh" android:visibility="gone" />
+            <TextView android:id="@+id/tvEpgRefreshStatus" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="" android:textColor="#CCCCCC" android:textSize="14sp" />
+            <TextView android:id="@+id/tvLastEpgRefresh" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="Last EPG Refresh: Never" android:textColor="#AAAAAA" android:textSize="13sp" />
+            <TextView android:id="@+id/tvEpgCacheAge" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                android:text="EPG Cache Age: Unknown" android:textColor="#AAAAAA" android:textSize="13sp" />
+            <CheckBox android:id="@+id/cbRefreshMissingOnly" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginTop="12dp"
+                android:text="Refresh only channels missing guide data"
+                android:textColor="#FFFFFF" android:buttonTint="#00E5FF" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:text="Auto Refresh EPG"
+                android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
+            <RadioGroup android:id="@+id/rgAutoEpgRefresh" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:orientation="vertical">
+                <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" />
+                <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" />
+                <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" />
+                <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" />
+            </RadioGroup>
+        </LinearLayout>
+
+        <!-- UPDATES SECTION -->
+        <LinearLayout android:id="@+id/headerUpdates" android:layout_width="match_parent"
+            android:layout_height="52dp" android:orientation="horizontal"
+            android:gravity="center_vertical" android:background="#1A1A1A"
+            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="UPDATES" android:textColor="#00E5FF"
+                android:textSize="14sp" android:textStyle="bold" />
+            <TextView android:id="@+id/arrowUpdates" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="▼" android:textColor="#00E5FF" android:textSize="14sp" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sectionUpdates" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:background="#111111" android:padding="16dp" android:visibility="gone">
+            <Button android:id="@+id/btnWhatsNew" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:text="What's New / Changelog"
+                android:textColor="#000000" android:backgroundTint="#00E5FF" />
+            <Button android:id="@+id/btnCheckUpdate" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="Check for Updates" android:textColor="#000000" android:backgroundTint="#00E5FF" />
+            <TextView android:id="@+id/tvUpdateStatus" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:gravity="center" android:text="" android:textColor="#CCCCCC" android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- BACKUP SECTION -->
+        <LinearLayout android:id="@+id/headerBackup" android:layout_width="match_parent"
+            android:layout_height="52dp" android:orientation="horizontal"
+            android:gravity="center_vertical" android:background="#1A1A1A"
+            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="BACKUP &amp; RESTORE" android:textColor="#00E5FF"
+                android:textSize="14sp" android:textStyle="bold" />
+            <TextView android:id="@+id/arrowBackup" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="▼" android:textColor="#00E5FF" android:textSize="14sp" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sectionBackup" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:background="#111111" android:padding="16dp" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <Button android:id="@+id/btnBackupSettings" android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1"
+                    android:layout_marginEnd="4dp" android:text="Backup"
+                    android:textColor="#000000" android:backgroundTint="#00E5FF" />
+                <Button android:id="@+id/btnRestoreSettings" android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1"
+                    android:layout_marginStart="4dp" android:text="Restore"
+                    android:textColor="#FFFFFF" android:backgroundTint="#444444" />
+            </LinearLayout>
+            <TextView android:id="@+id/tvBackupStatus" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
+            <Button android:id="@+id/btnSendDebugReport" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="8dp"
+                android:text="Send Debug Report" android:textColor="#000000" android:backgroundTint="#00E5FF" />
+            <TextView android:id="@+id/tvReportStatus" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/tvVersion" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="24dp"
+            android:gravity="center" android:text="v1.0" android:textColor="#444444"
+            android:textSize="12sp" />
+
     </LinearLayout>
 </ScrollView>
