@@ -221,7 +221,13 @@ class HomeViewModel @Inject constructor(
     }
 
     fun toggleChannelFavorite(streamId: Int) {
-        viewModelScope.launch { repository.toggleChannelFavorite(streamId) }
+        viewModelScope.launch {
+            val wasAlreadyFavorite = repository.isChannelFavorite(streamId)
+            repository.toggleChannelFavorite(streamId)
+            if (!wasAlreadyFavorite) {
+                repository.fetchEpg(streamId)
+            }
+        }
     }
 
     fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
@@ -255,6 +261,8 @@ class HomeViewModel @Inject constructor(
             else -> ""
         }
     }
+
+    suspend fun getVodProgress(streamId: Int): Pair<Long, Long> = repository.getVodProgress(streamId)
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)
 

@@ -1,7 +1,9 @@
-package com.iptvapp.data.local
+﻿package com.iptvapp.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.iptvapp.data.local.dao.*
 import com.iptvapp.data.local.entities.*
 
@@ -13,7 +15,7 @@ import com.iptvapp.data.local.entities.*
         SeriesEntity::class,
         EpgEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -25,5 +27,14 @@ abstract class IptvDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE vod_streams ADD COLUMN watchedMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE vod_streams ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE series ADD COLUMN watchedMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE series ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
     }
 }

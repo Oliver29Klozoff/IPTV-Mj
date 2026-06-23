@@ -101,6 +101,12 @@ class XtreamRepository @Inject constructor(
     fun getRecentChannels(): Flow<List<ChannelEntity>> =
         db.channelDao().getRecentChannels()
 
+    suspend fun getChannelById(streamId: Int) = db.channelDao().getChannelById(streamId)
+
+    suspend fun isChannelFavorite(streamId: Int): Boolean {
+        return db.channelDao().getChannelById(streamId)?.isFavorite ?: false
+    }
+
     suspend fun toggleChannelFavorite(streamId: Int) {
         val ch = db.channelDao().getChannelById(streamId) ?: return
         db.channelDao().setFavorite(streamId, !ch.isFavorite)
@@ -214,6 +220,26 @@ class XtreamRepository @Inject constructor(
 
     fun getEpgForStream(streamId: Int): Flow<List<EpgEntity>> =
         db.epgDao().getEpgForStream(streamId)
+
+    suspend fun saveVodProgress(streamId: Int, watchedMs: Long, durationMs: Long) {
+        db.vodDao().updateWatchProgress(streamId, watchedMs, durationMs)
+    }
+
+    suspend fun getVodProgress(streamId: Int): Pair<Long, Long> {
+        val watched = db.vodDao().getWatchedMs(streamId) ?: 0L
+        val duration = db.vodDao().getDurationMs(streamId) ?: 0L
+        return Pair(watched, duration)
+    }
+
+    suspend fun saveSeriesProgress(seriesId: Int, watchedMs: Long, durationMs: Long) {
+        db.seriesDao().updateWatchProgress(seriesId, watchedMs, durationMs)
+    }
+
+    suspend fun getSeriesProgress(seriesId: Int): Pair<Long, Long> {
+        val watched = db.seriesDao().getWatchedMs(seriesId) ?: 0L
+        val duration = db.seriesDao().getDurationMs(seriesId) ?: 0L
+        return Pair(watched, duration)
+    }
 
     fun getEpgForStreams(streamIds: List<Int>): Flow<List<EpgEntity>> =
         db.epgDao().getEpgForStreams(streamIds)

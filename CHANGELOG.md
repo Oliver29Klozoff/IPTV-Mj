@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v1.1 (build 34) - 2026-06-23 01:02
+- VOD progress tracking and resume, seek bar, QR backup, backup/restore settings with credentials and favorites, Android TV/Shield support, D-pad focus highlight
+
 ## v1.1 (build 33) - 2026-06-22 17:20
 - Play/pause button in player, single tap channel switching, no double tap needed
 

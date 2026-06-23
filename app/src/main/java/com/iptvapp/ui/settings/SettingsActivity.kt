@@ -43,6 +43,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.widget.ImageView
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -76,6 +81,7 @@ class SettingsActivity : AppCompatActivity() {
         loadSettings()
         observeEpgRefreshWork()
         setupDebug()
+        setupBackupRestore()
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
@@ -487,6 +493,94 @@ class SettingsActivity : AppCompatActivity() {
             else -> {
                 val hoursAhead = (newest - nowSeconds) / 3600
                 "EPG Cache: covers about $hoursAhead hours ahead"
+            }
+        }
+    }
+
+    private fun generateQrBitmap(content: String, size: Int = 600): Bitmap {
+        val writer = QRCodeWriter()
+        val matrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+            }
+        }
+        return bitmap
+    }
+
+    private fun showQrCode(content: String) {
+        val bitmap = generateQrBitmap(content)
+        val imageView = ImageView(this).apply {
+            setImageBitmap(bitmap)
+            setPadding(32, 32, 32, 32)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Backup QR Code")
+            .setMessage("Scan this with another device to restore settings")
+            .setView(imageView)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun setupBackupRestore() {
+        binding.btnBackupSettings.setOnClickListener { backupSettings() }
+        binding.btnRestoreSettings.setOnClickListener { restoreSettings() }
+    }
+
+    private fun backupSettings() {
+        lifecycleScope.launch {
+            try {
+                val creds = prefs.credentials.first()
+                val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
+                val favChannels = db.channelDao().getFavoriteChannelIds()
+
+                val json = org.json.JSONObject().apply {
+                    put("epgUrl", prefs.epgUrl.first())
+                    put("preferredFormat", prefs.preferredFormat.first())
+                    put("usaOnlyChannels", prefs.usaOnlyChannels.first())
+                    put("showMovies", prefs.showMovies.first())
+                    put("showSeries", prefs.showSeries.first())
+                    put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
+                    put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
+                    put("serverUrl", creds.serverUrl)
+                    put("username", creds.username)
+                    put("password", creds.password)
+                    put("favoriteCategoryIds", org.json.JSONArray(favCategoryIds.toList()))
+                    put("favoriteChannelIds", org.json.JSONArray(favChannels))
+                }
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                dir.mkdirs()
+                val file = File(dir, "mktv_settings_backup.json")
+                file.writeText(json.toString(2))
+                binding.tvBackupStatus.text = "Backed up to Documents/mktv_settings_backup.json"
+            } catch (e: Exception) {
+                binding.tvBackupStatus.text = "Backup failed: ${e.message}"
+            }
+        }
+    }
+
+    private fun restoreSettings() {
+        lifecycleScope.launch {
+            try {
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                val file = File(dir, "mktv_settings_backup.json")
+                if (!file.exists()) {
+                    binding.tvBackupStatus.text = "No backup found in Documents/"
+                    return@launch
+                }
+                val json = org.json.JSONObject(file.readText())
+                prefs.setEpgUrl(json.optString("epgUrl", ""))
+                prefs.setPreferredFormat(json.optString("preferredFormat", "m3u8"))
+                prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
+                prefs.setShowMovies(json.optBoolean("showMovies", true))
+                prefs.setShowSeries(json.optBoolean("showSeries", true))
+                prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
+                prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
+                binding.tvBackupStatus.text = "Settings restored successfully"
+                loadSettings()
+            } catch (e: Exception) {
+                binding.tvBackupStatus.text = "Restore failed: ${e.message}"
             }
         }
     }

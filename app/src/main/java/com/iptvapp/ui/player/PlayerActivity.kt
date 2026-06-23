@@ -1,12 +1,13 @@
 ﻿package com.iptvapp.ui.player
 
+import android.app.AlertDialog
+import android.app.PictureInPictureParams
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.View
-import android.app.PictureInPictureParams
-import android.os.Build
 import android.util.Rational
+import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -49,6 +50,8 @@ class PlayerActivity : AppCompatActivity() {
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     private var streamId: Int = -1
+    private var isVod: Boolean = false
+    private var resumePositionMs: Long = 0L
 
     private val resizeModes = listOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -76,17 +79,24 @@ class PlayerActivity : AppCompatActivity() {
         hideSystemBars()
         setupFavoritesGuide()
         setupResizeButton()
-        setupChannelZones()
 
         streamUrl = intent.getStringExtra("stream_url") ?: ""
         streamTitle = intent.getStringExtra("stream_title") ?: ""
         streamId = intent.getIntExtra("stream_id", -1)
+        isVod = intent.getBooleanExtra("is_vod", false)
+        resumePositionMs = intent.getLongExtra("resume_ms", 0L)
+
+        setupChannelZones()
+        // intent already read above ?: ""
+        streamTitle = intent.getStringExtra("stream_title") ?: ""
+        streamId = intent.getIntExtra("stream_id", -1)
+        isVod = intent.getBooleanExtra("is_vod", false)
+        resumePositionMs = intent.getLongExtra("resume_ms", 0L)
 
         binding.tvChannelTitle.text = streamTitle
         binding.btnBack.setOnClickListener { finish() }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
-
         lifecycleScope.launch {
             channels = if (streamIds != null && streamIds.isNotEmpty()) {
                 val all = repository.getAllChannels().first()
@@ -98,18 +108,50 @@ class PlayerActivity : AppCompatActivity() {
             }
             currentIndex = channels.indexOfFirst { it.streamId == streamId }
         }
+
+        // Show resume dialog for VOD if there's a saved position
+        if (isVod && resumePositionMs > 0L) {
+            showResumeDialog()
+        }
+    }
+
+    private fun showResumeDialog() {
+        val minutes = resumePositionMs / 1000 / 60
+        val seconds = (resumePositionMs / 1000) % 60
+        AlertDialog.Builder(this)
+            .setTitle("Resume Playback")
+            .setMessage("Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?")
+            .setPositiveButton("Resume") { _, _ -> /* resumePositionMs already set */ }
+            .setNegativeButton("Start Over") { _, _ -> resumePositionMs = 0L }
+            .setCancelable(false)
+            .show()
     }
 
     private fun setupChannelZones() {
         binding.zonePrevious.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
-            previousChannel()
-            showOverlay()
+            if (isVod) {
+                val pos = (player?.currentPosition ?: 0L) - 10000L
+                player?.seekTo(pos.coerceAtLeast(0L))
+                updateSeekBar()
+                showOverlay()
+            } else {
+                previousChannel()
+                showOverlay()
+            }
         }
         binding.zoneNext.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
-            nextChannel()
-            showOverlay()
+            if (isVod) {
+                val pos = (player?.currentPosition ?: 0L) + 10000L
+                val duration = player?.duration ?: Long.MAX_VALUE
+                player?.seekTo(pos.coerceAtMost(duration))
+                updateSeekBar()
+                showOverlay()
+            } else {
+                nextChannel()
+                showOverlay()
+            }
         }
     }
 
@@ -133,15 +175,10 @@ class PlayerActivity : AppCompatActivity() {
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
                 binding.playerView.resizeMode = resizeModes[resizeModeIndex]
-                binding.btnPlayPause.setOnClickListener {
-                    if (player?.isPlaying == true) {
-                        player?.pause()
-                    } else {
-                        player?.play()
-                    }
-                    updatePlayPauseButton()
-                    resetHideTimer()
-                }
+
+                // Always use our custom overlay, not ExoPlayer built-in controller
+                binding.playerView.useController = false
+
                 binding.playerView.setOnClickListener {
                     if (binding.epgOverlay.visibility == View.VISIBLE) {
                         hideHandler.removeCallbacks(hideRunnable)
@@ -151,29 +188,49 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 }
 
+                binding.btnPlayPause.setOnClickListener {
+                    if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                    updatePlayPauseButton()
+                    resetHideTimer()
+                }
+
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         when (state) {
                             Player.STATE_READY -> {
                                 retryCount = 0
+                                if (isVod) startSeekBarUpdater()
                                 showOverlay()
                                 updatePlayPauseButton()
+                                // Seek to resume position for VOD
+                                if (isVod && resumePositionMs > 0L) {
+                                    exoPlayer.seekTo(resumePositionMs)
+                                    resumePositionMs = 0L
+                                }
                             }
                             Player.STATE_BUFFERING -> {
                                 binding.epgOverlay.visibility = View.GONE
                                 binding.btnBack.visibility = View.GONE
                                 binding.btnGuide.visibility = View.GONE
+                                binding.btnPlayPause.visibility = View.GONE
                             }
-                            Player.STATE_ENDED -> scheduleRetry()
+                            Player.STATE_ENDED -> if (!isVod) scheduleRetry()
                             else -> {}
                         }
                     }
-
                     override fun onPlayerError(error: PlaybackException) {
                         scheduleRetry()
                     }
                 })
             }
+    }
+
+    private fun updatePlayPauseButton() {
+        val isPlaying = player?.isPlaying ?: false
+        binding.btnPlayPause.setImageResource(
+            if (isPlaying) android.R.drawable.ic_media_pause
+            else android.R.drawable.ic_media_play
+        )
     }
 
     private fun scheduleRetry() {
@@ -202,22 +259,54 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updatePlayPauseButton() {
-        val isPlaying = player?.isPlaying ?: false
-        binding.btnPlayPause.setImageResource(
-            if (isPlaying) android.R.drawable.ic_media_pause
-            else android.R.drawable.ic_media_play
-        )
+    private fun saveVodProgress() {
+        if (!isVod || streamId < 0) return
+        val watched = player?.currentPosition ?: return
+        val duration = player?.duration ?: return
+        if (duration <= 0) return
+        lifecycleScope.launch {
+            repository.saveVodProgress(streamId, watched, duration)
+        }
+    }
+
+    private fun updateSeekBar() {
+        if (!isVod) return
+        val duration = player?.duration ?: return
+        if (duration <= 0) return
+        val position = player?.currentPosition ?: 0L
+        binding.seekBar.max = duration.toInt()
+        binding.seekBar.progress = position.toInt()
+    }
+
+    private fun startSeekBarUpdater() {
+        if (!isVod) return
+        binding.seekBar.visibility = View.VISIBLE
+        binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) player?.seekTo(progress.toLong())
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar) { hideHandler.removeCallbacks(hideRunnable) }
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar) { resetHideTimer() }
+        })
+        val seekHandler = Handler(Looper.getMainLooper())
+        val seekRunnable = object : Runnable {
+            override fun run() {
+                updateSeekBar()
+                seekHandler.postDelayed(this, 1000)
+            }
+        }
+        seekHandler.post(seekRunnable)
     }
 
     private fun showOverlay() {
-        binding.btnPlayPause.visibility = View.VISIBLE
         binding.tvChannelTitle.text = streamTitle
         binding.epgOverlay.visibility = View.VISIBLE
         binding.btnBack.visibility = View.VISIBLE
         binding.btnGuide.visibility = View.VISIBLE
+        binding.btnPlayPause.visibility = View.VISIBLE
+        updatePlayPauseButton()
         resetHideTimer()
-        if (streamId != -1) {
+        if (!isVod && streamId != -1) {
             lifecycleScope.launch {
                 repository.fetchEpg(streamId)
                 val epg = repository.getEpgForStream(streamId).first()
@@ -317,9 +406,8 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun enterPip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val aspectRatio = Rational(16, 9)
             val params = PictureInPictureParams.Builder()
-                .setAspectRatio(aspectRatio)
+                .setAspectRatio(Rational(16, 9))
                 .build()
             enterPictureInPictureMode(params)
         }
@@ -327,18 +415,19 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        enterPip()
+        if (!isVod) enterPip()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
-            binding.epgOverlay.visibility = android.view.View.GONE
-            binding.btnBack.visibility = android.view.View.GONE
-            binding.btnGuide.visibility = android.view.View.GONE
-            binding.btnResize.visibility = android.view.View.GONE
+            binding.epgOverlay.visibility = View.GONE
+            binding.btnBack.visibility = View.GONE
+            binding.btnGuide.visibility = View.GONE
+            binding.btnPlayPause.visibility = View.GONE
+            binding.btnResize.visibility = View.GONE
         } else {
-            binding.btnResize.visibility = android.view.View.VISIBLE
+            binding.btnResize.visibility = View.VISIBLE
         }
     }
 
@@ -357,6 +446,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        saveVodProgress()
         retryJob?.cancel()
         player?.release()
         player = null

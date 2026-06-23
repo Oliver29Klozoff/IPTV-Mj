@@ -1,4 +1,4 @@
-package com.iptvapp.data.local.entities
+﻿package com.iptvapp.data.local.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -36,6 +36,8 @@ data class VodEntity(
     val containerExtension: String,
     val added: String?,
     val isFavorite: Boolean = false,
+    val watchedMs: Long = 0L,
+    val durationMs: Long = 0L,
     val cachedAt: Long = System.currentTimeMillis()
 )
 
@@ -49,6 +51,8 @@ data class SeriesEntity(
     val rating: String?,
     val categoryId: String?,
     val isFavorite: Boolean = false,
+    val watchedMs: Long = 0L,
+    val durationMs: Long = 0L,
     val cachedAt: Long = System.currentTimeMillis()
 )
 

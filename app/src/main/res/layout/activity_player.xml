@@ -70,7 +70,15 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_crop"
             android:tint="#00E5FF" />
-
+        <SeekBar
+            android:id="@+id/seekBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/tvChannelTitle"
+            android:layout_marginBottom="4dp"
+            android:progressTint="#00E5FF"
+            android:thumbTint="#00E5FF"
+            android:visibility="gone" />
     </RelativeLayout>
 
     <!-- Top left: Guide -->
@@ -105,7 +113,7 @@
         android:id="@+id/btnPlayPause"
         android:layout_width="56dp"
         android:layout_height="56dp"
-        android:layout_marginBottom="80dp"
+        android:layout_marginBottom="16dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_media_pause"
         android:tint="#FFFFFF"

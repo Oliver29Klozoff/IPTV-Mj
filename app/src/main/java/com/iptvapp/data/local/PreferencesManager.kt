@@ -142,6 +142,12 @@ class PreferencesManager @Inject constructor(
         }
     }
 
+    suspend fun setFavoriteLiveCategoryIds(ids: Set<String>) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] = ids
+        }
+    }
+
     suspend fun removeFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->
             val current = prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet()

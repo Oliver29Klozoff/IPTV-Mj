@@ -91,10 +91,12 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.btnFullscreen.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+                val currentPos = miniPlayer?.currentPosition ?: 0L
+                val isVodStream = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVodStream, resumeMs = currentPos)
             }
         }
-        loadLastWatchedChannel()
+                loadLastWatchedChannel()
     }
 
     private fun loadLastWatchedChannel() {
@@ -171,7 +173,24 @@ class HomeActivity : AppCompatActivity() {
             onVodClick = { vod ->
                 lifecycleScope.launch {
                     val url = viewModel.getVodStreamUrl(vod.streamId, vod.containerExtension)
-                    openPlayer(url, vod.name, vod.streamId)
+                    val progress = viewModel.getVodProgress(vod.streamId)
+                    currentMiniUrl = url
+                    currentMiniTitle = vod.name
+                    currentMiniStreamId = vod.streamId
+                    binding.tvMiniChannelName.text = vod.name
+                    miniPlayer?.let {
+                        it.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+                        it.prepare()
+                        it.playWhenReady = true
+                    }
+                    // Store VOD info for fullscreen button
+                    binding.btnFullscreen.setOnClickListener {
+            if (currentMiniUrl.isNotEmpty()) {
+                val currentPos = miniPlayer?.currentPosition ?: 0L
+                val isVodStream = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVodStream, resumeMs = currentPos)
+            }
+        }
                 }
             },
             onFavoriteClick = {}
@@ -277,12 +296,14 @@ class HomeActivity : AppCompatActivity() {
         viewModel.loadGuide()
     }
 
-    private fun openPlayer(url: String, title: String, streamId: Int, streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray()) {
+    private fun openPlayer(url: String, title: String, streamId: Int, streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(), isVod: Boolean = false, resumeMs: Long = 0L) {
         val intent = Intent(this, PlayerActivity::class.java).apply {
             putExtra("stream_url", url)
             putExtra("stream_title", title)
             putExtra("stream_id", streamId)
             putExtra("stream_ids", streamIds)
+            putExtra("is_vod", isVod)
+            putExtra("resume_ms", resumeMs)
         }
         startActivity(intent)
     }

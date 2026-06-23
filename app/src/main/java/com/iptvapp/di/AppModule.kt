@@ -1,4 +1,4 @@
-package com.iptvapp.di
+﻿package com.iptvapp.di
 
 import android.content.Context
 import androidx.room.Room
@@ -56,7 +56,7 @@ object AppModule {
             context,
             IptvDatabase::class.java,
             IptvDatabase.DATABASE_NAME
-        ).build()
+        ).addMigrations(IptvDatabase.MIGRATION_2_3).build()
 
     @Provides fun provideChannelDao(db: IptvDatabase) = db.channelDao()
     @Provides fun provideCategoryDao(db: IptvDatabase) = db.categoryDao()
