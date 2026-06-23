@@ -400,6 +400,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.progressEpgRefresh.progress = 0
         lifecycleScope.launch {
             val resolvedUrl = withContext(Dispatchers.IO) { resolveRedirect(apkUrl) }
+            android.util.Log.d("UPDATE", "Resolved URL: $resolvedUrl")
+            android.util.Log.d("UPDATE", "Resolved URL: $resolvedUrl")
             downloadFromUrl(resolvedUrl, versionName)
         }
     }
