@@ -16,6 +16,12 @@ class ChannelAdapter(
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
     private var epgTextByStreamId: Map<Int, String> = emptyMap()
+    private var currentlyPlayingStreamId: Int = -1
+
+    fun setCurrentlyPlayingStreamId(streamId: Int) {
+        currentlyPlayingStreamId = streamId
+        notifyDataSetChanged()
+    }
 
     fun submitEpgText(epgMap: Map<Int, String>) {
         epgTextByStreamId = epgMap
@@ -45,6 +51,10 @@ class ChannelAdapter(
             )
 
             var lastClickTime = 0L
+            binding.root.setBackgroundColor(
+                if (item.streamId == currentlyPlayingStreamId) 0x2200E5FF.toInt()
+                else android.graphics.Color.TRANSPARENT
+            )
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()
                 if (now - lastClickTime < 400) {

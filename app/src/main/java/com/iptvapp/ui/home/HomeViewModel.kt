@@ -58,6 +58,13 @@ class HomeViewModel @Inject constructor(
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
 
+    private val _currentlyPlayingStreamId = MutableStateFlow<Int>(-1)
+    val currentlyPlayingStreamId: StateFlow<Int> = _currentlyPlayingStreamId
+
+    fun setCurrentlyPlaying(streamId: Int) {
+        _currentlyPlayingStreamId.value = streamId
+    }
+
     private var channelJob: Job? = null
     private var vodJob: Job? = null
     private var searchJob: Job? = null
@@ -196,19 +203,33 @@ class HomeViewModel @Inject constructor(
         guideJob?.cancel()
         guideJob = viewModelScope.launch {
             _loading.value = true
-            val guideChannels = repository.getFavoriteChannels().first()
-            guideChannels.forEach { repository.fetchEpg(it.streamId) }
-            val ids = guideChannels.map { it.streamId }
-            val epgEntries = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
+
+            // Get both individually favorited channels AND channels from favorited categories
+            val favChannels = repository.getFavoriteChannels().first()
+            val favCategoryIds = repository.getFavoriteLiveCategoryIds().first()
+            val catChannels = favCategoryIds.flatMap { categoryId ->
+                repository.getChannelsByCategory(categoryId).first()
+            }
+
+            // Combine and deduplicate
+            val allChannels = (favChannels + catChannels).distinctBy { it.streamId }
+
+            allChannels.forEach { repository.fetchEpg(it.streamId) }
+
+            val ids = allChannels.map { it.streamId }
+            val epgEntries = if (ids.isEmpty()) emptyList()
+            else repository.getEpgForStreams(ids).first()
+
             val epgByStream = epgEntries.groupBy { it.streamId }
-            _guideRows.value = guideChannels.map { channel ->
+
+            _guideRows.value = allChannels.map { channel ->
                 GuideRow(channel = channel, programs = epgByStream[channel.streamId].orEmpty())
             }
+
             _loading.value = false
         }
     }
-
-    fun searchChannels(query: String) {
+        fun searchChannels(query: String) {
         searchJob?.cancel()
         channelJob?.cancel()
         searchJob = viewModelScope.launch {

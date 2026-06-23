@@ -153,6 +153,7 @@ class HomeActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     playInMiniPlayer(channel)
                     viewModel.markChannelWatched(channel.streamId)
+                    viewModel.setCurrentlyPlaying(channel.streamId)
                 }
             },
             onChannelDoubleClick = { channel ->
@@ -363,6 +364,11 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.guideRows.collect {
                 guideAdapter.submitList(it)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.currentlyPlayingStreamId.collect { streamId ->
+                channelAdapter.setCurrentlyPlayingStreamId(streamId)
             }
         }
         lifecycleScope.launch {
