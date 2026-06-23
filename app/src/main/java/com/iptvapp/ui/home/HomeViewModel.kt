@@ -82,8 +82,8 @@ class HomeViewModel @Inject constructor(
             repository.fetchLiveStreams()
             launch {
                 repository.fetchVodCategories()
-                repository.fetchVodStreams()
-                repository.fetchSeries()
+                // repository.fetchVodStreams() -- disabled to prevent OOM with large VOD libraries
+                // repository.fetchSeries() -- disabled
             }
             _loading.value = false
         }
