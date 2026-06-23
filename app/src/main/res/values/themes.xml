@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.IptvApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#00BCD4</item>
+        <item name="colorPrimary">#008CFF</item>
         <item name="colorPrimaryVariant">#008BA3</item>
         <item name="colorOnPrimary">#000000</item>
-        <item name="colorSecondary">#00E5FF</item>
+        <item name="colorSecondary">#008CFF</item>
         <item name="colorOnSecondary">#000000</item>
 
-        <item name="android:colorAccent">#00E5FF</item>
+        <item name="android:colorAccent">#008CFF</item>
         <item name="android:windowBackground">#0F0F0F</item>
         <item name="android:statusBarColor">#0F0F0F</item>
         <item name="android:navigationBarColor">#0F0F0F</item>

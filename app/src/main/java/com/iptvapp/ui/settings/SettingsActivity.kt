@@ -1,4 +1,6 @@
-﻿package com.iptvapp.ui.settings
+package com.iptvapp.ui.settings
+
+import com.iptvapp.util.enableTvFocusHighlight
 
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -12,9 +14,10 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -63,6 +66,25 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
+    private val backupFileLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            lifecycleScope.launch {
+                writeBackupToUri(uri)
+            }
+        }
+    }
+
+    private val restoreFileLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            lifecycleScope.launch {
+                restoreBackupFromUri(uri)
+            }
+        }
+    }
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var workManager: WorkManager
@@ -70,14 +92,39 @@ class SettingsActivity : AppCompatActivity() {
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
+    @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.root.enableTvFocusHighlight()
+
+        binding.btnBackup.setOnClickListener {
+            backupFileLauncher.launch("iptv_backup.json")
+        }
+
+        binding.btnRestore.setOnClickListener {
+            restoreFileLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+        }
 
         workManager = WorkManager.getInstance(this)
         binding.btnBack.setOnClickListener { finish() }
+        binding.btnLogout.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Logout")
+                .setMessage("This will clear all data and return to the login screen. Continue?")
+                .setPositiveButton("Logout") { _, _ ->
+                    lifecycleScope.launch {
+                        repository.logout()
+                        val intent = Intent(this@SettingsActivity, com.iptvapp.ui.login.LoginActivity::class.java)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        startActivity(intent)
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
         binding.btnWhatsNew.setOnClickListener { showChangelog() }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdate() }
 
@@ -85,6 +132,7 @@ class SettingsActivity : AppCompatActivity() {
         observeEpgRefreshWork()
         setupBackupRestore()
         setupSectionToggles()
+        setupServers()
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
@@ -97,7 +145,7 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnCancelEpgRefresh.setOnClickListener {
             workManager.cancelUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME)
-            binding.tvEpgRefreshStatus.text = "EPG refresh canceled."
+            binding.tvEpgRefreshStatus.text = ""
             binding.btnRefreshEpg.isEnabled = true
             binding.btnCancelEpgRefresh.visibility = View.GONE
         }
@@ -148,14 +196,15 @@ class SettingsActivity : AppCompatActivity() {
     private fun toggleSection(section: View, arrow: android.widget.TextView) {
         if (section.visibility == View.VISIBLE) {
             section.visibility = View.GONE
-            arrow.text = "▼"
+            arrow
         } else {
             section.visibility = View.VISIBLE
-            arrow.text = "▲"
+            arrow
         }
     }
 
     private fun setupSectionToggles() {
+        binding.headerServers.setOnClickListener { toggleSection(binding.sectionServers, binding.arrowServers) }
         binding.headerStream.setOnClickListener { toggleSection(binding.sectionStream, binding.arrowStream) }
         binding.headerDisplay.setOnClickListener { toggleSection(binding.sectionDisplay, binding.arrowDisplay) }
         binding.headerEpg.setOnClickListener { toggleSection(binding.sectionEpg, binding.arrowEpg) }
@@ -191,7 +240,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 showQrCode(json.toString(), json.toString(2))
             } catch (e: Exception) {
-                binding.tvBackupStatus.text = "Backup failed: ${e.message}"
+                binding.tvBackupStatus.text = ""
             }
         }
     }
@@ -202,7 +251,7 @@ class SettingsActivity : AppCompatActivity() {
                 val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
                 val file = File(dir, "mktv_settings_backup.txt")
                 if (!file.exists()) {
-                    binding.tvBackupStatus.text = "No backup found in Documents/"
+                    binding.tvBackupStatus.text = ""
                     return@launch
                 }
                 val json = JSONObject(file.readText())
@@ -228,10 +277,10 @@ class SettingsActivity : AppCompatActivity() {
                     db.channelDao().clearAllFavorites()
                     ids.forEach { db.channelDao().setFavorite(it, true) }
                 }
-                binding.tvBackupStatus.text = "Settings restored successfully"
+                binding.tvBackupStatus.text = ""
                 loadSettings()
             } catch (e: Exception) {
-                binding.tvBackupStatus.text = "Restore failed: ${e.message}"
+                binding.tvBackupStatus.text = ""
             }
         }
     }
@@ -277,9 +326,9 @@ class SettingsActivity : AppCompatActivity() {
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                     val backupFile = File(dir, "MKTV_${timestamp}.json")
                     backupFile.writeText(prettyJson)
-                    binding.tvBackupStatus.text = "Saved to Documents/MKTV_${timestamp}.json"
+                    binding.tvBackupStatus.text = ""
                 } catch (e: Exception) {
-                    binding.tvBackupStatus.text = "Save failed: ${e.message}"
+                    binding.tvBackupStatus.text = ""
                 }
             }
             .setNegativeButton("Close", null)
@@ -287,7 +336,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun sendDebugReport() {
-        binding.tvReportStatus.text = "Collecting info..."
+        binding.tvReportStatus.text = ""
         lifecycleScope.launch {
             try {
                 val token = assets.open("gh_token.txt").bufferedReader().use { it.readText().trim() }
@@ -325,7 +374,7 @@ class SettingsActivity : AppCompatActivity() {
                     put("body", body)
                     put("labels", JSONArray().put("debug-report"))
                 }
-                binding.tvReportStatus.text = "Sending..."
+                binding.tvReportStatus.text = ""
                 val client = OkHttpClient()
                 val request = Request.Builder()
                     .url("https://api.github.com/repos/Oliver29Klozoff/IPTV-Mj/issues")
@@ -337,18 +386,18 @@ class SettingsActivity : AppCompatActivity() {
                 if (response.isSuccessful) {
                     val responseJson = JSONObject(response.body?.string() ?: "")
                     val issueNumber = responseJson.getInt("number")
-                    binding.tvReportStatus.text = "Report sent! Issue #$issueNumber"
+                    binding.tvReportStatus.text = ""
                 } else {
-                    binding.tvReportStatus.text = "Failed: ${response.code}"
+                    binding.tvReportStatus.text = ""
                 }
             } catch (e: Exception) {
-                binding.tvReportStatus.text = "Error: ${e.message}"
+                binding.tvReportStatus.text = ""
             }
         }
     }
 
     private fun checkForUpdate() {
-        binding.tvUpdateStatus.text = "Checking..."
+        binding.tvUpdateStatus.text = ""
         binding.btnCheckUpdate.isEnabled = false
         lifecycleScope.launch {
             try {
@@ -361,7 +410,7 @@ class SettingsActivity : AppCompatActivity() {
                 val apkUrl = obj.getString("apkUrl")
                 val installedCode = packageManager.getPackageInfo(packageName, 0).longVersionCode
                 if (latestCode > installedCode) {
-                    binding.tvUpdateStatus.text = "Update available: v$latestName"
+                    binding.tvUpdateStatus.text = ""
                     AlertDialog.Builder(this@SettingsActivity)
                         .setTitle("Update Available")
                         .setMessage("Version $latestName is available. Download and install now?")
@@ -369,10 +418,10 @@ class SettingsActivity : AppCompatActivity() {
                         .setNegativeButton("Later", null)
                         .show()
                 } else {
-                    binding.tvUpdateStatus.text = "You are up to date (v$latestName)"
+                    binding.tvUpdateStatus.text = ""
                 }
             } catch (e: Exception) {
-                binding.tvUpdateStatus.text = "Check failed: ${e.message}"
+                binding.tvUpdateStatus.text = ""
             } finally {
                 binding.btnCheckUpdate.isEnabled = true
             }
@@ -395,7 +444,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun downloadAndInstall(apkUrl: String, versionName: String) {
-        binding.tvUpdateStatus.text = "Resolving download URL..."
+        binding.tvUpdateStatus.text = ""
         binding.progressEpgRefresh.visibility = View.VISIBLE
         binding.progressEpgRefresh.progress = 0
         lifecycleScope.launch {
@@ -407,7 +456,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun downloadFromUrl(apkUrl: String, versionName: String) {
-        binding.tvUpdateStatus.text = "Downloading update..."
+        binding.tvUpdateStatus.text = ""
         val fileName = "MKTV-update-$versionName.apk"
         val file = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         if (file.exists()) file.delete()
@@ -430,13 +479,13 @@ class SettingsActivity : AppCompatActivity() {
                     if (total > 0) {
                         val pct = (downloaded * 100 / total).toInt()
                         binding.progressEpgRefresh.progress = pct
-                        binding.tvUpdateStatus.text = "Downloading... $pct%"
+                        binding.tvUpdateStatus.text = ""
                     }
                     val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
                         progressHandler.removeCallbacks(this)
                         binding.progressEpgRefresh.progress = 100
-                        binding.tvUpdateStatus.text = "Download complete. Installing..."
+                        binding.tvUpdateStatus.text = ""
                         installApk(file)
                     } else {
                         progressHandler.postDelayed(this, 500)
@@ -468,7 +517,7 @@ class SettingsActivity : AppCompatActivity() {
         val canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
         if (!canInstall) {
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply { data = Uri.parse("package:$packageName") })
-            binding.tvUpdateStatus.text = "Allow installs from this source, then try again."
+            binding.tvUpdateStatus.text = ""
             return
         }
         val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -481,7 +530,7 @@ class SettingsActivity : AppCompatActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             })
         } catch (e: Exception) {
-            binding.tvUpdateStatus.text = "Install error: ${e.message}"
+            binding.tvUpdateStatus.text = ""
         }
     }
 
@@ -512,7 +561,7 @@ class SettingsActivity : AppCompatActivity() {
             updateLastRefreshText()
             updateCacheAgeText()
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            binding.tvVersion.text = "v${pInfo.versionName}.${pInfo.longVersionCode}"
+            binding.tvVersion.text = ""
         }
     }
 
@@ -525,7 +574,7 @@ class SettingsActivity : AppCompatActivity() {
             currentEpgWorkId = request.id
             binding.progressEpgRefresh.visibility = View.VISIBLE
             binding.progressEpgRefresh.progress = 0
-            binding.tvEpgRefreshStatus.text = "EPG refresh queued..."
+            binding.tvEpgRefreshStatus.text = ""
             binding.btnRefreshEpg.isEnabled = false
             binding.btnCancelEpgRefresh.visibility = View.VISIBLE
             workManager.enqueueUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
@@ -578,8 +627,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private suspend fun updateLastRefreshText() {
         val time = prefs.lastEpgRefreshTime.first()
-        binding.tvLastEpgRefresh.text = if (time == 0L) "Last EPG Refresh: Never"
-        else "Last EPG Refresh: ${SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(Date(time))}"
+        binding.arrowServers.text = "v"
     }
 
     private suspend fun updateCacheAgeText() {
@@ -592,7 +640,160 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private val extraServers = mutableListOf<Triple<String,String,String>>()
+
+    private fun setupServers() {
+        lifecycleScope.launch {
+            extraServers.clear()
+            extraServers.addAll(prefs.getExtraServers())
+            updateServerList()
+        }
+        binding.btnAddServer.setOnClickListener { showAddServerDialog() }
+    }
+
+    private fun updateServerList() {
+        val container = binding.rvServers.parent as? android.view.ViewGroup ?: return
+        // Remove old server views (keep only RecyclerView and Add button)
+        val rv = binding.rvServers
+        val btn = binding.btnAddServer
+        (rv.parent as android.widget.LinearLayout).also { ll ->
+            ll.removeAllViews()
+            extraServers.forEachIndexed { i, (url, user, _) ->
+                val row = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, 8, 0, 8)
+                }
+                val tv = android.widget.TextView(this).apply {
+                    text = "$user @ ${url.take(30)}"
+                    setTextColor(android.graphics.Color.WHITE)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val del = android.widget.Button(this).apply {
+                    text = "Remove"
+                    setTextColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(android.graphics.Color.parseColor("#CC0000"))
+                    setPadding(16, 0, 16, 0)
+                    setOnClickListener {
+                        extraServers.removeAt(i)
+                        lifecycleScope.launch { prefs.saveExtraServers(extraServers) }
+                        updateServerList()
+                    }
+                }
+                row.addView(tv)
+                row.addView(del)
+                ll.addView(row)
+            }
+            ll.addView(btn)
+        }
+    }
+
+    private fun showAddServerDialog() {
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        val etUrl = android.widget.EditText(this).apply { hint = "Server URL (http://...)" }
+        val etUser = android.widget.EditText(this).apply { hint = "Username" }
+        val etPass = android.widget.EditText(this).apply {
+            hint = "Password"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        layout.addView(etUrl)
+        layout.addView(etUser)
+        layout.addView(etPass)
+        AlertDialog.Builder(this)
+            .setTitle("Add Server")
+            .setView(layout)
+            .setPositiveButton("Add") { _, _ ->
+                val url = etUrl.text.toString().trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isNotEmpty() && user.isNotEmpty()) {
+                    extraServers.add(Triple(url, user, pass))
+                    lifecycleScope.launch {
+                        prefs.saveExtraServers(extraServers)
+                        Toast.makeText(this@SettingsActivity, "Server added", Toast.LENGTH_SHORT).show()
+                    }
+                    updateServerList()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     companion object {
         private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
+    }
+
+    private suspend fun writeBackupToUri(uri: Uri) {
+        val creds = prefs.credentials.first()
+
+        val json = JSONObject().apply {
+            put("serverUrl", creds.serverUrl)
+            put("username", creds.username)
+            put("password", creds.password)
+            put("epgUrl", prefs.epgUrl.first())
+            put("preferredFormat", prefs.preferredFormat.first())
+            put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
+            put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
+            put("usaOnlyChannels", prefs.usaOnlyChannels.first())
+            put("showMovies", prefs.showMovies.first())
+            put("showSeries", prefs.showSeries.first())
+        }
+
+        contentResolver.openOutputStream(uri)?.use { output ->
+            output.write(json.toString(2).toByteArray())
+        }
+
+        android.widget.Toast.makeText(this, "Backup saved", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private suspend fun restoreBackupFromUri(uri: Uri) {
+        val jsonText = contentResolver.openInputStream(uri)
+            ?.bufferedReader()
+            ?.use { it.readText() }
+            ?: return
+
+        val json = JSONObject(jsonText)
+
+        val serverUrl = json.optString("serverUrl", "")
+        val username = json.optString("username", "")
+        val password = json.optString("password", "")
+
+        if (serverUrl.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
+            prefs.saveCredentials(serverUrl, username, password)
+        }
+
+        json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let {
+            prefs.setEpgUrl(it)
+            binding.etEpgUrl.setText(it)
+        }
+
+        json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let {
+            prefs.setPreferredFormat(it)
+        }
+
+        if (json.has("epgAutoRefreshHours")) {
+            prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
+        }
+
+        if (json.has("epgRefreshMissingOnly")) {
+            prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
+        }
+
+        if (json.has("usaOnlyChannels")) {
+            prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
+        }
+
+        if (json.has("showMovies")) {
+            prefs.setShowMovies(json.optBoolean("showMovies", true))
+        }
+
+        if (json.has("showSeries")) {
+            prefs.setShowSeries(json.optBoolean("showSeries", true))
+        }
+
+        android.widget.Toast.makeText(this, "Restore complete", android.widget.Toast.LENGTH_SHORT).show()
     }
 }

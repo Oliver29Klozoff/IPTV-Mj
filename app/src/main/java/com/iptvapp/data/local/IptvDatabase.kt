@@ -1,4 +1,4 @@
-﻿package com.iptvapp.data.local
+package com.iptvapp.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase

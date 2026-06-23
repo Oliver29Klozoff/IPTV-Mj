@@ -64,7 +64,7 @@ class FavoritesAdapter(
     inner class HeaderViewHolder(private val textView: TextView) :
         RecyclerView.ViewHolder(textView) {
         fun bind(item: FavoriteListItem.Header) {
-            textView.text = "📁 ${item.categoryName}"
+            textView.text = "Ã°Å¸â€œÂ ${item.categoryName}"
         }
     }
 

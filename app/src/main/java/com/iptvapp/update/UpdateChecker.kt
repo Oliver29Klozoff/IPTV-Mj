@@ -1,4 +1,4 @@
-﻿package com.iptvapp.update
+package com.iptvapp.update
 
 import android.app.AlertDialog
 import android.content.Context

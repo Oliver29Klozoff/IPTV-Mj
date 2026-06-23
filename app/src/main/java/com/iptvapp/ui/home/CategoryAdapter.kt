@@ -1,4 +1,4 @@
-﻿package com.iptvapp.ui.home
+package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
 import android.view.ViewGroup

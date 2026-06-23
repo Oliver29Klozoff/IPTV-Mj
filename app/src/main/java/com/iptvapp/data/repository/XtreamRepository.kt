@@ -1,4 +1,4 @@
-﻿package com.iptvapp.data.repository
+package com.iptvapp.data.repository
 
 import android.util.Base64
 import com.iptvapp.data.api.*

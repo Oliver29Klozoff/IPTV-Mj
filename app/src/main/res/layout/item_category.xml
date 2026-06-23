@@ -25,6 +25,6 @@
         android:layout_height="18dp"
         android:layout_marginStart="6dp"
         android:src="@android:drawable/btn_star_big_on"
-        android:tint="#00E5FF"
+        android:tint="#008CFF"
         android:visibility="gone" />
 </LinearLayout>
