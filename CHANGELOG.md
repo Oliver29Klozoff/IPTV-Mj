@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v2.1 - 2026-06-23 02:28
+- Switched to semantic versioning
+
+## v1.1 (build 37) - 2026-06-23 02:26
+- Version 2.0 - MKTV rebrand, portrait UI, mini player, VOD progress, collapsible settings, backup/restore, debug reports, Android TV support
+
 ## v1.1 (build 35) - 2026-06-23 02:02
 - Collapsible settings sections, crash log in debug report, QR backup with MKTV logo, timestamped backup files
 

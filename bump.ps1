@@ -1,12 +1,9 @@
 ﻿param(
-    [Parameter(Mandatory=$true)][string]$Note,
-    [string]$VersionName
+    [Parameter(Mandatory=$true)][string]$Note
 )
-
 $gradlePath = "app/build.gradle"
 $changelogPath = "CHANGELOG.md"
 
-# Read current build.gradle
 $gradle = Get-Content $gradlePath -Raw
 
 # Bump versionCode
@@ -14,29 +11,28 @@ $currentCode = [int]([regex]::Match($gradle, 'versionCode (\d+)').Groups[1].Valu
 $newCode = $currentCode + 1
 $gradle = $gradle -replace "versionCode $currentCode", "versionCode $newCode"
 
-# Update versionName if provided, else keep current
+# Auto-increment minor version (e.g. 2.0 -> 2.1)
 $currentName = [regex]::Match($gradle, 'versionName "([^"]+)"').Groups[1].Value
-if ($VersionName) {
-    $gradle = $gradle -replace "versionName `"$currentName`"", "versionName `"$VersionName`""
-    $displayName = $VersionName
-} else {
-    $displayName = $currentName
-}
+$parts = $currentName.Split('.')
+$major = $parts[0]
+$minor = [int]$parts[1] + 1
+$newName = "$major.$minor"
+$gradle = $gradle -replace "versionName `"$currentName`"", "versionName `"$newName`""
 
-[System.IO.File]::WriteAllText("$PWD\$gradlePath", $gradle)
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText("$PWD\$gradlePath", $gradle, $utf8NoBom)
 
 # Prepend to changelog
 $date = Get-Date -Format "yyyy-MM-dd HH:mm"
 $existing = Get-Content $changelogPath -Raw
 $header = "# IPTV App - Changelog`r`n`r`n"
 $body = $existing -replace [regex]::Escape($header), ""
-$newEntry = "## v$displayName (build $newCode) - $date`r`n- $Note`r`n`r`n"
+$newEntry = "## v$newName - $date`r`n- $Note`r`n`r`n"
 [System.IO.File]::WriteAllText("$PWD\$changelogPath", $header + $newEntry + $body)
 
-# Keep the in-app changelog (bundled in assets) in sync
 $assetsDir = "app/src/main/assets"
 if (-not (Test-Path $assetsDir)) { New-Item -ItemType Directory -Path $assetsDir | Out-Null }
 Copy-Item $changelogPath "$assetsDir/CHANGELOG.md" -Force
 
-Write-Host "Bumped to build $newCode (v$displayName)"
+Write-Host "Bumped to v$newName (versionCode $newCode)"
 Write-Host "Added changelog entry: $Note"
