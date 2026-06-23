@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.4 - 2026-06-23 11:53
+- Release v2.4
+
 ## v2.3 - 2026-06-23 11:49
 - Guide shows favorited category channels, currently playing channel highlighted, debug report token fixed
 
