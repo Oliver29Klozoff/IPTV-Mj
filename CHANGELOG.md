@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.2 - 2026-06-23 09:38
+- Fix update download, debug logging for URL resolution
+
 ## v2.1 - 2026-06-23 02:28
 - Switched to semantic versioning
 
