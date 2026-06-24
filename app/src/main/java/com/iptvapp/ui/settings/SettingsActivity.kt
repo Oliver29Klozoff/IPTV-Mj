@@ -238,49 +238,7 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun restoreSettings() {
-        lifecycleScope.launch {
-            try {
-                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
-                val file = File(dir, "mktv_settings_backup.txt")
-                if (!file.exists()) {
-                    binding.tvBackupStatus.text = ""
-                    return@launch
-                }
-                val json = JSONObject(file.readText())
-                android.util.Log.d("RESTORE", "JSON keys: ${(0 until json.length()).map { json.names()?.getString(it) }}")
-                android.util.Log.d("RESTORE", "favoriteChannelIds: ${json.optJSONArray("favoriteChannelIds")}")
-                prefs.setEpgUrl(json.optString("epgUrl", ""))
-                prefs.setPreferredFormat(json.optString("preferredFormat", "m3u8"))
-                prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
-                prefs.setShowMovies(json.optBoolean("showMovies", true))
-                prefs.setShowSeries(json.optBoolean("showSeries", true))
-                prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
-                prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
-                val serverUrl = json.optString("serverUrl", "")
-                val username = json.optString("username", "")
-                val password = json.optString("password", "")
-                if (serverUrl.isNotEmpty()) prefs.saveCredentials(serverUrl, username, password)
-                val favCatArray = json.optJSONArray("favoriteCategoryIds")
-                if (favCatArray != null) {
-                    val ids = (0 until favCatArray.length()).map { favCatArray.getString(it) }.toSet()
-                    prefs.setFavoriteLiveCategoryIds(ids)
-                }
-                val favChanArray = json.optJSONArray("favoriteChannelIds")
-                if (favChanArray != null) {
-                        val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
-                        android.util.Log.d("RESTORE", "Restoring ${ids.size} favorite channels: $ids")
-                        val existingIds = db.channelDao().getAllChannelIds().toSet()
-                        android.util.Log.d("RESTORE", "Existing channel count: ${existingIds.size}")
-                        db.channelDao().clearAllFavorites()
-                        ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
-                        android.util.Log.d("RESTORE", "Done restoring favorites")
-                }
-                binding.tvBackupStatus.text = ""
-                loadSettings()
-            } catch (e: Exception) {
-                binding.tvBackupStatus.text = ""
-            }
-        }
+        restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
     }
 
     private fun generateQrBitmap(content: String, size: Int = 600): Bitmap {
