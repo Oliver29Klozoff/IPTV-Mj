@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.iptvnative"
         minSdk = 35
         targetSdk = 36
-        versionCode = 42
-        versionName = "2.5"
+        versionCode = 44
+        versionName = "2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
