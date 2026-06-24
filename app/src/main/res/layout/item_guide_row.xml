@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="72dp"
-    android:background="#141414"
+    android:layout_height="64dp"
+    android:background="@drawable/focus_selector"
+    android:clickable="true"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
     android:orientation="horizontal">
 
     <TextView
@@ -14,7 +16,7 @@
         android:paddingHorizontal="16dp"
         android:text="Channel"
         android:textColor="#FFFFFF"
-        android:textSize="15sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
     <HorizontalScrollView

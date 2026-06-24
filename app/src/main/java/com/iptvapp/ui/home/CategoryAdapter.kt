@@ -35,9 +35,7 @@ class CategoryAdapter(
                 if (item.categoryId in favoriteCategoryIds) android.view.View.VISIBLE
                 else android.view.View.GONE
 
-            binding.root.setBackgroundColor(
-                if (isSelected) 0x3300E5FF.toInt() else android.graphics.Color.TRANSPARENT
-            )
+            binding.root.isSelected = isSelected
 
             binding.tvCategoryName.setTextColor(
                 if (isSelected) 0xFFFFFFFF.toInt() else 0xFFAAAAAA.toInt()

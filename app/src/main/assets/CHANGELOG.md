@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.9 - 2026-06-24 19:04
+- Fix restore file picker, favorites sort to top, global search with US filter, guide hides channels without EPG, dpad and swipe up/down channel switching, version number in settings
+
 ## v2.7 - 2026-06-23 17:09
 - Disable VOD/Series fetch to prevent OOM crash, fix debug report token, search debounce, restore favorites fix
 

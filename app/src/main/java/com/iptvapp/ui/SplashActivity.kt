@@ -1,4 +1,4 @@
-package com.iptvapp.ui
+﻿package com.iptvapp.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -23,18 +23,16 @@ class SplashActivity : AppCompatActivity() {
 
     @Inject
     lateinit var prefs: PreferencesManager
-
     private lateinit var binding: ActivitySplashBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        clearCrashLogIfNewVersion()
         binding = ActivitySplashBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         val anim = AnimationUtils.loadAnimation(this, R.anim.splash_in)
         binding.ivSplashLogo.startAnimation(anim)
         binding.tvSplashName.startAnimation(anim)
-
         lifecycleScope.launch {
             delay(4000)
             val creds = prefs.credentials.first()
@@ -46,5 +44,18 @@ class SplashActivity : AppCompatActivity() {
             startActivity(intent)
             finish()
         }
+    }
+
+    private fun clearCrashLogIfNewVersion() {
+        try {
+            val prefs = getSharedPreferences("mktv_prefs", MODE_PRIVATE)
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            val currentCode = pInfo.longVersionCode
+            val lastCode = prefs.getLong("last_version_code", 0L)
+            if (currentCode != lastCode) {
+                java.io.File(filesDir, "crash_log.txt").delete()
+                prefs.edit().putLong("last_version_code", currentCode).apply()
+            }
+        } catch (_: Exception) {}
     }
 }

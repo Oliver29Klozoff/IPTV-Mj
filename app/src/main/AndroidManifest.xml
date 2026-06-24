@@ -34,7 +34,12 @@
 
         android:banner="@drawable/tv_banner"
 
+        
         <activity
+            android:name=".ui.settings.TvSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+<activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />

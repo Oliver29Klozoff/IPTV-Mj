@@ -1,4 +1,6 @@
-﻿package com.iptvapp.ui.home
+package com.iptvapp.ui.home
+
+import com.iptvapp.util.enableTvFocusHighlight
 
 import android.content.Intent
 import android.os.Bundle
@@ -16,6 +18,7 @@ import com.iptvapp.databinding.ActivityHomeBinding
 import com.iptvapp.ui.guide.GuideAdapter
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.settings.SettingsActivity
+import com.iptvapp.ui.settings.TvSettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import com.iptvapp.update.UpdateChecker
@@ -43,6 +46,9 @@ class HomeActivity : AppCompatActivity() {
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        if ((resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) {
+            binding.root.enableTvFocusHighlight()
+        }
         setupRecyclerViews()
         setupTabs()
         setupSearch()
@@ -140,7 +146,15 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupMenu() {
         binding.btnMenu.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+            val settingsClass = if (
+                packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+                packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEVISION)
+            ) {
+                TvSettingsActivity::class.java
+            } else {
+                SettingsActivity::class.java
+            }
+            startActivity(Intent(this, settingsClass))
         }
     }
 
