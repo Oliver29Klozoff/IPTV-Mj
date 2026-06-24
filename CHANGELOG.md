@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v2.12 - 2026-06-24 19:50
+- Fix restore to use file picker on phone instead of hardcoded filename
+
+## v2.11 - 2026-06-24 19:44
+- Backup uses file picker on phone, QR code on TV boxes
+
+## v2.10 - 2026-06-24 19:42
+- Backup uses file picker on phone, QR code on TV boxes
+
 ## v2.9 - 2026-06-24 19:04
 - Fix restore file picker, favorites sort to top, global search with US filter, guide hides channels without EPG, dpad and swipe up/down channel switching, version number in settings
 
