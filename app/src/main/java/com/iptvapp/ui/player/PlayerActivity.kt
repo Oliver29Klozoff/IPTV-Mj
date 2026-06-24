@@ -7,6 +7,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Rational
+import android.view.GestureDetector
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
@@ -47,6 +50,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnPlayPause.visibility = View.GONE
     }
 
+    private lateinit var gestureDetector: GestureDetector
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     private var streamId: Int = -1
@@ -87,6 +91,7 @@ class PlayerActivity : AppCompatActivity() {
         resumePositionMs = intent.getLongExtra("resume_ms", 0L)
 
         setupChannelZones()
+        setupGestureDetector()
         // intent already read above ?: ""
         streamTitle = intent.getStringExtra("stream_title") ?: ""
         streamId = intent.getIntExtra("stream_id", -1)
@@ -348,6 +353,41 @@ class PlayerActivity : AppCompatActivity() {
         currentIndex--
         if (currentIndex < 0) currentIndex = channels.lastIndex
         playChannel(channels[currentIndex])
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> { if (!isVod) { previousChannel(); showOverlay() }; true }
+            KeyEvent.KEYCODE_DPAD_DOWN -> { if (!isVod) { nextChannel(); showOverlay() }; true }
+            KeyEvent.KEYCODE_DPAD_LEFT -> { if (isVod) { val pos = (player?.currentPosition ?: 0L) - 10000L; player?.seekTo(pos.coerceAtLeast(0L)) }; true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (isVod) { val pos = (player?.currentPosition ?: 0L) + 10000L; player?.seekTo(pos.coerceAtMost(player?.duration ?: Long.MAX_VALUE)) }; true }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> { if (player?.isPlaying == true) player?.pause() else player?.play(); updatePlayPauseButton(); true }
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    private fun setupGestureDetector() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            private val SWIPE_THRESHOLD = 100
+            private val SWIPE_VELOCITY_THRESHOLD = 100
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                if (isVod) return false
+                val deltaY = (e2.y) - (e1?.y ?: 0f)
+                val deltaX = (e2.x) - (e1?.x ?: 0f)
+                if (Math.abs(deltaY) > Math.abs(deltaX) &&
+                    Math.abs(deltaY) > SWIPE_THRESHOLD &&
+                    Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (deltaY < 0) { nextChannel(); showOverlay() }
+                    else { previousChannel(); showOverlay() }
+                    return true
+                }
+                return false
+            }
+        })
+        binding.root.setOnTouchListener { v, event ->
+            gestureDetector.onTouchEvent(event)
+            false
+        }
     }
 
     private fun hideSystemBars() {

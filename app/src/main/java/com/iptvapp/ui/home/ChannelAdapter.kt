@@ -51,10 +51,7 @@ class ChannelAdapter(
             )
 
             var lastClickTime = 0L
-            binding.root.setBackgroundColor(
-                if (item.streamId == currentlyPlayingStreamId) 0x2200E5FF.toInt()
-                else android.graphics.Color.TRANSPARENT
-            )
+            binding.root.isSelected = item.streamId == currentlyPlayingStreamId
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()
                 if (now - lastClickTime < 400) {

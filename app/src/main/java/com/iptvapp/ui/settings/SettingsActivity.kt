@@ -1,4 +1,5 @@
-﻿package com.iptvapp.ui.settings
+package com.iptvapp.ui.settings
+import com.iptvapp.BuildConfig
 
 import com.iptvapp.util.enableTvFocusHighlight
 
@@ -99,17 +100,7 @@ class SettingsActivity : AppCompatActivity() {
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.root.enableTvFocusHighlight()
-
-        binding.btnBackup.setOnClickListener {
-            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            backupFileLauncher.launch("MKTV_backup_${ts}.json")
-        }
-
-        binding.btnRestore.setOnClickListener {
-            restoreFileLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-        }
-
-        workManager = WorkManager.getInstance(this)
+workManager = WorkManager.getInstance(this)
         binding.btnBack.setOnClickListener { finish() }
         binding.btnLogout.setOnClickListener {
             androidx.appcompat.app.AlertDialog.Builder(this)
@@ -573,7 +564,7 @@ class SettingsActivity : AppCompatActivity() {
             updateLastRefreshText()
             updateCacheAgeText()
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            binding.tvVersion.text = ""
+            binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         }
     }
 

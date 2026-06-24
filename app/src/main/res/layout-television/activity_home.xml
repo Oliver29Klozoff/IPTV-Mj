@@ -50,79 +50,16 @@
             android:textSize="14sp" />
     </LinearLayout>
 
-    <FrameLayout
-        android:id="@+id/miniPlayerContainer"
-        android:layout_width="0dp"
-        android:layout_height="350dp"
-        android:background="#000000"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/topBar">
-
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/miniPlayerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:resize_mode="fit"
-            app:use_controller="false" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:background="#88000000"
-            android:orientation="vertical"
-            android:padding="8dp">
-
-            <TextView
-                android:id="@+id/tvMiniChannelName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvMiniEpg"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#AAAAAA"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/btnFullscreen"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="top|end"
-            android:layout_margin="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_zoom"
-            android:tint="#FFFFFF" />
-
-        <ProgressBar
-            android:id="@+id/miniPlayerProgress"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:indeterminateTint="#008CFF"
-            android:visibility="gone" />
-    </FrameLayout>
-
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
         android:layout_width="0dp"
-        android:layout_height="48dp"
+        android:layout_height="52dp"
         android:background="#1A1A1A"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/miniPlayerContainer"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
         app:tabIndicatorColor="#008CFF"
-        app:tabIndicatorHeight="3dp"
+        app:tabIndicatorHeight="4dp"
         app:tabMode="scrollable"
         app:tabSelectedTextColor="#FFFFFF"
         app:tabTextColor="#888888">
@@ -136,6 +73,7 @@
     </com.google.android.material.tabs.TabLayout>
 
     <LinearLayout
+        android:id="@+id/mainContent"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:orientation="horizontal"
@@ -146,7 +84,7 @@
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvCategories"
-            android:layout_width="160dp"
+            android:layout_width="180dp"
             android:layout_height="match_parent"
             android:background="#141414"
             android:paddingTop="8dp" />
@@ -156,12 +94,79 @@
             android:layout_height="match_parent"
             android:background="#2A2A2A" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvChannels"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:paddingTop="8dp" />
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/miniPlayerContainer"
+                android:layout_width="match_parent"
+                android:layout_height="260dp"
+                android:background="#000000">
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/miniPlayerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:resize_mode="fit"
+                    app:use_controller="false" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:background="#88000000"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <TextView
+                        android:id="@+id/tvMiniChannelName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvMiniEpg"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="#AAAAAA"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btnFullscreen"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_zoom"
+                    android:tint="#FFFFFF" />
+
+                <ProgressBar
+                    android:id="@+id/miniPlayerProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="#008CFF"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChannels"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:paddingTop="8dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <ProgressBar
