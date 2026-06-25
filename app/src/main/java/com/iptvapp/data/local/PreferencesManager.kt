@@ -1,4 +1,4 @@
-﻿package com.iptvapp.data.local
+package com.iptvapp.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -42,7 +42,8 @@ class PreferencesManager @Inject constructor(
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
-    }
+    
+        val ACTIVE_SERVER_INDEX = intPreferencesKey("active_server_index")}
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
         .catch { e ->
@@ -152,6 +153,14 @@ class PreferencesManager @Inject constructor(
             val obj = arr.getJSONObject(i)
             Triple(obj.getString("url"), obj.getString("user"), obj.getString("pass"))
         }
+    }
+
+        val activeServerIndex: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { prefs -> prefs[Keys.ACTIVE_SERVER_INDEX] ?: -1 }
+
+    suspend fun setActiveServerIndex(index: Int) {
+        context.dataStore.edit { prefs -> prefs[Keys.ACTIVE_SERVER_INDEX] = index }
     }
 
     suspend fun saveExtraServers(servers: List<Triple<String,String,String>>) {

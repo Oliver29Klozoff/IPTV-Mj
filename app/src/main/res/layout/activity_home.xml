@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="#0F0F0F">
 
+    <!-- TOP BAR -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="0dp"
@@ -36,20 +37,9 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
-        <EditText
-            android:id="@+id/etSearch"
-            android:layout_width="160dp"
-            android:layout_height="36dp"
-            android:background="@drawable/search_bg"
-            android:hint="Search..."
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:paddingHorizontal="12dp"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#666666"
-            android:textSize="14sp" />
     </LinearLayout>
 
+    <!-- MINI PLAYER -->
     <FrameLayout
         android:id="@+id/miniPlayerContainer"
         android:layout_width="0dp"
@@ -113,6 +103,7 @@
             android:visibility="gone" />
     </FrameLayout>
 
+    <!-- TABS -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
         android:layout_width="0dp"
@@ -135,11 +126,43 @@
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
     </com.google.android.material.tabs.TabLayout>
 
+    <!-- SEARCH BAR BOTTOM -->
+    <LinearLayout
+        android:id="@+id/searchBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="#1A1A1A"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/search_bg"
+            android:hint="Search channels..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingHorizontal="14dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#666666"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- CHANNEL LIST AREA -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:orientation="horizontal"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/searchBar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout">
@@ -170,7 +193,7 @@
         android:layout_height="wrap_content"
         android:indeterminateTint="#008CFF"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/searchBar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout" />

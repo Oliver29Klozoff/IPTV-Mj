@@ -1,254 +1,667 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F0F0F">
+    android:background="#0A0A0A"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <!-- TOP BAR -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="56dp"
+        android:paddingTop="8dp"
+        android:background="#111111"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp">
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:backgroundTint="#1E1E1E"
+            android:text="&#8592; Back"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="20dp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="SETTINGS"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.15" />
+        <TextView
+            android:id="@+id/tvVersion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="v1.0"
+            android:textColor="#444444"
+            android:textSize="11sp"
+            android:paddingEnd="4dp" />
+    </LinearLayout>
 
-        <Button android:id="@+id/btnBack" android:layout_width="140dp" android:layout_height="48dp" android:text="Back" android:layout_marginBottom="8dp" />
+    <!-- TWO PANE -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Settings" android:textColor="#FFFFFF" android:textSize="28sp"
-            android:textStyle="bold" android:layout_marginBottom="16dp" />
-
-        <!-- STREAM SECTION -->
-        <LinearLayout android:id="@+id/headerStream" android:layout_width="match_parent"
-            android:layout_height="52dp" android:orientation="horizontal"
-            android:gravity="center_vertical" android:background="#1A1A1A"
-            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
-            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="STREAM" android:textColor="#008CFF"
-                android:textSize="14sp" android:textStyle="bold" />
-            <TextView android:id="@+id/arrowStream" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
-        </LinearLayout>
-        <LinearLayout android:id="@+id/sectionStream" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:orientation="vertical"
-            android:background="#111111" android:padding="16dp" android:visibility="gone">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="EPG URL" android:textColor="#FFFFFF" android:textSize="14sp" />
-            <EditText android:id="@+id/etEpgUrl" android:layout_width="match_parent"
-                android:layout_height="52dp" android:layout_marginTop="8dp"
-                android:background="@drawable/search_bg" android:hint="Enter XMLTV / EPG URL"
-                android:inputType="textUri" android:paddingHorizontal="14dp"
-                android:textColor="#FFFFFF" android:textColorHint="#777777" />
-            <Button android:id="@+id/btnSaveEpg" android:layout_width="220dp"
-                android:layout_height="52dp" android:layout_marginTop="12dp" android:text="Save EPG URL" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="16dp" android:text="Stream Format"
-                android:textColor="#FFFFFF" android:textSize="14sp" />
-            <RadioGroup android:id="@+id/rgFormat" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-                <RadioButton android:id="@+id/rbM3u8" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:text="m3u8" android:textColor="#FFFFFF" />
-                <RadioButton android:id="@+id/rbTs" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:layout_marginStart="28dp"
-                    android:text="ts" android:textColor="#FFFFFF" />
-            </RadioGroup>
-        </LinearLayout>
-
-        <!-- DISPLAY SECTION -->
-        <LinearLayout android:id="@+id/headerDisplay" android:layout_width="match_parent"
-            android:layout_height="52dp" android:orientation="horizontal"
-            android:gravity="center_vertical" android:background="#1A1A1A"
-            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
-            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="DISPLAY" android:textColor="#008CFF"
-                android:textSize="14sp" android:textStyle="bold" />
-            <TextView android:id="@+id/arrowDisplay" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
-        </LinearLayout>
-        <LinearLayout android:id="@+id/sectionDisplay" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:orientation="vertical"
-            android:background="#111111" android:padding="16dp" android:visibility="gone">
-            <CheckBox android:id="@+id/cbUsaOnlyChannels" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="Show USA Channels Only"
-                android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-            <CheckBox android:id="@+id/cbShowMovies" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Show Movies Tab" android:textColor="#FFFFFF" android:buttonTint="#008CFF" android:checked="true" />
-            <CheckBox android:id="@+id/cbShowSeries" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Show Series Tab" android:textColor="#FFFFFF" android:buttonTint="#008CFF" android:checked="true" />
-        </LinearLayout>
-
-        <!-- EPG SECTION -->
-        <LinearLayout android:id="@+id/headerEpg" android:layout_width="match_parent"
-            android:layout_height="52dp" android:orientation="horizontal"
-            android:gravity="center_vertical" android:background="#1A1A1A"
-            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
-            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="EPG" android:textColor="#008CFF"
-                android:textSize="14sp" android:textStyle="bold" />
-            <TextView android:id="@+id/arrowEpg" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
-        </LinearLayout>
-        <LinearLayout android:id="@+id/sectionEpg" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:orientation="vertical"
-            android:background="#111111" android:padding="16dp" android:visibility="gone">
-            <Button android:id="@+id/btnRefreshEpg" android:layout_width="220dp"
-                android:layout_height="52dp" android:text="Refresh EPG" />
-            <ProgressBar android:id="@+id/progressEpgRefresh"
-                style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="match_parent" android:layout_height="18dp"
-                android:layout_marginTop="12dp" android:max="100" android:progress="0"
-                android:visibility="gone" />
-            <Button android:id="@+id/btnCancelEpgRefresh" android:layout_width="220dp"
-                android:layout_height="52dp" android:layout_marginTop="10dp"
-                android:text="Cancel Refresh" android:visibility="gone" />
-            <TextView android:id="@+id/tvEpgRefreshStatus" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="" android:textColor="#CCCCCC" android:textSize="14sp" />
-            <TextView android:id="@+id/tvLastEpgRefresh" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Last EPG Refresh: Never" android:textColor="#AAAAAA" android:textSize="13sp" />
-            <TextView android:id="@+id/tvEpgCacheAge" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="4dp"
-                android:text="EPG Cache Age: Unknown" android:textColor="#AAAAAA" android:textSize="13sp" />
-            <CheckBox android:id="@+id/cbRefreshMissingOnly" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:layout_marginTop="12dp"
-                android:text="Refresh only channels missing guide data"
-                android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="16dp" android:text="Auto Refresh EPG"
-                android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
-            <RadioGroup android:id="@+id/rgAutoEpgRefresh" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:orientation="vertical">
-                <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" />
-                <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" />
-                <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" />
-                <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" />
-            </RadioGroup>
-        </LinearLayout>
-
-        <!-- UPDATES SECTION -->
-        <LinearLayout android:id="@+id/headerUpdates" android:layout_width="match_parent"
-            android:layout_height="52dp" android:orientation="horizontal"
-            android:gravity="center_vertical" android:background="#1A1A1A"
-            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
-            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="UPDATES" android:textColor="#008CFF"
-                android:textSize="14sp" android:textStyle="bold" />
-            <TextView android:id="@+id/arrowUpdates" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
-        </LinearLayout>
-        <LinearLayout android:id="@+id/sectionUpdates" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:orientation="vertical"
-            android:background="#111111" android:padding="16dp" android:visibility="gone">
-            <Button android:id="@+id/btnWhatsNew" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:text="What's New / Changelog"
-                android:textColor="#000000" android:backgroundTint="#008CFF" />
-            <Button android:id="@+id/btnCheckUpdate" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Check for Updates" android:textColor="#000000" android:backgroundTint="#008CFF" />
-            <TextView android:id="@+id/tvUpdateStatus" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:gravity="center" android:text="" android:textColor="#CCCCCC" android:textSize="13sp" />
-        </LinearLayout>
-
-        <!-- BACKUP SECTION -->
-        <LinearLayout android:id="@+id/headerBackup" android:layout_width="match_parent"
-            android:layout_height="52dp" android:orientation="horizontal"
-            android:gravity="center_vertical" android:background="#1A1A1A"
-            android:paddingHorizontal="16dp" android:layout_marginTop="8dp">
-            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:text="BACKUP &amp; RESTORE" android:textColor="#008CFF"
-                android:textSize="14sp" android:textStyle="bold" />
-            <TextView android:id="@+id/arrowBackup" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="v" android:textColor="#008CFF" android:textSize="14sp" />
-        </LinearLayout>
-        <LinearLayout android:id="@+id/sectionBackup" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:orientation="vertical"
-            android:background="#111111" android:padding="16dp" android:visibility="gone">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <Button android:id="@+id/btnBackupSettings" android:layout_width="0dp"
-                    android:layout_height="wrap_content" android:layout_weight="1"
-                    android:layout_marginEnd="4dp" android:text="Backup"
-                    android:textColor="#000000" android:backgroundTint="#008CFF" />
-                <Button android:id="@+id/btnRestoreSettings" android:layout_width="0dp"
-                    android:layout_height="wrap_content" android:layout_weight="1"
-                    android:layout_marginStart="4dp" android:text="Restore"
-                    android:textColor="#FFFFFF" android:backgroundTint="#444444" />
-            </LinearLayout>
-            <TextView android:id="@+id/tvBackupStatus" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="4dp"
-                android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
-            <Button android:id="@+id/btnSendDebugReport" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:text="Send Debug Report" android:textColor="#000000" android:backgroundTint="#008CFF" />
-            <TextView android:id="@+id/tvReportStatus" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="4dp"
-                android:text="" android:textColor="#AAAAAA" android:textSize="12sp" />
-        </LinearLayout>
-
-        <TextView android:id="@+id/tvVersion" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="24dp"
-            android:gravity="center" android:text="v1.0" android:textColor="#444444"
-            android:textSize="12sp" />
-
-    
+        <!-- LEFT NAV RAIL -->
+        <ScrollView
+            android:layout_width="110dp"
+            android:layout_height="match_parent"
+            android:background="#0F0F0F">
             <LinearLayout
-                android:id="@+id/headerServers"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:paddingVertical="8dp">
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                <Button
+                    android:id="@+id/headerStream"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1A3A5C"
+                    android:text="Stream &amp; EPG"
+                    android:textColor="#008CFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp" />
+
+                <Button
+                    android:id="@+id/headerDisplay"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:text="Display"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp" />
+
+                
+
+                <Button
+                    android:id="@+id/headerUpdates"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:text="Updates"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp" />
+
+                <Button
+                    android:id="@+id/headerBackup"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:text="Backup"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp" />
+
+                <Button
+                    android:id="@+id/headerServers"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1A1A1A"
                     android:text="Servers"
-                    android:textColor="#FFFFFF"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp" />
 
-                <TextView
-                    android:id="@+id/arrowServers"
-                    android:layout_width="wrap_content"
+                <Button
+                    android:id="@+id/btnLogout"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#3A0000"
+                    android:text="Logout"
+                    android:textColor="#FF4444"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginTop="16dp" />
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- RIGHT CONTENT PANELS -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#0A0A0A">
+
+            <!-- STREAM PANEL -->
+            <ScrollView
+                android:id="@+id/sectionStream"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="visible">
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="v"
-                    android:textColor="#FFFFFF"
-                    android:textSize="18sp" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="STREAM"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="EPG URL"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1" />
+                            <EditText
+                                android:id="@+id/etEpgUrl"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:layout_marginTop="6dp"
+                                android:background="@drawable/search_bg"
+                                android:hint="Enter XMLTV / EPG URL"
+                                android:inputType="textUri"
+                                android:paddingHorizontal="12dp"
+                                android:textColor="#FFFFFF"
+                                android:textColorHint="#555555"
+                                android:textSize="13sp" />
+                            <Button
+                                android:id="@+id/btnSaveEpg"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="10dp"
+                                android:backgroundTint="#008CFF"
+                                android:text="Save EPG URL"
+                                android:textColor="#000000"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="STREAM FORMAT"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1" />
+                            <RadioGroup
+                                android:id="@+id/rgFormat"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:orientation="horizontal">
+                                <RadioButton
+                                    android:id="@+id/rbM3u8"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="m3u8"
+                                    android:textColor="#FFFFFF"
+                                    android:buttonTint="#008CFF" />
+                                <RadioButton
+                                    android:id="@+id/rbTs"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="24dp"
+                                    android:text="ts"
+                                    android:textColor="#FFFFFF"
+                                    android:buttonTint="#008CFF" />
+                            </RadioGroup>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="EPG"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1" />
+                            <Button
+                                android:id="@+id/btnRefreshEpg"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#008CFF"
+                                android:text="Refresh EPG"
+                                android:textColor="#000000"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                            <ProgressBar
+                                android:id="@+id/progressEpgRefresh"
+                                style="?android:attr/progressBarStyleHorizontal"
+                                android:layout_width="match_parent"
+                                android:layout_height="4dp"
+                                android:layout_marginTop="10dp"
+                                android:max="100"
+                                android:progress="0"
+                                android:progressTint="#008CFF"
+                                android:visibility="gone" />
+                            <Button
+                                android:id="@+id/btnCancelEpgRefresh"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#2A2A2A"
+                                android:text="Cancel Refresh"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp"
+                                android:visibility="gone" />
+                            <TextView
+                                android:id="@+id/tvEpgRefreshStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text=""
+                                android:textColor="#777777"
+                                android:textSize="12sp" />
+                            <TextView
+                                android:id="@+id/tvLastEpgRefresh"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:text="Last EPG Refresh: Never"
+                                android:textColor="#555555"
+                                android:textSize="12sp" />
+                            <TextView
+                                android:id="@+id/tvEpgCacheAge"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="EPG Cache Age: Unknown"
+                                android:textColor="#555555"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <CheckBox
+                                android:id="@+id/cbRefreshMissingOnly"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Refresh only channels missing guide data"
+                                android:textColor="#CCCCCC"
+                                android:textSize="13sp"
+                                android:buttonTint="#008CFF" />
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:text="AUTO REFRESH"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1" />
+                            <RadioGroup
+                                android:id="@+id/rgAutoEpgRefresh"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:orientation="vertical">
+                                <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                            </RadioGroup>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- DISPLAY PANEL -->
+            <ScrollView
+                android:id="@+id/sectionDisplay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="DISPLAY"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <CheckBox
+                                android:id="@+id/cbUsaOnlyChannels"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Show USA Channels Only"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:buttonTint="#008CFF" />
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_marginVertical="12dp"
+                                android:background="#222222" />
+                            <CheckBox
+                                android:id="@+id/cbShowMovies"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Show Movies Tab"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:buttonTint="#008CFF"
+                                android:checked="true" />
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_marginVertical="12dp"
+                                android:background="#222222" />
+                            <CheckBox
+                                android:id="@+id/cbShowSeries"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Show Series Tab"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:buttonTint="#008CFF"
+                                android:checked="true" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- EPG PANEL -->
+            <!-- UPDATES PANEL -->
+            <ScrollView
+                android:id="@+id/sectionUpdates"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="UPDATES"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <Button
+                                android:id="@+id/btnWhatsNew"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:backgroundTint="#1A3A5C"
+                                android:text="What's New / Changelog"
+                                android:textColor="#008CFF"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                            <Button
+                                android:id="@+id/btnCheckUpdate"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#008CFF"
+                                android:text="Check for Updates"
+                                android:textColor="#000000"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                            <TextView
+                                android:id="@+id/tvUpdateStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:gravity="center"
+                                android:text=""
+                                android:textColor="#777777"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </LinearLayout>
+            </ScrollView>
+            <LinearLayout
+                android:id="@+id/sectionBackup"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="BACKUP &amp; RESTORE"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+                                <Button
+                                    android:id="@+id/btnBackupSettings"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:layout_marginEnd="4dp"
+                                    android:backgroundTint="#008CFF"
+                                    android:text="Backup"
+                                    android:textColor="#000000"
+                                    android:textStyle="bold"
+                                    android:textSize="13sp" />
+                                <Button
+                                    android:id="@+id/btnRestoreSettings"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="4dp"
+                                    android:backgroundTint="#1E1E1E"
+                                    android:text="Restore"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvBackupStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:text=""
+                                android:textColor="#777777"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <Button
+                                android:id="@+id/btnSendDebugReport"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:backgroundTint="#1A1A1A"
+                                android:text="Send Debug Report"
+                                android:textColor="#FF6B6B"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                            <TextView
+                                android:id="@+id/tvReportStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text=""
+                                android:textColor="#777777"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </LinearLayout>
             </LinearLayout>
 
-            <LinearLayout
+            <!-- SERVERS PANEL -->
+            <ScrollView
                 android:id="@+id/sectionServers"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvServers"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="SERVERS"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <LinearLayout
+                                android:id="@+id/llServers"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical" />
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnAddServer"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#008CFF"
+                                android:text="Add Server"
+                                android:textColor="#000000"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </LinearLayout>
+            </ScrollView>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnAddServer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Add Server" />
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLogout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:text="Logout" />
+        </FrameLayout>
+    </LinearLayout>
 </LinearLayout>
-</ScrollView>

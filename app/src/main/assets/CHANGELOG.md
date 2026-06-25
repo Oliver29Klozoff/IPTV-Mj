@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v2.17 - 2026-06-25 10:13
+- Fix server switching - servers now save, display, and switch correctly
+
+## v2.16 - 2026-06-25 09:47
+- Fix servers section missing from layout, add sectionServers with rvServers and btnAddServer
+
+## v2.15 - 2026-06-25 09:28
+- Fix server switch - clear DB and swap credentials on toggle
+
+## v2.14 - 2026-06-25 09:23
+- Add Switch button for server switching, fix crash on server swap
+
+## v2.13 - 2026-06-24 19:56
+- Phone backup uses file picker, TV boxes use QR code
+
 ## v2.12 - 2026-06-24 19:50
 - Fix restore to use file picker on phone instead of hardcoded filename
 

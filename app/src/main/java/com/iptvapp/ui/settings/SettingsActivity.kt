@@ -196,12 +196,17 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun setupSectionToggles() {
-        binding.headerServers.setOnClickListener { toggleSection(binding.sectionServers, binding.arrowServers) }
-        binding.headerStream.setOnClickListener { toggleSection(binding.sectionStream, binding.arrowStream) }
-        binding.headerDisplay.setOnClickListener { toggleSection(binding.sectionDisplay, binding.arrowDisplay) }
-        binding.headerEpg.setOnClickListener { toggleSection(binding.sectionEpg, binding.arrowEpg) }
-        binding.headerUpdates.setOnClickListener { toggleSection(binding.sectionUpdates, binding.arrowUpdates) }
-        binding.headerBackup.setOnClickListener { toggleSection(binding.sectionBackup, binding.arrowBackup) }
+        val panels = listOf(binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates, binding.sectionBackup, binding.sectionServers)
+        val navButtons = listOf(binding.headerStream, binding.headerDisplay, binding.headerUpdates, binding.headerBackup, binding.headerServers)
+        fun selectPanel(index: Int) {
+            panels.forEachIndexed { i, panel -> panel.visibility = if (i == index) android.view.View.VISIBLE else android.view.View.GONE }
+            navButtons.forEachIndexed { i, btn ->
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(if (i == index) android.graphics.Color.parseColor("#1A3A5C") else android.graphics.Color.parseColor("#1A1A1A"))
+                btn.setTextColor(if (i == index) android.graphics.Color.parseColor("#008CFF") else android.graphics.Color.parseColor("#AAAAAA"))
+            }
+        }
+        navButtons.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
+        selectPanel(0)
     }
 
     private fun setupBackupRestore() {
@@ -211,29 +216,36 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun backupSettings() {
-        lifecycleScope.launch {
-            try {
-                val creds = prefs.credentials.first()
-                val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
-                val favChannels = db.channelDao().getFavoriteChannelIds()
-                val json = JSONObject().apply {
-                    put("epgUrl", prefs.epgUrl.first())
-                    put("preferredFormat", prefs.preferredFormat.first())
-                    put("usaOnlyChannels", prefs.usaOnlyChannels.first())
-                    put("showMovies", prefs.showMovies.first())
-                    put("showSeries", prefs.showSeries.first())
-                    put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
-                    put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
-                    put("serverUrl", creds.serverUrl)
-                    put("username", creds.username)
-                    put("password", creds.password)
-                    put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
-                    put("favoriteChannelIds", JSONArray(favChannels))
+        val isTV = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+                   packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEVISION)
+        if (isTV) {
+            lifecycleScope.launch {
+                try {
+                    val creds = prefs.credentials.first()
+                    val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
+                    val favChannels = db.channelDao().getFavoriteChannelIds()
+                    val json = JSONObject().apply {
+                        put("epgUrl", prefs.epgUrl.first())
+                        put("preferredFormat", prefs.preferredFormat.first())
+                        put("usaOnlyChannels", prefs.usaOnlyChannels.first())
+                        put("showMovies", prefs.showMovies.first())
+                        put("showSeries", prefs.showSeries.first())
+                        put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
+                        put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
+                        put("serverUrl", creds.serverUrl)
+                        put("username", creds.username)
+                        put("password", creds.password)
+                        put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
+                        put("favoriteChannelIds", JSONArray(favChannels))
+                    }
+                    showQrCode(json.toString(), json.toString(2))
+                } catch (e: Exception) {
+                    binding.tvBackupStatus.text = "Backup failed"
                 }
-                showQrCode(json.toString(), json.toString(2))
-            } catch (e: Exception) {
-                binding.tvBackupStatus.text = ""
             }
+        } else {
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+            backupFileLauncher.launch("MKTV_backup_$timestamp.json")
         }
     }
 
@@ -588,7 +600,7 @@ workManager = WorkManager.getInstance(this)
 
     private suspend fun updateLastRefreshText() {
         val time = prefs.lastEpgRefreshTime.first()
-        binding.arrowServers.text = "v"
+        // arrowServers.text = "v"
     }
 
     private suspend fun updateCacheAgeText() {
@@ -613,39 +625,114 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun updateServerList() {
-        val container = binding.rvServers.parent as? android.view.ViewGroup ?: return
-        // Remove old server views (keep only RecyclerView and Add button)
-        val rv = binding.rvServers
-        val btn = binding.btnAddServer
-        (rv.parent as android.widget.LinearLayout).also { ll ->
-            ll.removeAllViews()
+        val ll = binding.llServers
+        ll.removeAllViews()
+        lifecycleScope.launch {
+            val creds = prefs.credentials.first()
+            val activeIndex = prefs.activeServerIndex.first()
+
+            // Primary server row
+            val primaryRow = android.widget.LinearLayout(this@SettingsActivity).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setBackgroundColor(android.graphics.Color.parseColor("#1A1A1A"))
+                setPadding(24, 20, 24, 20)
+                val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.bottomMargin = 12
+                layoutParams = lp
+            }
+            android.widget.TextView(this@SettingsActivity).apply {
+                text = "PRIMARY"
+                setTextColor(android.graphics.Color.parseColor("#777777"))
+                textSize = 10f
+                primaryRow.addView(this)
+            }
+            android.widget.TextView(this@SettingsActivity).apply {
+                text = "${creds.username} @ ${creds.serverUrl.take(35)}"
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 14f
+                primaryRow.addView(this)
+            }
+            android.widget.TextView(this@SettingsActivity).apply {
+                text = if (activeIndex == -1) "● ACTIVE" else "INACTIVE"
+                setTextColor(if (activeIndex == -1) android.graphics.Color.parseColor("#008CFF") else android.graphics.Color.parseColor("#555555"))
+                textSize = 12f
+                primaryRow.addView(this)
+            }
+            ll.addView(primaryRow)
+
+            // Extra server rows
             extraServers.forEachIndexed { i, (url, user, _) ->
-                val row = android.widget.LinearLayout(this).apply {
-                    orientation = android.widget.LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setPadding(0, 8, 0, 8)
+                val row = android.widget.LinearLayout(this@SettingsActivity).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    setBackgroundColor(android.graphics.Color.parseColor("#1A1A1A"))
+                    setPadding(24, 20, 24, 20)
+                    val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.bottomMargin = 12
+                    layoutParams = lp
                 }
-                val tv = android.widget.TextView(this).apply {
-                    text = "$user @ ${url.take(30)}"
+                android.widget.TextView(this@SettingsActivity).apply {
+                    text = "SERVER ${i + 2}"
+                    setTextColor(android.graphics.Color.parseColor("#777777"))
+                    textSize = 10f
+                    row.addView(this)
+                }
+                android.widget.TextView(this@SettingsActivity).apply {
+                    text = "$user @ ${url.take(35)}"
                     setTextColor(android.graphics.Color.WHITE)
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    textSize = 14f
+                    row.addView(this)
                 }
-                val del = android.widget.Button(this).apply {
+                android.widget.TextView(this@SettingsActivity).apply {
+                    text = if (activeIndex == i) "● ACTIVE" else "INACTIVE"
+                    setTextColor(if (activeIndex == i) android.graphics.Color.parseColor("#008CFF") else android.graphics.Color.parseColor("#555555"))
+                    textSize = 12f
+                    row.addView(this)
+                }
+                val btnRow = android.widget.LinearLayout(this@SettingsActivity).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.topMargin = 12
+                    layoutParams = lp
+                }
+                android.widget.Button(this@SettingsActivity).apply {
+                    text = "Switch"
+                    setTextColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(android.graphics.Color.parseColor("#1976D2"))
+                    val lp = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    lp.marginEnd = 8
+                    layoutParams = lp
+                    setOnClickListener {
+                        lifecycleScope.launch {
+                            val primary = prefs.credentials.first()
+                            val newPass = extraServers[i].third
+                            val updated = extraServers.toMutableList()
+                            updated[i] = Triple(primary.serverUrl, primary.username, primary.password)
+                            prefs.saveExtraServers(updated)
+                            withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+                            prefs.saveCredentials(url, user, newPass)
+                            prefs.setActiveServerIndex(-1)
+                            val intent = Intent(this@SettingsActivity, com.iptvapp.ui.home.HomeActivity::class.java)
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            startActivity(intent)
+                        }
+                    }
+                    btnRow.addView(this)
+                }
+                android.widget.Button(this@SettingsActivity).apply {
                     text = "Remove"
                     setTextColor(android.graphics.Color.WHITE)
                     setBackgroundColor(android.graphics.Color.parseColor("#CC0000"))
-                    setPadding(16, 0, 16, 0)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
                         extraServers.removeAt(i)
                         lifecycleScope.launch { prefs.saveExtraServers(extraServers) }
                         updateServerList()
                     }
+                    btnRow.addView(this)
                 }
-                row.addView(tv)
-                row.addView(del)
+                row.addView(btnRow)
                 ll.addView(row)
             }
-            ll.addView(btn)
         }
     }
 
@@ -673,6 +760,10 @@ workManager = WorkManager.getInstance(this)
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     extraServers.add(Triple(url, user, pass))
                     lifecycleScope.launch {
+                        val fresh = prefs.getExtraServers().toMutableList()
+                        fresh.add(Triple(url, user, pass))
+                        extraServers.clear()
+                        extraServers.addAll(fresh)
                         prefs.saveExtraServers(extraServers)
                         Toast.makeText(this@SettingsActivity, "Server added", Toast.LENGTH_SHORT).show()
                     }
