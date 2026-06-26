@@ -70,6 +70,15 @@
             android:tint="#888888"
             android:visibility="gone" />
 
+        <ImageButton
+            android:id="@+id/btnVoiceSearch"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:tint="#008CFF" />
+
     </LinearLayout>
 
     <!-- MINI PLAYER -->
@@ -115,6 +124,19 @@
                 android:maxLines="1"
                 android:textColor="#AAAAAA"
                 android:textSize="12sp" />
+
+            <ProgressBar
+                android:id="@+id/miniEpgProgress"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:layout_marginTop="6dp"
+                android:max="100"
+                android:progress="0"
+                android:progressBackgroundTint="#333333"
+                android:progressTint="#008CFF"
+                android:visibility="gone" />
+
         </LinearLayout>
 
         <ImageButton

@@ -1,9 +1,12 @@
 package com.iptvapp.ui.home
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -16,9 +19,13 @@ class ChannelAdapter(
     private val onFavoriteClick: (ChannelEntity) -> Unit
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
+    var itemTouchHelper: ItemTouchHelper? = null
+    var showDragHandles: Boolean = false
+
     private var epgTextByStreamId: Map<Int, String> = emptyMap()
     private var epgProgressByStreamId: Map<Int, Int> = emptyMap()
     private var currentlyPlayingStreamId: Int = -1
+    private var healthByStreamId: Map<Int, Boolean?> = emptyMap()
 
     fun setCurrentlyPlayingStreamId(streamId: Int) {
         currentlyPlayingStreamId = streamId
@@ -32,6 +39,11 @@ class ChannelAdapter(
 
     fun submitEpgProgress(progressMap: Map<Int, Int>) {
         epgProgressByStreamId = progressMap
+        notifyDataSetChanged()
+    }
+
+    fun submitHealth(healthMap: Map<Int, Boolean?>) {
+        healthByStreamId = healthMap
         notifyDataSetChanged()
     }
 
@@ -81,6 +93,28 @@ class ChannelAdapter(
 
             binding.ivFavorite.setOnClickListener {
                 onFavoriteClick(item)
+            }
+
+            val health = healthByStreamId[item.streamId]
+            if (health != null || healthByStreamId.containsKey(item.streamId)) {
+                binding.viewHealthDot?.visibility = View.VISIBLE
+                val dotColor = when (health) {
+                    true  -> android.graphics.Color.parseColor("#00CC66")
+                    false -> android.graphics.Color.parseColor("#FF4444")
+                    null  -> android.graphics.Color.parseColor("#888888")
+                }
+                (binding.viewHealthDot?.background as? android.graphics.drawable.GradientDrawable)?.setColor(dotColor)
+            } else {
+                binding.viewHealthDot?.visibility = View.GONE
+            }
+
+            binding.ivDragHandle?.visibility = if (showDragHandles) View.VISIBLE else View.GONE
+            @SuppressLint("ClickableViewAccessibility")
+            binding.ivDragHandle?.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    itemTouchHelper?.startDrag(this)
+                }
+                false
             }
         }
     }

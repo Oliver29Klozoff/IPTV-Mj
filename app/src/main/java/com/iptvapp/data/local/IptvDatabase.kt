@@ -16,7 +16,7 @@ import com.iptvapp.data.local.entities.*
         EpgEntity::class,
         RecordingEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -58,6 +58,12 @@ abstract class IptvDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE channels ADD COLUMN streamUrl TEXT")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE channels ADD COLUMN favOrder INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

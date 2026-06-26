@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#07090F"
+    android:orientation="horizontal">
+
+    <!-- LEFT SIDEBAR -->
+    <LinearLayout
+        android:id="@+id/tvSidebar"
+        android:layout_width="130dp"
+        android:layout_height="match_parent"
+        android:background="#0C0F1A"
+        android:orientation="vertical"
+        android:paddingTop="20dp"
+        android:paddingBottom="16dp"
+        android:elevation="4dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MKTV"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:paddingStart="16dp"
+            android:paddingBottom="4dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="#1E2A3A" />
+
+        <Button
+            android:id="@+id/btnTvLive"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="📺  LIVE"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/btnTvCategories"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="📋  CATEGORIES"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/btnTvMovies"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="🎬  MOVIES"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/btnTvSeries"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="🎞  SERIES"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/btnTvFavorites"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="⭐  FAVORITES"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/btnTvGuide"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="🗓  GUIDE"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnTvRecording"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="⏺  REC"
+            android:textColor="#FF4444"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/btnTvSettings"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="⚙  SETTINGS"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:background="@android:color/transparent"
+            android:focusable="true" />
+
+    </LinearLayout>
+
+    <!-- RIGHT CONTENT AREA -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- MINI PLAYER ROW -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:orientation="horizontal"
+            android:background="#000000">
+
+            <!-- Player surface -->
+            <FrameLayout
+                android:id="@+id/tvMiniPlayerContainer"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1.6"
+                android:background="#000000"
+                android:focusable="true">
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/tvMiniPlayerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:resize_mode="fit"
+                    app:use_controller="false" />
+
+                <ProgressBar
+                    android:id="@+id/tvMiniPlayerProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="#008CFF"
+                    android:visibility="gone" />
+
+            </FrameLayout>
+
+            <!-- Player info panel -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="#0C0F1A"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tvTvChannelName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="No channel selected"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:ellipsize="end"
+                    android:maxLines="1" />
+
+                <TextView
+                    android:id="@+id/tvTvEpg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:ellipsize="end"
+                    android:maxLines="2" />
+
+                <ProgressBar
+                    android:id="@+id/tvEpgProgress"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="10dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressBackgroundTint="#333333"
+                    android:progressTint="#008CFF"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnTvFullscreen"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="12dp"
+                    android:text="▶  FULL SCREEN"
+                    android:textColor="#008CFF"
+                    android:textSize="12sp"
+                    android:textAllCaps="false"
+                    android:background="@drawable/search_bg"
+                    android:focusable="true" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- SEARCH BAR -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="#0C0F1A"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12dp">
+
+            <EditText
+                android:id="@+id/tvEtSearch"
+                android:layout_width="0dp"
+                android:layout_height="34dp"
+                android:layout_weight="1"
+                android:background="@drawable/search_bg"
+                android:hint="Search…"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:paddingHorizontal="12dp"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/tvBtnClearSearch"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="✕"
+                android:textColor="#888888"
+                android:textSize="14sp"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/tvBtnVoiceSearch"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:background="@android:color/transparent"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:tint="#008CFF"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+        <!-- CATEGORY + CONTENT -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvCategories"
+                android:layout_width="170dp"
+                android:layout_height="match_parent"
+                android:background="#0C0F1A"
+                android:paddingTop="8dp"
+                android:visibility="gone" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#1E2A3A" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvContent"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:paddingTop="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Loading overlay -->
+    <ProgressBar
+        android:id="@+id/tvProgressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:indeterminateTint="#008CFF"
+        android:visibility="gone" />
+
+</LinearLayout>

@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -54,7 +55,11 @@ class RecordingService : Service() {
         val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L)
         val path = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return START_NOT_STICKY
 
-        startForeground(NOTIF_ID, buildNotif(name))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, buildNotif(name), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIF_ID, buildNotif(name))
+        }
 
         job = scope.launch {
             if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "RECORDING")

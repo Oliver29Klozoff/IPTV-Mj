@@ -1,6 +1,6 @@
 {
-  "versionCode": 60,
-  "versionName": "2.23",
+  "versionCode": 61,
+  "versionName": "2.24",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
-  "notes": "Stream health checker, Chromecast support, recording playback, mini player EPG progress, hide Watching tab setting"
+  "notes": "Android TV UI, home screen widget, favorites drag reorder, timeshift replay from guide, player retry countdown"
 }

@@ -29,6 +29,22 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Reconnecting status -->
+    <TextView
+        android:id="@+id/tvRetryStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="#CC000000"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="6dp"
+        android:textColor="#FF8800"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/progressBuffering" />
+
     <!-- Left brightness indicator -->
     <LinearLayout
         android:id="@+id/brightnessIndicator"
@@ -97,7 +113,7 @@
             android:rotation="270" />
     </LinearLayout>
 
-    <!-- Top action buttons: Guide (left) + Speed/Sleep/Tracks (right of guide) + Back (far right) -->
+    <!-- Top left: Guide -->
     <ImageButton
         android:id="@+id/btnGuide"
         android:visibility="gone"
@@ -110,50 +126,6 @@
         android:tint="#008CFF"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-
-    <LinearLayout
-        android:id="@+id/topActionButtons"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <Button
-            android:id="@+id/btnSpeed"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="1x"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:background="@android:color/transparent"
-            android:padding="4dp" />
-
-        <Button
-            android:id="@+id/btnSleep"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="⏱"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp"
-            android:background="@android:color/transparent"
-            android:padding="4dp" />
-
-        <Button
-            android:id="@+id/btnTracks"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="CC"
-            android:textColor="#008CFF"
-            android:textSize="12sp"
-            android:background="@android:color/transparent"
-            android:padding="4dp" />
-
-    </LinearLayout>
 
     <!-- Top right: Close -->
     <ImageButton
@@ -168,19 +140,119 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Play/Pause button - bottom center -->
-    <ImageButton
-        android:id="@+id/btnPlayPause"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+    <!-- Cast button -->
+    <androidx.mediarouter.app.MediaRouteButton
+        android:id="@+id/btnCast"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="8dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/btnBack"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Bottom controls: Speed | Sleep | Play/Pause | CC -->
+    <LinearLayout
+        android:id="@+id/bottomControls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_media_pause"
-        android:tint="#FFFFFF"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <Button
+            android:id="@+id/btnSpeed"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:text="1×"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+        <Button
+            android:id="@+id/btnSleep"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:text="⏱"
+            android:textColor="#AAAAAA"
+            android:textSize="28sp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+        <ImageButton
+            android:id="@+id/btnPlayPause"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_pause"
+            android:scaleType="fitCenter"
+            android:padding="10dp"
+            android:tint="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnTracks"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:text="CC"
+            android:textColor="#008CFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+        <Button
+            android:id="@+id/btnStats"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:text="📊"
+            android:textColor="#AAAAAA"
+            android:textSize="24sp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+        <Button
+            android:id="@+id/btnExternal"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:text="▷EXT"
+            android:textColor="#AAAAAA"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+    </LinearLayout>
+
+    <!-- Streaming stats overlay -->
+    <TextView
+        android:id="@+id/tvStats"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:background="#DD000000"
+        android:fontFamily="monospace"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:textColor="#00FF88"
+        android:textSize="12sp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Bottom EPG/info overlay -->
     <RelativeLayout

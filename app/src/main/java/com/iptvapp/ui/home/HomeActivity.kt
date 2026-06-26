@@ -13,7 +13,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.tabs.TabLayout
 import com.iptvapp.databinding.ActivityHomeBinding
 import com.iptvapp.ui.guide.GuideAdapter
@@ -23,6 +25,7 @@ import com.iptvapp.ui.recordings.RecordingSchedulerActivity
 import com.iptvapp.ui.settings.SettingsActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -44,6 +47,7 @@ class HomeActivity : AppCompatActivity() {
     private var currentMiniStreamId: Int = -1
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
+    private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var isPipMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -159,8 +163,31 @@ class HomeActivity : AppCompatActivity() {
                 it.prepare()
                 it.playWhenReady = true
             }
-            val epg = viewModel.getEpgText(channel.streamId)
-            binding.tvMiniEpg.text = epg
+            refreshMiniEpg(channel.streamId)
+            startEpgRefreshLoop(channel.streamId)
+        }
+    }
+
+    private suspend fun refreshMiniEpg(streamId: Int) {
+        val epg = viewModel.getEpgText(streamId)
+        binding.tvMiniEpg.text = epg
+        val progress = viewModel.getMiniEpgProgress(streamId)
+        if (progress > 0) {
+            binding.miniEpgProgress?.progress = progress
+            binding.miniEpgProgress?.visibility = View.VISIBLE
+        } else {
+            binding.miniEpgProgress?.visibility = View.GONE
+        }
+    }
+
+    private fun startEpgRefreshLoop(streamId: Int) {
+        epgRefreshJob?.cancel()
+        epgRefreshJob = lifecycleScope.launch {
+            while (true) {
+                delay(60_000)
+                if (currentMiniStreamId == streamId) refreshMiniEpg(streamId)
+                else break
+            }
         }
     }
 
@@ -231,9 +258,9 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             onChannelDoubleClick = { channel ->
+                val currentIds = viewModel.channels.value.map { it.streamId }.toIntArray()
                 lifecycleScope.launch {
                     val url = viewModel.getLiveStreamUrl(channel.streamId)
-                    val currentIds = viewModel.channels.value.map { it.streamId }.toIntArray()
                     openPlayer(url, channel.name, channel.streamId, currentIds)
                 }
             },
@@ -291,6 +318,22 @@ class HomeActivity : AppCompatActivity() {
                     val url = viewModel.getLiveStreamUrl(row.channel.streamId)
                     openPlayer(url, row.channel.name, row.channel.streamId)
                 }
+            },
+            onReplayClick = { row, program ->
+                lifecycleScope.launch {
+                    val startSec = if (program.startTimestamp < 100000000000L)
+                        program.startTimestamp
+                    else
+                        program.startTimestamp / 1000L
+                    val stopSec = if (program.stopTimestamp < 100000000000L)
+                        program.stopTimestamp
+                    else
+                        program.stopTimestamp / 1000L
+                    val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
+                    val url = viewModel.getTimeshiftUrl(row.channel.streamId, startSec, durationMin)
+                    val title = "${row.channel.name} — ${program.title}"
+                    openPlayer(url, title, row.channel.streamId)
+                }
             }
         )
 
@@ -309,11 +352,13 @@ class HomeActivity : AppCompatActivity() {
                     2 -> showVod()
                     3 -> showSeries()
                     4 -> showWatching()
-                    5 -> showFavorites()
+                    5 -> { showFavorites(); viewModel.checkFavoritesHealth() }
                     6 -> showGuide()
                 }
             }
-            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabUnselected(tab: TabLayout.Tab?) {
+                if (tab?.position == 5) detachFavDrag()
+            }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
     }
@@ -398,10 +443,49 @@ class HomeActivity : AppCompatActivity() {
         viewModel.showContinueWatching()
     }
 
+    private var favItemTouchHelper: ItemTouchHelper? = null
+
     private fun showFavorites() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         viewModel.showFavoriteChannels()
+
+        channelAdapter.showDragHandles = true
+        val callback = object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+        ) {
+            private val dragList = mutableListOf<ChannelEntity>()
+
+            override fun onMove(rv: RecyclerView, from: RecyclerView.ViewHolder, to: RecyclerView.ViewHolder): Boolean {
+                val fromPos = from.bindingAdapterPosition
+                val toPos = to.bindingAdapterPosition
+                if (dragList.isEmpty()) dragList.addAll(channelAdapter.currentList)
+                dragList.add(toPos, dragList.removeAt(fromPos))
+                channelAdapter.submitList(dragList.toList())
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+
+            override fun clearView(rv: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(rv, viewHolder)
+                if (dragList.isNotEmpty()) {
+                    viewModel.saveFavOrder(dragList.map { it.streamId })
+                    dragList.clear()
+                }
+            }
+        }
+        favItemTouchHelper = ItemTouchHelper(callback).also {
+            channelAdapter.itemTouchHelper = it
+            it.attachToRecyclerView(binding.rvChannels)
+        }
+    }
+
+    private fun detachFavDrag() {
+        channelAdapter.showDragHandles = false
+        channelAdapter.itemTouchHelper = null
+        favItemTouchHelper?.attachToRecyclerView(null)
+        favItemTouchHelper = null
     }
 
     private fun showGuide() {
@@ -433,6 +517,11 @@ class HomeActivity : AppCompatActivity() {
                 binding.tabLayout.getTabAt(3)?.view?.visibility = if (show) View.VISIBLE else View.GONE
             }
         }
+        lifecycleScope.launch {
+            viewModel.showWatching.collect { show: Boolean ->
+                binding.tabLayout.getTabAt(4)?.view?.visibility = if (show) View.VISIBLE else View.GONE
+            }
+        }
     }
 
     private fun observeViewModel() {
@@ -441,7 +530,11 @@ class HomeActivity : AppCompatActivity() {
                 binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
                 if (!isLoading) {
                     binding.rvChannels.visibility = View.VISIBLE
-                    binding.rvCategories.visibility = View.VISIBLE
+                    // Only show categories panel on tabs that actually use it (Live=0, FavCat=1, VOD=2)
+                    val tab = binding.tabLayout.selectedTabPosition
+                    if (tab == 0 || tab == 1 || tab == 2) {
+                        binding.rvCategories.visibility = View.VISIBLE
+                    }
                 }
             }
         }
@@ -505,6 +598,9 @@ class HomeActivity : AppCompatActivity() {
             viewModel.continueWatching.collect { list ->
                 if (binding.tabLayout.selectedTabPosition == 4) vodAdapter.submitList(list)
             }
+        }
+        lifecycleScope.launch {
+            viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }
         }
     }
 }

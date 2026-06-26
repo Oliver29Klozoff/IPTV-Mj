@@ -40,6 +40,7 @@ class PreferencesManager @Inject constructor(
         val USA_ONLY_CHANNELS = booleanPreferencesKey("usa_only_channels")
         val SHOW_MOVIES = booleanPreferencesKey("show_movies")
         val SHOW_SERIES = booleanPreferencesKey("show_series")
+        val SHOW_WATCHING = booleanPreferencesKey("show_watching")
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
@@ -162,9 +163,11 @@ class PreferencesManager @Inject constructor(
 
         val showMovies: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_MOVIES] ?: true }
     val showSeries: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_SERIES] ?: true }
+    val showWatching: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_WATCHING] ?: true }
 
     suspend fun setShowMovies(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_MOVIES] = enabled } }
     suspend fun setShowSeries(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_SERIES] = enabled } }
+    suspend fun setShowWatching(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_WATCHING] = enabled } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

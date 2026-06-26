@@ -161,6 +161,41 @@ workManager = WorkManager.getInstance(this)
             lifecycleScope.launch { prefs.setShowSeries(isChecked) }
         }
 
+        binding.cbShowWatching.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setShowWatching(isChecked) }
+        }
+
+        binding.btnRefreshMovies.setOnClickListener {
+            binding.btnRefreshMovies.isEnabled = false
+            binding.btnRefreshMovies.text = "Loading…"
+            lifecycleScope.launch {
+                repository.fetchVodCategories()
+                val result = repository.fetchVodStreams()
+                binding.btnRefreshMovies.isEnabled = true
+                binding.btnRefreshMovies.text = "↻ Refresh"
+                val msg = if (result is com.iptvapp.util.Resource.Success)
+                    "Movies refreshed (${result.data?.size ?: 0} titles)"
+                else
+                    "Failed — server timeout or no content"
+                android.widget.Toast.makeText(this@SettingsActivity, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+
+        binding.btnRefreshSeries.setOnClickListener {
+            binding.btnRefreshSeries.isEnabled = false
+            binding.btnRefreshSeries.text = "Loading…"
+            lifecycleScope.launch {
+                val result = repository.fetchSeries()
+                binding.btnRefreshSeries.isEnabled = true
+                binding.btnRefreshSeries.text = "↻ Refresh"
+                val msg = if (result is com.iptvapp.util.Resource.Success)
+                    "Series refreshed (${result.data?.size ?: 0} titles)"
+                else
+                    "Failed — server timeout or no content"
+                android.widget.Toast.makeText(this@SettingsActivity, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+
         binding.rgAutoEpgRefresh.setOnCheckedChangeListener { _, checkedId ->
             lifecycleScope.launch {
                 val hours = when (checkedId) {
@@ -231,6 +266,7 @@ workManager = WorkManager.getInstance(this)
                         put("usaOnlyChannels", prefs.usaOnlyChannels.first())
                         put("showMovies", prefs.showMovies.first())
                         put("showSeries", prefs.showSeries.first())
+                        put("showWatching", prefs.showWatching.first())
                         put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
                         put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
                         put("serverUrl", creds.serverUrl)
@@ -556,6 +592,7 @@ workManager = WorkManager.getInstance(this)
             binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
             binding.cbShowMovies.isChecked = prefs.showMovies.first()
             binding.cbShowSeries.isChecked = prefs.showSeries.first()
+            binding.cbShowWatching.isChecked = prefs.showWatching.first()
             when (prefs.epgAutoRefreshHours.first()) {
                 6 -> binding.rbAuto6.isChecked = true
                 12 -> binding.rbAuto12.isChecked = true
@@ -867,6 +904,7 @@ workManager = WorkManager.getInstance(this)
             put("usaOnlyChannels", prefs.usaOnlyChannels.first())
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
+            put("showWatching", prefs.showWatching.first())
               val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
               put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
               val favChannels = db.channelDao().getFavoriteChannelIds()
@@ -945,6 +983,10 @@ workManager = WorkManager.getInstance(this)
 
         if (json.has("showSeries")) {
             prefs.setShowSeries(json.optBoolean("showSeries", true))
+        }
+
+        if (json.has("showWatching")) {
+            prefs.setShowWatching(json.optBoolean("showWatching", true))
         }
 
         android.widget.Toast.makeText(this, "Restore complete", android.widget.Toast.LENGTH_SHORT).show()

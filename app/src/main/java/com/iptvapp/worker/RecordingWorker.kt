@@ -36,7 +36,7 @@ class RecordingWorker @AssistedInject constructor(
         val outputPath = inputData.getString(KEY_OUTPUT_PATH) ?: return Result.failure()
 
         val streamUrl = try {
-            repository.getLiveStreamUrl(streamId)
+            repository.getLiveStreamUrlForRecording(streamId)
         } catch (e: Exception) {
             if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "FAILED")
             return Result.failure()

@@ -2,6 +2,8 @@ package com.iptvapp.ui.recordings
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.view.View
@@ -21,6 +23,7 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.RecordingEntity
 import com.iptvapp.databinding.ActivityRecordingSchedulerBinding
 import com.iptvapp.databinding.ItemRecordingBinding
+import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.worker.RecordingWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -49,6 +52,20 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     .cancelAllWorkByTag("rec_${rec.id}")
                 database.recordingDao().delete(rec)
             }
+        },
+        onPlay = { rec ->
+            val file = java.io.File(rec.outputPath)
+            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                this, "${packageName}.provider", file
+            )
+            val intent = Intent(this, PlayerActivity::class.java).apply {
+                putExtra("stream_url", fileUri.toString())
+                putExtra("stream_title", rec.channelName)
+                putExtra("stream_id", rec.streamId)
+                putExtra("is_vod", true)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
         }
     )
 
@@ -63,7 +80,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         binding.fabAdd.setOnClickListener { showScheduleDialog() }
 
         lifecycleScope.launch {
-            allChannels = database.channelDao().getAllChannels().first()
+            allChannels = database.channelDao().getFavoriteChannels().first()
         }
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->
@@ -164,7 +181,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     }
 
     inner class RecordingAdapter(
-        private val onDelete: (RecordingEntity) -> Unit
+        private val onDelete: (RecordingEntity) -> Unit,
+        private val onPlay: (RecordingEntity) -> Unit
     ) : RecyclerView.Adapter<RecordingAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -196,6 +214,9 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 }
                 b.tvRecStatus.setBackgroundColor(bg)
                 b.tvRecStatus.setTextColor(fg)
+                val isDone = rec.status == "DONE"
+                b.btnPlay.visibility = if (isDone) View.VISIBLE else View.GONE
+                b.btnPlay.setOnClickListener { onPlay(rec) }
                 b.btnDelete.setOnClickListener { onDelete(rec) }
             }
         }

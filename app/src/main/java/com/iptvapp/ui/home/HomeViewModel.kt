@@ -60,6 +60,25 @@ class HomeViewModel @Inject constructor(
 
     val showMovies = prefs.showMovies
     val showSeries = prefs.showSeries
+    val showWatching = prefs.showWatching
+
+    private val _channelHealth = MutableStateFlow<Map<Int, Boolean?>>(emptyMap())
+    val channelHealth: StateFlow<Map<Int, Boolean?>> = _channelHealth
+
+    fun checkFavoritesHealth() {
+        viewModelScope.launch {
+            val favorites = repository.getFavoriteChannels().first()
+            // Reset to null (checking) for all favorites
+            _channelHealth.value = favorites.associate { it.streamId to null }
+            favorites.forEach { channel ->
+                launch {
+                    val url = repository.getLiveStreamUrl(channel.streamId)
+                    val alive = repository.checkStreamHealth(url)
+                    _channelHealth.value = _channelHealth.value + (channel.streamId to alive)
+                }
+            }
+        }
+    }
 
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
@@ -114,7 +133,11 @@ class HomeViewModel @Inject constructor(
                     }
             }
             launch {
-                repository.getVodCategories().collectLatest { _vodCategories.value = it }
+                repository.getVodCategories()
+                    .combine(prefs.usaOnlyChannels) { cats, usaOnly ->
+                        if (usaOnly) cats.filter { isUsCategory(it.categoryName) } else cats
+                    }
+                    .collectLatest { _vodCategories.value = it }
             }
             launch {
                 repository.getAllVod().collectLatest { _vod.value = it }
@@ -284,7 +307,7 @@ class HomeViewModel @Inject constructor(
     fun showContinueWatching() {
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
-            repository.getInProgressVod().collectLatest { _vod.value = it }
+            repository.getInProgressVod().collectLatest { _continueWatching.value = it }
         }
     }
 
@@ -330,10 +353,27 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    suspend fun getMiniEpgProgress(streamId: Int): Int {
+        val epg = repository.getEpgForStream(streamId).first()
+        val now = epg.firstOrNull() ?: return 0
+        val start = if (now.startTimestamp < 100000000000L) now.startTimestamp * 1000 else now.startTimestamp
+        val stop = if (now.stopTimestamp < 100000000000L) now.stopTimestamp * 1000 else now.stopTimestamp
+        val current = System.currentTimeMillis()
+        if (stop <= start) return 0
+        return ((current - start) * 100 / (stop - start)).toInt().coerceIn(0, 100)
+    }
+
     suspend fun getVodProgress(streamId: Int): Pair<Long, Long> = repository.getVodProgress(streamId)
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)
 
     suspend fun getVodStreamUrl(streamId: Int, extension: String): String =
         repository.getVodStreamUrl(streamId, extension)
+
+    suspend fun getTimeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
+        repository.getTimeshiftUrl(streamId, startTimestampSec, durationMinutes)
+
+    fun saveFavOrder(orderedIds: List<Int>) {
+        viewModelScope.launch { repository.saveFavOrder(orderedIds) }
+    }
 }

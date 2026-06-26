@@ -29,7 +29,7 @@ object AppModule {
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
@@ -59,7 +59,8 @@ object AppModule {
         ).addMigrations(
             IptvDatabase.MIGRATION_2_3,
             IptvDatabase.MIGRATION_3_4,
-            IptvDatabase.MIGRATION_4_5
+            IptvDatabase.MIGRATION_4_5,
+            IptvDatabase.MIGRATION_5_6
         ).build()
 
     @Provides fun provideChannelDao(db: IptvDatabase) = db.channelDao()

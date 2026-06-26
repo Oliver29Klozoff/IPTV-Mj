@@ -51,6 +51,13 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ui.home.TvHomeActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ui.settings.SettingsActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
@@ -90,10 +97,30 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
 
+        <receiver
+            android:name=".widget.IptvWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_channels" />
+        </receiver>
+
+        <service
+            android:name=".widget.WidgetChannelService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <service
             android:name=".service.RecordingService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.iptvapp.cast.CastOptionsProvider" />
 
         <provider
             android:name="androidx.startup.InitializationProvider"

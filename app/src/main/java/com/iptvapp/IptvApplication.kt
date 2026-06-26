@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.iptvapp.worker.ReminderWorker
+import com.google.android.gms.cast.framework.CastContext
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import java.io.PrintWriter
@@ -32,6 +33,7 @@ class IptvApplication : Application(), Configuration.Provider {
         super.onCreate()
         setupCrashHandler()
         createNotificationChannels()
+        try { CastContext.getSharedInstance(this) } catch (_: Exception) {}
     }
 
     private fun createNotificationChannels() {

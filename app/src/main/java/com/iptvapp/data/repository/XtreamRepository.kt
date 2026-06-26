@@ -134,6 +134,20 @@ class XtreamRepository @Inject constructor(
         return urlBuilder().liveStreamUrl(streamId, format)
     }
 
+    suspend fun getLiveStreamUrlForCast(streamId: Int): String {
+        val channel = db.channelDao().getChannelById(streamId)
+        if (channel?.streamUrl != null) return channel.streamUrl
+        // Always use m3u8 for Chromecast — it's the only format the Default Media Receiver supports
+        return urlBuilder().liveStreamUrl(streamId, "m3u8")
+    }
+
+    suspend fun getLiveStreamUrlForRecording(streamId: Int): String {
+        val channel = db.channelDao().getChannelById(streamId)
+        if (channel?.streamUrl != null) return channel.streamUrl
+        // Always use ts for recording — raw MPEG-TS is the only format that can be piped directly to a file
+        return urlBuilder().liveStreamUrl(streamId, "ts")
+    }
+
     suspend fun fetchVodStreams(): Resource<List<VodStream>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
@@ -265,6 +279,29 @@ class XtreamRepository @Inject constructor(
 
     suspend fun getSeriesEpisodeUrl(episodeId: String, containerExtension: String): String =
         urlBuilder().seriesStreamUrl(episodeId, containerExtension)
+
+    suspend fun getTimeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
+        urlBuilder().timeshiftUrl(streamId, startTimestampSec, durationMinutes)
+
+    suspend fun saveFavOrder(orderedIds: List<Int>) {
+        orderedIds.forEachIndexed { index, streamId ->
+            db.channelDao().updateFavOrder(streamId, index)
+        }
+    }
+
+    suspend fun checkStreamHealth(url: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val request = okhttp3.Request.Builder().url(url).head().build()
+            val code = client.newCall(request).execute().use { it.code }
+            code in 200..499
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     suspend fun importM3uFromUrl(url: String): Resource<Int> = safeApiCall {
         val request = Request.Builder().url(url).build()

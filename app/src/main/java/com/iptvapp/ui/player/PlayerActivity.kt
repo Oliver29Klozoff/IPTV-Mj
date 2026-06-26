@@ -28,6 +28,15 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.mediarouter.app.MediaRouteButton
+import androidx.mediarouter.media.MediaRouteSelector
+import com.google.android.gms.cast.CastMediaControlIntent
+import com.google.android.gms.cast.MediaInfo
+import com.google.android.gms.cast.MediaLoadRequestData
+import com.google.android.gms.cast.MediaMetadata
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.SessionManagerListener
 import com.iptvapp.data.local.entities.ChannelEntity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.ui.home.ChannelAdapter
@@ -54,7 +63,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnBack.visibility = View.GONE
         binding.btnGuide.visibility = View.GONE
         binding.btnPlayPause.visibility = View.GONE
-        binding.topActionButtons.visibility = View.GONE
+        binding.bottomControls.visibility = View.GONE
     }
 
     private val osdHandler = Handler(Looper.getMainLooper())
@@ -93,6 +102,22 @@ class PlayerActivity : AppCompatActivity() {
 
     private var sleepTimer: CountDownTimer? = null
     private var isAdjustingGesture = false
+    private val seekHandler = Handler(Looper.getMainLooper())
+    private var seekRunnable: Runnable? = null
+
+    private var castContext: CastContext? = null
+    private var castSession: CastSession? = null
+    private val castSessionListener = object : SessionManagerListener<CastSession> {
+        override fun onSessionStarted(session: CastSession, id: String) { castSession = session; stopLocalAndCast(session) }
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) { castSession = session; stopLocalAndCast(session) }
+        override fun onSessionEnded(session: CastSession, error: Int) { castSession = null; loadStream(streamUrl) }
+        override fun onSessionStarting(session: CastSession) {}
+        override fun onSessionStartFailed(session: CastSession, error: Int) {}
+        override fun onSessionEnding(session: CastSession) {}
+        override fun onSessionResuming(session: CastSession, id: String) {}
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {}
+        override fun onSessionSuspended(session: CastSession, reason: Int) {}
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +128,7 @@ class PlayerActivity : AppCompatActivity() {
         setupFavoritesGuide()
         setupResizeButton()
         setupActionButtons()
+        setupCast()
 
         streamUrl = intent.getStringExtra("stream_url") ?: ""
         streamTitle = intent.getStringExtra("stream_title") ?: ""
@@ -421,6 +447,7 @@ class PlayerActivity : AppCompatActivity() {
                             Player.STATE_READY -> {
                                 retryCount = 0
                                 binding.progressBuffering.visibility = View.GONE
+                                binding.tvRetryStatus.visibility = View.GONE
                                 if (isVod) startSeekBarUpdater()
                                 showOverlay()
                                 updatePlayPauseButton()
@@ -441,7 +468,12 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     override fun onPlayerError(error: PlaybackException) {
                         binding.progressBuffering.visibility = View.GONE
-                        scheduleRetry()
+                        if (isVod) {
+                            binding.tvRetryStatus.text = "Playback error: ${error.message}"
+                            binding.tvRetryStatus.visibility = View.VISIBLE
+                        } else {
+                            scheduleRetry()
+                        }
                     }
                 })
             }
@@ -456,10 +488,18 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun scheduleRetry() {
-        if (retryCount >= maxRetries) { finish(); return }
+        if (retryCount >= maxRetries) {
+            binding.tvRetryStatus.text = "Stream unavailable"
+            binding.tvRetryStatus.visibility = View.VISIBLE
+            return
+        }
         retryJob?.cancel()
         retryJob = lifecycleScope.launch {
             val backoffMs = (2000L * (retryCount + 1)).coerceAtMost(16000L)
+            val attempt = retryCount + 1
+            val delaySec = backoffMs / 1000
+            binding.tvRetryStatus.text = "Reconnecting in ${delaySec}s ($attempt/$maxRetries)…"
+            binding.tvRetryStatus.visibility = View.VISIBLE
             delay(backoffMs)
             retryCount++
             player?.let {
@@ -468,6 +508,73 @@ class PlayerActivity : AppCompatActivity() {
                 it.playWhenReady = true
             }
         }
+    }
+
+    private fun setupCast() {
+        try {
+            castContext = CastContext.getSharedInstance(this)
+            val selector = MediaRouteSelector.Builder()
+                .addControlCategory(
+                    CastMediaControlIntent.categoryForCast(
+                        CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+                    )
+                )
+                .build()
+            binding.btnCast.routeSelector = selector
+            binding.btnCast.visibility = View.VISIBLE
+            // Listener is managed in onResume/onPause — don't add it here too
+            castSession = castContext?.sessionManager?.currentCastSession
+            castSession?.let { stopLocalAndCast(it) }
+        } catch (e: Exception) {
+            binding.btnCast.visibility = View.GONE
+        }
+    }
+
+    private fun stopLocalAndCast(session: CastSession) {
+        if (streamUrl.isBlank()) return
+        // Capture position before stopping
+        val localPositionMs = if (isVod) (player?.currentPosition?.takeIf { it > 0 } ?: resumePositionMs) else 0L
+        // Stop local player first so the IPTV server frees the connection slot
+        player?.stop()
+        player?.clearMediaItems()
+        lifecycleScope.launch {
+            // Brief wait so the server has time to close our connection before Chromecast opens one
+            delay(1500)
+            val castUrl = if (!isVod) repository.getLiveStreamUrlForCast(streamId) else streamUrl
+            val contentType = when {
+                castUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
+                castUrl.contains(".mpd", ignoreCase = true)  -> "application/dash+xml"
+                castUrl.contains(".mp4", ignoreCase = true)  -> "video/mp4"
+                else -> "application/x-mpegURL"
+            }
+            // Cast SDK 21+: Builder arg is contentId, URL must be set separately via setContentUrl
+            val metadata = MediaMetadata(if (isVod) MediaMetadata.MEDIA_TYPE_MOVIE else MediaMetadata.MEDIA_TYPE_TV_SHOW).apply {
+                putString(MediaMetadata.KEY_TITLE, streamTitle)
+            }
+            val mediaInfo = MediaInfo.Builder(streamTitle.ifBlank { castUrl })
+                .setContentUrl(castUrl)
+                .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+                .setContentType(contentType)
+                .setMetadata(metadata)
+                .build()
+            session.remoteMediaClient?.load(
+                MediaLoadRequestData.Builder()
+                    .setMediaInfo(mediaInfo)
+                    .setAutoplay(true)
+                    .setCurrentTime(localPositionMs)
+                    .build()
+            )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        castContext?.sessionManager?.removeSessionManagerListener(castSessionListener, CastSession::class.java)
     }
 
     private fun loadStream(url: String) {
@@ -507,11 +614,10 @@ class PlayerActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(sb: android.widget.SeekBar) { hideHandler.removeCallbacks(hideRunnable) }
             override fun onStopTrackingTouch(sb: android.widget.SeekBar) { resetHideTimer() }
         })
-        val seekHandler = Handler(Looper.getMainLooper())
-        val seekRunnable = object : Runnable {
+        seekRunnable = object : Runnable {
             override fun run() { updateSeekBar(); seekHandler.postDelayed(this, 1000) }
         }
-        seekHandler.post(seekRunnable)
+        seekHandler.post(seekRunnable!!)
     }
 
     private fun showOverlay() {
@@ -520,7 +626,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnBack.visibility = View.VISIBLE
         binding.btnGuide.visibility = View.VISIBLE
         binding.btnPlayPause.visibility = View.VISIBLE
-        binding.topActionButtons.visibility = View.VISIBLE
+        binding.bottomControls.visibility = View.VISIBLE
         updatePlayPauseButton()
         resetHideTimer()
         if (!isVod && streamId != -1) {
@@ -622,7 +728,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnGuide.visibility = View.GONE
             binding.btnPlayPause.visibility = View.GONE
             binding.btnResize.visibility = View.GONE
-            binding.topActionButtons.visibility = View.GONE
+            binding.bottomControls.visibility = View.GONE
         } else {
             binding.btnResize.visibility = View.VISIBLE
         }
@@ -697,6 +803,7 @@ class PlayerActivity : AppCompatActivity() {
         saveVodProgress()
         sleepTimer?.cancel()
         retryJob?.cancel()
+        seekRunnable?.let { seekHandler.removeCallbacks(it) }
         player?.release()
         player = null
     }

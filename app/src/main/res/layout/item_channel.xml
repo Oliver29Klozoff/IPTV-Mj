@@ -50,12 +50,29 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <View
+            android:id="@+id/viewHealthDot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/health_dot"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/ivFavorite"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_marginStart="8dp"
             android:src="@android:drawable/btn_star_big_off" />
+
+        <ImageView
+            android:id="@+id/ivDragHandle"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="8dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:tint="#666666"
+            android:visibility="gone" />
 
     </LinearLayout>
 

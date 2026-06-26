@@ -10,8 +10,10 @@ interface ChannelDao {
     fun getAllChannels(): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId ORDER BY num ASC")
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>>
-    @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannels(): Flow<List<ChannelEntity>>
+    @Query("UPDATE channels SET favOrder = :order WHERE streamId = :streamId")
+    suspend fun updateFavOrder(streamId: Int, order: Int)
     @Query("SELECT * FROM channels WHERE lastWatched IS NOT NULL ORDER BY lastWatched DESC LIMIT 20")
     fun getRecentChannels(): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' ORDER BY num ASC")
@@ -39,6 +41,8 @@ interface ChannelDao {
 
     @Query("UPDATE channels SET isFavorite = 0")
     suspend fun clearAllFavorites()
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY favOrder ASC, name ASC")
+    fun getFavoriteChannelsBlocking(): List<ChannelEntity>
 }
 
 @Dao
@@ -70,9 +74,9 @@ interface VodDao {
     @Query("UPDATE vod_streams SET watchedMs = :watchedMs, durationMs = :durationMs WHERE streamId = :streamId")
     suspend fun updateWatchProgress(streamId: Int, watchedMs: Long, durationMs: Long)
     @Query("SELECT watchedMs FROM vod_streams WHERE streamId = :streamId")
-    suspend fun getWatchedMs(streamId: Int): Long
+    suspend fun getWatchedMs(streamId: Int): Long?
     @Query("SELECT durationMs FROM vod_streams WHERE streamId = :streamId")
-    suspend fun getDurationMs(streamId: Int): Long
+    suspend fun getDurationMs(streamId: Int): Long?
     @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 ORDER BY watchedMs DESC LIMIT 20")
     fun getInProgressVod(): Flow<List<VodEntity>>
 }
@@ -131,6 +135,8 @@ interface EpgDao {
     suspend fun getNewestEpgStopTimestamp(): Long?
     @Query("SELECT * FROM epg_entries WHERE streamId = :streamId AND nowPlaying = 1 LIMIT 1")
     suspend fun getNowPlaying(streamId: Int): EpgEntity?
+    @Query("SELECT * FROM epg_entries WHERE streamId = :streamId AND startTimestamp <= :nowSec AND stopTimestamp >= :nowSec LIMIT 1")
+    fun getCurrentProgramForWidget(streamId: Int, nowSec: Long): EpgEntity?
     @Upsert
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")

@@ -6,13 +6,15 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.iptvapp.data.local.entities.EpgEntity
 import com.iptvapp.databinding.ItemGuideRowBinding
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class GuideAdapter(
-    private val onChannelClick: (GuideRow) -> Unit
+    private val onChannelClick: (GuideRow) -> Unit,
+    private val onReplayClick: (GuideRow, EpgEntity) -> Unit = { _, _ -> }
 ) : ListAdapter<GuideRow, GuideAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(private val binding: ItemGuideRowBinding) :
@@ -23,19 +25,19 @@ class GuideAdapter(
             binding.programContainer.removeAllViews()
 
             if (row.programs.isEmpty()) {
-                binding.programContainer.addView(makeProgramText("No guide data"))
+                binding.programContainer.addView(makeProgramText("No guide data", false, null))
             } else {
                 row.programs.forEach { program ->
                     val start = formatTime(program.startTimestamp)
                     val stop = formatTime(program.stopTimestamp)
-                    val replay =
-                        if (row.channel.tvArchive == 1 && program.hasArchive == 1)
-                            " [REPLAY]"
-                        else
-                            ""
+                    val isReplay = row.channel.tvArchive == 1 && program.hasArchive == 1
+                    val label = if (isReplay)
+                        "$start - $stop  ${program.title}  ▶ Replay"
+                    else
+                        "$start - $stop  ${program.title}"
 
                     binding.programContainer.addView(
-                        makeProgramText("$start - $stop  ${program.title}$replay")
+                        makeProgramText(label, isReplay) { if (isReplay) onReplayClick(row, program) }
                     )
                 }
             }
@@ -45,13 +47,18 @@ class GuideAdapter(
             }
         }
 
-        private fun makeProgramText(text: String): TextView {
+        private fun makeProgramText(text: String, isReplay: Boolean, onClick: (() -> Unit)?): TextView {
             return TextView(binding.root.context).apply {
                 this.text = text
-                setTextColor(0xFFFFFFFF.toInt())
+                setTextColor(if (isReplay) 0xFF00AAFF.toInt() else 0xFFFFFFFF.toInt())
                 textSize = 14f
                 setPadding(18, 12, 18, 12)
                 minWidth = 300
+                if (isReplay && onClick != null) {
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { onClick() }
+                }
             }
         }
 

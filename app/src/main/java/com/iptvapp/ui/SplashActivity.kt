@@ -10,7 +10,9 @@ import com.iptvapp.R
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.databinding.ActivitySplashBinding
 import com.iptvapp.ui.home.HomeActivity
+import com.iptvapp.ui.home.TvHomeActivity
 import com.iptvapp.ui.login.LoginActivity
+import com.iptvapp.util.isLargeScreenDevice
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -37,7 +39,8 @@ class SplashActivity : AppCompatActivity() {
             delay(4000)
             val creds = prefs.credentials.first()
             val intent = if (creds.isLoggedIn) {
-                Intent(this@SplashActivity, HomeActivity::class.java)
+                val homeClass = if (isLargeScreenDevice()) TvHomeActivity::class.java else HomeActivity::class.java
+                Intent(this@SplashActivity, homeClass)
             } else {
                 Intent(this@SplashActivity, LoginActivity::class.java)
             }
