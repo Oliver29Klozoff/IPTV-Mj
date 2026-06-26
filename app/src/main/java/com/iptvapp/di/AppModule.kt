@@ -56,11 +56,16 @@ object AppModule {
             context,
             IptvDatabase::class.java,
             IptvDatabase.DATABASE_NAME
-        ).addMigrations(IptvDatabase.MIGRATION_2_3).build()
+        ).addMigrations(
+            IptvDatabase.MIGRATION_2_3,
+            IptvDatabase.MIGRATION_3_4,
+            IptvDatabase.MIGRATION_4_5
+        ).build()
 
     @Provides fun provideChannelDao(db: IptvDatabase) = db.channelDao()
     @Provides fun provideCategoryDao(db: IptvDatabase) = db.categoryDao()
     @Provides fun provideVodDao(db: IptvDatabase) = db.vodDao()
     @Provides fun provideSeriesDao(db: IptvDatabase) = db.seriesDao()
     @Provides fun provideEpgDao(db: IptvDatabase) = db.epgDao()
+    @Provides fun provideRecordingDao(db: IptvDatabase) = db.recordingDao()
 }

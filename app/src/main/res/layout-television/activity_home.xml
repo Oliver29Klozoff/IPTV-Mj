@@ -36,6 +36,26 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/btnMultiView"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="@android:color/transparent"
+            android:text="⊞ Multi"
+            android:textColor="#008CFF"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnRecording"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="@android:color/transparent"
+            android:text="⏺ REC"
+            android:textColor="#FF4444"
+            android:textSize="14sp" />
+
         <EditText
             android:id="@+id/etSearch"
             android:layout_width="160dp"
@@ -48,6 +68,16 @@
             android:textColor="#FFFFFF"
             android:textColorHint="#666666"
             android:textSize="14sp" />
+
+        <ImageButton
+            android:id="@+id/btnClearSearch"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="#888888"
+            android:visibility="gone" />
     </LinearLayout>
 
     <com.google.android.material.tabs.TabLayout
@@ -158,6 +188,18 @@
                     android:layout_gravity="center"
                     android:indeterminateTint="#008CFF"
                     android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnCollapsePip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="28dp"
+                    android:layout_gravity="top|start"
+                    android:layout_margin="8dp"
+                    android:background="@android:color/transparent"
+                    android:text="PiP ▼"
+                    android:textColor="#AAAAAA"
+                    android:textSize="11sp"
+                    android:padding="4dp" />
             </FrameLayout>
 
             <androidx.recyclerview.widget.RecyclerView
@@ -179,5 +221,38 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout" />
+
+    <!-- PiP corner overlay - floats over content when mini player is collapsed -->
+    <FrameLayout
+        android:id="@+id/pipCorner"
+        android:layout_width="220dp"
+        android:layout_height="130dp"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="#000000"
+        android:elevation="8dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/pipCornerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:resize_mode="fit"
+            app:use_controller="false" />
+
+        <TextView
+            android:id="@+id/tvPipChannelName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#88000000"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:padding="4dp"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

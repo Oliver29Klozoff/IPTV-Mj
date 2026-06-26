@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v2.21 - 2026-06-25 17:49
+- Add Multi-view, Smart EPG progress bars, Cross-device sync
+
+## v2.20 - 2026-06-25 16:40
+- Redesigned TV settings with full phone feature parity: EPG refresh with live progress, auto-refresh schedule, format toggle, version display, full server management, improved visual layout
+
+## v2.19 - 2026-06-25 15:42
+- Search bar moved to top right with X clear button; large screens (600dp+) treated as TV
+
+## v2.18 - 2026-06-25 11:26
+- Fix Android TV settings - proper layout, D-pad navigation, QR backup, Updates section
+
 ## v2.17 - 2026-06-25 10:13
 - Fix server switching - servers now save, display, and switch correctly
 

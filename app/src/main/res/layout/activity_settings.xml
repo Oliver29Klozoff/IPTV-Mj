@@ -121,6 +121,17 @@
                     android:layout_marginBottom="4dp" />
 
                 <Button
+                    android:id="@+id/headerSync"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:text="Sync"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp" />
+
+                <Button
                     android:id="@+id/btnLogout"
                     android:layout_width="match_parent"
                     android:layout_height="64dp"
@@ -657,6 +668,102 @@
                                 android:textColor="#000000"
                                 android:textStyle="bold"
                                 android:textSize="13sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- SYNC PANEL -->
+            <ScrollView
+                android:id="@+id/sectionSync"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                xmlns:app="http://schemas.android.com/apk/res-auto">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="CROSS-DEVICE SYNC"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Sync favorites and watch history across your devices using your GitHub account."
+                                android:textColor="#AAAAAA"
+                                android:textSize="13sp"
+                                android:lineSpacingExtra="3dp"
+                                android:paddingBottom="16dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingBottom="16dp">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Enable Sync"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="14sp" />
+                                <Switch
+                                    android:id="@+id/switchSyncEnabled"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <Button
+                                android:id="@+id/btnSyncUp"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginBottom="8dp"
+                                android:backgroundTint="#008CFF"
+                                android:text="Push to Cloud"
+                                android:textColor="#000000"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+
+                            <Button
+                                android:id="@+id/btnSyncDown"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:backgroundTint="#1A1A1A"
+                                android:text="Pull from Cloud"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp" />
+
+                            <TextView
+                                android:id="@+id/tvSyncStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:textColor="#888888"
+                                android:textSize="12sp"
+                                android:lineSpacingExtra="3dp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
                 </LinearLayout>

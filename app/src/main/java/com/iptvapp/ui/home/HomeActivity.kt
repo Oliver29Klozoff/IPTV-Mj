@@ -1,6 +1,7 @@
 package com.iptvapp.ui.home
 
 import com.iptvapp.util.enableTvFocusHighlight
+import com.iptvapp.util.isLargeScreenDevice
 
 import android.content.Intent
 import android.os.Bundle
@@ -16,13 +17,16 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.tabs.TabLayout
 import com.iptvapp.databinding.ActivityHomeBinding
 import com.iptvapp.ui.guide.GuideAdapter
+import com.iptvapp.ui.player.MultiViewActivity
 import com.iptvapp.ui.player.PlayerActivity
+import com.iptvapp.ui.recordings.RecordingSchedulerActivity
 import com.iptvapp.ui.settings.SettingsActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.ui.series.SeriesDetailActivity
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
@@ -40,13 +44,14 @@ class HomeActivity : AppCompatActivity() {
     private var currentMiniStreamId: Int = -1
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
+    private var isPipMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        if ((resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) {
+        if (isLargeScreenDevice()) {
             binding.root.enableTvFocusHighlight()
         }
         setupRecyclerViews()
@@ -64,8 +69,17 @@ class HomeActivity : AppCompatActivity() {
         super.onResume()
         lifecycleScope.launch {
             val recent = viewModel.getRecentChannel()
-            if (recent != null && recent.streamId != currentMiniStreamId) {
-                playInMiniPlayer(recent)
+            val isLive = currentMiniUrl.isNotEmpty() &&
+                !currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+            when {
+                recent != null && recent.streamId != currentMiniStreamId -> playInMiniPlayer(recent)
+                isLive -> {
+                    // Re-prepare so ExoPlayer re-fetches the manifest and starts at the real live edge
+                    miniPlayer?.setMediaItem(androidx.media3.common.MediaItem.fromUri(currentMiniUrl))
+                    miniPlayer?.prepare()
+                    miniPlayer?.playWhenReady = true
+                }
+                else -> miniPlayer?.play()
             }
         }
     }
@@ -75,7 +89,12 @@ class HomeActivity : AppCompatActivity() {
         if (miniPlayer == null) {
             initMiniPlayer()
         } else {
-            miniPlayer?.play()
+            val isLive = currentMiniUrl.isNotEmpty() &&
+                !currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+            if (!isLive) {
+                // VOD: resume from current position; live streams handled in onResume
+                miniPlayer?.play()
+            }
         }
     }
 
@@ -134,6 +153,7 @@ class HomeActivity : AppCompatActivity() {
             currentMiniTitle = channel.name
             currentMiniStreamId = channel.streamId
             binding.tvMiniChannelName.text = channel.name
+            binding.tvPipChannelName?.text = channel.name
             miniPlayer?.let {
                 it.setMediaItem(MediaItem.fromUri(url))
                 it.prepare()
@@ -146,15 +166,42 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupMenu() {
         binding.btnMenu.setOnClickListener {
-            val settingsClass = if (
-                packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
-                packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEVISION)
-            ) {
+            val settingsClass = if (isLargeScreenDevice()) {
                 TvSettingsActivity::class.java
             } else {
                 SettingsActivity::class.java
             }
             startActivity(Intent(this, settingsClass))
+        }
+        binding.btnMultiView?.setOnClickListener {
+            startActivity(Intent(this, MultiViewActivity::class.java))
+        }
+        binding.btnRecording?.setOnClickListener {
+            startActivity(Intent(this, RecordingSchedulerActivity::class.java))
+        }
+        binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
+        binding.pipCorner?.setOnClickListener {
+            if (currentMiniUrl.isNotEmpty()) {
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+            }
+        }
+    }
+
+    private fun togglePipMode() {
+        if (isPipMode) {
+            binding.pipCornerView?.player = null
+            binding.miniPlayerView?.player = miniPlayer
+            binding.miniPlayerContainer?.visibility = View.VISIBLE
+            binding.pipCorner?.visibility = View.GONE
+            binding.btnCollapsePip?.text = "PiP ▼"
+            isPipMode = false
+        } else {
+            binding.miniPlayerView?.player = null
+            binding.pipCornerView?.player = miniPlayer
+            binding.miniPlayerContainer?.visibility = View.GONE
+            binding.pipCorner?.visibility = View.VISIBLE
+            binding.tvPipChannelName?.text = currentMiniTitle
+            isPipMode = true
         }
     }
 
@@ -226,7 +273,14 @@ class HomeActivity : AppCompatActivity() {
 
         seriesAdapter = SeriesAdapter(
             onSeriesClick = { series ->
-                Toast.makeText(this, series.name, Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                })
             }
         )
 
@@ -254,8 +308,9 @@ class HomeActivity : AppCompatActivity() {
                     1 -> showFavCategories()
                     2 -> showVod()
                     3 -> showSeries()
-                    4 -> showFavorites()
-                    5 -> showGuide()
+                    4 -> showWatching()
+                    5 -> showFavorites()
+                    6 -> showGuide()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
@@ -265,7 +320,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupSearch() {
         binding.etSearch.setOnEditorActionListener { _, _, _ ->
-            viewModel.searchChannels(binding.etSearch.text.toString())
+            dispatchSearch(binding.etSearch.text.toString())
             true
         }
         binding.etSearch.addTextChangedListener(object : android.text.TextWatcher {
@@ -273,15 +328,27 @@ class HomeActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
                 val query = s.toString()
+                binding.btnClearSearch?.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
                 if (query.length >= 2 || query.isEmpty()) {
                     searchDebounceJob?.cancel()
                     searchDebounceJob = lifecycleScope.launch {
                         kotlinx.coroutines.delay(300)
-                        viewModel.searchChannels(query)
+                        dispatchSearch(query)
                     }
                 }
             }
         })
+        binding.btnClearSearch?.setOnClickListener {
+            binding.etSearch.setText("")
+            binding.etSearch.clearFocus()
+        }
+    }
+
+    private fun dispatchSearch(query: String) {
+        when (binding.tabLayout.selectedTabPosition) {
+            2 -> viewModel.searchVod(query)
+            else -> viewModel.searchChannels(query)
+        }
     }
         private fun showLive() {
         binding.rvCategories.visibility = View.VISIBLE
@@ -325,6 +392,12 @@ class HomeActivity : AppCompatActivity() {
         seriesAdapter.submitList(viewModel.series.value)
     }
 
+    private fun showWatching() {
+        binding.rvCategories.visibility = View.GONE
+        binding.rvChannels.adapter = vodAdapter
+        viewModel.showContinueWatching()
+    }
+
     private fun showFavorites() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
@@ -352,14 +425,12 @@ class HomeActivity : AppCompatActivity() {
     private fun observeTabVisibility() {
         lifecycleScope.launch {
             viewModel.showMovies.collect { show: Boolean ->
-                val tab = binding.tabLayout.getTabAt(2)
-                tab?.view?.visibility = if (show) View.VISIBLE else View.GONE
+                binding.tabLayout.getTabAt(2)?.view?.visibility = if (show) View.VISIBLE else View.GONE
             }
         }
         lifecycleScope.launch {
             viewModel.showSeries.collect { show: Boolean ->
-                val tab = binding.tabLayout.getTabAt(3)
-                tab?.view?.visibility = if (show) View.VISIBLE else View.GONE
+                binding.tabLayout.getTabAt(3)?.view?.visibility = if (show) View.VISIBLE else View.GONE
             }
         }
     }
@@ -421,8 +492,18 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            viewModel.channelEpgProgress.collect {
+                channelAdapter.submitEpgProgress(it)
+            }
+        }
+        lifecycleScope.launch {
             viewModel.vodCategories.collect {
                 if (binding.tabLayout.selectedTabPosition == 2) categoryAdapter.submitList(it)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.continueWatching.collect { list ->
+                if (binding.tabLayout.selectedTabPosition == 4) vodAdapter.submitList(list)
             }
         }
     }

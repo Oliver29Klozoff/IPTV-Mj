@@ -1,9 +1,13 @@
 package com.iptvapp
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.iptvapp.worker.ReminderWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import java.io.PrintWriter
@@ -27,6 +31,20 @@ class IptvApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         setupCrashHandler()
+        createNotificationChannels()
+    }
+
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    ReminderWorker.CHANNEL_ID,
+                    "EPG Reminders",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = "Alerts for upcoming TV programs you've bookmarked" }
+            )
+        }
     }
 
     private fun setupCrashHandler() {

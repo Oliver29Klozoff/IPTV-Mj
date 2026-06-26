@@ -1,144 +1,242 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/tvSettingsRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#05080E"
-    android:orientation="horizontal"
-    android:padding="32dp">
+    android:orientation="horizontal">
 
+    <!-- LEFT NAVIGATION SIDEBAR -->
     <LinearLayout
-        android:layout_width="320dp"
+        android:layout_width="256dp"
         android:layout_height="match_parent"
+        android:background="#080D18"
         android:orientation="vertical"
-        android:paddingEnd="24dp">
+        android:paddingTop="36dp"
+        android:paddingBottom="20dp"
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MKTV"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:paddingStart="24dp"
+            android:paddingBottom="2dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Settings"
-            android:textColor="#FFFFFF"
-            android:textSize="32sp"
-            android:textStyle="bold"
-            android:paddingBottom="20dp" />
+            android:textColor="#7BBEE0"
+            android:textSize="13sp"
+            android:paddingStart="24dp"
+            android:paddingBottom="28dp" />
 
         <Button
             android:id="@+id/btnTvStream"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/tv_settings_button"
+            android:layout_height="64dp"
+            android:layout_marginBottom="2dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
             android:text="Stream"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnTvDisplay"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/tv_settings_button"
+            android:layout_height="64dp"
+            android:layout_marginBottom="2dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
             android:text="Display"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnTvEpg"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/tv_settings_button"
+            android:layout_height="64dp"
+            android:layout_marginBottom="2dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
             android:text="EPG"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/btnTvUpdate"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="2dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
+            android:text="Updates"
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnTvBackup"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/tv_settings_button"
+            android:layout_height="64dp"
+            android:layout_marginBottom="2dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
             android:text="Backup"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnTvServers"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/tv_settings_button"
+            android:layout_height="64dp"
+            android:layout_marginBottom="2dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
             android:text="Servers"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnTvAccount"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:background="@drawable/tv_settings_button"
+            android:layout_height="64dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
             android:text="Account"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/btnTvSync"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:gravity="start|center_vertical"
+            android:paddingStart="24dp"
+            android:text="Sync"
+            android:textColor="#CCCCCC"
+            android:textSize="18sp"
+            android:textAllCaps="false" />
+
     </LinearLayout>
 
+    <!-- SIDEBAR DIVIDER -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#1A2533" />
+
+    <!-- RIGHT CONTENT PANELS -->
     <FrameLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:background="#0D111A"
-        android:padding="32dp">
+        android:layout_weight="1">
 
+        <!-- ═══ STREAM PANEL ═══ -->
         <ScrollView
             android:id="@+id/panelTvStream"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:visibility="visible">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="36dp">
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Stream"
                     android:textColor="#FFFFFF"
                     android:textSize="30sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
                 <TextView
-                    android:id="@+id/tvTvServerSummary"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:textColor="#B8C5D6"
-                    android:textSize="20sp" />
-                <Button
-                    android:id="@+id/btnTvFormatM3u8"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
-                    android:background="@drawable/tv_settings_button"
-                    android:text="Use M3U8"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <Button
-                    android:id="@+id/btnTvFormatTs"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/tv_settings_button"
-                    android:text="Use TS"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <TextView
-                    android:id="@+id/tvTvFormatSummary"
+                    android:text="SERVER"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:textColor="#B8C5D6"
-                    android:textSize="20sp" />
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:layout_marginBottom="24dp">
+                    <TextView
+                        android:id="@+id/tvTvServerSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="#C0D8EE"
+                        android:textSize="18sp"
+                        android:lineSpacingExtra="6dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="STREAM FORMAT"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="20dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:layout_marginBottom="8dp">
+                    <Switch
+                        android:id="@+id/switchTvFormat"
+                        android:layout_width="match_parent"
+                        android:layout_height="68dp"
+                        android:focusable="true"
+                        android:background="@drawable/focus_selector"
+                        android:paddingHorizontal="8dp"
+                        android:text="Use TS format (off = M3U8)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="20sp" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
 
+        <!-- ═══ DISPLAY PANEL ═══ -->
         <ScrollView
             android:id="@+id/panelTvDisplay"
             android:layout_width="match_parent"
@@ -147,39 +245,78 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="36dp">
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Display"
                     android:textColor="#FFFFFF"
                     android:textSize="30sp"
-                    android:textStyle="bold" />
-                <Switch
-                    android:id="@+id/switchTvUsaOnly"
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
+                <TextView
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
-                    android:text="USA only channels"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <Switch
-                    android:id="@+id/switchTvMovies"
+                    android:layout_height="wrap_content"
+                    android:text="CHANNELS"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:text="Show movies"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <Switch
-                    android:id="@+id/switchTvSeries"
-                    android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:text="Show series"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="20dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp">
+                    <Switch
+                        android:id="@+id/switchTvUsaOnly"
+                        android:layout_width="match_parent"
+                        android:layout_height="68dp"
+                        android:focusable="true"
+                        android:background="@drawable/focus_selector"
+                        android:paddingHorizontal="8dp"
+                        android:text="USA only channels"
+                        android:textColor="#FFFFFF"
+                        android:textSize="20sp" />
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#1A2533" />
+                    <Switch
+                        android:id="@+id/switchTvMovies"
+                        android:layout_width="match_parent"
+                        android:layout_height="68dp"
+                        android:focusable="true"
+                        android:background="@drawable/focus_selector"
+                        android:paddingHorizontal="8dp"
+                        android:text="Show movies tab"
+                        android:textColor="#FFFFFF"
+                        android:textSize="20sp" />
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#1A2533" />
+                    <Switch
+                        android:id="@+id/switchTvSeries"
+                        android:layout_width="match_parent"
+                        android:layout_height="68dp"
+                        android:focusable="true"
+                        android:background="@drawable/focus_selector"
+                        android:paddingHorizontal="8dp"
+                        android:text="Show series tab"
+                        android:textColor="#FFFFFF"
+                        android:textSize="20sp" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
 
+        <!-- ═══ EPG PANEL ═══ -->
         <ScrollView
             android:id="@+id/panelTvEpg"
             android:layout_width="match_parent"
@@ -188,62 +325,257 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="36dp">
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="EPG"
                     android:textColor="#FFFFFF"
                     android:textSize="30sp"
-                    android:textStyle="bold" />
-                <EditText
-                    android:id="@+id/etTvEpgUrl"
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
+                <TextView
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
-                    android:hint="EPG URL"
-                    android:inputType="textUri"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#7C8799"
-                    android:textSize="20sp" />
-                <Button
-                    android:id="@+id/btnTvSaveEpg"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="18dp"
-                    android:background="@drawable/tv_settings_button"
-                    android:text="Save EPG URL"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <Switch
-                    android:id="@+id/switchTvRefreshMissing"
+                    android:layout_height="wrap_content"
+                    android:text="EPG SOURCES"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:id="@+id/llTvEpgUrls"
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
-                    android:text="Refresh missing EPG only"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <EditText
-                    android:id="@+id/etTvRefreshHours"
-                    android:layout_width="220dp"
-                    android:layout_height="72dp"
-                    android:hint="Hours"
-                    android:inputType="number"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#7C8799"
-                    android:textSize="20sp" />
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="12dp" />
                 <Button
-                    android:id="@+id/btnTvSaveEpgPrefs"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="18dp"
+                    android:id="@+id/btnTvAddEpg"
+                    android:layout_width="260dp"
+                    android:layout_height="60dp"
+                    android:layout_marginBottom="24dp"
                     android:background="@drawable/tv_settings_button"
-                    android:text="Save EPG Settings"
+                    android:focusable="true"
+                    android:text="Add EPG Source"
                     android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
+                    android:textSize="17sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="REFRESH"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:layout_marginBottom="24dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <Button
+                            android:id="@+id/btnTvRefreshEpg"
+                            android:layout_width="260dp"
+                            android:layout_height="60dp"
+                            android:layout_marginEnd="16dp"
+                            android:background="@drawable/tv_settings_button"
+                            android:focusable="true"
+                            android:text="Refresh EPG Now"
+                            android:textColor="#FFFFFF"
+                            android:textSize="17sp" />
+                        <Button
+                            android:id="@+id/btnTvCancelEpg"
+                            android:layout_width="200dp"
+                            android:layout_height="60dp"
+                            android:background="@drawable/tv_settings_button"
+                            android:focusable="true"
+                            android:text="Cancel"
+                            android:textColor="#FF6B6B"
+                            android:textSize="17sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/tvTvEpgStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:textColor="#7BBEE0"
+                        android:textSize="16sp" />
+                    <TextView
+                        android:id="@+id/tvTvLastRefresh"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Last EPG Refresh: Never"
+                        android:textColor="#7BBEE0"
+                        android:textSize="15sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="REFRESH SETTINGS"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <Switch
+                        android:id="@+id/switchTvRefreshMissing"
+                        android:layout_width="match_parent"
+                        android:layout_height="64dp"
+                        android:focusable="true"
+                        android:background="@drawable/focus_selector"
+                        android:paddingHorizontal="8dp"
+                        android:text="Refresh only channels missing guide data"
+                        android:textColor="#FFFFFF"
+                        android:textSize="19sp" />
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="16dp"
+                        android:background="#1A2533" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Auto-refresh schedule"
+                        android:textColor="#C0D8EE"
+                        android:textSize="17sp"
+                        android:paddingBottom="12dp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <Button
+                            android:id="@+id/btnTvAutoOff"
+                            android:layout_width="0dp"
+                            android:layout_height="60dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/tv_settings_button"
+                            android:focusable="true"
+                            android:text="Off"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp" />
+                        <Button
+                            android:id="@+id/btnTvAuto6"
+                            android:layout_width="0dp"
+                            android:layout_height="60dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/tv_settings_button"
+                            android:focusable="true"
+                            android:text="6 hrs"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp" />
+                        <Button
+                            android:id="@+id/btnTvAuto12"
+                            android:layout_width="0dp"
+                            android:layout_height="60dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/tv_settings_button"
+                            android:focusable="true"
+                            android:text="12 hrs"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp" />
+                        <Button
+                            android:id="@+id/btnTvAuto24"
+                            android:layout_width="0dp"
+                            android:layout_height="60dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/tv_settings_button"
+                            android:focusable="true"
+                            android:text="Daily"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
 
+        <!-- ═══ UPDATES PANEL ═══ -->
+        <ScrollView
+            android:id="@+id/panelTvUpdate"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="36dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Updates"
+                    android:textColor="#FFFFFF"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="APP VERSION"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:layout_marginBottom="24dp">
+                    <TextView
+                        android:id="@+id/tvTvVersionInfo"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="#C0D8EE"
+                        android:textSize="19sp"
+                        android:paddingBottom="16dp" />
+                    <Button
+                        android:id="@+id/btnTvCheckUpdate"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:layout_marginBottom="10dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Check for Updates"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp" />
+                    <Button
+                        android:id="@+id/btnTvWhatsNew"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="What's New"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ═══ BACKUP PANEL ═══ -->
         <ScrollView
             android:id="@+id/panelTvBackup"
             android:layout_width="match_parent"
@@ -252,35 +584,88 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="36dp">
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Backup and Restore"
-                    android:textColor="#FFFFFF"
-                    android:textSize="30sp"
-                    android:textStyle="bold" />
-                <Button
-                    android:id="@+id/btnTvRunBackup"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
-                    android:background="@drawable/tv_settings_button"
                     android:text="Backup"
                     android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
-                <Button
-                    android:id="@+id/btnTvRunRestore"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/tv_settings_button"
-                    android:text="Restore"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="BACKUP &amp; RESTORE"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:layout_marginBottom="24dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Backup generates a QR code — scan with your phone to restore settings, credentials, and favorites."
+                        android:textColor="#C0D8EE"
+                        android:textSize="17sp"
+                        android:lineSpacingExtra="4dp"
+                        android:paddingBottom="20dp" />
+                    <Button
+                        android:id="@+id/btnTvRunBackup"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Generate Backup QR"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="DEBUG"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <Button
+                        android:id="@+id/btnTvSendDebug"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Send Debug Report"
+                        android:textColor="#FF6B6B"
+                        android:textSize="18sp" />
+                    <TextView
+                        android:id="@+id/tvTvDebugStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:textColor="#7BBEE0"
+                        android:textSize="16sp" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
 
+        <!-- ═══ SERVERS PANEL ═══ -->
         <ScrollView
             android:id="@+id/panelTvServers"
             android:layout_width="match_parent"
@@ -289,33 +674,46 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="36dp">
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Servers"
                     android:textColor="#FFFFFF"
                     android:textSize="30sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
                 <TextView
-                    android:id="@+id/tvTvServerList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:textColor="#B8C5D6"
-                    android:textSize="20sp" />
+                    android:text="CONFIGURED SERVERS"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:id="@+id/llTvServers"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="20dp" />
                 <Button
                     android:id="@+id/btnTvAddServer"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
+                    android:layout_width="280dp"
+                    android:layout_height="68dp"
                     android:background="@drawable/tv_settings_button"
+                    android:focusable="true"
                     android:text="Add Server"
                     android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
+                    android:textSize="18sp" />
+
             </LinearLayout>
         </ScrollView>
 
+        <!-- ═══ ACCOUNT PANEL ═══ -->
         <ScrollView
             android:id="@+id/panelTvAccount"
             android:layout_width="match_parent"
@@ -324,24 +722,165 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="36dp">
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Account"
                     android:textColor="#FFFFFF"
                     android:textSize="30sp"
-                    android:textStyle="bold" />
-                <Button
-                    android:id="@+id/btnTvLogout"
-                    android:layout_width="360dp"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="24dp"
-                    android:background="@drawable/tv_settings_button"
-                    android:text="Logout"
-                    android:textColor="#FFFFFF"
-                    android:textSize="20sp" />
+                    android:textStyle="bold"
+                    android:paddingBottom="28dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SESSION"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Logging out will clear all local data and return to the login screen."
+                        android:textColor="#C0D8EE"
+                        android:textSize="17sp"
+                        android:lineSpacingExtra="4dp"
+                        android:paddingBottom="20dp" />
+                    <Button
+                        android:id="@+id/btnTvLogout"
+                        android:layout_width="220dp"
+                        android:layout_height="68dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Logout"
+                        android:textColor="#FF4444"
+                        android:textSize="18sp" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
+
+        <!-- ═══ SYNC PANEL ═══ -->
+        <ScrollView
+            android:id="@+id/panelTvSync"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="36dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Cross-Device Sync"
+                    android:textColor="#FFFFFF"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Sync your favorites and watch history across all devices using your GitHub account."
+                    android:textColor="#C0D8EE"
+                    android:textSize="16sp"
+                    android:lineSpacingExtra="4dp"
+                    android:paddingBottom="28dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="ENABLE SYNC"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="20dp"
+                    android:layout_marginBottom="24dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Sync favorites and watch history across devices"
+                        android:textColor="#FFFFFF"
+                        android:textSize="17sp" />
+                    <Switch
+                        android:id="@+id/switchTvSyncEnabled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:focusable="true" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SYNC NOW"
+                    android:textColor="#7BBEE0"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.15"
+                    android:paddingBottom="10dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#0E1620"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    android:layout_marginBottom="24dp">
+
+                    <Button
+                        android:id="@+id/btnTvSyncUp"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Push to Cloud"
+                        android:textColor="#FFFFFF"
+                        android:textSize="17sp" />
+
+                    <Button
+                        android:id="@+id/btnTvSyncDown"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:layout_marginBottom="16dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Pull from Cloud"
+                        android:textColor="#FFFFFF"
+                        android:textSize="17sp" />
+
+                    <TextView
+                        android:id="@+id/tvTvSyncStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="#7BBEE0"
+                        android:textSize="15sp"
+                        android:lineSpacingExtra="4dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </ScrollView>
+
     </FrameLayout>
 </LinearLayout>

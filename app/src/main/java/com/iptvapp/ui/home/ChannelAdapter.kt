@@ -1,6 +1,7 @@
 package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -16,6 +17,7 @@ class ChannelAdapter(
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
     private var epgTextByStreamId: Map<Int, String> = emptyMap()
+    private var epgProgressByStreamId: Map<Int, Int> = emptyMap()
     private var currentlyPlayingStreamId: Int = -1
 
     fun setCurrentlyPlayingStreamId(streamId: Int) {
@@ -28,12 +30,21 @@ class ChannelAdapter(
         notifyDataSetChanged()
     }
 
+    fun submitEpgProgress(progressMap: Map<Int, Int>) {
+        epgProgressByStreamId = progressMap
+        notifyDataSetChanged()
+    }
+
     inner class ViewHolder(val binding: ItemChannelBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
             binding.tvEpgNow.text = epgTextByStreamId[item.streamId] ?: "Guide loading..."
+
+            val progress = epgProgressByStreamId[item.streamId] ?: 0
+            binding.epgProgressBar.visibility = if (progress > 0) View.VISIBLE else View.INVISIBLE
+            binding.epgProgressBar.progress = progress
 
             Glide.with(binding.ivChannelLogo)
                 .load(item.streamIcon)

@@ -14,7 +14,8 @@ data class ChannelEntity(
     val num: Int,
     val isFavorite: Boolean = false,
     val lastWatched: Long? = null,
-    val cachedAt: Long = System.currentTimeMillis()
+    val cachedAt: Long = System.currentTimeMillis(),
+    val streamUrl: String? = null
 )
 
 @Entity(tableName = "categories")
@@ -66,4 +67,15 @@ data class EpgEntity(
     val stopTimestamp: Long,
     val nowPlaying: Int,
     val hasArchive: Int
+)
+
+@Entity(tableName = "recordings")
+data class RecordingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val streamId: Int,
+    val channelName: String,
+    val scheduledStartMs: Long,
+    val durationMs: Long,
+    val outputPath: String,
+    val status: String = "SCHEDULED"
 )

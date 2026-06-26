@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -15,6 +16,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
+import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityLoginBinding
 import com.iptvapp.ui.home.HomeActivity
 import com.iptvapp.util.Resource
@@ -32,6 +34,33 @@ class LoginActivity : AppCompatActivity() {
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
+    @Inject lateinit var repository: XtreamRepository
+
+    private val m3uFileLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            lifecycleScope.launch {
+                try {
+                    val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return@launch
+                    setLoading(true)
+                    val result = repository.importM3uFromText(text)
+                    setLoading(false)
+                    when (result) {
+                        is Resource.Success -> {
+                            Snackbar.make(binding.root, "Imported ${result.data} channels", Snackbar.LENGTH_SHORT).show()
+                            goToHome()
+                        }
+                        is Resource.Error -> showError("Import failed: ${result.message}")
+                        else -> {}
+                    }
+                } catch (e: Exception) {
+                    setLoading(false)
+                    showError("Import failed: ${e.message}")
+                }
+            }
+        }
+    }
 
     private val restoreLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -74,12 +103,60 @@ class LoginActivity : AppCompatActivity() {
             if (actionId == EditorInfo.IME_ACTION_DONE) { attemptLogin(); true } else false
         }
         binding.btnLogin.setOnClickListener { attemptLogin() }
+        binding.btnImportM3u.setOnClickListener { showM3uImportDialog() }
+    }
+
+    private fun showM3uImportDialog() {
+        val options = arrayOf("Enter M3U URL", "Choose file")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Import M3U Playlist")
+            .setItems(options) { _, which ->
+                if (which == 0) {
+                    showM3uUrlDialog()
+                } else {
+                    m3uFileLauncher.launch(arrayOf("*/*", "text/*", "audio/x-mpegurl"))
+                }
+            }
+            .show()
+    }
+
+    private fun showM3uUrlDialog() {
+        val input = EditText(this).apply {
+            hint = "http://example.com/playlist.m3u"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setPadding(48, 24, 48, 24)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("M3U URL")
+            .setView(input)
+            .setPositiveButton("Import") { _, _ ->
+                val url = input.text.toString().trim()
+                if (url.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        setLoading(true)
+                        val result = repository.importM3uFromUrl(url)
+                        setLoading(false)
+                        when (result) {
+                            is Resource.Success -> {
+                                Snackbar.make(binding.root, "Imported ${result.data} channels", Snackbar.LENGTH_SHORT).show()
+                                goToHome()
+                            }
+                            is Resource.Error -> showError("Import failed: ${result.message}")
+                            else -> {}
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun attemptLogin() {
         val serverUrl = binding.etServerUrl.text.toString().trim()
         val username = binding.etUsername.text.toString().trim()
         val password = binding.etPassword.text.toString().trim()
+        val nickname = binding.etNickname.text.toString().trim()
+        lifecycleScope.launch { prefs.setServerNickname(nickname) }
         viewModel.login(serverUrl, username, password)
     }
 

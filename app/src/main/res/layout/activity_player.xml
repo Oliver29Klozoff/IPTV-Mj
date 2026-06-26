@@ -17,6 +17,172 @@
         app:use_controller="false"
         app:show_timeout="5000" />
 
+    <!-- Buffering spinner -->
+    <ProgressBar
+        android:id="@+id/progressBuffering"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:indeterminateTint="#008CFF"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Left brightness indicator -->
+    <LinearLayout
+        android:id="@+id/brightnessIndicator"
+        android:layout_width="36dp"
+        android:layout_height="160dp"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical"
+        android:gravity="center|bottom"
+        android:padding="4dp"
+        android:background="#CC000000"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+        <TextView
+            android:id="@+id/tvBrightnessIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="☀"
+            android:textColor="#FFDD00"
+            android:textSize="16sp" />
+        <ProgressBar
+            android:id="@+id/brightnessBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="120dp"
+            android:layout_height="8dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="50"
+            android:progressTint="#FFDD00"
+            android:progressBackgroundTint="#444444"
+            android:rotation="270" />
+    </LinearLayout>
+
+    <!-- Right volume indicator -->
+    <LinearLayout
+        android:id="@+id/volumeIndicator"
+        android:layout_width="36dp"
+        android:layout_height="160dp"
+        android:layout_marginEnd="12dp"
+        android:orientation="vertical"
+        android:gravity="center|bottom"
+        android:padding="4dp"
+        android:background="#CC000000"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+        <TextView
+            android:id="@+id/tvVolumeIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔊"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+        <ProgressBar
+            android:id="@+id/volumeBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="120dp"
+            android:layout_height="8dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="50"
+            android:progressTint="#008CFF"
+            android:progressBackgroundTint="#444444"
+            android:rotation="270" />
+    </LinearLayout>
+
+    <!-- Top action buttons: Guide (left) + Speed/Sleep/Tracks (right of guide) + Back (far right) -->
+    <ImageButton
+        android:id="@+id/btnGuide"
+        android:visibility="gone"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_agenda"
+        android:tint="#008CFF"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/topActionButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <Button
+            android:id="@+id/btnSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="1x"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:background="@android:color/transparent"
+            android:padding="4dp" />
+
+        <Button
+            android:id="@+id/btnSleep"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="⏱"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:background="@android:color/transparent"
+            android:padding="4dp" />
+
+        <Button
+            android:id="@+id/btnTracks"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="CC"
+            android:textColor="#008CFF"
+            android:textSize="12sp"
+            android:background="@android:color/transparent"
+            android:padding="4dp" />
+
+    </LinearLayout>
+
+    <!-- Top right: Close -->
+    <ImageButton
+        android:id="@+id/btnBack"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:tint="#FFFFFF"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Play/Pause button - bottom center -->
+    <ImageButton
+        android:id="@+id/btnPlayPause"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginBottom="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_media_pause"
+        android:tint="#FFFFFF"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Bottom EPG/info overlay -->
     <RelativeLayout
         android:id="@+id/epgOverlay"
         android:layout_width="0dp"
@@ -70,6 +236,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_crop"
             android:tint="#008CFF" />
+
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
@@ -81,48 +248,7 @@
             android:visibility="gone" />
     </RelativeLayout>
 
-    <!-- Top left: Guide -->
-    <ImageButton
-        android:id="@+id/btnGuide"
-        android:visibility="gone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_agenda"
-        android:tint="#008CFF"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <!-- Top right: Close -->
-    <ImageButton
-        android:id="@+id/btnBack"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:tint="#FFFFFF"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <!-- Play/Pause button - bottom center -->
-    <ImageButton
-        android:id="@+id/btnPlayPause"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginBottom="16dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_media_pause"
-        android:tint="#FFFFFF"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-        <!-- Channel zones -->
+    <!-- Channel zones (click to switch) -->
     <View
         android:id="@+id/zonePrevious"
         android:layout_width="0dp"
@@ -153,7 +279,52 @@
         app:layout_constraintVertical_bias="0.5"
         app:layout_constraintHorizontal_bias="1" />
 
-    <!-- Favorites guide drawer - LAST so it renders on top of zones -->
+    <!-- Channel Change OSD: brief top-right banner on D-pad/swipe channel flip -->
+    <LinearLayout
+        android:id="@+id/channelOsd"
+        android:layout_width="280dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="20dp"
+        android:background="#DD000000"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/tvOsdChannelName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvOsdEpg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp" />
+
+        <ProgressBar
+            android:id="@+id/osdEpgProgress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="10dp"
+            android:max="100"
+            android:progress="0"
+            android:progressBackgroundTint="#444444"
+            android:progressTint="#008CFF" />
+    </LinearLayout>
+
+    <!-- Favorites guide drawer -->
     <LinearLayout
         android:id="@+id/guideContainer"
         android:layout_width="340dp"

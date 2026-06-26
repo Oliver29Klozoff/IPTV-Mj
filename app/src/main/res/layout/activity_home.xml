@@ -13,7 +13,7 @@
         android:background="#1A1A1A"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
+        android:paddingHorizontal="12dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -30,12 +30,45 @@
             android:id="@+id/tvTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
             android:layout_weight="1"
+            android:layout_marginStart="10dp"
             android:text="MKTV"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="160dp"
+            android:layout_height="34dp"
+            android:background="@drawable/search_bg"
+            android:hint="Search..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingHorizontal="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#666666"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btnRecording"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginEnd="2dp"
+            android:background="@android:color/transparent"
+            android:text="⏺ REC"
+            android:textColor="#FF4444"
+            android:textSize="12sp" />
+
+        <ImageButton
+            android:id="@+id/btnClearSearch"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="2dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="#888888"
+            android:visibility="gone" />
 
     </LinearLayout>
 
@@ -101,6 +134,51 @@
             android:layout_gravity="center"
             android:indeterminateTint="#008CFF"
             android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnCollapsePip"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_gravity="top|start"
+            android:layout_margin="8dp"
+            android:background="@android:color/transparent"
+            android:text="PiP ▼"
+            android:textColor="#AAAAAA"
+            android:textSize="11sp"
+            android:padding="4dp" />
+    </FrameLayout>
+
+    <!-- PiP corner overlay - floats over channel list when mini player is collapsed -->
+    <FrameLayout
+        android:id="@+id/pipCorner"
+        android:layout_width="220dp"
+        android:layout_height="130dp"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="#000000"
+        android:elevation="8dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/pipCornerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:resize_mode="fit"
+            app:use_controller="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#88000000"
+            android:padding="4dp"
+            android:id="@+id/tvPipChannelName"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:ellipsize="end"
+            android:maxLines="1" />
     </FrameLayout>
 
     <!-- TABS -->
@@ -122,47 +200,17 @@
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CATEGORIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MOVIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SERIES" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="WATCHING" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
     </com.google.android.material.tabs.TabLayout>
-
-    <!-- SEARCH BAR BOTTOM -->
-    <LinearLayout
-        android:id="@+id/searchBar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="#1A1A1A"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="24dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <EditText
-            android:id="@+id/etSearch"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:background="@drawable/search_bg"
-            android:hint="Search channels..."
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:paddingHorizontal="14dp"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#666666"
-            android:textSize="15sp" />
-
-    </LinearLayout>
 
     <!-- CHANNEL LIST AREA -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:orientation="horizontal"
-        app:layout_constraintBottom_toTopOf="@id/searchBar"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout">
@@ -193,7 +241,7 @@
         android:layout_height="wrap_content"
         android:indeterminateTint="#008CFF"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/searchBar"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout" />

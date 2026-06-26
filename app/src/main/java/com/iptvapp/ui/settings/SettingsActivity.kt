@@ -2,6 +2,7 @@ package com.iptvapp.ui.settings
 import com.iptvapp.BuildConfig
 
 import com.iptvapp.util.enableTvFocusHighlight
+import com.iptvapp.util.isLargeScreenDevice
 
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -94,6 +95,7 @@ class SettingsActivity : AppCompatActivity() {
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
+    @Inject lateinit var syncManager: com.iptvapp.sync.SyncManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,6 +127,7 @@ workManager = WorkManager.getInstance(this)
         setupBackupRestore()
         setupSectionToggles()
         setupServers()
+        setupSyncSection()
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
@@ -196,8 +199,8 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun setupSectionToggles() {
-        val panels = listOf(binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates, binding.sectionBackup, binding.sectionServers)
-        val navButtons = listOf(binding.headerStream, binding.headerDisplay, binding.headerUpdates, binding.headerBackup, binding.headerServers)
+        val panels = listOf(binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates, binding.sectionBackup, binding.sectionServers, binding.sectionSync)
+        val navButtons = listOf(binding.headerStream, binding.headerDisplay, binding.headerUpdates, binding.headerBackup, binding.headerServers, binding.headerSync)
         fun selectPanel(index: Int) {
             panels.forEachIndexed { i, panel -> panel.visibility = if (i == index) android.view.View.VISIBLE else android.view.View.GONE }
             navButtons.forEachIndexed { i, btn ->
@@ -216,9 +219,7 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun backupSettings() {
-        val isTV = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
-                   packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEVISION)
-        if (isTV) {
+        if (isLargeScreenDevice()) {
             lifecycleScope.launch {
                 try {
                     val creds = prefs.credentials.first()
@@ -325,19 +326,49 @@ workManager = WorkManager.getInstance(this)
                 val channelCount = try { db.channelDao().getCount() } catch (_: Exception) { -1 }
                 val favCount = try { db.channelDao().getFavoriteCount() } catch (_: Exception) { -1 }
                 val vodCount = try { db.vodDao().getCount() } catch (_: Exception) { -1 }
+                val seriesCount = try { db.seriesDao().getCount() } catch (_: Exception) { -1 }
                 val epgCount = try { db.epgDao().getEpgCount() } catch (_: Exception) { -1 }
                 val format = prefs.preferredFormat.first()
                 val usaOnly = prefs.usaOnlyChannels.first()
-                binding.tvReportStatus.text = "Step 2: reading crash log..."
+                val serverUrl = try { prefs.credentials.first().serverUrl.let { url ->
+                    java.net.URI(url).let { "${it.host}:${it.port}" }
+                } } catch (_: Exception) { "unknown" }
+                val lastRefresh = prefs.lastEpgRefreshTime.first().let { t ->
+                    if (t == 0L) "Never" else java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(t))
+                }
+                val autoRefreshHours = prefs.epgAutoRefreshHours.first()
+                val autoRefreshStr = if (autoRefreshHours == 0) "Off" else "Every ${autoRefreshHours}h"
+                val missingOnly = prefs.epgRefreshMissingOnly.first()
+                val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                val memInfo = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+                val ramFree = "%.1f GB".format(memInfo.availMem / 1e9)
+                val ramTotal = "%.1f GB".format(memInfo.totalMem / 1e9)
+                val stat = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+                val storageFree = "%.1f GB".format(stat.availableBlocksLong * stat.blockSizeLong / 1e9)
+                val dm = resources.displayMetrics
+                val screen = "${dm.widthPixels}x${dm.heightPixels} (${dm.densityDpi}dpi)"
+                val epgWorkState = try {
+                    WorkManager.getInstance(this@SettingsActivity)
+                        .getWorkInfosForUniqueWork(com.iptvapp.worker.EpgRefreshWorker.UNIQUE_WORK_NAME).get()
+                        .firstOrNull()?.state?.name ?: "None"
+                } catch (_: Exception) { "Unknown" }
+                binding.tvReportStatus.text = "Reading crash log..."
                 val crashLog = IptvApplication.getCrashLog(this@SettingsActivity)
                 val debugText = """
                     App: v${pInfo.versionName} (${pInfo.longVersionCode})
                     Device: ${Build.MANUFACTURER} ${Build.MODEL}
                     Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
+                    Screen: $screen
                     Network: $netType
+                    RAM: $ramFree free / $ramTotal total
+                    Storage: $storageFree free
+                    Server: $serverUrl
                     Channels: $channelCount | Favorites: $favCount
-                    VOD: $vodCount | EPG: $epgCount
+                    VOD: $vodCount | Series: $seriesCount | EPG: $epgCount
                     Format: $format | USA Only: $usaOnly
+                    Last EPG Refresh: $lastRefresh
+                    Auto-refresh: $autoRefreshStr | Missing-only: $missingOnly
+                    EPG Worker: $epgWorkState
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
                 val title = "Debug Report - v${pInfo.versionName}.${pInfo.longVersionCode} - ${Build.MODEL}"
@@ -600,7 +631,12 @@ workManager = WorkManager.getInstance(this)
 
     private suspend fun updateLastRefreshText() {
         val time = prefs.lastEpgRefreshTime.first()
-        // arrowServers.text = "v"
+        binding.tvLastEpgRefresh.text = if (time == 0L) {
+            "Last EPG Refresh: Never"
+        } else {
+            val formatted = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(time))
+            "Last EPG Refresh: $formatted"
+        }
     }
 
     private suspend fun updateCacheAgeText() {
@@ -613,12 +649,12 @@ workManager = WorkManager.getInstance(this)
         }
     }
 
-    private val extraServers = mutableListOf<Triple<String,String,String>>()
+    private val extraServers = mutableListOf<List<String>>()
 
     private fun setupServers() {
         lifecycleScope.launch {
             extraServers.clear()
-            extraServers.addAll(prefs.getExtraServers())
+            extraServers.addAll(prefs.getExtraServersWithNick())
             updateServerList()
         }
         binding.btnAddServer.setOnClickListener { showAddServerDialog() }
@@ -630,6 +666,7 @@ workManager = WorkManager.getInstance(this)
         lifecycleScope.launch {
             val creds = prefs.credentials.first()
             val activeIndex = prefs.activeServerIndex.first()
+            val primaryNick = prefs.serverNickname.first().ifEmpty { creds.username }
 
             // Primary server row
             val primaryRow = android.widget.LinearLayout(this@SettingsActivity).apply {
@@ -647,7 +684,7 @@ workManager = WorkManager.getInstance(this)
                 primaryRow.addView(this)
             }
             android.widget.TextView(this@SettingsActivity).apply {
-                text = "${creds.username} @ ${creds.serverUrl.take(35)}"
+                text = primaryNick
                 setTextColor(android.graphics.Color.WHITE)
                 textSize = 14f
                 primaryRow.addView(this)
@@ -661,7 +698,9 @@ workManager = WorkManager.getInstance(this)
             ll.addView(primaryRow)
 
             // Extra server rows
-            extraServers.forEachIndexed { i, (url, user, _) ->
+            extraServers.forEachIndexed { i, server ->
+                val url = server[0]; val user = server[1]
+                val nick = server.getOrElse(3) { "" }.ifEmpty { user }
                 val row = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
                     setBackgroundColor(android.graphics.Color.parseColor("#1A1A1A"))
@@ -677,7 +716,7 @@ workManager = WorkManager.getInstance(this)
                     row.addView(this)
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
-                    text = "$user @ ${url.take(35)}"
+                    text = nick
                     setTextColor(android.graphics.Color.WHITE)
                     textSize = 14f
                     row.addView(this)
@@ -704,10 +743,10 @@ workManager = WorkManager.getInstance(this)
                     setOnClickListener {
                         lifecycleScope.launch {
                             val primary = prefs.credentials.first()
-                            val newPass = extraServers[i].third
+                            val newPass = extraServers[i][2]
                             val updated = extraServers.toMutableList()
-                            updated[i] = Triple(primary.serverUrl, primary.username, primary.password)
-                            prefs.saveExtraServers(updated)
+                            updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
+                            prefs.saveExtraServersWithNick(updated)
                             withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
                             prefs.saveCredentials(url, user, newPass)
                             prefs.setActiveServerIndex(-1)
@@ -725,7 +764,7 @@ workManager = WorkManager.getInstance(this)
                     layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
                         extraServers.removeAt(i)
-                        lifecycleScope.launch { prefs.saveExtraServers(extraServers) }
+                        lifecycleScope.launch { prefs.saveExtraServersWithNick(extraServers) }
                         updateServerList()
                     }
                     btnRow.addView(this)
@@ -741,12 +780,14 @@ workManager = WorkManager.getInstance(this)
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(48, 24, 48, 0)
         }
+        val etNick = android.widget.EditText(this).apply { hint = "Nickname (optional)" }
         val etUrl = android.widget.EditText(this).apply { hint = "Server URL (http://...)" }
         val etUser = android.widget.EditText(this).apply { hint = "Username" }
         val etPass = android.widget.EditText(this).apply {
             hint = "Password"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
+        layout.addView(etNick)
         layout.addView(etUrl)
         layout.addView(etUser)
         layout.addView(etPass)
@@ -758,13 +799,13 @@ workManager = WorkManager.getInstance(this)
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
-                    extraServers.add(Triple(url, user, pass))
                     lifecycleScope.launch {
-                        val fresh = prefs.getExtraServers().toMutableList()
-                        fresh.add(Triple(url, user, pass))
+                        val fresh = prefs.getExtraServersWithNick().toMutableList()
+                        val nick = etNick.text.toString().trim()
+                        fresh.add(listOf(url, user, pass, nick))
                         extraServers.clear()
                         extraServers.addAll(fresh)
-                        prefs.saveExtraServers(extraServers)
+                        prefs.saveExtraServersWithNick(extraServers)
                         Toast.makeText(this@SettingsActivity, "Server added", Toast.LENGTH_SHORT).show()
                     }
                     updateServerList()
@@ -772,6 +813,40 @@ workManager = WorkManager.getInstance(this)
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun setupSyncSection() {
+        lifecycleScope.launch {
+            binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
+            binding.tvSyncStatus.text = syncManager.getLastSyncSummary()
+        }
+        binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
+            lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
+        }
+        binding.btnSyncUp.setOnClickListener {
+            binding.tvSyncStatus.text = "Pushing to cloud..."
+            binding.btnSyncUp.isEnabled = false
+            binding.btnSyncDown.isEnabled = false
+            lifecycleScope.launch {
+                val result = syncManager.syncUp()
+                binding.tvSyncStatus.text = result
+                binding.btnSyncUp.isEnabled = true
+                binding.btnSyncDown.isEnabled = true
+                Toast.makeText(this@SettingsActivity, result, Toast.LENGTH_SHORT).show()
+            }
+        }
+        binding.btnSyncDown.setOnClickListener {
+            binding.tvSyncStatus.text = "Pulling from cloud..."
+            binding.btnSyncUp.isEnabled = false
+            binding.btnSyncDown.isEnabled = false
+            lifecycleScope.launch {
+                val result = syncManager.syncDown()
+                binding.tvSyncStatus.text = result
+                binding.btnSyncUp.isEnabled = true
+                binding.btnSyncDown.isEnabled = true
+                Toast.makeText(this@SettingsActivity, result, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     companion object {

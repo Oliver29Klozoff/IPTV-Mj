@@ -1,58 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/channelItemRoot"
     android:layout_width="match_parent"
-    android:layout_height="52dp"
+    android:layout_height="55dp"
     android:background="@drawable/focus_selector"
     android:clickable="true"
-    android:focusable="true"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingStart="8dp"
-    android:paddingEnd="8dp">
-
-    <ImageView
-        android:id="@+id/ivChannelLogo"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginEnd="8dp"
-        android:background="#222222"
-        android:padding="3dp"
-        android:scaleType="fitCenter" />
+    android:focusable="true">
 
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_alignParentTop="true"
         android:gravity="center_vertical"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
 
-        <TextView
-            android:id="@+id/tvChannelName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+        <ImageView
+            android:id="@+id/ivChannelLogo"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="#222222"
+            android:padding="3dp"
+            android:scaleType="fitCenter" />
 
-        <TextView
-            android:id="@+id/tvEpgNow"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#999999"
-            android:textSize="10sp" />
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvChannelName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvEpgNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#999999"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/ivFavorite"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginStart="6dp"
+            android:padding="2dp"
+            android:src="@android:drawable/btn_star_big_off" />
+
     </LinearLayout>
 
-    <ImageView
-        android:id="@+id/ivFavorite"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_marginStart="6dp"
-        android:padding="2dp"
-        android:src="@android:drawable/btn_star_big_off" />
+    <ProgressBar
+        android:id="@+id/epgProgressBar"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_alignParentBottom="true"
+        android:max="100"
+        android:progress="0"
+        android:progressBackgroundTint="#1A1A1A"
+        android:progressTint="#008CFF"
+        android:visibility="invisible" />
 
-</LinearLayout>
+</RelativeLayout>

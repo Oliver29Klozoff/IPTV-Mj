@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F0F0F"
+    android:orientation="horizontal">
+
+    <!-- Left: series info panel -->
+    <LinearLayout
+        android:id="@+id/seriesInfoPanel"
+        android:layout_width="240dp"
+        android:layout_height="match_parent"
+        android:background="#141414"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <ImageView
+            android:id="@+id/ivSeriesCover"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:scaleType="centerCrop"
+            android:background="#222222" />
+
+        <TextView
+            android:id="@+id/tvSeriesTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tvSeriesGenre"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#008CFF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvSeriesRating"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#FFD700"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvSeriesPlot"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:maxLines="8"
+            android:ellipsize="end"
+            android:scrollbars="vertical" />
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:text="← Back"
+            android:textColor="#FFFFFF"
+            android:background="@android:color/transparent"
+            android:gravity="start|center_vertical" />
+    </LinearLayout>
+
+    <!-- Right: season tabs + episodes list -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabSeasons"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#1A1A1A"
+            app:tabIndicatorColor="#008CFF"
+            app:tabIndicatorHeight="3dp"
+            app:tabMode="scrollable"
+            app:tabSelectedTextColor="#FFFFFF"
+            app:tabTextColor="#888888"
+            xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminateTint="#008CFF"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:gravity="center"
+            android:text="No episodes available"
+            android:textColor="#666666"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvEpisodes"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp"
+            android:clipToPadding="false" />
+
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Two-player side by side -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+
+        <!-- LEFT PLAYER -->
+        <FrameLayout
+            android:id="@+id/containerLeft"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerLeft"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:use_controller="false"
+                app:resize_mode="fit" />
+
+            <View
+                android:id="@+id/borderLeft"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/player_active_border"
+                android:visibility="visible" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:background="#CC000000"
+                android:orientation="vertical"
+                android:padding="14dp">
+                <TextView
+                    android:id="@+id/tvLeftChannel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Press OK to select channel"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tvLeftEpg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#AAAAAA"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <!-- Buffering indicator -->
+            <ProgressBar
+                android:id="@+id/progressLeft"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:indeterminateTint="#008CFF"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <View
+            android:layout_width="2dp"
+            android:layout_height="match_parent"
+            android:background="#222222" />
+
+        <!-- RIGHT PLAYER -->
+        <FrameLayout
+            android:id="@+id/containerRight"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerRight"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:use_controller="false"
+                app:resize_mode="fit" />
+
+            <View
+                android:id="@+id/borderRight"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/player_active_border"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:background="#CC000000"
+                android:orientation="vertical"
+                android:padding="14dp">
+                <TextView
+                    android:id="@+id/tvRightChannel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Press OK to select channel"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tvRightEpg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#AAAAAA"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/progressRight"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:indeterminateTint="#008CFF"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- CHANNEL PICKER OVERLAY -->
+    <FrameLayout
+        android:id="@+id/channelPickerOverlay"
+        android:layout_width="420dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="#F0050A14"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvPickerTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Select Channel — Left"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:paddingBottom="12dp" />
+
+            <EditText
+                android:id="@+id/etChannelSearch"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@drawable/focus_selector"
+                android:hint="Search channels..."
+                android:inputType="text"
+                android:paddingHorizontal="12dp"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#666666"
+                android:textSize="17sp"
+                android:layout_marginBottom="10dp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChannelPicker"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- TOP CONTROLS BAR -->
+    <LinearLayout
+        android:id="@+id/controlsBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_gravity="top"
+        android:background="#CC000000"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:visibility="visible">
+
+        <Button
+            android:id="@+id/btnMvBack"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@android:color/transparent"
+            android:text="← Exit"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="← → Switch  |  OK = Change Channel  |  ▲ = Audio"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnMvAudio"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@android:color/transparent"
+            android:text="Audio: Left"
+            android:textColor="#008CFF"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+</FrameLayout>

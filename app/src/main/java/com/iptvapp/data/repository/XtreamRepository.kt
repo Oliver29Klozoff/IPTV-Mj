@@ -5,10 +5,13 @@ import com.iptvapp.data.api.*
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.*
+import com.iptvapp.util.M3uParser
 import com.iptvapp.util.Resource
 import com.iptvapp.util.safeApiCall
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,7 +19,8 @@ import javax.inject.Singleton
 class XtreamRepository @Inject constructor(
     private val api: XtreamApiService,
     private val db: IptvDatabase,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val okHttpClient: OkHttpClient
 ) {
     private suspend fun creds() = prefs.credentials.first()
 
@@ -124,6 +128,8 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun getLiveStreamUrl(streamId: Int): String {
+        val channel = db.channelDao().getChannelById(streamId)
+        if (channel?.streamUrl != null) return channel.streamUrl
         val format = prefs.preferredFormat.first()
         return urlBuilder().liveStreamUrl(streamId, format)
     }
@@ -171,6 +177,8 @@ class XtreamRepository @Inject constructor(
         urlBuilder().vodStreamUrl(streamId, containerExtension)
 
     fun getAllVod(): Flow<List<VodEntity>> = db.vodDao().getAllVod()
+
+    fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(query)
 
     suspend fun fetchSeries(): Resource<List<Series>> {
         val b = urlBuilder(); val c = creds()
@@ -243,6 +251,63 @@ class XtreamRepository @Inject constructor(
 
     fun getEpgForStreams(streamIds: List<Int>): Flow<List<EpgEntity>> =
         db.epgDao().getEpgForStreams(streamIds)
+
+    fun getInProgressVod(): Flow<List<VodEntity>> = db.vodDao().getInProgressVod()
+
+    suspend fun fetchSeriesInfo(seriesId: Int): Resource<SeriesInfo> {
+        val b = urlBuilder(); val c = creds()
+        return safeApiCall {
+            val response = api.getSeriesInfo(b.apiUrl(), c.username, c.password, seriesId = seriesId)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+            response.body() ?: throw Exception("Empty response")
+        }
+    }
+
+    suspend fun getSeriesEpisodeUrl(episodeId: String, containerExtension: String): String =
+        urlBuilder().seriesStreamUrl(episodeId, containerExtension)
+
+    suspend fun importM3uFromUrl(url: String): Resource<Int> = safeApiCall {
+        val request = Request.Builder().url(url).build()
+        val content = okHttpClient.newCall(request).execute().use { it.body?.string() }
+            ?: throw Exception("Empty response from M3U URL")
+        importM3uText(content)
+    }
+
+    suspend fun importM3uFromText(content: String): Resource<Int> = safeApiCall {
+        importM3uText(content)
+    }
+
+    private suspend fun importM3uText(content: String): Int {
+        val channels = M3uParser.parse(content)
+        if (channels.isEmpty()) throw Exception("No channels found in playlist")
+
+        val groups = channels.map { it.groupTitle }.distinct()
+        db.categoryDao().deleteCategoriesByType("m3u")
+        db.categoryDao().upsertCategories(groups.mapIndexed { idx, name ->
+            CategoryEntity(
+                categoryId = "m3u_${name.hashCode().toLong() and 0xFFFFFFFFL}",
+                categoryName = name,
+                parentId = 0,
+                type = "m3u"
+            )
+        })
+
+        db.channelDao().upsertChannels(channels.mapIndexed { idx, ch ->
+            val rawId = ch.streamUrl.hashCode().toLong() and 0x7FFFFFFFL
+            val streamId = (rawId + 10_000_000L).toInt()
+            ChannelEntity(
+                streamId = streamId,
+                name = ch.name,
+                streamIcon = ch.logoUrl,
+                categoryId = "m3u_${ch.groupTitle.hashCode().toLong() and 0xFFFFFFFFL}",
+                epgChannelId = ch.tvgId,
+                tvArchive = 0,
+                num = idx,
+                streamUrl = ch.streamUrl
+            )
+        })
+        return channels.size
+    }
 
     private fun decodeBase64(encoded: String): String = try {
         String(Base64.decode(encoded, Base64.DEFAULT))

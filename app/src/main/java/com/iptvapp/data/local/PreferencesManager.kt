@@ -28,6 +28,7 @@ class PreferencesManager @Inject constructor(
 ) {
     private object Keys {
         val SERVER_URL = stringPreferencesKey("server_url")
+        val EPG_URLS = stringPreferencesKey("epg_urls")
         val USERNAME = stringPreferencesKey("username")
         val PASSWORD = stringPreferencesKey("password")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
@@ -42,8 +43,13 @@ class PreferencesManager @Inject constructor(
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
+        val SERVER_NICKNAME = stringPreferencesKey("server_nickname")
     
-        val ACTIVE_SERVER_INDEX = intPreferencesKey("active_server_index")}
+        val ACTIVE_SERVER_INDEX = intPreferencesKey("active_server_index")
+        val SYNC_ENABLED = booleanPreferencesKey("sync_enabled")
+        val SYNC_GIST_ID = stringPreferencesKey("sync_gist_id")
+        val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
+    }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
         .catch { e ->
@@ -106,6 +112,27 @@ class PreferencesManager @Inject constructor(
     suspend fun setEpgUrl(url: String) {
         context.dataStore.edit { prefs ->
             prefs[Keys.EPG_URL] = url
+        }
+    }
+
+    suspend fun getEpgUrls(): List<String> {
+        val data = context.dataStore.data.first()
+        val json = data[Keys.EPG_URLS] ?: "[]"
+        val arr = org.json.JSONArray(json)
+        val urls = (0 until arr.length()).map { arr.getString(it) }.toMutableList()
+        if (urls.isEmpty()) {
+            val primary = data[Keys.EPG_URL] ?: ""
+            if (primary.isNotEmpty()) urls.add(primary)
+        }
+        return urls
+    }
+
+    suspend fun saveEpgUrls(urls: List<String>) {
+        val arr = org.json.JSONArray()
+        urls.forEach { arr.put(it) }
+        context.dataStore.edit {
+            it[Keys.EPG_URLS] = arr.toString()
+            it[Keys.EPG_URL] = urls.firstOrNull() ?: ""
         }
     }
 
@@ -173,6 +200,32 @@ class PreferencesManager @Inject constructor(
         context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
     }
 
+    suspend fun getExtraServersWithNick(): List<List<String>> {
+        val json = context.dataStore.data.first()[Keys.EXTRA_SERVERS] ?: "[]"
+        val arr = org.json.JSONArray(json)
+        return (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            listOf(obj.getString("url"), obj.getString("user"), obj.getString("pass"), obj.optString("nick", ""))
+        }
+    }
+
+    suspend fun saveExtraServersWithNick(servers: List<List<String>>) {
+        val arr = org.json.JSONArray()
+        servers.forEach { s ->
+            arr.put(org.json.JSONObject().apply {
+                put("url", s[0]); put("user", s[1]); put("pass", s[2]); put("nick", s.getOrElse(3) { "" })
+            })
+        }
+        context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
+    }
+
+        val serverNickname: Flow<String> = context.dataStore.data
+        .map { it[Keys.SERVER_NICKNAME] ?: "" }
+
+    suspend fun setServerNickname(nickname: String) {
+        context.dataStore.edit { it[Keys.SERVER_NICKNAME] = nickname }
+    }
+
     val pendingFavoriteChannelIds: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_FAV_CHANNEL_IDS] ?: emptySet() }
 
     suspend fun setPendingFavoriteChannelIds(ids: Set<Int>) {
@@ -194,5 +247,26 @@ class PreferencesManager @Inject constructor(
             val current = prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet()
             prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] = current - categoryId
         }
+    }
+
+    // ─── Cross-device sync ───────────────────────────────────────────────────
+
+    val syncEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.SYNC_ENABLED] ?: false }
+    val lastSyncTime: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_SYNC_TIME] ?: 0L }
+
+    suspend fun setSyncEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SYNC_ENABLED] = enabled }
+    }
+
+    suspend fun getSyncGistId(): String {
+        return context.dataStore.data.first()[Keys.SYNC_GIST_ID] ?: ""
+    }
+
+    suspend fun setSyncGistId(id: String) {
+        context.dataStore.edit { it[Keys.SYNC_GIST_ID] = id }
+    }
+
+    suspend fun setLastSyncTime(timeMillis: Long) {
+        context.dataStore.edit { it[Keys.LAST_SYNC_TIME] = timeMillis }
     }
 }

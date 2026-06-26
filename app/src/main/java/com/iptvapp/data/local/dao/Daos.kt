@@ -73,6 +73,8 @@ interface VodDao {
     suspend fun getWatchedMs(streamId: Int): Long
     @Query("SELECT durationMs FROM vod_streams WHERE streamId = :streamId")
     suspend fun getDurationMs(streamId: Int): Long
+    @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 ORDER BY watchedMs DESC LIMIT 20")
+    fun getInProgressVod(): Flow<List<VodEntity>>
 }
 
 @Dao
@@ -97,6 +99,20 @@ interface SeriesDao {
     suspend fun getWatchedMs(streamId: Int): Long
     @Query("SELECT durationMs FROM series WHERE seriesId = :streamId")
     suspend fun getDurationMs(streamId: Int): Long
+}
+
+@Dao
+interface RecordingDao {
+    @Query("SELECT * FROM recordings ORDER BY scheduledStartMs ASC")
+    fun getAll(): Flow<List<RecordingEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(recording: RecordingEntity): Long
+    @Query("UPDATE recordings SET status = :status WHERE id = :id")
+    suspend fun updateStatus(id: Int, status: String)
+    @Delete
+    suspend fun delete(recording: RecordingEntity)
+    @Query("SELECT * FROM recordings WHERE id = :id")
+    suspend fun getById(id: Int): RecordingEntity?
 }
 
 @Dao

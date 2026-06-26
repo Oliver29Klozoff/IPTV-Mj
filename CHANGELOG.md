@@ -1,5 +1,31 @@
 # IPTV App - Changelog
 
+## v2.22 - 2026-06-25
+- **M3U Playlist import**: Load any M3U/M3U8 playlist by URL or local file — works alongside Xtream Codes
+- **Player: Audio & subtitle track selection**: Tap CC button to pick audio language or subtitle track
+- **Player: Playback speed control**: 0.25× to 2× speed selector (great for VOD)
+- **Player: Sleep timer**: Auto-stops playback after 15/30/60/90/120 minutes
+- **Player: Brightness/volume gestures**: Swipe left side vertically to adjust brightness, right side for volume
+- **Player: Buffering indicator**: Clear spinner replaces invisible wait state
+- **Player: DASH & SmoothStreaming**: Added MPEG-DASH and Smooth Streaming codec support
+- **Series detail view**: Tapping a series now opens a full episode browser organized by season
+- **WATCHING tab**: New tab showing all in-progress VOD with resume progress bars
+- **VOD search**: Search bar now filters movies when on the Movies tab
+- **VOD progress bars**: Watch progress visible on every movie card
+- **Dependencies**: Media3 1.4.1, Material 1.12.0, Room 2.7.1, Lifecycle 2.8.7
+
+## v2.21 - 2026-06-25 17:49
+- Add Multi-view, Smart EPG progress bars, Cross-device sync
+
+## v2.20 - 2026-06-25 16:40
+- Redesigned TV settings with full phone feature parity: EPG refresh with live progress, auto-refresh schedule, format toggle, version display, full server management, improved visual layout
+
+## v2.19 - 2026-06-25 15:42
+- Search bar moved to top right with X clear button; large screens (600dp+) treated as TV
+
+## v2.18 - 2026-06-25 11:26
+- Fix Android TV settings - proper layout, D-pad navigation, QR backup, Updates section
+
 ## v2.17 - 2026-06-25 10:13
 - Fix server switching - servers now save, display, and switch correctly
 

@@ -4,14 +4,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F0F0F"
+    android:background="#1A3A6A"
     android:padding="32dp">
 
     <TextView
         android:id="@+id/tvAppName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="IPTV"
+        android:text="MKTV"
         android:textColor="#FFFFFF"
         android:textSize="48sp"
         android:textStyle="bold"
@@ -28,7 +28,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Connect to your server"
-        android:textColor="#888888"
+        android:textColor="#AACCEE"
         android:textSize="16sp"
         app:layout_constraintBottom_toTopOf="@id/cardLogin"
         app:layout_constraintEnd_toEndOf="parent"
@@ -40,14 +40,13 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="40dp"
-        app:cardBackgroundColor="#1A1A1A"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="0dp"
+        app:cardBackgroundColor="#FFFFFF"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-        
         app:layout_constraintWidth_max="480dp">
 
         <LinearLayout
@@ -62,16 +61,35 @@
                 android:layout_height="wrap_content"
                 android:hint="Server URL"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#333333"
-                app:hintTextColor="#888888">
-
+                app:boxStrokeColor="#008CFF"
+                app:hintTextColor="#5880B0"
+                app:boxBackgroundColor="#F2F6FF">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etServerUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#1A2B4A"
                     android:hint="http://yourserver.com:8080"
+                    android:imeOptions="actionNext" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilNickname"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Server Nickname (optional)"
+                android:layout_marginTop="8dp"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxStrokeColor="#008CFF"
+                app:hintTextColor="#5880B0"
+                app:boxBackgroundColor="#F2F6FF">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etNickname"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="#1A2B4A"
                     android:imeOptions="actionNext" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -82,15 +100,15 @@
                 android:layout_marginTop="16dp"
                 android:hint="Username"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#333333"
-                app:hintTextColor="#888888">
-
+                app:boxStrokeColor="#008CFF"
+                app:hintTextColor="#5880B0"
+                app:boxBackgroundColor="#F2F6FF">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUsername"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#1A2B4A"
                     android:imeOptions="actionNext" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -101,18 +119,19 @@
                 android:layout_marginTop="16dp"
                 android:hint="Password"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#333333"
-                app:hintTextColor="#888888"
+                app:boxStrokeColor="#4A6FA5"
+                app:hintTextColor="#8899BB"
+                app:boxBackgroundColor="#1E2E48"
                 app:passwordToggleEnabled="true">
-
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etPassword"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textPassword"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#1A2B4A"
                     android:imeOptions="actionNext" />
             </com.google.android.material.textfield.TextInputLayout>
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilEpgUrl"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -120,9 +139,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:hint="EPG URL"
-                app:boxStrokeColor="#333333"
-                app:hintTextColor="#888888">
-
+                app:boxStrokeColor="#008CFF"
+                app:hintTextColor="#5880B0"
+                app:boxBackgroundColor="#F2F6FF">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etEpgUrl"
                     android:layout_width="match_parent"
@@ -130,7 +149,7 @@
                     android:hint="http://yourserver.com/xmltv.php"
                     android:imeOptions="actionDone"
                     android:inputType="textUri"
-                    android:textColor="#FFFFFF" />
+                    android:textColor="#1A2B4A" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton
@@ -143,6 +162,19 @@
                 android:textStyle="bold"
                 app:backgroundTint="#008CFF"
                 app:cornerRadius="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnImportM3u"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="Import M3U Playlist"
+                android:textSize="14sp"
+                app:backgroundTint="#1A3A6A"
+                app:strokeColor="#008CFF"
+                app:strokeWidth="1dp"
+                app:cornerRadius="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
             <ProgressBar
                 android:id="@+id/progressBar"
@@ -157,4 +189,3 @@
     </com.google.android.material.card.MaterialCardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-

@@ -46,8 +46,14 @@ class HomeViewModel @Inject constructor(
     private val _guideRows = MutableStateFlow<List<GuideRow>>(emptyList())
     val guideRows: StateFlow<List<GuideRow>> = _guideRows
 
+    private val _continueWatching = MutableStateFlow<List<VodEntity>>(emptyList())
+    val continueWatching: StateFlow<List<VodEntity>> = _continueWatching
+
     private val _channelEpgText = MutableStateFlow<Map<Int, String>>(emptyMap())
     val channelEpgText: StateFlow<Map<Int, String>> = _channelEpgText
+
+    private val _channelEpgProgress = MutableStateFlow<Map<Int, Int>>(emptyMap())
+    val channelEpgProgress: StateFlow<Map<Int, Int>> = _channelEpgProgress
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
@@ -116,6 +122,9 @@ class HomeViewModel @Inject constructor(
             launch {
                 repository.getAllSeries().collectLatest { _series.value = it }
             }
+            launch {
+                repository.getInProgressVod().collectLatest { _continueWatching.value = it }
+            }
         }
     }
 
@@ -160,20 +169,40 @@ class HomeViewModel @Inject constructor(
             val visibleChannels = channels.take(50)
             visibleChannels.forEach { repository.fetchEpg(it.streamId) }
             val ids = visibleChannels.map { it.streamId }
-            if (ids.isEmpty()) { _channelEpgText.value = emptyMap(); return@launch }
+            if (ids.isEmpty()) {
+                _channelEpgText.value = emptyMap()
+                _channelEpgProgress.value = emptyMap()
+                return@launch
+            }
             val epgEntries = repository.getEpgForStreams(ids).first()
             val epgByStream = epgEntries.groupBy { it.streamId }
+            val nowSecs = System.currentTimeMillis() / 1000
+            val progressMap = mutableMapOf<Int, Int>()
             _channelEpgText.value = visibleChannels.associate { channel ->
                 val programs = epgByStream[channel.streamId].orEmpty()
                 val now = programs.firstOrNull()
                 val next = programs.drop(1).firstOrNull()
+
+                // Compute progress 0-100 for the current program
+                val prog = if (now != null && now.stopTimestamp > now.startTimestamp) {
+                    val elapsed = (nowSecs - now.startTimestamp).coerceAtLeast(0)
+                    val total = now.stopTimestamp - now.startTimestamp
+                    ((elapsed * 100L) / total).coerceIn(0, 100).toInt()
+                } else 0
+                progressMap[channel.streamId] = prog
+
+                // Time remaining suffix
+                val minutesLeft = if (now != null) ((now.stopTimestamp - nowSecs) / 60).coerceAtLeast(0) else 0L
+                val timeStr = if (now != null && minutesLeft > 0) " (${minutesLeft}m)" else ""
+
                 val text = when {
-                    now != null && next != null -> "NOW: ${now.title}   NEXT: ${next.title}"
-                    now != null -> "NOW: ${now.title}"
+                    now != null && next != null -> "NOW: ${now.title}$timeStr  •  NEXT: ${next.title}"
+                    now != null -> "NOW: ${now.title}$timeStr"
                     else -> "No guide data"
                 }
                 channel.streamId to text
             }
+            _channelEpgProgress.value = progressMap
         }
     }
 
@@ -238,6 +267,24 @@ class HomeViewModel @Inject constructor(
             } else {
                 repository.searchChannels(query).collectLatest { _channels.value = it }
             }
+        }
+    }
+
+    fun searchVod(query: String) {
+        vodJob?.cancel()
+        vodJob = viewModelScope.launch {
+            if (query.isBlank()) {
+                selectedVodCategoryId?.let { selectVodCategory(it) }
+            } else {
+                repository.searchVod(query).collectLatest { _vod.value = it }
+            }
+        }
+    }
+
+    fun showContinueWatching() {
+        vodJob?.cancel()
+        vodJob = viewModelScope.launch {
+            repository.getInProgressVod().collectLatest { _vod.value = it }
         }
     }
 

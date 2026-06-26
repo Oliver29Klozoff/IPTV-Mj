@@ -18,7 +18,7 @@ class VodAdapter(
         RecyclerView.ViewHolder(binding.root) {
         fun bind(item: VodEntity) {
             binding.tvVodName.text = item.name
-            binding.tvVodRating.text = if (item.rating != null) "? " else ""
+            binding.tvVodRating.text = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
             Glide.with(binding.ivVodPoster)
                 .load(item.streamIcon)
                 .placeholder(android.R.drawable.ic_menu_gallery)
@@ -28,6 +28,13 @@ class VodAdapter(
                 if (item.isFavorite) android.R.drawable.btn_star_big_on
                 else android.R.drawable.btn_star_big_off
             )
+            if (item.watchedMs > 0 && item.durationMs > 0) {
+                val pct = ((item.watchedMs * 100) / item.durationMs).coerceIn(0, 100).toInt()
+                binding.progressVod.progress = pct
+                binding.progressVod.visibility = android.view.View.VISIBLE
+            } else {
+                binding.progressVod.visibility = android.view.View.GONE
+            }
             binding.root.setOnClickListener { onVodClick(item) }
             binding.ivVodFavorite.setOnClickListener { onFavoriteClick(item) }
         }
