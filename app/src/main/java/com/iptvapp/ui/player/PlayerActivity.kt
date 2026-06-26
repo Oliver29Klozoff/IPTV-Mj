@@ -105,6 +105,15 @@ class PlayerActivity : AppCompatActivity() {
     private val seekHandler = Handler(Looper.getMainLooper())
     private var seekRunnable: Runnable? = null
 
+    private var statsVisible = false
+    private val statsHandler = Handler(Looper.getMainLooper())
+    private val statsRunnable = object : Runnable {
+        override fun run() {
+            updateStats()
+            statsHandler.postDelayed(this, 1000)
+        }
+    }
+
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
     private val castSessionListener = object : SessionManagerListener<CastSession> {
@@ -173,6 +182,42 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnSpeed.setOnClickListener { showSpeedDialog() }
         binding.btnSleep.setOnClickListener { showSleepTimerDialog() }
         binding.btnTracks.setOnClickListener { showTrackSelectorDialog() }
+        binding.btnStats.setOnClickListener {
+            statsVisible = !statsVisible
+            if (statsVisible) {
+                binding.tvStats.visibility = View.VISIBLE
+                updateStats()
+                statsHandler.postDelayed(statsRunnable, 1000)
+            } else {
+                binding.tvStats.visibility = View.GONE
+                statsHandler.removeCallbacks(statsRunnable)
+            }
+            resetHideTimer()
+        }
+    }
+
+    private fun updateStats() {
+        val p = player ?: return
+        val vf = p.videoFormat
+        val af = p.audioFormat
+        val res = if (vf != null) "${vf.width}×${vf.height}" else "—"
+        val fps = if (vf?.frameRate != null && vf.frameRate > 0) "${"%.1f".format(vf.frameRate)} fps" else ""
+        val vCodec = vf?.sampleMimeType?.removePrefix("video/")?.uppercase() ?: "—"
+        val aCodec = af?.sampleMimeType?.removePrefix("audio/")?.uppercase() ?: "—"
+        val bitrate = when {
+            vf != null && vf.bitrate > 0 -> "${"%.1f".format(vf.bitrate / 1_000_000f)} Mbps"
+            else -> "—"
+        }
+        val bufMs = p.totalBufferedDuration
+        val bufSec = bufMs / 1000
+        val bufPct = p.bufferedPercentage
+        binding.tvStats.text = buildString {
+            appendLine("RES   $res  $fps")
+            appendLine("VIDEO $vCodec")
+            appendLine("AUDIO $aCodec")
+            appendLine("BIT   $bitrate")
+            append("BUF   ${bufSec}s  ($bufPct%)")
+        }
     }
 
     private fun showSpeedDialog() {
@@ -804,6 +849,7 @@ class PlayerActivity : AppCompatActivity() {
         sleepTimer?.cancel()
         retryJob?.cancel()
         seekRunnable?.let { seekHandler.removeCallbacks(it) }
+        statsHandler.removeCallbacks(statsRunnable)
         player?.release()
         player = null
     }

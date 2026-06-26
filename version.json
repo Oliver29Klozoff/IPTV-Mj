@@ -1,6 +1,6 @@
 {
-  "versionCode": 62,
-  "versionName": "2.25",
+  "versionCode": 63,
+  "versionName": "2.26",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
-  "notes": "External player support, voice search, QR code fix, release signing"
+  "notes": "Hero banner with channel logo and EPG description, stream stats overlay in player"
 }

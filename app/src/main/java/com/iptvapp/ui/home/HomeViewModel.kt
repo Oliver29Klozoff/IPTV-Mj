@@ -354,6 +354,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    suspend fun getMiniEpgDescription(streamId: Int): String {
+        val epg = repository.getEpgForStream(streamId).first()
+        return epg.firstOrNull()?.description?.takeIf { it.isNotBlank() } ?: ""
+    }
+
     suspend fun getMiniEpgProgress(streamId: Int): Int {
         val epg = repository.getEpgForStream(streamId).first()
         val now = epg.firstOrNull() ?: return 0

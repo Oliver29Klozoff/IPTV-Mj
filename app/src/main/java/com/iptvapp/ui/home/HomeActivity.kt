@@ -170,6 +170,22 @@ class HomeActivity : AppCompatActivity() {
             currentMiniStreamId = channel.streamId
             binding.tvMiniChannelName.text = channel.name
             binding.tvPipChannelName?.text = channel.name
+
+            if (!channel.streamIcon.isNullOrBlank()) {
+                binding.ivHeroChannelLogo?.visibility = View.VISIBLE
+                com.bumptech.glide.Glide.with(this@HomeActivity)
+                    .load(channel.streamIcon)
+                    .placeholder(android.R.drawable.ic_media_play)
+                    .error(android.R.drawable.ic_media_play)
+                    .into(binding.ivHeroChannelLogo!!)
+            } else {
+                binding.ivHeroChannelLogo?.visibility = View.GONE
+            }
+
+            binding.btnHeroWatch?.setOnClickListener {
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+            }
+
             miniPlayer?.let {
                 it.setMediaItem(MediaItem.fromUri(url))
                 it.prepare()
@@ -183,6 +199,13 @@ class HomeActivity : AppCompatActivity() {
     private suspend fun refreshMiniEpg(streamId: Int) {
         val epg = viewModel.getEpgText(streamId)
         binding.tvMiniEpg.text = epg
+        val desc = viewModel.getMiniEpgDescription(streamId)
+        if (desc.isNotBlank()) {
+            binding.tvHeroDescription?.text = desc
+            binding.tvHeroDescription?.visibility = View.VISIBLE
+        } else {
+            binding.tvHeroDescription?.visibility = View.GONE
+        }
         val progress = viewModel.getMiniEpgProgress(streamId)
         if (progress > 0) {
             binding.miniEpgProgress?.progress = progress

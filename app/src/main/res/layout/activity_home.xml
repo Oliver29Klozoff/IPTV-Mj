@@ -98,42 +98,98 @@
             app:resize_mode="fit"
             app:use_controller="false" />
 
+        <!-- Cinematic gradient scrim -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/hero_gradient_scrim" />
+
+        <!-- Hero info panel -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:background="#88000000"
             android:orientation="vertical"
-            android:padding="8dp">
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="12dp"
+            android:paddingTop="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+
+                <ImageView
+                    android:id="@+id/ivHeroChannelLogo"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="10dp"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvMiniChannelName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="#FFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvMiniEpg"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="#008CFF"
+                        android:textSize="12sp"
+                        android:layout_marginTop="1dp" />
+
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnHeroWatch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="8dp"
+                    android:backgroundTint="#008CFF"
+                    android:text="▶ WATCH"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:paddingHorizontal="12dp" />
+
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/tvMiniChannelName"
+                android:id="@+id/tvHeroDescription"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvMiniEpg"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#AAAAAA"
-                android:textSize="12sp" />
+                android:maxLines="2"
+                android:textColor="#CCCCCC"
+                android:textSize="11sp"
+                android:layout_marginBottom="6dp"
+                android:visibility="gone" />
 
             <ProgressBar
                 android:id="@+id/miniEpgProgress"
                 style="@android:style/Widget.ProgressBar.Horizontal"
                 android:layout_width="match_parent"
                 android:layout_height="3dp"
-                android:layout_marginTop="6dp"
                 android:max="100"
                 android:progress="0"
-                android:progressBackgroundTint="#333333"
+                android:progressBackgroundTint="#33FFFFFF"
                 android:progressTint="#008CFF"
                 android:visibility="gone" />
 
