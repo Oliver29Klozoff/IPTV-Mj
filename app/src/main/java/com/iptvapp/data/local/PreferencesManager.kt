@@ -50,6 +50,7 @@ class PreferencesManager @Inject constructor(
         val SYNC_ENABLED = booleanPreferencesKey("sync_enabled")
         val SYNC_GIST_ID = stringPreferencesKey("sync_gist_id")
         val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
+        val EXTERNAL_PLAYER = stringPreferencesKey("external_player")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -168,6 +169,10 @@ class PreferencesManager @Inject constructor(
     suspend fun setShowMovies(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_MOVIES] = enabled } }
     suspend fun setShowSeries(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_SERIES] = enabled } }
     suspend fun setShowWatching(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_WATCHING] = enabled } }
+
+    // "internal" | "vlc" | "mxplayer" | "system"
+    val externalPlayer: Flow<String> = context.dataStore.data.map { it[Keys.EXTERNAL_PLAYER] ?: "internal" }
+    suspend fun setExternalPlayer(player: String) { context.dataStore.edit { it[Keys.EXTERNAL_PLAYER] = player } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

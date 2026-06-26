@@ -221,6 +221,25 @@ workManager = WorkManager.getInstance(this)
                 Toast.makeText(this@SettingsActivity, "Format set to $format", Toast.LENGTH_SHORT).show()
             }
         }
+
+        binding.rgPlayer.setOnCheckedChangeListener { _, checkedId ->
+            lifecycleScope.launch {
+                val player = when (checkedId) {
+                    binding.rbPlayerVlc.id    -> "vlc"
+                    binding.rbPlayerMx.id     -> "mxplayer"
+                    binding.rbPlayerSystem.id -> "system"
+                    else                      -> "internal"
+                }
+                prefs.setExternalPlayer(player)
+                val label = when (player) {
+                    "vlc"      -> "VLC"
+                    "mxplayer" -> "MX Player"
+                    "system"   -> "System chooser"
+                    else       -> "Built-in player"
+                }
+                Toast.makeText(this@SettingsActivity, "Player: $label", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun toggleSection(section: View, arrow: android.widget.TextView) {
@@ -258,9 +277,10 @@ workManager = WorkManager.getInstance(this)
             lifecycleScope.launch {
                 try {
                     val creds = prefs.credentials.first()
-                    val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
-                    val favChannels = db.channelDao().getFavoriteChannelIds()
                     val json = JSONObject().apply {
+                        put("serverUrl", creds.serverUrl)
+                        put("username", creds.username)
+                        put("password", creds.password)
                         put("epgUrl", prefs.epgUrl.first())
                         put("preferredFormat", prefs.preferredFormat.first())
                         put("usaOnlyChannels", prefs.usaOnlyChannels.first())
@@ -269,11 +289,6 @@ workManager = WorkManager.getInstance(this)
                         put("showWatching", prefs.showWatching.first())
                         put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
                         put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
-                        put("serverUrl", creds.serverUrl)
-                        put("username", creds.username)
-                        put("password", creds.password)
-                        put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
-                        put("favoriteChannelIds", JSONArray(favChannels))
                     }
                     showQrCode(json.toString(), json.toString(2))
                 } catch (e: Exception) {
@@ -290,9 +305,13 @@ workManager = WorkManager.getInstance(this)
         restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
     }
 
-    private fun generateQrBitmap(content: String, size: Int = 600): Bitmap {
+    private fun generateQrBitmap(content: String, size: Int = 800): Bitmap {
+        val hints = mapOf(
+            com.google.zxing.EncodeHintType.ERROR_CORRECTION to com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.H,
+            com.google.zxing.EncodeHintType.MARGIN to 1
+        )
         val writer = QRCodeWriter()
-        val matrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size)
+        val matrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         for (x in 0 until size) {
             for (y in 0 until size) {
@@ -301,12 +320,12 @@ workManager = WorkManager.getInstance(this)
         }
         try {
             val logoBitmap = BitmapFactory.decodeResource(resources, R.drawable.splash_logo)
-            val logoSize = size / 3
+            val logoSize = size / 5
             val scaledLogo = Bitmap.createScaledBitmap(logoBitmap, logoSize, logoSize, true)
             val canvas = Canvas(bitmap)
             val paint = Paint().apply { color = Color.WHITE }
             val center = size / 2f
-            canvas.drawCircle(center, center, logoSize / 2f + 14, paint)
+            canvas.drawCircle(center, center, logoSize / 2f + 10, paint)
             canvas.drawBitmap(scaledLogo, center - logoSize / 2f, center - logoSize / 2f, null)
             scaledLogo.recycle()
             logoBitmap.recycle()
@@ -593,6 +612,12 @@ workManager = WorkManager.getInstance(this)
             binding.cbShowMovies.isChecked = prefs.showMovies.first()
             binding.cbShowSeries.isChecked = prefs.showSeries.first()
             binding.cbShowWatching.isChecked = prefs.showWatching.first()
+            when (prefs.externalPlayer.first()) {
+                "vlc"      -> binding.rbPlayerVlc.isChecked = true
+                "mxplayer" -> binding.rbPlayerMx.isChecked = true
+                "system"   -> binding.rbPlayerSystem.isChecked = true
+                else       -> binding.rbPlayerInternal.isChecked = true
+            }
             when (prefs.epgAutoRefreshHours.first()) {
                 6 -> binding.rbAuto6.isChecked = true
                 12 -> binding.rbAuto12.isChecked = true

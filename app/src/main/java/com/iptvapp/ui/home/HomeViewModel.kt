@@ -61,6 +61,7 @@ class HomeViewModel @Inject constructor(
     val showMovies = prefs.showMovies
     val showSeries = prefs.showSeries
     val showWatching = prefs.showWatching
+    val externalPlayer = prefs.externalPlayer
 
     private val _channelHealth = MutableStateFlow<Map<Int, Boolean?>>(emptyMap())
     val channelHealth: StateFlow<Map<Int, Boolean?>> = _channelHealth

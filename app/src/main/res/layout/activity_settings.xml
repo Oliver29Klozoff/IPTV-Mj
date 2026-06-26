@@ -276,6 +276,39 @@
                             <TextView
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
+                                android:text="VIDEO PLAYER"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1" />
+                            <RadioGroup
+                                android:id="@+id/rgPlayer"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:orientation="vertical">
+                                <RadioButton android:id="@+id/rbPlayerInternal" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Built-in player" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                <RadioButton android:id="@+id/rbPlayerVlc" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="VLC" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                <RadioButton android:id="@+id/rbPlayerMx" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MX Player" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                <RadioButton android:id="@+id/rbPlayerSystem" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ask every time" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                            </RadioGroup>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
                                 android:text="EPG"
                                 android:textColor="#777777"
                                 android:textSize="11sp"

@@ -3,10 +3,13 @@ package com.iptvapp.ui.home
 import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.util.isLargeScreenDevice
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -36,6 +39,14 @@ class HomeActivity : AppCompatActivity() {
 
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private lateinit var binding: ActivityHomeBinding
+
+    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@registerForActivityResult
+            binding.etSearch.setText(text)
+            dispatchSearch(text)
+        }
+    }
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
@@ -49,6 +60,7 @@ class HomeActivity : AppCompatActivity() {
     private var currentMiniTitle: String = ""
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var isPipMode = false
+    private var externalPlayerChoice = "internal"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -387,6 +399,15 @@ class HomeActivity : AppCompatActivity() {
             binding.etSearch.setText("")
             binding.etSearch.clearFocus()
         }
+        binding.btnVoiceSearch?.setOnClickListener {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Search channels...")
+            }
+            try { voiceLauncher.launch(intent) } catch (e: Exception) {
+                Toast.makeText(this, "Voice search not available", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun dispatchSearch(query: String) {
@@ -495,15 +516,37 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun openPlayer(url: String, title: String, streamId: Int, streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(), isVod: Boolean = false, resumeMs: Long = 0L) {
-        val intent = Intent(this, PlayerActivity::class.java).apply {
+        if (externalPlayerChoice != "internal") {
+            launchExternalPlayer(url, title, externalPlayerChoice)
+            return
+        }
+        startActivity(Intent(this, PlayerActivity::class.java).apply {
             putExtra("stream_url", url)
             putExtra("stream_title", title)
             putExtra("stream_id", streamId)
             putExtra("stream_ids", streamIds)
             putExtra("is_vod", isVod)
             putExtra("resume_ms", resumeMs)
+        })
+    }
+
+    private fun launchExternalPlayer(url: String, title: String, player: String) {
+        val base = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(android.net.Uri.parse(url), "video/*")
+            putExtra("title", title)
         }
-        startActivity(intent)
+        val pkg = when (player) {
+            "vlc"      -> "org.videolan.vlc"
+            "mxplayer" -> "com.mxtech.videoplayer.ad"
+            else       -> null
+        }
+        try {
+            startActivity(if (pkg != null) Intent(base).setPackage(pkg) else base)
+        } catch (e: android.content.ActivityNotFoundException) {
+            try { startActivity(base) } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(this, "No video player found", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun observeTabVisibility() {
@@ -601,6 +644,9 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }
+        }
+        lifecycleScope.launch {
+            viewModel.externalPlayer.collect { externalPlayerChoice = it }
         }
     }
 }

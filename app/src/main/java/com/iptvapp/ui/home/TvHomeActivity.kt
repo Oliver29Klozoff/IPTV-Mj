@@ -1,9 +1,12 @@
 package com.iptvapp.ui.home
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -41,6 +44,15 @@ class TvHomeActivity : AppCompatActivity() {
     private var currentMiniStreamId: Int = -1
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
+    private var externalPlayerChoice = "internal"
+
+    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@registerForActivityResult
+            binding.tvEtSearch.setText(text)
+            dispatchSearch(text)
+        }
+    }
 
     private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE }
     private var currentSection = Section.LIVE
@@ -373,6 +385,15 @@ class TvHomeActivity : AppCompatActivity() {
             binding.tvEtSearch.setText("")
             binding.tvEtSearch.clearFocus()
         }
+        binding.tvBtnVoiceSearch.setOnClickListener {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Search channels...")
+            }
+            try { voiceLauncher.launch(intent) } catch (e: Exception) {
+                Toast.makeText(this, "Voice search not available", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun dispatchSearch(query: String) {
@@ -442,6 +463,9 @@ class TvHomeActivity : AppCompatActivity() {
                 if (currentSection == Section.MOVIES) categoryAdapter.submitList(it)
             }
         }
+        lifecycleScope.launch {
+            viewModel.externalPlayer.collect { externalPlayerChoice = it }
+        }
     }
 
     // ── Player launcher ──────────────────────────────────────────────────────
@@ -454,6 +478,10 @@ class TvHomeActivity : AppCompatActivity() {
         isVod: Boolean = false,
         resumeMs: Long = 0L
     ) {
+        if (externalPlayerChoice != "internal") {
+            launchExternalPlayer(url, title, externalPlayerChoice)
+            return
+        }
         startActivity(Intent(this, PlayerActivity::class.java).apply {
             putExtra("stream_url", url)
             putExtra("stream_title", title)
@@ -462,5 +490,24 @@ class TvHomeActivity : AppCompatActivity() {
             putExtra("is_vod", isVod)
             putExtra("resume_ms", resumeMs)
         })
+    }
+
+    private fun launchExternalPlayer(url: String, title: String, player: String) {
+        val base = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(android.net.Uri.parse(url), "video/*")
+            putExtra("title", title)
+        }
+        val pkg = when (player) {
+            "vlc"      -> "org.videolan.vlc"
+            "mxplayer" -> "com.mxtech.videoplayer.ad"
+            else       -> null
+        }
+        try {
+            startActivity(if (pkg != null) Intent(base).setPackage(pkg) else base)
+        } catch (e: android.content.ActivityNotFoundException) {
+            try { startActivity(base) } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(this, "No video player found", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 }

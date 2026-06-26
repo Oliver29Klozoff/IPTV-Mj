@@ -1,6 +1,6 @@
 {
-  "versionCode": 61,
-  "versionName": "2.24",
+  "versionCode": 62,
+  "versionName": "2.25",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
-  "notes": "Android TV UI, home screen widget, favorites drag reorder, timeshift replay from guide, player retry countdown"
+  "notes": "External player support, voice search, QR code fix, release signing"
 }
