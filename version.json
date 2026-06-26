@@ -1,6 +1,6 @@
 {
-  "versionCode": 58,
-  "versionName": "2.21",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.21/MKTV.apk",
-  "notes": "Update to v2.21"
+  "versionCode": 59,
+  "versionName": "2.22",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.22/MKTV.apk",
+  "notes": "M3U playlist import, brightness/volume gestures, speed & sleep timer, track selector, series episodes, WATCHING tab, VOD search"
 }
