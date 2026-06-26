@@ -2,5 +2,12 @@
   "versionCode": 63,
   "versionName": "2.26",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
-  "notes": "Hero banner with channel logo and EPG description, stream stats overlay in player"
+  "changelog": [
+    "Hero banner: channel logo, EPG description, and Watch button on home screen",
+    "Stream stats overlay in player — tap 📊 for resolution, codec, bitrate, buffer",
+    "External player support — launch streams in VLC, MX Player, or system chooser",
+    "Voice search on home screen and TV UI",
+    "QR backup code now scans reliably from TV distance",
+    "Release signing — reduced Play Protect warnings"
+  ]
 }

@@ -42,7 +42,14 @@ class UpdateChecker(
                 val latestCode = json.getLong("versionCode")
                 val latestName = json.optString("versionName", "")
                 val apkUrl = json.getString("apkUrl")
-                val notes = json.optString("notes", "")
+                val notes = buildString {
+                    val arr = json.optJSONArray("changelog")
+                    if (arr != null && arr.length() > 0) {
+                        for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
+                    } else {
+                        append(json.optString("notes", ""))
+                    }
+                }.trimEnd()
 
                 val installedCode = getInstalledVersionCode()
 
@@ -73,19 +80,17 @@ class UpdateChecker(
 
     private fun showUpdateDialog(versionName: String, notes: String, apkUrl: String) {
         AlertDialog.Builder(context)
-            .setTitle("Update available")
+            .setTitle("MKTV $versionName available")
             .setMessage(
                 buildString {
-                    append("Version ")
-                    append(versionName)
-                    append(" is available.")
                     if (notes.isNotBlank()) {
-                        append("\n\n")
+                        appendLine("What's new:")
+                        appendLine()
                         append(notes)
                     }
                 }
             )
-            .setPositiveButton("Download") { _, _ ->
+            .setPositiveButton("Update now") { _, _ ->
                 downloadAndInstall(apkUrl)
             }
             .setNegativeButton("Later", null)
