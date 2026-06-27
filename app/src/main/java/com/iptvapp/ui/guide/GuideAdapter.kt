@@ -1,8 +1,10 @@
 package com.iptvapp.ui.guide
 
+import android.app.AlertDialog
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -37,7 +39,10 @@ class GuideAdapter(
                         "$start - $stop  ${program.title}"
 
                     binding.programContainer.addView(
-                        makeProgramText(label, isReplay) { if (isReplay) onReplayClick(row, program) }
+                        makeProgramText(label, isReplay,
+                            onClick = { if (isReplay) onReplayClick(row, program) },
+                            onLongClick = { showTimerDialog(row, program) }
+                        )
                     )
                 }
             }
@@ -47,19 +52,37 @@ class GuideAdapter(
             }
         }
 
-        private fun makeProgramText(text: String, isReplay: Boolean, onClick: (() -> Unit)?): TextView {
+        private fun makeProgramText(text: String, isReplay: Boolean, onClick: (() -> Unit)?, onLongClick: (() -> Unit)? = null): TextView {
             return TextView(binding.root.context).apply {
                 this.text = text
                 setTextColor(if (isReplay) 0xFF00AAFF.toInt() else 0xFFFFFFFF.toInt())
                 textSize = 14f
                 setPadding(18, 12, 18, 12)
                 minWidth = 300
-                if (isReplay && onClick != null) {
-                    isClickable = true
-                    isFocusable = true
-                    setOnClickListener { onClick() }
+                isClickable = true
+                isFocusable = true
+                if (isReplay && onClick != null) setOnClickListener { onClick() }
+                setOnLongClickListener {
+                    onLongClick?.invoke()
+                    true
                 }
             }
+        }
+
+        private fun showTimerDialog(row: GuideRow, program: EpgEntity) {
+            val nowMs = System.currentTimeMillis()
+            val startMs = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp * 1000L else program.startTimestamp
+            if (startMs <= nowMs) return
+            val timeStr = SimpleDateFormat("h:mm a", Locale.US).format(Date(startMs))
+            AlertDialog.Builder(binding.root.context)
+                .setTitle("Set Reminder")
+                .setMessage("Remind me when \"${program.title}\" starts on ${row.channel.name} at $timeStr?")
+                .setPositiveButton("Set Reminder") { _, _ ->
+                    ChannelTimerScheduler.schedule(binding.root.context, row.channel.streamId, row.channel.name, program.title, startMs)
+                    Toast.makeText(binding.root.context, "Reminder set for $timeStr", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         private fun formatTime(timestamp: Long): String {

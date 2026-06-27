@@ -393,6 +393,7 @@ class HomeActivity : AppCompatActivity() {
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
                 if (tab?.position == 5) detachFavDrag()
+                if (tab?.position == 6) binding.btnTimelineView?.visibility = View.GONE
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
@@ -536,6 +537,10 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = guideAdapter
         viewModel.loadGuide()
+        binding.btnTimelineView?.visibility = View.VISIBLE
+        binding.btnTimelineView?.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+        }
     }
 
     private fun openPlayer(url: String, title: String, streamId: Int, streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(), isVod: Boolean = false, resumeMs: Long = 0L) {

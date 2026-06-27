@@ -79,6 +79,17 @@
             android:src="@android:drawable/ic_btn_speak_now"
             android:tint="#008CFF" />
 
+        <Button
+            android:id="@+id/btnTimelineView"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            android:text="⏱ Grid"
+            android:textColor="#008CFF"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <!-- MINI PLAYER -->
