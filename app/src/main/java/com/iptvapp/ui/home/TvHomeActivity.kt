@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.view.KeyEvent
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -189,6 +190,7 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             },
             onChannelDoubleClick = { channel ->
+                // Double-click / long-press → fullscreen
                 val ids = viewModel.channels.value.map { it.streamId }.toIntArray()
                 lifecycleScope.launch {
                     val url = viewModel.getLiveStreamUrl(channel.streamId)
@@ -289,17 +291,8 @@ class TvHomeActivity : AppCompatActivity() {
     private fun selectSection(section: Section) {
         currentSection = section
 
-        // highlight active button
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
-        val activeBtn = when (section) {
-            Section.LIVE -> binding.btnTvLive
-            Section.CATEGORIES -> binding.btnTvCategories
-            Section.MOVIES -> binding.btnTvMovies
-            Section.SERIES -> binding.btnTvSeries
-            Section.FAVORITES -> binding.btnTvFavorites
-            Section.GUIDE -> binding.btnTvGuide
-        }
-        activeBtn.setTextColor(0xFF008CFF.toInt())
+        activeSidebarButton().setTextColor(0xFF008CFF.toInt())
 
         when (section) {
             Section.LIVE -> showLive()
@@ -309,6 +302,66 @@ class TvHomeActivity : AppCompatActivity() {
             Section.FAVORITES -> showFavorites()
             Section.GUIDE -> showGuide()
         }
+
+        // Move D-pad focus into content list after section switch
+        binding.tvRvContent.post {
+            val lm = binding.tvRvContent.layoutManager
+            val first = lm?.findViewByPosition(0)
+            if (first != null) first.requestFocus()
+            else binding.tvRvContent.requestFocus()
+        }
+    }
+
+    private fun activeSidebarButton() = when (currentSection) {
+        Section.LIVE -> binding.btnTvLive
+        Section.CATEGORIES -> binding.btnTvCategories
+        Section.MOVIES -> binding.btnTvMovies
+        Section.SERIES -> binding.btnTvSeries
+        Section.FAVORITES -> binding.btnTvFavorites
+        Section.GUIDE -> binding.btnTvGuide
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val focused = currentFocus
+            val inContent = focused != null &&
+                (binding.tvRvContent.hasFocus() || binding.tvRvCategories.hasFocus())
+            val inSidebar = focused != null && binding.tvSidebar.hasFocus()
+
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (inContent) {
+                    // LEFT from content → go to active sidebar button
+                    val target = if (binding.tvRvCategories.hasFocus() &&
+                        binding.tvRvCategories.visibility == View.VISIBLE)
+                        binding.tvRvCategories  // LEFT from content → categories
+                    else activeSidebarButton()
+                    target.requestFocus()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (inSidebar) {
+                    val target = if (binding.tvRvCategories.visibility == View.VISIBLE)
+                        binding.tvRvCategories else binding.tvRvContent
+                    val lm = target.layoutManager
+                    val first = lm?.findViewByPosition(0)
+                    if (first != null) first.requestFocus() else target.requestFocus()
+                    return true
+                }
+                KeyEvent.KEYCODE_BACK -> if (inContent) {
+                    activeSidebarButton().requestFocus()
+                    return true
+                }
+                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_Y -> {
+                    // MENU key on any focused channel → open fullscreen
+                    if (currentMiniUrl.isNotEmpty()) {
+                        val pos = miniPlayer?.currentPosition ?: 0L
+                        val isVod = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+                        openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVod, resumeMs = pos)
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun showLive() {

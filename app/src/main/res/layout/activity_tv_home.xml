@@ -9,7 +9,7 @@
     <!-- LEFT SIDEBAR -->
     <LinearLayout
         android:id="@+id/tvSidebar"
-        android:layout_width="130dp"
+        android:layout_width="140dp"
         android:layout_height="match_parent"
         android:background="#0C0F1A"
         android:orientation="vertical"
@@ -30,7 +30,7 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginVertical="12dp"
+            android:layout_marginVertical="8dp"
             android:background="#1E2A3A" />
 
         <Button
@@ -43,8 +43,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <Button
             android:id="@+id/btnTvCategories"
@@ -56,8 +58,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <Button
             android:id="@+id/btnTvMovies"
@@ -69,8 +73,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <Button
             android:id="@+id/btnTvSeries"
@@ -82,8 +88,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <Button
             android:id="@+id/btnTvFavorites"
@@ -95,8 +103,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <Button
             android:id="@+id/btnTvGuide"
@@ -108,8 +118,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <View
             android:layout_width="match_parent"
@@ -126,8 +138,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
         <Button
             android:id="@+id/btnTvSettings"
@@ -139,8 +153,10 @@
             android:textAllCaps="false"
             android:gravity="start|center_vertical"
             android:paddingStart="16dp"
-            android:background="@android:color/transparent"
-            android:focusable="true" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusRight="@id/tvRvContent" />
 
     </LinearLayout>
 
@@ -165,7 +181,8 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1.6"
                 android:background="#000000"
-                android:focusable="true">
+                android:focusable="true"
+                android:focusableInTouchMode="false">
 
                 <androidx.media3.ui.PlayerView
                     android:id="@+id/tvMiniPlayerView"
@@ -236,8 +253,9 @@
                     android:textColor="#008CFF"
                     android:textSize="12sp"
                     android:textAllCaps="false"
-                    android:background="@drawable/search_bg"
-                    android:focusable="true" />
+                    android:background="@drawable/tv_sidebar_focus"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
             </LinearLayout>
 
@@ -264,7 +282,8 @@
                 android:paddingHorizontal="12dp"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#555555"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:nextFocusDown="@id/tvRvContent" />
 
             <Button
                 android:id="@+id/tvBtnClearSearch"
@@ -281,10 +300,11 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_marginStart="4dp"
-                android:background="@android:color/transparent"
+                android:background="@drawable/tv_sidebar_focus"
                 android:src="@android:drawable/ic_btn_speak_now"
                 android:tint="#008CFF"
-                android:focusable="true" />
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
 
         </LinearLayout>
 
@@ -301,6 +321,11 @@
                 android:layout_height="match_parent"
                 android:background="#0C0F1A"
                 android:paddingTop="8dp"
+                android:descendantFocusability="afterDescendants"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:nextFocusLeft="@id/tvSidebar"
+                android:nextFocusRight="@id/tvRvContent"
                 android:visibility="gone" />
 
             <View
@@ -313,7 +338,11 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:paddingTop="8dp" />
+                android:paddingTop="8dp"
+                android:descendantFocusability="afterDescendants"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:nextFocusLeft="@id/tvSidebar" />
 
         </LinearLayout>
 
