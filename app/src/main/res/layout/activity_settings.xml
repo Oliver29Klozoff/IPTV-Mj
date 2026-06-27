@@ -53,6 +53,7 @@
 
         <!-- LEFT NAV RAIL -->
         <ScrollView
+            android:id="@+id/settingsNavRail"
             android:layout_width="110dp"
             android:layout_height="match_parent"
             android:background="#0F0F0F">
@@ -72,7 +73,9 @@
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="4dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
                 <Button
                     android:id="@+id/headerDisplay"
@@ -83,9 +86,9 @@
                     android:textColor="#AAAAAA"
                     android:textSize="12sp"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp" />
-
-                
+                    android:layout_marginBottom="4dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
                 <Button
                     android:id="@+id/headerUpdates"
@@ -96,7 +99,9 @@
                     android:textColor="#AAAAAA"
                     android:textSize="12sp"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="4dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
                 <Button
                     android:id="@+id/headerBackup"
@@ -107,7 +112,9 @@
                     android:textColor="#AAAAAA"
                     android:textSize="12sp"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="4dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
                 <Button
                     android:id="@+id/headerServers"
@@ -118,7 +125,9 @@
                     android:textColor="#AAAAAA"
                     android:textSize="12sp"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="4dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
                 <Button
                     android:id="@+id/headerSync"
@@ -129,7 +138,9 @@
                     android:textColor="#AAAAAA"
                     android:textSize="12sp"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp" />
+                    android:layout_marginBottom="4dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
                 <Button
                     android:id="@+id/btnLogout"
@@ -141,7 +152,9 @@
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:layout_marginHorizontal="6dp"
-                    android:layout_marginTop="16dp" />
+                    android:layout_marginTop="16dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
 
             </LinearLayout>
         </ScrollView>
@@ -158,7 +171,8 @@
                 android:id="@+id/sectionStream"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:visibility="visible">
+                android:visibility="visible"
+                android:descendantFocusability="afterDescendants">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -419,7 +433,8 @@
                 android:id="@+id/sectionDisplay"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:visibility="gone">
+                android:visibility="gone"
+                android:descendantFocusability="afterDescendants">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -533,13 +548,13 @@
                 </LinearLayout>
             </ScrollView>
 
-            <!-- EPG PANEL -->
             <!-- UPDATES PANEL -->
             <ScrollView
                 android:id="@+id/sectionUpdates"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:visibility="gone">
+                android:visibility="gone"
+                android:descendantFocusability="afterDescendants">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -602,7 +617,8 @@
                 android:id="@+id/sectionBackup"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:visibility="gone">
+                android:visibility="gone"
+                android:descendantFocusability="afterDescendants">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -705,7 +721,8 @@
                 android:id="@+id/sectionServers"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:visibility="gone">
+                android:visibility="gone"
+                android:descendantFocusability="afterDescendants">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -758,6 +775,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:visibility="gone"
+                android:descendantFocusability="afterDescendants"
                 xmlns:app="http://schemas.android.com/apk/res-auto">
                 <LinearLayout
                     android:layout_width="match_parent"

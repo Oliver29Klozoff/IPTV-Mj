@@ -1,6 +1,5 @@
 package com.iptvapp.ui.settings
 import com.iptvapp.BuildConfig
-import com.iptvapp.util.isLargeScreenDevice
 
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -22,7 +21,9 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -83,6 +84,16 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var workManager: WorkManager
     private var currentEpgWorkId: UUID? = null
     private var isLoadingSettings = false
+    private var currentPanelIndex = 0
+
+    private val panelViews get() = listOf(
+        binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates,
+        binding.sectionBackup, binding.sectionServers, binding.sectionSync
+    )
+    private val navButtonViews get() = listOf(
+        binding.headerStream, binding.headerDisplay, binding.headerUpdates,
+        binding.headerBackup, binding.headerServers, binding.headerSync
+    )
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
@@ -245,19 +256,12 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupSectionToggles() {
-        val panels = listOf(
-            binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates,
-            binding.sectionBackup, binding.sectionServers, binding.sectionSync
-        )
-        val navButtons = listOf(
-            binding.headerStream, binding.headerDisplay, binding.headerUpdates,
-            binding.headerBackup, binding.headerServers, binding.headerSync
-        )
         fun selectPanel(index: Int) {
-            panels.forEachIndexed { i, panel ->
+            currentPanelIndex = index
+            panelViews.forEachIndexed { i, panel ->
                 panel.visibility = if (i == index) View.VISIBLE else View.GONE
             }
-            navButtons.forEachIndexed { i, btn ->
+            navButtonViews.forEachIndexed { i, btn ->
                 btn.backgroundTintList = android.content.res.ColorStateList.valueOf(
                     if (i == index) Color.parseColor("#1A3A5C") else Color.parseColor("#1A1A1A")
                 )
@@ -266,8 +270,46 @@ class SettingsActivity : AppCompatActivity() {
                 )
             }
         }
-        navButtons.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
+        navButtonViews.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
         selectPanel(0)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val inContent = panelViews[currentPanelIndex].hasFocus()
+            val inNav = binding.settingsNavRail.hasFocus()
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (inContent) {
+                    navButtonViews[currentPanelIndex].requestFocus()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (inNav) {
+                    focusFirstInCurrentPanel()
+                    return true
+                }
+                KeyEvent.KEYCODE_BACK -> if (inContent) {
+                    navButtonViews[currentPanelIndex].requestFocus()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun focusFirstInCurrentPanel() {
+        val panel = panelViews[currentPanelIndex]
+        val first = firstFocusableIn(panel)
+        if (first != null) first.requestFocus() else panel.requestFocus()
+    }
+
+    private fun firstFocusableIn(view: View): View? {
+        if (view !is ViewGroup && view.isFocusable && view.isEnabled && view.visibility == View.VISIBLE) return view
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                firstFocusableIn(view.getChildAt(i))?.let { return it }
+            }
+        }
+        return null
     }
 
     private fun setupBackupRestore() {
