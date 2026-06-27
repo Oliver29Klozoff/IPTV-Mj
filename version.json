@@ -1,13 +1,13 @@
 {
-  "versionCode": 68,
-  "versionName": "2.31",
+  "versionCode": 69,
+  "versionName": "2.32",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Channel Mosaic — watch 2x2 or 2x3 live streams simultaneously",
-    "EPG Timeline Grid — horizontal scroll guide with 12-hour window",
-    "Channel timers — long-press any program to set a reminder notification",
-    "Android TV D-pad navigation overhauled — focus highlight, LEFT/RIGHT wired",
-    "Settings fixed — status messages restored, changelog live, backup scrolls",
-    "Hero banner, stream stats overlay, external player support, voice search"
+    "What's On Now — tap 'Now' to see current program on every channel",
+    "Reminder notifications — long-press any channel to set a program reminder",
+    "Server speed test — ping and HTTP response time in Settings",
+    "Auto-reconnect improved — retries up to 20 times with countdown",
+    "Settings D-pad navigation matching TV home screen",
+    "Channel Mosaic, EPG Timeline Grid, TV UI overhaul"
   ]
 }
