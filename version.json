@@ -1,13 +1,13 @@
 {
-  "versionCode": 67,
-  "versionName": "2.30",
+  "versionCode": 68,
+  "versionName": "2.31",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
     "Channel Mosaic — watch 2x2 or 2x3 live streams simultaneously",
     "EPG Timeline Grid — horizontal scroll guide with 12-hour window",
     "Channel timers — long-press any program to set a reminder notification",
-    "Hero banner: channel logo, EPG description, and Watch button on home screen",
-    "Stream stats overlay in player — tap 📊 for resolution, codec, bitrate, buffer",
-    "External player support — launch streams in VLC, MX Player, or system chooser"
+    "Android TV D-pad navigation overhauled — focus highlight, LEFT/RIGHT wired",
+    "Settings fixed — status messages restored, changelog live, backup scrolls",
+    "Hero banner, stream stats overlay, external player support, voice search"
   ]
 }
