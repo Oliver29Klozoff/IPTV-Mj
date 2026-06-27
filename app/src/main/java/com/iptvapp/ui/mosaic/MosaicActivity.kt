@@ -62,6 +62,7 @@ class MosaicActivity : AppCompatActivity() {
     }
 
     private fun loadFavorites() {
+        viewModel.showFavoriteChannels()
         lifecycleScope.launch {
             val favs = viewModel.channels.first { it.isNotEmpty() }
             favs.take(gridSize).forEachIndexed { i, ch ->
@@ -223,14 +224,19 @@ class MosaicActivity : AppCompatActivity() {
     }
 
     private fun showChannelPicker(cellIndex: Int) {
-        val channels = viewModel.channels.value.ifEmpty { return }
-        val names = channels.map { it.name }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Select Channel")
-            .setItems(names) { _, which ->
-                loadChannel(cellIndex, channels[which])
+        lifecycleScope.launch {
+            val channels = viewModel.channels.value.ifEmpty {
+                viewModel.showFavoriteChannels()
+                viewModel.channels.first { it.isNotEmpty() }
             }
-            .show()
+            val names = channels.map { it.name }.toTypedArray()
+            AlertDialog.Builder(this@MosaicActivity)
+                .setTitle("Select Channel")
+                .setItems(names) { _, which ->
+                    loadChannel(cellIndex, channels[which])
+                }
+                .show()
+        }
     }
 
     private fun cycleGridSize() {
