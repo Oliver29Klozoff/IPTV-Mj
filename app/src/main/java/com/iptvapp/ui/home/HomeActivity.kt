@@ -238,6 +238,9 @@ class HomeActivity : AppCompatActivity() {
         binding.btnMultiView?.setOnClickListener {
             startActivity(Intent(this, MultiViewActivity::class.java))
         }
+        binding.btnMosaic?.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
+        }
         binding.btnRecording?.setOnClickListener {
             startActivity(Intent(this, RecordingSchedulerActivity::class.java))
         }
