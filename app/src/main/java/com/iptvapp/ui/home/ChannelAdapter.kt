@@ -16,7 +16,8 @@ import com.iptvapp.databinding.ItemChannelBinding
 class ChannelAdapter(
     private val onChannelClick: (ChannelEntity) -> Unit,
     private val onChannelDoubleClick: (ChannelEntity) -> Unit = {},
-    private val onFavoriteClick: (ChannelEntity) -> Unit
+    private val onFavoriteClick: (ChannelEntity) -> Unit,
+    private val onChannelLongClick: ((ChannelEntity) -> Unit)? = null
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
     var itemTouchHelper: ItemTouchHelper? = null
@@ -85,9 +86,12 @@ class ChannelAdapter(
                 lastClickTime = now
             }
 
-            // Both long-press on the row AND tap on the star toggle the favorite
             binding.root.setOnLongClickListener {
-                onFavoriteClick(item)
+                if (onChannelLongClick != null) {
+                    onChannelLongClick.invoke(item)
+                } else {
+                    onFavoriteClick(item)
+                }
                 true
             }
 

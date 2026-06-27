@@ -32,7 +32,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.ui.series.SeriesDetailActivity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
@@ -227,6 +231,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMenu() {
+        binding.btnWhatsOn?.setOnClickListener { showWhatsOnNow() }
         binding.btnMenu.setOnClickListener {
             val settingsClass = if (isLargeScreenDevice()) {
                 TvSettingsActivity::class.java
@@ -306,7 +311,8 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.toggleChannelFavorite(channel.streamId)
                 val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
-            }
+            },
+            onChannelLongClick = { channel -> showReminderDialog(channel) }
         )
 
         vodAdapter = VodAdapter(
@@ -679,5 +685,108 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.externalPlayer.collect { externalPlayerChoice = it }
         }
+    }
+
+    private fun showReminderDialog(channel: ChannelEntity) {
+        lifecycleScope.launch {
+            val nowSec = System.currentTimeMillis() / 1000
+            val epgList = try {
+                viewModel.getUpcomingEpg(channel.streamId)
+            } catch (_: Exception) { emptyList() }
+
+            if (epgList.isEmpty()) {
+                val options = arrayOf("In 15 minutes", "In 30 minutes", "In 1 hour", "In 2 hours")
+                val deltas = longArrayOf(15 * 60 * 1000L, 30 * 60 * 1000L, 60 * 60 * 1000L, 120 * 60 * 1000L)
+                androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
+                    .setTitle("Remind me about ${channel.name}")
+                    .setItems(options) { _, i ->
+                        ChannelTimerScheduler.schedule(
+                            this@HomeActivity, channel.streamId, channel.name,
+                            channel.name, System.currentTimeMillis() + deltas[i]
+                        )
+                        Toast.makeText(this@HomeActivity, "Reminder set for ${options[i]}", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Cancel", null).show()
+                return@launch
+            }
+
+            val fmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+            val labels = epgList.map { epg ->
+                val startMs = if (epg.startTimestamp > 1_000_000_000_000L) epg.startTimestamp else epg.startTimestamp * 1000L
+                val minUntil = ((startMs - System.currentTimeMillis()) / 60000).coerceAtLeast(0)
+                val timeStr = if (minUntil == 0L) "Now" else "in ${minUntil}min"
+                "${epg.title} (${fmt.format(Date(startMs))} — $timeStr)"
+            }.toTypedArray()
+
+            androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
+                .setTitle("Remind me — ${channel.name}")
+                .setItems(labels) { _, i ->
+                    val epg = epgList[i]
+                    val startMs = if (epg.startTimestamp > 1_000_000_000_000L) epg.startTimestamp else epg.startTimestamp * 1000L
+                    ChannelTimerScheduler.schedule(
+                        this@HomeActivity, channel.streamId, channel.name, epg.title, startMs
+                    )
+                    Toast.makeText(this@HomeActivity, "Reminder set for ${epg.title}", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null).show()
+        }
+    }
+
+    private fun showWhatsOnNow() {
+        val channels = viewModel.channels.value.ifEmpty { return }
+        val epgTextMap = viewModel.channelEpgText.value
+        val epgProgressMap = viewModel.channelEpgProgress.value
+
+        val withProgram = channels.filter { epgTextMap[it.streamId]?.isNotBlank() == true }
+            .ifEmpty { channels }
+
+        val inflater = layoutInflater
+        val rv = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity)
+            setPadding(0, 8, 0, 8)
+        }
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("What's On Now")
+            .setView(rv)
+            .setNegativeButton("Close", null)
+            .create()
+
+        val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+            inner class VH(val v: android.view.View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(v)
+            override fun getItemCount() = withProgram.size
+            override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): VH {
+                val view = inflater.inflate(com.iptvapp.R.layout.item_whats_on, parent, false)
+                return VH(view)
+            }
+            override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
+                val ch = withProgram[position]
+                val v = holder.itemView
+                v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonChannel).text = ch.name
+                v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonProgram).text = epgTextMap[ch.streamId] ?: ""
+                val progress = epgProgressMap[ch.streamId] ?: 0
+                val pb = v.findViewById<android.widget.ProgressBar>(com.iptvapp.R.id.pbWonProgress)
+                pb.progress = progress
+                pb.visibility = if (progress > 0) android.view.View.VISIBLE else android.view.View.INVISIBLE
+                com.bumptech.glide.Glide.with(v)
+                    .load(ch.streamIcon)
+                    .placeholder(android.R.drawable.ic_media_play)
+                    .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
+                v.setOnClickListener {
+                    dialog.dismiss()
+                    lifecycleScope.launch {
+                        playInMiniPlayer(ch)
+                        viewModel.markChannelWatched(ch.streamId)
+                        viewModel.setCurrentlyPlaying(ch.streamId)
+                    }
+                }
+            }
+        }
+        rv.adapter = adapter
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            (resources.displayMetrics.heightPixels * 0.75).toInt()
+        )
     }
 }

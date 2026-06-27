@@ -96,7 +96,7 @@ class PlayerActivity : AppCompatActivity() {
     private var currentIndex: Int = -1
 
     private var retryCount = 0
-    private val maxRetries = 5
+    private val maxRetries = 20
     private var retryJob: Job? = null
     private var channelSwitchJob: Job? = null
 
@@ -534,7 +534,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun scheduleRetry() {
         if (retryCount >= maxRetries) {
-            binding.tvRetryStatus.text = "Stream unavailable"
+            binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
             binding.tvRetryStatus.visibility = View.VISIBLE
             return
         }
@@ -543,7 +543,7 @@ class PlayerActivity : AppCompatActivity() {
             val backoffMs = (2000L * (retryCount + 1)).coerceAtMost(16000L)
             val attempt = retryCount + 1
             val delaySec = backoffMs / 1000
-            binding.tvRetryStatus.text = "Reconnecting in ${delaySec}s ($attempt/$maxRetries)…"
+            binding.tvRetryStatus.text = "● Reconnecting in ${delaySec}s (attempt $attempt of $maxRetries)…"
             binding.tvRetryStatus.visibility = View.VISIBLE
             delay(backoffMs)
             retryCount++

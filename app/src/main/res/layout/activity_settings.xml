@@ -396,6 +396,45 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:padding="16dp">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="SERVER SPEED TEST"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1" />
+                            <Button
+                                android:id="@+id/btnSpeedTest"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#1A3A5C"
+                                android:text="Run Speed Test"
+                                android:textColor="#008CFF"
+                                android:textSize="13sp" />
+                            <TextView
+                                android:id="@+id/tvSpeedTestResult"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text=""
+                                android:textColor="#AAAAAA"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
                             <CheckBox
                                 android:id="@+id/cbRefreshMissingOnly"
                                 android:layout_width="wrap_content"

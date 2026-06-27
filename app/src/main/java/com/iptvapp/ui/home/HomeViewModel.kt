@@ -382,4 +382,12 @@ class HomeViewModel @Inject constructor(
     fun saveFavOrder(orderedIds: List<Int>) {
         viewModelScope.launch { repository.saveFavOrder(orderedIds) }
     }
+
+    suspend fun getUpcomingEpg(streamId: Int): List<com.iptvapp.data.local.entities.EpgEntity> {
+        val nowSec = System.currentTimeMillis() / 1000
+        return repository.getEpgForStream(streamId).first()
+            .filter { it.stopTimestamp > nowSec }
+            .sortedBy { it.startTimestamp }
+            .take(6)
+    }
 }

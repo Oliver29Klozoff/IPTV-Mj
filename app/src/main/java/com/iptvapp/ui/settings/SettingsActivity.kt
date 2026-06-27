@@ -134,6 +134,8 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        binding.btnSpeedTest.setOnClickListener { lifecycleScope.launch { runSpeedTest() } }
+
         binding.btnRefreshEpg.setOnClickListener { startEpgRefresh() }
 
         binding.btnCancelEpgRefresh.setOnClickListener {
@@ -956,6 +958,59 @@ class SettingsActivity : AppCompatActivity() {
                 binding.btnSyncDown.isEnabled = true
                 Toast.makeText(this@SettingsActivity, result, Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private suspend fun runSpeedTest() {
+        binding.btnSpeedTest.isEnabled = false
+        binding.tvSpeedTestResult.text = "Testing..."
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val serverUrl = try { prefs.credentials.first().serverUrl } catch (_: Exception) { "" }
+                val uri = try { java.net.URI(serverUrl) } catch (_: Exception) {
+                    return@withContext "Error: invalid server URL"
+                }
+                val host = uri.host ?: return@withContext "Error: could not parse host"
+                val port = if (uri.port > 0) uri.port else 80
+
+                // TCP ping
+                val tcpTimes = mutableListOf<Long>()
+                repeat(3) {
+                    try {
+                        val start = System.currentTimeMillis()
+                        val socket = java.net.Socket()
+                        socket.connect(java.net.InetSocketAddress(host, port), 3000)
+                        val elapsed = System.currentTimeMillis() - start
+                        socket.close()
+                        tcpTimes.add(elapsed)
+                    } catch (_: Exception) {}
+                }
+                val tcpAvg = if (tcpTimes.isNotEmpty()) tcpTimes.average().toLong() else -1L
+                val tcpStr = if (tcpAvg >= 0) "TCP Ping: ${tcpAvg}ms avg (${tcpTimes.size}/3)"
+                             else "TCP Ping: failed"
+
+                // HTTP response
+                val httpStr = try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(5, TimeUnit.SECONDS)
+                        .readTimeout(8, TimeUnit.SECONDS)
+                        .build()
+                    val start = System.currentTimeMillis()
+                    val response = client.newCall(Request.Builder().url(serverUrl).build()).execute()
+                    val elapsed = System.currentTimeMillis() - start
+                    response.close()
+                    "HTTP Response: ${elapsed}ms"
+                } catch (e: Exception) {
+                    "HTTP Response: failed (${e.message})"
+                }
+
+                "$tcpStr\n$httpStr\nServer: $host:$port"
+            }
+            binding.tvSpeedTestResult.text = result
+        } catch (e: Exception) {
+            binding.tvSpeedTestResult.text = "Error: ${e.message}"
+        } finally {
+            binding.btnSpeedTest.isEnabled = true
         }
     }
 

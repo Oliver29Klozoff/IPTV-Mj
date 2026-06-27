@@ -23,9 +23,13 @@ import com.iptvapp.ui.recordings.RecordingSchedulerActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.ui.guide.ChannelTimerScheduler
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @AndroidEntryPoint
 class TvHomeActivity : AppCompatActivity() {
@@ -201,7 +205,8 @@ class TvHomeActivity : AppCompatActivity() {
                 viewModel.toggleChannelFavorite(channel.streamId)
                 val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
-            }
+            },
+            onChannelLongClick = { channel -> showTvReminderDialog(channel) }
         )
 
         vodAdapter = VodAdapter(
@@ -543,6 +548,51 @@ class TvHomeActivity : AppCompatActivity() {
             putExtra("is_vod", isVod)
             putExtra("resume_ms", resumeMs)
         })
+    }
+
+    private fun showTvReminderDialog(channel: ChannelEntity) {
+        lifecycleScope.launch {
+            val nowSec = System.currentTimeMillis() / 1000
+            val epgList = try {
+                viewModel.getUpcomingEpg(channel.streamId)
+            } catch (_: Exception) { emptyList() }
+
+            if (epgList.isEmpty()) {
+                val options = arrayOf("In 15 minutes", "In 30 minutes", "In 1 hour", "In 2 hours")
+                val deltas = longArrayOf(15 * 60 * 1000L, 30 * 60 * 1000L, 60 * 60 * 1000L, 120 * 60 * 1000L)
+                androidx.appcompat.app.AlertDialog.Builder(this@TvHomeActivity)
+                    .setTitle("Remind me about ${channel.name}")
+                    .setItems(options) { _, i ->
+                        ChannelTimerScheduler.schedule(
+                            this@TvHomeActivity, channel.streamId, channel.name,
+                            channel.name, System.currentTimeMillis() + deltas[i]
+                        )
+                        Toast.makeText(this@TvHomeActivity, "Reminder set for ${options[i]}", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Cancel", null).show()
+                return@launch
+            }
+
+            val fmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+            val labels = epgList.map { epg ->
+                val startMs = if (epg.startTimestamp > 1_000_000_000_000L) epg.startTimestamp else epg.startTimestamp * 1000L
+                val minUntil = ((startMs - System.currentTimeMillis()) / 60000).coerceAtLeast(0)
+                val timeStr = if (minUntil == 0L) "Now" else "in ${minUntil}min"
+                "${epg.title} (${fmt.format(Date(startMs))} — $timeStr)"
+            }.toTypedArray()
+
+            androidx.appcompat.app.AlertDialog.Builder(this@TvHomeActivity)
+                .setTitle("Remind me — ${channel.name}")
+                .setItems(labels) { _, i ->
+                    val epg = epgList[i]
+                    val startMs = if (epg.startTimestamp > 1_000_000_000_000L) epg.startTimestamp else epg.startTimestamp * 1000L
+                    ChannelTimerScheduler.schedule(
+                        this@TvHomeActivity, channel.streamId, channel.name, epg.title, startMs
+                    )
+                    Toast.makeText(this@TvHomeActivity, "Reminder set for ${epg.title}", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null).show()
+        }
     }
 
     private fun launchExternalPlayer(url: String, title: String, player: String) {
