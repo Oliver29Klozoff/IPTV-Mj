@@ -1,7 +1,5 @@
 package com.iptvapp.ui.settings
 import com.iptvapp.BuildConfig
-
-import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.util.isLargeScreenDevice
 
 import android.app.DownloadManager
@@ -68,29 +66,23 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
+
     private val backupFileLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        if (uri != null) {
-            lifecycleScope.launch {
-                writeBackupToUri(uri)
-            }
-        }
+        if (uri != null) lifecycleScope.launch { writeBackupToUri(uri) }
     }
 
     private val restoreFileLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) {
-            lifecycleScope.launch {
-                restoreBackupFromUri(uri)
-            }
-        }
+        if (uri != null) lifecycleScope.launch { restoreBackupFromUri(uri) }
     }
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var workManager: WorkManager
     private var currentEpgWorkId: UUID? = null
+    private var isLoadingSettings = false
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
@@ -101,11 +93,12 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        binding.root.enableTvFocusHighlight()
-workManager = WorkManager.getInstance(this)
+        workManager = WorkManager.getInstance(this)
+
         binding.btnBack.setOnClickListener { finish() }
+
         binding.btnLogout.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            AlertDialog.Builder(this)
                 .setTitle("Logout")
                 .setMessage("This will clear all data and return to the login screen. Continue?")
                 .setPositiveButton("Logout") { _, _ ->
@@ -119,15 +112,9 @@ workManager = WorkManager.getInstance(this)
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+
         binding.btnWhatsNew.setOnClickListener { showChangelog() }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdate() }
-
-        loadSettings()
-        observeEpgRefreshWork()
-        setupBackupRestore()
-        setupSectionToggles()
-        setupServers()
-        setupSyncSection()
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
@@ -140,28 +127,33 @@ workManager = WorkManager.getInstance(this)
 
         binding.btnCancelEpgRefresh.setOnClickListener {
             workManager.cancelUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME)
-            binding.tvEpgRefreshStatus.text = ""
+            binding.tvEpgRefreshStatus.text = "Cancelled"
             binding.btnRefreshEpg.isEnabled = true
             binding.btnCancelEpgRefresh.visibility = View.GONE
         }
 
         binding.cbRefreshMissingOnly.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setEpgRefreshMissingOnly(isChecked) }
         }
 
         binding.cbUsaOnlyChannels.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setUsaOnlyChannels(isChecked) }
         }
 
         binding.cbShowMovies.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setShowMovies(isChecked) }
         }
 
         binding.cbShowSeries.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setShowSeries(isChecked) }
         }
 
         binding.cbShowWatching.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setShowWatching(isChecked) }
         }
 
@@ -177,7 +169,7 @@ workManager = WorkManager.getInstance(this)
                     "Movies refreshed (${result.data?.size ?: 0} titles)"
                 else
                     "Failed — server timeout or no content"
-                android.widget.Toast.makeText(this@SettingsActivity, msg, android.widget.Toast.LENGTH_LONG).show()
+                Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
 
@@ -192,11 +184,12 @@ workManager = WorkManager.getInstance(this)
                     "Series refreshed (${result.data?.size ?: 0} titles)"
                 else
                     "Failed — server timeout or no content"
-                android.widget.Toast.makeText(this@SettingsActivity, msg, android.widget.Toast.LENGTH_LONG).show()
+                Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
 
         binding.rgAutoEpgRefresh.setOnCheckedChangeListener { _, checkedId ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch {
                 val hours = when (checkedId) {
                     binding.rbAuto6.id -> 6
@@ -212,6 +205,7 @@ workManager = WorkManager.getInstance(this)
         }
 
         binding.rgFormat.setOnCheckedChangeListener { _, checkedId ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch {
                 val format = when (checkedId) {
                     binding.rbTs.id -> "ts"
@@ -223,6 +217,7 @@ workManager = WorkManager.getInstance(this)
         }
 
         binding.rgPlayer.setOnCheckedChangeListener { _, checkedId ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch {
                 val player = when (checkedId) {
                     binding.rbPlayerVlc.id    -> "vlc"
@@ -240,16 +235,35 @@ workManager = WorkManager.getInstance(this)
                 Toast.makeText(this@SettingsActivity, "Player: $label", Toast.LENGTH_SHORT).show()
             }
         }
+
+        setupSectionToggles()
+        setupBackupRestore()
+        setupServers()
+        setupSyncSection()
+        observeEpgRefreshWork()
+        loadSettings()
     }
 
     private fun setupSectionToggles() {
-        val panels = listOf(binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates, binding.sectionBackup, binding.sectionServers, binding.sectionSync)
-        val navButtons = listOf(binding.headerStream, binding.headerDisplay, binding.headerUpdates, binding.headerBackup, binding.headerServers, binding.headerSync)
+        val panels = listOf(
+            binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates,
+            binding.sectionBackup, binding.sectionServers, binding.sectionSync
+        )
+        val navButtons = listOf(
+            binding.headerStream, binding.headerDisplay, binding.headerUpdates,
+            binding.headerBackup, binding.headerServers, binding.headerSync
+        )
         fun selectPanel(index: Int) {
-            panels.forEachIndexed { i, panel -> panel.visibility = if (i == index) android.view.View.VISIBLE else android.view.View.GONE }
+            panels.forEachIndexed { i, panel ->
+                panel.visibility = if (i == index) View.VISIBLE else View.GONE
+            }
             navButtons.forEachIndexed { i, btn ->
-                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(if (i == index) android.graphics.Color.parseColor("#1A3A5C") else android.graphics.Color.parseColor("#1A1A1A"))
-                btn.setTextColor(if (i == index) android.graphics.Color.parseColor("#008CFF") else android.graphics.Color.parseColor("#AAAAAA"))
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                    if (i == index) Color.parseColor("#1A3A5C") else Color.parseColor("#1A1A1A")
+                )
+                btn.setTextColor(
+                    if (i == index) Color.parseColor("#008CFF") else Color.parseColor("#AAAAAA")
+                )
             }
         }
         navButtons.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
@@ -258,41 +272,15 @@ workManager = WorkManager.getInstance(this)
 
     private fun setupBackupRestore() {
         binding.btnBackupSettings.setOnClickListener { backupSettings() }
-        binding.btnRestoreSettings.setOnClickListener { restoreSettings() }
+        binding.btnRestoreSettings.setOnClickListener {
+            restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+        }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
     }
 
     private fun backupSettings() {
-        if (isLargeScreenDevice()) {
-            lifecycleScope.launch {
-                try {
-                    val creds = prefs.credentials.first()
-                    val json = JSONObject().apply {
-                        put("serverUrl", creds.serverUrl)
-                        put("username", creds.username)
-                        put("password", creds.password)
-                        put("epgUrl", prefs.epgUrl.first())
-                        put("preferredFormat", prefs.preferredFormat.first())
-                        put("usaOnlyChannels", prefs.usaOnlyChannels.first())
-                        put("showMovies", prefs.showMovies.first())
-                        put("showSeries", prefs.showSeries.first())
-                        put("showWatching", prefs.showWatching.first())
-                        put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
-                        put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
-                    }
-                    showQrCode(json.toString(), json.toString(2))
-                } catch (e: Exception) {
-                    binding.tvBackupStatus.text = "Backup failed"
-                }
-            }
-        } else {
-            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
-            backupFileLauncher.launch("MKTV_backup_$timestamp.json")
-        }
-    }
-
-    private fun restoreSettings() {
-        restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        backupFileLauncher.launch("MKTV_backup_$timestamp.json")
     }
 
     private fun generateQrBitmap(content: String, size: Int = 800): Bitmap {
@@ -373,11 +361,14 @@ workManager = WorkManager.getInstance(this)
                 val epgCount = try { db.epgDao().getEpgCount() } catch (_: Exception) { -1 }
                 val format = prefs.preferredFormat.first()
                 val usaOnly = prefs.usaOnlyChannels.first()
-                val serverUrl = try { prefs.credentials.first().serverUrl.let { url ->
-                    java.net.URI(url).let { "${it.host}:${it.port}" }
-                } } catch (_: Exception) { "unknown" }
+                val serverUrl = try {
+                    prefs.credentials.first().serverUrl.let { url ->
+                        java.net.URI(url).let { "${it.host}:${it.port}" }
+                    }
+                } catch (_: Exception) { "unknown" }
                 val lastRefresh = prefs.lastEpgRefreshTime.first().let { t ->
-                    if (t == 0L) "Never" else java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(t))
+                    if (t == 0L) "Never"
+                    else SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(t))
                 }
                 val autoRefreshHours = prefs.epgAutoRefreshHours.first()
                 val autoRefreshStr = if (autoRefreshHours == 0) "Off" else "Every ${autoRefreshHours}h"
@@ -392,7 +383,7 @@ workManager = WorkManager.getInstance(this)
                 val screen = "${dm.widthPixels}x${dm.heightPixels} (${dm.densityDpi}dpi)"
                 val epgWorkState = try {
                     WorkManager.getInstance(this@SettingsActivity)
-                        .getWorkInfosForUniqueWork(com.iptvapp.worker.EpgRefreshWorker.UNIQUE_WORK_NAME).get()
+                        .getWorkInfosForUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME).get()
                         .firstOrNull()?.state?.name ?: "None"
                 } catch (_: Exception) { "Unknown" }
                 binding.tvReportStatus.text = "Reading crash log & sending..."
@@ -434,15 +425,12 @@ workManager = WorkManager.getInstance(this)
                     val responseJson = JSONObject(response.body?.string() ?: "")
                     val issueNumber = responseJson.getInt("number")
                     binding.tvReportStatus.text = "✓ Report sent (Issue #$issueNumber)"
-                    binding.btnSendDebugReport.text = "Send Debug Report"
-                    binding.btnSendDebugReport.isEnabled = true
                 } else {
                     binding.tvReportStatus.text = "Send failed (HTTP ${response.code})"
-                    binding.btnSendDebugReport.text = "Send Debug Report"
-                    binding.btnSendDebugReport.isEnabled = true
                 }
             } catch (e: Exception) {
                 binding.tvReportStatus.text = "Error: ${e.message}"
+            } finally {
                 binding.btnSendDebugReport.text = "Send Debug Report"
                 binding.btnSendDebugReport.isEnabled = true
             }
@@ -475,7 +463,7 @@ workManager = WorkManager.getInstance(this)
                         .setNegativeButton("Later", null)
                         .show()
                 } else {
-                    binding.tvUpdateStatus.text = "✓ You're up to date (v$latestName)"
+                    binding.tvUpdateStatus.text = "✓ Up to date (v$latestName)"
                 }
             } catch (e: Exception) {
                 binding.tvUpdateStatus.text = "Check failed — ${e.message}"
@@ -502,11 +490,8 @@ workManager = WorkManager.getInstance(this)
 
     private fun downloadAndInstall(apkUrl: String, versionName: String) {
         binding.tvUpdateStatus.text = "Resolving download URL..."
-        binding.progressEpgRefresh.visibility = View.VISIBLE
-        binding.progressEpgRefresh.progress = 0
         lifecycleScope.launch {
             val resolvedUrl = withContext(Dispatchers.IO) { resolveRedirect(apkUrl) }
-            android.util.Log.d("UPDATE", "Resolved URL: $resolvedUrl")
             downloadFromUrl(resolvedUrl, versionName)
         }
     }
@@ -534,15 +519,16 @@ workManager = WorkManager.getInstance(this)
                     val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                     if (total > 0) {
                         val pct = (downloaded * 100 / total).toInt()
-                        binding.progressEpgRefresh.progress = pct
                         binding.tvUpdateStatus.text = "Downloading... $pct%"
                     }
                     val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
                         progressHandler.removeCallbacks(this)
-                        binding.progressEpgRefresh.progress = 100
                         binding.tvUpdateStatus.text = "Download complete — installing..."
                         installApk(file)
+                    } else if (status == DownloadManager.STATUS_FAILED) {
+                        progressHandler.removeCallbacks(this)
+                        binding.tvUpdateStatus.text = "Download failed"
                     } else {
                         progressHandler.postDelayed(this, 500)
                     }
@@ -572,7 +558,9 @@ workManager = WorkManager.getInstance(this)
     private fun installApk(file: File) {
         val canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
         if (!canInstall) {
-            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply { data = Uri.parse("package:$packageName") })
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                data = Uri.parse("package:$packageName")
+            })
             binding.tvUpdateStatus.text = "Allow installs from unknown sources, then retry"
             return
         }
@@ -615,32 +603,37 @@ workManager = WorkManager.getInstance(this)
 
     private fun loadSettings() {
         lifecycleScope.launch {
-            binding.etEpgUrl.setText(prefs.epgUrl.first())
-            when (prefs.preferredFormat.first()) {
-                "ts" -> binding.rbTs.isChecked = true
-                else -> binding.rbM3u8.isChecked = true
+            isLoadingSettings = true
+            try {
+                binding.etEpgUrl.setText(prefs.epgUrl.first())
+                when (prefs.preferredFormat.first()) {
+                    "ts" -> binding.rbTs.isChecked = true
+                    else -> binding.rbM3u8.isChecked = true
+                }
+                binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
+                binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
+                binding.cbShowMovies.isChecked = prefs.showMovies.first()
+                binding.cbShowSeries.isChecked = prefs.showSeries.first()
+                binding.cbShowWatching.isChecked = prefs.showWatching.first()
+                when (prefs.externalPlayer.first()) {
+                    "vlc"      -> binding.rbPlayerVlc.isChecked = true
+                    "mxplayer" -> binding.rbPlayerMx.isChecked = true
+                    "system"   -> binding.rbPlayerSystem.isChecked = true
+                    else       -> binding.rbPlayerInternal.isChecked = true
+                }
+                when (prefs.epgAutoRefreshHours.first()) {
+                    6    -> binding.rbAuto6.isChecked = true
+                    12   -> binding.rbAuto12.isChecked = true
+                    24   -> binding.rbAuto24.isChecked = true
+                    else -> binding.rbAutoOff.isChecked = true
+                }
+                binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
+                updateLastRefreshText()
+                updateCacheAgeText()
+                binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+            } finally {
+                isLoadingSettings = false
             }
-            binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
-            binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
-            binding.cbShowMovies.isChecked = prefs.showMovies.first()
-            binding.cbShowSeries.isChecked = prefs.showSeries.first()
-            binding.cbShowWatching.isChecked = prefs.showWatching.first()
-            when (prefs.externalPlayer.first()) {
-                "vlc"      -> binding.rbPlayerVlc.isChecked = true
-                "mxplayer" -> binding.rbPlayerMx.isChecked = true
-                "system"   -> binding.rbPlayerSystem.isChecked = true
-                else       -> binding.rbPlayerInternal.isChecked = true
-            }
-            when (prefs.epgAutoRefreshHours.first()) {
-                6 -> binding.rbAuto6.isChecked = true
-                12 -> binding.rbAuto12.isChecked = true
-                24 -> binding.rbAuto24.isChecked = true
-                else -> binding.rbAutoOff.isChecked = true
-            }
-            updateLastRefreshText()
-            updateCacheAgeText()
-            val pInfo = packageManager.getPackageInfo(packageName, 0)
-            binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         }
     }
 
@@ -653,7 +646,7 @@ workManager = WorkManager.getInstance(this)
             currentEpgWorkId = request.id
             binding.progressEpgRefresh.visibility = View.VISIBLE
             binding.progressEpgRefresh.progress = 0
-            binding.tvEpgRefreshStatus.text = ""
+            binding.tvEpgRefreshStatus.text = "Starting EPG refresh..."
             binding.btnRefreshEpg.isEnabled = false
             binding.btnCancelEpgRefresh.visibility = View.VISIBLE
             workManager.enqueueUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
@@ -667,7 +660,7 @@ workManager = WorkManager.getInstance(this)
             val progress = info.progress.getInt(EpgRefreshWorker.KEY_PROGRESS, 0)
             val status = info.progress.getString(EpgRefreshWorker.KEY_STATUS)
                 ?: info.outputData.getString(EpgRefreshWorker.KEY_STATUS)
-                ?: "EPG refresh state: ${info.state}"
+                ?: "EPG refresh: ${info.state}"
             binding.progressEpgRefresh.visibility = View.VISIBLE
             binding.progressEpgRefresh.progress = progress
             binding.tvEpgRefreshStatus.text = status
@@ -687,17 +680,20 @@ workManager = WorkManager.getInstance(this)
                     it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
                 } ?: return@observe
                 val progress = info.progress.getInt(EpgRefreshWorker.KEY_PROGRESS, 0)
-                val status = info.progress.getString(EpgRefreshWorker.KEY_STATUS) ?: ""
+                val status = info.progress.getString(EpgRefreshWorker.KEY_STATUS) ?: "EPG refreshing..."
                 binding.progressEpgRefresh.visibility = View.VISIBLE
                 binding.progressEpgRefresh.progress = progress
-                if (status.isNotBlank()) binding.tvEpgRefreshStatus.text = status
+                binding.tvEpgRefreshStatus.text = status
                 binding.btnRefreshEpg.isEnabled = false
                 binding.btnCancelEpgRefresh.visibility = View.VISIBLE
             }
     }
 
     private fun scheduleAutoEpgRefresh(hours: Int) {
-        if (hours == 0) { workManager.cancelUniqueWork(AUTO_EPG_WORK_NAME); return }
+        if (hours == 0) {
+            workManager.cancelUniqueWork(AUTO_EPG_WORK_NAME)
+            return
+        }
         val request = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
             .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
             .build()
@@ -719,8 +715,8 @@ workManager = WorkManager.getInstance(this)
         val nowSeconds = System.currentTimeMillis() / 1000
         binding.tvEpgCacheAge.text = when {
             newest == null -> "EPG Cache Age: Unknown"
-            newest < nowSeconds -> "EPG Cache Age: Expired"
-            else -> "EPG Cache: covers about ${(newest - nowSeconds) / 3600} hours ahead"
+            newest < nowSeconds -> "EPG Cache: Expired"
+            else -> "EPG Cache: covers ~${(newest - nowSeconds) / 3600}h ahead"
         }
     }
 
@@ -743,78 +739,78 @@ workManager = WorkManager.getInstance(this)
             val activeIndex = prefs.activeServerIndex.first()
             val primaryNick = prefs.serverNickname.first().ifEmpty { creds.username }
 
-            // Primary server row
             val primaryRow = android.widget.LinearLayout(this@SettingsActivity).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                setBackgroundColor(android.graphics.Color.parseColor("#1A1A1A"))
+                setBackgroundColor(Color.parseColor("#1A1A1A"))
                 setPadding(24, 20, 24, 20)
-                val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.bottomMargin = 12
-                layoutParams = lp
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.bottomMargin = 12 }
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = "PRIMARY"
-                setTextColor(android.graphics.Color.parseColor("#777777"))
+                setTextColor(Color.parseColor("#777777"))
                 textSize = 10f
                 primaryRow.addView(this)
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = primaryNick
-                setTextColor(android.graphics.Color.WHITE)
+                setTextColor(Color.WHITE)
                 textSize = 14f
                 primaryRow.addView(this)
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = if (activeIndex == -1) "● ACTIVE" else "INACTIVE"
-                setTextColor(if (activeIndex == -1) android.graphics.Color.parseColor("#008CFF") else android.graphics.Color.parseColor("#555555"))
+                setTextColor(if (activeIndex == -1) Color.parseColor("#008CFF") else Color.parseColor("#555555"))
                 textSize = 12f
                 primaryRow.addView(this)
             }
             ll.addView(primaryRow)
 
-            // Extra server rows
             extraServers.forEachIndexed { i, server ->
                 val url = server[0]; val user = server[1]
                 val nick = server.getOrElse(3) { "" }.ifEmpty { user }
                 val row = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
-                    setBackgroundColor(android.graphics.Color.parseColor("#1A1A1A"))
+                    setBackgroundColor(Color.parseColor("#1A1A1A"))
                     setPadding(24, 20, 24, 20)
-                    val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
-                    lp.bottomMargin = 12
-                    layoutParams = lp
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.bottomMargin = 12 }
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = "SERVER ${i + 2}"
-                    setTextColor(android.graphics.Color.parseColor("#777777"))
+                    setTextColor(Color.parseColor("#777777"))
                     textSize = 10f
                     row.addView(this)
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = nick
-                    setTextColor(android.graphics.Color.WHITE)
+                    setTextColor(Color.WHITE)
                     textSize = 14f
                     row.addView(this)
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = if (activeIndex == i) "● ACTIVE" else "INACTIVE"
-                    setTextColor(if (activeIndex == i) android.graphics.Color.parseColor("#008CFF") else android.graphics.Color.parseColor("#555555"))
+                    setTextColor(if (activeIndex == i) Color.parseColor("#008CFF") else Color.parseColor("#555555"))
                     textSize = 12f
                     row.addView(this)
                 }
                 val btnRow = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.HORIZONTAL
-                    val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
-                    lp.topMargin = 12
-                    layoutParams = lp
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.topMargin = 12 }
                 }
                 android.widget.Button(this@SettingsActivity).apply {
                     text = "Switch"
-                    setTextColor(android.graphics.Color.WHITE)
-                    setBackgroundColor(android.graphics.Color.parseColor("#1976D2"))
-                    val lp = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    lp.marginEnd = 8
-                    layoutParams = lp
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(Color.parseColor("#1976D2"))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .also { it.marginEnd = 8 }
                     setOnClickListener {
                         lifecycleScope.launch {
                             val primary = prefs.credentials.first()
@@ -822,7 +818,7 @@ workManager = WorkManager.getInstance(this)
                             val updated = extraServers.toMutableList()
                             updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
                             prefs.saveExtraServersWithNick(updated)
-                            withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+                            withContext(Dispatchers.IO) { db.clearAllTables() }
                             prefs.saveCredentials(url, user, newPass)
                             prefs.setActiveServerIndex(-1)
                             val intent = Intent(this@SettingsActivity, com.iptvapp.ui.home.HomeActivity::class.java)
@@ -834,8 +830,8 @@ workManager = WorkManager.getInstance(this)
                 }
                 android.widget.Button(this@SettingsActivity).apply {
                     text = "Remove"
-                    setTextColor(android.graphics.Color.WHITE)
-                    setBackgroundColor(android.graphics.Color.parseColor("#CC0000"))
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(Color.parseColor("#CC0000"))
                     layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
                         extraServers.removeAt(i)
@@ -856,34 +852,30 @@ workManager = WorkManager.getInstance(this)
             setPadding(48, 24, 48, 0)
         }
         val etNick = android.widget.EditText(this).apply { hint = "Nickname (optional)" }
-        val etUrl = android.widget.EditText(this).apply { hint = "Server URL (http://...)" }
+        val etUrl  = android.widget.EditText(this).apply { hint = "Server URL (http://...)" }
         val etUser = android.widget.EditText(this).apply { hint = "Username" }
         val etPass = android.widget.EditText(this).apply {
             hint = "Password"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        layout.addView(etNick)
-        layout.addView(etUrl)
-        layout.addView(etUser)
-        layout.addView(etPass)
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
         AlertDialog.Builder(this)
             .setTitle("Add Server")
             .setView(layout)
             .setPositiveButton("Add") { _, _ ->
-                val url = etUrl.text.toString().trim()
+                val url  = etUrl.text.toString().trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
                         val fresh = prefs.getExtraServersWithNick().toMutableList()
-                        val nick = etNick.text.toString().trim()
-                        fresh.add(listOf(url, user, pass, nick))
+                        fresh.add(listOf(url, user, pass, etNick.text.toString().trim()))
                         extraServers.clear()
                         extraServers.addAll(fresh)
                         prefs.saveExtraServersWithNick(extraServers)
                         Toast.makeText(this@SettingsActivity, "Server added", Toast.LENGTH_SHORT).show()
+                        updateServerList()
                     }
-                    updateServerList()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -891,11 +883,12 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun setupSyncSection() {
+        binding.tvSyncStatus.text = ""
         lifecycleScope.launch {
-            binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
             binding.tvSyncStatus.text = syncManager.getLastSyncSummary()
         }
         binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
         }
         binding.btnSyncUp.setOnClickListener {
@@ -930,7 +923,6 @@ workManager = WorkManager.getInstance(this)
 
     private suspend fun writeBackupToUri(uri: Uri) {
         val creds = prefs.credentials.first()
-
         val json = JSONObject().apply {
             put("serverUrl", creds.serverUrl)
             put("username", creds.username)
@@ -943,90 +935,55 @@ workManager = WorkManager.getInstance(this)
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
             put("showWatching", prefs.showWatching.first())
-              val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
-              put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
-              val favChannels = db.channelDao().getFavoriteChannelIds()
-              put("favoriteChannelIds", JSONArray(favChannels))
-          }
-
-        contentResolver.openOutputStream(uri)?.use { output ->
-            output.write(json.toString(2).toByteArray())
+            val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
+            put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
+            val favChannels = db.channelDao().getFavoriteChannelIds()
+            put("favoriteChannelIds", JSONArray(favChannels))
         }
-
-        android.widget.Toast.makeText(this, "Backup saved", android.widget.Toast.LENGTH_SHORT).show()
+        contentResolver.openOutputStream(uri)?.use { it.write(json.toString(2).toByteArray()) }
+        binding.tvBackupStatus.text = "✓ Backup saved"
+        Toast.makeText(this, "Backup saved", Toast.LENGTH_SHORT).show()
     }
 
     private suspend fun restoreBackupFromUri(uri: Uri) {
         val jsonText = contentResolver.openInputStream(uri)
-            ?.bufferedReader()
-            ?.use { it.readText() }
-            ?: return
-
+            ?.bufferedReader()?.use { it.readText() } ?: return
         val json = JSONObject(jsonText)
 
         val serverUrl = json.optString("serverUrl", "")
-        val username = json.optString("username", "")
-        val password = json.optString("password", "")
-
+        val username  = json.optString("username", "")
+        val password  = json.optString("password", "")
         if (serverUrl.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
             prefs.saveCredentials(serverUrl, username, password)
         }
 
-        json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let {
-            prefs.setEpgUrl(it)
-            binding.etEpgUrl.setText(it)
-        }
+        json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let { prefs.setEpgUrl(it) }
+        json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
+        if (json.has("epgAutoRefreshHours")) prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
+        if (json.has("epgRefreshMissingOnly")) prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
+        if (json.has("usaOnlyChannels")) prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
+        if (json.has("showMovies")) prefs.setShowMovies(json.optBoolean("showMovies", true))
+        if (json.has("showSeries")) prefs.setShowSeries(json.optBoolean("showSeries", true))
+        if (json.has("showWatching")) prefs.setShowWatching(json.optBoolean("showWatching", true))
 
-        json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let {
-            prefs.setPreferredFormat(it)
-        }
-
-        if (json.has("epgAutoRefreshHours")) {
-            prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
-        }
-
-        if (json.has("epgRefreshMissingOnly")) {
-            prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
-        }
-
-        // Restore favorite categories
         val favCatArray = json.optJSONArray("favoriteCategoryIds")
         if (favCatArray != null) {
             val ids = (0 until favCatArray.length()).map { favCatArray.getString(it) }.toSet()
             prefs.setFavoriteLiveCategoryIds(ids)
         }
-
-        // Restore favorite channels
         val favChanArray = json.optJSONArray("favoriteChannelIds")
         if (favChanArray != null) {
             val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
             val existingIds = db.channelDao().getAllChannelIds().toSet()
             db.channelDao().clearAllFavorites()
             ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
-            // Save pending IDs for channels not yet loaded
             val missingIds = ids.filter { it !in existingIds }.toSet()
             if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
         }
 
-        binding.tvBackupStatus.text = "Restored successfully"
+        // Reload UI after all prefs are set
         loadSettings()
-
-        if (json.has("usaOnlyChannels")) {
-            prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
-        }
-
-        if (json.has("showMovies")) {
-            prefs.setShowMovies(json.optBoolean("showMovies", true))
-        }
-
-        if (json.has("showSeries")) {
-            prefs.setShowSeries(json.optBoolean("showSeries", true))
-        }
-
-        if (json.has("showWatching")) {
-            prefs.setShowWatching(json.optBoolean("showWatching", true))
-        }
-
-        android.widget.Toast.makeText(this, "Restore complete", android.widget.Toast.LENGTH_SHORT).show()
+        binding.tvBackupStatus.text = "✓ Restored successfully"
+        Toast.makeText(this, "Restore complete", Toast.LENGTH_SHORT).show()
     }
 }
