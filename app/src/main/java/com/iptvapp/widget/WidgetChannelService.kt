@@ -7,6 +7,7 @@ import android.widget.RemoteViewsService
 import androidx.room.Room
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 class WidgetChannelService : RemoteViewsService() {
@@ -25,7 +26,7 @@ class ChannelWidgetFactory(private val context: Context) : RemoteViewsService.Re
     override fun onDestroy() {}
 
     private fun load() {
-        runBlocking {
+        runBlocking(Dispatchers.IO) {
             val db = Room.databaseBuilder(context, IptvDatabase::class.java, IptvDatabase.DATABASE_NAME)
                 .addMigrations(
                     IptvDatabase.MIGRATION_2_3,
