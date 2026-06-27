@@ -242,16 +242,6 @@ workManager = WorkManager.getInstance(this)
         }
     }
 
-    private fun toggleSection(section: View, arrow: android.widget.TextView) {
-        if (section.visibility == View.VISIBLE) {
-            section.visibility = View.GONE
-            arrow
-        } else {
-            section.visibility = View.VISIBLE
-            arrow
-        }
-    }
-
     private fun setupSectionToggles() {
         val panels = listOf(binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates, binding.sectionBackup, binding.sectionServers, binding.sectionSync)
         val navButtons = listOf(binding.headerStream, binding.headerDisplay, binding.headerUpdates, binding.headerBackup, binding.headerServers, binding.headerSync)
@@ -350,9 +340,9 @@ workManager = WorkManager.getInstance(this)
                     val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                     val backupFile = File(dir, "MKTV_backup_${timestamp}.json")
                     backupFile.writeText(prettyJson)
-                    binding.tvBackupStatus.text = ""
+                    binding.tvBackupStatus.text = "✓ Saved to Documents"
                 } catch (e: Exception) {
-                    binding.tvBackupStatus.text = ""
+                    binding.tvBackupStatus.text = "Save failed: ${e.message}"
                 }
             }
             .setNegativeButton("Close", null)
@@ -361,10 +351,8 @@ workManager = WorkManager.getInstance(this)
 
     private fun sendDebugReport() {
         binding.btnSendDebugReport.isEnabled = false
-        binding.btnSendDebugReport.isEnabled = false
         binding.btnSendDebugReport.text = "Collecting..."
-                binding.tvReportStatus.text = "Step 1: collecting device info..."
-        binding.tvReportStatus.text = ""
+        binding.tvReportStatus.text = "Collecting device info..."
         lifecycleScope.launch {
             try {
                 val token = assets.open("gh_token.txt").bufferedReader().use { it.readText().trim() }
@@ -407,7 +395,7 @@ workManager = WorkManager.getInstance(this)
                         .getWorkInfosForUniqueWork(com.iptvapp.worker.EpgRefreshWorker.UNIQUE_WORK_NAME).get()
                         .firstOrNull()?.state?.name ?: "None"
                 } catch (_: Exception) { "Unknown" }
-                binding.tvReportStatus.text = "Reading crash log..."
+                binding.tvReportStatus.text = "Reading crash log & sending..."
                 val crashLog = IptvApplication.getCrashLog(this@SettingsActivity)
                 val debugText = """
                     App: v${pInfo.versionName} (${pInfo.longVersionCode})
@@ -433,7 +421,7 @@ workManager = WorkManager.getInstance(this)
                     put("body", body)
                     put("labels", JSONArray().put("debug-report"))
                 }
-                binding.tvReportStatus.text = ""
+                binding.tvReportStatus.text = "Sending report..."
                 val client = OkHttpClient()
                 val request = Request.Builder()
                     .url("https://api.github.com/repos/Oliver29Klozoff/IPTV-Mj/issues")
@@ -445,18 +433,24 @@ workManager = WorkManager.getInstance(this)
                 if (response.isSuccessful) {
                     val responseJson = JSONObject(response.body?.string() ?: "")
                     val issueNumber = responseJson.getInt("number")
-                    binding.tvReportStatus.text = ""
+                    binding.tvReportStatus.text = "✓ Report sent (Issue #$issueNumber)"
+                    binding.btnSendDebugReport.text = "Send Debug Report"
+                    binding.btnSendDebugReport.isEnabled = true
                 } else {
-                    binding.tvReportStatus.text = ""
+                    binding.tvReportStatus.text = "Send failed (HTTP ${response.code})"
+                    binding.btnSendDebugReport.text = "Send Debug Report"
+                    binding.btnSendDebugReport.isEnabled = true
                 }
             } catch (e: Exception) {
-                binding.tvReportStatus.text = ""
+                binding.tvReportStatus.text = "Error: ${e.message}"
+                binding.btnSendDebugReport.text = "Send Debug Report"
+                binding.btnSendDebugReport.isEnabled = true
             }
         }
     }
 
     private fun checkForUpdate() {
-        binding.tvUpdateStatus.text = ""
+        binding.tvUpdateStatus.text = "Checking..."
         binding.btnCheckUpdate.isEnabled = false
         lifecycleScope.launch {
             try {
@@ -469,18 +463,22 @@ workManager = WorkManager.getInstance(this)
                 val apkUrl = obj.getString("apkUrl")
                 val installedCode = packageManager.getPackageInfo(packageName, 0).longVersionCode
                 if (latestCode > installedCode) {
-                    binding.tvUpdateStatus.text = ""
+                    val changelog = buildString {
+                        val arr = obj.optJSONArray("changelog")
+                        if (arr != null) for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
+                    }.trimEnd()
+                    binding.tvUpdateStatus.text = "v$latestName available"
                     AlertDialog.Builder(this@SettingsActivity)
-                        .setTitle("Update Available")
-                        .setMessage("Version $latestName is available. Download and install now?")
-                        .setPositiveButton("Download") { _, _ -> downloadAndInstall(apkUrl, latestName) }
+                        .setTitle("MKTV $latestName Available")
+                        .setMessage("What's new:\n\n$changelog")
+                        .setPositiveButton("Update now") { _, _ -> downloadAndInstall(apkUrl, latestName) }
                         .setNegativeButton("Later", null)
                         .show()
                 } else {
-                    binding.tvUpdateStatus.text = ""
+                    binding.tvUpdateStatus.text = "✓ You're up to date (v$latestName)"
                 }
             } catch (e: Exception) {
-                binding.tvUpdateStatus.text = ""
+                binding.tvUpdateStatus.text = "Check failed — ${e.message}"
             } finally {
                 binding.btnCheckUpdate.isEnabled = true
             }
@@ -503,19 +501,18 @@ workManager = WorkManager.getInstance(this)
     }
 
     private fun downloadAndInstall(apkUrl: String, versionName: String) {
-        binding.tvUpdateStatus.text = ""
+        binding.tvUpdateStatus.text = "Resolving download URL..."
         binding.progressEpgRefresh.visibility = View.VISIBLE
         binding.progressEpgRefresh.progress = 0
         lifecycleScope.launch {
             val resolvedUrl = withContext(Dispatchers.IO) { resolveRedirect(apkUrl) }
-            android.util.Log.d("UPDATE", "Resolved URL: $resolvedUrl")
             android.util.Log.d("UPDATE", "Resolved URL: $resolvedUrl")
             downloadFromUrl(resolvedUrl, versionName)
         }
     }
 
     private fun downloadFromUrl(apkUrl: String, versionName: String) {
-        binding.tvUpdateStatus.text = ""
+        binding.tvUpdateStatus.text = "Downloading v$versionName..."
         val fileName = "MKTV-update-$versionName.apk"
         val file = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
         if (file.exists()) file.delete()
@@ -538,13 +535,13 @@ workManager = WorkManager.getInstance(this)
                     if (total > 0) {
                         val pct = (downloaded * 100 / total).toInt()
                         binding.progressEpgRefresh.progress = pct
-                        binding.tvUpdateStatus.text = ""
+                        binding.tvUpdateStatus.text = "Downloading... $pct%"
                     }
                     val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
                         progressHandler.removeCallbacks(this)
                         binding.progressEpgRefresh.progress = 100
-                        binding.tvUpdateStatus.text = ""
+                        binding.tvUpdateStatus.text = "Download complete — installing..."
                         installApk(file)
                     } else {
                         progressHandler.postDelayed(this, 500)
@@ -576,7 +573,7 @@ workManager = WorkManager.getInstance(this)
         val canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
         if (!canInstall) {
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply { data = Uri.parse("package:$packageName") })
-            binding.tvUpdateStatus.text = ""
+            binding.tvUpdateStatus.text = "Allow installs from unknown sources, then retry"
             return
         }
         val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -589,15 +586,31 @@ workManager = WorkManager.getInstance(this)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             })
         } catch (e: Exception) {
-            binding.tvUpdateStatus.text = ""
+            binding.tvUpdateStatus.text = "Install failed: ${e.message}"
         }
     }
 
     private fun showChangelog() {
-        val text = try {
-            assets.open("CHANGELOG.md").bufferedReader().use { it.readText() }
-        } catch (e: Exception) { "Changelog not available." }
-        AlertDialog.Builder(this).setTitle("What's New").setMessage(text).setPositiveButton("Close", null).show()
+        lifecycleScope.launch {
+            val text = withContext(Dispatchers.IO) {
+                try {
+                    val json = JSONObject(URL("https://raw.githubusercontent.com/Oliver29Klozoff/IPTV-Mj/main/version.json").readText())
+                    val version = json.optString("versionName", "")
+                    val arr = json.optJSONArray("changelog")
+                    buildString {
+                        if (version.isNotEmpty()) append("Version $version\n\n")
+                        if (arr != null) for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
+                    }.trimEnd()
+                } catch (e: Exception) {
+                    "Could not load changelog — check your connection."
+                }
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("What's New")
+                .setMessage(text)
+                .setPositiveButton("Close", null)
+                .show()
+        }
     }
 
     private fun loadSettings() {
