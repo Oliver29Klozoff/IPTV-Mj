@@ -18,6 +18,7 @@ import com.iptvapp.util.Resource
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import android.content.pm.ServiceInfo
 import androidx.work.ForegroundInfo
 import java.io.IOException
 
@@ -38,7 +39,11 @@ class EpgRefreshWorker @AssistedInject constructor(
             .setContentText("Starting...")
             .setOngoing(true)
             .build()
-        return ForegroundInfo(NOTIFICATION_ID, notification)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(NOTIFICATION_ID, notification)
+        }
     }
 
     override suspend fun doWork(): Result {
@@ -47,6 +52,8 @@ class EpgRefreshWorker @AssistedInject constructor(
         val missingOnly = inputData.getBoolean(KEY_MISSING_ONLY, false)
         val notificationManager =
             appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        setForeground(getForegroundInfo())
 
         return try {
             db.epgDao().deleteExpiredEpg()
