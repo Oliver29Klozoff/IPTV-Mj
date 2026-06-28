@@ -82,6 +82,7 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = android.view.View.INVISIBLE
         viewModel.loadAll()
         observeTabVisibility()
+        binding.tabLayout.getTabAt(5)?.select()
     }
 
     override fun onResume() {
