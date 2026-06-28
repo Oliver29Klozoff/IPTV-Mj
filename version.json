@@ -1,13 +1,15 @@
 {
-  "versionCode": 69,
-  "versionName": "2.32",
+  "versionCode": 70,
+  "versionName": "2.33",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "What's On Now — tap 'Now' to see current program on every channel",
-    "Reminder notifications — long-press any channel to set a program reminder",
-    "Server speed test — ping and HTTP response time in Settings",
-    "Auto-reconnect improved — retries up to 20 times with countdown",
-    "Settings D-pad navigation matching TV home screen",
-    "Channel Mosaic, EPG Timeline Grid, TV UI overhaul"
+    "System navigation bar hidden for full-screen experience",
+    "Landscape mode: vertical sidebar nav + mini player above channels",
+    "Top bar decluttered: Sort, Mosaic, What's On moved to Settings",
+    "Quick Actions in Settings: Sort Channels, What's On Now, Mosaic",
+    "Changelog now shows full history (all versions)",
+    "PiP corner: tap ↩ to restore mini player without going fullscreen",
+    "Favorites tab loads by default on startup",
+    "Token storage split to prevent auto-revocation"
   ]
 }
