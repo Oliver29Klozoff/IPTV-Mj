@@ -1,15 +1,14 @@
 {
-  "versionCode": 70,
-  "versionName": "2.33",
+  "versionCode": 71,
+  "versionName": "2.34",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
+    "Status bar and navigation bar both hidden (swipe to peek)",
     "System navigation bar hidden for full-screen experience",
     "Landscape mode: vertical sidebar nav + mini player above channels",
     "Top bar decluttered: Sort, Mosaic, What's On moved to Settings",
     "Quick Actions in Settings: Sort Channels, What's On Now, Mosaic",
-    "Changelog now shows full history (all versions)",
-    "PiP corner: tap ↩ to restore mini player without going fullscreen",
     "Favorites tab loads by default on startup",
-    "Token storage split to prevent auto-revocation"
+    "PiP corner: tap ↩ to restore mini player without going fullscreen"
   ]
 }

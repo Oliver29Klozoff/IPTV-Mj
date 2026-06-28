@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.34 - 2026-06-28
+- Hide status bar and navigation bar (swipe down/up to peek)
+
 ## v2.33 - 2026-06-28
 - Hide system navigation bar (swipe up to peek)
 - Split GitHub token storage to prevent auto-revocation by scanners
