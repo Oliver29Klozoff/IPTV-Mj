@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.33 - 2026-06-28
+- Hide system navigation bar (swipe up to peek)
+- Split GitHub token storage to prevent auto-revocation by scanners
+
 ## v2.32 - 2026-06-28
 - Landscape mode: left sidebar with vertical nav, mini player above channel list
 - Camera cutout: status bar hidden, content padded below camera on all phones
