@@ -422,6 +422,73 @@
                                 android:textSize="12sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
+
+                    <!-- DNS over HTTPS -->
+                    <androidx.cardview.widget.CardView
+                        xmlns:app="http://schemas.android.com/apk/res-auto"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="12dp">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="DNS OVER HTTPS"
+                                android:textColor="#777777"
+                                android:textSize="11sp"
+                                android:letterSpacing="0.1"
+                                android:layout_marginBottom="8dp" />
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Bypass ISP throttling by encrypting DNS queries"
+                                android:textColor="#888888"
+                                android:textSize="11sp"
+                                android:layout_marginBottom="10dp" />
+                            <CheckBox
+                                android:id="@+id/cbDohEnabled"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Enable DNS over HTTPS"
+                                android:textColor="#CCCCCC"
+                                android:buttonTint="#008CFF" />
+                            <RadioGroup
+                                android:id="@+id/rgDohProvider"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:orientation="vertical">
+                                <RadioButton
+                                    android:id="@+id/rbDohCloudflare"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Cloudflare 1.1.1.1"
+                                    android:textColor="#CCCCCC"
+                                    android:buttonTint="#008CFF" />
+                                <RadioButton
+                                    android:id="@+id/rbDohGoogle"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Google 8.8.8.8"
+                                    android:textColor="#CCCCCC"
+                                    android:buttonTint="#008CFF" />
+                                <RadioButton
+                                    android:id="@+id/rbDohNextDns"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="NextDNS"
+                                    android:textColor="#CCCCCC"
+                                    android:buttonTint="#008CFF" />
+                            </RadioGroup>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

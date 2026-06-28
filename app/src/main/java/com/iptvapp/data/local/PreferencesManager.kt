@@ -51,6 +51,8 @@ class PreferencesManager @Inject constructor(
         val SYNC_GIST_ID = stringPreferencesKey("sync_gist_id")
         val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         val EXTERNAL_PLAYER = stringPreferencesKey("external_player")
+        val DOH_ENABLED = booleanPreferencesKey("doh_enabled")
+        val DOH_PROVIDER = stringPreferencesKey("doh_provider")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -173,6 +175,11 @@ class PreferencesManager @Inject constructor(
     // "internal" | "vlc" | "mxplayer" | "system"
     val externalPlayer: Flow<String> = context.dataStore.data.map { it[Keys.EXTERNAL_PLAYER] ?: "internal" }
     suspend fun setExternalPlayer(player: String) { context.dataStore.edit { it[Keys.EXTERNAL_PLAYER] = player } }
+
+    val dohEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DOH_ENABLED] ?: false }
+    suspend fun setDohEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.DOH_ENABLED] = enabled } }
+    val dohProvider: Flow<String> = context.dataStore.data.map { it[Keys.DOH_PROVIDER] ?: "cloudflare" }
+    suspend fun setDohProvider(provider: String) { context.dataStore.edit { it[Keys.DOH_PROVIDER] = provider } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

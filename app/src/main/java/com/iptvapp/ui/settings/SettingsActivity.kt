@@ -136,6 +136,21 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnSpeedTest.setOnClickListener { lifecycleScope.launch { runSpeedTest() } }
 
+        binding.cbDohEnabled.setOnCheckedChangeListener { _, checked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setDohEnabled(checked) }
+            binding.rgDohProvider.visibility = if (checked) android.view.View.VISIBLE else android.view.View.GONE
+        }
+        binding.rgDohProvider.setOnCheckedChangeListener { _, checkedId ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            val provider = when (checkedId) {
+                R.id.rbDohGoogle -> "google"
+                R.id.rbDohNextDns -> "nextdns"
+                else -> "cloudflare"
+            }
+            lifecycleScope.launch { prefs.setDohProvider(provider) }
+        }
+
         binding.btnRefreshEpg.setOnClickListener { startEpgRefresh() }
 
         binding.btnCancelEpgRefresh.setOnClickListener {
@@ -672,6 +687,14 @@ class SettingsActivity : AppCompatActivity() {
                     else -> binding.rbAutoOff.isChecked = true
                 }
                 binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
+                val dohEnabled = prefs.dohEnabled.first()
+                binding.cbDohEnabled.isChecked = dohEnabled
+                binding.rgDohProvider.visibility = if (dohEnabled) android.view.View.VISIBLE else android.view.View.GONE
+                when (prefs.dohProvider.first()) {
+                    "google"  -> binding.rbDohGoogle.isChecked = true
+                    "nextdns" -> binding.rbDohNextDns.isChecked = true
+                    else      -> binding.rbDohCloudflare.isChecked = true
+                }
                 updateLastRefreshText()
                 updateCacheAgeText()
                 binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"

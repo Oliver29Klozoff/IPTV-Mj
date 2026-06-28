@@ -40,6 +40,8 @@ import com.google.android.gms.cast.framework.SessionManagerListener
 import com.iptvapp.data.local.entities.ChannelEntity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.ui.home.ChannelAdapter
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -48,6 +50,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import okhttp3.OkHttpClient
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -87,8 +90,8 @@ class PlayerActivity : AppCompatActivity() {
     )
     private var resizeModeIndex = 0
 
-    @Inject
-    lateinit var repository: XtreamRepository
+    @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var okHttpClient: OkHttpClient
 
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
@@ -463,8 +466,12 @@ class PlayerActivity : AppCompatActivity() {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
+        val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory)
+
         return ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
+            .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer

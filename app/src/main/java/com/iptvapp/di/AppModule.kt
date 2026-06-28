@@ -4,11 +4,16 @@ import android.content.Context
 import androidx.room.Room
 import com.iptvapp.data.api.XtreamApiService
 import com.iptvapp.data.local.IptvDatabase
+import com.iptvapp.data.local.PreferencesManager
+import com.iptvapp.util.DoHDns
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -22,12 +27,21 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(prefs: PreferencesManager): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.HEADERS
         }
+        // Dynamic DoH DNS — checks pref on every lookup so toggling takes effect without restart
+        val dns = object : Dns {
+            override fun lookup(hostname: String): List<java.net.InetAddress> {
+                val enabled = runBlocking { prefs.dohEnabled.first() }
+                val provider = runBlocking { prefs.dohProvider.first() }
+                return if (enabled) DoHDns(provider).lookup(hostname) else Dns.SYSTEM.lookup(hostname)
+            }
+        }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
+            .dns(dns)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
