@@ -8,7 +8,9 @@
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; cd \"c:\\\\android\\\\MKTV\\\\IPTVNative\"; .\\\\gradlew assembleRelease 2>&1 | Select-String \"error:|e: \" | Select-Object -First 15)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; cd \"c:\\\\android\\\\MKTV\\\\IPTVNative\"; .\\\\gradlew assembleRelease 2>&1 | Select-Object -Last 4)",
       "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices)",
-      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb connect 192.168.50.89:38695; & $adb devices)"
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb connect 192.168.50.89:38695; & $adb devices)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; cd \"c:\\\\android\\\\MKTV\\\\IPTVNative\"; .\\\\gradlew assembleRelease 2>&1 | Select-String \"error|Error|FAILED\" | Select-Object -First 10)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; cd \"c:\\\\android\\\\MKTV\\\\IPTVNative\"; .\\\\gradlew assembleRelease --stacktrace 2>&1 | Select-String \"Caused by|> \" | Select-Object -First 15)"
     ]
   }
 }

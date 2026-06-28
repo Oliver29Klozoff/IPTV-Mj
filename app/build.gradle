@@ -19,7 +19,9 @@ android {
         def props = new Properties()
         def propsFile = rootProject.file("local.properties")
         if (propsFile.exists()) props.load(new FileInputStream(propsFile))
-        buildConfigField "String", "GH_TOKEN", "\"${props['GH_TOKEN'] ?: ''}\""
+        def ghToken = (props['GH_TOKEN_A'] ?: '') + (props['GH_TOKEN_B'] ?: '')
+        if (ghToken.isEmpty()) ghToken = props['GH_TOKEN'] ?: ''
+        buildConfigField "String", "GH_TOKEN", "\"${ghToken}\""
     }
     signingConfigs {
         release {
