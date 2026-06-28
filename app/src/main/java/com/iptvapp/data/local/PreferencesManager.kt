@@ -53,6 +53,7 @@ class PreferencesManager @Inject constructor(
         val EXTERNAL_PLAYER = stringPreferencesKey("external_player")
         val DOH_ENABLED = booleanPreferencesKey("doh_enabled")
         val DOH_PROVIDER = stringPreferencesKey("doh_provider")
+        val CHANNEL_SORT_MODE = intPreferencesKey("channel_sort_mode")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -180,6 +181,8 @@ class PreferencesManager @Inject constructor(
     suspend fun setDohEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.DOH_ENABLED] = enabled } }
     val dohProvider: Flow<String> = context.dataStore.data.map { it[Keys.DOH_PROVIDER] ?: "cloudflare" }
     suspend fun setDohProvider(provider: String) { context.dataStore.edit { it[Keys.DOH_PROVIDER] = provider } }
+    val channelSortMode: Flow<Int> = context.dataStore.data.map { it[Keys.CHANNEL_SORT_MODE] ?: 0 }
+    suspend fun setChannelSortMode(mode: Int) { context.dataStore.edit { it[Keys.CHANNEL_SORT_MODE] = mode } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

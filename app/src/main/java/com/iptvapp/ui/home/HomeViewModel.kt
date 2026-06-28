@@ -83,6 +83,7 @@ class HomeViewModel @Inject constructor(
 
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
+    var inFavoritesMode: Boolean = true
 
     private val _currentlyPlayingStreamId = MutableStateFlow<Int>(-1)
     val currentlyPlayingStreamId: StateFlow<Int> = _currentlyPlayingStreamId
@@ -127,7 +128,7 @@ class HomeViewModel @Inject constructor(
                         val sorted = filtered.sortedWith(compareByDescending { it.categoryId in favCategoryIds })
                         _liveCategories.value = sorted
                         updateFavoriteCategories(filtered)
-                        if (filtered.isNotEmpty()) {
+                        if (!inFavoritesMode && filtered.isNotEmpty()) {
                             val currentValid = filtered.any { it.categoryId == selectedLiveCategoryId }
                             if (!currentValid) selectLiveCategory(filtered.first().categoryId)
                         }
@@ -162,9 +163,22 @@ class HomeViewModel @Inject constructor(
     private val _channelSort = MutableStateFlow(ChannelSort.DEFAULT)
     val channelSort: StateFlow<ChannelSort> = _channelSort
 
+    init {
+        viewModelScope.launch {
+            val saved = prefs.channelSortMode.first()
+            _channelSort.value = ChannelSort.values().getOrElse(saved) { ChannelSort.DEFAULT }
+        }
+    }
+
     fun cycleSort() {
         val next = ChannelSort.values().let { it[(it.indexOf(_channelSort.value) + 1) % it.size] }
         _channelSort.value = next
+        viewModelScope.launch { prefs.setChannelSortMode(ChannelSort.values().indexOf(next)) }
+        reloadCurrentLiveCategory()
+    }
+
+    fun setSortMode(index: Int) {
+        _channelSort.value = ChannelSort.values().getOrElse(index) { ChannelSort.DEFAULT }
         reloadCurrentLiveCategory()
     }
 
@@ -176,6 +190,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun selectLiveCategory(categoryId: String) {
+        inFavoritesMode = false
         selectedLiveCategoryId = categoryId
         searchJob?.cancel()
         channelJob?.cancel()
@@ -187,6 +202,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun selectFavCategory(categoryId: String) {
+        inFavoritesMode = true
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {

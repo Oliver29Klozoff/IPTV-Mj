@@ -52,31 +52,21 @@
 
         <Button
             android:id="@+id/btnMosaic"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:text="⊞"
-            android:textColor="#008CFF"
-            android:textSize="18sp" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/btnWhatsOn"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:text="📺 Now"
-            android:textColor="#008CFF"
-            android:textSize="12sp" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/btnSort"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:text="⇅"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp"
-            android:paddingHorizontal="6dp" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/btnClearSearch"
@@ -286,6 +276,19 @@
             android:textSize="11sp"
             android:ellipsize="end"
             android:maxLines="1" />
+
+        <!-- Restore mini player button -->
+        <TextView
+            android:id="@+id/btnPipRestore"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:background="#AA000000"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="3dp"
+            android:text="↩"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
     </FrameLayout>
 
     <!-- TABS -->

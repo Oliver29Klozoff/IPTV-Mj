@@ -1,14 +1,22 @@
 package com.iptvapp.ui.home
 
+import com.iptvapp.R
 import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.util.isLargeScreenDevice
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updatePadding
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -50,6 +58,22 @@ class HomeActivity : AppCompatActivity() {
             dispatchSearch(text)
         }
     }
+    private val settingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            when (result.data?.getStringExtra("action")) {
+                "whats_on" -> showWhatsOnNow()
+            }
+        }
+        // Sync sort mode in case it changed in settings
+        viewModel.setSortMode(
+            when (viewModel.channelSort.value) {
+                HomeViewModel.ChannelSort.DEFAULT -> 0
+                HomeViewModel.ChannelSort.NAME_AZ -> 1
+                HomeViewModel.ChannelSort.MOST_WATCHED -> 2
+                HomeViewModel.ChannelSort.RECENTLY_WATCHED -> 3
+            }
+        )
+    }
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
@@ -67,6 +91,10 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.navigationBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -83,6 +111,39 @@ class HomeActivity : AppCompatActivity() {
         viewModel.loadAll()
         observeTabVisibility()
         binding.tabLayout.getTabAt(5)?.select()
+        setupLandscapeSidebar()
+    }
+
+    private fun setupLandscapeSidebar() {
+        val root = binding.root
+        fun btn(id: Int) = root.findViewById<android.widget.Button?>(id)
+        val tabs = listOf(
+            btn(R.id.landBtnLive) to 0,
+            btn(R.id.landBtnCategories) to 1,
+            btn(R.id.landBtnMovies) to 2,
+            btn(R.id.landBtnSeries) to 3,
+            btn(R.id.landBtnWatching) to 4,
+            btn(R.id.landBtnFavorites) to 5,
+            btn(R.id.landBtnGuide) to 6
+        )
+        tabs.forEach { (button, index) ->
+            button?.setOnClickListener {
+                binding.tabLayout.getTabAt(index)?.select()
+                tabs.forEach { (b, _) -> b?.setTextColor(0xFFAAAAAA.toInt()) }
+                button.setTextColor(0xFF008CFF.toInt())
+            }
+        }
+        binding.tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                val idx = tab?.position ?: return
+                tabs.forEach { (b, _) -> b?.setTextColor(0xFFAAAAAA.toInt()) }
+                tabs.firstOrNull { it.second == idx }?.first?.setTextColor(0xFF008CFF.toInt())
+            }
+            override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+            override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+        })
+        // Sync initial highlight to tab 5 (Favorites)
+        btn(R.id.landBtnFavorites)?.setTextColor(0xFF008CFF.toInt())
     }
 
     override fun onResume() {
@@ -249,7 +310,7 @@ class HomeActivity : AppCompatActivity() {
             } else {
                 SettingsActivity::class.java
             }
-            startActivity(Intent(this, settingsClass))
+            settingsLauncher.launch(Intent(this, settingsClass))
         }
         binding.btnMultiView?.setOnClickListener {
             startActivity(Intent(this, MultiViewActivity::class.java))
@@ -258,6 +319,8 @@ class HomeActivity : AppCompatActivity() {
             startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
         }
         binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
+        binding.root.findViewById<android.widget.TextView?>(R.id.btnPipRestore)
+            ?.setOnClickListener { togglePipMode() }
         binding.pipCorner?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)

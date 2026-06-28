@@ -100,6 +100,9 @@ class SettingsActivity : AppCompatActivity() {
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     @Inject lateinit var syncManager: com.iptvapp.sync.SyncManager
 
+    private val sortLabels = listOf("Default", "A-Z", "Popular", "Recent")
+    private var currentSortIndex = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
@@ -126,6 +129,20 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnWhatsNew.setOnClickListener { showChangelog() }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdate() }
+
+        // Quick Actions — sort cycles, others launch intents back to home
+        binding.btnSettingsSort.setOnClickListener {
+            currentSortIndex = (currentSortIndex + 1) % sortLabels.size
+            binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
+            lifecycleScope.launch { prefs.setChannelSortMode(currentSortIndex) }
+        }
+        binding.btnSettingsWhatsOn.setOnClickListener {
+            setResult(RESULT_OK, Intent().putExtra("action", "whats_on"))
+            finish()
+        }
+        binding.btnSettingsMosaic.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
+        }
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
@@ -638,26 +655,24 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun showChangelog() {
-        lifecycleScope.launch {
-            val text = withContext(Dispatchers.IO) {
-                try {
-                    val json = JSONObject(URL("https://raw.githubusercontent.com/Oliver29Klozoff/IPTV-Mj/main/version.json").readText())
-                    val version = json.optString("versionName", "")
-                    val arr = json.optJSONArray("changelog")
-                    buildString {
-                        if (version.isNotEmpty()) append("Version $version\n\n")
-                        if (arr != null) for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
-                    }.trimEnd()
-                } catch (e: Exception) {
-                    "Could not load changelog — check your connection."
-                }
-            }
-            AlertDialog.Builder(this@SettingsActivity)
-                .setTitle("What's New")
-                .setMessage(text)
-                .setPositiveButton("Close", null)
-                .show()
+        val text = try {
+            assets.open("CHANGELOG.md").bufferedReader().use { it.readText() }
+        } catch (_: Exception) {
+            "Changelog not available."
         }
+        val scrollView = android.widget.ScrollView(this)
+        val tv = android.widget.TextView(this).apply {
+            this.text = text
+            textSize = 13f
+            setTextColor(0xFFCCCCCC.toInt())
+            setPadding(48, 32, 48, 32)
+        }
+        scrollView.addView(tv)
+        AlertDialog.Builder(this)
+            .setTitle("Changelog")
+            .setView(scrollView)
+            .setPositiveButton("Close", null)
+            .show()
     }
 
     private fun loadSettings() {
@@ -695,6 +710,8 @@ class SettingsActivity : AppCompatActivity() {
                     "nextdns" -> binding.rbDohNextDns.isChecked = true
                     else      -> binding.rbDohCloudflare.isChecked = true
                 }
+                currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
+                binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
                 updateLastRefreshText()
                 updateCacheAgeText()
                 binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"

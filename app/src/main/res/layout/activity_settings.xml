@@ -669,6 +669,63 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:text="QUICK ACTIONS"
+                        android:textColor="#008CFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.15"
+                        android:paddingBottom="12dp" />
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <Button
+                                android:id="@+id/btnSettingsSort"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="⇅  Sort Channels: Default"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp"
+                                android:gravity="start|center_vertical"
+                                android:paddingHorizontal="12dp" />
+                            <Button
+                                android:id="@+id/btnSettingsWhatsOn"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="📺  What's On Now"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp"
+                                android:gravity="start|center_vertical"
+                                android:paddingHorizontal="12dp" />
+                            <Button
+                                android:id="@+id/btnSettingsMosaic"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="⊞  Multi-view / Mosaic"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp"
+                                android:gravity="start|center_vertical"
+                                android:paddingHorizontal="12dp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
                         android:text="UPDATES"
                         android:textColor="#008CFF"
                         android:textSize="11sp"

@@ -1,261 +1,203 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Landscape variant of activity_home.xml.
-    All android:id values MUST match the portrait layout exactly so
-    ActivityHomeBinding works without changes to HomeActivity.kt.
+    Landscape variant — left nav sidebar, mini player above channel list.
+    All IDs must match activity_home.xml exactly.
 -->
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0F0F0F">
 
+    <!-- LEFT SIDEBAR -->
     <LinearLayout
-        android:id="@+id/landscapeInner"
-        android:layout_width="0dp"
+        android:id="@+id/topBar"
+        android:layout_width="150dp"
         android:layout_height="0dp"
-        android:orientation="horizontal"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-    <!-- ═══════════════════════════════════════════════════════
-         LEFT SIDEBAR  (160dp)
-         Contains: title, tab navigation, search, menu button
-         ═══════════════════════════════════════════════════════ -->
-    <LinearLayout
-        android:layout_width="160dp"
-        android:layout_height="match_parent"
         android:background="#111111"
         android:orientation="vertical"
-        android:elevation="4dp">
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
-        <!-- App title row: menu icon + MKTV label -->
-        <LinearLayout
-            android:id="@+id/topBar"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:background="#1A1A1A"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="8dp">
-
-            <ImageButton
-                android:id="@+id/btnMenu"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_sort_by_size"
-                android:tint="#FFFFFF" />
-
-            <TextView
-                android:id="@+id/tvTitle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="6dp"
-                android:text="MKTV"
-                android:textColor="#008CFF"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:gravity="start|center_vertical" />
-
-        </LinearLayout>
-
-        <!-- Tab navigation — scrollable horizontal tabs acting as vertical nav -->
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tabLayout"
+        <!-- App title -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:background="#111111"
-            app:tabIndicatorColor="#008CFF"
-            app:tabIndicatorHeight="3dp"
-            app:tabMode="scrollable"
-            app:tabSelectedTextColor="#FFFFFF"
-            app:tabTextColor="#888888"
-            app:tabGravity="start"
-            app:tabTextAppearance="@android:style/TextAppearance.Small">
-
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="LIVE" />
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CATEGORIES" />
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MOVIES" />
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SERIES" />
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="WATCHING" />
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
-            <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
-        </com.google.android.material.tabs.TabLayout>
-
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#2A2A2A"
-            android:layout_marginVertical="4dp" />
-
-        <!-- Search field — compact, in sidebar -->
-        <EditText
-            android:id="@+id/etSearch"
-            android:layout_width="match_parent"
-            android:layout_height="34dp"
-            android:layout_marginHorizontal="8dp"
-            android:background="@drawable/search_bg"
-            android:hint="Search..."
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:paddingHorizontal="8dp"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#666666"
-            android:textSize="12sp" />
-
-        <!-- Spacer pushes bottom buttons down -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <!-- Toolbar buttons hidden in portrait top bar — kept gone here, IDs preserved -->
-        <Button
-            android:id="@+id/btnMosaic"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:text="⊞ Mosaic"
-            android:textColor="#008CFF"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
+            android:paddingVertical="14dp"
             android:paddingHorizontal="12dp"
-            android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnWhatsOn"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:text="📺 Now"
+            android:text="MKTV"
             android:textColor="#008CFF"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
-            android:paddingHorizontal="12dp"
-            android:visibility="gone" />
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.15" />
 
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" />
+
+        <!-- Vertical nav buttons (trigger the hidden tabLayout) -->
         <Button
-            android:id="@+id/btnSort"
+            android:id="@+id/landBtnLive"
             android:layout_width="match_parent"
-            android:layout_height="32dp"
+            android:layout_height="44dp"
             android:background="@android:color/transparent"
-            android:text="⇅ Sort"
+            android:text="LIVE"
             android:textColor="#AAAAAA"
             android:textSize="12sp"
             android:gravity="start|center_vertical"
-            android:paddingHorizontal="12dp"
-            android:visibility="gone" />
-
-        <ImageButton
-            android:id="@+id/btnClearSearch"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginStart="2dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="#888888"
-            android:visibility="gone" />
-
-        <ImageButton
-            android:id="@+id/btnVoiceSearch"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_btn_speak_now"
-            android:tint="#008CFF"
-            android:visibility="gone" />
+            android:paddingHorizontal="14dp" />
 
         <Button
-            android:id="@+id/btnTimelineView"
+            android:id="@+id/landBtnCategories"
             android:layout_width="match_parent"
-            android:layout_height="32dp"
+            android:layout_height="44dp"
             android:background="@android:color/transparent"
-            android:text="⏱ Grid"
-            android:textColor="#008CFF"
+            android:text="CATEGORIES"
+            android:textColor="#AAAAAA"
             android:textSize="12sp"
             android:gravity="start|center_vertical"
-            android:paddingHorizontal="12dp"
-            android:visibility="gone" />
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnMovies"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="MOVIES"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnSeries"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="SERIES"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnWatching"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="WATCHING"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnFavorites"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="FAVORITES"
+            android:textColor="#008CFF"
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnGuide"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="GUIDE"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" android:layout_marginTop="4dp" />
+
+        <!-- Search -->
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:layout_marginHorizontal="8dp"
+            android:layout_marginTop="8dp"
+            android:background="#1E1E1E"
+            android:hint="Search..."
+            android:textColorHint="#555555"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:paddingHorizontal="8dp"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:singleLine="true" />
+
+        <!-- Spacer -->
+        <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+
+        <!-- Settings + sort at bottom -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:paddingBottom="8dp">
+            <ImageButton
+                android:id="@+id/btnMenu"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="#1E1E1E"
+                android:src="@android:drawable/ic_menu_preferences"
+                android:tint="#AAAAAA"
+                android:scaleType="center"
+                android:contentDescription="Settings" />
+            <Button
+                android:id="@+id/btnSort"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:background="#1E1E1E"
+                android:text="&#8645;"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp"
+                android:padding="0dp" />
+        </LinearLayout>
+
+        <!-- Hidden views required by HomeActivity binding -->
+        <ImageButton android:id="@+id/btnClearSearch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <ImageButton android:id="@+id/btnVoiceSearch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <Button android:id="@+id/btnMosaic" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <Button android:id="@+id/btnWhatsOn" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <Button android:id="@+id/btnTimelineView" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
 
     </LinearLayout>
 
-    <!-- Vertical divider between sidebar and center -->
+    <!-- Divider -->
     <View
         android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#2A2A2A" />
+        android:layout_height="0dp"
+        android:background="#222222"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/topBar"
+        app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- ═══════════════════════════════════════════════════════
-         CENTER PANEL  (weight=1)
-         Contains: category list (horizontal strip) + channel list
-         ═══════════════════════════════════════════════════════ -->
+    <!-- CENTER: mini player on top, channels below -->
     <LinearLayout
         android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/topBar"
+        app:layout_constraintTop_toTopOf="parent">
 
-        <!-- Category strip — horizontal scrolling row at top -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvCategories"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="#141414"
-            android:paddingTop="0dp" />
-
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#2A2A2A" />
-
-        <!-- Channel list — takes all remaining vertical space -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvChannels"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:paddingTop="4dp" />
-
-        <!-- Progress bar centred over the channel list area -->
-        <ProgressBar
-            android:id="@+id/progressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:indeterminateTint="#008CFF"
-            android:visibility="gone" />
-
-    </LinearLayout>
-
-    <!-- Vertical divider between center and right panel -->
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#2A2A2A" />
-
-    <!-- ═══════════════════════════════════════════════════════
-         RIGHT PANEL  (220dp)
-         Contains: mini player + EPG overlay info
-         ═══════════════════════════════════════════════════════ -->
-    <LinearLayout
-        android:layout_width="220dp"
-        android:layout_height="match_parent"
-        android:background="#0A0A0A"
-        android:orientation="vertical">
-
-        <!-- Mini player container — ~16:9 at 220dp wide ≈ 124dp tall -->
+        <!-- MINI PLAYER (compact in landscape) -->
         <FrameLayout
             android:id="@+id/miniPlayerContainer"
             android:layout_width="match_parent"
-            android:layout_height="124dp"
+            android:layout_height="160dp"
             android:background="#000000">
 
             <androidx.media3.ui.PlayerView
@@ -265,176 +207,173 @@
                 app:resize_mode="fit"
                 app:use_controller="false" />
 
-            <!-- Cinematic gradient scrim -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@drawable/hero_gradient_scrim" />
 
-            <!-- Fullscreen button top-right -->
-            <ImageButton
-                android:id="@+id/btnFullscreen"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="top|end"
-                android:layout_margin="4dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_zoom"
-                android:tint="#FFFFFF" />
+            <!-- Channel name + EPG overlay -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:orientation="vertical"
+                android:paddingHorizontal="12dp"
+                android:paddingBottom="6dp">
 
-            <!-- PiP collapse button top-left -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:id="@+id/ivHeroChannelLogo"
+                        android:layout_width="32dp"
+                        android:layout_height="24dp"
+                        android:scaleType="fitCenter"
+                        android:layout_marginEnd="8dp"
+                        android:visibility="gone" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvMiniChannelName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#FFFFFF"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
+
+                        <TextView
+                            android:id="@+id/tvMiniEpg"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#BBBBBB"
+                            android:textSize="11sp"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
+
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnHeroWatch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:backgroundTint="#008CFF"
+                        android:text="Watch"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:paddingHorizontal="10dp" />
+
+                    <ImageButton
+                        android:id="@+id/btnFullscreen"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="4dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_menu_zoom"
+                        android:tint="#FFFFFF" />
+
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/miniEpgProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="2dp"
+                    android:layout_marginTop="4dp"
+                    android:max="100"
+                    android:progressTint="#008CFF"
+                    android:progressBackgroundTint="#333333" />
+
+            </LinearLayout>
+
+            <!-- Fullscreen collapse button -->
             <Button
                 android:id="@+id/btnCollapsePip"
                 android:layout_width="wrap_content"
-                android:layout_height="24dp"
+                android:layout_height="28dp"
                 android:layout_gravity="top|start"
-                android:layout_margin="4dp"
+                android:layout_margin="6dp"
                 android:background="@android:color/transparent"
                 android:text="PiP ▼"
                 android:textColor="#AAAAAA"
-                android:textSize="10sp"
-                android:padding="2dp" />
+                android:visibility="gone" />
 
-            <!-- Buffering spinner -->
             <ProgressBar
                 android:id="@+id/miniPlayerProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_gravity="center"
                 android:indeterminateTint="#008CFF"
                 android:visibility="gone" />
 
         </FrameLayout>
 
-        <!-- Channel info below player -->
+        <!-- Category strip + channel list below player -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="8dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="4dp"
-            android:background="#111111">
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
 
-            <ImageView
-                android:id="@+id/ivHeroChannelLogo"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:layout_marginEnd="8dp"
-                android:scaleType="fitCenter"
-                android:visibility="gone" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvCategories"
+                android:layout_width="140dp"
+                android:layout_height="match_parent"
+                android:background="#141414"
+                android:paddingTop="8dp" />
 
-            <LinearLayout
+            <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#2A2A2A" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChannels"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvMiniChannelName"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvMiniEpg"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="#008CFF"
-                    android:textSize="11sp"
-                    android:layout_marginTop="1dp" />
-
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnHeroWatch"
-                android:layout_width="wrap_content"
-                android:layout_height="28dp"
-                android:layout_marginStart="4dp"
-                android:backgroundTint="#008CFF"
-                android:text="▶"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:paddingHorizontal="8dp" />
+                android:paddingTop="8dp" />
 
         </LinearLayout>
 
-        <!-- EPG description + progress (hidden by default, shown when data available) -->
-        <TextView
-            android:id="@+id/tvHeroDescription"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="8dp"
-            android:paddingTop="4dp"
-            android:ellipsize="end"
-            android:maxLines="3"
-            android:textColor="#CCCCCC"
-            android:textSize="11sp"
-            android:visibility="gone" />
-
-        <ProgressBar
-            android:id="@+id/miniEpgProgress"
-            style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="3dp"
-            android:layout_marginHorizontal="8dp"
-            android:layout_marginTop="6dp"
-            android:max="100"
-            android:progress="0"
-            android:progressBackgroundTint="#33FFFFFF"
-            android:progressTint="#008CFF"
-            android:visibility="gone" />
-
     </LinearLayout>
 
-    <!-- ═══════════════════════════════════════════════════════
-         PiP CORNER OVERLAY — floats bottom-right when mini player
-         is collapsed to PiP mode. Visibility controlled by code.
-         ═══════════════════════════════════════════════════════ -->
-    <!--
-        Note: FrameLayout children in a LinearLayout cannot use
-        constraint-style absolute positioning, so pipCorner is
-        embedded here as a 0dp spacer that the code shows/hides.
-        In landscape the right panel acts as the natural PiP home,
-        so we hide this overlay by default.
-    -->
+    <!-- Hidden views required by binding but not shown in landscape -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="LIVE" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CATEGORIES" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MOVIES" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SERIES" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="WATCHING" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
+    </com.google.android.material.tabs.TabLayout>
+
+    <TextView android:id="@+id/tvHeroDescription" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
+    <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- PiP corner (must exist for binding) -->
     <FrameLayout
         android:id="@+id/pipCorner"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="#000000"
-        android:elevation="8dp"
-        android:visibility="gone">
-
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/pipCornerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:resize_mode="fit"
-            app:use_controller="false" />
-
-        <TextView
-            android:id="@+id/tvPipChannelName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:background="#88000000"
-            android:padding="4dp"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp"
-            android:ellipsize="end"
-            android:maxLines="1" />
-
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+        <androidx.media3.ui.PlayerView android:id="@+id/pipCornerView" android:layout_width="match_parent" android:layout_height="match_parent" />
+        <TextView android:id="@+id/tvPipChannelName" android:layout_width="wrap_content" android:layout_height="wrap_content" />
     </FrameLayout>
-
-    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

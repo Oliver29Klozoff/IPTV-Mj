@@ -1,5 +1,49 @@
 # IPTV App - Changelog
 
+## v2.32 - 2026-06-28
+- Landscape mode: left sidebar with vertical nav, mini player above channel list
+- Camera cutout: status bar hidden, content padded below camera on all phones
+- Favorites tab loads by default instead of first live category
+- Changelog now shows full history from local file
+
+## v2.31 - 2026-06-28
+- Fix rotation crash: btnMenu view type mismatch between portrait and landscape layouts
+
+## v2.30 - 2026-06-28
+- Hide system status bar edge-to-edge; push content below camera cutout using window insets
+
+## v2.29 - 2026-06-28
+- Fix landscape layout: mini player and vertical nav sidebar; fix btnMenu type mismatch crash on rotation
+
+## v2.28 - 2026-06-28
+- Landscape layout: vertical nav sidebar and mini player on top; fix favorites loading on startup
+
+## v2.27 - 2026-06-27
+- Add landscape layout for phones: left sidebar (TV-style) and smaller mini player
+
+## v2.26 - 2026-06-27
+- Camera cutout fix: removed windowFullscreen from base theme so content sits below camera
+
+## v2.25 - 2026-06-27
+- DNS over HTTPS: toggle in settings with Cloudflare/Google/NextDNS providers; bypass ISP throttling
+- Always open to Favorites tab on launch
+- GitHub token moved to local.properties/BuildConfig to prevent auto-revocation
+
+## v2.24 - 2026-06-26
+- Channel popularity sort (view count tracking)
+- What's On Now dialog showing current EPG for all channels
+- Reminder notifications on channel long-press
+- Auto-reconnect with retry countdown in player
+- Speed test in settings
+- EPG refresh foreground service fix for Android 14
+- Widget crash fix (main thread DB access)
+
+## v2.23 - 2026-06-25
+- Stream health checker, Chromecast support, recording playback, mini player EPG progress bar
+
+## v2.22 - 2026-06-25
+- Android TV UI, home screen widget, favorites drag reorder, timeshift replay, player retry countdown
+
 ## v2.21 - 2026-06-25 17:49
 - Add Multi-view, Smart EPG progress bars, Cross-device sync
 
