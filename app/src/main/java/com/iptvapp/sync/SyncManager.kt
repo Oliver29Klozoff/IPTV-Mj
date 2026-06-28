@@ -31,10 +31,7 @@ class SyncManager @Inject constructor(
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    private suspend fun getToken(): String = withContext(Dispatchers.IO) {
-        try { context.assets.open("gh_token.txt").bufferedReader().use { it.readText().trim() }
-        } catch (_: Exception) { "" }
-    }
+    private fun getToken(): String = com.iptvapp.BuildConfig.GH_TOKEN
 
     suspend fun syncUp(): String = withContext(Dispatchers.IO) {
         try {

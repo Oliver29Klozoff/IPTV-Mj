@@ -402,7 +402,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.tvReportStatus.text = "Collecting device info..."
         lifecycleScope.launch {
             try {
-                val token = assets.open("gh_token.txt").bufferedReader().use { it.readText().trim() }
+                val token = com.iptvapp.BuildConfig.GH_TOKEN
                 val pInfo = packageManager.getPackageInfo(packageName, 0)
                 val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                 val caps = cm.getNetworkCapabilities(cm.activeNetwork)
