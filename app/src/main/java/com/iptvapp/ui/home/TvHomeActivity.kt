@@ -19,7 +19,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.guide.GuideAdapter
 import com.iptvapp.ui.player.PlayerActivity
-import com.iptvapp.ui.recordings.RecordingSchedulerActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -285,9 +284,6 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
         binding.btnTvGuide.setOnClickListener { selectSection(Section.GUIDE) }
-        binding.btnTvRecording.setOnClickListener {
-            startActivity(Intent(this, RecordingSchedulerActivity::class.java))
-        }
         binding.btnTvSettings.setOnClickListener {
             startActivity(Intent(this, TvSettingsActivity::class.java))
         }

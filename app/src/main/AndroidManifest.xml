@@ -90,11 +90,6 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize" />
 
         <activity
-            android:name=".ui.recordings.RecordingSchedulerActivity"
-            android:exported="false"
-            android:screenOrientation="unspecified" />
-
-        <activity
             android:name=".ui.series.SeriesDetailActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
@@ -130,11 +125,6 @@
             android:name=".widget.WidgetChannelService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
-
-        <service
-            android:name=".service.RecordingService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
 
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

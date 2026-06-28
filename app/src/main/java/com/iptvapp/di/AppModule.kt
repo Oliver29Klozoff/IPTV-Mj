@@ -68,5 +68,4 @@ object AppModule {
     @Provides fun provideVodDao(db: IptvDatabase) = db.vodDao()
     @Provides fun provideSeriesDao(db: IptvDatabase) = db.seriesDao()
     @Provides fun provideEpgDao(db: IptvDatabase) = db.epgDao()
-    @Provides fun provideRecordingDao(db: IptvDatabase) = db.recordingDao()
 }

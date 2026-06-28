@@ -46,16 +46,6 @@
             android:textColor="#008CFF"
             android:textSize="14sp" />
 
-        <Button
-            android:id="@+id/btnRecording"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="@android:color/transparent"
-            android:text="⏺ REC"
-            android:textColor="#FF4444"
-            android:textSize="14sp" />
-
         <EditText
             android:id="@+id/etSearch"
             android:layout_width="160dp"

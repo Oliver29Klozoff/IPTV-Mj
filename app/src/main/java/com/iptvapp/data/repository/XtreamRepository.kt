@@ -141,13 +141,6 @@ class XtreamRepository @Inject constructor(
         return urlBuilder().liveStreamUrl(streamId, "m3u8")
     }
 
-    suspend fun getLiveStreamUrlForRecording(streamId: Int): String {
-        val channel = db.channelDao().getChannelById(streamId)
-        if (channel?.streamUrl != null) return channel.streamUrl
-        // Always use ts for recording — raw MPEG-TS is the only format that can be piped directly to a file
-        return urlBuilder().liveStreamUrl(streamId, "ts")
-    }
-
     suspend fun fetchVodStreams(): Resource<List<VodStream>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {

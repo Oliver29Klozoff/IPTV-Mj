@@ -69,14 +69,3 @@ data class EpgEntity(
     val nowPlaying: Int,
     val hasArchive: Int
 )
-
-@Entity(tableName = "recordings")
-data class RecordingEntity(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val streamId: Int,
-    val channelName: String,
-    val scheduledStartMs: Long,
-    val durationMs: Long,
-    val outputPath: String,
-    val status: String = "SCHEDULED"
-)

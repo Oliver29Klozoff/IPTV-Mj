@@ -24,7 +24,6 @@ import com.iptvapp.databinding.ActivityHomeBinding
 import com.iptvapp.ui.guide.GuideAdapter
 import com.iptvapp.ui.player.MultiViewActivity
 import com.iptvapp.ui.player.PlayerActivity
-import com.iptvapp.ui.recordings.RecordingSchedulerActivity
 import com.iptvapp.ui.settings.SettingsActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
@@ -245,9 +244,6 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.btnMosaic?.setOnClickListener {
             startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
-        }
-        binding.btnRecording?.setOnClickListener {
-            startActivity(Intent(this, RecordingSchedulerActivity::class.java))
         }
         binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
         binding.pipCorner?.setOnClickListener {

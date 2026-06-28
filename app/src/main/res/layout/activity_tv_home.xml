@@ -129,21 +129,6 @@
             android:layout_weight="1" />
 
         <Button
-            android:id="@+id/btnTvRecording"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="⏺  REC"
-            android:textColor="#FF4444"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="16dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
-
-        <Button
             android:id="@+id/btnTvSettings"
             android:layout_width="match_parent"
             android:layout_height="48dp"

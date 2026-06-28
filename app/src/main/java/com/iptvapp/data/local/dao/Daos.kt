@@ -106,20 +106,6 @@ interface SeriesDao {
 }
 
 @Dao
-interface RecordingDao {
-    @Query("SELECT * FROM recordings ORDER BY scheduledStartMs ASC")
-    fun getAll(): Flow<List<RecordingEntity>>
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(recording: RecordingEntity): Long
-    @Query("UPDATE recordings SET status = :status WHERE id = :id")
-    suspend fun updateStatus(id: Int, status: String)
-    @Delete
-    suspend fun delete(recording: RecordingEntity)
-    @Query("SELECT * FROM recordings WHERE id = :id")
-    suspend fun getById(id: Int): RecordingEntity?
-}
-
-@Dao
 interface EpgDao {
     @Query("SELECT COUNT(*) FROM epg_entries")
     suspend fun getEpgCount(): Int
