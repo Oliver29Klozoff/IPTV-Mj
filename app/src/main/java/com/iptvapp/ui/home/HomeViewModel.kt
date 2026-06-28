@@ -157,13 +157,31 @@ class HomeViewModel @Inject constructor(
         _favoriteLiveCategories.value = categories.filter { it.categoryId in favoriteIds }
     }
 
+    enum class ChannelSort { DEFAULT, NAME_AZ, MOST_WATCHED, RECENTLY_WATCHED }
+
+    private val _channelSort = MutableStateFlow(ChannelSort.DEFAULT)
+    val channelSort: StateFlow<ChannelSort> = _channelSort
+
+    fun cycleSort() {
+        val next = ChannelSort.values().let { it[(it.indexOf(_channelSort.value) + 1) % it.size] }
+        _channelSort.value = next
+        reloadCurrentLiveCategory()
+    }
+
+    private fun applySortToChannels(list: List<ChannelEntity>): List<ChannelEntity> = when (_channelSort.value) {
+        ChannelSort.DEFAULT -> list
+        ChannelSort.NAME_AZ -> list.sortedBy { it.name.lowercase() }
+        ChannelSort.MOST_WATCHED -> list.sortedByDescending { it.viewCount }
+        ChannelSort.RECENTLY_WATCHED -> list.sortedByDescending { it.lastWatched ?: 0L }
+    }
+
     fun selectLiveCategory(categoryId: String) {
         selectedLiveCategoryId = categoryId
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
             repository.getChannelsByCategory(categoryId).collectLatest {
-                _channels.value = it
+                _channels.value = applySortToChannels(it)
             }
         }
     }

@@ -15,7 +15,7 @@ import com.iptvapp.data.local.entities.*
         SeriesEntity::class,
         EpgEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -58,6 +58,12 @@ abstract class IptvDatabase : RoomDatabase() {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DROP TABLE IF EXISTS recordings")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE channels ADD COLUMN viewCount INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

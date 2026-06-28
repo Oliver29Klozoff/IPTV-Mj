@@ -116,8 +116,10 @@ class XtreamRepository @Inject constructor(
         db.channelDao().setFavorite(streamId, !ch.isFavorite)
     }
 
-    suspend fun markChannelWatched(streamId: Int) =
+    suspend fun markChannelWatched(streamId: Int) {
         db.channelDao().updateLastWatched(streamId)
+        db.channelDao().incrementViewCount(streamId)
+    }
 
     suspend fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
         if (isFavorite) {

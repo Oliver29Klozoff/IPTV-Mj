@@ -28,6 +28,8 @@ interface ChannelDao {
     suspend fun setFavoriteForCategory(categoryId: String, isFavorite: Boolean)
     @Query("UPDATE channels SET lastWatched = :timestamp WHERE streamId = :streamId")
     suspend fun updateLastWatched(streamId: Int, timestamp: Long = System.currentTimeMillis())
+    @Query("UPDATE channels SET viewCount = viewCount + 1 WHERE streamId = :streamId")
+    suspend fun incrementViewCount(streamId: Int)
     @Query("SELECT COUNT(*) FROM channels")
     suspend fun getCount(): Int
     @Query("SELECT COUNT(*) FROM channels WHERE isFavorite = 1")

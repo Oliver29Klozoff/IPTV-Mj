@@ -68,6 +68,16 @@
             android:textColor="#008CFF"
             android:textSize="12sp" />
 
+        <Button
+            android:id="@+id/btnSort"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:text="⇅"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:paddingHorizontal="6dp" />
+
         <ImageButton
             android:id="@+id/btnClearSearch"
             android:layout_width="32dp"

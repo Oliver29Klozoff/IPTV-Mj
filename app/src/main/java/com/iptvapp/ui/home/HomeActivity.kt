@@ -231,6 +231,17 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupMenu() {
         binding.btnWhatsOn?.setOnClickListener { showWhatsOnNow() }
+        binding.btnSort?.setOnClickListener {
+            viewModel.cycleSort()
+            val label = when (viewModel.channelSort.value) {
+                HomeViewModel.ChannelSort.DEFAULT -> "⇅ Default"
+                HomeViewModel.ChannelSort.NAME_AZ -> "⇅ A-Z"
+                HomeViewModel.ChannelSort.MOST_WATCHED -> "⇅ Popular"
+                HomeViewModel.ChannelSort.RECENTLY_WATCHED -> "⇅ Recent"
+            }
+            binding.btnSort?.text = label
+            Toast.makeText(this, "Sort: ${label.drop(2).trim()}", Toast.LENGTH_SHORT).show()
+        }
         binding.btnMenu.setOnClickListener {
             val settingsClass = if (isLargeScreenDevice()) {
                 TvSettingsActivity::class.java
