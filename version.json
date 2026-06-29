@@ -1,8 +1,9 @@
 {
-  "versionCode": 89,
-  "versionName": "2.52",
+  "versionCode": 90,
+  "versionName": "2.53",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Sync: second device auto-discovers your Gist — same token, tap Sync Down, done"
+    "Cast fix: live TV now streams correctly to Chromecast (HLS stream type, always m3u8 URL)",
+    "Cast button hidden by default — tap screen to show, auto-hides with other controls"
   ]
 }

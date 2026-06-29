@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.53 - 2026-06-29
+- Cast fix: live channels now use HLS stream type; cast URL always m3u8 (Chromecast only supports HLS)
+- Cast button now hidden until you tap the screen, then auto-hides with the other controls
+
 ## v2.52 - 2026-06-29
 - Sync: second device now auto-discovers the Gist — enter the same token and tap Sync Down, no manual ID needed
 

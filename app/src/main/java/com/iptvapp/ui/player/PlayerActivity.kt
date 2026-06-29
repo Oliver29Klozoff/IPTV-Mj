@@ -67,6 +67,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnGuide.visibility = View.GONE
         binding.btnPlayPause.visibility = View.GONE
         binding.bottomControls.visibility = View.GONE
+        binding.btnCast.visibility = View.GONE
     }
 
     private val osdHandler = Handler(Looper.getMainLooper())
@@ -127,6 +128,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
+    private var castAvailable = false
     private val castSessionListener = object : SessionManagerListener<CastSession> {
         override fun onSessionStarted(session: CastSession, id: String) { castSession = session; stopLocalAndCast(session) }
         override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) { castSession = session; stopLocalAndCast(session) }
@@ -618,11 +620,13 @@ class PlayerActivity : AppCompatActivity() {
                 )
                 .build()
             binding.btnCast.routeSelector = selector
-            binding.btnCast.visibility = View.VISIBLE
+            binding.btnCast.visibility = View.GONE  // shown only when overlay is visible
+            castAvailable = true
             // Listener is managed in onResume/onPause — don't add it here too
             castSession = castContext?.sessionManager?.currentCastSession
             castSession?.let { stopLocalAndCast(it) }
         } catch (e: Exception) {
+            castAvailable = false
             binding.btnCast.visibility = View.GONE
         }
     }
@@ -648,19 +652,19 @@ class PlayerActivity : AppCompatActivity() {
             val metadata = MediaMetadata(if (isVod) MediaMetadata.MEDIA_TYPE_MOVIE else MediaMetadata.MEDIA_TYPE_TV_SHOW).apply {
                 putString(MediaMetadata.KEY_TITLE, streamTitle)
             }
+            val streamType = if (isVod) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_LIVE
             val mediaInfo = MediaInfo.Builder(streamTitle.ifBlank { castUrl })
                 .setContentUrl(castUrl)
-                .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
+                .setStreamType(streamType)
                 .setContentType(contentType)
                 .setMetadata(metadata)
                 .build()
-            session.remoteMediaClient?.load(
-                MediaLoadRequestData.Builder()
-                    .setMediaInfo(mediaInfo)
-                    .setAutoplay(true)
-                    .setCurrentTime(localPositionMs)
-                    .build()
-            )
+            val loadRequest = MediaLoadRequestData.Builder()
+                .setMediaInfo(mediaInfo)
+                .setAutoplay(true)
+                .apply { if (isVod && localPositionMs > 0) setCurrentTime(localPositionMs) }
+                .build()
+            session.remoteMediaClient?.load(loadRequest)
         }
     }
 
@@ -724,6 +728,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnGuide.visibility = View.VISIBLE
         binding.btnPlayPause.visibility = View.VISIBLE
         binding.bottomControls.visibility = View.VISIBLE
+        if (castAvailable) binding.btnCast.visibility = View.VISIBLE
         updatePlayPauseButton()
         resetHideTimer()
         if (!isVod && streamId != -1) {
@@ -828,6 +833,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnPlayPause.visibility = View.GONE
             binding.btnResize.visibility = View.GONE
             binding.bottomControls.visibility = View.GONE
+            binding.btnCast.visibility = View.GONE
         } else {
             binding.btnResize.visibility = View.VISIBLE
         }
