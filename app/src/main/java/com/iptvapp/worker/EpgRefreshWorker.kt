@@ -65,7 +65,17 @@ class EpgRefreshWorker @AssistedInject constructor(
                     .build()
             )
 
+            // Only process US channels (categories matching US| or |US|)
+            val usaCategoryIds = db.categoryDao().getCategoriesByType("live").first()
+                .filter { cat ->
+                    val n = cat.categoryName.trim().uppercase()
+                    n.startsWith("US|") || n.contains("|US|")
+                }
+                .map { it.categoryId }
+                .toSet()
+
             val allChannels = db.channelDao().getFavoriteChannels().first()
+                .filter { it.categoryId in usaCategoryIds }
 
             val channelsToRefresh = if (missingOnly) {
                 val idsWithEpg = db.epgDao().getStreamIdsWithEpg().toSet()
