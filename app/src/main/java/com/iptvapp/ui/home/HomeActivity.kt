@@ -112,8 +112,6 @@ class HomeActivity : AppCompatActivity() {
         setupSearch()
         setupMenu()
         observeViewModel()
-        binding.rvChannels.visibility = android.view.View.INVISIBLE
-        binding.rvCategories.visibility = android.view.View.INVISIBLE
         viewModel.loadAll()
         observeTabVisibility()
         binding.tabLayout.getTabAt(5)?.select()
@@ -300,6 +298,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupMenu() {
         binding.btnWhatsOn?.setOnClickListener { showWhatsOnNow() }
+        binding.btnRefresh?.setOnClickListener {
+            viewModel.refreshNow()
+            Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
+        }
         binding.btnSort?.setOnClickListener {
             viewModel.cycleSort()
             val label = when (viewModel.channelSort.value) {
@@ -687,14 +689,6 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.loading.collect { isLoading ->
                 binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-                if (!isLoading) {
-                    binding.rvChannels.visibility = View.VISIBLE
-                    // Only show categories panel on tabs that actually use it (Live=0, FavCat=1, VOD=2)
-                    val tab = binding.tabLayout.selectedTabPosition
-                    if (tab == 0 || tab == 1 || tab == 2) {
-                        binding.rvCategories.visibility = View.VISIBLE
-                    }
-                }
             }
         }
         lifecycleScope.launch {

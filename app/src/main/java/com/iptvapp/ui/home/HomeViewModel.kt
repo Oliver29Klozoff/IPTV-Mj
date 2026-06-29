@@ -144,10 +144,27 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // Background network sync — show spinner only when DB is empty (first install)
+        // Network sync: always fetch if cache is empty; skip if fetched within last 4 hours
         viewModelScope.launch {
-            val hasCache = repository.getChannelCount() > 0
-            if (!hasCache) _loading.value = true
+            val isEmpty = repository.getChannelCount() == 0
+            val isStale = repository.isChannelCacheStale()
+            if (!isEmpty && !isStale) return@launch
+            if (isEmpty) _loading.value = true
+            try {
+                coroutineScope {
+                    launch { repository.fetchLiveCategories() }
+                    launch { repository.fetchLiveStreams() }
+                    launch { repository.fetchVodCategories() }
+                }
+            } finally {
+                _loading.value = false
+            }
+        }
+    }
+
+    fun refreshNow() {
+        viewModelScope.launch {
+            _loading.value = true
             try {
                 coroutineScope {
                     launch { repository.fetchLiveCategories() }

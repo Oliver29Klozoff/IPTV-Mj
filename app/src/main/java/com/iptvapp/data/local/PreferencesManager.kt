@@ -55,6 +55,7 @@ class PreferencesManager @Inject constructor(
         val DOH_PROVIDER = stringPreferencesKey("doh_provider")
         val CHANNEL_SORT_MODE = intPreferencesKey("channel_sort_mode")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
+        val LAST_CHANNELS_FETCH_TIME = longPreferencesKey("last_channels_fetch_time")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -187,6 +188,9 @@ class PreferencesManager @Inject constructor(
 
     val autoBackupEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_BACKUP_ENABLED] ?: false }
     suspend fun setAutoBackupEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.AUTO_BACKUP_ENABLED] = enabled } }
+
+    val lastChannelsFetchTime: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_CHANNELS_FETCH_TIME] ?: 0L }
+    suspend fun setLastChannelsFetchTime(timeMs: Long) { context.dataStore.edit { it[Keys.LAST_CHANNELS_FETCH_TIME] = timeMs } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

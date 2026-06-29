@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v2.41 - 2026-06-29
+- Fast launch: channels load from cache instantly, network sync skipped if fetched within 4 hours
+- Refresh button in top bar to force-sync channels from server
+- Fixed: channel list no longer hidden while waiting for network on launch
+
 ## v2.40 - 2026-06-29
 - Guide: channels without EPG data are hidden; only channels with schedule data shown
 - Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section

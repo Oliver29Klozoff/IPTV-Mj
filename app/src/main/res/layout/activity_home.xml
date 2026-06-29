@@ -79,6 +79,15 @@
             android:visibility="gone" />
 
         <ImageButton
+            android:id="@+id/btnRefresh"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_popup_sync"
+            android:tint="#888888" />
+
+        <ImageButton
             android:id="@+id/btnVoiceSearch"
             android:layout_width="36dp"
             android:layout_height="36dp"

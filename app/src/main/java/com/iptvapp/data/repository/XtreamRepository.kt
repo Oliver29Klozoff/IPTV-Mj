@@ -88,8 +88,14 @@ class XtreamRepository @Inject constructor(
                     isHidden = prev?.isHidden ?: false
                 )
             })
+            prefs.setLastChannelsFetchTime(System.currentTimeMillis())
             list
         }
+    }
+
+    suspend fun isChannelCacheStale(maxAgeMs: Long = 4 * 60 * 60 * 1000L): Boolean {
+        val lastFetch = prefs.lastChannelsFetchTime.first()
+        return lastFetch == 0L || System.currentTimeMillis() - lastFetch > maxAgeMs
     }
 
     fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()

@@ -1,10 +1,10 @@
 {
-  "versionCode": 77,
-  "versionName": "2.40",
+  "versionCode": 78,
+  "versionName": "2.41",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Guide: channels without EPG data are hidden; channels with EPG shown only",
-    "Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section",
-    "Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings"
+    "Fast launch: channels load from cache instantly, network sync skipped if fetched within 4 hours",
+    "Refresh button in top bar to force-sync channels from server",
+    "Fixed: channel list no longer hidden waiting for network on launch"
   ]
 }
