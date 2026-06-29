@@ -11,6 +11,7 @@ import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.ui.guide.GuideRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -102,19 +103,10 @@ class HomeViewModel @Inject constructor(
         if (name.isNullOrBlank()) return false
         val n = name.trim().uppercase()
         return n.startsWith("US|") || n.contains("|US|")
-    }    fun loadAll() {
-        viewModelScope.launch {
-            _loading.value = true
-            repository.fetchLiveCategories()
-            repository.fetchLiveStreams()
-            launch {
-                repository.fetchVodCategories()
-                // repository.fetchVodStreams() -- disabled to prevent OOM with large VOD libraries
-                // repository.fetchSeries() -- disabled
-            }
-            _loading.value = false
-        }
+    }
 
+    fun loadAll() {
+        // Start DB observers immediately so cached data shows at once
         observerJob?.cancel()
         observerJob = viewModelScope.launch {
             launch {
@@ -149,6 +141,21 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getInProgressVod().collectLatest { _continueWatching.value = it }
+            }
+        }
+
+        // Background network sync — show spinner only when DB is empty (first install)
+        viewModelScope.launch {
+            val hasCache = repository.getChannelCount() > 0
+            if (!hasCache) _loading.value = true
+            try {
+                coroutineScope {
+                    launch { repository.fetchLiveCategories() }
+                    launch { repository.fetchLiveStreams() }
+                    launch { repository.fetchVodCategories() }
+                }
+            } finally {
+                _loading.value = false
             }
         }
     }

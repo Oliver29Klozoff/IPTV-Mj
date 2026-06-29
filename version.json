@@ -1,15 +1,10 @@
 {
-  "versionCode": 74,
-  "versionName": "2.37",
+  "versionCode": 75,
+  "versionName": "2.38",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Bulk favorites: long-press to multi-select and add/remove channels",
-    "Channel hide: hide channels from all lists, unhide in settings",
-    "History tab: recently watched live channels",
-    "Channels Like This: same-category suggestions on long-press",
-    "Buffer health badge: live colored dot + buffer % + bitrate in player",
-    "TV home screen row: MKTV Favorites appear on Shield/TV launcher",
-    "TV Settings: one D-pad press to select and enter a panel",
-    "TV D-pad left: channels → categories → sidebar hierarchy"
+    "Fast channel load: cached channels show instantly, server sync runs in background",
+    "Parallel fetch: categories, channels, and VOD now fetched at the same time",
+    "Spinner only appears on first install when DB is empty"
   ]
 }

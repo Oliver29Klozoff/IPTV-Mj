@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v2.38 - 2026-06-29
+- Fast channel load: cached channels show instantly, server sync runs in background
+- Parallel fetch: categories, channels, and VOD now fetched at the same time
+- Spinner only appears on first install when DB is empty
+
 ## v2.37 - 2026-06-29
 - Bulk favorites: long-press to multi-select and add/remove channels
 - Channel hide: hide channels from all lists, unhide in settings

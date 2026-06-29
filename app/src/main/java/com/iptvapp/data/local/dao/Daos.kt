@@ -4,6 +4,15 @@ import androidx.room.*
 import com.iptvapp.data.local.entities.*
 import kotlinx.coroutines.flow.Flow
 
+data class ChannelUserData(
+    val streamId: Int,
+    val isFavorite: Boolean,
+    val lastWatched: Long?,
+    val viewCount: Int,
+    val favOrder: Int,
+    val isHidden: Boolean
+)
+
 @Dao
 interface ChannelDao {
     @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY num ASC")
@@ -55,6 +64,8 @@ interface ChannelDao {
     suspend fun bulkClearFavorite(streamIds: List<Int>)
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND streamId != :excludeStreamId AND isHidden = 0 ORDER BY viewCount DESC, name ASC LIMIT 20")
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
+    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden FROM channels")
+    suspend fun getUserData(): List<ChannelUserData>
 }
 
 @Dao

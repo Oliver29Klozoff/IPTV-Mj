@@ -4,6 +4,7 @@ import android.util.Base64
 import com.iptvapp.data.api.*
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
+import com.iptvapp.data.local.dao.ChannelUserData
 import com.iptvapp.data.local.entities.*
 import com.iptvapp.util.M3uParser
 import com.iptvapp.util.Resource
@@ -69,9 +70,9 @@ class XtreamRepository @Inject constructor(
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
-            val existing = db.channelDao().getAllChannels().first().associateBy { it.streamId }
+            val userData = db.channelDao().getUserData().associateBy { it.streamId }
             db.channelDao().upsertChannels(list.map {
-                val prev = existing[it.streamId]
+                val prev = userData[it.streamId]
                 ChannelEntity(
                     streamId = it.streamId,
                     name = it.name,
@@ -81,7 +82,10 @@ class XtreamRepository @Inject constructor(
                     tvArchive = it.tvArchive,
                     num = it.num,
                     isFavorite = prev?.isFavorite ?: false,
-                    lastWatched = prev?.lastWatched
+                    lastWatched = prev?.lastWatched,
+                    viewCount = prev?.viewCount ?: 0,
+                    favOrder = prev?.favOrder ?: 0,
+                    isHidden = prev?.isHidden ?: false
                 )
             })
             list
@@ -89,6 +93,8 @@ class XtreamRepository @Inject constructor(
     }
 
     fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()
+
+    suspend fun getChannelCount(): Int = db.channelDao().getCount()
 
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>> =
         db.channelDao().getChannelsByCategory(categoryId)
