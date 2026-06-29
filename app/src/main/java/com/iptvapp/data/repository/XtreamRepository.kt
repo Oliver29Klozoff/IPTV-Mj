@@ -102,6 +102,8 @@ class XtreamRepository @Inject constructor(
 
     suspend fun getChannelCount(): Int = db.channelDao().getCount()
 
+    suspend fun getNewestEpgStop(): Long? = db.epgDao().getNewestEpgStopTimestamp()
+
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>> =
         db.channelDao().getChannelsByCategory(categoryId)
 

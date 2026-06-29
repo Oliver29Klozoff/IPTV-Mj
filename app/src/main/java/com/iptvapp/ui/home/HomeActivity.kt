@@ -575,7 +575,9 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         channelAdapter.showDragHandles = false
-        viewModel.observeRecentChannels()
+        // Submit snapshot on entry — StateFlow won't re-emit if value is unchanged, so the
+        // adapter would otherwise keep showing whatever the previous tab's list was
+        channelAdapter.submitList(viewModel.recentChannels.value.toList())
     }
 
     private var favItemTouchHelper: ItemTouchHelper? = null
@@ -753,9 +755,7 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.recentChannels.collect { list ->
-                if (binding.tabLayout.selectedTabPosition == 4) channelAdapter.submitList(list)
-            }
+            viewModel.recentChannels.collect { /* snapshot submitted in showWatching() on tab entry */ }
         }
         lifecycleScope.launch {
             viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }

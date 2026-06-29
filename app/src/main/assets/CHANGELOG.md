@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v2.45 - 2026-06-29
+- History tab: fixed stale list on entry (StateFlow equality check was silently skipping updates)
+- History tab: list no longer re-sorts and jumps channels while you are actively browsing
+
+## v2.44 - 2026-06-29
+- Guide: shows cached EPG immediately on re-open; only re-fetches from server when DB data is stale
+- Guide: staleness checked via DB (survives app restart), no more reload on every visit or after returning from player
+
 ## v2.43 - 2026-06-29
 - Guide: no longer re-fetches EPG on every visit; 1-hour TTL with instant DB reload on re-open
 - Guide: EPG fetches now run in parallel instead of one channel at a time

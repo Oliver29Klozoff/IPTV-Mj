@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.data.local.entities.EpgEntity
 import com.iptvapp.data.local.entities.SeriesEntity
 import com.iptvapp.data.local.entities.VodEntity
 import com.iptvapp.data.repository.XtreamRepository
@@ -141,6 +142,9 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getInProgressVod().collectLatest { _continueWatching.value = it }
+            }
+            launch {
+                repository.getRecentChannels().collectLatest { _recentChannels.value = it }
             }
         }
 
@@ -310,8 +314,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private var epgFetchedAt = 0L
-
     fun loadGuide() {
         guideJob?.cancel()
         guideJob = viewModelScope.launch {
@@ -321,30 +323,36 @@ class HomeViewModel @Inject constructor(
                 repository.getChannelsByCategory(categoryId).first()
             }
             val allChannels = (favChannels + catChannels).distinctBy { it.streamId }
-
-            val now = System.currentTimeMillis()
-            val epgIsStale = now - epgFetchedAt > 60 * 60 * 1000L
-
-            if (epgIsStale) {
-                // First visit or > 1 hour old: fetch EPG in parallel from server
-                _loading.value = true
-                coroutineScope {
-                    allChannels.forEach { ch -> launch { repository.fetchEpg(ch.streamId) } }
-                }
-                epgFetchedAt = now
-            }
-
             val ids = allChannels.map { it.streamId }
-            val epgEntries = if (ids.isEmpty()) emptyList()
-            else repository.getEpgForStreams(ids).first()
 
-            val epgByStream = epgEntries.groupBy { it.streamId }
+            fun buildRows(epgEntries: List<com.iptvapp.data.local.entities.EpgEntity>) =
+                allChannels
+                    .map { ch -> GuideRow(channel = ch, programs = epgEntries.filter { it.streamId == ch.streamId }) }
+                    .filter { it.programs.isNotEmpty() }
 
-            _guideRows.value = allChannels
-                .map { channel -> GuideRow(channel = channel, programs = epgByStream[channel.streamId].orEmpty()) }
-                .filter { it.programs.isNotEmpty() }
+            // Show whatever is cached in the DB immediately — no spinner
+            val cached = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
+            if (cached.isNotEmpty()) _guideRows.value = buildRows(cached)
 
-            _loading.value = false
+            // Check DB freshness: newest EPG stop timestamp (already in seconds or ms)
+            val newestStop = repository.getNewestEpgStop()
+            val newestStopMs = if (newestStop != null && newestStop < 100_000_000_000L)
+                newestStop * 1000L else newestStop ?: 0L
+            val stale = newestStopMs < System.currentTimeMillis() + 30 * 60 * 1000L
+
+            if (stale) {
+                if (cached.isEmpty()) _loading.value = true
+                try {
+                    coroutineScope {
+                        allChannels.forEach { ch -> launch { repository.fetchEpg(ch.streamId) } }
+                    }
+                } finally {
+                    _loading.value = false
+                }
+                // Reload from DB after network fetch and update rows
+                val fresh = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
+                if (fresh.isNotEmpty()) _guideRows.value = buildRows(fresh)
+            }
         }
     }
         fun searchChannels(query: String) {

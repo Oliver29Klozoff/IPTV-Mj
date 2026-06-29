@@ -1,9 +1,9 @@
 {
-  "versionCode": 80,
-  "versionName": "2.43",
+  "versionCode": 82,
+  "versionName": "2.45",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Guide: no longer re-fetches EPG on every visit; 1-hour TTL with instant DB reload on re-open",
-    "Guide: EPG fetches now run in parallel instead of one channel at a time"
+    "History tab: fixed stale list on entry (StateFlow equality check was silently skipping updates)",
+    "History tab: list no longer re-sorts and jumps channels while you are actively browsing"
   ]
 }
