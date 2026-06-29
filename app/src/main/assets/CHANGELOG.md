@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v2.50 - 2026-06-29
+- Security: GitHub token removed from APK entirely — no longer compiled into build
+- Debug reports and sync now use a token entered once in Settings → Backup → GitHub Token field
+- VS Code debug configurations added (.vscode/launch.json + tasks.json)
+
 ## v2.49 - 2026-06-29
 - Settings: section header buttons now use wrap_content height instead of fixed 64dp
 - Split View: renamed from "Mosaic"; button height tweaks

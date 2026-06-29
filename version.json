@@ -1,9 +1,10 @@
 {
-  "versionCode": 86,
-  "versionName": "2.49",
+  "versionCode": 87,
+  "versionName": "2.50",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Settings: section header buttons now wrap content instead of fixed 64dp height",
-    "Split View: renamed from Mosaic; button height tweaks"
+    "Security: GitHub token removed from APK — never compiled into build again",
+    "Debug reports and sync: enter your token once in Settings under Backup",
+    "VS Code debug config added for Shield TV and Pixel"
   ]
 }

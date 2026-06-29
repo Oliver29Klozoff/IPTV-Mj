@@ -1,0 +1,75 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-debug",
+      "type": "shell",
+      "command": "${env:JAVA_HOME}\\bin\\java.exe",
+      "args": ["-jar", "gradle\\wrapper\\gradle-wrapper.jar", "assembleDebug"],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-Command",
+          "$env:JAVA_HOME='C:\\Program Files\\Android\\Android Studio\\jbr'; $env:PATH=\"$env:JAVA_HOME\\bin;$env:PATH\"; .\\gradlew assembleDebug"
+        ]
+      },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "adb-forward-shield",
+      "type": "shell",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-Command",
+          "$adb='C:\\Users\\Emjay\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe'; & $adb connect 192.168.50.170:5555; Start-Sleep -Milliseconds 500; $pid = (& $adb -s 192.168.50.170:5555 shell 'pidof com.iptvapp').Trim(); if ($pid) { & $adb -s 192.168.50.170:5555 forward tcp:5005 jdwp:$pid; Write-Host \"Forwarded JDWP pid $pid to localhost:5005\" } else { Write-Error 'App not running on Shield — start it first' }"
+        ]
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "adb-forward-pixel",
+      "type": "shell",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-Command",
+          "$adb='C:\\Users\\Emjay\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe'; $pid = (& $adb -s 192.168.50.89:44201 shell 'pidof com.iptvapp').Trim(); if ($pid) { & $adb -s 192.168.50.89:44201 forward tcp:5006 jdwp:$pid; Write-Host \"Forwarded JDWP pid $pid to localhost:5006\" } else { Write-Error 'App not running on Pixel — start it first' }"
+        ]
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "install-debug-shield",
+      "type": "shell",
+      "dependsOn": "build-debug",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-Command",
+          "$adb='C:\\Users\\Emjay\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe'; & $adb connect 192.168.50.170:5555; & $adb -s 192.168.50.170:5555 install -r app\\build\\outputs\\apk\\debug\\app-debug.apk; & $adb -s 192.168.50.170:5555 shell 'am start -n com.iptvapp/.ui.home.HomeActivity'; Start-Sleep 3; $pid = (& $adb -s 192.168.50.170:5555 shell 'pidof com.iptvapp').Trim(); if ($pid) { & $adb -s 192.168.50.170:5555 forward tcp:5005 jdwp:$pid; Write-Host \"Ready — attached to pid $pid on localhost:5005\" } else { Write-Error 'App failed to start' }"
+        ]
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "install-debug-pixel",
+      "type": "shell",
+      "dependsOn": "build-debug",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-Command",
+          "$adb='C:\\Users\\Emjay\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe'; & $adb connect 192.168.50.89:44201; & $adb -s 192.168.50.89:44201 install -r app\\build\\outputs\\apk\\debug\\app-debug.apk; & $adb -s 192.168.50.89:44201 shell 'am start -n com.iptvapp/.ui.home.HomeActivity'; Start-Sleep 3; $pid = (& $adb -s 192.168.50.89:44201 shell 'pidof com.iptvapp').Trim(); if ($pid) { & $adb -s 192.168.50.89:44201 forward tcp:5006 jdwp:$pid; Write-Host \"Ready — attached to pid $pid on localhost:5006\" } else { Write-Error 'App failed to start' }"
+        ]
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+  ]
+}

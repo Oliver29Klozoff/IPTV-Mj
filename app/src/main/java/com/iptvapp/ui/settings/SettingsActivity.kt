@@ -360,6 +360,21 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
 
+        // GitHub token field — stored in DataStore, never compiled into the APK
+        lifecycleScope.launch {
+            val saved = prefs.githubToken.first()
+            if (saved.isNotBlank()) binding.etGithubToken?.setText(saved)
+        }
+        binding.btnSaveGithubToken?.setOnClickListener {
+            val t = binding.etGithubToken?.text?.toString()?.trim() ?: ""
+            lifecycleScope.launch {
+                prefs.setGithubToken(t)
+                android.widget.Toast.makeText(this@SettingsActivity,
+                    if (t.isNotEmpty()) "GitHub token saved" else "GitHub token cleared",
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+
         lifecycleScope.launch {
             val enabled = prefs.autoBackupEnabled.first()
             binding.switchAutoBackup.isChecked = enabled
@@ -467,7 +482,13 @@ class SettingsActivity : AppCompatActivity() {
         binding.tvReportStatus.text = "Collecting device info..."
         lifecycleScope.launch {
             try {
-                val token = com.iptvapp.BuildConfig.GH_TOKEN
+                val token = prefs.githubToken.first()
+                if (token.isBlank()) {
+                    binding.tvReportStatus.text = "⚠ No GitHub token set — add one in Settings → Developer"
+                    binding.btnSendDebugReport.isEnabled = true
+                    binding.btnSendDebugReport.text = "Send Debug Report"
+                    return@launch
+                }
                 val pInfo = packageManager.getPackageInfo(packageName, 0)
                 val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                 val caps = cm.getNetworkCapabilities(cm.activeNetwork)

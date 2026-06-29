@@ -31,12 +31,10 @@ class SyncManager @Inject constructor(
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    private fun getToken(): String = com.iptvapp.BuildConfig.GH_TOKEN
-
     suspend fun syncUp(): String = withContext(Dispatchers.IO) {
         try {
-            val token = getToken()
-            if (token.isEmpty()) return@withContext "No GitHub token configured"
+            val token = prefs.githubToken.first()
+            if (token.isEmpty()) return@withContext "No GitHub token — add one in Settings → Developer"
 
             val favChannelIds = db.channelDao().getFavoriteChannelIds()
             val recentIds = db.channelDao().getRecentChannels().first()
@@ -102,8 +100,8 @@ class SyncManager @Inject constructor(
 
     suspend fun syncDown(): String = withContext(Dispatchers.IO) {
         try {
-            val token = getToken()
-            if (token.isEmpty()) return@withContext "No GitHub token configured"
+            val token = prefs.githubToken.first()
+            if (token.isEmpty()) return@withContext "No GitHub token — add one in Settings → Developer"
 
             val gistId = prefs.getSyncGistId()
             if (gistId.isEmpty()) return@withContext "No sync data found — push from another device first"

@@ -687,7 +687,12 @@ class TvSettingsActivity : AppCompatActivity() {
         binding.tvTvDebugStatus.text = "Collecting info..."
         lifecycleScope.launch {
             try {
-                val token = com.iptvapp.BuildConfig.GH_TOKEN
+                val token = prefs.githubToken.first()
+                if (token.isBlank()) {
+                    binding.tvTvDebugStatus.text = "⚠ No GitHub token — add one in Settings → Developer"
+                    binding.btnTvSendDebug.isEnabled = true
+                    return@launch
+                }
                 val pInfo = packageManager.getPackageInfo(packageName, 0)
                 val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                 val caps = cm.getNetworkCapabilities(cm.activeNetwork)
