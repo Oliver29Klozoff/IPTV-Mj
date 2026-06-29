@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.43 - 2026-06-29
+- Guide: no longer re-fetches EPG on every visit; 1-hour TTL with instant DB reload on re-open
+- Guide: EPG fetches now run in parallel instead of one channel at a time
+
 ## v2.42 - 2026-06-29
 - Guide: past programs filtered out; timeline starts at the current show with a green NOW indicator
 - Guide: upcoming programs capped at 8; replay-eligible shows shown in blue

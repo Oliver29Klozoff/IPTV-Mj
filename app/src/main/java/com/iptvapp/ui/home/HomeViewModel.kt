@@ -310,22 +310,29 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var epgFetchedAt = 0L
+
     fun loadGuide() {
         guideJob?.cancel()
         guideJob = viewModelScope.launch {
-            _loading.value = true
-
-            // Get both individually favorited channels AND channels from favorited categories
             val favChannels = repository.getFavoriteChannels().first()
             val favCategoryIds = repository.getFavoriteLiveCategoryIds().first()
             val catChannels = favCategoryIds.flatMap { categoryId ->
                 repository.getChannelsByCategory(categoryId).first()
             }
-
-            // Combine and deduplicate
             val allChannels = (favChannels + catChannels).distinctBy { it.streamId }
 
-            allChannels.forEach { repository.fetchEpg(it.streamId) }
+            val now = System.currentTimeMillis()
+            val epgIsStale = now - epgFetchedAt > 60 * 60 * 1000L
+
+            if (epgIsStale) {
+                // First visit or > 1 hour old: fetch EPG in parallel from server
+                _loading.value = true
+                coroutineScope {
+                    allChannels.forEach { ch -> launch { repository.fetchEpg(ch.streamId) } }
+                }
+                epgFetchedAt = now
+            }
 
             val ids = allChannels.map { it.streamId }
             val epgEntries = if (ids.isEmpty()) emptyList()

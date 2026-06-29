@@ -1,9 +1,9 @@
 {
-  "versionCode": 79,
-  "versionName": "2.42",
+  "versionCode": 80,
+  "versionName": "2.43",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Guide: past programs filtered out; timeline starts at current show with green NOW indicator",
-    "Guide: upcoming programs capped at 8; replay-eligible shows still shown in blue"
+    "Guide: no longer re-fetches EPG on every visit; 1-hour TTL with instant DB reload on re-open",
+    "Guide: EPG fetches now run in parallel instead of one channel at a time"
   ]
 }
