@@ -1,8 +1,9 @@
 {
-  "versionCode": 85,
-  "versionName": "2.48",
+  "versionCode": 86,
+  "versionName": "2.49",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Guide grid: fixed always-playing-AMC bug — onResume no longer overrides the channel selected from the grid"
+    "Settings: section header buttons now wrap content instead of fixed 64dp height",
+    "Split View: renamed from Mosaic; button height tweaks"
   ]
 }

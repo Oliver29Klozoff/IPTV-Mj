@@ -70,7 +70,6 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
                     android:textColor="#1A2B4A"
-                    android:hint="http://yourserver.com:8080"
                     android:imeOptions="actionNext" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -121,7 +120,7 @@
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 app:boxStrokeColor="#4A6FA5"
                 app:hintTextColor="#8899BB"
-                app:boxBackgroundColor="#1E2E48"
+                app:boxBackgroundColor="#ffffff"
                 app:passwordToggleEnabled="true">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etPassword"
@@ -146,7 +145,6 @@
                     android:id="@+id/etEpgUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="http://yourserver.com/xmltv.php"
                     android:imeOptions="actionDone"
                     android:inputType="textUri"
                     android:textColor="#1A2B4A" />

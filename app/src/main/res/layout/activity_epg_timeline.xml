@@ -32,11 +32,11 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
+            android:letterSpacing="0.1"
             android:text="EPG TIMELINE"
-            android:textColor="#FFFFFF"
+            android:textColor="#ffffff"
             android:textSize="15sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1" />
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnTimelineNow"

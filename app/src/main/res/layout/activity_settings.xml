@@ -66,81 +66,81 @@
                 <Button
                     android:id="@+id/headerStream"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A3A5C"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false"
                     android:text="Stream &amp; EPG"
                     android:textColor="#008CFF"
                     android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp"
-                    android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/headerDisplay"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:text="Display"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp"
+                    android:layout_height="wrap_content"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
+                    android:backgroundTint="#1A1A1A"
                     android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:focusableInTouchMode="false"
+                    android:text="Display"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/headerUpdates"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:text="Updates"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp"
+                    android:layout_height="wrap_content"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
+                    android:backgroundTint="#1A1A1A"
                     android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:focusableInTouchMode="false"
+                    android:text="Updates"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/headerBackup"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:text="Backup"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp"
+                    android:layout_height="wrap_content"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
+                    android:backgroundTint="#1A1A1A"
                     android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:focusableInTouchMode="false"
+                    android:text="Backup"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/headerServers"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:text="Servers"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp"
+                    android:layout_height="wrap_content"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
+                    android:backgroundTint="#1A1A1A"
                     android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:focusableInTouchMode="false"
+                    android:text="Servers"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/headerSync"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:text="Sync"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp"
+                    android:layout_height="wrap_content"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
+                    android:backgroundTint="#1A1A1A"
                     android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:focusableInTouchMode="false"
+                    android:text="Sync"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp" />
 
                 <Button
                     android:id="@+id/btnLogout"

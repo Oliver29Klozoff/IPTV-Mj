@@ -26,7 +26,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:text="MOSAIC"
+            android:text="SPLIT VIEW"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -34,7 +34,7 @@
         <Button
             android:id="@+id/btnGridSize"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="35dp"
             android:background="@android:color/transparent"
             android:text="2×2"
             android:textColor="#008CFF"
@@ -43,7 +43,7 @@
         <Button
             android:id="@+id/btnMuteAll"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="35dp"
             android:background="@android:color/transparent"
             android:text="🔇"
             android:textColor="#AAAAAA"

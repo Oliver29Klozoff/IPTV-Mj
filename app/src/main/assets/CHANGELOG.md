@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.49 - 2026-06-29
+- Settings: section header buttons now use wrap_content height instead of fixed 64dp
+- Split View: renamed from "Mosaic"; button height tweaks
+
 ## v2.48 - 2026-06-29
 - Guide grid: fixed always-playing-same-channel bug — onResume was racing the grid result and overriding with the last-watched channel
 
