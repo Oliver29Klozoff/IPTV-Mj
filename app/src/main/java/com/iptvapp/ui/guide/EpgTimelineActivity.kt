@@ -1,15 +1,20 @@
 package com.iptvapp.ui.guide
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.iptvapp.ui.player.PlayerActivity
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -54,11 +59,14 @@ class EpgTimelineActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEpgTimelineBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        hideSystemUi()
 
         adapter = TimelineAdapter(
             dpPerMin = dpPerMin,
             startMs = startMs,
             onScrollChanged = { scrollX -> syncScroll(scrollX) },
+            onChannelClick = { row -> playChannel(row) },
+            onProgramClick = { row, program -> handleProgramClick(row, program) },
             onProgramLongPress = { row, program -> showTimerDialog(row, program) }
         )
 
@@ -156,12 +164,76 @@ class EpgTimelineActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
+    private fun playChannel(row: GuideRow) {
+        lifecycleScope.launch {
+            val url = viewModel.getLiveStreamUrl(row.channel.streamId)
+            startActivity(Intent(this@EpgTimelineActivity, PlayerActivity::class.java).apply {
+                putExtra("stream_url", url)
+                putExtra("stream_title", row.channel.name)
+                putExtra("stream_id", row.channel.streamId)
+            })
+        }
+    }
+
+    private fun handleProgramClick(row: GuideRow, program: EpgEntity) {
+        val nowMs = System.currentTimeMillis()
+        val pStartMs = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp * 1000L else program.startTimestamp
+        val pStopMs = if (program.stopTimestamp < 100_000_000_000L) program.stopTimestamp * 1000L else program.stopTimestamp
+
+        when {
+            pStartMs <= nowMs && pStopMs > nowMs -> {
+                // Currently airing — play the live channel
+                playChannel(row)
+            }
+            pStartMs > nowMs -> {
+                // Upcoming — offer to set a reminder
+                showTimerDialog(row, program)
+            }
+            row.channel.tvArchive == 1 && program.hasArchive == 1 -> {
+                // Past with replay archive — play timeshift
+                lifecycleScope.launch {
+                    val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp
+                    else program.startTimestamp / 1000L
+                    val durationMin = ((pStopMs - pStartMs) / 60_000L).toInt().coerceAtLeast(1)
+                    val url = viewModel.getTimeshiftUrl(row.channel.streamId, startSec, durationMin)
+                    startActivity(Intent(this@EpgTimelineActivity, PlayerActivity::class.java).apply {
+                        putExtra("stream_url", url)
+                        putExtra("stream_title", "${row.channel.name} — ${program.title}")
+                        putExtra("stream_id", row.channel.streamId)
+                    })
+                }
+            }
+            else -> {
+                // Past, no archive — play live anyway
+                playChannel(row)
+            }
+        }
+    }
+
+    private fun hideSystemUi() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.let {
+                it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
+        }
+    }
 }
 
 class TimelineAdapter(
     private val dpPerMin: Float,
     private val startMs: Long,
     private val onScrollChanged: (Int) -> Unit,
+    private val onChannelClick: (GuideRow) -> Unit,
+    private val onProgramClick: (GuideRow, EpgEntity) -> Unit,
     private val onProgramLongPress: (GuideRow, EpgEntity) -> Unit
 ) : RecyclerView.Adapter<TimelineAdapter.ViewHolder>() {
 
@@ -215,12 +287,14 @@ class TimelineAdapter(
 
         fun bind(row: GuideRow) {
             tvName.text = row.channel.name
+            tvName.setOnClickListener { onChannelClick(row) }
             if (!row.channel.streamIcon.isNullOrBlank()) {
                 ivLogo.visibility = View.VISIBLE
                 Glide.with(itemView.context).load(row.channel.streamIcon)
                     .placeholder(android.R.drawable.ic_media_play)
                     .error(android.R.drawable.ic_media_play)
                     .into(ivLogo)
+                ivLogo.setOnClickListener { onChannelClick(row) }
             } else {
                 ivLogo.visibility = View.GONE
             }
@@ -276,6 +350,7 @@ class TimelineAdapter(
                     layoutParams = LinearLayout.LayoutParams(widthPx, ViewGroup.LayoutParams.MATCH_PARENT).apply {
                         setMargins(dpToPx(1f, ctx).toInt(), dpToPx(2f, ctx).toInt(), dpToPx(1f, ctx).toInt(), dpToPx(2f, ctx).toInt())
                     }
+                    setOnClickListener { onProgramClick(row, program) }
                     setOnLongClickListener {
                         onProgramLongPress(row, program)
                         true

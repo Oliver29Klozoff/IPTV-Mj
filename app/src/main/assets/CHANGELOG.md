@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.46 - 2026-06-29
+- Guide grid: now opens fullscreen (status bar and nav bar hidden, swipe to peek)
+- Guide grid: tap a channel name to play; tap any highlighted program to play or set reminder
+
 ## v2.45 - 2026-06-29
 - History tab: fixed stale list on entry (StateFlow equality check was silently skipping updates)
 - History tab: list no longer re-sorts and jumps channels while you are actively browsing

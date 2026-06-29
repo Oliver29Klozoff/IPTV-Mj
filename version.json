@@ -1,9 +1,9 @@
 {
-  "versionCode": 82,
-  "versionName": "2.45",
+  "versionCode": 83,
+  "versionName": "2.46",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "History tab: fixed stale list on entry (StateFlow equality check was silently skipping updates)",
-    "History tab: list no longer re-sorts and jumps channels while you are actively browsing"
+    "Guide grid: now opens fullscreen (status bar and nav bar hidden, swipe to peek)",
+    "Guide grid: tap a channel name to play; tap any highlighted program to play or set reminder"
   ]
 }
