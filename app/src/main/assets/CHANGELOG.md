@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v2.40 - 2026-06-29
+- Guide: channels without EPG data are hidden; only channels with schedule data shown
+- Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section
+- Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings
+
 ## v2.39 - 2026-06-29
 - Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section
 - Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings

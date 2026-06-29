@@ -316,9 +316,9 @@ class HomeViewModel @Inject constructor(
 
             val epgByStream = epgEntries.groupBy { it.streamId }
 
-            _guideRows.value = allChannels.map { channel ->
-                GuideRow(channel = channel, programs = epgByStream[channel.streamId].orEmpty())
-            }
+            _guideRows.value = allChannels
+                .map { channel -> GuideRow(channel = channel, programs = epgByStream[channel.streamId].orEmpty()) }
+                .filter { it.programs.isNotEmpty() }
 
             _loading.value = false
         }
