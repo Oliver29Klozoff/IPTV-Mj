@@ -24,6 +24,7 @@ import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.tv.TvHomeChannelPublisher
+import com.iptvapp.ui.onboarding.FeatureTourDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -75,6 +76,7 @@ class TvHomeActivity : AppCompatActivity() {
         viewModel.loadAll()
         selectSection(Section.LIVE)
         handleDeepLink(intent)
+        FeatureTourDialog.showIfNeeded(this)
     }
 
     override fun onNewIntent(intent: Intent) {

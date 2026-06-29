@@ -37,6 +37,7 @@ import com.iptvapp.ui.settings.TvSettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
@@ -117,6 +118,7 @@ class HomeActivity : AppCompatActivity() {
         observeTabVisibility()
         binding.tabLayout.getTabAt(5)?.select()
         setupLandscapeSidebar()
+        FeatureTourDialog.showIfNeeded(this)
     }
 
     private fun setupLandscapeSidebar() {

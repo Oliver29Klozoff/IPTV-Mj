@@ -1,10 +1,9 @@
 {
-  "versionCode": 75,
-  "versionName": "2.38",
+  "versionCode": 76,
+  "versionName": "2.39",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Fast channel load: cached channels show instantly, server sync runs in background",
-    "Parallel fetch: categories, channels, and VOD now fetched at the same time",
-    "Spinner only appears on first install when DB is empty"
+    "Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section",
+    "Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings"
   ]
 }

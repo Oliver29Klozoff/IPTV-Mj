@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.39 - 2026-06-29
+- Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section
+- Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings
+
 ## v2.38 - 2026-06-29
 - Fast channel load: cached channels show instantly, server sync runs in background
 - Parallel fetch: categories, channels, and VOD now fetched at the same time

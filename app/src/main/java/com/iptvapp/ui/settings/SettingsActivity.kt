@@ -44,7 +44,11 @@ import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.databinding.ActivitySettingsBinding
+import com.iptvapp.ui.onboarding.FeatureTourDialog
+import com.iptvapp.worker.AutoBackupWorker
 import com.iptvapp.worker.EpgRefreshWorker
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -142,6 +146,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.btnSettingsMosaic.setOnClickListener {
             startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
+        }
+        binding.btnFeatureTour.setOnClickListener {
+            FeatureTourDialog.show(this)
         }
 
         binding.btnSaveEpg.setOnClickListener {
@@ -352,6 +359,47 @@ class SettingsActivity : AppCompatActivity() {
             restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
         }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
+
+        lifecycleScope.launch {
+            val enabled = prefs.autoBackupEnabled.first()
+            binding.switchAutoBackup.isChecked = enabled
+            updateAutoBackupPathLabel(enabled)
+        }
+        binding.switchAutoBackup.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                prefs.setAutoBackupEnabled(isChecked)
+                if (isChecked) scheduleAutoBackup() else cancelAutoBackup()
+                updateAutoBackupPathLabel(isChecked)
+            }
+        }
+    }
+
+    private fun updateAutoBackupPathLabel(enabled: Boolean) {
+        if (enabled) {
+            val dir = getExternalFilesDir(null) ?: filesDir
+            binding.tvAutoBackupPath.text = "Saves to: ${dir.absolutePath}"
+        } else {
+            binding.tvAutoBackupPath.text = ""
+        }
+    }
+
+    private fun scheduleAutoBackup() {
+        val request = PeriodicWorkRequestBuilder<AutoBackupWorker>(7, TimeUnit.DAYS)
+            .setConstraints(Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+                .build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            AutoBackupWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+        Toast.makeText(this, "Auto backup scheduled weekly", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun cancelAutoBackup() {
+        WorkManager.getInstance(this).cancelUniqueWork(AutoBackupWorker.WORK_NAME)
+        Toast.makeText(this, "Auto backup disabled", Toast.LENGTH_SHORT).show()
     }
 
     private fun backupSettings() {
