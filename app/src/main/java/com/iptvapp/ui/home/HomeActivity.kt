@@ -79,6 +79,33 @@ class HomeActivity : AppCompatActivity() {
             }
         )
     }
+    private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streamId = data.getIntExtra("stream_id", -1)
+            if (streamId == -1) return@registerForActivityResult
+            val timeshiftUrl = data.getStringExtra("timeshift_url")
+            val timeshiftTitle = data.getStringExtra("timeshift_title")
+            lifecycleScope.launch {
+                val channel = viewModel.getChannelById(streamId) ?: return@launch
+                if (timeshiftUrl != null && timeshiftTitle != null) {
+                    // Timeshift replay: play in mini player with the timeshift URL
+                    currentMiniUrl = timeshiftUrl
+                    currentMiniTitle = timeshiftTitle
+                    currentMiniStreamId = streamId
+                    binding.tvMiniChannelName.text = timeshiftTitle
+                    binding.tvPipChannelName?.text = timeshiftTitle
+                    miniPlayer?.let {
+                        it.setMediaItem(androidx.media3.common.MediaItem.fromUri(timeshiftUrl))
+                        it.prepare()
+                        it.playWhenReady = true
+                    }
+                } else {
+                    playInMiniPlayer(channel)
+                }
+            }
+        }
+    }
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
@@ -631,7 +658,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.loadGuide()
         binding.btnTimelineView?.visibility = View.VISIBLE
         binding.btnTimelineView?.setOnClickListener {
-            startActivity(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+            timelineLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
         }
     }
 

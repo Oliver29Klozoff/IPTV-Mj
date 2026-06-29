@@ -14,7 +14,6 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.iptvapp.ui.player.PlayerActivity
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -166,14 +165,8 @@ class EpgTimelineActivity : AppCompatActivity() {
     }
 
     private fun playChannel(row: GuideRow) {
-        lifecycleScope.launch {
-            val url = viewModel.getLiveStreamUrl(row.channel.streamId)
-            startActivity(Intent(this@EpgTimelineActivity, PlayerActivity::class.java).apply {
-                putExtra("stream_url", url)
-                putExtra("stream_title", row.channel.name)
-                putExtra("stream_id", row.channel.streamId)
-            })
-        }
+        setResult(RESULT_OK, Intent().putExtra("stream_id", row.channel.streamId))
+        finish()
     }
 
     private fun handleProgramClick(row: GuideRow, program: EpgEntity) {
@@ -183,29 +176,29 @@ class EpgTimelineActivity : AppCompatActivity() {
 
         when {
             pStartMs <= nowMs && pStopMs > nowMs -> {
-                // Currently airing — play the live channel
+                // Currently airing — return to home and play in mini player
                 playChannel(row)
             }
             pStartMs > nowMs -> {
-                // Upcoming — offer to set a reminder
+                // Upcoming — offer to set a reminder (stay in grid)
                 showTimerDialog(row, program)
             }
             row.channel.tvArchive == 1 && program.hasArchive == 1 -> {
-                // Past with replay archive — play timeshift
+                // Past with replay archive — return to home and play timeshift in mini player
                 lifecycleScope.launch {
                     val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp
                     else program.startTimestamp / 1000L
                     val durationMin = ((pStopMs - pStartMs) / 60_000L).toInt().coerceAtLeast(1)
                     val url = viewModel.getTimeshiftUrl(row.channel.streamId, startSec, durationMin)
-                    startActivity(Intent(this@EpgTimelineActivity, PlayerActivity::class.java).apply {
-                        putExtra("stream_url", url)
-                        putExtra("stream_title", "${row.channel.name} — ${program.title}")
-                        putExtra("stream_id", row.channel.streamId)
-                    })
+                    setResult(RESULT_OK, Intent()
+                        .putExtra("stream_id", row.channel.streamId)
+                        .putExtra("timeshift_url", url)
+                        .putExtra("timeshift_title", "${row.channel.name} — ${program.title}"))
+                    finish()
                 }
             }
             else -> {
-                // Past, no archive — play live anyway
+                // Past, no archive — return to home and play live
                 playChannel(row)
             }
         }

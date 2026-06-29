@@ -1,9 +1,9 @@
 {
-  "versionCode": 83,
-  "versionName": "2.46",
+  "versionCode": 84,
+  "versionName": "2.47",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Guide grid: now opens fullscreen (status bar and nav bar hidden, swipe to peek)",
-    "Guide grid: tap a channel name to play; tap any highlighted program to play or set reminder"
+    "Guide grid: tapping a channel or program now returns to home and opens in mini player",
+    "Guide grid: tap replay program to start timeshift in mini player; tap upcoming to set reminder"
   ]
 }
