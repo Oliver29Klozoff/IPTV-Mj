@@ -1,8 +1,8 @@
 {
-  "versionCode": 95,
-  "versionName": "2.58",
+  "versionCode": 96,
+  "versionName": "2.59",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast: buffer badge hidden on cast start; second Toast shows Chromecast playback state after 3s"
+    "Cast fix: STREAM_TYPE_BUFFERED for all streams — fixes stall on Xtream Codes live channels"
   ]
 }

@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.59 - 2026-06-29
+- Cast fix: use STREAM_TYPE_BUFFERED for all streams — Xtream Codes m3u8 lacks EXT-X-LIVE headers so STREAM_TYPE_LIVE was stalling the receiver
+
 ## v2.58 - 2026-06-29
 - Cast: buffer health badge hidden when casting starts; 3s status Toast shows actual Chromecast playback state
 

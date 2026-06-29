@@ -651,7 +651,9 @@ class PlayerActivity : AppCompatActivity() {
                 castUrl.contains(".mp4",  ignoreCase = true) -> "video/mp4"
                 else -> "application/x-mpegURL"
             }
-            val streamType = if (isVod) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_LIVE
+            // Xtream Codes m3u8 streams lack proper live HLS headers (no EXT-X-LIVE),
+            // so STREAM_TYPE_LIVE stalls the Default Media Receiver. BUFFERED works for both.
+            val streamType = MediaInfo.STREAM_TYPE_BUFFERED
             val metadata = MediaMetadata(if (isVod) MediaMetadata.MEDIA_TYPE_MOVIE else MediaMetadata.MEDIA_TYPE_TV_SHOW).apply {
                 putString(MediaMetadata.KEY_TITLE, streamTitle)
             }
@@ -696,7 +698,7 @@ class PlayerActivity : AppCompatActivity() {
                         }
                         Log.d("CastDebug", "3s status: $stateStr")
                         Toast.makeText(this@PlayerActivity, "Cast status: $stateStr", Toast.LENGTH_LONG).show()
-                    }, 3000)
+                    }, 8000)
                 }
             }
         }
