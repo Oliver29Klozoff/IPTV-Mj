@@ -79,17 +79,21 @@ class HomeActivity : AppCompatActivity() {
             }
         )
     }
+    // Prevents onResume from auto-resuming "recent" channel when we just picked one from the grid
+    private var suppressMiniAutoResume = false
+
     private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@registerForActivityResult
             val streamId = data.getIntExtra("stream_id", -1)
             if (streamId == -1) return@registerForActivityResult
+            // Set synchronously — onResume fires after this callback and reads this flag
+            suppressMiniAutoResume = true
             val timeshiftUrl = data.getStringExtra("timeshift_url")
             val timeshiftTitle = data.getStringExtra("timeshift_title")
             lifecycleScope.launch {
                 val channel = viewModel.getChannelById(streamId) ?: return@launch
                 if (timeshiftUrl != null && timeshiftTitle != null) {
-                    // Timeshift replay: play in mini player with the timeshift URL
                     currentMiniUrl = timeshiftUrl
                     currentMiniTitle = timeshiftTitle
                     currentMiniStreamId = streamId
@@ -180,6 +184,11 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (suppressMiniAutoResume) {
+            // Returning from the guide grid with an explicit channel choice — don't override it
+            suppressMiniAutoResume = false
+            return
+        }
         lifecycleScope.launch {
             val recent = viewModel.getRecentChannel()
             val isLive = currentMiniUrl.isNotEmpty() &&

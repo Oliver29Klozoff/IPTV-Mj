@@ -1,9 +1,8 @@
 {
-  "versionCode": 84,
-  "versionName": "2.47",
+  "versionCode": 85,
+  "versionName": "2.48",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Guide grid: tapping a channel or program now returns to home and opens in mini player",
-    "Guide grid: tap replay program to start timeshift in mini player; tap upcoming to set reminder"
+    "Guide grid: fixed always-playing-AMC bug — onResume no longer overrides the channel selected from the grid"
   ]
 }

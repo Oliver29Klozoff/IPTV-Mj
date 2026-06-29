@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.48 - 2026-06-29
+- Guide grid: fixed always-playing-same-channel bug — onResume was racing the grid result and overriding with the last-watched channel
+
 ## v2.47 - 2026-06-29
 - Guide grid: tapping a channel or program now returns to home and opens in mini player
 - Guide grid: replay programs start timeshift in mini player; upcoming programs open reminder dialog
