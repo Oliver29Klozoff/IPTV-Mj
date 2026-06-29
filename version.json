@@ -1,12 +1,15 @@
 {
-  "versionCode": 73,
-  "versionName": "2.36",
+  "versionCode": 74,
+  "versionName": "2.37",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "TV Settings redesign: active section shows blue left-bar highlight",
-    "D-pad focus chain fixed across all 8 nav items — no more skipping",
-    "Enter/OK on sidebar immediately jumps to content panel",
-    "Sync switch now has TV focus ring",
-    "Sidebar icons added for each settings section"
+    "Bulk favorites: long-press to multi-select and add/remove channels",
+    "Channel hide: hide channels from all lists, unhide in settings",
+    "History tab: recently watched live channels",
+    "Channels Like This: same-category suggestions on long-press",
+    "Buffer health badge: live colored dot + buffer % + bitrate in player",
+    "TV home screen row: MKTV Favorites appear on Shield/TV launcher",
+    "TV Settings: one D-pad press to select and enter a panel",
+    "TV D-pad left: channels → categories → sidebar hierarchy"
   ]
 }
