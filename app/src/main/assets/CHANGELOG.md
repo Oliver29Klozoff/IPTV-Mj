@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.36 - 2026-06-29
+- TV Settings redesign: selected section shows blue left bar highlight, explicit D-pad focus chain on all 8 nav items, Enter key moves focus to content panel, Sync switch focus ring fixed
+
 ## v2.35 - 2026-06-28
 - Top bar flush to screen edge (no reserved status bar space)
 

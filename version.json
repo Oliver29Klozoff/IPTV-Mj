@@ -1,14 +1,12 @@
 {
-  "versionCode": 72,
-  "versionName": "2.35",
+  "versionCode": 73,
+  "versionName": "2.36",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Top bar moved flush to top edge (no wasted space)",
-    "Status bar and navigation bar hidden (swipe to peek)",
-    "Landscape mode: vertical sidebar nav + mini player above channels",
-    "Top bar decluttered: Sort, Mosaic, What's On moved to Settings",
-    "Quick Actions in Settings: Sort Channels, What's On Now, Mosaic",
-    "Favorites tab loads by default on startup",
-    "PiP corner: tap ↩ to restore mini player without going fullscreen"
+    "TV Settings redesign: active section shows blue left-bar highlight",
+    "D-pad focus chain fixed across all 8 nav items — no more skipping",
+    "Enter/OK on sidebar immediately jumps to content panel",
+    "Sync switch now has TV focus ring",
+    "Sidebar icons added for each settings section"
   ]
 }

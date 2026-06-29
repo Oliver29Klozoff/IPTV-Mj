@@ -118,15 +118,9 @@ class TvSettingsActivity : AppCompatActivity() {
             panel.visibility = if (i == index) View.VISIBLE else View.GONE
         }
         menuButtons.forEachIndexed { i, btn ->
-            if (i == index) {
-                btn.setBackgroundColor(Color.TRANSPARENT)
-                btn.setTextColor(Color.WHITE)
-                btn.textSize = 20f
-            } else {
-                btn.setBackgroundColor(Color.TRANSPARENT)
-                btn.setTextColor(Color.parseColor("#999999"))
-                btn.textSize = 18f
-            }
+            btn.isSelected = (i == index)
+            btn.setTextColor(if (i == index) Color.WHITE else Color.parseColor("#888888"))
+            btn.textSize = 17f
         }
     }
 
@@ -143,6 +137,13 @@ class TvSettingsActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
                     if (focused != null && !menuButtons.contains(focused)) {
                         menuButtons[activePanelIndex].requestFocus()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    // Clicking a sidebar button also moves focus to the panel
+                    if (focused != null && menuButtons.contains(focused)) {
+                        firstFocusable[activePanelIndex]?.requestFocus()
                         return true
                     }
                 }
