@@ -13,8 +13,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 78
-        versionName "2.41"
+        versionCode 79
+        versionName "2.42"
 
         def ghToken = System.getenv('MKTV_GH_TOKEN') ?:
             ['powershell', '-command',

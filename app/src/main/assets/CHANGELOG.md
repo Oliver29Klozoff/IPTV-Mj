@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.42 - 2026-06-29
+- Guide: past programs filtered out; timeline starts at the current show with a green NOW indicator
+- Guide: upcoming programs capped at 8; replay-eligible shows shown in blue
+
 ## v2.41 - 2026-06-29
 - Fast launch: channels load from cache instantly, network sync skipped if fetched within 4 hours
 - Refresh button in top bar to force-sync channels from server

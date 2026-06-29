@@ -26,20 +26,37 @@ class GuideAdapter(
             binding.tvChannelName.text = row.channel.name
             binding.programContainer.removeAllViews()
 
-            if (row.programs.isEmpty()) {
-                binding.programContainer.addView(makeProgramText("No guide data", false, null))
+            val nowMs = System.currentTimeMillis()
+
+            fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
+
+            // Drop programs that have already ended; keep current + upcoming (max 8)
+            val visible = row.programs
+                .filter { toMs(it.stopTimestamp) > nowMs }
+                .take(8)
+
+            if (visible.isEmpty()) {
+                binding.programContainer.addView(makeProgramText("No upcoming guide data", 0xFF555555.toInt(), null))
             } else {
-                row.programs.forEach { program ->
-                    val start = formatTime(program.startTimestamp)
+                visible.forEach { program ->
+                    val startMs = toMs(program.startTimestamp)
+                    val isNow = startMs <= nowMs
+                    val start = if (isNow) "▶ NOW" else formatTime(program.startTimestamp)
                     val stop = formatTime(program.stopTimestamp)
-                    val isReplay = row.channel.tvArchive == 1 && program.hasArchive == 1
-                    val label = if (isReplay)
-                        "$start - $stop  ${program.title}  ▶ Replay"
-                    else
-                        "$start - $stop  ${program.title}"
+                    val isReplay = !isNow && row.channel.tvArchive == 1 && program.hasArchive == 1
+                    val label = when {
+                        isNow    -> "$start  ${program.title}  (until $stop)"
+                        isReplay -> "$start - $stop  ${program.title}  ▶ Replay"
+                        else     -> "$start - $stop  ${program.title}"
+                    }
+                    val color = when {
+                        isNow    -> 0xFF00FF88.toInt()
+                        isReplay -> 0xFF00AAFF.toInt()
+                        else     -> 0xFFCCCCCC.toInt()
+                    }
 
                     binding.programContainer.addView(
-                        makeProgramText(label, isReplay,
+                        makeProgramText(label, color,
                             onClick = { if (isReplay) onReplayClick(row, program) },
                             onLongClick = { showTimerDialog(row, program) }
                         )
@@ -52,16 +69,16 @@ class GuideAdapter(
             }
         }
 
-        private fun makeProgramText(text: String, isReplay: Boolean, onClick: (() -> Unit)?, onLongClick: (() -> Unit)? = null): TextView {
+        private fun makeProgramText(text: String, color: Int, onClick: (() -> Unit)?, onLongClick: (() -> Unit)? = null): TextView {
             return TextView(binding.root.context).apply {
                 this.text = text
-                setTextColor(if (isReplay) 0xFF00AAFF.toInt() else 0xFFFFFFFF.toInt())
+                setTextColor(color)
                 textSize = 14f
                 setPadding(18, 12, 18, 12)
                 minWidth = 300
                 isClickable = true
                 isFocusable = true
-                if (isReplay && onClick != null) setOnClickListener { onClick() }
+                if (onClick != null) setOnClickListener { onClick() }
                 setOnLongClickListener {
                     onLongClick?.invoke()
                     true

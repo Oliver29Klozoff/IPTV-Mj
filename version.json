@@ -1,10 +1,9 @@
 {
-  "versionCode": 78,
-  "versionName": "2.41",
+  "versionCode": 79,
+  "versionName": "2.42",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Fast launch: channels load from cache instantly, network sync skipped if fetched within 4 hours",
-    "Refresh button in top bar to force-sync channels from server",
-    "Fixed: channel list no longer hidden waiting for network on launch"
+    "Guide: past programs filtered out; timeline starts at current show with green NOW indicator",
+    "Guide: upcoming programs capped at 8; replay-eligible shows still shown in blue"
   ]
 }
