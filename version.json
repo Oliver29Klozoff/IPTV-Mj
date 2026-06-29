@@ -1,8 +1,8 @@
 {
-  "versionCode": 93,
-  "versionName": "2.56",
+  "versionCode": 94,
+  "versionName": "2.57",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Android TV Settings: D-pad Up/Down stays in sidebar — no more jumping into content panels"
+    "Cast fix: session started while picker was open was silently missed — now caught on resume"
   ]
 }

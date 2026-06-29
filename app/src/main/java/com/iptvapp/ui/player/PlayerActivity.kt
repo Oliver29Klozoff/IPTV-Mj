@@ -673,14 +673,16 @@ class PlayerActivity : AppCompatActivity() {
                 Toast.makeText(this@PlayerActivity, "Cast error: no media client", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            client.load(loadRequest).addStatusListener { status ->
-                Log.d("CastDebug", "load result: success=${status.isSuccess} code=${status.statusCode} msg=${status.statusMessage}")
-                if (!status.isSuccess) {
+            client.load(loadRequest).setResultCallback { result ->
+                Log.d("CastDebug", "load result: success=${result.status.isSuccess} code=${result.status.statusCode} msg=${result.status.statusMessage}")
+                if (!result.status.isSuccess) {
                     runOnUiThread {
                         Toast.makeText(this@PlayerActivity,
-                            "Cast failed (${status.statusCode}): ${status.statusMessage ?: "unknown"}",
+                            "Cast failed (${result.status.statusCode}): ${result.status.statusMessage ?: "unknown"}",
                             Toast.LENGTH_LONG).show()
                     }
+                } else {
+                    Log.d("CastDebug", "Cast load succeeded")
                 }
             }
         }
@@ -689,6 +691,14 @@ class PlayerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
+        // If the session started while we were paused (cast picker caused onPause),
+        // onSessionStarted already fired with no listener — catch it here
+        val activeSession = castContext?.sessionManager?.currentCastSession
+        if (activeSession != null && castSession == null) {
+            Log.d("CastDebug", "Caught missed session start in onResume")
+            castSession = activeSession
+            stopLocalAndCast(activeSession)
+        }
     }
 
     override fun onPause() {

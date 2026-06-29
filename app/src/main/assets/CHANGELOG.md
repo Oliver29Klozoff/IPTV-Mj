@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.57 - 2026-06-29
+- Cast fix: catch session that started while cast picker was open (onPause removed listener, missing the onSessionStarted callback)
+
 ## v2.56 - 2026-06-29
 - Android TV Settings: D-pad Up/Down now stays within the sidebar; no more jumping into content panels
 
