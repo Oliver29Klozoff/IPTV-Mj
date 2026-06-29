@@ -121,7 +121,8 @@
             android:background="@drawable/tv_sidebar_focus"
             android:focusable="true"
             android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
+            android:nextFocusRight="@id/tvRvContent"
+            android:nextFocusDown="@id/btnTvSettings" />
 
         <View
             android:layout_width="match_parent"
@@ -141,7 +142,8 @@
             android:background="@drawable/tv_sidebar_focus"
             android:focusable="true"
             android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
+            android:nextFocusRight="@id/tvRvContent"
+            android:nextFocusUp="@id/btnTvGuide" />
 
     </LinearLayout>
 
