@@ -1,10 +1,10 @@
 {
-  "versionCode": 71,
-  "versionName": "2.34",
+  "versionCode": 72,
+  "versionName": "2.35",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Status bar and navigation bar both hidden (swipe to peek)",
-    "System navigation bar hidden for full-screen experience",
+    "Top bar moved flush to top edge (no wasted space)",
+    "Status bar and navigation bar hidden (swipe to peek)",
     "Landscape mode: vertical sidebar nav + mini player above channels",
     "Top bar decluttered: Sort, Mosaic, What's On moved to Settings",
     "Quick Actions in Settings: Sort Channels, What's On Now, Mosaic",

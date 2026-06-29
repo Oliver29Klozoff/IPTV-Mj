@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.35 - 2026-06-28
+- Top bar flush to screen edge (no reserved status bar space)
+
 ## v2.34 - 2026-06-28
 - Hide status bar and navigation bar (swipe down/up to peek)
 
