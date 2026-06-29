@@ -2,6 +2,8 @@ package com.iptvapp.ui.player
 
 import android.app.AlertDialog
 import android.app.PictureInPictureParams
+import android.util.Log
+import android.widget.Toast
 import android.content.Context
 import android.media.AudioManager
 import android.os.Build
@@ -633,27 +635,27 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun stopLocalAndCast(session: CastSession) {
         if (streamUrl.isBlank()) return
-        // Capture position before stopping
         val localPositionMs = if (isVod) (player?.currentPosition?.takeIf { it > 0 } ?: resumePositionMs) else 0L
-        // Stop local player first so the IPTV server frees the connection slot
         player?.stop()
         player?.clearMediaItems()
         lifecycleScope.launch {
-            // Brief wait so the server has time to close our connection before Chromecast opens one
             delay(1500)
             val castUrl = if (!isVod) repository.getLiveStreamUrlForCast(streamId) else streamUrl
+            Log.d("CastDebug", "Casting: isVod=$isVod streamId=$streamId url=$castUrl")
+            Toast.makeText(this@PlayerActivity, "Casting: ${castUrl.takeLast(40)}", Toast.LENGTH_LONG).show()
+
             val contentType = when {
                 castUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
-                castUrl.contains(".mpd", ignoreCase = true)  -> "application/dash+xml"
-                castUrl.contains(".mp4", ignoreCase = true)  -> "video/mp4"
+                castUrl.contains(".mpd",  ignoreCase = true) -> "application/dash+xml"
+                castUrl.contains(".mp4",  ignoreCase = true) -> "video/mp4"
                 else -> "application/x-mpegURL"
             }
-            // Cast SDK 21+: Builder arg is contentId, URL must be set separately via setContentUrl
+            val streamType = if (isVod) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_LIVE
             val metadata = MediaMetadata(if (isVod) MediaMetadata.MEDIA_TYPE_MOVIE else MediaMetadata.MEDIA_TYPE_TV_SHOW).apply {
                 putString(MediaMetadata.KEY_TITLE, streamTitle)
             }
-            val streamType = if (isVod) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_LIVE
-            val mediaInfo = MediaInfo.Builder(streamTitle.ifBlank { castUrl })
+            // contentId must be the URL (not the title) — some receiver versions use it as the fallback src
+            val mediaInfo = MediaInfo.Builder(castUrl)
                 .setContentUrl(castUrl)
                 .setStreamType(streamType)
                 .setContentType(contentType)
@@ -664,7 +666,23 @@ class PlayerActivity : AppCompatActivity() {
                 .setAutoplay(true)
                 .apply { if (isVod && localPositionMs > 0) setCurrentTime(localPositionMs) }
                 .build()
-            session.remoteMediaClient?.load(loadRequest)
+
+            val client = session.remoteMediaClient
+            if (client == null) {
+                Log.e("CastDebug", "remoteMediaClient is null")
+                Toast.makeText(this@PlayerActivity, "Cast error: no media client", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            client.load(loadRequest).addStatusListener { status ->
+                Log.d("CastDebug", "load result: success=${status.isSuccess} code=${status.statusCode} msg=${status.statusMessage}")
+                if (!status.isSuccess) {
+                    runOnUiThread {
+                        Toast.makeText(this@PlayerActivity,
+                            "Cast failed (${status.statusCode}): ${status.statusMessage ?: "unknown"}",
+                            Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }
     }
 

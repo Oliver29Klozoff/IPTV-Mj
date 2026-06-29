@@ -1,8 +1,9 @@
 {
-  "versionCode": 91,
-  "versionName": "2.54",
+  "versionCode": 92,
+  "versionName": "2.55",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Android TV: Set GitHub Token button in Settings -> Sync — enter your PAT to enable sync on Shield/TV boxes"
+    "Cast debug: Toast shows URL + error reason if cast fails (logcat tag CastDebug)",
+    "Cast fix: contentId set to stream URL instead of title"
   ]
 }

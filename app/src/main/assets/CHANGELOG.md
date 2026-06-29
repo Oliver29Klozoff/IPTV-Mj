@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.55 - 2026-06-29
+- Cast debug: Toast shows URL being sent + error message if cast load fails (logcat tag: CastDebug)
+- Cast fix: contentId now set to URL instead of stream title
+
 ## v2.54 - 2026-06-29
 - Android TV: added GitHub Token field in Settings → Sync so sync works on Shield/TV boxes
 
