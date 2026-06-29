@@ -1,8 +1,8 @@
 {
-  "versionCode": 88,
-  "versionName": "2.51",
+  "versionCode": 89,
+  "versionName": "2.52",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Fix EPG mismatch between guide grid and channel player — all views now show the currently-airing program"
+    "Sync: second device auto-discovers your Gist — same token, tap Sync Down, done"
   ]
 }

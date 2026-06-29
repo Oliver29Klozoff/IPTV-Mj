@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.52 - 2026-06-29
+- Sync: second device now auto-discovers the Gist — enter the same token and tap Sync Down, no manual ID needed
+
 ## v2.51 - 2026-06-29
 - Fix EPG mismatch: mini player, player OSD, and guide now all show the currently-airing program instead of the oldest entry in the DB
 

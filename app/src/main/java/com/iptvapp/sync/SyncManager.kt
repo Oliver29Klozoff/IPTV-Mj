@@ -50,7 +50,8 @@ class SyncManager @Inject constructor(
                 put("recentlyWatchedIds", JSONArray(recentIds))
             }
 
-            val gistId = prefs.getSyncGistId()
+            var gistId = prefs.getSyncGistId()
+            if (gistId.isEmpty()) gistId = discoverGistId(token).also { if (it.isNotEmpty()) prefs.setSyncGistId(it) }
             val isNew = gistId.isEmpty()
 
             val bodyJson = if (isNew) {
@@ -98,13 +99,35 @@ class SyncManager @Inject constructor(
         }
     }
 
+    private suspend fun discoverGistId(token: String): String {
+        val req = Request.Builder()
+            .url("https://api.github.com/gists?per_page=100")
+            .header("Authorization", "token $token")
+            .header("Accept", "application/vnd.github.v3+json")
+            .build()
+        val resp = client.newCall(req).execute()
+        if (!resp.isSuccessful) return ""
+        val arr = org.json.JSONArray(resp.body?.string() ?: "[]")
+        for (i in 0 until arr.length()) {
+            val gist = arr.getJSONObject(i)
+            if (gist.getJSONObject("files").has("mktv_sync.json")) {
+                return gist.getString("id")
+            }
+        }
+        return ""
+    }
+
     suspend fun syncDown(): String = withContext(Dispatchers.IO) {
         try {
             val token = prefs.githubToken.first()
             if (token.isEmpty()) return@withContext "No GitHub token — add one in Settings → Developer"
 
-            val gistId = prefs.getSyncGistId()
-            if (gistId.isEmpty()) return@withContext "No sync data found — push from another device first"
+            var gistId = prefs.getSyncGistId()
+            if (gistId.isEmpty()) {
+                gistId = discoverGistId(token)
+                if (gistId.isEmpty()) return@withContext "No sync data found — push from another device first"
+                prefs.setSyncGistId(gistId)
+            }
 
             val request = Request.Builder()
                 .url("https://api.github.com/gists/$gistId")
