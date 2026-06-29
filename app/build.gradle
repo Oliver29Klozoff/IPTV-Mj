@@ -16,7 +16,10 @@ android {
         versionCode 72
         versionName "2.35"
 
-        def ghToken = System.getenv('MKTV_GH_TOKEN') ?: ''
+        def ghToken = System.getenv('MKTV_GH_TOKEN') ?:
+            ['powershell', '-command',
+             "[System.Environment]::GetEnvironmentVariable('MKTV_GH_TOKEN','User')"]
+            .execute().text.trim()
         buildConfigField "String", "GH_TOKEN", "\"${ghToken}\""
     }
     signingConfigs {
