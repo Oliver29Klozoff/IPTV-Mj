@@ -1,9 +1,8 @@
 {
-  "versionCode": 92,
-  "versionName": "2.55",
+  "versionCode": 93,
+  "versionName": "2.56",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast debug: Toast shows URL + error reason if cast fails (logcat tag CastDebug)",
-    "Cast fix: contentId set to stream URL instead of title"
+    "Android TV Settings: D-pad Up/Down stays in sidebar — no more jumping into content panels"
   ]
 }

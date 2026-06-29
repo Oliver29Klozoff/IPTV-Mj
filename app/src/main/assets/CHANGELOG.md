@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.56 - 2026-06-29
+- Android TV Settings: D-pad Up/Down now stays within the sidebar; no more jumping into content panels
+
 ## v2.55 - 2026-06-29
 - Cast debug: Toast shows URL being sent + error message if cast load fails (logcat tag: CastDebug)
 - Cast fix: contentId now set to URL instead of stream title

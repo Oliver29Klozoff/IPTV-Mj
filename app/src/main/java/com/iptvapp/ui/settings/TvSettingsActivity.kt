@@ -128,17 +128,32 @@ class TvSettingsActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             val focused = currentFocus
+            val inSidebar = focused != null && menuButtons.contains(focused)
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (focused != null && menuButtons.contains(focused)) {
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (inSidebar) {
                         val idx = menuButtons.indexOf(focused)
                         selectPanel(idx, enterPanel = true)
                         return true
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (focused != null && !menuButtons.contains(focused)) {
+                    if (!inSidebar) {
                         menuButtons[activePanelIndex].requestFocus()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (inSidebar) {
+                        val idx = menuButtons.indexOf(focused)
+                        if (idx > 0) menuButtons[idx - 1].requestFocus()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (inSidebar) {
+                        val idx = menuButtons.indexOf(focused)
+                        if (idx < menuButtons.size - 1) menuButtons[idx + 1].requestFocus()
                         return true
                     }
                 }
