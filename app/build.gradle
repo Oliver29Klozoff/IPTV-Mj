@@ -16,11 +16,7 @@ android {
         versionCode 72
         versionName "2.35"
 
-        def props = new Properties()
-        def propsFile = rootProject.file("local.properties")
-        if (propsFile.exists()) props.load(new FileInputStream(propsFile))
-        def ghToken = (props['GH_TOKEN_A'] ?: '') + (props['GH_TOKEN_B'] ?: '')
-        if (ghToken.isEmpty()) ghToken = props['GH_TOKEN'] ?: ''
+        def ghToken = System.getenv('MKTV_GH_TOKEN') ?: ''
         buildConfigField "String", "GH_TOKEN", "\"${ghToken}\""
     }
     signingConfigs {
