@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.54 - 2026-06-29
+- Android TV: added GitHub Token field in Settings → Sync so sync works on Shield/TV boxes
+
 ## v2.53 - 2026-06-29
 - Cast fix: live channels now use HLS stream type; cast URL always m3u8 (Chromecast only supports HLS)
 - Cast button now hidden until you tap the screen, then auto-hides with the other controls

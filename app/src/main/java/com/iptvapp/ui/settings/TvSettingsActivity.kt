@@ -79,7 +79,7 @@ class TvSettingsActivity : AppCompatActivity() {
     )
     private val firstFocusable: List<View?> get() = listOf(
         binding.switchTvFormat, binding.switchTvUsaOnly, binding.btnTvAddEpg,
-        binding.btnTvCheckUpdate, binding.btnTvRunBackup, binding.btnTvAddServer, binding.btnTvLogout, binding.switchTvSyncEnabled
+        binding.btnTvCheckUpdate, binding.btnTvRunBackup, binding.btnTvAddServer, binding.btnTvLogout, binding.btnTvSetToken
     )
 
     private var activePanelIndex = 0
@@ -786,6 +786,38 @@ class TvSettingsActivity : AppCompatActivity() {
             binding.switchTvSyncEnabled.isChecked = prefs.syncEnabled.first()
             val summary = syncManager.getLastSyncSummary()
             binding.tvTvSyncStatus.text = summary
+            val saved = prefs.githubToken.first()
+            binding.btnTvSetToken.text = if (saved.isNotBlank())
+                "GitHub Token: •••${saved.takeLast(4)}" else "Set GitHub Token"
+        }
+        binding.btnTvSetToken.setOnClickListener {
+            lifecycleScope.launch {
+                val current = prefs.githubToken.first()
+                val input = EditText(this@TvSettingsActivity).apply {
+                    hint = "ghp_xxxxxxxxxxxx"
+                    inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                        android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    if (current.isNotBlank()) setText(current)
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setHintTextColor(0xFF666666.toInt())
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                }
+                AlertDialog.Builder(this@TvSettingsActivity)
+                    .setTitle("GitHub Token")
+                    .setMessage("Enter your GitHub Personal Access Token (gist scope required)")
+                    .setView(input)
+                    .setPositiveButton("Save") { _, _ ->
+                        val t = input.text.toString().trim()
+                        lifecycleScope.launch {
+                            prefs.setGithubToken(t)
+                            binding.btnTvSetToken.text = if (t.isNotBlank())
+                                "GitHub Token: •••${t.takeLast(4)}" else "Set GitHub Token"
+                            toast(if (t.isNotBlank()) "Token saved" else "Token cleared")
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
         }
         binding.switchTvSyncEnabled.setOnCheckedChangeListener { _, enabled ->
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }

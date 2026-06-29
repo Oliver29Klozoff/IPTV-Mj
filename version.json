@@ -1,9 +1,8 @@
 {
-  "versionCode": 90,
-  "versionName": "2.53",
+  "versionCode": 91,
+  "versionName": "2.54",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: live TV now streams correctly to Chromecast (HLS stream type, always m3u8 URL)",
-    "Cast button hidden by default — tap screen to show, auto-hides with other controls"
+    "Android TV: Set GitHub Token button in Settings -> Sync — enter your PAT to enable sync on Shield/TV boxes"
   ]
 }

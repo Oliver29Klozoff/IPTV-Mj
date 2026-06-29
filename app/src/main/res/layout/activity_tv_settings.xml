@@ -898,6 +898,17 @@
                     android:layout_marginBottom="24dp">
 
                     <Button
+                        android:id="@+id/btnTvSetToken"
+                        android:layout_width="280dp"
+                        android:layout_height="68dp"
+                        android:layout_marginBottom="16dp"
+                        android:background="@drawable/tv_settings_button"
+                        android:focusable="true"
+                        android:text="Set GitHub Token"
+                        android:textColor="#7BBEE0"
+                        android:textSize="17sp" />
+
+                    <Button
                         android:id="@+id/btnTvSyncUp"
                         android:layout_width="280dp"
                         android:layout_height="68dp"
