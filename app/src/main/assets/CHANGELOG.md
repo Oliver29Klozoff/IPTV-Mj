@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v2.37 - 2026-06-29
+- Bulk favorites: long-press to multi-select and add/remove channels
+- Channel hide: hide channels from all lists, unhide in settings
+- History tab: recently watched live channels
+- Channels Like This: same-category suggestions on long-press
+- Buffer health badge: live colored dot + buffer % + bitrate in player
+- TV home screen row: MKTV Favorites appear on Shield/TV launcher
+- TV Settings: one D-pad press to select and enter a panel
+- TV D-pad left: channels → categories → sidebar hierarchy
+
 ## v2.36 - 2026-06-29
 - TV Settings redesign: selected section shows blue left bar highlight, explicit D-pad focus chain on all 8 nav items, Enter key moves focus to content panel, Sync switch focus ring fixed
 

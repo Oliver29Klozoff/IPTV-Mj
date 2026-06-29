@@ -42,20 +42,21 @@ class UpdateChecker(
                 val latestCode = json.getLong("versionCode")
                 val latestName = json.optString("versionName", "")
                 val apkUrl = json.getString("apkUrl")
-                val notes = buildString {
-                    val arr = json.optJSONArray("changelog")
-                    if (arr != null && arr.length() > 0) {
-                        for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
-                    } else {
-                        append(json.optString("notes", ""))
-                    }
-                }.trimEnd()
+                val notes = buildChangelog(json)
 
                 val installedCode = getInstalledVersionCode()
+                val prefs = context.getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
+                val lastSeenCode = prefs.getLong("last_seen_version_code", 0L)
 
-                if (latestCode > installedCode) {
-                    withContext(Dispatchers.Main) {
+                when {
+                    latestCode > installedCode -> withContext(Dispatchers.Main) {
                         showUpdateDialog(latestName, notes, apkUrl)
+                    }
+                    latestCode == installedCode && installedCode > lastSeenCode -> {
+                        prefs.edit().putLong("last_seen_version_code", installedCode).apply()
+                        withContext(Dispatchers.Main) {
+                            showWhatsNewDialog(latestName, notes)
+                        }
                     }
                 }
             } catch (_: Exception) {
@@ -63,6 +64,15 @@ class UpdateChecker(
             }
         }
     }
+
+    private fun buildChangelog(json: JSONObject): String = buildString {
+        val arr = json.optJSONArray("changelog")
+        if (arr != null && arr.length() > 0) {
+            for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
+        } else {
+            append(json.optString("notes", ""))
+        }
+    }.trimEnd()
 
     private fun getInstalledVersionCode(): Long {
         return try {
@@ -81,19 +91,23 @@ class UpdateChecker(
     private fun showUpdateDialog(versionName: String, notes: String, apkUrl: String) {
         AlertDialog.Builder(context)
             .setTitle("MKTV $versionName available")
-            .setMessage(
-                buildString {
-                    if (notes.isNotBlank()) {
-                        appendLine("What's new:")
-                        appendLine()
-                        append(notes)
-                    }
+            .setMessage(buildString {
+                if (notes.isNotBlank()) {
+                    appendLine("What's new:")
+                    appendLine()
+                    append(notes)
                 }
-            )
-            .setPositiveButton("Update now") { _, _ ->
-                downloadAndInstall(apkUrl)
-            }
+            })
+            .setPositiveButton("Update now") { _, _ -> downloadAndInstall(apkUrl) }
             .setNegativeButton("Later", null)
+            .show()
+    }
+
+    private fun showWhatsNewDialog(versionName: String, notes: String) {
+        AlertDialog.Builder(context)
+            .setTitle("What's new in MKTV $versionName")
+            .setMessage(notes.ifBlank { "No changelog available." })
+            .setPositiveButton("Got it", null)
             .show()
     }
 
