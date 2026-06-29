@@ -23,8 +23,10 @@ import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
+import com.iptvapp.tv.TvHomeChannelPublisher
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -72,6 +74,28 @@ class TvHomeActivity : AppCompatActivity() {
         observeViewModel()
         viewModel.loadAll()
         selectSection(Section.LIVE)
+        handleDeepLink(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    private fun handleDeepLink(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "mktv") return
+        when (uri.host) {
+            "play" -> {
+                val streamId = uri.lastPathSegment?.toIntOrNull() ?: return
+                lifecycleScope.launch {
+                    val channel = viewModel.getChannelById(streamId) ?: return@launch
+                    val url = channel.streamUrl ?: return@launch
+                    openPlayer(url, channel.name, channel.streamId)
+                }
+            }
+            "home" -> selectSection(Section.FAVORITES)
+        }
     }
 
     override fun onResume() {
@@ -331,12 +355,14 @@ class TvHomeActivity : AppCompatActivity() {
 
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> if (inContent) {
-                    // LEFT from content → go to active sidebar button
-                    val target = if (binding.tvRvCategories.hasFocus() &&
-                        binding.tvRvCategories.visibility == View.VISIBLE)
-                        binding.tvRvCategories  // LEFT from content → categories
-                    else activeSidebarButton()
-                    target.requestFocus()
+                    if (binding.tvRvContent.hasFocus() &&
+                        binding.tvRvCategories.visibility == View.VISIBLE) {
+                        // channels → categories
+                        binding.tvRvCategories.requestFocus()
+                    } else {
+                        // categories (or content with no categories) → sidebar
+                        activeSidebarButton().requestFocus()
+                    }
                     return true
                 }
                 KeyEvent.KEYCODE_DPAD_RIGHT -> if (inSidebar) {
@@ -519,6 +545,16 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.externalPlayer.collect { externalPlayerChoice = it }
+        }
+        lifecycleScope.launch {
+            viewModel.loading.collect { isLoading ->
+                if (!isLoading) {
+                    val favorites = viewModel.channels.value.filter { it.isFavorite }
+                    if (favorites.isNotEmpty()) {
+                        TvHomeChannelPublisher.publishFavorites(applicationContext, favorites)
+                    }
+                }
+            }
         }
     }
 

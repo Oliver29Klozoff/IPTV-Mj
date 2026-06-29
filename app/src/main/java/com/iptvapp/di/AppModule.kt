@@ -76,7 +76,8 @@ object AppModule {
             IptvDatabase.MIGRATION_4_5,
             IptvDatabase.MIGRATION_5_6,
             IptvDatabase.MIGRATION_6_7,
-            IptvDatabase.MIGRATION_7_8
+            IptvDatabase.MIGRATION_7_8,
+            IptvDatabase.MIGRATION_8_9
         ).build()
 
     @Provides fun provideChannelDao(db: IptvDatabase) = db.channelDao()

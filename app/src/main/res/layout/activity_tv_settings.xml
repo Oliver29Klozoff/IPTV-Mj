@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#05080E"
@@ -42,16 +43,16 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="📡  Stream"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
-            android:nextFocusDown="@id/btnTvDisplay"
-            android:nextFocusRight="@id/panelTvStream" />
+            android:nextFocusDown="@id/btnTvDisplay" />
 
         <Button
             android:id="@+id/btnTvDisplay"
@@ -60,12 +61,13 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="🖥  Display"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvStream"
@@ -78,12 +80,13 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="📅  EPG"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvDisplay"
@@ -96,12 +99,13 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="⬆  Updates"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvEpg"
@@ -114,12 +118,13 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="💾  Backup"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvUpdate"
@@ -132,12 +137,13 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="🌐  Servers"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvBackup"
@@ -150,12 +156,13 @@
             android:layout_marginHorizontal="8dp"
             android:layout_marginBottom="2dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="👤  Account"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvServers"
@@ -167,12 +174,13 @@
             android:layout_height="60dp"
             android:layout_marginHorizontal="8dp"
             android:background="@drawable/tv_sidebar_item"
+            app:backgroundTint="@null"
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:gravity="start|center_vertical"
             android:paddingStart="20dp"
             android:text="☁  Sync"
-            android:textColor="#CCCCCC"
+            android:textColor="#888888"
             android:textSize="17sp"
             android:textAllCaps="false"
             android:nextFocusUp="@id/btnTvAccount" />
@@ -196,6 +204,7 @@
             android:id="@+id/panelTvStream"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="visible">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -273,6 +282,7 @@
             android:id="@+id/panelTvDisplay"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -353,6 +363,7 @@
             android:id="@+id/panelTvEpg"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -545,6 +556,7 @@
             android:id="@+id/panelTvUpdate"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -612,6 +624,7 @@
             android:id="@+id/panelTvBackup"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -702,6 +715,7 @@
             android:id="@+id/panelTvServers"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -750,6 +764,7 @@
             android:id="@+id/panelTvAccount"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -807,6 +822,7 @@
             android:id="@+id/panelTvSync"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:focusable="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"

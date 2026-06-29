@@ -51,6 +51,10 @@ class HomeActivity : AppCompatActivity() {
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private lateinit var binding: ActivityHomeBinding
 
+    // ─── Bulk-select state ───────────────────────────────────────────────────
+    private val bulkSelectedIds = mutableSetOf<Int>()
+    private var bulkSelectMode = false
+
     private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@registerForActivityResult
@@ -384,7 +388,7 @@ class HomeActivity : AppCompatActivity() {
                 val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             },
-            onChannelLongClick = { channel -> showReminderDialog(channel) }
+            onChannelLongClick = { channel -> showChannelActionsMenu(channel) }
         )
 
         vodAdapter = VodAdapter(
@@ -565,8 +569,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showWatching() {
         binding.rvCategories.visibility = View.GONE
-        binding.rvChannels.adapter = vodAdapter
-        viewModel.showContinueWatching()
+        binding.rvChannels.adapter = channelAdapter
+        channelAdapter.showDragHandles = false
+        viewModel.observeRecentChannels()
     }
 
     private var favItemTouchHelper: ItemTouchHelper? = null
@@ -752,11 +757,84 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            viewModel.recentChannels.collect { list ->
+                if (binding.tabLayout.selectedTabPosition == 4) channelAdapter.submitList(list)
+            }
+        }
+        lifecycleScope.launch {
             viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }
         }
         lifecycleScope.launch {
             viewModel.externalPlayer.collect { externalPlayerChoice = it }
         }
+    }
+
+    private fun showChannelActionsMenu(channel: ChannelEntity) {
+        val options = mutableListOf(
+            "Set Reminder",
+            if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
+            "Hide Channel",
+            "Channels Like This"
+        )
+        if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
+            options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(channel.name)
+            .setItems(options.toTypedArray()) { _, i ->
+                when (options[i]) {
+                    "Set Reminder" -> showReminderDialog(channel)
+                    "Select (bulk add to favorites)" -> {
+                        bulkSelectMode = true
+                        bulkSelectedIds.add(channel.streamId)
+                        Toast.makeText(this, "${bulkSelectedIds.size} selected — long-press another or tap '✓ Add' to confirm", Toast.LENGTH_SHORT).show()
+                    }
+                    "Deselect (bulk)" -> {
+                        bulkSelectedIds.remove(channel.streamId)
+                        if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
+                    }
+                    "Hide Channel" -> {
+                        viewModel.hideChannel(channel.streamId)
+                        Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
+                    }
+                    "Channels Like This" -> showSimilarChannelsSheet(channel)
+                    else -> if (options[i].startsWith("✓ Add")) {
+                        viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+                        Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                        bulkSelectedIds.clear()
+                        bulkSelectMode = false
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSimilarChannelsSheet(channel: ChannelEntity) {
+        viewModel.loadSimilarChannels(channel)
+        val rv = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Channels like ${channel.name}")
+            .setView(rv)
+            .setNegativeButton("Close") { _, _ -> viewModel.clearSimilarChannels() }
+            .create()
+        val similarAdapter = ChannelAdapter(
+            onChannelClick = { similar ->
+                dialog.dismiss()
+                viewModel.clearSimilarChannels()
+                lifecycleScope.launch { playInMiniPlayer(similar) }
+            },
+            onFavoriteClick = { similar -> viewModel.toggleChannelFavorite(similar.streamId) }
+        )
+        rv.adapter = similarAdapter
+        lifecycleScope.launch {
+            viewModel.similarChannels.collect { list ->
+                similarAdapter.submitList(list)
+            }
+        }
+        dialog.show()
     }
 
     private fun showReminderDialog(channel: ChannelEntity) {

@@ -238,6 +238,38 @@
 
     </LinearLayout>
 
+    <!-- Compact buffer health badge (always visible during playback) -->
+    <LinearLayout
+        android:id="@+id/bufferHealthBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:background="#BB000000"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <View
+            android:id="@+id/viewHealthDotPlayer"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/health_dot" />
+
+        <TextView
+            android:id="@+id/tvHealthBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+
     <!-- Streaming stats overlay -->
     <TextView
         android:id="@+id/tvStats"

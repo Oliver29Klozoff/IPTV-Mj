@@ -117,6 +117,14 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private val healthHandler = Handler(Looper.getMainLooper())
+    private val healthRunnable = object : Runnable {
+        override fun run() {
+            updateHealthBadge()
+            healthHandler.postDelayed(this, 2000)
+        }
+    }
+
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
     private val castSessionListener = object : SessionManagerListener<CastSession> {
@@ -221,6 +229,42 @@ class PlayerActivity : AppCompatActivity() {
             appendLine("BIT   $bitrate")
             append("BUF   ${bufSec}s  ($bufPct%)")
         }
+    }
+
+    private fun updateHealthBadge() {
+        val p = player ?: run {
+            binding.bufferHealthBadge.visibility = View.GONE
+            return
+        }
+        val bufPct = p.bufferedPercentage
+        val vf = p.videoFormat
+        val bitrate = if (vf != null && vf.bitrate > 0)
+            "${"%.1f".format(vf.bitrate / 1_000f)}k" else ""
+        val dotColor = when {
+            p.playbackState == Player.STATE_BUFFERING -> android.graphics.Color.parseColor("#FF8800")
+            bufPct >= 50 -> android.graphics.Color.parseColor("#00CC66")
+            bufPct >= 20 -> android.graphics.Color.parseColor("#FFCC00")
+            else -> android.graphics.Color.parseColor("#FF4444")
+        }
+        (binding.viewHealthDotPlayer.background as? android.graphics.drawable.GradientDrawable)
+            ?.setColor(dotColor)
+        val label = buildString {
+            append("$bufPct%")
+            if (bitrate.isNotEmpty()) append("  $bitrate")
+        }
+        binding.tvHealthBadge.text = label
+        binding.bufferHealthBadge.visibility = View.VISIBLE
+    }
+
+    private fun startHealthBadge() {
+        binding.bufferHealthBadge.visibility = View.VISIBLE
+        updateHealthBadge()
+        healthHandler.postDelayed(healthRunnable, 2000)
+    }
+
+    private fun stopHealthBadge() {
+        healthHandler.removeCallbacks(healthRunnable)
+        binding.bufferHealthBadge.visibility = View.GONE
     }
 
     private fun showSpeedDialog() {
@@ -501,6 +545,7 @@ class PlayerActivity : AppCompatActivity() {
                                 binding.progressBuffering.visibility = View.GONE
                                 binding.tvRetryStatus.visibility = View.GONE
                                 if (isVod) startSeekBarUpdater()
+                                startHealthBadge()
                                 showOverlay()
                                 updatePlayPauseButton()
                                 if (isVod && resumePositionMs > 0L) {
@@ -857,6 +902,7 @@ class PlayerActivity : AppCompatActivity() {
         retryJob?.cancel()
         seekRunnable?.let { seekHandler.removeCallbacks(it) }
         statsHandler.removeCallbacks(statsRunnable)
+        stopHealthBadge()
         player?.release()
         player = null
     }

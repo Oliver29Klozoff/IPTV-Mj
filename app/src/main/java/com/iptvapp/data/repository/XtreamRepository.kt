@@ -121,6 +121,21 @@ class XtreamRepository @Inject constructor(
         db.channelDao().incrementViewCount(streamId)
     }
 
+    suspend fun setChannelHidden(streamId: Int, hidden: Boolean) =
+        db.channelDao().setHidden(streamId, hidden)
+
+    fun getHiddenChannels(): Flow<List<ChannelEntity>> =
+        db.channelDao().getHiddenChannels()
+
+    suspend fun bulkSetFavorite(streamIds: List<Int>) =
+        db.channelDao().bulkSetFavorite(streamIds)
+
+    suspend fun bulkClearFavorite(streamIds: List<Int>) =
+        db.channelDao().bulkClearFavorite(streamIds)
+
+    fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>> =
+        db.channelDao().getSimilarChannels(categoryId, excludeStreamId)
+
     suspend fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
         if (isFavorite) {
             prefs.addFavoriteLiveCategoryId(categoryId)

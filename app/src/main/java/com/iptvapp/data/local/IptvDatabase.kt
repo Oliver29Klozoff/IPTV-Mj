@@ -15,7 +15,7 @@ import com.iptvapp.data.local.entities.*
         SeriesEntity::class,
         EpgEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -64,6 +64,12 @@ abstract class IptvDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE channels ADD COLUMN viewCount INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE channels ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

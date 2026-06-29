@@ -112,16 +112,17 @@ class TvSettingsActivity : AppCompatActivity() {
 
     // ─── Panel navigation ───────────────────────────────────────────────────
 
-    private fun selectPanel(index: Int) {
+    private fun selectPanel(index: Int, enterPanel: Boolean = false) {
         activePanelIndex = index
         panels.forEachIndexed { i, panel ->
             panel.visibility = if (i == index) View.VISIBLE else View.GONE
         }
         menuButtons.forEachIndexed { i, btn ->
-            btn.isSelected = (i == index)
-            btn.setTextColor(if (i == index) Color.WHITE else Color.parseColor("#888888"))
-            btn.textSize = 17f
+            val bg = if (i == index) R.drawable.tv_sidebar_active else R.drawable.tv_sidebar_item
+            btn.setBackgroundResource(bg)
+            btn.setTextColor(if (i == index) Color.WHITE else 0xFF888888.toInt())
         }
+        if (enterPanel) firstFocusable[index]?.requestFocus()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -130,20 +131,14 @@ class TvSettingsActivity : AppCompatActivity() {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     if (focused != null && menuButtons.contains(focused)) {
-                        firstFocusable[activePanelIndex]?.requestFocus()
+                        val idx = menuButtons.indexOf(focused)
+                        selectPanel(idx, enterPanel = true)
                         return true
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
                     if (focused != null && !menuButtons.contains(focused)) {
                         menuButtons[activePanelIndex].requestFocus()
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    // Clicking a sidebar button also moves focus to the panel
-                    if (focused != null && menuButtons.contains(focused)) {
-                        firstFocusable[activePanelIndex]?.requestFocus()
                         return true
                     }
                 }

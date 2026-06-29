@@ -424,4 +424,67 @@ class HomeViewModel @Inject constructor(
             .sortedBy { it.startTimestamp }
             .take(6)
     }
+
+    // ─── Watch History ───────────────────────────────────────────────────────
+
+    private val _recentChannels = MutableStateFlow<List<ChannelEntity>>(emptyList())
+    val recentChannels: StateFlow<List<ChannelEntity>> = _recentChannels
+
+    fun observeRecentChannels() {
+        viewModelScope.launch {
+            repository.getRecentChannels().collectLatest { _recentChannels.value = it }
+        }
+    }
+
+    fun trackChannelPlay(streamId: Int) {
+        viewModelScope.launch { repository.markChannelWatched(streamId) }
+    }
+
+    // ─── Channel Hide ────────────────────────────────────────────────────────
+
+    private val _hiddenChannels = MutableStateFlow<List<ChannelEntity>>(emptyList())
+    val hiddenChannels: StateFlow<List<ChannelEntity>> = _hiddenChannels
+
+    fun observeHiddenChannels() {
+        viewModelScope.launch {
+            repository.getHiddenChannels().collectLatest { _hiddenChannels.value = it }
+        }
+    }
+
+    fun hideChannel(streamId: Int) {
+        viewModelScope.launch { repository.setChannelHidden(streamId, true) }
+    }
+
+    fun unhideChannel(streamId: Int) {
+        viewModelScope.launch { repository.setChannelHidden(streamId, false) }
+    }
+
+    // ─── Bulk Favorites ──────────────────────────────────────────────────────
+
+    fun bulkAddFavorites(streamIds: List<Int>) {
+        viewModelScope.launch { repository.bulkSetFavorite(streamIds) }
+    }
+
+    fun bulkRemoveFavorites(streamIds: List<Int>) {
+        viewModelScope.launch { repository.bulkClearFavorite(streamIds) }
+    }
+
+    // ─── Channels Like This ──────────────────────────────────────────────────
+
+    private val _similarChannels = MutableStateFlow<List<ChannelEntity>>(emptyList())
+    val similarChannels: StateFlow<List<ChannelEntity>> = _similarChannels
+
+    fun loadSimilarChannels(channel: ChannelEntity) {
+        val categoryId = channel.categoryId ?: return
+        viewModelScope.launch {
+            repository.getSimilarChannels(categoryId, channel.streamId)
+                .first()
+                .let { _similarChannels.value = it }
+        }
+    }
+
+    fun clearSimilarChannels() { _similarChannels.value = emptyList() }
+
+    suspend fun getChannelById(streamId: Int): ChannelEntity? =
+        repository.getChannelById(streamId)
 }

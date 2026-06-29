@@ -6,17 +6,17 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChannelDao {
-    @Query("SELECT * FROM channels ORDER BY num ASC")
+    @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY num ASC")
     fun getAllChannels(): Flow<List<ChannelEntity>>
-    @Query("SELECT * FROM channels WHERE categoryId = :categoryId ORDER BY num ASC")
+    @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY num ASC")
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>>
-    @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY favOrder ASC, name ASC")
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannels(): Flow<List<ChannelEntity>>
     @Query("UPDATE channels SET favOrder = :order WHERE streamId = :streamId")
     suspend fun updateFavOrder(streamId: Int, order: Int)
-    @Query("SELECT * FROM channels WHERE lastWatched IS NOT NULL ORDER BY lastWatched DESC LIMIT 20")
+    @Query("SELECT * FROM channels WHERE lastWatched IS NOT NULL AND isHidden = 0 ORDER BY lastWatched DESC LIMIT 30")
     fun getRecentChannels(): Flow<List<ChannelEntity>>
-    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' ORDER BY num ASC")
+    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY num ASC")
     fun searchChannels(query: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE streamId = :streamId")
     suspend fun getChannelById(streamId: Int): ChannelEntity?
@@ -45,6 +45,16 @@ interface ChannelDao {
     suspend fun clearAllFavorites()
     @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannelsBlocking(): List<ChannelEntity>
+    @Query("UPDATE channels SET isHidden = :hidden WHERE streamId = :streamId")
+    suspend fun setHidden(streamId: Int, hidden: Boolean)
+    @Query("SELECT * FROM channels WHERE isHidden = 1 ORDER BY name ASC")
+    fun getHiddenChannels(): Flow<List<ChannelEntity>>
+    @Query("UPDATE channels SET isFavorite = 1 WHERE streamId IN (:streamIds)")
+    suspend fun bulkSetFavorite(streamIds: List<Int>)
+    @Query("UPDATE channels SET isFavorite = 0 WHERE streamId IN (:streamIds)")
+    suspend fun bulkClearFavorite(streamIds: List<Int>)
+    @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND streamId != :excludeStreamId AND isHidden = 0 ORDER BY viewCount DESC, name ASC LIMIT 20")
+    fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
 }
 
 @Dao

@@ -17,7 +17,8 @@ data class ChannelEntity(
     val cachedAt: Long = System.currentTimeMillis(),
     val streamUrl: String? = null,
     val favOrder: Int = 0,
-    val viewCount: Int = 0
+    val viewCount: Int = 0,
+    val isHidden: Boolean = false
 )
 
 @Entity(tableName = "categories")

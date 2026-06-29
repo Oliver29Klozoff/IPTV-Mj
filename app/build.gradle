@@ -13,8 +13,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 73
-        versionName "2.36"
+        versionCode 74
+        versionName "2.37"
 
         def ghToken = System.getenv('MKTV_GH_TOKEN') ?:
             ['powershell', '-command',
@@ -91,6 +91,7 @@ dependencies {
     implementation 'androidx.media3:media3-datasource-okhttp:1.4.1'
     implementation 'androidx.media3:media3-ui:1.4.1'
     implementation 'androidx.leanback:leanback:1.2.0-alpha04'
+    implementation 'androidx.tvprovider:tvprovider:1.0.0'
     
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     ksp 'com.github.bumptech.glide:ksp:4.16.0'
