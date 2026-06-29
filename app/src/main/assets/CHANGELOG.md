@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.58 - 2026-06-29
+- Cast: buffer health badge hidden when casting starts; 3s status Toast shows actual Chromecast playback state
+
 ## v2.57 - 2026-06-29
 - Cast fix: catch session that started while cast picker was open (onPause removed listener, missing the onSessionStarted callback)
 

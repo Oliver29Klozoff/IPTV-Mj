@@ -1,8 +1,8 @@
 {
-  "versionCode": 94,
-  "versionName": "2.57",
+  "versionCode": 95,
+  "versionName": "2.58",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: session started while picker was open was silently missed — now caught on resume"
+    "Cast: buffer badge hidden on cast start; second Toast shows Chromecast playback state after 3s"
   ]
 }

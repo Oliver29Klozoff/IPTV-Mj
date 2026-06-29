@@ -638,6 +638,7 @@ class PlayerActivity : AppCompatActivity() {
         val localPositionMs = if (isVod) (player?.currentPosition?.takeIf { it > 0 } ?: resumePositionMs) else 0L
         player?.stop()
         player?.clearMediaItems()
+        binding.bufferHealthBadge.visibility = View.GONE
         lifecycleScope.launch {
             delay(1500)
             val castUrl = if (!isVod) repository.getLiveStreamUrlForCast(streamId) else streamUrl
@@ -682,7 +683,20 @@ class PlayerActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Log.d("CastDebug", "Cast load succeeded")
+                    // Load accepted — check actual playback state after 3s
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        val ms = client.mediaStatus
+                        val stateStr = when (ms?.playerState) {
+                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PLAYING  -> "PLAYING"
+                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_BUFFERING -> "BUFFERING"
+                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PAUSED   -> "PAUSED"
+                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_IDLE     -> "IDLE (idle reason=${ms.idleReason})"
+                            null -> "no media status"
+                            else -> "state=${ms.playerState}"
+                        }
+                        Log.d("CastDebug", "3s status: $stateStr")
+                        Toast.makeText(this@PlayerActivity, "Cast status: $stateStr", Toast.LENGTH_LONG).show()
+                    }, 3000)
                 }
             }
         }
