@@ -1,10 +1,8 @@
 {
-  "versionCode": 87,
-  "versionName": "2.50",
+  "versionCode": 88,
+  "versionName": "2.51",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Security: GitHub token removed from APK — never compiled into build again",
-    "Debug reports and sync: enter your token once in Settings under Backup",
-    "VS Code debug config added for Shield TV and Pixel"
+    "Fix EPG mismatch between guide grid and channel player — all views now show the currently-airing program"
   ]
 }

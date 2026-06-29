@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.51 - 2026-06-29
+- Fix EPG mismatch: mini player, player OSD, and guide now all show the currently-airing program instead of the oldest entry in the DB
+
 ## v2.50 - 2026-06-29
 - Security: GitHub token removed from APK entirely — no longer compiled into build
 - Debug reports and sync now use a token entered once in Settings → Backup → GitHub Token field

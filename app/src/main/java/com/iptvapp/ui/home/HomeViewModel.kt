@@ -21,6 +21,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private fun EpgEntity.startMs() = if (startTimestamp < 100_000_000_000L) startTimestamp * 1000L else startTimestamp
+private fun EpgEntity.stopMs()  = if (stopTimestamp  < 100_000_000_000L) stopTimestamp  * 1000L else stopTimestamp
+private fun List<EpgEntity>.nowProgram(): EpgEntity? {
+    val now = System.currentTimeMillis()
+    return firstOrNull { it.startMs() <= now && it.stopMs() > now }
+}
+private fun List<EpgEntity>.nextProgram(current: EpgEntity?): EpgEntity? {
+    if (current == null) return null
+    return firstOrNull { it.startMs() > current.stopMs() }
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: XtreamRepository,
@@ -418,8 +429,8 @@ class HomeViewModel @Inject constructor(
     suspend fun getEpgText(streamId: Int): String {
         repository.fetchEpg(streamId)
         val epg = repository.getEpgForStream(streamId).first()
-        val now = epg.firstOrNull()
-        val next = epg.drop(1).firstOrNull()
+        val now = epg.nowProgram()
+        val next = epg.nextProgram(now)
         return when {
             now != null && next != null -> "NOW: ${now.title}   NEXT: ${next.title}"
             now != null -> "NOW: ${now.title}"
@@ -429,14 +440,14 @@ class HomeViewModel @Inject constructor(
 
     suspend fun getMiniEpgDescription(streamId: Int): String {
         val epg = repository.getEpgForStream(streamId).first()
-        return epg.firstOrNull()?.description?.takeIf { it.isNotBlank() } ?: ""
+        return epg.nowProgram()?.description?.takeIf { it.isNotBlank() } ?: ""
     }
 
     suspend fun getMiniEpgProgress(streamId: Int): Int {
         val epg = repository.getEpgForStream(streamId).first()
-        val now = epg.firstOrNull() ?: return 0
-        val start = if (now.startTimestamp < 100000000000L) now.startTimestamp * 1000 else now.startTimestamp
-        val stop = if (now.stopTimestamp < 100000000000L) now.stopTimestamp * 1000 else now.stopTimestamp
+        val now = epg.nowProgram() ?: return 0
+        val start = now.startMs()
+        val stop = now.stopMs()
         val current = System.currentTimeMillis()
         if (stop <= start) return 0
         return ((current - start) * 100 / (stop - start)).toInt().coerceIn(0, 100)

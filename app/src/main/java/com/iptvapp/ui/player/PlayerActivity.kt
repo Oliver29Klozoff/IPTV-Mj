@@ -730,8 +730,11 @@ class PlayerActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 repository.fetchEpg(streamId)
                 val epg = repository.getEpgForStream(streamId).first()
-                val now = epg.firstOrNull()
-                val next = epg.drop(1).firstOrNull()
+                val nowMs = System.currentTimeMillis()
+                fun startMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.startTimestamp < 100_000_000_000L) e.startTimestamp * 1000L else e.startTimestamp
+                fun stopMs(e: com.iptvapp.data.local.entities.EpgEntity)  = if (e.stopTimestamp  < 100_000_000_000L) e.stopTimestamp  * 1000L else e.stopTimestamp
+                val now  = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs }
+                val next = epg.firstOrNull { now != null && startMs(it) > stopMs(now) }
                 binding.tvEpgNow.text = if (now != null) "NOW: " + now.title else ""
                 binding.tvEpgNext.text = if (next != null) "NEXT: " + next.title else ""
             }
@@ -748,14 +751,13 @@ class PlayerActivity : AppCompatActivity() {
         if (streamId != -1) {
             lifecycleScope.launch {
                 val epg = repository.getEpgForStream(streamId).first()
-                val now = epg.firstOrNull() ?: return@launch
+                val nowMs = System.currentTimeMillis()
+                fun startMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.startTimestamp < 100_000_000_000L) e.startTimestamp * 1000L else e.startTimestamp
+                fun stopMs(e: com.iptvapp.data.local.entities.EpgEntity)  = if (e.stopTimestamp  < 100_000_000_000L) e.stopTimestamp  * 1000L else e.stopTimestamp
+                val now = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs } ?: return@launch
                 binding.tvOsdEpg.text = now.title
-                val nowSecs = System.currentTimeMillis() / 1000
-                val progress = if (now.stopTimestamp > now.startTimestamp) {
-                    val elapsed = (nowSecs - now.startTimestamp).coerceAtLeast(0)
-                    val total = now.stopTimestamp - now.startTimestamp
-                    ((elapsed * 100) / total).coerceIn(0, 100).toInt()
-                } else 0
+                val start = startMs(now); val stop = stopMs(now)
+                val progress = if (stop > start) ((nowMs - start) * 100 / (stop - start)).toInt().coerceIn(0, 100) else 0
                 binding.osdEpgProgress.progress = progress
             }
         }
