@@ -153,12 +153,14 @@ class IptvCastProxy(
             val bodyStr = bodyBytes.toString(Charsets.UTF_8)
             val isPlaylist = looksLikePlaylistByMeta || bodyStr.trimStart().startsWith("#EXTM3U")
 
-            val redirectInfo = if (redirectChain.isEmpty()) "" else " redirects=$redirectChain"
+            // Use the final URL after redirects as the base for resolving relative segment paths
+            val finalUrl = resp.request.url.toString()
+            val redirectInfo = if (redirectChain.isEmpty()) "" else " redirects=$redirectChain finalUrl=${finalUrl.takeLast(80)}"
             Log.d("CastProxy", "← status=$status url=${url.takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}$redirectInfo")
             if (isPlaylist) Log.d("CastProxy", "m3u8 preview: ${bodyStr.take(300)}")
 
             if (isPlaylist) {
-                val rewritten = rewritePlaylist(bodyStr, url).toByteArray()
+                val rewritten = rewritePlaylist(bodyStr, finalUrl).toByteArray()
                 writeResponse(socket, "200 OK", "application/x-mpegURL", rewritten)
             } else {
                 writeResponse(socket, "200 OK", serverCt.ifBlank { guessContentType(url) }, bodyBytes)

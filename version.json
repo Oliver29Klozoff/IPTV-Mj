@@ -1,8 +1,8 @@
 {
-  "versionCode": 109,
-  "versionName": "2.72",
+  "versionCode": 110,
+  "versionName": "2.73",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast: forward Chromecast User-Agent to IPTV server; log HTTP status codes for segment requests"
+    "Cast fix: resolve segment URLs relative to the final URL after m3u8 redirect, not the original URL"
   ]
 }
