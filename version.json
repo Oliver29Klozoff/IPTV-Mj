@@ -1,9 +1,8 @@
 {
-  "versionCode": 117,
-  "versionName": "2.80",
+  "versionCode": 118,
+  "versionName": "2.81",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Auto Backup now saves to Downloads/MKTV (public storage) so it's visible in file managers and the in-app Restore picker",
-    "Fixed release build lint failure (missing dataSync foregroundServiceType)"
+    "Splash screen version label now reads from BuildConfig instead of a hardcoded string"
   ]
 }

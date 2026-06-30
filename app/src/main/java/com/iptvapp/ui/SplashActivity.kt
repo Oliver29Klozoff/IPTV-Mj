@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.animation.AnimationUtils
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.iptvapp.BuildConfig
 import com.iptvapp.R
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.databinding.ActivitySplashBinding
@@ -32,6 +33,7 @@ class SplashActivity : AppCompatActivity() {
         clearCrashLogIfNewVersion()
         binding = ActivitySplashBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.tvVersion?.text = "Version ${BuildConfig.VERSION_NAME}"
         val anim = AnimationUtils.loadAnimation(this, R.anim.splash_in)
         binding.ivSplashLogo.startAnimation(anim)
         binding.tvSplashName.startAnimation(anim)
