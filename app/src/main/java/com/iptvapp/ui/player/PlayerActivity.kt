@@ -653,6 +653,7 @@ class PlayerActivity : AppCompatActivity() {
             // context and enforces CORS; most IPTV servers don't send CORS headers.
             castProxy?.stop()
             val localIp = getLocalIpAddress()
+            Toast.makeText(this@PlayerActivity, "Phone IP: ${localIp ?: "NOT FOUND"}", Toast.LENGTH_SHORT).show()
             val castUrl = if (localIp != null) {
                 val proxy = com.iptvapp.cast.IptvCastProxy(localIp).also {
                     it.start()
@@ -660,11 +661,11 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 proxy.proxyUrl(directUrl)
             } else {
-                directUrl  // fallback if we can't get local IP
+                directUrl
             }
 
-            Log.d("CastDebug", "Casting via proxy: $castUrl")
-            Toast.makeText(this@PlayerActivity, "Casting: ${castUrl.takeLast(50)}", Toast.LENGTH_LONG).show()
+            Log.d("CastDebug", "localIp=$localIp castUrl=$castUrl")
+            Toast.makeText(this@PlayerActivity, "Cast URL: ${castUrl.takeLast(50)}", Toast.LENGTH_LONG).show()
 
             val contentType = when {
                 castUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
@@ -993,16 +994,17 @@ class PlayerActivity : AppCompatActivity() {
     private fun getLocalIpAddress(): String? {
         try {
             for (iface in java.net.NetworkInterface.getNetworkInterfaces() ?: return null) {
-                if (!iface.isUp || iface.isLoopback) continue
+                if (iface.isLoopback) continue
                 for (addr in iface.inetAddresses) {
                     if (addr.isLoopbackAddress) continue
                     if (addr is java.net.Inet4Address) {
-                        val ip = addr.hostAddress
-                        Log.d("CastProxy", "Local IP: $ip (${iface.name})")
+                        val ip = addr.hostAddress ?: continue
+                        Log.d("CastProxy", "Local IP: $ip (${iface.name} up=${iface.isUp})")
                         return ip
                     }
                 }
             }
+            Log.e("CastProxy", "No non-loopback IPv4 address found")
         } catch (e: Exception) {
             Log.e("CastProxy", "getLocalIpAddress failed", e)
         }

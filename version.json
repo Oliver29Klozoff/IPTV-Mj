@@ -1,8 +1,8 @@
 {
-  "versionCode": 98,
-  "versionName": "2.61",
+  "versionCode": 99,
+  "versionName": "2.62",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: use NetworkInterface for local IP detection (WifiManager.connectionInfo broken on Android 12+)"
+    "Cast debug: Toast shows phone IP and cast URL so we can confirm CORS proxy is starting"
   ]
 }
