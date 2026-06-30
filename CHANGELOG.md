@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v2.80 - 2026-06-30
+- **Auto Backup**: weekly backups now save to Downloads/MKTV (public storage) instead of the app's hidden Android/data folder, so they're visible in file managers and the in-app Restore picker
+- **Release build**: fixed missing dataSync foregroundServiceType causing lint failures
+
 ## v2.79 - 2026-06-30
 
 ## v2.78 - 2026-06-30

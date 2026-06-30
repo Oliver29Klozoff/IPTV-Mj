@@ -1,11 +1,9 @@
 {
-  "versionCode": 116,
-  "versionName": "2.79",
+  "versionCode": 117,
+  "versionName": "2.80",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Recording Scheduler: schedule live channel recordings by time and duration, saved as .ts files",
-    "REC button added to top bar on all screen variants",
-    "PiP corner: mini player collapses to bottom-right while browsing",
-    "Channel change OSD: D-pad up/down shows channel name, EPG program, and progress bar"
+    "Auto Backup now saves to Downloads/MKTV (public storage) so it's visible in file managers and the in-app Restore picker",
+    "Fixed release build lint failure (missing dataSync foregroundServiceType)"
   ]
 }

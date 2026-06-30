@@ -378,12 +378,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateAutoBackupPathLabel(enabled: Boolean) {
-        if (enabled) {
-            val dir = getExternalFilesDir(null) ?: filesDir
-            binding.tvAutoBackupPath.text = "Saves to: ${dir.absolutePath}"
-        } else {
-            binding.tvAutoBackupPath.text = ""
-        }
+        binding.tvAutoBackupPath.text = if (enabled) "Saves to: Downloads/MKTV" else ""
     }
 
     private fun scheduleAutoBackup() {
