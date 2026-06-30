@@ -1,8 +1,8 @@
 {
-  "versionCode": 100,
-  "versionName": "2.63",
+  "versionCode": 101,
+  "versionName": "2.64",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast debug: Toast shows if Chromecast actually connects to the proxy; buffered segment responses"
+    "Cast fix: live channels use STREAM_TYPE_LIVE (BUFFERED was waiting for EXT-X-ENDLIST that never arrives on live HLS)"
   ]
 }
