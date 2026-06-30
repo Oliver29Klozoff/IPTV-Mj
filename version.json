@@ -1,8 +1,8 @@
 {
-  "versionCode": 105,
-  "versionName": "2.68",
+  "versionCode": 106,
+  "versionName": "2.69",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: proxy only adds CORS header to m3u8 manifest; segments fetched directly by Chromecast native HLS (no proxy slowdown)"
+    "Cast debug: proxy hit counter (shows #1, #2, #5) + status check every 5s for 30s"
   ]
 }

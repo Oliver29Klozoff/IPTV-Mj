@@ -136,17 +136,14 @@ class IptvCastProxy(
     }
 
     private fun rewritePlaylist(content: String, baseUrl: String): String {
-        // Only resolve relative URLs to absolute — don't route segments through the proxy.
-        // The Chromecast's native HLS player fetches segments without CORS enforcement;
-        // only the initial manifest load needs the CORS header we add to our response.
         val baseUri = URI(baseUrl)
         return content.lines().joinToString("\n") { line ->
             val trimmed = line.trim()
             when {
                 trimmed.isEmpty() || trimmed.startsWith("#") -> line
                 trimmed.startsWith("http://") || trimmed.startsWith("https://") ->
-                    trimmed  // already absolute — leave as-is
-                else -> baseUri.resolve(trimmed).toString()  // resolve relative → absolute
+                    proxyUrl(trimmed)
+                else -> proxyUrl(baseUri.resolve(trimmed).toString())
             }
         }
     }

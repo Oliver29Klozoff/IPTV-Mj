@@ -717,13 +717,14 @@ class PlayerActivity : AppCompatActivity() {
             Toast.makeText(this@PlayerActivity, "Phone IP: ${localIp ?: "NOT FOUND"}", Toast.LENGTH_SHORT).show()
             val castUrl = if (localIp != null) {
                 val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-                var firstRequest = true
+                var reqCount = 0
                 val proxy = com.iptvapp.cast.IptvCastProxy(localIp) { path ->
-                    if (firstRequest) {
-                        firstRequest = false
+                    reqCount++
+                    val n = reqCount
+                    if (n == 1 || n == 2 || n == 5) {
                         mainHandler.post {
                             Toast.makeText(this@PlayerActivity,
-                                "Proxy hit! ${path.take(40)}", Toast.LENGTH_SHORT).show()
+                                "Proxy #$n: ${path.takeLast(50)}", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }.also {
@@ -778,20 +779,26 @@ class PlayerActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    // Load accepted — check actual playback state after 3s
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        val ms = client.mediaStatus
-                        val stateStr = when (ms?.playerState) {
-                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PLAYING  -> "PLAYING"
-                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_BUFFERING -> "BUFFERING"
-                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PAUSED   -> "PAUSED"
-                            com.google.android.gms.cast.MediaStatus.PLAYER_STATE_IDLE     -> "IDLE (idle reason=${ms.idleReason})"
-                            null -> "no media status"
-                            else -> "state=${ms.playerState}"
+                    val h = android.os.Handler(android.os.Looper.getMainLooper())
+                    var checks = 0
+                    val checkRunnable = object : Runnable {
+                        override fun run() {
+                            checks++
+                            val ms = client.mediaStatus
+                            val stateStr = when (ms?.playerState) {
+                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PLAYING  -> "PLAYING"
+                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_BUFFERING -> "BUFFERING"
+                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PAUSED   -> "PAUSED"
+                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_IDLE     -> "IDLE (reason=${ms.idleReason})"
+                                null -> "no status"
+                                else -> "state=${ms?.playerState}"
+                            }
+                            Log.d("CastDebug", "${checks*5}s: $stateStr")
+                            Toast.makeText(this@PlayerActivity, "${checks*5}s: $stateStr", Toast.LENGTH_SHORT).show()
+                            if (checks < 6) h.postDelayed(this, 5000)
                         }
-                        Log.d("CastDebug", "3s status: $stateStr")
-                        Toast.makeText(this@PlayerActivity, "Cast status: $stateStr", Toast.LENGTH_LONG).show()
-                    }, 8000)
+                    }
+                    h.postDelayed(checkRunnable, 5000)
                 }
             }
         }
