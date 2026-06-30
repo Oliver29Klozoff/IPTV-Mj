@@ -1,5 +1,7 @@
 # IPTV App - Changelog
 
+## v2.79 - 2026-06-30
+
 ## v2.78 - 2026-06-30
 - **Recording Scheduler**: Schedule recordings by channel, start time, and duration — saved as .ts files to Movies/MKTV/ on device
 - **⏺ REC button**: Added to top bar on all screen variants (phone portrait, landscape, TV, tablet)
