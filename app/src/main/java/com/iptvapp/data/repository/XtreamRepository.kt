@@ -166,9 +166,13 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun getLiveStreamUrlForCast(streamId: Int): String {
-        // Always build a fresh m3u8 URL — Chromecast Default Media Receiver only supports HLS.
+        // Always build a fresh m3u8 URL â€” Chromecast Default Media Receiver only supports HLS.
         // streamUrl in DB may be .ts or bare (no extension) which Chromecast cannot play.
         return urlBuilder().liveStreamUrl(streamId, "m3u8")
+    }
+
+    suspend fun getLiveStreamUrlForRecording(streamId: Int): String {
+        return urlBuilder().liveStreamUrl(streamId, "ts")
     }
 
     suspend fun fetchVodStreams(): Resource<List<VodStream>> {

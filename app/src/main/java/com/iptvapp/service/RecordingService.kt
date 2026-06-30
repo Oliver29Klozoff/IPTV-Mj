@@ -4,9 +4,13 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import com.iptvapp.data.local.IptvDatabase
 import dagger.hilt.android.AndroidEntryPoint
@@ -17,9 +21,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -53,88 +59,210 @@ class RecordingService : Service() {
         val url = intent?.getStringExtra(EXTRA_STREAM_URL) ?: return START_NOT_STICKY
         val name = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "Channel"
         val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L)
-        val path = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return START_NOT_STICKY
+        val target = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return START_NOT_STICKY
 
-        startForeground(NOTIF_ID, buildNotif(name))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, buildNotif(name), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(NOTIF_ID, buildNotif(name))
+        }
 
         job = scope.launch {
             if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "RECORDING")
+
             val ok = runCatching {
-                val file = File(path).also { it.parentFile?.mkdirs() }
-                file.outputStream().use { out -> recordHls(url, out, durationMs) }
+                openRecordingOutput(target).use { out ->
+                    val bytes = recordStream(url, out, durationMs)
+                    if (bytes < 1024) throw IOException("Recording wrote only $bytes bytes")
+                }
             }.isSuccess
+
+            finalizeTarget(target, ok)
+
             if (recordingId != -1) {
                 database.recordingDao().updateStatus(recordingId, if (ok) "DONE" else "FAILED")
             }
-            stopSelf()
+
+            stopSelf(startId)
         }
+
         return START_NOT_STICKY
     }
 
-    private fun recordHls(playlistUrl: String, output: OutputStream, durationMs: Long) {
-        val t0 = System.currentTimeMillis()
+    private fun openRecordingOutput(target: String): OutputStream {
+        return if (target.startsWith("content://")) {
+            contentResolver.openOutputStream(Uri.parse(target), "w")
+                ?: throw IOException("Unable to open recording output")
+        } else {
+            val file = File(target).also { it.parentFile?.mkdirs() }
+            file.outputStream()
+        }
+    }
+
+    private fun finalizeTarget(target: String, success: Boolean) {
+        if (!target.startsWith("content://")) {
+            if (!success) runCatching { File(target).delete() }
+            return
+        }
+
+        val uri = Uri.parse(target)
+        if (success && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.IS_PENDING, 0)
+            }
+            contentResolver.update(uri, values, null, null)
+        }
+
+        if (!success) {
+            runCatching { contentResolver.delete(uri, null, null) }
+        }
+    }
+
+    private fun recordStream(streamUrl: String, output: OutputStream, durationMs: Long): Long {
+        val lower = streamUrl.lowercase(Locale.US)
+        return if (lower.contains(".m3u8")) {
+            recordHls(streamUrl, output, durationMs)
+        } else {
+            recordDirectStream(streamUrl, output, durationMs)
+        }
+    }
+
+    private fun recordDirectStream(streamUrl: String, output: OutputStream, durationMs: Long): Long {
+        val started = System.currentTimeMillis()
+        var written = 0L
+        val conn = URL(streamUrl).openConnection() as HttpURLConnection
+
+        try {
+            conn.instanceFollowRedirects = true
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 30_000
+            conn.connect()
+
+            if (conn.responseCode !in 200..299) {
+                throw IOException("HTTP ${conn.responseCode}")
+            }
+
+            val buffer = ByteArray(128 * 1024)
+            conn.inputStream.use { input ->
+                while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+                    val n = input.read(buffer)
+                    if (n == -1) break
+                    output.write(buffer, 0, n)
+                    written += n
+                }
+            }
+        } finally {
+            conn.disconnect()
+        }
+
+        output.flush()
+        return written
+    }
+
+    private fun recordHls(playlistUrl: String, output: OutputStream, durationMs: Long): Long {
+        val started = System.currentTimeMillis()
         val seenSegments = linkedSetOf<String>()
+        var written = 0L
 
-        while (durationMs == 0L || System.currentTimeMillis() - t0 < durationMs) {
-            val masterText = fetchText(playlistUrl) ?: break
+        while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+            val masterText = fetchText(playlistUrl)
 
-            // If it's a master playlist (multi-bitrate), follow the first stream variant
+            if (!masterText.trimStart().startsWith("#EXTM3U")) {
+                return recordDirectStream(playlistUrl, output, durationMs)
+            }
+
             val mediaPlaylistUrl = if (masterText.contains("#EXT-X-STREAM-INF")) {
                 val variantLine = masterText.lines()
-                    .firstOrNull { !it.startsWith('#') && it.isNotBlank() } ?: break
+                    .firstOrNull { !it.startsWith("#") && it.isNotBlank() }
+                    ?: break
                 resolveUrl(playlistUrl, variantLine)
             } else {
                 playlistUrl
             }
 
-            val mediaText = if (mediaPlaylistUrl == playlistUrl) masterText
-                            else fetchText(mediaPlaylistUrl) ?: break
+            val mediaText = if (mediaPlaylistUrl == playlistUrl) {
+                masterText
+            } else {
+                fetchText(mediaPlaylistUrl)
+            }
 
             val targetDuration = mediaText.lines()
                 .firstOrNull { it.startsWith("#EXT-X-TARGETDURATION:") }
-                ?.removePrefix("#EXT-X-TARGETDURATION:")?.trim()?.toLongOrNull() ?: 6L
+                ?.removePrefix("#EXT-X-TARGETDURATION:")
+                ?.trim()
+                ?.toLongOrNull()
+                ?: 6L
 
             for (line in mediaText.lines()) {
-                if (line.isBlank() || line.startsWith('#')) continue
-                val segUrl = resolveUrl(mediaPlaylistUrl, line)
-                if (segUrl in seenSegments) continue
-                seenSegments.add(segUrl)
-                downloadSegment(segUrl, output)
-                if (durationMs > 0 && System.currentTimeMillis() - t0 >= durationMs) return
+                if (line.isBlank() || line.startsWith("#")) continue
+
+                val segmentUrl = resolveUrl(mediaPlaylistUrl, line.trim())
+                if (!seenSegments.add(segmentUrl)) continue
+
+                written += downloadSegment(segmentUrl, output)
+
+                if (durationMs > 0 && System.currentTimeMillis() - started >= durationMs) {
+                    output.flush()
+                    return written
+                }
             }
 
-            // VOD playlist ends with this tag — no need to re-poll
             if (mediaText.contains("#EXT-X-ENDLIST")) break
 
-            // Wait half the target duration before re-fetching the live playlist
             val waitMs = (targetDuration * 500L).coerceIn(2000L, 8000L)
             Thread.sleep(waitMs)
         }
+
+        output.flush()
+        return written
     }
 
-    private fun fetchText(url: String): String? = runCatching {
+    private fun fetchText(url: String): String {
         val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 10_000
-        conn.readTimeout = 15_000
-        conn.connect()
-        val text = conn.inputStream.bufferedReader().readText()
-        conn.disconnect()
-        text
-    }.getOrNull()
+        return try {
+            conn.instanceFollowRedirects = true
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 15_000
+            conn.connect()
 
-    private fun downloadSegment(url: String, output: OutputStream) {
-        runCatching {
-            val conn = URL(url).openConnection() as HttpURLConnection
+            if (conn.responseCode !in 200..299) {
+                throw IOException("HTTP ${conn.responseCode}")
+            }
+
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun downloadSegment(url: String, output: OutputStream): Long {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        var written = 0L
+
+        try {
+            conn.instanceFollowRedirects = true
             conn.connectTimeout = 15_000
             conn.readTimeout = 30_000
             conn.connect()
-            val buf = ByteArray(65536)
-            conn.inputStream.use { input ->
-                var n: Int
-                while (input.read(buf).also { n = it } != -1) output.write(buf, 0, n)
+
+            if (conn.responseCode !in 200..299) {
+                throw IOException("HTTP ${conn.responseCode}")
             }
+
+            val buffer = ByteArray(128 * 1024)
+            conn.inputStream.use { input ->
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n == -1) break
+                    output.write(buffer, 0, n)
+                    written += n
+                }
+            }
+        } finally {
             conn.disconnect()
         }
+
+        return written
     }
 
     private fun resolveUrl(base: String, relative: String): String {
@@ -144,7 +272,7 @@ class RecordingService : Service() {
             val slashAfterHost = base.indexOf("/", afterScheme)
             return if (slashAfterHost == -1) base + relative else base.substring(0, slashAfterHost) + relative
         }
-        return "${base.substringBeforeLast('/')}/$relative"
+        return "${base.substringBeforeLast("/")}/$relative"
     }
 
     override fun onDestroy() {
@@ -158,7 +286,7 @@ class RecordingService : Service() {
     private fun buildNotif(name: String): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Recording: $name")
-            .setContentText("Recording in progress…")
+            .setContentText("Recording in progress...")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
             .build()
