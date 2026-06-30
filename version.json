@@ -1,8 +1,8 @@
 {
-  "versionCode": 106,
-  "versionName": "2.69",
+  "versionCode": 107,
+  "versionName": "2.70",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast debug: proxy hit counter (shows #1, #2, #5) + status check every 5s for 30s"
+    "Cast debug: full proxy logcat output + detect playlists by content peek (#EXTM3U)"
   ]
 }

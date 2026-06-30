@@ -110,23 +110,30 @@ class IptvCastProxy(
         try {
             val req = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()
             val resp = client.newCall(req).execute()
-            val ct = resp.header("Content-Type") ?: guessContentType(url)
+            val serverCt = resp.header("Content-Type") ?: ""
             val body = resp.body ?: run {
+                Log.e("CastProxy", "No body for $url")
                 writeResponse(socket, "502 Bad Gateway", "text/plain", "No body".toByteArray())
                 return
             }
 
-            val isPlaylist = ct.contains("mpegurl", ignoreCase = true) ||
-                ct.contains("m3u", ignoreCase = true) ||
+            // Detect playlist by content-type OR url OR by peeking at content starting with #EXTM3U
+            val looksLikePlaylistByMeta = serverCt.contains("mpegurl", ignoreCase = true) ||
+                serverCt.contains("m3u", ignoreCase = true) ||
                 url.contains(".m3u8", ignoreCase = true)
 
+            val bodyBytes = body.bytes()
+            val bodyStr = bodyBytes.toString(Charsets.UTF_8)
+            val isPlaylist = looksLikePlaylistByMeta || bodyStr.trimStart().startsWith("#EXTM3U")
+
+            Log.d("CastProxy", "← url=${url.takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}")
+            if (isPlaylist) Log.d("CastProxy", "m3u8 preview: ${bodyStr.take(300)}")
+
             if (isPlaylist) {
-                val rewritten = rewritePlaylist(body.string(), url).toByteArray()
+                val rewritten = rewritePlaylist(bodyStr, url).toByteArray()
                 writeResponse(socket, "200 OK", "application/x-mpegURL", rewritten)
             } else {
-                // Buffer segment — avoids chunked encoding which can confuse HLS players
-                val bytes = body.bytes()
-                writeResponse(socket, "200 OK", ct, bytes)
+                writeResponse(socket, "200 OK", serverCt.ifBlank { guessContentType(url) }, bodyBytes)
             }
         } catch (e: Exception) {
             Log.e("CastProxy", "Upstream error for $url", e)
