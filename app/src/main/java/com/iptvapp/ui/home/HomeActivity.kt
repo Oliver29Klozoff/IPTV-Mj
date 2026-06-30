@@ -6,8 +6,11 @@ import com.iptvapp.util.isLargeScreenDevice
 
 import android.app.Activity
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.core.content.ContextCompat
 import android.speech.RecognizerIntent
 import android.view.View
 import android.view.WindowManager
@@ -55,6 +58,8 @@ class HomeActivity : AppCompatActivity() {
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
     private var bulkSelectMode = false
+
+    private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -137,6 +142,11 @@ class HomeActivity : AppCompatActivity() {
         }
         if (isLargeScreenDevice()) {
             binding.root.enableTvFocusHighlight()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         setupRecyclerViews()
         setupTabs()
