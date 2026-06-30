@@ -714,20 +714,8 @@ class PlayerActivity : AppCompatActivity() {
             // context and enforces CORS; most IPTV servers don't send CORS headers.
             castProxy?.stop()
             val localIp = getLocalIpAddress()
-            Toast.makeText(this@PlayerActivity, "Phone IP: ${localIp ?: "NOT FOUND"}", Toast.LENGTH_SHORT).show()
             val castUrl = if (localIp != null) {
-                val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-                var reqCount = 0
-                val proxy = com.iptvapp.cast.IptvCastProxy(localIp) { path ->
-                    reqCount++
-                    val n = reqCount
-                    if (n == 1 || n == 2 || n == 5) {
-                        mainHandler.post {
-                            Toast.makeText(this@PlayerActivity,
-                                "Proxy #$n: ${path.takeLast(50)}", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }.also {
+                val proxy = com.iptvapp.cast.IptvCastProxy(localIp).also {
                     it.start()
                     castProxy = it
                 }
@@ -737,7 +725,6 @@ class PlayerActivity : AppCompatActivity() {
             }
 
             Log.d("CastDebug", "localIp=$localIp castUrl=$castUrl")
-            Toast.makeText(this@PlayerActivity, "Cast URL: ${castUrl.takeLast(50)}", Toast.LENGTH_LONG).show()
 
             val contentType = when {
                 castUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
@@ -779,42 +766,12 @@ class PlayerActivity : AppCompatActivity() {
                 .apply { if (isVod && localPositionMs > 0) setCurrentTime(localPositionMs) }
                 .build()
 
-            val client = session.remoteMediaClient
-            if (client == null) {
+            val client = session.remoteMediaClient ?: run {
                 Log.e("CastDebug", "remoteMediaClient is null")
-                Toast.makeText(this@PlayerActivity, "Cast error: no media client", Toast.LENGTH_LONG).show()
                 return@launch
             }
             client.load(loadRequest).setResultCallback { result ->
-                Log.d("CastDebug", "load result: success=${result.status.isSuccess} code=${result.status.statusCode} msg=${result.status.statusMessage}")
-                if (!result.status.isSuccess) {
-                    runOnUiThread {
-                        Toast.makeText(this@PlayerActivity,
-                            "Cast failed (${result.status.statusCode}): ${result.status.statusMessage ?: "unknown"}",
-                            Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    val h = android.os.Handler(android.os.Looper.getMainLooper())
-                    var checks = 0
-                    val checkRunnable = object : Runnable {
-                        override fun run() {
-                            checks++
-                            val ms = client.mediaStatus
-                            val stateStr = when (ms?.playerState) {
-                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PLAYING  -> "PLAYING"
-                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_BUFFERING -> "BUFFERING"
-                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PAUSED   -> "PAUSED"
-                                com.google.android.gms.cast.MediaStatus.PLAYER_STATE_IDLE     -> "IDLE (reason=${ms.idleReason})"
-                                null -> "no status"
-                                else -> "state=${ms?.playerState}"
-                            }
-                            Log.d("CastDebug", "${checks*5}s: $stateStr")
-                            Toast.makeText(this@PlayerActivity, "${checks*5}s: $stateStr", Toast.LENGTH_SHORT).show()
-                            if (checks < 6) h.postDelayed(this, 5000)
-                        }
-                    }
-                    h.postDelayed(checkRunnable, 5000)
-                }
+                Log.d("CastDebug", "load result: success=${result.status.isSuccess} code=${result.status.statusCode}")
             }
         }
     }
