@@ -1,8 +1,9 @@
 {
-  "versionCode": 103,
-  "versionName": "2.66",
+  "versionCode": 104,
+  "versionName": "2.67",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Auto-play next episode: 10-second countdown card at end of each episode with Play Now / Cancel"
+    "Auto-play next episode with 10s countdown card",
+    "Fix: update checker now bypasses cache so new versions are detected immediately"
   ]
 }

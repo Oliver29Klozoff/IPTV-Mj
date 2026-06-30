@@ -32,7 +32,10 @@ class UpdateChecker(
     fun check(scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) {
             try {
-                val request = Request.Builder().url(versionJsonUrl).build()
+                val request = Request.Builder()
+                    .url(versionJsonUrl)
+                    .header("Cache-Control", "no-cache")
+                    .build()
                 val body = client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@launch
                     response.body?.string() ?: return@launch

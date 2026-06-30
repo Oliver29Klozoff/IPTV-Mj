@@ -13,8 +13,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 103
-        versionName "2.66"
+        versionCode 104
+        versionName "2.67"
 
         // GitHub token is stored in DataStore at runtime — never compiled into the APK
     }
