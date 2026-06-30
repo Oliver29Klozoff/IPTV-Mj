@@ -1,8 +1,11 @@
 {
-  "versionCode": 114,
-  "versionName": "2.77",
+  "versionCode": 116,
+  "versionName": "2.79",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast: removed debug toasts (IP, proxy hits, state checks)"
+    "Recording Scheduler: schedule live channel recordings by time and duration, saved as .ts files",
+    "REC button added to top bar on all screen variants",
+    "PiP corner: mini player collapses to bottom-right while browsing",
+    "Channel change OSD: D-pad up/down shows channel name, EPG program, and progress bar"
   ]
 }
