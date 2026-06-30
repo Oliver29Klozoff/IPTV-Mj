@@ -1,8 +1,8 @@
 {
-  "versionCode": 107,
-  "versionName": "2.70",
+  "versionCode": 108,
+  "versionName": "2.71",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast debug: full proxy logcat output + detect playlists by content peek (#EXTM3U)"
+    "Cast fix: proxy now keeps Cloudflare session cookies from m3u8 response and sends them with segment requests"
   ]
 }

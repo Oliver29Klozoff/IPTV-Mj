@@ -1,6 +1,9 @@
 package com.iptvapp.cast
 
 import android.util.Log
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.ServerSocket
@@ -8,6 +11,7 @@ import java.net.Socket
 import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -23,11 +27,24 @@ class IptvCastProxy(
     @Volatile private var running = false
     var listeningPort: Int = 0
 
+    private val cookieStore = ConcurrentHashMap<String, List<Cookie>>()
+    private val cookieJar = object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            if (cookies.isNotEmpty()) {
+                cookieStore[url.host] = cookies
+                Log.d("CastProxy", "Saved ${cookies.size} cookies for ${url.host}")
+            }
+        }
+        override fun loadForRequest(url: HttpUrl): List<Cookie> =
+            cookieStore[url.host] ?: emptyList()
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
+        .cookieJar(cookieJar)
         .build()
 
     fun start() {
