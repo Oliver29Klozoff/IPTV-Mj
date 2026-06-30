@@ -826,10 +826,15 @@ class PlayerActivity : AppCompatActivity() {
         retryCount = 0
         retryJob?.cancel()
         streamUrl = url
-        player?.let {
-            it.setMediaItem(MediaItem.fromUri(url))
-            it.prepare()
-            it.playWhenReady = true
+        val activeSession = castSession
+        if (activeSession != null) {
+            stopLocalAndCast(activeSession)
+        } else {
+            player?.let {
+                it.setMediaItem(MediaItem.fromUri(url))
+                it.prepare()
+                it.playWhenReady = true
+            }
         }
     }
 
