@@ -1,8 +1,8 @@
 {
-  "versionCode": 111,
-  "versionName": "2.74",
+  "versionCode": 112,
+  "versionName": "2.75",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast: switching channels now updates the TV — previously it only changed on the phone"
+    "Cast: current program name now shown as subtitle on Chromecast screen"
   ]
 }

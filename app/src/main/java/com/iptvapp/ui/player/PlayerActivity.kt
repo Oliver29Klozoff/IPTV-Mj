@@ -748,8 +748,22 @@ class PlayerActivity : AppCompatActivity() {
             // Live channels use STREAM_TYPE_LIVE — BUFFERED waits for #EXT-X-ENDLIST which
             // never comes on a live stream, causing indefinite LOADING state.
             val streamType = if (isVod) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_LIVE
+
+            // Fetch current EPG program to show as subtitle on Chromecast screen
+            var nowProgram: com.iptvapp.data.local.entities.EpgEntity? = null
+            if (!isVod && streamId != -1) {
+                try {
+                    val epg = repository.getEpgForStream(streamId).first()
+                    val nowMs = System.currentTimeMillis()
+                    fun startMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.startTimestamp < 100_000_000_000L) e.startTimestamp * 1000L else e.startTimestamp
+                    fun stopMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.stopTimestamp < 100_000_000_000L) e.stopTimestamp * 1000L else e.stopTimestamp
+                    nowProgram = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs }
+                } catch (_: Exception) {}
+            }
+
             val metadata = MediaMetadata(if (isVod) MediaMetadata.MEDIA_TYPE_MOVIE else MediaMetadata.MEDIA_TYPE_TV_SHOW).apply {
                 putString(MediaMetadata.KEY_TITLE, streamTitle)
+                nowProgram?.title?.takeIf { it.isNotBlank() }?.let { putString(MediaMetadata.KEY_SUBTITLE, it) }
             }
             // contentId must be the URL (not the title) — some receiver versions use it as the fallback src
             val mediaInfo = MediaInfo.Builder(castUrl)
