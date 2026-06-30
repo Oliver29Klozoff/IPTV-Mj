@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.61 - 2026-06-29
+- Cast fix: use NetworkInterface for local IP detection (WifiManager.connectionInfo broken on Android 12+)
+
 ## v2.60 - 2026-06-29
 - Cast fix: CORS proxy runs on the phone — Chromecast connects to local IP, phone forwards stream with CORS headers that IPTV servers don't send
 

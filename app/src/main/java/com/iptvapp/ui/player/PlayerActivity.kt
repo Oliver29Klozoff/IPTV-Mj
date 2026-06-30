@@ -991,12 +991,21 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun getLocalIpAddress(): String? {
-        return try {
-            val wm = applicationContext.getSystemService(android.content.Context.WIFI_SERVICE)
-                    as android.net.wifi.WifiManager
-            val ip = wm.connectionInfo.ipAddress
-            if (ip == 0) null
-            else android.text.format.Formatter.formatIpAddress(ip)
-        } catch (e: Exception) { null }
+        try {
+            for (iface in java.net.NetworkInterface.getNetworkInterfaces() ?: return null) {
+                if (!iface.isUp || iface.isLoopback) continue
+                for (addr in iface.inetAddresses) {
+                    if (addr.isLoopbackAddress) continue
+                    if (addr is java.net.Inet4Address) {
+                        val ip = addr.hostAddress
+                        Log.d("CastProxy", "Local IP: $ip (${iface.name})")
+                        return ip
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CastProxy", "getLocalIpAddress failed", e)
+        }
+        return null
     }
 }
