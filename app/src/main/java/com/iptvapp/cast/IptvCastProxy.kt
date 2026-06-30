@@ -177,13 +177,25 @@ class IptvCastProxy(
         return content.lines().joinToString("\n") { line ->
             val trimmed = line.trim()
             when {
-                trimmed.isEmpty() || trimmed.startsWith("#") -> line
+                trimmed.isEmpty() -> line
+                trimmed.startsWith("#") -> rewriteTagUris(line, baseUri)
                 trimmed.startsWith("http://") || trimmed.startsWith("https://") ->
                     proxyUrl(trimmed)
                 else -> proxyUrl(baseUri.resolve(trimmed).toString())
             }
         }
     }
+
+    // Rewrites URI="..." attributes inside HLS tags (e.g. #EXT-X-MEDIA subtitle tracks)
+    private fun rewriteTagUris(line: String, baseUri: URI): String =
+        line.replace(Regex("""URI="([^"]+)"""")) { m ->
+            val uri = m.groupValues[1]
+            val resolved = if (uri.startsWith("http://") || uri.startsWith("https://"))
+                proxyUrl(uri)
+            else
+                proxyUrl(baseUri.resolve(uri).toString())
+            """URI="$resolved""""
+        }
 
     private fun writeResponse(socket: Socket, status: String, ct: String, body: ByteArray) {
         val out = socket.getOutputStream()

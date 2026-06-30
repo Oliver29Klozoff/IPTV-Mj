@@ -1,8 +1,9 @@
 {
-  "versionCode": 112,
-  "versionName": "2.75",
+  "versionCode": 113,
+  "versionName": "2.76",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast: current program name now shown as subtitle on Chromecast screen"
+    "Cast: EPG now fetched fresh before casting so program title shows on TV",
+    "Cast: subtitle track URLs in m3u8 now routed through proxy so captions work on Chromecast"
   ]
 }

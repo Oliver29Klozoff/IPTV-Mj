@@ -753,6 +753,7 @@ class PlayerActivity : AppCompatActivity() {
             var nowProgram: com.iptvapp.data.local.entities.EpgEntity? = null
             if (!isVod && streamId != -1) {
                 try {
+                    repository.fetchEpg(streamId)
                     val epg = repository.getEpgForStream(streamId).first()
                     val nowMs = System.currentTimeMillis()
                     fun startMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.startTimestamp < 100_000_000_000L) e.startTimestamp * 1000L else e.startTimestamp
