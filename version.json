@@ -1,8 +1,8 @@
 {
-  "versionCode": 97,
-  "versionName": "2.60",
+  "versionCode": 98,
+  "versionName": "2.61",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: local CORS proxy on the phone — Chromecast connects to phone IP, stream forwarded with CORS headers"
+    "Cast fix: use NetworkInterface for local IP detection (WifiManager.connectionInfo broken on Android 12+)"
   ]
 }
