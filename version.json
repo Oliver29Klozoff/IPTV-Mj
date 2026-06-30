@@ -1,9 +1,8 @@
 {
-  "versionCode": 104,
-  "versionName": "2.67",
+  "versionCode": 105,
+  "versionName": "2.68",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Auto-play next episode with 10s countdown card",
-    "Fix: update checker now bypasses cache so new versions are detected immediately"
+    "Cast fix: proxy only adds CORS header to m3u8 manifest; segments fetched directly by Chromecast native HLS (no proxy slowdown)"
   ]
 }
