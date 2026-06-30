@@ -1,8 +1,8 @@
 {
-  "versionCode": 108,
-  "versionName": "2.71",
+  "versionCode": 109,
+  "versionName": "2.72",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: proxy now keeps Cloudflare session cookies from m3u8 response and sends them with segment requests"
+    "Cast: forward Chromecast User-Agent to IPTV server; log HTTP status codes for segment requests"
   ]
 }

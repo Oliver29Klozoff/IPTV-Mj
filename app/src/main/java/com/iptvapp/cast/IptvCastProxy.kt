@@ -78,12 +78,14 @@ class IptvCastProxy(
             socket.soTimeout = 20_000
             socket.use {
                 val input = socket.getInputStream()
-                // Read request line
                 val requestLine = readLine(input) ?: return
-                // Drain headers
+                // Read headers, capture User-Agent to forward
+                var incomingUserAgent: String? = null
                 while (true) {
                     val header = readLine(input) ?: break
                     if (header.isEmpty()) break
+                    if (header.startsWith("User-Agent:", ignoreCase = true))
+                        incomingUserAgent = header.substringAfter(":").trim()
                 }
 
                 val parts = requestLine.split(" ")
@@ -105,7 +107,7 @@ class IptvCastProxy(
 
                 val targetUrl = URLDecoder.decode(encodedUrl, "UTF-8")
                 Log.d("CastProxy", "→ $targetUrl")
-                proxyRequest(socket, targetUrl)
+                proxyRequest(socket, targetUrl, incomingUserAgent)
             }
         } catch (e: Exception) {
             Log.e("CastProxy", "Socket handler error", e)
@@ -123,18 +125,26 @@ class IptvCastProxy(
         }
     }
 
-    private fun proxyRequest(socket: Socket, url: String) {
+    private fun proxyRequest(socket: Socket, url: String, incomingUserAgent: String? = null) {
         try {
-            val req = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()
+            val ua = incomingUserAgent ?: "ExoPlayerLib/1.4.1 (Linux; Android)"
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", ua)
+                .header("Accept", "*/*")
+                .build()
             val resp = client.newCall(req).execute()
+            val status = resp.code
             val serverCt = resp.header("Content-Type") ?: ""
+            val redirectChain = generateSequence(resp.priorResponse) { it.priorResponse }
+                .map { it.code }.toList()
+
             val body = resp.body ?: run {
-                Log.e("CastProxy", "No body for $url")
+                Log.e("CastProxy", "No body for $url status=$status")
                 writeResponse(socket, "502 Bad Gateway", "text/plain", "No body".toByteArray())
                 return
             }
 
-            // Detect playlist by content-type OR url OR by peeking at content starting with #EXTM3U
             val looksLikePlaylistByMeta = serverCt.contains("mpegurl", ignoreCase = true) ||
                 serverCt.contains("m3u", ignoreCase = true) ||
                 url.contains(".m3u8", ignoreCase = true)
@@ -143,7 +153,8 @@ class IptvCastProxy(
             val bodyStr = bodyBytes.toString(Charsets.UTF_8)
             val isPlaylist = looksLikePlaylistByMeta || bodyStr.trimStart().startsWith("#EXTM3U")
 
-            Log.d("CastProxy", "← url=${url.takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}")
+            val redirectInfo = if (redirectChain.isEmpty()) "" else " redirects=$redirectChain"
+            Log.d("CastProxy", "← status=$status url=${url.takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}$redirectInfo")
             if (isPlaylist) Log.d("CastProxy", "m3u8 preview: ${bodyStr.take(300)}")
 
             if (isPlaylist) {
