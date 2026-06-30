@@ -13,10 +13,13 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 114
-        versionName "2.77"
+        versionCode 115
+        versionName "2.78"
 
-        // GitHub token is stored in DataStore at runtime — never compiled into the APK
+        def localProps = new Properties()
+        def localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) localProps.load(new FileInputStream(localPropsFile))
+        buildConfigField "String", "GH_TOKEN_B64", '"' + (localProps.getProperty('GH_TOKEN_B64') ?: '') + '"'
     }
     signingConfigs {
         release {

@@ -312,6 +312,9 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         navButtonViews.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
+        binding.headerRecordings.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java))
+        }
         selectPanel(0)
     }
 
@@ -359,21 +362,6 @@ class SettingsActivity : AppCompatActivity() {
             restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
         }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
-
-        // GitHub token field — stored in DataStore, never compiled into the APK
-        lifecycleScope.launch {
-            val saved = prefs.githubToken.first()
-            if (saved.isNotBlank()) binding.etGithubToken?.setText(saved)
-        }
-        binding.btnSaveGithubToken?.setOnClickListener {
-            val t = binding.etGithubToken?.text?.toString()?.trim() ?: ""
-            lifecycleScope.launch {
-                prefs.setGithubToken(t)
-                android.widget.Toast.makeText(this@SettingsActivity,
-                    if (t.isNotEmpty()) "GitHub token saved" else "GitHub token cleared",
-                    android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
 
         lifecycleScope.launch {
             val enabled = prefs.autoBackupEnabled.first()
@@ -482,9 +470,10 @@ class SettingsActivity : AppCompatActivity() {
         binding.tvReportStatus.text = "Collecting device info..."
         lifecycleScope.launch {
             try {
-                val token = prefs.githubToken.first()
+                val token = prefs.githubToken.first().takeIf { it.isNotBlank() }
+                    ?: BuildConfig.GH_TOKEN_B64
                 if (token.isBlank()) {
-                    binding.tvReportStatus.text = "⚠ No GitHub token set — add one in Settings → Developer"
+                    binding.tvReportStatus.text = "⚠ No GitHub token — add GH_TOKEN_B64 to local.properties and rebuild"
                     binding.btnSendDebugReport.isEnabled = true
                     binding.btnSendDebugReport.text = "Send Debug Report"
                     return@launch

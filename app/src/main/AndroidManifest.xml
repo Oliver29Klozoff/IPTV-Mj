@@ -115,6 +115,16 @@
             android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".ui.recordings.RecordingSchedulerActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <service
+            android:name=".service.RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <receiver
             android:name=".ui.guide.ChannelTimerReceiver"
             android:exported="false" />

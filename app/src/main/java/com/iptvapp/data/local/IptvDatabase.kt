@@ -13,9 +13,10 @@ import com.iptvapp.data.local.entities.*
         CategoryEntity::class,
         VodEntity::class,
         SeriesEntity::class,
-        EpgEntity::class
+        EpgEntity::class,
+        RecordingEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun vodDao(): VodDao
     abstract fun seriesDao(): SeriesDao
     abstract fun epgDao(): EpgDao
+    abstract fun recordingDao(): RecordingDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -70,6 +72,22 @@ abstract class IptvDatabase : RoomDatabase() {
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE channels ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS recordings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        streamId INTEGER NOT NULL,
+                        channelName TEXT NOT NULL,
+                        scheduledStartMs INTEGER NOT NULL,
+                        durationMs INTEGER NOT NULL,
+                        outputPath TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'SCHEDULED'
+                    )
+                """.trimIndent())
             }
         }
     }

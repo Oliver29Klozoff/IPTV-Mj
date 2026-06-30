@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.iptvapp.BuildConfig
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -31,10 +32,13 @@ class SyncManager @Inject constructor(
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    private suspend fun resolveToken(): String =
+        prefs.githubToken.first().takeIf { it.isNotBlank() } ?: BuildConfig.GH_TOKEN_B64
+
     suspend fun syncUp(): String = withContext(Dispatchers.IO) {
         try {
-            val token = prefs.githubToken.first()
-            if (token.isEmpty()) return@withContext "No GitHub token — add one in Settings → Developer"
+            val token = resolveToken()
+            if (token.isEmpty()) return@withContext "No GitHub token — add GH_TOKEN_B64 to local.properties and rebuild"
 
             val favChannelIds = db.channelDao().getFavoriteChannelIds()
             val recentIds = db.channelDao().getRecentChannels().first()
@@ -119,8 +123,8 @@ class SyncManager @Inject constructor(
 
     suspend fun syncDown(): String = withContext(Dispatchers.IO) {
         try {
-            val token = prefs.githubToken.first()
-            if (token.isEmpty()) return@withContext "No GitHub token — add one in Settings → Developer"
+            val token = resolveToken()
+            if (token.isEmpty()) return@withContext "No GitHub token — add GH_TOKEN_B64 to local.properties and rebuild"
 
             var gistId = prefs.getSyncGistId()
             if (gistId.isEmpty()) {
