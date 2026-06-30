@@ -1,8 +1,8 @@
 {
-  "versionCode": 102,
-  "versionName": "2.65",
+  "versionCode": 103,
+  "versionName": "2.66",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Program reminders now actually fire on Android 13+ — notification permission was declared but never requested at runtime"
+    "Auto-play next episode: 10-second countdown card at end of each episode with Play Now / Cancel"
   ]
 }

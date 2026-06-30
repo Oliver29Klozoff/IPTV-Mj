@@ -5,6 +5,7 @@ import android.app.PictureInPictureParams
 import android.util.Log
 import android.widget.Toast
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -86,6 +87,13 @@ class PlayerActivity : AppCompatActivity() {
     private var isVod: Boolean = false
     private var resumePositionMs: Long = 0L
 
+    // Episode playlist for auto-play next
+    private var epIds: List<String> = emptyList()
+    private var epTitles: List<String> = emptyList()
+    private var epExts: List<String> = emptyList()
+    private var epIndex: Int = -1
+    private var upNextJob: kotlinx.coroutines.Job? = null
+
     private val resizeModes = listOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT,
         AspectRatioFrameLayout.RESIZE_MODE_FILL,
@@ -165,6 +173,10 @@ class PlayerActivity : AppCompatActivity() {
         streamId = intent.getIntExtra("stream_id", -1)
         isVod = intent.getBooleanExtra("is_vod", false)
         resumePositionMs = intent.getLongExtra("resume_ms", 0L)
+        epIds    = intent.getStringArrayListExtra("ep_ids")    ?: emptyList()
+        epTitles = intent.getStringArrayListExtra("ep_titles") ?: emptyList()
+        epExts   = intent.getStringArrayListExtra("ep_exts")   ?: emptyList()
+        epIndex  = intent.getIntExtra("ep_index", -1)
 
         setupChannelZones()
         setupGestureDetector()
@@ -185,6 +197,54 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         if (isVod && resumePositionMs > 0L) showResumeDialog()
+    }
+
+    private fun showUpNextIfAvailable() {
+        val nextIndex = epIndex + 1
+        if (epIds.isEmpty() || nextIndex >= epIds.size) return
+        val nextTitle = epTitles.getOrElse(nextIndex) { "Next Episode" }
+        binding.tvUpNextTitle.text = nextTitle
+        binding.upNextCard.visibility = View.VISIBLE
+
+        val totalMs = 10_000L
+        upNextJob = lifecycleScope.launch {
+            val start = System.currentTimeMillis()
+            while (true) {
+                val elapsed = System.currentTimeMillis() - start
+                val remaining = (totalMs - elapsed).coerceAtLeast(0L)
+                binding.upNextProgress.progress = ((remaining.toFloat() / totalMs) * 100).toInt()
+                if (remaining == 0L) { playNextEpisode(nextIndex); break }
+                kotlinx.coroutines.delay(100)
+            }
+        }
+
+        binding.btnUpNextPlay.setOnClickListener {
+            upNextJob?.cancel()
+            playNextEpisode(nextIndex)
+        }
+        binding.btnUpNextCancel.setOnClickListener {
+            upNextJob?.cancel()
+            binding.upNextCard.visibility = View.GONE
+        }
+    }
+
+    private fun playNextEpisode(nextIndex: Int) {
+        binding.upNextCard.visibility = View.GONE
+        lifecycleScope.launch {
+            val url = repository.getSeriesEpisodeUrl(epIds[nextIndex], epExts[nextIndex])
+            val intent = Intent(this@PlayerActivity, PlayerActivity::class.java).apply {
+                putExtra("stream_url", url)
+                putExtra("stream_title", epTitles[nextIndex])
+                putExtra("stream_id", epIds[nextIndex].hashCode())
+                putExtra("is_vod", true)
+                putExtra("ep_index", nextIndex)
+                putStringArrayListExtra("ep_ids",    ArrayList(epIds))
+                putStringArrayListExtra("ep_titles", ArrayList(epTitles))
+                putStringArrayListExtra("ep_exts",   ArrayList(epExts))
+            }
+            finish()
+            startActivity(intent)
+        }
     }
 
     private fun showResumeDialog() {
@@ -569,6 +629,7 @@ class PlayerActivity : AppCompatActivity() {
                             Player.STATE_ENDED -> {
                                 binding.progressBuffering.visibility = View.GONE
                                 if (!isVod) scheduleRetry()
+                                else showUpNextIfAvailable()
                             }
                             else -> binding.progressBuffering.visibility = View.GONE
                         }
@@ -993,6 +1054,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        upNextJob?.cancel()
         castProxy?.stop()
         castProxy = null
         hideHandler.removeCallbacks(hideRunnable)

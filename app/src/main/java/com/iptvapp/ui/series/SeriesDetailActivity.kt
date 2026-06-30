@@ -34,6 +34,7 @@ class SeriesDetailActivity : AppCompatActivity() {
     @Inject lateinit var repository: XtreamRepository
 
     private var allEpisodes: Map<String, List<Episode>> = emptyMap()
+    private var currentSeasonEpisodes: List<Episode> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,15 +59,7 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
 
         episodeAdapter = EpisodeAdapter { episode ->
-            lifecycleScope.launch {
-                val url = repository.getSeriesEpisodeUrl(episode.id, episode.containerExtension)
-                startActivity(Intent(this@SeriesDetailActivity, PlayerActivity::class.java).apply {
-                    putExtra("stream_url", url)
-                    putExtra("stream_title", "S${episode.season}E${episode.episodeNum} ${episode.title}")
-                    putExtra("stream_id", episode.id.hashCode())
-                    putExtra("is_vod", true)
-                })
-            }
+            launchEpisode(episode)
         }
         binding.rvEpisodes.layoutManager = LinearLayoutManager(this)
         binding.rvEpisodes.adapter = episodeAdapter
@@ -105,6 +98,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                     fun showSeason(seasonKey: String) {
                         val episodes = allEpisodes[seasonKey].orEmpty()
                             .sortedBy { it.episodeNum }
+                        currentSeasonEpisodes = episodes
                         episodeAdapter.submitList(episodes)
                         binding.tvEmpty.visibility = if (episodes.isEmpty()) View.VISIBLE else View.GONE
                     }
@@ -127,6 +121,24 @@ class SeriesDetailActivity : AppCompatActivity() {
                 }
                 else -> {}
             }
+        }
+    }
+
+    fun launchEpisode(episode: Episode) {
+        val episodes = currentSeasonEpisodes.ifEmpty { return }
+        val index = episodes.indexOfFirst { it.id == episode.id }.takeIf { it >= 0 } ?: return
+        lifecycleScope.launch {
+            val url = repository.getSeriesEpisodeUrl(episode.id, episode.containerExtension)
+            startActivity(Intent(this@SeriesDetailActivity, PlayerActivity::class.java).apply {
+                putExtra("stream_url", url)
+                putExtra("stream_title", "S${episode.season}E${episode.episodeNum} ${episode.title}")
+                putExtra("stream_id", episode.id.hashCode())
+                putExtra("is_vod", true)
+                putExtra("ep_index", index)
+                putStringArrayListExtra("ep_ids",      ArrayList(episodes.map { it.id }))
+                putStringArrayListExtra("ep_titles",   ArrayList(episodes.map { "S${it.season}E${it.episodeNum} ${it.title}" }))
+                putStringArrayListExtra("ep_exts",     ArrayList(episodes.map { it.containerExtension }))
+            })
         }
     }
 
