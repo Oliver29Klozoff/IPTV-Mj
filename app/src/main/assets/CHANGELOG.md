@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.60 - 2026-06-29
+- Cast fix: CORS proxy runs on the phone — Chromecast connects to local IP, phone forwards stream with CORS headers that IPTV servers don't send
+
 ## v2.59 - 2026-06-29
 - Cast fix: use STREAM_TYPE_BUFFERED for all streams — Xtream Codes m3u8 lacks EXT-X-LIVE headers so STREAM_TYPE_LIVE was stalling the receiver
 

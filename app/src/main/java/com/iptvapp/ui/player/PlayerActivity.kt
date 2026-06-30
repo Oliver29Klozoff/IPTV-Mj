@@ -131,10 +131,16 @@ class PlayerActivity : AppCompatActivity() {
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
     private var castAvailable = false
+    private var castProxy: com.iptvapp.cast.IptvCastProxy? = null
     private val castSessionListener = object : SessionManagerListener<CastSession> {
         override fun onSessionStarted(session: CastSession, id: String) { castSession = session; stopLocalAndCast(session) }
         override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) { castSession = session; stopLocalAndCast(session) }
-        override fun onSessionEnded(session: CastSession, error: Int) { castSession = null; loadStream(streamUrl) }
+        override fun onSessionEnded(session: CastSession, error: Int) {
+            castSession = null
+            castProxy?.stop()
+            castProxy = null
+            loadStream(streamUrl)
+        }
         override fun onSessionStarting(session: CastSession) {}
         override fun onSessionStartFailed(session: CastSession, error: Int) {}
         override fun onSessionEnding(session: CastSession) {}
@@ -641,9 +647,24 @@ class PlayerActivity : AppCompatActivity() {
         binding.bufferHealthBadge.visibility = View.GONE
         lifecycleScope.launch {
             delay(1500)
-            val castUrl = if (!isVod) repository.getLiveStreamUrlForCast(streamId) else streamUrl
-            Log.d("CastDebug", "Casting: isVod=$isVod streamId=$streamId url=$castUrl")
-            Toast.makeText(this@PlayerActivity, "Casting: ${castUrl.takeLast(40)}", Toast.LENGTH_LONG).show()
+            val directUrl = if (!isVod) repository.getLiveStreamUrlForCast(streamId) else streamUrl
+
+            // Start local CORS proxy — Chromecast Default Media Receiver runs in a browser
+            // context and enforces CORS; most IPTV servers don't send CORS headers.
+            castProxy?.stop()
+            val localIp = getLocalIpAddress()
+            val castUrl = if (localIp != null) {
+                val proxy = com.iptvapp.cast.IptvCastProxy(localIp).also {
+                    it.start()
+                    castProxy = it
+                }
+                proxy.proxyUrl(directUrl)
+            } else {
+                directUrl  // fallback if we can't get local IP
+            }
+
+            Log.d("CastDebug", "Casting via proxy: $castUrl")
+            Toast.makeText(this@PlayerActivity, "Casting: ${castUrl.takeLast(50)}", Toast.LENGTH_LONG).show()
 
             val contentType = when {
                 castUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
@@ -961,9 +982,21 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        castProxy?.stop()
+        castProxy = null
         hideHandler.removeCallbacks(hideRunnable)
         osdHandler.removeCallbacks(hideOsdRunnable)
         indicatorHandler.removeCallbacks(hideBrightnessRunnable)
         indicatorHandler.removeCallbacks(hideVolumeRunnable)
+    }
+
+    private fun getLocalIpAddress(): String? {
+        return try {
+            val wm = applicationContext.getSystemService(android.content.Context.WIFI_SERVICE)
+                    as android.net.wifi.WifiManager
+            val ip = wm.connectionInfo.ipAddress
+            if (ip == 0) null
+            else android.text.format.Formatter.formatIpAddress(ip)
+        } catch (e: Exception) { null }
     }
 }

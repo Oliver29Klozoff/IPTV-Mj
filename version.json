@@ -1,8 +1,8 @@
 {
-  "versionCode": 96,
-  "versionName": "2.59",
+  "versionCode": 97,
+  "versionName": "2.60",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/raw/main/MKTV.apk",
   "changelog": [
-    "Cast fix: STREAM_TYPE_BUFFERED for all streams — fixes stall on Xtream Codes live channels"
+    "Cast fix: local CORS proxy on the phone — Chromecast connects to phone IP, stream forwarded with CORS headers"
   ]
 }
