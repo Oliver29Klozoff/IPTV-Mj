@@ -655,7 +655,17 @@ class PlayerActivity : AppCompatActivity() {
             val localIp = getLocalIpAddress()
             Toast.makeText(this@PlayerActivity, "Phone IP: ${localIp ?: "NOT FOUND"}", Toast.LENGTH_SHORT).show()
             val castUrl = if (localIp != null) {
-                val proxy = com.iptvapp.cast.IptvCastProxy(localIp).also {
+                val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                var firstRequest = true
+                val proxy = com.iptvapp.cast.IptvCastProxy(localIp) { path ->
+                    if (firstRequest) {
+                        firstRequest = false
+                        mainHandler.post {
+                            Toast.makeText(this@PlayerActivity,
+                                "Proxy hit! ${path.take(40)}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }.also {
                     it.start()
                     castProxy = it
                 }

@@ -11,19 +11,22 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * Minimal local HTTP proxy that adds CORS headers so the Chromecast Default Media
- * Receiver (which enforces CORS in its browser context) can load IPTV streams.
- * Rewrites m3u8 segment URLs to also route through this proxy.
+ * Local HTTP proxy that adds CORS headers so the Chromecast Default Media Receiver
+ * (Chrome browser context) can load IPTV streams that lack CORS headers.
  */
-class IptvCastProxy(private val localIp: String) {
+class IptvCastProxy(
+    private val localIp: String,
+    private val onRequest: ((String) -> Unit)? = null
+) {
 
     private var serverSocket: ServerSocket? = null
-    private var running = false
+    @Volatile private var running = false
     var listeningPort: Int = 0
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 
@@ -46,7 +49,7 @@ class IptvCastProxy(private val localIp: String) {
 
     fun stop() {
         running = false
-        serverSocket?.close()
+        try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
     }
 
@@ -55,13 +58,22 @@ class IptvCastProxy(private val localIp: String) {
 
     private fun handleSocket(socket: Socket) {
         try {
+            socket.soTimeout = 20_000
             socket.use {
-                val reader = socket.getInputStream().bufferedReader()
-                val requestLine = reader.readLine() ?: return
-                while (reader.readLine()?.isNotBlank() == true) {} // drain headers
+                val input = socket.getInputStream()
+                // Read request line
+                val requestLine = readLine(input) ?: return
+                // Drain headers
+                while (true) {
+                    val header = readLine(input) ?: break
+                    if (header.isEmpty()) break
+                }
 
-                val method = requestLine.split(" ").firstOrNull() ?: "GET"
-                val path   = requestLine.split(" ").getOrElse(1) { "/" }
+                val parts = requestLine.split(" ")
+                val method = parts.getOrElse(0) { "GET" }
+                val path   = parts.getOrElse(1) { "/" }
+
+                onRequest?.invoke(path.take(80))
 
                 if (method == "OPTIONS") {
                     writeResponse(socket, "200 OK", "text/plain", ByteArray(0))
@@ -70,12 +82,12 @@ class IptvCastProxy(private val localIp: String) {
 
                 val encodedUrl = if (path.contains("?u=")) path.substringAfter("?u=") else null
                 if (encodedUrl == null) {
-                    writeResponse(socket, "400 Bad Request", "text/plain", "Missing url".toByteArray())
+                    writeResponse(socket, "400 Bad Request", "text/plain", "Missing url param".toByteArray())
                     return
                 }
 
                 val targetUrl = URLDecoder.decode(encodedUrl, "UTF-8")
-                Log.d("CastProxy", "Serving: $targetUrl")
+                Log.d("CastProxy", "→ $targetUrl")
                 proxyRequest(socket, targetUrl)
             }
         } catch (e: Exception) {
@@ -83,36 +95,55 @@ class IptvCastProxy(private val localIp: String) {
         }
     }
 
+    /** Read one HTTP line (ends with \n, strips \r). Returns null on EOF. */
+    private fun readLine(input: java.io.InputStream): String? {
+        val sb = StringBuilder()
+        while (true) {
+            val b = input.read()
+            if (b == -1) return if (sb.isEmpty()) null else sb.toString().trimEnd('\r')
+            if (b == '\n'.code) return sb.toString().trimEnd('\r')
+            sb.append(b.toChar())
+        }
+    }
+
     private fun proxyRequest(socket: Socket, url: String) {
         try {
             val req = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()
             val resp = client.newCall(req).execute()
-            val ct = resp.header("Content-Type") ?: "application/octet-stream"
+            val ct = resp.header("Content-Type") ?: guessContentType(url)
             val body = resp.body ?: run {
                 writeResponse(socket, "502 Bad Gateway", "text/plain", "No body".toByteArray())
                 return
             }
 
-            if (ct.contains("mpegurl", ignoreCase = true) || ct.contains("m3u", ignoreCase = true)
-                    || url.contains(".m3u8", ignoreCase = true)) {
+            val isPlaylist = ct.contains("mpegurl", ignoreCase = true) ||
+                ct.contains("m3u", ignoreCase = true) ||
+                url.contains(".m3u8", ignoreCase = true)
+
+            if (isPlaylist) {
                 val rewritten = rewritePlaylist(body.string(), url).toByteArray()
                 writeResponse(socket, "200 OK", "application/x-mpegURL", rewritten)
             } else {
-                writeStreamingResponse(socket, "200 OK", ct, body.byteStream())
+                // Buffer segment — avoids chunked encoding which can confuse HLS players
+                val bytes = body.bytes()
+                writeResponse(socket, "200 OK", ct, bytes)
             }
         } catch (e: Exception) {
             Log.e("CastProxy", "Upstream error for $url", e)
-            writeResponse(socket, "502 Bad Gateway", "text/plain", "Upstream: ${e.message}".toByteArray())
+            writeResponse(socket, "502 Bad Gateway", "text/plain",
+                "Upstream: ${e.message}".toByteArray())
         }
     }
 
     private fun rewritePlaylist(content: String, baseUrl: String): String {
         val baseUri = URI(baseUrl)
         return content.lines().joinToString("\n") { line ->
+            val trimmed = line.trim()
             when {
-                line.isBlank() || line.startsWith("#") -> line
-                line.startsWith("http://") || line.startsWith("https://") -> proxyUrl(line.trim())
-                else -> proxyUrl(baseUri.resolve(line.trim()).toString())
+                trimmed.isEmpty() || trimmed.startsWith("#") -> line
+                trimmed.startsWith("http://") || trimmed.startsWith("https://") ->
+                    proxyUrl(trimmed)
+                else -> proxyUrl(baseUri.resolve(trimmed).toString())
             }
         }
     }
@@ -126,32 +157,18 @@ class IptvCastProxy(private val localIp: String) {
             append("Access-Control-Allow-Origin: *\r\n")
             append("Access-Control-Allow-Methods: GET, OPTIONS\r\n")
             append("Access-Control-Allow-Headers: Range, Content-Type\r\n")
-            append("Connection: close\r\n\r\n")
+            append("Connection: close\r\n")
+            append("\r\n")
         }
-        out.write(header.toByteArray())
+        out.write(header.toByteArray(Charsets.US_ASCII))
         out.write(body)
         out.flush()
     }
 
-    private fun writeStreamingResponse(socket: Socket, status: String, ct: String, stream: java.io.InputStream) {
-        val out = socket.getOutputStream()
-        val header = buildString {
-            append("HTTP/1.1 $status\r\n")
-            append("Content-Type: $ct\r\n")
-            append("Transfer-Encoding: chunked\r\n")
-            append("Access-Control-Allow-Origin: *\r\n")
-            append("Access-Control-Allow-Methods: GET, OPTIONS\r\n")
-            append("Connection: close\r\n\r\n")
-        }
-        out.write(header.toByteArray())
-        val buf = ByteArray(8192)
-        var n: Int
-        while (stream.read(buf).also { n = it } != -1) {
-            out.write("${n.toString(16)}\r\n".toByteArray())
-            out.write(buf, 0, n)
-            out.write("\r\n".toByteArray())
-        }
-        out.write("0\r\n\r\n".toByteArray())
-        out.flush()
+    private fun guessContentType(url: String) = when {
+        url.contains(".ts",   ignoreCase = true) -> "video/mp2t"
+        url.contains(".mp4",  ignoreCase = true) -> "video/mp4"
+        url.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
+        else -> "application/octet-stream"
     }
 }
