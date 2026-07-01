@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.86 - 2026-07-01
+- car box: hide Movies/Series sidebar when unchecked in settings; fix full-screen playback retry by stopping mini player before launch
+
 ## v2.85 - 2026-07-01
 - fix Movies/Series/History tabs not hiding on car box; fix full-screen playback retry loop by releasing mini player stream before launch
 

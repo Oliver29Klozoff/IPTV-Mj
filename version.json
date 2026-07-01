@@ -1,8 +1,8 @@
 {
-  "versionCode": 122,
-  "versionName": "2.85",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.85/MKTV.apk",
+  "versionCode": 123,
+  "versionName": "2.86",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.86/MKTV.apk",
   "changelog": [
-    "fix Movies/Series/History tabs not hiding on car box; fix full-screen playback retry loop by releasing mini player stream before launch"
+    "car box: hide Movies/Series sidebar when unchecked in settings; fix full-screen playback retry by stopping mini player before launch"
   ]
 }
