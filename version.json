@@ -1,8 +1,8 @@
 {
-  "versionCode": 128,
-  "versionName": "2.91",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.91/MKTV.apk",
+  "versionCode": 129,
+  "versionName": "2.92",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.92/MKTV.apk",
   "changelog": [
-    "remove fullscreen zoom button from portrait layout; tap mini player to go fullscreen instead"
+    "Update to v2.92"
   ]
 }

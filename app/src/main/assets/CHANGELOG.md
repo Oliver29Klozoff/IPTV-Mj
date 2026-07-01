@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.92 - 2026-07-01
+- Update to v2.92
+
 ## v2.91 - 2026-07-01
 - remove fullscreen zoom button from portrait layout; tap mini player to go fullscreen instead
 
