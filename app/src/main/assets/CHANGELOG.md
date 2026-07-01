@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.88 - 2026-07-01
+- fix tab/button hiding on both phone and car box (repeatOnLifecycle + width=0); fix fullscreen retry loop with 400ms delay before PlayerActivity launch
+
 ## v2.86 - 2026-07-01
 - car box: hide Movies/Series sidebar when unchecked in settings; fix full-screen playback retry by stopping mini player before launch
 
