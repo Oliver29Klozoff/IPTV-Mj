@@ -1,8 +1,8 @@
 {
-  "versionCode": 121,
-  "versionName": "2.84",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.84/MKTV.apk",
+  "versionCode": 122,
+  "versionName": "2.85",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.85/MKTV.apk",
   "changelog": [
-    "fix channel list on car box: proportional 3-column layout, correct tab mapping, auto-select first category on load"
+    "fix Movies/Series/History tabs not hiding on car box; fix full-screen playback retry loop by releasing mini player stream before launch"
   ]
 }

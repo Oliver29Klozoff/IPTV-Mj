@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.85 - 2026-07-01
+- fix Movies/Series/History tabs not hiding on car box; fix full-screen playback retry loop by releasing mini player stream before launch
+
 ## v2.84 - 2026-07-01
 - fix channel list on car box: proportional 3-column layout, correct tab mapping, auto-select first category on load
 
