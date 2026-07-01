@@ -1,8 +1,8 @@
 {
-  "versionCode": 125,
-  "versionName": "2.88",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.88/MKTV.apk",
+  "versionCode": 127,
+  "versionName": "2.90",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.90/MKTV.apk",
   "changelog": [
-    "fix tab/button hiding on both phone and car box (repeatOnLifecycle + width=0); fix fullscreen retry loop with 400ms delay before PlayerActivity launch"
+    "top bar layout: settings and refresh anchored left, search and mic pinned right"
   ]
 }

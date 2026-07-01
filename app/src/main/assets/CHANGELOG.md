@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.90 - 2026-07-01
+- top bar layout: settings and refresh anchored left, search and mic pinned right
+
 ## v2.88 - 2026-07-01
 - fix tab/button hiding on both phone and car box (repeatOnLifecycle + width=0); fix fullscreen retry loop with 400ms delay before PlayerActivity launch
 
