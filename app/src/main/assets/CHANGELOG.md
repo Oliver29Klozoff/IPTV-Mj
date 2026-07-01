@@ -1,161 +1,192 @@
 # IPTV App - Changelog
 
-## v2.61 - 2026-06-29
-- Cast fix: use NetworkInterface for local IP detection (WifiManager.connectionInfo broken on Android 12+)
+## v2.83 - 2026-07-01
+- mini player larger on tablet/landscape; genre filter chips in Live tab; best fit/zoom/stretch resize modes with toast; restore picker opens at storage root; M3U channels now visible on home screen; mini player stays on full-screen channel when returning; token no longer compiled into APK
 
-## v2.60 - 2026-06-29
-- Cast fix: CORS proxy runs on the phone — Chromecast connects to local IP, phone forwards stream with CORS headers that IPTV servers don't send
+# IPTV App - Changelog
 
-## v2.59 - 2026-06-29
-- Cast fix: use STREAM_TYPE_BUFFERED for all streams — Xtream Codes m3u8 lacks EXT-X-LIVE headers so STREAM_TYPE_LIVE was stalling the receiver
+## v2.81 - 2026-06-30
+- **Splash screen**: version label now reads from BuildConfig instead of a hardcoded string, so it never goes stale again
 
-## v2.58 - 2026-06-29
-- Cast: buffer health badge hidden when casting starts; 3s status Toast shows actual Chromecast playback state
+## v2.80 - 2026-06-30
+- **Auto Backup**: weekly backups now save to Downloads/MKTV (public storage) instead of the app's hidden Android/data folder, so they're visible in file managers and the in-app Restore picker
+- **Release build**: fixed missing dataSync foregroundServiceType causing lint failures
 
-## v2.57 - 2026-06-29
-- Cast fix: catch session that started while cast picker was open (onPause removed listener, missing the onSessionStarted callback)
+## v2.79 - 2026-06-30
 
-## v2.56 - 2026-06-29
-- Android TV Settings: D-pad Up/Down now stays within the sidebar; no more jumping into content panels
+## v2.78 - 2026-06-30
+- **Recording Scheduler**: Schedule recordings by channel, start time, and duration — saved as .ts files to Movies/MKTV/ on device
+- **⏺ REC button**: Added to top bar on all screen variants (phone portrait, landscape, TV, tablet)
+- **PiP corner**: Mini player collapses to bottom-right corner so you can browse channels while a stream keeps playing
+- **Channel change OSD**: D-pad up/down flips channels with a 2.5s overlay showing channel name + current EPG program and progress bar
 
-## v2.55 - 2026-06-29
-- Cast debug: Toast shows URL being sent + error message if cast load fails (logcat tag: CastDebug)
-- Cast fix: contentId now set to URL instead of stream title
+## v2.77 - 2026-06-29
+- **Chromecast**: Removed cast debug toasts; cast is now production-ready
 
-## v2.54 - 2026-06-29
-- Android TV: added GitHub Token field in Settings → Sync so sync works on Shield/TV boxes
+## v2.76 - 2026-06-29
+- **Chromecast**: Fetch EPG before casting so program info appears on TV; proxy rewrites subtitle track URIs in m3u8 tags
 
-## v2.53 - 2026-06-29
-- Cast fix: live channels now use HLS stream type; cast URL always m3u8 (Chromecast only supports HLS)
-- Cast button now hidden until you tap the screen, then auto-hides with the other controls
+## v2.75 - 2026-06-29
+- **Chromecast**: Send current EPG program title as subtitle track in cast metadata
 
-## v2.52 - 2026-06-29
-- Sync: second device now auto-discovers the Gist — enter the same token and tap Sync Down, no manual ID needed
+## v2.74 - 2026-06-29
+- **Chromecast**: Switching channels while casting now reloads stream on the Chromecast
 
-## v2.51 - 2026-06-29
-- Fix EPG mismatch: mini player, player OSD, and guide now all show the currently-airing program instead of the oldest entry in the DB
+## v2.73 - 2026-06-29
+- **Chromecast**: Resolve segment URLs from the final redirect URL, not the original m3u8 — fixes streams that redirect before serving
 
-## v2.50 - 2026-06-29
-- Security: GitHub token removed from APK entirely — no longer compiled into build
-- Debug reports and sync now use a token entered once in Settings → Backup → GitHub Token field
-- VS Code debug configurations added (.vscode/launch.json + tasks.json)
+## v2.72 - 2026-06-29
+- **Chromecast**: Forward Chromecast user-agent to IPTV server so segments aren't blocked
 
-## v2.49 - 2026-06-29
-- Settings: section header buttons now use wrap_content height instead of fixed 64dp
-- Split View: renamed from "Mosaic"; button height tweaks
+## v2.71 - 2026-06-28
+- **Chromecast**: CORS proxy now forwards Cloudflare session cookies from m3u8 to segment requests
 
-## v2.48 - 2026-06-29
-- Guide grid: fixed always-playing-same-channel bug — onResume was racing the grid result and overriding with the last-watched channel
+## v2.70 - 2026-06-28
+- **Chromecast**: Proxy logs full URL, content-type, and m3u8 preview to logcat; detects playlists by content peek
 
-## v2.47 - 2026-06-29
-- Guide grid: tapping a channel or program now returns to home and opens in mini player
-- Guide grid: replay programs start timeshift in mini player; upcoming programs open reminder dialog
+## v2.68 - 2026-06-28
+- **Chromecast**: Proxy adds CORS headers to m3u8 only; segments go direct to IPTV server (native HLS skips CORS)
 
-## v2.46 - 2026-06-29
-- Guide grid: now opens fullscreen (status bar and nav bar hidden, swipe to peek)
-- Guide grid: tap a channel name to play; tap any highlighted program to play or set reminder
+## v2.66 - 2026-06-28
+- **Auto-play next episode**: 10-second countdown card at end of each series episode then auto-advances
 
-## v2.45 - 2026-06-29
-- History tab: fixed stale list on entry (StateFlow equality check was silently skipping updates)
-- History tab: list no longer re-sorts and jumps channels while you are actively browsing
+## v2.65 - 2026-06-28
+- **Notifications**: Request POST_NOTIFICATIONS permission at runtime so EPG reminders actually fire on Android 13+
 
-## v2.44 - 2026-06-29
-- Guide: shows cached EPG immediately on re-open; only re-fetches from server when DB data is stale
-- Guide: staleness checked via DB (survives app restart), no more reload on every visit or after returning from player
+## v2.64 - 2026-06-28
+- **Chromecast**: Live streams now use STREAM_TYPE_LIVE — fixes stall caused by missing EXT-X-ENDLIST on live HLS
 
-## v2.43 - 2026-06-29
-- Guide: no longer re-fetches EPG on every visit; 1-hour TTL with instant DB reload on re-open
-- Guide: EPG fetches now run in parallel instead of one channel at a time
+## v2.60 - 2026-06-27
+- **Chromecast**: Local CORS proxy fixes IDLE_REASON_ERROR; proxy detects device IP via NetworkInterface scan
 
-## v2.42 - 2026-06-29
-- Guide: past programs filtered out; timeline starts at the current show with a green NOW indicator
-- Guide: upcoming programs capped at 8; replay-eligible shows shown in blue
+## v2.58 - 2026-06-27
+- **Chromecast**: Cast status check added; buffer health badge hides while casting
 
-## v2.41 - 2026-06-29
-- Fast launch: channels load from cache instantly, network sync skipped if fetched within 4 hours
-- Refresh button in top bar to force-sync channels from server
-- Fixed: channel list no longer hidden while waiting for network on launch
+## v2.57 - 2026-06-27
+- **Chromecast**: Fix cast session missed when media route picker caused onPause
 
-## v2.40 - 2026-06-29
-- Guide: channels without EPG data are hidden; only channels with schedule data shown
-- Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section
-- Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings
+## v2.56 - 2026-06-27
+- **TV Settings**: Fix D-pad sidebar navigation — focus chain was broken after Settings redesign
 
-## v2.39 - 2026-06-29
-- Auto backup: weekly automatic backup of favorites and settings, toggle in Backup section
-- Feature tour: 6-step walkthrough shown on first launch, re-launchable from Settings
+## v2.54 - 2026-06-27
+- **Sync**: GitHub token input added to TV Settings sync panel
 
-## v2.38 - 2026-06-29
-- Fast channel load: cached channels show instantly, server sync runs in background
-- Parallel fetch: categories, channels, and VOD now fetched at the same time
-- Spinner only appears on first install when DB is empty
+## v2.53 - 2026-06-27
+- **Chromecast**: Fix playback — contentId and session wiring corrected; cast button now hides with player controls
 
-## v2.37 - 2026-06-29
-- Bulk favorites: long-press to multi-select and add/remove channels
-- Channel hide: hide channels from all lists, unhide in settings
-- History tab: recently watched live channels
-- Channels Like This: same-category suggestions on long-press
-- Buffer health badge: live colored dot + buffer % + bitrate in player
-- TV home screen row: MKTV Favorites appear on Shield/TV launcher
-- TV Settings: one D-pad press to select and enter a panel
-- TV D-pad left: channels → categories → sidebar hierarchy
+## v2.52 - 2026-06-27
+- **Sync**: Auto-discovers existing Gist on a second device — no need to manually enter Gist ID
 
-## v2.36 - 2026-06-29
-- TV Settings redesign: selected section shows blue left bar highlight, explicit D-pad focus chain on all 8 nav items, Enter key moves focus to content panel, Sync switch focus ring fixed
+## v2.51 - 2026-06-27
+- **EPG**: Fix wrong program showing in player overlay and mini player info bar
 
-## v2.35 - 2026-06-28
-- Top bar flush to screen edge (no reserved status bar space)
+## v2.50 - 2026-06-26
+- **Security**: GitHub token removed from compiled APK; stored in DataStore at runtime only
 
-## v2.34 - 2026-06-28
-- Hide status bar and navigation bar (swipe down/up to peek)
+## v2.49 - 2026-06-26
+- **UI**: Settings headers use wrap_content; split view renamed; login and mosaic layout cleanup
 
-## v2.33 - 2026-06-28
-- Hide system navigation bar (swipe up to peek)
-- Split GitHub token storage to prevent auto-revocation by scanners
+## v2.48 - 2026-06-26
+- **Guide**: Fix grid always opening same channel — onResume was racing the ActivityResult callback; fixed with suppressMiniAutoResume flag
 
-## v2.32 - 2026-06-28
-- Landscape mode: left sidebar with vertical nav, mini player above channel list
-- Camera cutout: status bar hidden, content padded below camera on all phones
-- Favorites tab loads by default instead of first live category
-- Changelog now shows full history from local file
+## v2.47 - 2026-06-26
+- **Guide**: Tapping a program in the grid now opens it in the mini player instead of full player
 
-## v2.31 - 2026-06-28
-- Fix rotation crash: btnMenu view type mismatch between portrait and landscape layouts
+## v2.46 - 2026-06-26
+- **Guide**: Grid view supports fullscreen tap-to-play for any channel or program slot
 
-## v2.30 - 2026-06-28
-- Hide system status bar edge-to-edge; push content below camera cutout using window insets
+## v2.45 - 2026-06-26
+- **Guide**: Fix history tab showing stale data and channels jumping position; fix guide EPG not reloading after refresh
 
-## v2.29 - 2026-06-28
-- Fix landscape layout: mini player and vertical nav sidebar; fix btnMenu type mismatch crash on rotation
+## v2.43 - 2026-06-26
+- **Guide**: No longer re-fetches EPG on every visit — uses cached data, much faster to open
 
-## v2.28 - 2026-06-28
-- Landscape layout: vertical nav sidebar and mini player on top; fix favorites loading on startup
+## v2.42 - 2026-06-26
+- **Guide**: Timeline scrolls to current time on open; past programs filtered out
 
-## v2.27 - 2026-06-27
-- Add landscape layout for phones: left sidebar (TV-style) and smaller mini player
+## v2.41 - 2026-06-26
+- **Channels**: Instant load from local cache with refresh button; background sync updates silently
 
-## v2.26 - 2026-06-27
-- Camera cutout fix: removed windowFullscreen from base theme so content sits below camera
+## v2.40 - 2026-06-26
+- **Guide**: Channels without EPG data are hidden from the guide grid
 
-## v2.25 - 2026-06-27
-- DNS over HTTPS: toggle in settings with Cloudflare/Google/NextDNS providers; bypass ISP throttling
-- Always open to Favorites tab on launch
-- GitHub token moved to local.properties/BuildConfig to prevent auto-revocation
+## v2.39 - 2026-06-26
+- **Auto-backup**: Weekly automatic backup runs in background via WorkManager
+- **Onboarding**: First-run feature tour dialog highlights key features for new users
 
-## v2.24 - 2026-06-26
-- Channel popularity sort (view count tracking)
-- What's On Now dialog showing current EPG for all channels
-- Reminder notifications on channel long-press
-- Auto-reconnect with retry countdown in player
-- Speed test in settings
-- EPG refresh foreground service fix for Android 14
-- Widget crash fix (main thread DB access)
+## v2.38 - 2026-06-26
+- **Performance**: Instant channel load from cache; network sync runs in parallel background thread
+
+## v2.37 - 2026-06-26
+- **Bulk favorites**: Long-press to select multiple channels and favorite/hide them at once
+- **Channel hide**: Hide channels you never watch — accessible via filter toggle
+- **History tab**: New tab showing recently watched channels
+- **Similar channels**: Player suggests similar channels when stream ends
+- **Buffer health badge**: Live indicator in player shows buffering quality (Good / Weak / Poor)
+- **TV home screen**: Favorite channels published to Android TV home screen row
+
+## v2.36 - 2026-06-26
+- **TV Settings**: Full redesign — blue left-bar active indicator, D-pad focus chain on all 8 nav items, Enter key jumps to content panel
+
+## v2.35 - 2026-06-25
+- **UI**: Top bar flush to screen edge; status bar hidden edge-to-edge
+
+## v2.34 - 2026-06-25
+- **Fullscreen**: Status bar and nav bar hidden; swipe down from top to peek at system UI
+
+## v2.33 - 2026-06-25
+- **Landscape**: Landscape layout added for phones — vertical sidebar + smaller mini player
+
+## v2.32 - 2026-06-25
+- **Speed test**: Built-in speed test in settings
+- **Reconnect**: Improved reconnect logic with exponential backoff
+- **Reminders**: Set EPG reminder for upcoming programs
+- **What's On Now**: Quick-access panel showing what's currently airing across favorites
+
+## v2.31 - 2026-06-25
+- **Settings**: Fixed all settings bugs — status messages restored, changelog accessible, backup scrollable
+
+## v2.28 - 2026-06-25
+- **Channel Mosaic**: Multi-stream grid view — watch up to 4 channels simultaneously in a 2×2 grid
+
+## v2.27 - 2026-06-25
+- **EPG Timeline**: Full grid guide showing current + upcoming programs across all channels with horizontal scrolling
+- **Channel Timers**: Set a timer to switch to a channel when a specific program starts
+
+## v2.26 - 2026-06-25
+- **Hero banner**: Channel logo and full EPG description shown when a channel is selected
+- **Stream stats overlay**: Tap info button in player to see bitrate, resolution, dropped frames, buffer level
+
+## v2.25 - 2026-06-25
+- **External player**: Option to open streams in VLC or other installed players
+- **Voice search**: Tap mic button to search channels by voice
+- **Release signing**: Dedicated keystore for consistent signed builds across devices
+
+## v2.24 - 2026-06-25
+- **Android TV UI**: Dedicated leanback home screen with D-pad-optimised channel grid
+- **Home screen widget**: Current EPG info widget for Android home screen
+- **Favorites drag reorder**: Long-press drag to reorder favorite channels
+- **Timeshift replay**: Replay last N minutes of a live channel (where provider supports it)
+- **Player retry countdown**: Visual countdown before auto-retry on stream failure
 
 ## v2.23 - 2026-06-25
-- Stream health checker, Chromecast support, recording playback, mini player EPG progress bar
+- **Stream health checker**: Background monitor detects dead streams and flags them
+- **Chromecast**: Cast live TV to any Chromecast on the same network
+- **Mini player EPG**: Current program name and progress bar shown below mini player
 
 ## v2.22 - 2026-06-25
-- Android TV UI, home screen widget, favorites drag reorder, timeshift replay, player retry countdown
+- **M3U Playlist import**: Load any M3U/M3U8 playlist by URL or local file — works alongside Xtream Codes
+- **Player: Audio & subtitle track selection**: Tap CC button to pick audio language or subtitle track
+- **Player: Playback speed control**: 0.25× to 2× speed selector (great for VOD)
+- **Player: Sleep timer**: Auto-stops playback after 15/30/60/90/120 minutes
+- **Player: Brightness/volume gestures**: Swipe left side vertically to adjust brightness, right side for volume
+- **Player: Buffering indicator**: Clear spinner replaces invisible wait state
+- **Player: DASH & SmoothStreaming**: Added MPEG-DASH and Smooth Streaming codec support
+- **Series detail view**: Tapping a series now opens a full episode browser organized by season
+- **WATCHING tab**: New tab showing all in-progress VOD with resume progress bars
+- **VOD search**: Search bar now filters movies when on the Movies tab
+- **VOD progress bars**: Watch progress visible on every movie card
+- **Dependencies**: Media3 1.4.1, Material 1.12.0, Room 2.7.1, Lifecycle 2.8.7
 
 ## v2.21 - 2026-06-25 17:49
 - Add Multi-view, Smart EPG progress bars, Cross-device sync

@@ -13,13 +13,9 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 118
-        versionName "2.81"
+        versionCode 120
+        versionName "2.83"
 
-        def localProps = new Properties()
-        def localPropsFile = rootProject.file("local.properties")
-        if (localPropsFile.exists()) localProps.load(new FileInputStream(localPropsFile))
-        buildConfigField "String", "GH_TOKEN_B64", '"' + (localProps.getProperty('GH_TOKEN_B64') ?: '') + '"'
     }
     signingConfigs {
         release {

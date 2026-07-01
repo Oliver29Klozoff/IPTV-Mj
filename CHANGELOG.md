@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v2.83 - 2026-07-01
+- mini player larger on tablet/landscape; genre filter chips in Live tab; best fit/zoom/stretch resize modes with toast; restore picker opens at storage root; M3U channels now visible on home screen; mini player stays on full-screen channel when returning; token no longer compiled into APK
+
+# IPTV App - Changelog
+
 ## v2.81 - 2026-06-30
 - **Splash screen**: version label now reads from BuildConfig instead of a hardcoded string, so it never goes stale again
 
