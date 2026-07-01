@@ -1,8 +1,8 @@
 {
-  "versionCode": 120,
-  "versionName": "2.83",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.83/MKTV.apk",
+  "versionCode": 121,
+  "versionName": "2.84",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.84/MKTV.apk",
   "changelog": [
-    "mini player larger on tablet/landscape; genre filter chips in Live tab; best fit/zoom/stretch resize modes with toast; restore picker opens at storage root; M3U channels now visible on home screen; mini player stays on full-screen channel when returning; token no longer compiled into APK"
+    "fix channel list on car box: proportional 3-column layout, correct tab mapping, auto-select first category on load"
   ]
 }

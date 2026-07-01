@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.84 - 2026-07-01
+- fix channel list on car box: proportional 3-column layout, correct tab mapping, auto-select first category on load
+
 ## v2.83 - 2026-07-01
 - mini player larger on tablet/landscape; genre filter chips in Live tab; best fit/zoom/stretch resize modes with toast; restore picker opens at storage root; M3U channels now visible on home screen; mini player stays on full-screen channel when returning; token no longer compiled into APK
 
