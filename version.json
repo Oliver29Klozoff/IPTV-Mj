@@ -1,8 +1,8 @@
 {
-  "versionCode": 138,
-  "versionName": "3.0",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.0/MKTV.apk",
+  "versionCode": 140,
+  "versionName": "3.2",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.2/MKTV.apk",
   "changelog": [
-    "fix sync pairing code resolution via lookup table; short code now correctly maps to full Firebase UID"
+    "Update to v3.2"
   ]
 }

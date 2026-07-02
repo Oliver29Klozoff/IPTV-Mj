@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.2 - 2026-07-02
+- Update to v3.2
+
 ## v3.0 - 2026-07-02
 - fix sync pairing code resolution via lookup table; short code now correctly maps to full Firebase UID
 
