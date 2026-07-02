@@ -1,8 +1,8 @@
 {
-  "versionCode": 133,
-  "versionName": "2.96",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.96/MKTV.apk",
-  "changelog": [
-    "sync via public Gist; debug copies to clipboard when no token set"
-  ]
+    "versionCode":  135,
+    "versionName":  "2.98",
+    "apkUrl":  "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.98/MKTV.apk",
+    "changelog":  [
+                      "debug reports now sent to Discord via Captain Hook; no token required"
+                  ]
 }

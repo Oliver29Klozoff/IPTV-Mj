@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.98 - 2026-07-02
+- debug reports now sent to Discord via Captain Hook; no token required
+
 ## v2.96 - 2026-07-02
 - sync via public Gist; debug copies to clipboard when no token set
 
@@ -48,8 +51,8 @@
 ## v2.79 - 2026-06-30
 
 ## v2.78 - 2026-06-30
-- **Recording Scheduler**: Schedule recordings by channel, start time, and duration — saved as .ts files to Movies/MKTV/ on device
-- **⏺ REC button**: Added to top bar on all screen variants (phone portrait, landscape, TV, tablet)
+- **Recording Scheduler**: Schedule recordings by channel, start time, and duration â€” saved as .ts files to Movies/MKTV/ on device
+- **âº REC button**: Added to top bar on all screen variants (phone portrait, landscape, TV, tablet)
 - **PiP corner**: Mini player collapses to bottom-right corner so you can browse channels while a stream keeps playing
 - **Channel change OSD**: D-pad up/down flips channels with a 2.5s overlay showing channel name + current EPG program and progress bar
 
@@ -66,7 +69,7 @@
 - **Chromecast**: Switching channels while casting now reloads stream on the Chromecast
 
 ## v2.73 - 2026-06-29
-- **Chromecast**: Resolve segment URLs from the final redirect URL, not the original m3u8 — fixes streams that redirect before serving
+- **Chromecast**: Resolve segment URLs from the final redirect URL, not the original m3u8 â€” fixes streams that redirect before serving
 
 ## v2.72 - 2026-06-29
 - **Chromecast**: Forward Chromecast user-agent to IPTV server so segments aren't blocked
@@ -87,7 +90,7 @@
 - **Notifications**: Request POST_NOTIFICATIONS permission at runtime so EPG reminders actually fire on Android 13+
 
 ## v2.64 - 2026-06-28
-- **Chromecast**: Live streams now use STREAM_TYPE_LIVE — fixes stall caused by missing EXT-X-ENDLIST on live HLS
+- **Chromecast**: Live streams now use STREAM_TYPE_LIVE â€” fixes stall caused by missing EXT-X-ENDLIST on live HLS
 
 ## v2.60 - 2026-06-27
 - **Chromecast**: Local CORS proxy fixes IDLE_REASON_ERROR; proxy detects device IP via NetworkInterface scan
@@ -99,16 +102,16 @@
 - **Chromecast**: Fix cast session missed when media route picker caused onPause
 
 ## v2.56 - 2026-06-27
-- **TV Settings**: Fix D-pad sidebar navigation — focus chain was broken after Settings redesign
+- **TV Settings**: Fix D-pad sidebar navigation â€” focus chain was broken after Settings redesign
 
 ## v2.54 - 2026-06-27
 - **Sync**: GitHub token input added to TV Settings sync panel
 
 ## v2.53 - 2026-06-27
-- **Chromecast**: Fix playback — contentId and session wiring corrected; cast button now hides with player controls
+- **Chromecast**: Fix playback â€” contentId and session wiring corrected; cast button now hides with player controls
 
 ## v2.52 - 2026-06-27
-- **Sync**: Auto-discovers existing Gist on a second device — no need to manually enter Gist ID
+- **Sync**: Auto-discovers existing Gist on a second device â€” no need to manually enter Gist ID
 
 ## v2.51 - 2026-06-27
 - **EPG**: Fix wrong program showing in player overlay and mini player info bar
@@ -120,7 +123,7 @@
 - **UI**: Settings headers use wrap_content; split view renamed; login and mosaic layout cleanup
 
 ## v2.48 - 2026-06-26
-- **Guide**: Fix grid always opening same channel — onResume was racing the ActivityResult callback; fixed with suppressMiniAutoResume flag
+- **Guide**: Fix grid always opening same channel â€” onResume was racing the ActivityResult callback; fixed with suppressMiniAutoResume flag
 
 ## v2.47 - 2026-06-26
 - **Guide**: Tapping a program in the grid now opens it in the mini player instead of full player
@@ -132,7 +135,7 @@
 - **Guide**: Fix history tab showing stale data and channels jumping position; fix guide EPG not reloading after refresh
 
 ## v2.43 - 2026-06-26
-- **Guide**: No longer re-fetches EPG on every visit — uses cached data, much faster to open
+- **Guide**: No longer re-fetches EPG on every visit â€” uses cached data, much faster to open
 
 ## v2.42 - 2026-06-26
 - **Guide**: Timeline scrolls to current time on open; past programs filtered out
@@ -152,14 +155,14 @@
 
 ## v2.37 - 2026-06-26
 - **Bulk favorites**: Long-press to select multiple channels and favorite/hide them at once
-- **Channel hide**: Hide channels you never watch — accessible via filter toggle
+- **Channel hide**: Hide channels you never watch â€” accessible via filter toggle
 - **History tab**: New tab showing recently watched channels
 - **Similar channels**: Player suggests similar channels when stream ends
 - **Buffer health badge**: Live indicator in player shows buffering quality (Good / Weak / Poor)
 - **TV home screen**: Favorite channels published to Android TV home screen row
 
 ## v2.36 - 2026-06-26
-- **TV Settings**: Full redesign — blue left-bar active indicator, D-pad focus chain on all 8 nav items, Enter key jumps to content panel
+- **TV Settings**: Full redesign â€” blue left-bar active indicator, D-pad focus chain on all 8 nav items, Enter key jumps to content panel
 
 ## v2.35 - 2026-06-25
 - **UI**: Top bar flush to screen edge; status bar hidden edge-to-edge
@@ -168,7 +171,7 @@
 - **Fullscreen**: Status bar and nav bar hidden; swipe down from top to peek at system UI
 
 ## v2.33 - 2026-06-25
-- **Landscape**: Landscape layout added for phones — vertical sidebar + smaller mini player
+- **Landscape**: Landscape layout added for phones â€” vertical sidebar + smaller mini player
 
 ## v2.32 - 2026-06-25
 - **Speed test**: Built-in speed test in settings
@@ -177,10 +180,10 @@
 - **What's On Now**: Quick-access panel showing what's currently airing across favorites
 
 ## v2.31 - 2026-06-25
-- **Settings**: Fixed all settings bugs — status messages restored, changelog accessible, backup scrollable
+- **Settings**: Fixed all settings bugs â€” status messages restored, changelog accessible, backup scrollable
 
 ## v2.28 - 2026-06-25
-- **Channel Mosaic**: Multi-stream grid view — watch up to 4 channels simultaneously in a 2×2 grid
+- **Channel Mosaic**: Multi-stream grid view â€” watch up to 4 channels simultaneously in a 2Ã—2 grid
 
 ## v2.27 - 2026-06-25
 - **EPG Timeline**: Full grid guide showing current + upcoming programs across all channels with horizontal scrolling
@@ -208,9 +211,9 @@
 - **Mini player EPG**: Current program name and progress bar shown below mini player
 
 ## v2.22 - 2026-06-25
-- **M3U Playlist import**: Load any M3U/M3U8 playlist by URL or local file — works alongside Xtream Codes
+- **M3U Playlist import**: Load any M3U/M3U8 playlist by URL or local file â€” works alongside Xtream Codes
 - **Player: Audio & subtitle track selection**: Tap CC button to pick audio language or subtitle track
-- **Player: Playback speed control**: 0.25× to 2× speed selector (great for VOD)
+- **Player: Playback speed control**: 0.25Ã— to 2Ã— speed selector (great for VOD)
 - **Player: Sleep timer**: Auto-stops playback after 15/30/60/90/120 minutes
 - **Player: Brightness/volume gestures**: Swipe left side vertically to adjust brightness, right side for volume
 - **Player: Buffering indicator**: Clear spinner replaces invisible wait state
