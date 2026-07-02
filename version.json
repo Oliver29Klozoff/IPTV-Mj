@@ -1,8 +1,8 @@
 {
-  "versionCode": 132,
-  "versionName": "2.95",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.95/MKTV.apk",
+  "versionCode": 133,
+  "versionName": "2.96",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.96/MKTV.apk",
   "changelog": [
-    "add GitHub token entry to Sync settings (phone + TV); classic token required for gist sync"
+    "sync via public Gist; debug copies to clipboard when no token set"
   ]
 }

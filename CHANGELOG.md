@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.96 - 2026-07-02
+- sync via public Gist; debug copies to clipboard when no token set
+
 ## v2.95 - 2026-07-02
 - add GitHub token entry to Sync settings (phone + TV); classic token required for gist sync
 
