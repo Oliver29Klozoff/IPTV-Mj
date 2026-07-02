@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.94 - 2026-07-02
+- fix genre chips hiding on Favorites/Guide; add genre chips to landscape categories column
+
 ## v2.93 - 2026-07-01
 - landscape: hide categories column + bigger mini player when no categories shown
 
