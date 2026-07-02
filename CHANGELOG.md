@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.93 - 2026-07-01
+- landscape: hide categories column + bigger mini player when no categories shown
+
 ## v2.92 - 2026-07-01
 - Update to v2.92
 

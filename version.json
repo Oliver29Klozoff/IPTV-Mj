@@ -1,8 +1,8 @@
 {
-  "versionCode": 129,
-  "versionName": "2.92",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.92/MKTV.apk",
+  "versionCode": 130,
+  "versionName": "2.93",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.93/MKTV.apk",
   "changelog": [
-    "Update to v2.92"
+    "landscape: hide categories column + bigger mini player when no categories shown"
   ]
 }
