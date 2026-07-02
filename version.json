@@ -1,8 +1,8 @@
 {
-    "versionCode":  135,
-    "versionName":  "2.98",
-    "apkUrl":  "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.98/MKTV.apk",
+    "versionCode":  137,
+    "versionName":  "2.100",
+    "apkUrl":  "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.100/MKTV.apk",
     "changelog":  [
-                      "debug reports now sent to Discord via Captain Hook; no token required"
+                      "replace GitHub Gist sync with Firebase Firestore; pairing code to sync between devices"
                   ]
 }
