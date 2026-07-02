@@ -1,8 +1,8 @@
 {
-  "versionCode": 131,
-  "versionName": "2.94",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.94/MKTV.apk",
+  "versionCode": 132,
+  "versionName": "2.95",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v2.95/MKTV.apk",
   "changelog": [
-    "fix genre chips hiding on Favorites/Guide; add genre chips to landscape categories column"
+    "add GitHub token entry to Sync settings (phone + TV); classic token required for gist sync"
   ]
 }

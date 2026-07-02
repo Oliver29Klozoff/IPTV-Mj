@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v2.95 - 2026-07-02
+- add GitHub token entry to Sync settings (phone + TV); classic token required for gist sync
+
 ## v2.94 - 2026-07-02
 - fix genre chips hiding on Favorites/Guide; add genre chips to landscape categories column
 
