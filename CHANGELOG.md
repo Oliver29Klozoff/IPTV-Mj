@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.0 - 2026-07-02
+- fix sync pairing code resolution via lookup table; short code now correctly maps to full Firebase UID
+
 ## v2.100 - 2026-07-02
 - replace GitHub Gist sync with Firebase Firestore; pairing code to sync between devices
 
