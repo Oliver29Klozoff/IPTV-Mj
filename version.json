@@ -1,8 +1,8 @@
 {
-  "versionCode": 155,
-  "versionName": "3.17",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.17/MKTV.apk",
+  "versionCode": 156,
+  "versionName": "3.18",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.18/MKTV.apk",
   "changelog": [
-    "v3.16: fix return from fullscreen - instant scroll to channel, preserve tab and category"
+    "landscape channel list expands to 6 rows on scroll, collapses after 5s idle or channel tap"
   ]
 }

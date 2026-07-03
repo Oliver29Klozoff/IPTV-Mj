@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.18 - 2026-07-03
+- landscape channel list expands to 6 rows on scroll, collapses after 5s idle or channel tap
+
 ## v3.17 - 2026-07-03
 - v3.16: fix return from fullscreen - instant scroll to channel, preserve tab and category
 
