@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.21 - 2026-07-03
+- store last selected tab in ViewModel so rotation always restores correct tab and category
+
 ## v3.20 - 2026-07-03
 - fix rotation resetting tab/category; playing channel scrolls into view when list collapses
 

@@ -1,8 +1,8 @@
 {
-  "versionCode": 158,
-  "versionName": "3.20",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.20/MKTV.apk",
+  "versionCode": 159,
+  "versionName": "3.21",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.21/MKTV.apk",
   "changelog": [
-    "fix rotation resetting tab/category; playing channel scrolls into view when list collapses"
+    "store last selected tab in ViewModel so rotation always restores correct tab and category"
   ]
 }
