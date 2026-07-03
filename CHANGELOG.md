@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.9 - 2026-07-03
+- v3.9: landscape mode auto-collapses channel list when playing; tap toggle to expand
+
 ## v3.8 - 2026-07-03
 - Update to v3.8
 
