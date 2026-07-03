@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.15 - 2026-07-03
+- v3.14: returning from fullscreen restores the active tab and scrolls to the playing channel
+
 ## v3.14 - 2026-07-03
 - v3.13: health badge background transparent; revert accidental EPG bar change
 
