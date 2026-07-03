@@ -1,8 +1,8 @@
 {
-  "versionCode": 149,
-  "versionName": "3.11",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.11/MKTV.apk",
+  "versionCode": 150,
+  "versionName": "3.12",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.12/MKTV.apk",
   "changelog": [
-    "v3.11: landscape expanded channels take 2/3 height (4 rows), mini player shrinks to 1/3"
+    "v3.12: landscape expanded channel list fixed to 4 rows (300dp)"
   ]
 }

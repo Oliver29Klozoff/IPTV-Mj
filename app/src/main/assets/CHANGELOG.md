@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.12 - 2026-07-03
+- v3.12: landscape expanded channel list fixed to 4 rows (300dp)
+
 ## v3.11 - 2026-07-03
 - v3.11: landscape expanded channels take 2/3 height (4 rows), mini player shrinks to 1/3
 
