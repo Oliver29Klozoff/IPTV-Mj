@@ -1,8 +1,8 @@
 {
-  "versionCode": 153,
-  "versionName": "3.15",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.15/MKTV.apk",
+  "versionCode": 154,
+  "versionName": "3.16",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.16/MKTV.apk",
   "changelog": [
-    "v3.14: returning from fullscreen restores the active tab and scrolls to the playing channel"
+    "v3.15: remove playback speed button from player overlay"
   ]
 }
