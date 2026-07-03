@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.14 - 2026-07-03
+- v3.13: health badge background transparent; revert accidental EPG bar change
+
 ## v3.13 - 2026-07-03
 - v3.13: EPG progress bar on channel rows made transparent
 
