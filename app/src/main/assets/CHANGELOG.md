@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.10 - 2026-07-03
+- v3.10: landscape toggle button moves into left black bar of mini player; channel list auto-collapses after 5s idle
+
 ## v3.9 - 2026-07-03
 - v3.9: landscape mode auto-collapses channel list when playing; tap toggle to expand
 
