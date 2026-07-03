@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.20 - 2026-07-03
+- fix rotation resetting tab/category; playing channel scrolls into view when list collapses
+
 ## v3.19 - 2026-07-03
 - currently playing channel always highlighted in list (on load, resume, guide tap, and channel select)
 
