@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.11 - 2026-07-03
+- v3.11: landscape expanded channels take 2/3 height (4 rows), mini player shrinks to 1/3
+
 ## v3.10 - 2026-07-03
 - v3.10: landscape toggle button moves into left black bar of mini player; channel list auto-collapses after 5s idle
 

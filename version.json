@@ -1,8 +1,8 @@
 {
-  "versionCode": 148,
-  "versionName": "3.10",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.10/MKTV.apk",
+  "versionCode": 149,
+  "versionName": "3.11",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.11/MKTV.apk",
   "changelog": [
-    "v3.10: landscape toggle button moves into left black bar of mini player; channel list auto-collapses after 5s idle"
+    "v3.11: landscape expanded channels take 2/3 height (4 rows), mini player shrinks to 1/3"
   ]
 }
