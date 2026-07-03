@@ -1,8 +1,8 @@
 {
-  "versionCode": 156,
-  "versionName": "3.18",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.18/MKTV.apk",
+  "versionCode": 157,
+  "versionName": "3.19",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.19/MKTV.apk",
   "changelog": [
-    "landscape channel list expands to 6 rows on scroll, collapses after 5s idle or channel tap"
+    "currently playing channel always highlighted in list (on load, resume, guide tap, and channel select)"
   ]
 }

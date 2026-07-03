@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.19 - 2026-07-03
+- currently playing channel always highlighted in list (on load, resume, guide tap, and channel select)
+
 ## v3.18 - 2026-07-03
 - landscape channel list expands to 6 rows on scroll, collapses after 5s idle or channel tap
 
