@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.17 - 2026-07-03
+- v3.16: fix return from fullscreen - instant scroll to channel, preserve tab and category
+
 ## v3.16 - 2026-07-03
 - v3.15: remove playback speed button from player overlay
 
