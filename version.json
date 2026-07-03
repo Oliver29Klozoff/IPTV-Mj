@@ -1,8 +1,8 @@
 {
-  "versionCode": 150,
-  "versionName": "3.12",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.12/MKTV.apk",
+  "versionCode": 151,
+  "versionName": "3.13",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.13/MKTV.apk",
   "changelog": [
-    "v3.12: landscape expanded channel list fixed to 4 rows (300dp)"
+    "v3.13: EPG progress bar on channel rows made transparent"
   ]
 }

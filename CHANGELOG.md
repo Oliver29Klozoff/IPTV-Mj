@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.13 - 2026-07-03
+- v3.13: EPG progress bar on channel rows made transparent
+
 ## v3.12 - 2026-07-03
 - v3.12: landscape expanded channel list fixed to 4 rows (300dp)
 
