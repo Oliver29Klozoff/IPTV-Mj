@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.41 - 2026-07-04
+- Update to v3.41
+
 ## v3.40 - 2026-07-04
 - fix: SHIELD Guide button no longer backgrounds the app; shows overlay in player
 

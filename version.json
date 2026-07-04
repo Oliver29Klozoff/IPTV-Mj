@@ -1,8 +1,8 @@
 {
-  "versionCode": 178,
-  "versionName": "3.40",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.40/MKTV.apk",
+  "versionCode": 179,
+  "versionName": "3.41",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.41/MKTV.apk",
   "changelog": [
-    "fix: SHIELD Guide button no longer backgrounds the app; shows overlay in player"
+    "Update to v3.41"
   ]
 }
