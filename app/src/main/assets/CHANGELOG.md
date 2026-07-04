@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.37 - 2026-07-04
+- recordings: cloud export via share sheet; TV settings: EPG refresh + update check under Logout
+
 ## v3.36 - 2026-07-04
 - recording channel picker: category folders + search across all channels
 
