@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.38 - 2026-07-04
+- settings nav: Refresh EPG + Check Update buttons below Logout
+
 ## v3.37 - 2026-07-04
 - recordings: cloud export via share sheet; TV settings: EPG refresh + update check under Logout
 
