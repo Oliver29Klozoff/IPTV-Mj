@@ -71,8 +71,11 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val usCategories = database.categoryDao().getCategoriesByType("live").first()
                 .filter { cat ->
-                    cat.categoryName.startsWith("US|", ignoreCase = true) ||
-                    cat.categoryName.contains("|US|", ignoreCase = true)
+                    val name = cat.categoryName
+                    name.startsWith("US|", ignoreCase = true) ||
+                    name.startsWith("USA|", ignoreCase = true) ||
+                    name.contains("|US|", ignoreCase = true) ||
+                    name.contains("|USA|", ignoreCase = true)
                 }
                 .map { it.categoryId }
                 .toSet()
@@ -95,16 +98,68 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             return
         }
 
-        val names = allChannels.map { it.name }.toTypedArray()
-        var selectedIndex = 0
+        var filtered = allChannels.toMutableList()
+        var selectedChannel: ChannelEntity? = allChannels.firstOrNull()
+
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(16, 16, 16, 0)
+        }
+
+        val etSearch = android.widget.EditText(this).apply {
+            hint = "Search channels..."
+            setSingleLine()
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        layout.addView(etSearch)
+
+        val listHeight = (resources.displayMetrics.heightPixels * 0.4f).toInt()
+        val listView = android.widget.ListView(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, listHeight
+            )
+            choiceMode = android.widget.AbsListView.CHOICE_MODE_SINGLE
+        }
+        layout.addView(listView)
+
+        fun rebuildList() {
+            val q = etSearch.text.toString().trim().lowercase()
+            filtered = (if (q.isEmpty()) allChannels
+                        else allChannels.filter { it.name.lowercase().contains(q) }).toMutableList()
+            listView.adapter = android.widget.ArrayAdapter(
+                this, android.R.layout.simple_list_item_activated_1,
+                filtered.map { it.name }
+            )
+            selectedChannel = filtered.firstOrNull()
+            if (filtered.isNotEmpty()) listView.setItemChecked(0, true)
+        }
+
+        listView.setOnItemClickListener { _, _, pos, _ ->
+            selectedChannel = filtered.getOrNull(pos)
+        }
+
+        etSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable) = rebuildList()
+            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
+        })
+
+        rebuildList()
 
         AlertDialog.Builder(this)
             .setTitle("Select Channel")
-            .setSingleChoiceItems(names, 0) { _, i -> selectedIndex = i }
+            .setView(layout)
             .setPositiveButton("Next") { _, _ ->
+                val ch = selectedChannel ?: run {
+                    Toast.makeText(this, "No channel selected", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
                 pickDateTime { startMs ->
                     pickDuration { durationMs ->
-                        scheduleRecording(allChannels[selectedIndex], startMs, durationMs)
+                        scheduleRecording(ch, startMs, durationMs)
                     }
                 }
             }
@@ -215,7 +270,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         outputTarget: String,
         startMs: Long
     ) {
-        val intent = Intent(this, RecordingAlarmReceiver::class.java).apply {
+        val serviceExtras = Intent(this, RecordingService::class.java).apply {
             putExtra(RecordingService.EXTRA_RECORDING_ID, recordingId)
             putExtra(RecordingService.EXTRA_STREAM_URL, streamUrl)
             putExtra(RecordingService.EXTRA_CHANNEL_NAME, channelName)
@@ -223,22 +278,46 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             putExtra(RecordingService.EXTRA_OUTPUT_PATH, outputTarget)
         }
 
+        // If start time is now or in the past, skip the alarm and start immediately
+        if (startMs <= System.currentTimeMillis() + 3000L) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceExtras)
+            } else {
+                startService(serviceExtras)
+            }
+            return
+        }
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // Warn if exact alarm permission is missing — recording may fire late
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            AlertDialog.Builder(this)
+                .setTitle("Exact Alarm Permission Needed")
+                .setMessage("Without this permission, scheduled recordings may start late. Tap Allow to fix it.")
+                .setPositiveButton("Allow") { _, _ ->
+                    startActivity(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM.let {
+                        android.content.Intent(it)
+                    })
+                }
+                .setNegativeButton("Continue Anyway", null)
+                .show()
+        }
+
+        val intent = Intent(this, RecordingAlarmReceiver::class.java).apply {
+            putExtras(serviceExtras)
+        }
         val pendingIntent = PendingIntent.getBroadcast(
-            this,
-            recordingId,
-            intent,
+            this, recordingId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val triggerAt = startMs.coerceAtLeast(System.currentTimeMillis() + 1000L)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pendingIntent)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pendingIntent)
         } else {
-            alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, startMs, pendingIntent)
         }
     }
 

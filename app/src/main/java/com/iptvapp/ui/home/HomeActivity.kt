@@ -86,12 +86,7 @@ class HomeActivity : AppCompatActivity() {
             dispatchSearch(text)
         }
     }
-    private val settingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            when (result.data?.getStringExtra("action")) {
-                "whats_on" -> showWhatsOnNow()
-            }
-        }
+    private val settingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
         // Sync sort mode in case it changed in settings
         viewModel.setSortMode(
             when (viewModel.channelSort.value) {

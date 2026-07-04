@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0A0A0A"
@@ -54,9 +55,10 @@
         <!-- LEFT NAV RAIL -->
         <ScrollView
             android:id="@+id/settingsNavRail"
-            android:layout_width="110dp"
+            android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:background="#0F0F0F">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -66,7 +68,7 @@
                 <Button
                     android:id="@+id/headerStream"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A3A5C"
@@ -80,7 +82,7 @@
                 <Button
                     android:id="@+id/headerDisplay"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A1A1A"
@@ -93,7 +95,7 @@
                 <Button
                     android:id="@+id/headerUpdates"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A1A1A"
@@ -106,7 +108,7 @@
                 <Button
                     android:id="@+id/headerBackup"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A1A1A"
@@ -119,7 +121,7 @@
                 <Button
                     android:id="@+id/headerServers"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A1A1A"
@@ -132,7 +134,7 @@
                 <Button
                     android:id="@+id/headerSync"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A1A1A"
@@ -145,7 +147,7 @@
                 <Button
                     android:id="@+id/headerRecordings"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
                     android:backgroundTint="#1A1A1A"
@@ -159,15 +161,15 @@
                     android:id="@+id/btnLogout"
                     android:layout_width="match_parent"
                     android:layout_height="64dp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginTop="16dp"
                     android:backgroundTint="#3A0000"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false"
                     android:text="Logout"
                     android:textColor="#FF4444"
                     android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:layout_marginHorizontal="6dp"
-                    android:layout_marginTop="16dp"
-                    android:focusable="true"
-                    android:focusableInTouchMode="false" />
+                    android:textStyle="bold" />
 
             </LinearLayout>
         </ScrollView>
@@ -191,6 +193,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="16dp">
+
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -200,245 +203,451 @@
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
                         android:paddingBottom="12dp" />
+
+                    <!-- EPG URL card — starts expanded -->
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:cardBackgroundColor="#161616"
                         app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="EPG URL"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1" />
-                            <EditText
-                                android:id="@+id/etEpgUrl"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrEpgUrl"
                                 android:layout_width="match_parent"
                                 android:layout_height="48dp"
-                                android:layout_marginTop="6dp"
-                                android:background="@drawable/search_bg"
-                                android:hint="Enter XMLTV / EPG URL"
-                                android:inputType="textUri"
-                                android:paddingHorizontal="12dp"
-                                android:textColor="#FFFFFF"
-                                android:textColorHint="#555555"
-                                android:textSize="13sp" />
-                            <Button
-                                android:id="@+id/btnSaveEpg"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:layout_marginTop="10dp"
-                                android:backgroundTint="#008CFF"
-                                android:text="Save EPG URL"
-                                android:textColor="#000000"
-                                android:textStyle="bold"
-                                android:textSize="13sp" />
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="STREAM FORMAT"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1" />
-                            <RadioGroup
-                                android:id="@+id/rgFormat"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:orientation="horizontal">
-                                <RadioButton
-                                    android:id="@+id/rbM3u8"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="EPG URL"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevEpgUrl"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="m3u8"
+                                    android:text="▲"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyEpgUrl"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:paddingBottom="16dp"
+                                android:visibility="visible">
+                                <EditText
+                                    android:id="@+id/etEpgUrl"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="48dp"
+                                    android:layout_marginTop="6dp"
+                                    android:background="@drawable/search_bg"
+                                    android:hint="Enter XMLTV / EPG URL"
+                                    android:inputType="textUri"
+                                    android:paddingHorizontal="12dp"
                                     android:textColor="#FFFFFF"
-                                    android:buttonTint="#008CFF" />
-                                <RadioButton
-                                    android:id="@+id/rbTs"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="24dp"
-                                    android:text="ts"
-                                    android:textColor="#FFFFFF"
-                                    android:buttonTint="#008CFF" />
-                            </RadioGroup>
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="VIDEO PLAYER"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1" />
-                            <RadioGroup
-                                android:id="@+id/rgPlayer"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:orientation="vertical">
-                                <RadioButton android:id="@+id/rbPlayerInternal" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Built-in player" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                <RadioButton android:id="@+id/rbPlayerVlc" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="VLC" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                <RadioButton android:id="@+id/rbPlayerMx" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MX Player" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                <RadioButton android:id="@+id/rbPlayerSystem" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ask every time" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                            </RadioGroup>
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="EPG"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1" />
-                            <Button
-                                android:id="@+id/btnRefreshEpg"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:layout_marginTop="8dp"
-                                android:backgroundTint="#008CFF"
-                                android:text="Refresh EPG"
-                                android:textColor="#000000"
-                                android:textStyle="bold"
-                                android:textSize="13sp" />
-                            <ProgressBar
-                                android:id="@+id/progressEpgRefresh"
-                                style="?android:attr/progressBarStyleHorizontal"
-                                android:layout_width="match_parent"
-                                android:layout_height="4dp"
-                                android:layout_marginTop="10dp"
-                                android:max="100"
-                                android:progress="0"
-                                android:progressTint="#008CFF"
-                                android:visibility="gone" />
-                            <Button
-                                android:id="@+id/btnCancelEpgRefresh"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:layout_marginTop="8dp"
-                                android:backgroundTint="#2A2A2A"
-                                android:text="Cancel Refresh"
-                                android:textColor="#FFFFFF"
-                                android:textSize="13sp"
-                                android:visibility="gone" />
-                            <TextView
-                                android:id="@+id/tvEpgRefreshStatus"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text=""
-                                android:textColor="#777777"
-                                android:textSize="12sp" />
-                            <TextView
-                                android:id="@+id/tvLastEpgRefresh"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="6dp"
-                                android:text="Last EPG Refresh: Never"
-                                android:textColor="#555555"
-                                android:textSize="12sp" />
-                            <TextView
-                                android:id="@+id/tvEpgCacheAge"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:text="EPG Cache Age: Unknown"
-                                android:textColor="#555555"
-                                android:textSize="12sp" />
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="SERVER SPEED TEST"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1" />
-                            <Button
-                                android:id="@+id/btnSpeedTest"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:layout_marginTop="8dp"
-                                android:backgroundTint="#1A3A5C"
-                                android:text="Run Speed Test"
-                                android:textColor="#008CFF"
-                                android:textSize="13sp" />
-                            <TextView
-                                android:id="@+id/tvSpeedTestResult"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text=""
-                                android:textColor="#AAAAAA"
-                                android:textSize="12sp" />
+                                    android:textColorHint="#555555"
+                                    android:textSize="13sp" />
+                                <Button
+                                    android:id="@+id/btnSaveEpg"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="10dp"
+                                    android:backgroundTint="#008CFF"
+                                    android:text="Save EPG URL"
+                                    android:textColor="#000000"
+                                    android:textStyle="bold"
+                                    android:textSize="13sp" />
+                            </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
-                    <!-- DNS over HTTPS -->
+                    <!-- Stream Format card — starts collapsed -->
                     <androidx.cardview.widget.CardView
-                        xmlns:app="http://schemas.android.com/apk/res-auto"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrFormat"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="STREAM FORMAT"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevFormat"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="▼"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyFormat"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:paddingBottom="16dp"
+                                android:visibility="gone">
+                                <RadioGroup
+                                    android:id="@+id/rgFormat"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:orientation="horizontal">
+                                    <RadioButton
+                                        android:id="@+id/rbM3u8"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="m3u8"
+                                        android:textColor="#FFFFFF"
+                                        android:buttonTint="#008CFF" />
+                                    <RadioButton
+                                        android:id="@+id/rbTs"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="24dp"
+                                        android:text="ts"
+                                        android:textColor="#FFFFFF"
+                                        android:buttonTint="#008CFF" />
+                                </RadioGroup>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <!-- Video Player card — starts collapsed -->
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrPlayer"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="VIDEO PLAYER"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevPlayer"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="▼"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyPlayer"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:paddingBottom="16dp"
+                                android:visibility="gone">
+                                <RadioGroup
+                                    android:id="@+id/rgPlayer"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:orientation="vertical">
+                                    <RadioButton
+                                        android:id="@+id/rbPlayerInternal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:buttonTint="#008CFF"
+                                        android:text="Built-in player"
+                                        android:textColor="#FFFFFF" />
+                                    <RadioButton
+                                        android:id="@+id/rbPlayerVlc"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:buttonTint="#008CFF"
+                                        android:text="VLC"
+                                        android:textColor="#FFFFFF" />
+                                    <RadioButton
+                                        android:id="@+id/rbPlayerMx"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:buttonTint="#008CFF"
+                                        android:text="MX Player"
+                                        android:textColor="#FFFFFF" />
+                                    <RadioButton
+                                        android:id="@+id/rbPlayerSystem"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:buttonTint="#008CFF"
+                                        android:text="Ask every time"
+                                        android:textColor="#FFFFFF" />
+                                </RadioGroup>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <!-- EPG Refresh card — starts collapsed -->
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrEpgSection"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="EPG REFRESH"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevEpgSection"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="▼"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyEpgSection"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:paddingBottom="16dp"
+                                android:visibility="gone">
+                                <Button
+                                    android:id="@+id/btnRefreshEpg"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#008CFF"
+                                    android:text="Refresh EPG"
+                                    android:textColor="#000000"
+                                    android:textStyle="bold"
+                                    android:textSize="13sp" />
+                                <ProgressBar
+                                    android:id="@+id/progressEpgRefresh"
+                                    style="?android:attr/progressBarStyleHorizontal"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="4dp"
+                                    android:layout_marginTop="10dp"
+                                    android:max="100"
+                                    android:progress="0"
+                                    android:progressTint="#008CFF"
+                                    android:visibility="gone" />
+                                <Button
+                                    android:id="@+id/btnCancelEpgRefresh"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#2A2A2A"
+                                    android:text="Cancel Refresh"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp"
+                                    android:visibility="gone" />
+                                <TextView
+                                    android:id="@+id/tvEpgRefreshStatus"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:text=""
+                                    android:textColor="#777777"
+                                    android:textSize="12sp" />
+                                <TextView
+                                    android:id="@+id/tvLastEpgRefresh"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="6dp"
+                                    android:text="Last EPG Refresh: Never"
+                                    android:textColor="#555555"
+                                    android:textSize="12sp" />
+                                <TextView
+                                    android:id="@+id/tvEpgCacheAge"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:text="EPG Cache Age: Unknown"
+                                    android:textColor="#555555"
+                                    android:textSize="12sp" />
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:layout_marginTop="12dp"
+                                    android:layout_marginBottom="4dp"
+                                    android:background="#222222" />
+                                <CheckBox
+                                    android:id="@+id/cbRefreshMissingOnly"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Refresh only channels missing guide data"
+                                    android:textColor="#CCCCCC"
+                                    android:textSize="13sp"
+                                    android:buttonTint="#008CFF" />
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="12dp"
+                                    android:text="AUTO REFRESH SCHEDULE"
+                                    android:textColor="#777777"
+                                    android:textSize="11sp"
+                                    android:letterSpacing="0.1" />
+                                <RadioGroup
+                                    android:id="@+id/rgAutoEpgRefresh"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:orientation="vertical">
+                                    <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                    <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                    <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                    <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                </RadioGroup>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <!-- Server Speed Test card — starts collapsed -->
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrSpeedTest"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="SERVER SPEED TEST"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevSpeedTest"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="▼"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodySpeedTest"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:paddingBottom="16dp"
+                                android:visibility="gone">
+                                <Button
+                                    android:id="@+id/btnSpeedTest"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#1A3A5C"
+                                    android:text="Run Speed Test"
+                                    android:textColor="#008CFF"
+                                    android:textSize="13sp" />
+                                <TextView
+                                    android:id="@+id/tvSpeedTestResult"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:text=""
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <!-- DNS over HTTPS card — starts collapsed -->
+                    <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
@@ -447,103 +656,90 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="12dp">
-                            <TextView
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrDoh"
                                 android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="DNS OVER HTTPS"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1"
-                                android:layout_marginBottom="8dp" />
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Bypass ISP throttling by encrypting DNS queries"
-                                android:textColor="#888888"
-                                android:textSize="11sp"
-                                android:layout_marginBottom="10dp" />
-                            <CheckBox
-                                android:id="@+id/cbDohEnabled"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Enable DNS over HTTPS"
-                                android:textColor="#CCCCCC"
-                                android:buttonTint="#008CFF" />
-                            <RadioGroup
-                                android:id="@+id/rgDohProvider"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:orientation="vertical">
-                                <RadioButton
-                                    android:id="@+id/rbDohCloudflare"
+                                android:layout_height="48dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="DNS OVER HTTPS"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevDoh"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Cloudflare 1.1.1.1"
-                                    android:textColor="#CCCCCC"
-                                    android:buttonTint="#008CFF" />
-                                <RadioButton
-                                    android:id="@+id/rbDohGoogle"
-                                    android:layout_width="wrap_content"
+                                    android:text="▼"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyDoh"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="12dp"
+                                android:paddingRight="12dp"
+                                android:paddingBottom="12dp"
+                                android:visibility="gone">
+                                <TextView
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="Google 8.8.8.8"
-                                    android:textColor="#CCCCCC"
-                                    android:buttonTint="#008CFF" />
-                                <RadioButton
-                                    android:id="@+id/rbDohNextDns"
-                                    android:layout_width="wrap_content"
+                                    android:text="Bypass ISP throttling by encrypting DNS queries"
+                                    android:textColor="#888888"
+                                    android:textSize="11sp"
+                                    android:layout_marginBottom="10dp" />
+                                <CheckBox
+                                    android:id="@+id/cbDohEnabled"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="NextDNS"
+                                    android:text="Enable DNS over HTTPS"
                                     android:textColor="#CCCCCC"
                                     android:buttonTint="#008CFF" />
-                            </RadioGroup>
+                                <RadioGroup
+                                    android:id="@+id/rgDohProvider"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:orientation="vertical">
+                                    <RadioButton
+                                        android:id="@+id/rbDohCloudflare"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Cloudflare 1.1.1.1"
+                                        android:textColor="#CCCCCC"
+                                        android:buttonTint="#008CFF" />
+                                    <RadioButton
+                                        android:id="@+id/rbDohGoogle"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Google 8.8.8.8"
+                                        android:textColor="#CCCCCC"
+                                        android:buttonTint="#008CFF" />
+                                    <RadioButton
+                                        android:id="@+id/rbDohNextDns"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="NextDNS"
+                                        android:textColor="#CCCCCC"
+                                        android:buttonTint="#008CFF" />
+                                </RadioGroup>
+                            </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <CheckBox
-                                android:id="@+id/cbRefreshMissingOnly"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Refresh only channels missing guide data"
-                                android:textColor="#CCCCCC"
-                                android:textSize="13sp"
-                                android:buttonTint="#008CFF" />
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="16dp"
-                                android:text="AUTO REFRESH"
-                                android:textColor="#777777"
-                                android:textSize="11sp"
-                                android:letterSpacing="0.1" />
-                            <RadioGroup
-                                android:id="@+id/rgAutoEpgRefresh"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:orientation="vertical">
-                                <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                            </RadioGroup>
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
+
                 </LinearLayout>
             </ScrollView>
 
@@ -573,8 +769,7 @@
                         android:layout_height="wrap_content"
                         app:cardBackgroundColor="#161616"
                         app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -694,8 +889,7 @@
                         android:layout_marginBottom="16dp"
                         app:cardBackgroundColor="#161616"
                         app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -707,17 +901,6 @@
                                 android:layout_height="44dp"
                                 android:backgroundTint="#1E1E1E"
                                 android:text="⇅  Sort Channels: Default"
-                                android:textColor="#FFFFFF"
-                                android:textSize="13sp"
-                                android:gravity="start|center_vertical"
-                                android:paddingHorizontal="12dp" />
-                            <Button
-                                android:id="@+id/btnSettingsWhatsOn"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:layout_marginTop="8dp"
-                                android:backgroundTint="#1E1E1E"
-                                android:text="📺  What's On Now"
                                 android:textColor="#FFFFFF"
                                 android:textSize="13sp"
                                 android:gravity="start|center_vertical"
@@ -761,8 +944,7 @@
                         android:layout_height="wrap_content"
                         app:cardBackgroundColor="#161616"
                         app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -800,6 +982,8 @@
                     </androidx.cardview.widget.CardView>
                 </LinearLayout>
             </ScrollView>
+
+            <!-- BACKUP PANEL -->
             <ScrollView
                 android:id="@+id/sectionBackup"
                 android:layout_width="match_parent"
@@ -825,8 +1009,7 @@
                         android:layout_height="wrap_content"
                         app:cardBackgroundColor="#161616"
                         app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -894,39 +1077,6 @@
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <Button
-                                android:id="@+id/btnSendDebugReport"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:backgroundTint="#1A1A1A"
-                                android:text="Send Debug Report"
-                                android:textColor="#FF6B6B"
-                                android:textStyle="bold"
-                                android:textSize="13sp" />
-                            <TextView
-                                android:id="@+id/tvReportStatus"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:text=""
-                                android:textColor="#777777"
-                                android:textSize="12sp" />
-
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
                 </LinearLayout>
             </ScrollView>
 
@@ -956,8 +1106,7 @@
                         android:layout_height="wrap_content"
                         app:cardBackgroundColor="#161616"
                         app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp"
-                        xmlns:app="http://schemas.android.com/apk/res-auto">
+                        app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -989,8 +1138,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:visibility="gone"
-                android:descendantFocusability="afterDescendants"
-                xmlns:app="http://schemas.android.com/apk/res-auto">
+                android:descendantFocusability="afterDescendants">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1022,7 +1170,7 @@
                             <TextView
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:text="Sync favorites and watch history across your devices using your GitHub account."
+                                android:text="Sync favorites and watch history across your devices using Firebase."
                                 android:textColor="#AAAAAA"
                                 android:textSize="13sp"
                                 android:lineSpacingExtra="3dp"
@@ -1068,6 +1216,44 @@
                                 android:textSize="13sp" />
 
                             <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:text="Pairing Code (enter another device's sync code)"
+                                android:textColor="#AAAAAA"
+                                android:textSize="12sp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:orientation="horizontal">
+
+                                <EditText
+                                    android:id="@+id/etGithubToken"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:background="#1A1A1A"
+                                    android:hint="ABC12345"
+                                    android:textColorHint="#555555"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="12sp"
+                                    android:paddingHorizontal="10dp"
+                                    android:inputType="textVisiblePassword"
+                                    android:singleLine="true" />
+
+                                <Button
+                                    android:id="@+id/btnSaveGithubToken"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="6dp"
+                                    android:backgroundTint="#008CFF"
+                                    android:text="Pair"
+                                    android:textSize="13sp" />
+                            </LinearLayout>
+
+                            <TextView
                                 android:id="@+id/tvSyncStatus"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
@@ -1075,6 +1261,38 @@
                                 android:textColor="#888888"
                                 android:textSize="12sp"
                                 android:lineSpacingExtra="3dp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <Button
+                                android:id="@+id/btnSendDebugReport"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:backgroundTint="#1A1A1A"
+                                android:text="Send Debug Report"
+                                android:textColor="#FF6B6B"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+                            <TextView
+                                android:id="@+id/tvReportStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text=""
+                                android:textColor="#777777"
+                                android:textSize="12sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
                 </LinearLayout>

@@ -1,9 +1,11 @@
 {
-  "versionCode": 165,
-  "versionName": "3.27",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.27/MKTV.apk",
+  "versionCode": 166,
+  "versionName": "3.28",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.28/MKTV.apk",
   "changelog": [
-    "fix EPG auto-refresh stopping after app updates — now re-schedules on every cold start",
-    "EPG refresh also re-established when opening Settings"
+    "merge auto-refresh schedule into EPG Refresh card (one collapsible section)",
+    "remove What's On Now from Settings quick actions",
+    "move Send Debug Report to Sync section",
+    "add channel search when scheduling a recording"
   ]
 }

@@ -126,10 +126,6 @@ class SettingsActivity : AppCompatActivity() {
             binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
             lifecycleScope.launch { prefs.setChannelSortMode(currentSortIndex) }
         }
-        binding.btnSettingsWhatsOn.setOnClickListener {
-            setResult(RESULT_OK, Intent().putExtra("action", "whats_on"))
-            finish()
-        }
         binding.btnSettingsMosaic.setOnClickListener {
             startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
         }
@@ -323,7 +319,6 @@ class SettingsActivity : AppCompatActivity() {
         wireCollapsible(R.id.hdrEpgSection,  R.id.bodyEpgSection,  R.id.chevEpgSection)
         wireCollapsible(R.id.hdrSpeedTest,   R.id.bodySpeedTest,   R.id.chevSpeedTest)
         wireCollapsible(R.id.hdrDoh,         R.id.bodyDoh,         R.id.chevDoh)
-        wireCollapsible(R.id.hdrAutoRefresh, R.id.bodyAutoRefresh, R.id.chevAutoRefresh)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
