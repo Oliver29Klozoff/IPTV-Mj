@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.40 - 2026-07-04
+- fix: SHIELD Guide button no longer backgrounds the app; shows overlay in player
+
 ## v3.39 - 2026-07-04
 - fix: crash in getEpgForStreams - migrate epg_entries schema to add missing nowPlaying/hasArchive columns
 

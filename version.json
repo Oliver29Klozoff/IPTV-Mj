@@ -1,8 +1,8 @@
 {
-  "versionCode": 177,
-  "versionName": "3.39",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.39/MKTV.apk",
+  "versionCode": 178,
+  "versionName": "3.40",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.40/MKTV.apk",
   "changelog": [
-    "fix: crash in getEpgForStreams - migrate epg_entries schema to add missing nowPlaying/hasArchive columns"
+    "fix: SHIELD Guide button no longer backgrounds the app; shows overlay in player"
   ]
 }
