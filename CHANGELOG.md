@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.33 - 2026-07-04
+- fix: recording scheduler top bar no longer hidden under status bar
+
 ## v3.32 - 2026-07-04
 - fix: rebuild with v3.30 rotation and fullscreen-exit Favorites fixes included
 
