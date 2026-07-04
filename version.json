@@ -1,7 +1,7 @@
 {
-  "versionCode": 169,
-  "versionName": "3.31",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.31/MKTV.apk",
+  "versionCode": 170,
+  "versionName": "3.32",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.32/MKTV.apk",
   "changelog": [
     "fix: rebuild with v3.30 rotation and fullscreen-exit Favorites fixes included"
   ]
