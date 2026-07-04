@@ -1,8 +1,8 @@
 {
-  "versionCode": 171,
-  "versionName": "3.33",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.33/MKTV.apk",
+  "versionCode": 172,
+  "versionName": "3.34",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.34/MKTV.apk",
   "changelog": [
-    "fix: recording scheduler top bar no longer hidden under status bar"
+    "add EPG now-playing info to recording channel picker"
   ]
 }

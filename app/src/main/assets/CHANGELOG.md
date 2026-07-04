@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.34 - 2026-07-04
+- add EPG now-playing info to recording channel picker
+
 ## v3.33 - 2026-07-04
 - fix: recording scheduler top bar no longer hidden under status bar
 
