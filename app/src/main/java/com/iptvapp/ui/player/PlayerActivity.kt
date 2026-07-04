@@ -1,5 +1,6 @@
 package com.iptvapp.ui.player
 
+import android.app.Activity
 import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.util.Log
@@ -64,13 +65,18 @@ class PlayerActivity : AppCompatActivity() {
     private val hideHandler = Handler(Looper.getMainLooper())
     private lateinit var guideAdapter: ChannelAdapter
 
+    private var isOverlayVisible = false
+    private var isHealthBadgeActive = false
+
     private val hideRunnable = Runnable {
+        isOverlayVisible = false
         binding.epgOverlay.visibility = View.GONE
         binding.btnBack.visibility = View.GONE
         binding.btnGuide.visibility = View.GONE
         binding.btnPlayPause.visibility = View.GONE
         binding.bottomControls.visibility = View.GONE
         binding.btnCast.visibility = View.GONE
+        binding.bufferHealthBadge.visibility = View.GONE
     }
 
     private val osdHandler = Handler(Looper.getMainLooper())
@@ -96,9 +102,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private val resizeModes = listOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT,
-        AspectRatioFrameLayout.RESIZE_MODE_FILL,
-        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+        AspectRatioFrameLayout.RESIZE_MODE_FILL
     )
+    private val resizeModeLabels = listOf("Best Fit", "Zoom", "Stretch")
     private var resizeModeIndex = 0
 
     @Inject lateinit var repository: XtreamRepository
@@ -260,7 +267,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupActionButtons() {
-        binding.btnSpeed.setOnClickListener { showSpeedDialog() }
         binding.btnSleep.setOnClickListener { showSleepTimerDialog() }
         binding.btnTracks.setOnClickListener { showTrackSelectorDialog() }
         binding.btnStats.setOnClickListener {
@@ -302,10 +308,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateHealthBadge() {
-        val p = player ?: run {
-            binding.bufferHealthBadge.visibility = View.GONE
-            return
-        }
+        val p = player ?: return
         val bufPct = p.bufferedPercentage
         val vf = p.videoFormat
         val bitrate = if (vf != null && vf.bitrate > 0)
@@ -318,39 +321,23 @@ class PlayerActivity : AppCompatActivity() {
         }
         (binding.viewHealthDotPlayer.background as? android.graphics.drawable.GradientDrawable)
             ?.setColor(dotColor)
-        val label = buildString {
+        binding.tvHealthBadge.text = buildString {
             append("$bufPct%")
             if (bitrate.isNotEmpty()) append("  $bitrate")
         }
-        binding.tvHealthBadge.text = label
-        binding.bufferHealthBadge.visibility = View.VISIBLE
     }
 
     private fun startHealthBadge() {
-        binding.bufferHealthBadge.visibility = View.VISIBLE
+        isHealthBadgeActive = true
+        if (isOverlayVisible) binding.bufferHealthBadge.visibility = View.VISIBLE
         updateHealthBadge()
         healthHandler.postDelayed(healthRunnable, 2000)
     }
 
     private fun stopHealthBadge() {
+        isHealthBadgeActive = false
         healthHandler.removeCallbacks(healthRunnable)
         binding.bufferHealthBadge.visibility = View.GONE
-    }
-
-    private fun showSpeedDialog() {
-        val labels = arrayOf("0.25×", "0.5×", "0.75×", "Normal (1×)", "1.25×", "1.5×", "2×")
-        val values = floatArrayOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
-        val current = player?.playbackParameters?.speed ?: 1f
-        val checked = values.indexOfFirst { it == current }.coerceAtLeast(0)
-        AlertDialog.Builder(this)
-            .setTitle("Playback Speed")
-            .setSingleChoiceItems(labels, checked) { dialog, which ->
-                player?.setPlaybackSpeed(values[which])
-                binding.btnSpeed.text = if (values[which] == 1f) "1×" else "${values[which]}×"
-                dialog.dismiss()
-                resetHideTimer()
-            }
-            .show()
     }
 
     private fun showSleepTimerDialog() {
@@ -479,6 +466,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnResize.setOnClickListener {
             resizeModeIndex = (resizeModeIndex + 1) % resizeModes.size
             binding.playerView.resizeMode = resizeModes[resizeModeIndex]
+            Toast.makeText(this, resizeModeLabels[resizeModeIndex], Toast.LENGTH_SHORT).show()
             resetHideTimer()
         }
     }
@@ -514,8 +502,6 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setupGestureDetector() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            private val SWIPE_THRESHOLD = 100
-            private val SWIPE_VELOCITY = 100
 
             override fun onDown(e: MotionEvent): Boolean {
                 isAdjustingGesture = false
@@ -543,17 +529,6 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
 
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                if (isVod) return false
-                val dy = (e2.y) - (e1?.y ?: 0f)
-                val dx = (e2.x) - (e1?.x ?: 0f)
-                if (abs(dy) > abs(dx) && abs(dy) > SWIPE_THRESHOLD && abs(velocityY) > SWIPE_VELOCITY) {
-                    if (dy < 0) { nextChannel(); showChannelOsd() }
-                    else { previousChannel(); showChannelOsd() }
-                    return true
-                }
-                return false
-            }
         })
 
         binding.root.setOnTouchListener { _, event ->
@@ -843,6 +818,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showOverlay() {
+        isOverlayVisible = true
         binding.tvChannelTitle.text = streamTitle
         binding.epgOverlay.visibility = View.VISIBLE
         binding.btnBack.visibility = View.VISIBLE
@@ -850,6 +826,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnPlayPause.visibility = View.VISIBLE
         binding.bottomControls.visibility = View.VISIBLE
         if (castAvailable) binding.btnCast.visibility = View.VISIBLE
+        if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE
         updatePlayPauseButton()
         resetHideTimer()
         if (!isVod && streamId != -1) {
@@ -921,13 +898,34 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP -> { if (!isVod) { previousChannel(); showChannelOsd() }; true }
-            KeyEvent.KEYCODE_DPAD_DOWN -> { if (!isVod) { nextChannel(); showChannelOsd() }; true }
-            KeyEvent.KEYCODE_DPAD_LEFT -> { if (isVod) { player?.seekTo(((player?.currentPosition ?: 0L) - 10000L).coerceAtLeast(0L)) }; true }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (isVod) { player?.seekTo(((player?.currentPosition ?: 0L) + 10000L).coerceAtMost(player?.duration ?: Long.MAX_VALUE)) }; true }
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if (!isOverlayVisible) { showOverlay(); true }
+                else if (!isVod) { previousChannel(); showChannelOsd(); true }
+                else super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (!isOverlayVisible) { showOverlay(); true }
+                else if (!isVod) { nextChannel(); showChannelOsd(); true }
+                else super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if (!isOverlayVisible) { showOverlay(); true }
+                else if (isVod) { player?.seekTo(((player?.currentPosition ?: 0L) - 10000L).coerceAtLeast(0L)); true }
+                else super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (!isOverlayVisible) { showOverlay(); true }
+                else if (isVod) { player?.seekTo(((player?.currentPosition ?: 0L) + 10000L).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
+                else super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()
                 updatePlayPauseButton(); true
+            }
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
+                if (!isOverlayVisible) showOverlay()
+                else { if (player?.isPlaying == true) player?.pause() else player?.play(); updatePlayPauseButton() }
+                true
             }
             else -> super.onKeyDown(keyCode, event)
         }
@@ -948,6 +946,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
+            isOverlayVisible = false
             binding.epgOverlay.visibility = View.GONE
             binding.btnBack.visibility = View.GONE
             binding.btnGuide.visibility = View.GONE
@@ -955,6 +954,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnResize.visibility = View.GONE
             binding.bottomControls.visibility = View.GONE
             binding.btnCast.visibility = View.GONE
+            binding.bufferHealthBadge.visibility = View.GONE
         } else {
             binding.btnResize.visibility = View.VISIBLE
         }
@@ -1034,6 +1034,15 @@ class PlayerActivity : AppCompatActivity() {
         stopHealthBadge()
         player?.release()
         player = null
+    }
+
+    override fun finish() {
+        setResult(Activity.RESULT_OK, android.content.Intent().apply {
+            putExtra("stream_id", streamId)
+            putExtra("stream_url", streamUrl)
+            putExtra("stream_title", streamTitle)
+        })
+        super.finish()
     }
 
     override fun onDestroy() {

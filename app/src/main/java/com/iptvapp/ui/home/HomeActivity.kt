@@ -10,6 +10,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import android.speech.RecognizerIntent
 import android.view.View
@@ -19,11 +22,14 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -53,7 +59,11 @@ import java.util.Locale
 class HomeActivity : AppCompatActivity() {
 
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
+    private var openPlayerJob: kotlinx.coroutines.Job? = null
     private lateinit var binding: ActivityHomeBinding
+    private var isLandscapeChannelsCollapsed = false
+    private val channelCollapseHandler = Handler(Looper.getMainLooper())
+    private val channelCollapseRunnable = Runnable { collapseChannelsLandscape() }
 
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
@@ -84,8 +94,36 @@ class HomeActivity : AppCompatActivity() {
             }
         )
     }
+    private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val returnedId  = result.data?.getIntExtra("stream_id", -1) ?: -1
+            val returnedUrl = result.data?.getStringExtra("stream_url") ?: ""
+            val returnedTitle = result.data?.getStringExtra("stream_title") ?: ""
+            if (returnedId != -1 && returnedUrl.isNotEmpty()) {
+                suppressMiniAutoResume = true
+                currentMiniStreamId = returnedId
+                currentMiniUrl = returnedUrl
+                currentMiniTitle = returnedTitle
+                binding.tvMiniChannelName.text = returnedTitle
+                viewModel.setCurrentlyPlaying(returnedId)
+                binding.rvChannels.post {
+                    val pos = channelAdapter.currentList.indexOfFirst { it.streamId == returnedId }
+                    if (pos >= 0) {
+                        (binding.rvChannels.layoutManager as? LinearLayoutManager)
+                            ?.scrollToPositionWithOffset(pos, 0)
+                    }
+                }
+                binding.tvPipChannelName?.text = returnedTitle
+                miniPlayer?.setMediaItem(androidx.media3.common.MediaItem.fromUri(returnedUrl))
+                miniPlayer?.prepare()
+                miniPlayer?.playWhenReady = true
+            }
+        }
+    }
+
     // Prevents onResume from auto-resuming "recent" channel when we just picked one from the grid
     private var suppressMiniAutoResume = false
+    private var tabPositionBeforePlayer: Int = -1
 
     private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -130,6 +168,16 @@ class HomeActivity : AppCompatActivity() {
     private var isPipMode = false
     private var externalPlayerChoice = "internal"
 
+    private var activeGenre: String? = null
+    private val GENRE_KEYWORDS = linkedMapOf(
+        "All"           to emptyList<String>(),
+        "Sports"        to listOf("sport", "espn", "nfl", "nba", "mlb", "nhl", "nascar", "tennis", "golf", "soccer", "football"),
+        "News"          to listOf("news", "cnn", "cnbc", "msnbc", "bbc", "fox news", "abc news", "nbc news"),
+        "Movies"        to listOf("movie", "film", "cinema", "hbo", "showtime", "starz", "amc", "fx movie"),
+        "Kids"          to listOf("kid", "children", "child", "disney", "nickelodeon", "nick", "cartoon", "toon"),
+        "Entertainment" to listOf("entertainment", "comedy", "drama", "tnt", "tbs", "bravo", "mtv", "vh1")
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -155,7 +203,7 @@ class HomeActivity : AppCompatActivity() {
         observeViewModel()
         viewModel.loadAll()
         observeTabVisibility()
-        binding.tabLayout.getTabAt(5)?.select()
+        binding.tabLayout.getTabAt(viewModel.lastTabPosition)?.select()
         setupLandscapeSidebar()
         FeatureTourDialog.showIfNeeded(this)
     }
@@ -232,6 +280,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cancelChannelCollapse()
         miniPlayer?.release()
         miniPlayer = null
     }
@@ -259,14 +308,66 @@ class HomeActivity : AppCompatActivity() {
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
             }
         }
-        binding.btnFullscreen.setOnClickListener {
+        binding.btnFullscreen?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
                 val isVodStream = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVodStream, resumeMs = currentPos)
             }
         }
-                loadLastWatchedChannel()
+        binding.rvChannels.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                when (e.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        expandChannelsLandscape()
+                        cancelChannelCollapse()
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (!isLandscapeChannelsCollapsed) scheduleChannelCollapse()
+                    }
+                }
+                return false
+            }
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+        })
+        loadLastWatchedChannel()
+    }
+
+    private fun scheduleChannelCollapse() {
+        channelCollapseHandler.removeCallbacks(channelCollapseRunnable)
+        channelCollapseHandler.postDelayed(channelCollapseRunnable, 5000)
+    }
+
+    private fun cancelChannelCollapse() {
+        channelCollapseHandler.removeCallbacks(channelCollapseRunnable)
+    }
+
+    private fun isLandscape() =
+        resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+    private fun collapseChannelsLandscape() {
+        if (!isLandscape()) return
+        cancelChannelCollapse()
+        val rvParams = binding.rvChannels.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        rvParams.height = (110 * resources.displayMetrics.density).toInt()
+        rvParams.weight = 0f
+        binding.rvChannels.layoutParams = rvParams
+        isLandscapeChannelsCollapsed = true
+        binding.rvChannels.post {
+            val pos = channelAdapter.currentList.indexOfFirst { it.streamId == currentMiniStreamId }
+            if (pos >= 0) (binding.rvChannels.layoutManager as? LinearLayoutManager)
+                ?.scrollToPositionWithOffset(pos, 0)
+        }
+    }
+
+    private fun expandChannelsLandscape() {
+        if (!isLandscape() || !isLandscapeChannelsCollapsed) return
+        val rvParams = binding.rvChannels.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        rvParams.height = (450 * resources.displayMetrics.density).toInt()
+        rvParams.weight = 0f
+        binding.rvChannels.layoutParams = rvParams
+        isLandscapeChannelsCollapsed = false
     }
 
     private fun loadLastWatchedChannel() {
@@ -284,6 +385,7 @@ class HomeActivity : AppCompatActivity() {
             currentMiniUrl = url
             currentMiniTitle = channel.name
             currentMiniStreamId = channel.streamId
+            viewModel.setCurrentlyPlaying(channel.streamId)
             binding.tvMiniChannelName.text = channel.name
             binding.tvPipChannelName?.text = channel.name
 
@@ -309,6 +411,7 @@ class HomeActivity : AppCompatActivity() {
             }
             refreshMiniEpg(channel.streamId)
             startEpgRefreshLoop(channel.streamId)
+            collapseChannelsLandscape()
         }
     }
 
@@ -456,7 +559,7 @@ class HomeActivity : AppCompatActivity() {
                         it.playWhenReady = true
                     }
                     // Store VOD info for fullscreen button
-                    binding.btnFullscreen.setOnClickListener {
+                    binding.btnFullscreen?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
                 val isVodStream = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
@@ -516,6 +619,7 @@ class HomeActivity : AppCompatActivity() {
     private fun setupTabs() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
+                viewModel.lastTabPosition = tab?.position ?: 5
                 when (tab?.position) {
                     0 -> showLive()
                     1 -> showFavCategories()
@@ -576,20 +680,79 @@ class HomeActivity : AppCompatActivity() {
         }
     }
         private fun showLive() {
+        setLandscapeCategoriesVisible(true)
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
         val cats = viewModel.liveCategories.value
+        updateGenreChips(cats)
+        val filtered = genreFilter(cats)
         categoryAdapter.resetSelection()
-        categoryAdapter.submitList(cats)
-        if (cats.isNotEmpty()) {
-            viewModel.selectLiveCategory(cats.first().categoryId)
-        } else {
-            viewModel.reloadCurrentLiveCategory()
+        categoryAdapter.submitList(filtered)
+        if (filtered.isNotEmpty()) {
+            if (viewModel.hasSelectedCategory()) viewModel.reloadCurrentLiveCategory()
+            else viewModel.selectLiveCategory(filtered.first().categoryId)
+        }
+    }
+
+    private fun genreFilter(cats: List<com.iptvapp.data.local.entities.CategoryEntity>): List<com.iptvapp.data.local.entities.CategoryEntity> {
+        val genre = activeGenre ?: return cats
+        val keywords = GENRE_KEYWORDS[genre] ?: return cats
+        return cats.filter { cat -> keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) } }
+    }
+
+    private fun updateGenreChips(allCats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        val container = binding.genreChipContainer ?: return
+        container.removeAllViews()
+        val detected = GENRE_KEYWORDS.keys.filter { genre ->
+            val keywords = GENRE_KEYWORDS[genre]!!
+            keywords.isEmpty() || allCats.any { cat -> keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) } }
+        }
+        if (detected.size <= 1) {
+            binding.genreFilterScroll?.visibility = View.GONE
+            return
+        }
+        binding.genreFilterScroll?.visibility = View.VISIBLE
+        val selectedGenre = activeGenre ?: "All"
+        for (genre in detected) {
+            val selected = (genre == selectedGenre)
+            val tv = android.widget.TextView(this).apply {
+                text = genre
+                textSize = 12f
+                setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFFCCCCCC.toInt())
+                setPadding(24, 0, 24, 0)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                typeface = if (selected) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                    cornerRadius = 32f
+                    if (selected) {
+                        setColor(0xFF008CFF.toInt())
+                    } else {
+                        setColor(0xFF2A2A2A.toInt())
+                        setStroke(2, 0xFF555555.toInt())
+                    }
+                }
+                layoutParams = android.view.ViewGroup.MarginLayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    72
+                ).also { it.marginEnd = 8 }
+                setOnClickListener {
+                    activeGenre = if (genre == "All") null else genre
+                    val filtered = genreFilter(viewModel.liveCategories.value)
+                    categoryAdapter.resetSelection()
+                    categoryAdapter.submitList(filtered)
+                    if (filtered.isNotEmpty()) viewModel.selectLiveCategory(filtered.first().categoryId)
+                    updateGenreChips(viewModel.liveCategories.value)
+                }
+            }
+            container.addView(tv)
         }
     }
 
     private fun showFavCategories() {
+        setLandscapeCategoriesVisible(true)
+        binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
@@ -603,6 +766,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showVod() {
+        setLandscapeCategoriesVisible(false)
+        binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = vodAdapter
@@ -612,12 +777,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showSeries() {
+        setLandscapeCategoriesVisible(false)
+        binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = seriesAdapter
         seriesAdapter.submitList(viewModel.series.value)
     }
 
     private fun showWatching() {
+        setLandscapeCategoriesVisible(false)
+        binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         channelAdapter.showDragHandles = false
@@ -629,6 +798,8 @@ class HomeActivity : AppCompatActivity() {
     private var favItemTouchHelper: ItemTouchHelper? = null
 
     private fun showFavorites() {
+        setLandscapeCategoriesVisible(false)
+        binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         viewModel.showFavoriteChannels()
@@ -664,6 +835,13 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun setLandscapeCategoriesVisible(visible: Boolean) {
+        val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
+        val div = binding.root.findViewById<View?>(R.id.categoriesDivider)
+        col.visibility = if (visible) View.VISIBLE else View.GONE
+        div?.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
     private fun detachFavDrag() {
         channelAdapter.showDragHandles = false
         channelAdapter.itemTouchHelper = null
@@ -672,6 +850,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showGuide() {
+        setLandscapeCategoriesVisible(false)
+        binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = guideAdapter
         viewModel.loadGuide()
@@ -686,14 +866,23 @@ class HomeActivity : AppCompatActivity() {
             launchExternalPlayer(url, title, externalPlayerChoice)
             return
         }
-        startActivity(Intent(this, PlayerActivity::class.java).apply {
-            putExtra("stream_url", url)
-            putExtra("stream_title", title)
-            putExtra("stream_id", streamId)
-            putExtra("stream_ids", streamIds)
-            putExtra("is_vod", isVod)
-            putExtra("resume_ms", resumeMs)
-        })
+        tabPositionBeforePlayer = binding.tabLayout.selectedTabPosition
+        // Stop + clear the mini player so the server releases the stream slot
+        // before PlayerActivity claims it — prevents concurrent-stream rejections.
+        miniPlayer?.stop()
+        miniPlayer?.clearMediaItems()
+        openPlayerJob?.cancel()
+        openPlayerJob = lifecycleScope.launch {
+            delay(1200)
+            playerLauncher.launch(Intent(this@HomeActivity, PlayerActivity::class.java).apply {
+                putExtra("stream_url", url)
+                putExtra("stream_title", title)
+                putExtra("stream_id", streamId)
+                putExtra("stream_ids", streamIds)
+                putExtra("is_vod", isVod)
+                putExtra("resume_ms", resumeMs)
+            })
+        }
     }
 
     private fun launchExternalPlayer(url: String, title: String, player: String) {
@@ -715,20 +904,34 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun applyTabVisibility(index: Int, show: Boolean) {
+        val tabView = binding.tabLayout.getTabAt(index)?.view ?: return
+        tabView.visibility = if (show) View.VISIBLE else View.GONE
+        tabView.layoutParams?.width = if (show) android.view.ViewGroup.LayoutParams.WRAP_CONTENT else 0
+        binding.tabLayout.requestLayout()
+    }
+
     private fun observeTabVisibility() {
         lifecycleScope.launch {
-            viewModel.showMovies.collect { show: Boolean ->
-                binding.tabLayout.getTabAt(2)?.view?.visibility = if (show) View.VISIBLE else View.GONE
-            }
-        }
-        lifecycleScope.launch {
-            viewModel.showSeries.collect { show: Boolean ->
-                binding.tabLayout.getTabAt(3)?.view?.visibility = if (show) View.VISIBLE else View.GONE
-            }
-        }
-        lifecycleScope.launch {
-            viewModel.showWatching.collect { show: Boolean ->
-                binding.tabLayout.getTabAt(4)?.view?.visibility = if (show) View.VISIBLE else View.GONE
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.showMovies.collect { show: Boolean ->
+                        applyTabVisibility(2, show)
+                        binding.root.findViewById<android.widget.Button?>(R.id.landBtnMovies)?.visibility = if (show) View.VISIBLE else View.GONE
+                    }
+                }
+                launch {
+                    viewModel.showSeries.collect { show: Boolean ->
+                        applyTabVisibility(3, show)
+                        binding.root.findViewById<android.widget.Button?>(R.id.landBtnSeries)?.visibility = if (show) View.VISIBLE else View.GONE
+                    }
+                }
+                launch {
+                    viewModel.showWatching.collect { show: Boolean ->
+                        applyTabVisibility(4, show)
+                        binding.root.findViewById<android.widget.Button?>(R.id.landBtnWatching)?.visibility = if (show) View.VISIBLE else View.GONE
+                    }
+                }
             }
         }
     }
@@ -740,8 +943,15 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.liveCategories.collect {
-                if (binding.tabLayout.selectedTabPosition == 0) categoryAdapter.submitList(it)
+            viewModel.liveCategories.collect { cats ->
+                if (binding.tabLayout.selectedTabPosition == 0) {
+                    updateGenreChips(cats)
+                    val filtered = genreFilter(cats)
+                    categoryAdapter.submitList(filtered)
+                    if (filtered.isNotEmpty() && !viewModel.hasSelectedCategory()) {
+                        viewModel.selectLiveCategory(filtered.first().categoryId)
+                    }
+                }
             }
         }
         lifecycleScope.launch {

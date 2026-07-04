@@ -10,7 +10,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -51,6 +53,7 @@ class TvHomeActivity : AppCompatActivity() {
     private var currentMiniStreamId: Int = -1
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
+    private var openPlayerJob: kotlinx.coroutines.Job? = null
     private var externalPlayerChoice = "internal"
 
     private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -73,6 +76,7 @@ class TvHomeActivity : AppCompatActivity() {
         setupSearch()
         setupMiniPlayer()
         observeViewModel()
+        observeSidebarVisibility()
         viewModel.loadAll()
         selectSection(Section.LIVE)
         handleDeepLink(intent)
@@ -106,7 +110,13 @@ class TvHomeActivity : AppCompatActivity() {
             val recent = viewModel.getRecentChannel()
             when {
                 recent != null && recent.streamId != currentMiniStreamId -> playInMiniPlayer(recent)
-                currentMiniUrl.isNotEmpty() -> miniPlayer?.play()
+                currentMiniUrl.isNotEmpty() -> {
+                    if (miniPlayer?.playbackState == Player.STATE_IDLE) {
+                        miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
+                        miniPlayer?.prepare()
+                    }
+                    miniPlayer?.play()
+                }
             }
         }
     }
@@ -511,7 +521,17 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channels.collect { channels ->
-                channelAdapter.submitList(channels)
+                val focusedChild = binding.tvRvContent.focusedChild
+                val focusedPos = if (focusedChild != null)
+                    binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
+                channelAdapter.submitList(channels) {
+                    if (focusedPos >= 0) {
+                        binding.tvRvContent.post {
+                            binding.tvRvContent.findViewHolderForAdapterPosition(focusedPos)
+                                ?.itemView?.requestFocus()
+                        }
+                    }
+                }
                 viewModel.loadEpgForChannels(channels)
             }
         }
@@ -560,6 +580,25 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun observeSidebarVisibility() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.showMovies.collect { show ->
+                        binding.btnTvMovies.visibility = if (show) View.VISIBLE else View.GONE
+                        if (!show && currentSection == Section.MOVIES) selectSection(Section.LIVE)
+                    }
+                }
+                launch {
+                    viewModel.showSeries.collect { show ->
+                        binding.btnTvSeries.visibility = if (show) View.VISIBLE else View.GONE
+                        if (!show && currentSection == Section.SERIES) selectSection(Section.LIVE)
+                    }
+                }
+            }
+        }
+    }
+
     // ── Player launcher ──────────────────────────────────────────────────────
 
     private fun openPlayer(
@@ -574,14 +613,20 @@ class TvHomeActivity : AppCompatActivity() {
             launchExternalPlayer(url, title, externalPlayerChoice)
             return
         }
-        startActivity(Intent(this, PlayerActivity::class.java).apply {
-            putExtra("stream_url", url)
-            putExtra("stream_title", title)
-            putExtra("stream_id", streamId)
-            putExtra("stream_ids", streamIds)
-            putExtra("is_vod", isVod)
-            putExtra("resume_ms", resumeMs)
-        })
+        miniPlayer?.stop()
+        miniPlayer?.clearMediaItems()
+        openPlayerJob?.cancel()
+        openPlayerJob = lifecycleScope.launch {
+            delay(1200)
+            startActivity(Intent(this@TvHomeActivity, PlayerActivity::class.java).apply {
+                putExtra("stream_url", url)
+                putExtra("stream_title", title)
+                putExtra("stream_id", streamId)
+                putExtra("stream_ids", streamIds)
+                putExtra("is_vod", isVod)
+                putExtra("resume_ms", resumeMs)
+            })
+        }
     }
 
     private fun showTvReminderDialog(channel: ChannelEntity) {
