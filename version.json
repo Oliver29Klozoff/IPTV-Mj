@@ -1,8 +1,8 @@
 {
-  "versionCode": 176,
-  "versionName": "3.38",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.38/MKTV.apk",
+  "versionCode": 177,
+  "versionName": "3.39",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.39/MKTV.apk",
   "changelog": [
-    "settings nav: Refresh EPG + Check Update buttons below Logout"
+    "fix: crash in getEpgForStreams - migrate epg_entries schema to add missing nowPlaying/hasArchive columns"
   ]
 }

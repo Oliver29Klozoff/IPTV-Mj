@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.39 - 2026-07-04
+- fix: crash in getEpgForStreams - migrate epg_entries schema to add missing nowPlaying/hasArchive columns
+
 ## v3.38 - 2026-07-04
 - settings nav: Refresh EPG + Check Update buttons below Logout
 
