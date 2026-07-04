@@ -214,7 +214,11 @@ class HomeActivity : AppCompatActivity() {
         observeViewModel()
         viewModel.loadAll()
         observeTabVisibility()
-        binding.tabLayout.getTabAt(viewModel.lastTabPosition)?.select()
+        // Always start on FAVORITES. Call showFavorites() explicitly because onTabSelected
+        // may not fire if TabLayout restores to tab 5 from its own saved instance state,
+        // which would leave _channels showing stale data from the previous session.
+        binding.tabLayout.getTabAt(5)?.select()
+        showFavorites()
         setupLandscapeSidebar()
         FeatureTourDialog.showIfNeeded(this)
     }

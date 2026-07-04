@@ -1,11 +1,8 @@
 {
-  "versionCode": 166,
-  "versionName": "3.28",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.28/MKTV.apk",
+  "versionCode": 167,
+  "versionName": "3.29",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.29/MKTV.apk",
   "changelog": [
-    "merge auto-refresh schedule into EPG Refresh card (one collapsible section)",
-    "remove What's On Now from Settings quick actions",
-    "move Send Debug Report to Sync section",
-    "add channel search when scheduling a recording"
+    "fix: app now always opens on Favorites tab showing your starred channels"
   ]
 }
