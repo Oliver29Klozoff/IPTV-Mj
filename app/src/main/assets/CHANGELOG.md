@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.22 - 2026-07-03
+- fix landscape video not showing - remove hardcoded height override on mini player container
+
 ## v3.21 - 2026-07-03
 - store last selected tab in ViewModel so rotation always restores correct tab and category
 

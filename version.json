@@ -1,8 +1,8 @@
 {
-  "versionCode": 159,
-  "versionName": "3.21",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.21/MKTV.apk",
+  "versionCode": 160,
+  "versionName": "3.22",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.22/MKTV.apk",
   "changelog": [
-    "store last selected tab in ViewModel so rotation always restores correct tab and category"
+    "fix landscape video not showing - remove hardcoded height override on mini player container"
   ]
 }
