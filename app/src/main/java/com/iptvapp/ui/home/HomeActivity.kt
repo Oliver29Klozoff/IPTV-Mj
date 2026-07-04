@@ -48,7 +48,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
+import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.worker.EpgRefreshWorker
+import kotlinx.coroutines.flow.first
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import java.util.concurrent.TimeUnit
 import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.ui.series.SeriesDetailActivity
 import java.text.SimpleDateFormat
@@ -173,6 +181,8 @@ class HomeActivity : AppCompatActivity() {
     private var isPipMode = false
     private var externalPlayerChoice = "internal"
 
+    @javax.inject.Inject lateinit var prefs: PreferencesManager
+
     private var activeGenre: String? = null
     private val GENRE_KEYWORDS = linkedMapOf(
         "All"           to emptyList<String>(),
@@ -201,6 +211,7 @@ class HomeActivity : AppCompatActivity() {
                 != PackageManager.PERMISSION_GRANTED) {
             notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        rescheduleEpgRefreshIfNeeded()
         setupRecyclerViews()
         setupTabs()
         setupSearch()
@@ -211,6 +222,20 @@ class HomeActivity : AppCompatActivity() {
         binding.tabLayout.getTabAt(viewModel.lastTabPosition)?.select()
         setupLandscapeSidebar()
         FeatureTourDialog.showIfNeeded(this)
+    }
+
+    private fun rescheduleEpgRefreshIfNeeded() {
+        lifecycleScope.launch {
+            val hours = prefs.epgAutoRefreshHours.first()
+            if (hours > 0) {
+                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
+                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
+                    .build()
+                WorkManager.getInstance(this@HomeActivity).enqueueUniquePeriodicWork(
+                    "auto_epg_refresh_work", ExistingPeriodicWorkPolicy.KEEP, req
+                )
+            }
+        }
     }
 
     private fun setupLandscapeSidebar() {

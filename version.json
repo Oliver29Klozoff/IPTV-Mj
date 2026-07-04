@@ -1,10 +1,9 @@
 {
-  "versionCode": 164,
-  "versionName": "3.26",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.26/MKTV.apk",
+  "versionCode": 165,
+  "versionName": "3.27",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.27/MKTV.apk",
   "changelog": [
-    "fix channel list reverting to live tab category on rotation or returning from fullscreen",
-    "restore correct tab when returning from fullscreen player",
-    "scroll to currently playing channel when Favorites tab is shown"
+    "fix EPG auto-refresh stopping after app updates — now re-schedules on every cold start",
+    "EPG refresh also re-established when opening Settings"
   ]
 }

@@ -5,17 +5,17 @@ import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.IntentFilter
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.MediaStore
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Environment
 import android.os.Handler
@@ -24,7 +24,6 @@ import android.provider.Settings
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -37,8 +36,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
+import com.iptvapp.AppConstants
 import com.iptvapp.IptvApplication
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
@@ -71,18 +69,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
-
-    private val backupFileLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) lifecycleScope.launch { writeBackupToUri(uri) }
-    }
-
-    private val restoreFileLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) lifecycleScope.launch { restoreBackupFromUri(uri) }
-    }
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var workManager: WorkManager
@@ -121,7 +107,7 @@ class SettingsActivity : AppCompatActivity() {
                 .setMessage("This will clear all data and return to the login screen. Continue?")
                 .setPositiveButton("Logout") { _, _ ->
                     lifecycleScope.launch {
-                        repository.logout()
+                        try { repository.logout() } catch (_: Exception) {}
                         val intent = Intent(this@SettingsActivity, com.iptvapp.ui.login.LoginActivity::class.java)
                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         startActivity(intent)
@@ -316,6 +302,28 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java))
         }
         selectPanel(0)
+        setupCollapsibleCards()
+    }
+
+    private fun wireCollapsible(headerId: Int, bodyId: Int, chevronId: Int) {
+        val header  = findViewById<View>(headerId)   ?: return
+        val body    = findViewById<View>(bodyId)     ?: return
+        val chevron = findViewById<android.widget.TextView>(chevronId) ?: return
+        header.setOnClickListener {
+            val expanding = body.visibility == View.GONE
+            body.visibility = if (expanding) View.VISIBLE else View.GONE
+            chevron.text    = if (expanding) "▲" else "▼"
+        }
+    }
+
+    private fun setupCollapsibleCards() {
+        wireCollapsible(R.id.hdrEpgUrl,      R.id.bodyEpgUrl,      R.id.chevEpgUrl)
+        wireCollapsible(R.id.hdrFormat,      R.id.bodyFormat,      R.id.chevFormat)
+        wireCollapsible(R.id.hdrPlayer,      R.id.bodyPlayer,      R.id.chevPlayer)
+        wireCollapsible(R.id.hdrEpgSection,  R.id.bodyEpgSection,  R.id.chevEpgSection)
+        wireCollapsible(R.id.hdrSpeedTest,   R.id.bodySpeedTest,   R.id.chevSpeedTest)
+        wireCollapsible(R.id.hdrDoh,         R.id.bodyDoh,         R.id.chevDoh)
+        wireCollapsible(R.id.hdrAutoRefresh, R.id.bodyAutoRefresh, R.id.chevAutoRefresh)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -358,9 +366,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun setupBackupRestore() {
         binding.btnBackupSettings.setOnClickListener { backupSettings() }
-        binding.btnRestoreSettings.setOnClickListener {
-            restoreFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-        }
+        binding.btnRestoreSettings.setOnClickListener { showRestoreDialog() }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
 
         lifecycleScope.launch {
@@ -378,7 +384,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateAutoBackupPathLabel(enabled: Boolean) {
-        binding.tvAutoBackupPath.text = if (enabled) "Saves to: Downloads/MKTV" else ""
+        binding.tvAutoBackupPath.text = if (enabled) "Saves to: Download/MKTV" else ""
     }
 
     private fun scheduleAutoBackup() {
@@ -401,62 +407,31 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun backupSettings() {
+        lifecycleScope.launch { saveBackupDirectly() }
+    }
+
+    private suspend fun saveBackupDirectly() {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        backupFileLauncher.launch("MKTV_backup_$timestamp.json")
-    }
-
-    private fun generateQrBitmap(content: String, size: Int = 800): Bitmap {
-        val hints = mapOf(
-            com.google.zxing.EncodeHintType.ERROR_CORRECTION to com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.H,
-            com.google.zxing.EncodeHintType.MARGIN to 1
-        )
-        val writer = QRCodeWriter()
-        val matrix = writer.encode(content, BarcodeFormat.QR_CODE, size, size, hints)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        for (x in 0 until size) {
-            for (y in 0 until size) {
-                bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
-            }
-        }
-        try {
-            val logoBitmap = BitmapFactory.decodeResource(resources, R.drawable.splash_logo)
-            val logoSize = size / 5
-            val scaledLogo = Bitmap.createScaledBitmap(logoBitmap, logoSize, logoSize, true)
-            val canvas = Canvas(bitmap)
-            val paint = Paint().apply { color = Color.WHITE }
-            val center = size / 2f
-            canvas.drawCircle(center, center, logoSize / 2f + 10, paint)
-            canvas.drawBitmap(scaledLogo, center - logoSize / 2f, center - logoSize / 2f, null)
-            scaledLogo.recycle()
-            logoBitmap.recycle()
-        } catch (_: Exception) {}
-        return bitmap
-    }
-
-    private fun showQrCode(content: String, prettyJson: String) {
-        val bitmap = generateQrBitmap(content)
-        val imageView = ImageView(this).apply {
-            setImageBitmap(bitmap)
-            setPadding(32, 32, 32, 32)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Backup QR Code")
-            .setMessage("Scan to restore on another device")
-            .setView(imageView)
-            .setPositiveButton("Save to File") { _, _ ->
-                try {
-                    val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
-                    dir.mkdirs()
-                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                    val backupFile = File(dir, "MKTV_backup_${timestamp}.json")
-                    backupFile.writeText(prettyJson)
-                    binding.tvBackupStatus.text = "✓ Saved to Documents"
-                } catch (e: Exception) {
-                    binding.tvBackupStatus.text = "Save failed: ${e.message}"
+        val fileName = "MKTV_backup_$timestamp.json"
+        val body = buildBackupJson().toString(2)
+        withContext(Dispatchers.IO) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                    put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                    put(MediaStore.Downloads.RELATIVE_PATH, "Download/MKTV/")
                 }
+                val uri = contentResolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
+                    ?: throw IllegalStateException("MediaStore insert failed")
+                contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
+            } else {
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MKTV")
+                dir.mkdirs()
+                File(dir, fileName).writeText(body)
             }
-            .setNegativeButton("Close", null)
-            .show()
+        }
+        binding.tvBackupStatus.text = "✓ Saved to Download/MKTV"
+        Toast.makeText(this, "Backup saved: $fileName", Toast.LENGTH_LONG).show()
     }
 
     private fun sendDebugReport() {
@@ -465,14 +440,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.tvReportStatus.text = "Collecting device info..."
         lifecycleScope.launch {
             try {
-                val token = prefs.githubToken.first().takeIf { it.isNotBlank() }
-                    ?: BuildConfig.GH_TOKEN_B64
-                if (token.isBlank()) {
-                    binding.tvReportStatus.text = "⚠ No GitHub token — add GH_TOKEN_B64 to local.properties and rebuild"
-                    binding.btnSendDebugReport.isEnabled = true
-                    binding.btnSendDebugReport.text = "Send Debug Report"
-                    return@launch
-                }
                 val pInfo = packageManager.getPackageInfo(packageName, 0)
                 val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                 val caps = cm.getNetworkCapabilities(cm.activeNetwork)
@@ -534,26 +501,26 @@ class SettingsActivity : AppCompatActivity() {
                     EPG Worker: $epgWorkState
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
-                val title = "Debug Report - v${pInfo.versionName}.${pInfo.longVersionCode} - ${Build.MODEL}"
-                val body = "## Device Debug Report\n\n```\n$fullDebug\n```"
-                val json = JSONObject().apply {
-                    put("title", title)
-                    put("body", body)
-                    put("labels", JSONArray().put("debug-report"))
+                val reportTitle = "Debug Report — v${pInfo.versionName} — ${Build.MODEL}"
+                val discordJson = JSONObject().apply {
+                    put("username", "Captain Hook")
+                    put("embeds", JSONArray().put(JSONObject().apply {
+                        put("title", reportTitle)
+                        put("description", "```\n${fullDebug.take(3900)}\n```")
+                        put("color", 0xF57C00)
+                    }))
                 }
                 binding.tvReportStatus.text = "Sending report..."
-                val client = OkHttpClient()
-                val request = Request.Builder()
-                    .url("https://api.github.com/repos/Oliver29Klozoff/IPTV-Mj/issues")
-                    .addHeader("Authorization", "token $token")
-                    .addHeader("Accept", "application/vnd.github.v3+json")
-                    .post(json.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
-                if (response.isSuccessful) {
-                    val responseJson = JSONObject(response.body?.string() ?: "")
-                    val issueNumber = responseJson.getInt("number")
-                    binding.tvReportStatus.text = "✓ Report sent (Issue #$issueNumber)"
+                val response = withContext(Dispatchers.IO) {
+                    OkHttpClient().newCall(
+                        Request.Builder()
+                            .url(AppConstants.DISCORD_WEBHOOK)
+                            .post(discordJson.toString().toRequestBody("application/json".toMediaType()))
+                            .build()
+                    ).execute()
+                }
+                if (response.isSuccessful || response.code == 204) {
+                    binding.tvReportStatus.text = "✓ Report sent"
                 } else {
                     binding.tvReportStatus.text = "Send failed (HTTP ${response.code})"
                 }
@@ -730,6 +697,15 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun loadSettings() {
         lifecycleScope.launch {
+            // Re-establish periodic work in case it was cleared by an app update (KEEP = don't reset the timer)
+            val savedHours = prefs.epgAutoRefreshHours.first()
+            if (savedHours > 0) {
+                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(savedHours.toLong(), TimeUnit.HOURS)
+                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
+                    .build()
+                workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, req)
+            }
+
             isLoadingSettings = true
             try {
                 binding.etEpgUrl.setText(prefs.epgUrl.first())
@@ -1022,7 +998,19 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupSyncSection() {
         binding.tvSyncStatus.text = ""
         lifecycleScope.launch {
-            binding.tvSyncStatus.text = syncManager.getLastSyncSummary()
+            val ownCode = syncManager.getOwnSyncCode().take(8).uppercase()
+            val summary = syncManager.getLastSyncSummary()
+            binding.tvSyncStatus.text = if (ownCode.isNotEmpty()) "Your sync code: $ownCode\n$summary" else summary
+            // Pre-fill pairing code field if one is saved
+            val existing = prefs.getSyncGistId()
+            if (existing.isNotBlank()) binding.etGithubToken.setText(existing.take(8).uppercase())
+        }
+        binding.btnSaveGithubToken.setOnClickListener {
+            val code = binding.etGithubToken.text.toString().trim()
+            lifecycleScope.launch {
+                syncManager.setPairingCode(code)
+                Toast.makeText(this@SettingsActivity, if (code.isBlank()) "Pairing code cleared" else "Paired ✓ — tap Pull from Cloud", Toast.LENGTH_SHORT).show()
+            }
         }
         binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
@@ -1111,9 +1099,9 @@ class SettingsActivity : AppCompatActivity() {
         private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
     }
 
-    private suspend fun writeBackupToUri(uri: Uri) {
+    private suspend fun buildBackupJson(): JSONObject {
         val creds = prefs.credentials.first()
-        val json = JSONObject().apply {
+        return JSONObject().apply {
             put("serverUrl", creds.serverUrl)
             put("username", creds.username)
             put("password", creds.password)
@@ -1125,14 +1113,50 @@ class SettingsActivity : AppCompatActivity() {
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
             put("showWatching", prefs.showWatching.first())
-            val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
-            put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
-            val favChannels = db.channelDao().getFavoriteChannelIds()
-            put("favoriteChannelIds", JSONArray(favChannels))
+            put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
+            put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
         }
-        contentResolver.openOutputStream(uri)?.use { it.write(json.toString(2).toByteArray()) }
-        binding.tvBackupStatus.text = "✓ Backup saved"
-        Toast.makeText(this, "Backup saved", Toast.LENGTH_SHORT).show()
+    }
+
+
+
+    private fun showRestoreDialog() {
+        data class BackupEntry(val name: String, val uri: Uri)
+        val entries = mutableListOf<BackupEntry>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val projection = arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME)
+            val selection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
+            contentResolver.query(collection, projection, selection, arrayOf("MKTV_backup_%.json"),
+                "${MediaStore.Downloads.DATE_ADDED} DESC")?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val name = cursor.getString(nameCol)
+                    entries += BackupEntry(name, ContentUris.withAppendedId(collection, id))
+                }
+            }
+        } else {
+            val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MKTV")
+            dir.listFiles { f -> f.name.startsWith("MKTV_backup_") && f.name.endsWith(".json") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.forEach { entries += BackupEntry(it.name, Uri.fromFile(it)) }
+        }
+
+        if (entries.isEmpty()) {
+            Toast.makeText(this, "No backups found in Download/MKTV", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Restore Backup")
+            .setItems(entries.map { it.name }.toTypedArray()) { _, i ->
+                lifecycleScope.launch { restoreBackupFromUri(entries[i].uri) }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private suspend fun restoreBackupFromUri(uri: Uri) {
