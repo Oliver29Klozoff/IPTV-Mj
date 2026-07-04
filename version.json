@@ -1,8 +1,8 @@
 {
-  "versionCode": 167,
-  "versionName": "3.29",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.29/MKTV.apk",
+  "versionCode": 168,
+  "versionName": "3.30",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.30/MKTV.apk",
   "changelog": [
-    "fix: app now always opens on Favorites tab showing your starred channels"
+    "fix: rotation and fullscreen exit both return to Favorites tab"
   ]
 }

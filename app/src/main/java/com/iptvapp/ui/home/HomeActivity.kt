@@ -98,10 +98,9 @@ class HomeActivity : AppCompatActivity() {
         )
     }
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        // Restore the tab that was active before opening the player
-        if (tabPositionBeforePlayer >= 0) {
-            binding.tabLayout.getTabAt(tabPositionBeforePlayer)?.select()
-        }
+        // Always return to Favorites on fullscreen exit
+        binding.tabLayout.getTabAt(5)?.select()
+        showFavorites()
         if (result.resultCode == Activity.RESULT_OK) {
             val returnedId  = result.data?.getIntExtra("stream_id", -1) ?: -1
             val returnedUrl = result.data?.getStringExtra("stream_url") ?: ""
