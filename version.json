@@ -1,10 +1,10 @@
 {
-  "versionCode": 161,
-  "versionName": "3.23",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.23/MKTV.apk",
+  "versionCode": 162,
+  "versionName": "3.24",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.24/MKTV.apk",
   "changelog": [
+    "Shield TV now checks for updates on startup (was missing before)",
     "fix fullscreen player on Shield TV: D-pad now shows controls overlay",
-    "OK/Enter: first press shows overlay, second press toggles play/pause",
     "increase session release delay to prevent stream conflicts when opening fullscreen"
   ]
 }
