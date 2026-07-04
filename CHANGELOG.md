@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.31 - 2026-07-04
+- fix: rebuild with v3.30 rotation and fullscreen-exit Favorites fixes included
+
 ## v3.22 - 2026-07-03
 - fix landscape video not showing - remove hardcoded height override on mini player container
 
