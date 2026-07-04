@@ -1,9 +1,10 @@
 {
-  "versionCode": 163,
-  "versionName": "3.25",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.25/MKTV.apk",
+  "versionCode": 164,
+  "versionName": "3.26",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.26/MKTV.apk",
   "changelog": [
-    "fix recording cutting short: auto-reconnects if server drops connection mid-recording",
-    "fix HLS recording stopping if master playlist temporarily returns no variant (retries instead)"
+    "fix channel list reverting to live tab category on rotation or returning from fullscreen",
+    "restore correct tab when returning from fullscreen player",
+    "scroll to currently playing channel when Favorites tab is shown"
   ]
 }

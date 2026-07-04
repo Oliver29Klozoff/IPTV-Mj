@@ -95,6 +95,10 @@ class HomeActivity : AppCompatActivity() {
         )
     }
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        // Restore the tab that was active before opening the player
+        if (tabPositionBeforePlayer >= 0) {
+            binding.tabLayout.getTabAt(tabPositionBeforePlayer)?.select()
+        }
         if (result.resultCode == Activity.RESULT_OK) {
             val returnedId  = result.data?.getIntExtra("stream_id", -1) ?: -1
             val returnedUrl = result.data?.getStringExtra("stream_url") ?: ""
@@ -124,6 +128,7 @@ class HomeActivity : AppCompatActivity() {
     // Prevents onResume from auto-resuming "recent" channel when we just picked one from the grid
     private var suppressMiniAutoResume = false
     private var tabPositionBeforePlayer: Int = -1
+    private var pendingScrollToCurrent = false
 
     private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -803,6 +808,7 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         viewModel.showFavoriteChannels()
+        pendingScrollToCurrent = true
 
         channelAdapter.showDragHandles = true
         val callback = object : ItemTouchHelper.SimpleCallback(
@@ -965,9 +971,22 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.channels.collect {
-                channelAdapter.submitList(it)
-                viewModel.loadEpgForChannels(it)
+            viewModel.channels.collect { list ->
+                channelAdapter.submitList(list)
+                viewModel.loadEpgForChannels(list)
+                if (pendingScrollToCurrent && list.isNotEmpty()) {
+                    pendingScrollToCurrent = false
+                    val streamId = viewModel.currentlyPlayingStreamId.value
+                    if (streamId >= 0) {
+                        binding.rvChannels.post {
+                            val pos = channelAdapter.currentList.indexOfFirst { it.streamId == streamId }
+                            if (pos >= 0) {
+                                (binding.rvChannels.layoutManager as? LinearLayoutManager)
+                                    ?.scrollToPositionWithOffset(pos, 0)
+                            }
+                        }
+                    }
+                }
             }
         }
         lifecycleScope.launch {

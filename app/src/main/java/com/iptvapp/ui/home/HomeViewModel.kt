@@ -97,6 +97,7 @@ class HomeViewModel @Inject constructor(
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
     var inFavoritesMode: Boolean = true
+    var lastTabPosition: Int = 5
 
     private val _currentlyPlayingStreamId = MutableStateFlow<Int>(-1)
     val currentlyPlayingStreamId: StateFlow<Int> = _currentlyPlayingStreamId
@@ -228,6 +229,8 @@ class HomeViewModel @Inject constructor(
         ChannelSort.RECENTLY_WATCHED -> list.sortedByDescending { it.lastWatched ?: 0L }
     }
 
+    fun hasSelectedCategory(): Boolean = selectedLiveCategoryId != null
+
     fun selectLiveCategory(categoryId: String) {
         inFavoritesMode = false
         selectedLiveCategoryId = categoryId
@@ -316,6 +319,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun showFavoriteChannels() {
+        inFavoritesMode = true
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
