@@ -1,10 +1,9 @@
 {
-  "versionCode": 162,
-  "versionName": "3.24",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.24/MKTV.apk",
+  "versionCode": 163,
+  "versionName": "3.25",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.25/MKTV.apk",
   "changelog": [
-    "Shield TV now checks for updates on startup (was missing before)",
-    "fix fullscreen player on Shield TV: D-pad now shows controls overlay",
-    "increase session release delay to prevent stream conflicts when opening fullscreen"
+    "fix recording cutting short: auto-reconnects if server drops connection mid-recording",
+    "fix HLS recording stopping if master playlist temporarily returns no variant (retries instead)"
   ]
 }

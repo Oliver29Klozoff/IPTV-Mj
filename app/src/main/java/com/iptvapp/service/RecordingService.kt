@@ -130,29 +130,39 @@ class RecordingService : Service() {
     private fun recordDirectStream(streamUrl: String, output: OutputStream, durationMs: Long): Long {
         val started = System.currentTimeMillis()
         var written = 0L
-        val conn = URL(streamUrl).openConnection() as HttpURLConnection
+        val buffer = ByteArray(128 * 1024)
 
-        try {
-            conn.instanceFollowRedirects = true
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 30_000
-            conn.connect()
+        while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+            val remaining = if (durationMs > 0L) durationMs - (System.currentTimeMillis() - started) else 0L
+            if (remaining < 0L) break
 
-            if (conn.responseCode !in 200..299) {
-                throw IOException("HTTP ${conn.responseCode}")
-            }
+            val conn = URL(streamUrl).openConnection() as HttpURLConnection
+            try {
+                conn.instanceFollowRedirects = true
+                conn.connectTimeout = 15_000
+                conn.readTimeout = 30_000
+                conn.connect()
 
-            val buffer = ByteArray(128 * 1024)
-            conn.inputStream.use { input ->
-                while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
-                    val n = input.read(buffer)
-                    if (n == -1) break
-                    output.write(buffer, 0, n)
-                    written += n
+                if (conn.responseCode !in 200..299) {
+                    throw IOException("HTTP ${conn.responseCode}")
                 }
+
+                conn.inputStream.use { input ->
+                    while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+                        val n = input.read(buffer)
+                        if (n == -1) break
+                        output.write(buffer, 0, n)
+                        written += n
+                    }
+                }
+            } catch (e: IOException) {
+                // Brief pause before reconnect attempt — avoids hammering a broken server
+                if (durationMs > 0L && System.currentTimeMillis() - started < durationMs) {
+                    Thread.sleep(2000L)
+                }
+            } finally {
+                conn.disconnect()
             }
-        } finally {
-            conn.disconnect()
         }
 
         output.flush()
@@ -163,8 +173,9 @@ class RecordingService : Service() {
         val started = System.currentTimeMillis()
         val seenSegments = linkedSetOf<String>()
         var written = 0L
+        val deadline = if (durationMs > 0L) started + durationMs else 0L
 
-        while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+        while (deadline == 0L || System.currentTimeMillis() < deadline) {
             val masterText = fetchText(playlistUrl)
 
             if (!masterText.trimStart().startsWith("#EXTM3U")) {
@@ -174,7 +185,7 @@ class RecordingService : Service() {
             val mediaPlaylistUrl = if (masterText.contains("#EXT-X-STREAM-INF")) {
                 val variantLine = masterText.lines()
                     .firstOrNull { !it.startsWith("#") && it.isNotBlank() }
-                    ?: break
+                if (variantLine == null) { Thread.sleep(2000L); continue }
                 resolveUrl(playlistUrl, variantLine)
             } else {
                 playlistUrl
@@ -199,9 +210,9 @@ class RecordingService : Service() {
                 val segmentUrl = resolveUrl(mediaPlaylistUrl, line.trim())
                 if (!seenSegments.add(segmentUrl)) continue
 
-                written += downloadSegment(segmentUrl, output)
+                written += downloadSegment(segmentUrl, output, deadline)
 
-                if (durationMs > 0 && System.currentTimeMillis() - started >= durationMs) {
+                if (deadline > 0 && System.currentTimeMillis() >= deadline) {
                     output.flush()
                     return written
                 }
@@ -209,8 +220,12 @@ class RecordingService : Service() {
 
             if (mediaText.contains("#EXT-X-ENDLIST")) break
 
-            val waitMs = (targetDuration * 500L).coerceIn(2000L, 8000L)
-            Thread.sleep(waitMs)
+            val waitMs = if (deadline > 0L) {
+                (targetDuration * 500L).coerceIn(2000L, 8000L).coerceAtMost(deadline - System.currentTimeMillis()).coerceAtLeast(0L)
+            } else {
+                (targetDuration * 500L).coerceIn(2000L, 8000L)
+            }
+            if (waitMs > 0L) Thread.sleep(waitMs)
         }
 
         output.flush()
@@ -235,7 +250,7 @@ class RecordingService : Service() {
         }
     }
 
-    private fun downloadSegment(url: String, output: OutputStream): Long {
+    private fun downloadSegment(url: String, output: OutputStream, deadline: Long = 0L): Long {
         val conn = URL(url).openConnection() as HttpURLConnection
         var written = 0L
 
@@ -251,7 +266,7 @@ class RecordingService : Service() {
 
             val buffer = ByteArray(128 * 1024)
             conn.inputStream.use { input ->
-                while (true) {
+                while (deadline == 0L || System.currentTimeMillis() < deadline) {
                     val n = input.read(buffer)
                     if (n == -1) break
                     output.write(buffer, 0, n)
