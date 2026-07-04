@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.36 - 2026-07-04
+- recording channel picker: category folders + search across all channels
+
 ## v3.34 - 2026-07-04
 - add EPG now-playing info to recording channel picker
 
