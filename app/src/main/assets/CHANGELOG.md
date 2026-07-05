@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v3.60 - 2026-07-05
+- Update to v3.60
+
+## v3.59
+- recording: fix foreground service type mismatch (was mediaPlayback, now dataSync) — on Android 14 this caused startForeground to fail silently and recordings never started
+- recording: acquire wake lock for the duration of the recording so the CPU stays awake and the network connection isn't dropped
+- recording: switch to START_REDELIVER_INTENT so the service restarts with the original recording intent if the OS kills it mid-recording
+
 ## v3.58
 - home: mini player video continues through screen rotation — player instance is retained across activity recreation instead of being destroyed and rebuilt
 

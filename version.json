@@ -1,6 +1,6 @@
 {
-  "versionCode": 196,
-  "versionName": "3.58",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.58/MKTV.apk",
-  "changelog": "home: mini player video continues through screen rotation — player instance is retained across activity recreation instead of being destroyed and rebuilt"
+  "versionCode": 198,
+  "versionName": "3.60",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.60/MKTV.apk",
+  "changelog": "Update to v3.60"
 }
