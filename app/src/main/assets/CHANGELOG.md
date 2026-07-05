@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.58
+- home: mini player video continues through screen rotation — player instance is retained across activity recreation instead of being destroyed and rebuilt
+
 ## v3.57
 - player: reverted TextureView (caused blank video on many devices) — back to SurfaceView; rotation handled by lifecycle guard instead
 

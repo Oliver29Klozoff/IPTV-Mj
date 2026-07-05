@@ -1,6 +1,6 @@
 {
-  "versionCode": 195,
-  "versionName": "3.57",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.57/MKTV.apk",
-  "changelog": "player: reverted TextureView (caused blank video on many devices) — back to SurfaceView; rotation handled by lifecycle guard instead"
+  "versionCode": 196,
+  "versionName": "3.58",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.58/MKTV.apk",
+  "changelog": "home: mini player video continues through screen rotation — player instance is retained across activity recreation instead of being destroyed and rebuilt"
 }
