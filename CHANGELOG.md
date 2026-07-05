@@ -1,7 +1,11 @@
 # IPTV App - Changelog
 
-## v3.51 - 2026-07-05
-- Update to v3.51
+## v3.52 - 2026-07-05
+- TV home: Guide section now shows full channel list instead of opening a separate EPG screen
+- TV home: grid view toggle (⊞) appears next to the Guide tab when Guide is selected
+- TV home: grid view shows channel logos in a 4-column tile layout; long-press Guide to open the EPG timeline
+- player: overlay background tint removed — controls float over video without dimming the screen
+- fix: bump script no longer adds duplicate changelog entries when notes are pre-written
 
 ## v3.51 - 2026-07-05
 - fix: zoom/resize button moved into bottom control bar — now fully reachable via D-pad and reliable on Android TV
