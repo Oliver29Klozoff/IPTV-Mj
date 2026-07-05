@@ -1,22 +1,36 @@
 # IPTV App - Changelog
 
+## v3.51 - 2026-07-05
+- Update to v3.51
+
+## v3.51 - 2026-07-05
+- fix: zoom/resize button moved into bottom control bar — now fully reachable via D-pad and reliable on Android TV
+- fix: proper changelog notes added to all recent versions
+
 ## v3.50 - 2026-07-05
-- Update to v3.50
+- fix: update no longer requires pressing twice — app auto-resumes download on return after granting install permission
+- player: back button while overlay is open dismisses overlay only; double-tap back exits to home
 
 ## v3.49 - 2026-07-05
-- Update to v3.49
+- player: D-pad up = next channel (higher), D-pad down = previous — matches standard TV remote direction
+- fix: zoom/resize button click handling improved; requestLayout forces video surface to redraw
 
 ## v3.48 - 2026-07-05
-- Update to v3.48
+- player overlay: all buttons (Guide, Back, Sleep, Play/Pause, CC, Stats, Resize) show blue focus ring on D-pad selection
+- TV home: app now opens on Favorites tab by default
+- TV home: fix D-pad drifting back to Live section — channel list observer now guards against wrong-section updates
+- TV home: exiting fullscreen resumes mini-player on the correct channel (was always reverting to previous)
 
 ## v3.47 - 2026-07-05
-- Update to v3.47
+- TV home: removed mic/voice search button — Google Assistant handles voice at system level
+- player: D-pad navigates overlay buttons when overlay is open (up/down/left/right move focus between controls)
+- player: overlay auto-hides 5 seconds after last D-pad press, not from when it first opened
 
 ## v3.46 - 2026-07-05
-- Update to v3.46
+- removed voice search mic button from phone and TV home (Google Assistant already built into SHIELD)
 
 ## v3.45 - 2026-07-05
-- Update to v3.45
+- XMLTV EPG: automatically fetches xmltv.php from your provider during every EPG refresh for richer guide data
 
 ## v3.43 - 2026-07-04
 - fix: recordings stuck as "RECORDING" — service kill now writes FAILED status synchronously in onDestroy
