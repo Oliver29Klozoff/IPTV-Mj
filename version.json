@@ -1,12 +1,9 @@
 {
-  "versionCode": 190,
-  "versionName": "3.52",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.52/MKTV.apk",
+  "versionCode": 191,
+  "versionName": "3.53",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.53/MKTV.apk",
   "changelog": [
-    "TV home: Guide section now shows full channel list instead of opening a separate EPG screen",
-    "TV home: grid view toggle (⊞) appears next to the Guide tab when Guide is selected",
-    "TV home: grid view shows channel logos in a 4-column tile layout; long-press Guide to open the EPG timeline",
-    "player: overlay background tint removed — controls float over video without dimming the screen",
-    "fix: bump script no longer adds duplicate changelog entries when notes are pre-written"
+    "TV: Pre-warm Streams on Focus — starts resolving a stream URL when a channel tile receives focus, before you press play; speeds up channel start on TV remotes",
+    "TV Settings: new toggle for Pre-warm Streams on Focus (default ON); turn OFF to disable background stream checks on metered or slow connections"
   ]
 }

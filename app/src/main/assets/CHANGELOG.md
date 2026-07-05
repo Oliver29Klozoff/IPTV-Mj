@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v3.53
+- TV: Pre-warm Streams on Focus — starts resolving a stream URL when a channel tile receives focus, before you press play; speeds up channel start on TV remotes
+- TV Settings: new toggle for Pre-warm Streams on Focus (default ON); turn OFF to disable background stream checks on metered or slow connections
+
 ## v3.52 - 2026-07-05
 - TV home: Guide section now shows full channel list instead of opening a separate EPG screen
 - TV home: grid view toggle (⊞) appears next to the Guide tab when Guide is selected
