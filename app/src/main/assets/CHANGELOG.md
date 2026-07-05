@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.61
+- player: if VLC or MX Player is selected but not installed, automatically switch back to built-in player and save the preference — no more system chooser popup
+
 ## v3.60 - 2026-07-05
 - Update to v3.60
 
