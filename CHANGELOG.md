@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v3.54
+- player: auto-reconnect capped at 5 attempts instead of 20 — stops retrying sooner on dead streams
+- TV: channel number jumping — type digits on the remote (e.g. 5, 12, 100) to jump to that channel position in the list
+- EPG: tap a future show to get "Record" or "Remind Me" options — Record opens the scheduler and auto-schedules the recording
+
 ## v3.53
 - TV: Pre-warm Streams on Focus — starts resolving a stream URL when a channel tile receives focus, before you press play; speeds up channel start on TV remotes
 - TV Settings: new toggle for Pre-warm Streams on Focus (default ON); turn OFF to disable background stream checks on metered or slow connections
