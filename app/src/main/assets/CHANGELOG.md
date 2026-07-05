@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v3.56
+- player: switch to TextureView so the video surface survives rotation without destroying and recreating
+- player: player is no longer released during config changes — video keeps playing seamlessly through rotation
+- player: expanded configChanges coverage to handle Samsung/LG OEM rotation edge cases
+
 ## v3.55
 - player: video now plays through screen rotation — portrait and landscape both work; no more video stopping when you rotate the phone
 
