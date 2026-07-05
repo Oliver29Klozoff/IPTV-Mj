@@ -68,6 +68,9 @@ class HomeViewModel @Inject constructor(
     private val _channelEpgProgress = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val channelEpgProgress: StateFlow<Map<Int, Int>> = _channelEpgProgress
 
+    private val _channelEpgNextText = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val channelEpgNextText: StateFlow<Map<Int, String>> = _channelEpgNextText
+
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
 
@@ -75,6 +78,7 @@ class HomeViewModel @Inject constructor(
     val showSeries = prefs.showSeries
     val showWatching = prefs.showWatching
     val externalPlayer = prefs.externalPlayer
+    val preWarmOnFocus = prefs.preWarmOnFocus
 
     private val _channelHealth = MutableStateFlow<Map<Int, Boolean?>>(emptyMap())
     val channelHealth: StateFlow<Map<Int, Boolean?>> = _channelHealth
@@ -272,12 +276,14 @@ class HomeViewModel @Inject constructor(
             if (ids.isEmpty()) {
                 _channelEpgText.value = emptyMap()
                 _channelEpgProgress.value = emptyMap()
+                _channelEpgNextText.value = emptyMap()
                 return@launch
             }
             val epgEntries = repository.getEpgForStreams(ids).first()
             val epgByStream = epgEntries.groupBy { it.streamId }
             val nowSecs = System.currentTimeMillis() / 1000
             val progressMap = mutableMapOf<Int, Int>()
+            val nextTextMap = mutableMapOf<Int, String>()
             _channelEpgText.value = visibleChannels.associate { channel ->
                 val programs = epgByStream[channel.streamId].orEmpty()
                 val now = programs.firstOrNull()
@@ -295,6 +301,8 @@ class HomeViewModel @Inject constructor(
                 val minutesLeft = if (now != null) ((now.stopTimestamp - nowSecs) / 60).coerceAtLeast(0) else 0L
                 val timeStr = if (now != null && minutesLeft > 0) " (${minutesLeft}m)" else ""
 
+                if (next != null) nextTextMap[channel.streamId] = next.title
+
                 val text = when {
                     now != null && next != null -> "NOW: ${now.title}$timeStr  •  NEXT: ${next.title}"
                     now != null -> "NOW: ${now.title}$timeStr"
@@ -303,6 +311,7 @@ class HomeViewModel @Inject constructor(
                 channel.streamId to text
             }
             _channelEpgProgress.value = progressMap
+            _channelEpgNextText.value = nextTextMap
         }
     }
 

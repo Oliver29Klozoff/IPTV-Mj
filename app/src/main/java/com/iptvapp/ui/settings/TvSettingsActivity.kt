@@ -4,23 +4,21 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
-import android.view.View
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -30,15 +28,15 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.iptvapp.AppConstants
+import com.iptvapp.IptvApplication
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.databinding.ActivityTvSettingsBinding
-import com.iptvapp.IptvApplication
 import com.iptvapp.sync.SyncManager
 import com.iptvapp.ui.login.LoginActivity
 import com.iptvapp.update.UpdateChecker
-import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.worker.EpgRefreshWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -64,27 +62,17 @@ class TvSettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityTvSettingsBinding
     private lateinit var workManager: WorkManager
+    private lateinit var adapter: TvSettingsAdapter
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var syncManager: SyncManager
 
-    private val menuButtons: List<Button> get() = listOf(
-        binding.btnTvStream, binding.btnTvDisplay, binding.btnTvEpg,
-        binding.btnTvUpdate, binding.btnTvBackup, binding.btnTvServers, binding.btnTvAccount, binding.btnTvSync
-    )
-    private val panels: List<View> get() = listOf(
-        binding.panelTvStream, binding.panelTvDisplay, binding.panelTvEpg,
-        binding.panelTvUpdate, binding.panelTvBackup, binding.panelTvServers, binding.panelTvAccount, binding.panelTvSync
-    )
-    private val firstFocusable: List<View?> get() = listOf(
-        binding.switchTvFormat, binding.switchTvUsaOnly, binding.btnTvAddEpg,
-        binding.btnTvCheckUpdate, binding.btnTvRunBackup, binding.btnTvAddServer, binding.btnTvLogout, binding.btnTvSetToken
-    )
-
-    private var activePanelIndex = 0
+    private val settingsItems = mutableListOf<TvSettingItem>()
+    private val epgUrls = mutableListOf<String>()
     private val extraServers = mutableListOf<List<String>>()
     private var currentEpgWorkId: UUID? = null
+    private var isEpgRefreshing = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,175 +80,233 @@ class TvSettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
         workManager = WorkManager.getInstance(this)
 
-        binding.root.enableTvFocusHighlight()
+        adapter = TvSettingsAdapter(settingsItems)
+        binding.rvTvSettings.apply {
+            layoutManager = LinearLayoutManager(this@TvSettingsActivity)
+            adapter = this@TvSettingsActivity.adapter
+        }
 
-        menuButtons.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
-
-        setupStreamPanel()
-        setupDisplayPanel()
-        setupEpgPanel()
-        setupUpdatePanel()
-        setupBackupPanel()
-        setupServersPanel()
-        setupAccountPanel()
-        setupSyncPanel()
+        lifecycleScope.launch { buildSettingsList() }
         observeEpgWork()
-
-        selectPanel(0)
-        binding.btnTvStream.requestFocus()
-    }
-
-    // ─── Panel navigation ───────────────────────────────────────────────────
-
-    private fun selectPanel(index: Int, enterPanel: Boolean = false) {
-        activePanelIndex = index
-        panels.forEachIndexed { i, panel ->
-            panel.visibility = if (i == index) View.VISIBLE else View.GONE
-        }
-        menuButtons.forEachIndexed { i, btn ->
-            val bg = if (i == index) R.drawable.tv_sidebar_active else R.drawable.tv_sidebar_item
-            btn.setBackgroundResource(bg)
-            btn.setTextColor(if (i == index) Color.WHITE else 0xFF888888.toInt())
-        }
-        if (enterPanel) firstFocusable[index]?.requestFocus()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            val focused = currentFocus
-            val inSidebar = focused != null && menuButtons.contains(focused)
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (inSidebar) {
-                        val idx = menuButtons.indexOf(focused)
-                        selectPanel(idx, enterPanel = true)
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (!inSidebar) {
-                        menuButtons[activePanelIndex].requestFocus()
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_UP -> {
-                    if (inSidebar) {
-                        val idx = menuButtons.indexOf(focused)
-                        if (idx > 0) menuButtons[idx - 1].requestFocus()
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (inSidebar) {
-                        val idx = menuButtons.indexOf(focused)
-                        if (idx < menuButtons.size - 1) menuButtons[idx + 1].requestFocus()
-                        return true
-                    }
-                }
-                KeyEvent.KEYCODE_BACK -> { finish(); return true }
-            }
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            finish()
+            return true
         }
         return super.dispatchKeyEvent(event)
     }
 
-    // ─── Stream ─────────────────────────────────────────────────────────────
+    // ─── List building ────────────────────────────────────────────────────────
 
-    private fun setupStreamPanel() {
-        lifecycleScope.launch {
-            val creds = prefs.credentials.first()
-            val format = prefs.preferredFormat.first()
-            binding.tvTvServerSummary.text =
-                "Server:  ${creds.serverUrl.ifBlank { "Not set" }}\nUser:      ${creds.username.ifBlank { "Not set" }}"
-            binding.switchTvFormat.isChecked = (format == "ts")
+    private suspend fun buildSettingsList() {
+        val creds        = prefs.credentials.first()
+        val format       = prefs.preferredFormat.first()
+        val preWarm      = prefs.preWarmOnFocus.first()
+        val usaOnly      = prefs.usaOnlyChannels.first()
+        val showMovies   = prefs.showMovies.first()
+        val showSeries   = prefs.showSeries.first()
+        epgUrls.clear(); epgUrls.addAll(prefs.getEpgUrls())
+        val missingOnly  = prefs.epgRefreshMissingOnly.first()
+        val autoHours    = prefs.epgAutoRefreshHours.first()
+        val lastRefresh  = getLastRefreshText()
+        extraServers.clear(); extraServers.addAll(prefs.getExtraServersWithNick())
+        val syncEnabled  = prefs.syncEnabled.first()
+        val syncSummary  = syncManager.getLastSyncSummary()
+        val activeIdx    = prefs.activeServerIndex.first()
+        val primaryNick  = prefs.serverNickname.first().ifEmpty { creds.username }
+        val versionInfo  = try {
+            val pi = packageManager.getPackageInfo(packageName, 0)
+            "v${pi.versionName}  (build ${pi.longVersionCode})"
+        } catch (_: Exception) { "Unknown" }
+
+        settingsItems.clear()
+
+        // ── STREAM ──
+        settingsItems += TvSettingItem.Header("Stream")
+        settingsItems += TvSettingItem.Info("stream_server",
+            "${creds.serverUrl.ifBlank { "Not set" }}  ·  ${creds.username.ifBlank { "—" }}")
+        settingsItems += TvSettingItem.Toggle("stream_format", "Stream Format",
+            subtitle = "TS for live channels, M3U8 as fallback",
+            checked = (format == "ts"),
+            valueOn = "TS", valueOff = "M3U8") { isTs ->
+            lifecycleScope.launch { prefs.setPreferredFormat(if (isTs) "ts" else "m3u8") }
         }
-        binding.switchTvFormat.setOnCheckedChangeListener { _, isTs ->
-            val fmt = if (isTs) "ts" else "m3u8"
+        settingsItems += TvSettingItem.Toggle("stream_prewarm", "Pre-warm Streams on Focus",
+            subtitle = "Starts resolving a stream URL when a channel tile receives focus, before you press play",
+            checked = preWarm) { c -> lifecycleScope.launch { prefs.setPreWarmOnFocus(c) } }
+
+        // ── DISPLAY ──
+        settingsItems += TvSettingItem.Header("Display")
+        settingsItems += TvSettingItem.Toggle("display_usa", "USA Channels Only",
+            checked = usaOnly) { c -> lifecycleScope.launch { prefs.setUsaOnlyChannels(c) } }
+        settingsItems += TvSettingItem.Toggle("display_movies", "Show Movies Tab",
+            checked = showMovies) { c -> lifecycleScope.launch { prefs.setShowMovies(c) } }
+        settingsItems += TvSettingItem.Toggle("display_series", "Show Series Tab",
+            checked = showSeries) { c -> lifecycleScope.launch { prefs.setShowSeries(c) } }
+
+        // ── EPG ──
+        settingsItems += TvSettingItem.Header("EPG")
+        if (epgUrls.isEmpty()) {
+            settingsItems += TvSettingItem.Info("epg_no_sources", "No EPG sources configured")
+        }
+        epgUrls.forEachIndexed { i, url ->
+            settingsItems += TvSettingItem.Action("epg_source_$i",
+                if (i == 0) "Primary EPG Source" else "EPG Source ${i + 1}",
+                value = url.take(60)) { showEpgSourceOptions(i) }
+        }
+        settingsItems += TvSettingItem.Action("epg_add", "Add EPG Source") { showAddEpgDialog() }
+        settingsItems += TvSettingItem.Action("epg_refresh",
+            if (isEpgRefreshing) "Cancel EPG Refresh" else "Refresh EPG Now",
+            value = lastRefresh) { startOrCancelEpgRefresh() }
+        settingsItems += TvSettingItem.Toggle("epg_missing_only", "Refresh Missing Only",
+            subtitle = "Skip channels that already have EPG data",
+            checked = missingOnly) { c -> lifecycleScope.launch { prefs.setEpgRefreshMissingOnly(c) } }
+        settingsItems += TvSettingItem.Action("epg_auto_refresh", "Auto Refresh",
+            value = if (autoHours == 0) "Off" else "Every ${autoHours}h") {
             lifecycleScope.launch {
-                prefs.setPreferredFormat(fmt)
-                toast("Format set to ${fmt.uppercase()}")
+                showAutoRefreshDialog(prefs.epgAutoRefreshHours.first())
+            }
+        }
+
+        // ── UPDATES ──
+        settingsItems += TvSettingItem.Header("Updates")
+        settingsItems += TvSettingItem.Info("update_version", versionInfo)
+        settingsItems += TvSettingItem.Action("update_check", "Check for Updates") {
+            toast("Checking for updates...")
+            UpdateChecker(this).check(lifecycleScope)
+        }
+        settingsItems += TvSettingItem.Action("update_whats_new", "What's New") { showChangelog() }
+
+        // ── BACKUP ──
+        settingsItems += TvSettingItem.Header("Backup & Restore")
+        settingsItems += TvSettingItem.Action("backup_qr", "Generate Backup QR Code") {
+            lifecycleScope.launch { doQrBackup() }
+        }
+        settingsItems += TvSettingItem.Action("backup_debug", "Send Debug Report") { sendDebugReport() }
+
+        // ── SERVERS ──
+        settingsItems += TvSettingItem.Header("Servers")
+        val primaryActive = activeIdx == -1
+        settingsItems += TvSettingItem.Info("server_primary",
+            "${if (primaryActive) "●  " else ""}$primaryNick  •  ${creds.serverUrl.take(50).ifBlank { "Not set" }}")
+        extraServers.forEachIndexed { i, server ->
+            val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Server ${i + 2}" } }
+            val isActive = activeIdx == i
+            settingsItems += TvSettingItem.Action("server_$i",
+                "${if (isActive) "●  " else ""}$nick",
+                value = server.getOrElse(0) { "" }.take(45)) { switchToServer(i) }
+        }
+        settingsItems += TvSettingItem.Action("server_add", "Add Server") { showAddServerDialog() }
+
+        // ── ACCOUNT ──
+        settingsItems += TvSettingItem.Header("Account")
+        settingsItems += TvSettingItem.Action("account_logout", "Logout",
+            danger = true) { confirmLogout() }
+        settingsItems += TvSettingItem.Action("account_epg_refresh",
+            if (isEpgRefreshing) "Cancel EPG Refresh" else "Refresh EPG Now",
+            value = lastRefresh) { startOrCancelEpgRefresh() }
+        settingsItems += TvSettingItem.Action("account_update_check", "Check for Updates") {
+            toast("Checking for updates...")
+            UpdateChecker(this).check(lifecycleScope)
+        }
+
+        // ── SYNC ──
+        settingsItems += TvSettingItem.Header("Sync")
+        val ownCode = syncManager.getOwnSyncCode().take(8).uppercase()
+        settingsItems += TvSettingItem.Info("sync_own_code", if (ownCode.isNotEmpty()) "Your sync code: $ownCode" else "")
+        settingsItems += TvSettingItem.Action("sync_pair", "Enter Pairing Code",
+            value = "Set to pull another device's favorites") { showPairingCodeDialog() }
+        settingsItems += TvSettingItem.Action("sync_up", "Push to Cloud") { doSyncUp() }
+        settingsItems += TvSettingItem.Action("sync_down", "Pull from Cloud") { doSyncDown() }
+        settingsItems += TvSettingItem.Info("sync_status", syncSummary)
+
+        adapter.notifyDataSetChanged()
+
+        binding.rvTvSettings.post {
+            for (i in 0 until binding.rvTvSettings.childCount) {
+                val child = binding.rvTvSettings.getChildAt(i)
+                if (child?.isFocusable == true) { child.requestFocus(); break }
             }
         }
     }
 
-    // ─── Display ─────────────────────────────────────────────────────────────
+    // ─── Item helpers ─────────────────────────────────────────────────────────
 
-    private fun setupDisplayPanel() {
+    private fun indexOfItem(id: String) = settingsItems.indexOfFirst { item ->
+        when (item) {
+            is TvSettingItem.Toggle -> item.id == id
+            is TvSettingItem.Action -> item.id == id
+            is TvSettingItem.Info   -> item.id == id
+            else -> false
+        }
+    }
+
+    private fun setItemValue(id: String, value: String) {
+        val idx = indexOfItem(id)
+        if (idx < 0) return
+        when (val item = settingsItems[idx]) {
+            is TvSettingItem.Action -> item.value = value
+            is TvSettingItem.Info   -> item.text  = value
+            else -> return
+        }
+        adapter.notifyItemChanged(idx)
+    }
+
+    private fun setItemTitle(id: String, title: String) {
+        val idx = indexOfItem(id)
+        if (idx < 0) return
+        val item = settingsItems[idx] as? TvSettingItem.Action ?: return
+        item.title = title
+        adapter.notifyItemChanged(idx)
+    }
+
+    private fun setItemEnabled(id: String, enabled: Boolean) {
+        val idx = indexOfItem(id)
+        if (idx < 0) return
+        val item = settingsItems[idx] as? TvSettingItem.Action ?: return
+        item.enabled = enabled
+        adapter.notifyItemChanged(idx)
+    }
+
+    private fun rebuildList(scrollToId: String? = null) {
+        val lm = binding.rvTvSettings.layoutManager as LinearLayoutManager
+        val savedPos = lm.findFirstVisibleItemPosition()
         lifecycleScope.launch {
-            binding.switchTvUsaOnly.isChecked = prefs.usaOnlyChannels.first()
-            binding.switchTvMovies.isChecked = prefs.showMovies.first()
-            binding.switchTvSeries.isChecked = prefs.showSeries.first()
-        }
-        binding.switchTvUsaOnly.setOnCheckedChangeListener { _, c ->
-            lifecycleScope.launch { prefs.setUsaOnlyChannels(c) }
-        }
-        binding.switchTvMovies.setOnCheckedChangeListener { _, c ->
-            lifecycleScope.launch { prefs.setShowMovies(c) }
-        }
-        binding.switchTvSeries.setOnCheckedChangeListener { _, c ->
-            lifecycleScope.launch { prefs.setShowSeries(c) }
+            buildSettingsList()
+            val pos = if (scrollToId != null) {
+                indexOfItem(scrollToId).coerceAtLeast(0)
+            } else {
+                savedPos.coerceAtLeast(0)
+            }
+            binding.rvTvSettings.scrollToPosition(pos)
         }
     }
 
     // ─── EPG ─────────────────────────────────────────────────────────────────
 
-    private val epgUrls = mutableListOf<String>()
-
-    private fun setupEpgPanel() {
-        lifecycleScope.launch {
-            epgUrls.clear()
-            epgUrls.addAll(prefs.getEpgUrls())
-            renderEpgUrlList()
-            binding.switchTvRefreshMissing.isChecked = prefs.epgRefreshMissingOnly.first()
-            updateAutoRefreshButtons(prefs.epgAutoRefreshHours.first())
-            updateLastRefreshText()
-        }
-        binding.btnTvAddEpg.setOnClickListener { showAddEpgDialog() }
-        binding.switchTvRefreshMissing.setOnCheckedChangeListener { _, c ->
-            lifecycleScope.launch { prefs.setEpgRefreshMissingOnly(c) }
-        }
-        binding.btnTvRefreshEpg.setOnClickListener { startEpgRefresh() }
-        binding.btnTvCancelEpg.setOnClickListener {
+    private fun startOrCancelEpgRefresh() {
+        if (isEpgRefreshing) {
             workManager.cancelUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME)
-            binding.btnTvRefreshEpg.isEnabled = true
-            binding.btnTvCancelEpg.visibility = View.GONE
-            binding.tvTvEpgStatus.text = ""
-        }
-
-        val autoHourMap = listOf(
-            binding.btnTvAutoOff to 0,
-            binding.btnTvAuto6 to 6,
-            binding.btnTvAuto12 to 12,
-            binding.btnTvAuto24 to 24
-        )
-        autoHourMap.forEach { (btn, hours) ->
-            btn.setOnClickListener {
-                lifecycleScope.launch {
-                    prefs.setEpgAutoRefreshHours(hours)
-                    scheduleAutoEpgRefresh(hours)
-                    updateAutoRefreshButtons(hours)
-                    val msg = if (hours == 0) "Auto EPG refresh off" else "Auto EPG refresh every $hours hours"
-                    toast(msg)
-                }
+            isEpgRefreshing = false
+            setItemTitle("epg_refresh", "Refresh EPG Now")
+            lifecycleScope.launch { setItemValue("epg_refresh", getLastRefreshText()) }
+        } else {
+            lifecycleScope.launch {
+                isEpgRefreshing = true
+                val missingOnly = prefs.epgRefreshMissingOnly.first()
+                val request = OneTimeWorkRequestBuilder<EpgRefreshWorker>()
+                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to missingOnly))
+                    .build()
+                currentEpgWorkId = request.id
+                setItemTitle("epg_refresh", "Cancel EPG Refresh")
+                setItemValue("epg_refresh", "Starting...")
+                workManager.enqueueUniqueWork(
+                    EpgRefreshWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, request
+                )
+                observeCurrentEpgWork(request.id)
             }
-        }
-    }
-
-    private fun startEpgRefresh() {
-        lifecycleScope.launch {
-            val missingOnly = prefs.epgRefreshMissingOnly.first()
-            val request = OneTimeWorkRequestBuilder<EpgRefreshWorker>()
-                .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to missingOnly))
-                .build()
-            currentEpgWorkId = request.id
-            binding.btnTvRefreshEpg.isEnabled = false
-            binding.btnTvCancelEpg.visibility = View.VISIBLE
-            binding.tvTvEpgStatus.text = "Starting refresh..."
-            workManager.enqueueUniqueWork(
-                EpgRefreshWorker.UNIQUE_WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                request
-            )
-            observeCurrentEpgWork(request.id)
         }
     }
 
@@ -270,14 +316,15 @@ class TvSettingsActivity : AppCompatActivity() {
             val status = info.progress.getString(EpgRefreshWorker.KEY_STATUS)
                 ?: info.outputData.getString(EpgRefreshWorker.KEY_STATUS)
                 ?: ""
-            if (status.isNotBlank()) binding.tvTvEpgStatus.text = status
+            if (status.isNotBlank()) setItemValue("epg_refresh", status)
             val running = info.state == WorkInfo.State.RUNNING || info.state == WorkInfo.State.ENQUEUED
-            binding.btnTvRefreshEpg.isEnabled = !running
-            binding.btnTvCancelEpg.visibility = if (running) View.VISIBLE else View.GONE
-            if (info.state.isFinished) {
-                lifecycleScope.launch { updateLastRefreshText() }
-                if (info.state == WorkInfo.State.SUCCEEDED)
-                    binding.tvTvEpgStatus.text = "Refresh complete"
+            if (!running) {
+                isEpgRefreshing = false
+                setItemTitle("epg_refresh", "Refresh EPG Now")
+                if (info.state.isFinished) {
+                    lifecycleScope.launch { setItemValue("epg_refresh", getLastRefreshText()) }
+                    if (info.state == WorkInfo.State.SUCCEEDED) toast("EPG refresh complete")
+                }
             }
         }
     }
@@ -285,94 +332,48 @@ class TvSettingsActivity : AppCompatActivity() {
     private fun observeEpgWork() {
         workManager.getWorkInfosForUniqueWorkLiveData(EpgRefreshWorker.UNIQUE_WORK_NAME)
             .observe(this) { infos ->
-                val info = infos.firstOrNull {
+                val running = infos.firstOrNull {
                     it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
                 } ?: return@observe
-                val status = info.progress.getString(EpgRefreshWorker.KEY_STATUS) ?: ""
-                if (status.isNotBlank()) binding.tvTvEpgStatus.text = status
-                binding.btnTvRefreshEpg.isEnabled = false
-                binding.btnTvCancelEpg.visibility = View.VISIBLE
+                isEpgRefreshing = true
+                val status = running.progress.getString(EpgRefreshWorker.KEY_STATUS) ?: ""
+                if (status.isNotBlank()) setItemValue("epg_refresh", status)
+                setItemTitle("epg_refresh", "Cancel EPG Refresh")
             }
     }
 
     private fun scheduleAutoEpgRefresh(hours: Int) {
-        if (hours == 0) {
-            workManager.cancelUniqueWork(AUTO_EPG_WORK)
-            return
-        }
-        val request = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
+        if (hours == 0) { workManager.cancelUniqueWork(AUTO_EPG_WORK); return }
+        val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
             .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
             .build()
-        workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK, ExistingPeriodicWorkPolicy.UPDATE, request)
+        workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK, ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 
-    private suspend fun updateLastRefreshText() {
-        val time = prefs.lastEpgRefreshTime.first()
-        binding.tvTvLastRefresh.text = if (time == 0L) {
-            "Last EPG Refresh: Never"
+    private suspend fun getLastRefreshText(): String {
+        val t = prefs.lastEpgRefreshTime.first()
+        return if (t == 0L) "Never refreshed"
+        else SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(t))
+    }
+
+    private fun showEpgSourceOptions(index: Int) {
+        if (index == 0) {
+            showEditEpgDialog(0)
         } else {
-            val fmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(time))
-            "Last EPG Refresh: $fmt"
-        }
-    }
-
-    private fun renderEpgUrlList() {
-        binding.llTvEpgUrls.removeAllViews()
-        epgUrls.forEachIndexed { i, url ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setBackgroundColor(Color.parseColor("#0E1620"))
-                setPadding(dp(20), dp(16), dp(20), dp(16))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.bottomMargin = dp(8) }
-            }
-            TextView(this).apply {
-                text = if (i == 0) "PRIMARY SOURCE" else "SOURCE ${i + 1}"
-                setTextColor(Color.parseColor("#7BBEE0"))
-                textSize = 13f
-                letterSpacing = 0.1f
-                row.addView(this)
-            }
-            TextView(this).apply {
-                text = url
-                setTextColor(Color.WHITE)
-                textSize = 17f
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                row.addView(this)
-            }
-            Button(this).apply {
-                text = if (i == 0) "Edit" else "Remove"
-                setTextColor(if (i == 0) Color.WHITE else Color.parseColor("#FF6B6B"))
-                setBackgroundResource(R.drawable.tv_settings_button)
-                isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, dp(52)
-                ).also { it.topMargin = dp(10) }
-                setOnClickListener {
-                    if (i == 0) showEditEpgDialog(i)
-                    else {
-                        epgUrls.removeAt(i)
-                        lifecycleScope.launch {
-                            prefs.saveEpgUrls(epgUrls)
-                            renderEpgUrlList()
-                        }
+            AlertDialog.Builder(this)
+                .setTitle("EPG Source ${index + 1}")
+                .setMessage(epgUrls.getOrElse(index) { "" })
+                .setPositiveButton("Edit") { _, _ -> showEditEpgDialog(index) }
+                .setNeutralButton("Remove") { _, _ ->
+                    epgUrls.removeAt(index)
+                    lifecycleScope.launch {
+                        prefs.saveEpgUrls(epgUrls)
+                        rebuildList("epg_add")
+                        toast("EPG source removed")
                     }
                 }
-                row.addView(this)
-            }
-            binding.llTvEpgUrls.addView(row)
-        }
-        if (epgUrls.isEmpty()) {
-            TextView(this).apply {
-                text = "No EPG sources configured"
-                setTextColor(Color.parseColor("#7BBEE0"))
-                textSize = 17f
-                setPadding(0, dp(8), 0, dp(8))
-                binding.llTvEpgUrls.addView(this)
-            }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
     }
 
@@ -391,7 +392,7 @@ class TvSettingsActivity : AppCompatActivity() {
                     epgUrls.add(url)
                     lifecycleScope.launch {
                         prefs.saveEpgUrls(epgUrls)
-                        renderEpgUrlList()
+                        rebuildList("epg_add")
                         toast("EPG source added")
                     }
                 }
@@ -407,7 +408,7 @@ class TvSettingsActivity : AppCompatActivity() {
             setPadding(48, 24, 48, 24)
         }
         AlertDialog.Builder(this)
-            .setTitle("Edit EPG Source")
+            .setTitle(if (index == 0) "Edit Primary EPG Source" else "Edit EPG Source ${index + 1}")
             .setView(et)
             .setPositiveButton("Save") { _, _ ->
                 val url = et.text.toString().trim()
@@ -415,7 +416,7 @@ class TvSettingsActivity : AppCompatActivity() {
                     epgUrls[index] = url
                     lifecycleScope.launch {
                         prefs.saveEpgUrls(epgUrls)
-                        renderEpgUrlList()
+                        setItemValue("epg_source_$index", url.take(60))
                         toast("EPG source updated")
                     }
                 }
@@ -424,77 +425,59 @@ class TvSettingsActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun updateAutoRefreshButtons(hours: Int) {
-        listOf(
-            binding.btnTvAutoOff to 0,
-            binding.btnTvAuto6 to 6,
-            binding.btnTvAuto12 to 12,
-            binding.btnTvAuto24 to 24
-        ).forEach { (btn, h) ->
-            if (h == hours) {
-                btn.setBackgroundColor(Color.TRANSPARENT)
-                btn.setTextColor(Color.WHITE)
-                btn.textSize = 18f
-            } else {
-                btn.setBackgroundColor(Color.parseColor("#1A1F2B"))
-                btn.setTextColor(Color.parseColor("#999999"))
-                btn.textSize = 16f
+    private fun showAutoRefreshDialog(currentHours: Int) {
+        val options = arrayOf("Off", "Every 6 hours", "Every 12 hours", "Every 24 hours")
+        val hours   = intArrayOf(0, 6, 12, 24)
+        val selIdx  = hours.indexOf(currentHours).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Auto Refresh EPG")
+            .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                val h = hours[which]
+                lifecycleScope.launch {
+                    prefs.setEpgAutoRefreshHours(h)
+                    scheduleAutoEpgRefresh(h)
+                    setItemValue("epg_auto_refresh", if (h == 0) "Off" else "Every ${h}h")
+                    toast(if (h == 0) "Auto EPG refresh off" else "Auto EPG refresh every $h hours")
+                }
+                dialog.dismiss()
             }
-        }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // ─── Updates ─────────────────────────────────────────────────────────────
 
-    private fun setupUpdatePanel() {
-        lifecycleScope.launch {
-            try {
-                val pInfo = packageManager.getPackageInfo(packageName, 0)
-                binding.tvTvVersionInfo.text = "Version ${pInfo.versionName}  (build ${pInfo.longVersionCode})"
-            } catch (_: Exception) {}
-        }
-        binding.btnTvCheckUpdate.setOnClickListener {
-            toast("Checking for updates...")
-            UpdateChecker(this).check(lifecycleScope)
-        }
-        binding.btnTvWhatsNew.setOnClickListener {
-            val text = try {
-                assets.open("CHANGELOG.md").bufferedReader().use { it.readText() }
-            } catch (_: Exception) { "Changelog not available." }
-            AlertDialog.Builder(this)
-                .setTitle("What's New")
-                .setMessage(text)
-                .setPositiveButton("Close", null)
-                .show()
-        }
+    private fun showChangelog() {
+        val text = try {
+            assets.open("CHANGELOG.md").bufferedReader().use { it.readText() }
+        } catch (_: Exception) { "Changelog not available." }
+        AlertDialog.Builder(this)
+            .setTitle("What's New")
+            .setMessage(text)
+            .setPositiveButton("Close", null)
+            .show()
     }
 
     // ─── Backup ──────────────────────────────────────────────────────────────
 
-    private fun setupBackupPanel() {
-        binding.btnTvRunBackup.setOnClickListener {
-            lifecycleScope.launch { doQrBackup() }
-        }
-        binding.btnTvSendDebug.setOnClickListener { sendDebugReport() }
-    }
-
     private suspend fun doQrBackup() {
         try {
-            val creds = prefs.credentials.first()
+            val creds          = prefs.credentials.first()
             val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
-            val favChannels = db.channelDao().getFavoriteChannelIds()
+            val favChannels    = db.channelDao().getFavoriteChannelIds()
             val json = JSONObject().apply {
-                put("serverUrl", creds.serverUrl)
-                put("username", creds.username)
-                put("password", creds.password)
-                put("epgUrls", JSONArray(prefs.getEpgUrls()))
-                put("preferredFormat", prefs.preferredFormat.first())
-                put("usaOnlyChannels", prefs.usaOnlyChannels.first())
-                put("showMovies", prefs.showMovies.first())
-                put("showSeries", prefs.showSeries.first())
+                put("serverUrl",           creds.serverUrl)
+                put("username",            creds.username)
+                put("password",            creds.password)
+                put("epgUrls",             JSONArray(prefs.getEpgUrls()))
+                put("preferredFormat",     prefs.preferredFormat.first())
+                put("usaOnlyChannels",     prefs.usaOnlyChannels.first())
+                put("showMovies",          prefs.showMovies.first())
+                put("showSeries",          prefs.showSeries.first())
                 put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
                 put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
                 put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
-                put("favoriteChannelIds", JSONArray(favChannels))
+                put("favoriteChannelIds",  JSONArray(favChannels))
             }
             showQrDialog(json.toString())
         } catch (_: Exception) {
@@ -503,20 +486,18 @@ class TvSettingsActivity : AppCompatActivity() {
     }
 
     private fun showQrDialog(content: String) {
-        val size = 600
+        val size   = 600
         val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         for (x in 0 until size) for (y in 0 until size)
             bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
         try {
-            val logo = BitmapFactory.decodeResource(resources, R.drawable.splash_logo)
-            val ls = size / 4
+            val logo   = BitmapFactory.decodeResource(resources, R.drawable.splash_logo)
+            val ls     = size / 4
             val scaled = Bitmap.createScaledBitmap(logo, ls, ls, true)
             val c = Canvas(bitmap)
-            val paint = Paint().apply { color = Color.WHITE }
-            val center = size / 2f
-            c.drawCircle(center, center, ls / 2f + 14, paint)
-            c.drawBitmap(scaled, center - ls / 2f, center - ls / 2f, null)
+            c.drawCircle(size / 2f, size / 2f, ls / 2f + 14, Paint().apply { color = Color.WHITE })
+            c.drawBitmap(scaled, size / 2f - ls / 2f, size / 2f - ls / 2f, null)
             scaled.recycle(); logo.recycle()
         } catch (_: Exception) {}
         val iv = android.widget.ImageView(this).apply {
@@ -532,110 +513,31 @@ class TvSettingsActivity : AppCompatActivity() {
 
     // ─── Servers ─────────────────────────────────────────────────────────────
 
-    private fun setupServersPanel() {
-        binding.btnTvAddServer.setOnClickListener { showAddServerDialog() }
-        loadServers()
-    }
-
-    private fun loadServers() {
-        lifecycleScope.launch {
-            extraServers.clear()
-            extraServers.addAll(prefs.getExtraServersWithNick())
-            renderServerList()
-        }
-    }
-
-    private fun renderServerList() {
-        binding.llTvServers.removeAllViews()
-        lifecycleScope.launch {
-            val creds = prefs.credentials.first()
-            val activeIndex = prefs.activeServerIndex.first()
-            val primaryNick = prefs.serverNickname.first().ifEmpty { creds.username }
-            addServerCard(binding.llTvServers, "PRIMARY", primaryNick, creds.serverUrl, isActive = activeIndex == -1, onSwitch = null)
-            extraServers.forEachIndexed { i, server ->
-                val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Server ${i + 2}" } }
-                addServerCard(binding.llTvServers, "SERVER ${i + 2}", nick, server.getOrElse(0) { "" },
-                    isActive = activeIndex == i) {
-                    lifecycleScope.launch {
-                        val url = server[0]; val user = server[1]; val pass = server[2]
-                        val primary = prefs.credentials.first()
-                        val updated = extraServers.toMutableList()
-                        updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
-                        prefs.saveExtraServersWithNick(updated)
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
-                        prefs.saveCredentials(url, user, pass)
-                        prefs.setActiveServerIndex(-1)
-                        startActivity(
-                            Intent(this@TvSettingsActivity, com.iptvapp.ui.home.HomeActivity::class.java)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        )
-                    }
+    private fun switchToServer(i: Int) {
+        AlertDialog.Builder(this)
+            .setTitle("Switch Server")
+            .setMessage("Switch to this server? Local data will be cleared and the app will restart.")
+            .setPositiveButton("Switch") { _, _ ->
+                lifecycleScope.launch {
+                    val server  = extraServers[i]
+                    val url     = server[0]; val user = server[1]; val pass = server[2]
+                    val primary = prefs.credentials.first()
+                    val updated = extraServers.toMutableList()
+                    updated[i]  = listOf(primary.serverUrl, primary.username, primary.password,
+                        prefs.serverNickname.first())
+                    prefs.saveExtraServersWithNick(updated)
+                    withContext(Dispatchers.IO) { db.clearAllTables() }
+                    prefs.saveCredentials(url, user, pass)
+                    prefs.setActiveServerIndex(-1)
+                    startActivity(
+                        Intent(this@TvSettingsActivity,
+                            com.iptvapp.ui.home.HomeActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    )
                 }
             }
-        }
-    }
-
-    private fun addServerCard(
-        container: LinearLayout,
-        label: String,
-        name: String,
-        url: String,
-        isActive: Boolean,
-        onSwitch: (() -> Unit)?
-    ) {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#0E1620"))
-            setPadding(dp(20), dp(18), dp(20), dp(18))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.bottomMargin = dp(10) }
-        }
-        TextView(this).apply {
-            text = label
-            setTextColor(Color.parseColor("#7BBEE0"))
-            textSize = 14f
-            letterSpacing = 0.1f
-            card.addView(this)
-        }
-        TextView(this).apply {
-            text = name
-            setTextColor(Color.WHITE)
-            textSize = 20f
-            card.addView(this)
-        }
-        if (url.isNotEmpty()) {
-            TextView(this).apply {
-                text = url
-                setTextColor(Color.parseColor("#C0D8EE"))
-                textSize = 15f
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                card.addView(this)
-            }
-        }
-        TextView(this).apply {
-            text = if (isActive) "● ACTIVE" else "INACTIVE"
-            setTextColor(if (isActive) Color.parseColor("#008CFF") else Color.parseColor("#999999"))
-            textSize = 16f
-            setPadding(0, dp(4), 0, 0)
-            card.addView(this)
-        }
-        if (onSwitch != null) {
-            Button(this).apply {
-                text = "Switch to this server"
-                setTextColor(Color.WHITE)
-                setBackgroundResource(R.drawable.tv_settings_button)
-                isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, dp(58)
-                ).also { it.topMargin = dp(12) }
-                setOnClickListener { onSwitch() }
-                card.addView(this)
-            }
-        }
-        container.addView(card)
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showAddServerDialog() {
@@ -643,7 +545,7 @@ class TvSettingsActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 0)
         }
         val etNick = EditText(this).apply { hint = "Nickname (optional)" }
-        val etUrl = EditText(this).apply { hint = "Server URL (http://...)" }
+        val etUrl  = EditText(this).apply { hint = "Server URL (http://...)" }
         val etUser = EditText(this).apply { hint = "Username" }
         val etPass = EditText(this).apply {
             hint = "Password"
@@ -654,7 +556,7 @@ class TvSettingsActivity : AppCompatActivity() {
             .setTitle("Add Server")
             .setView(layout)
             .setPositiveButton("Add") { _, _ ->
-                val url = etUrl.text.toString().trim()
+                val url  = etUrl.text.toString().trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
                 val nick = etNick.text.toString().trim()
@@ -665,7 +567,7 @@ class TvSettingsActivity : AppCompatActivity() {
                         extraServers.clear(); extraServers.addAll(fresh)
                         prefs.saveExtraServersWithNick(extraServers)
                         toast("Server added")
-                        renderServerList()
+                        rebuildList("server_add")
                     }
                 }
             }
@@ -675,167 +577,173 @@ class TvSettingsActivity : AppCompatActivity() {
 
     // ─── Account ─────────────────────────────────────────────────────────────
 
-    private fun setupAccountPanel() {
-        binding.btnTvLogout.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Logout")
-                .setMessage("This will clear all data and return to the login screen. Continue?")
-                .setPositiveButton("Logout") { _, _ ->
-                    lifecycleScope.launch {
+    private fun confirmLogout() {
+        AlertDialog.Builder(this)
+            .setTitle("Logout")
+            .setMessage("This will clear all data and return to the login screen. Continue?")
+            .setPositiveButton("Logout") { _, _ ->
+                lifecycleScope.launch {
+                    try {
                         prefs.clearCredentials()
-                        startActivity(
-                            Intent(this@TvSettingsActivity, LoginActivity::class.java)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        )
-                        finish()
-                    }
+                        withContext(Dispatchers.IO) { db.clearAllTables() }
+                    } catch (_: Exception) {}
+                    startActivity(
+                        Intent(this@TvSettingsActivity, LoginActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    )
+                    finish()
                 }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // ─── Debug ───────────────────────────────────────────────────────────────
 
     private fun sendDebugReport() {
-        binding.btnTvSendDebug.isEnabled = false
-        binding.tvTvDebugStatus.text = "Collecting info..."
+        setItemEnabled("backup_debug", false)
+        setItemValue("backup_debug", "Collecting info...")
         lifecycleScope.launch {
             try {
-                val token = prefs.githubToken.first().takeIf { it.isNotBlank() }
-                    ?: com.iptvapp.BuildConfig.GH_TOKEN_B64
-                if (token.isBlank()) {
-                    binding.tvTvDebugStatus.text = "⚠ No GitHub token — add GH_TOKEN_B64 to local.properties and rebuild"
-                    binding.btnTvSendDebug.isEnabled = true
-                    return@launch
-                }
-                val pInfo = packageManager.getPackageInfo(packageName, 0)
-                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-                val netType = when {
+                val pInfo     = packageManager.getPackageInfo(packageName, 0)
+                val cm        = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val caps      = cm.getNetworkCapabilities(cm.activeNetwork)
+                val netType   = when {
                     caps == null -> "No network"
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)     -> "WiFi"
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
                     else -> "Unknown"
                 }
-                val channelCount = try { db.channelDao().getCount() } catch (_: Exception) { -1 }
-                val favCount = try { db.channelDao().getFavoriteCount() } catch (_: Exception) { -1 }
-                val vodCount = try { db.vodDao().getCount() } catch (_: Exception) { -1 }
-                val seriesCount = try { db.seriesDao().getCount() } catch (_: Exception) { -1 }
-                val epgCount = try { db.epgDao().getEpgCount() } catch (_: Exception) { -1 }
-                val format = prefs.preferredFormat.first()
-                val usaOnly = prefs.usaOnlyChannels.first()
-                val serverUrl = try { prefs.credentials.first().serverUrl.let { url ->
-                    java.net.URI(url).let { "${it.host}:${it.port}" }
-                } } catch (_: Exception) { "unknown" }
-                val lastRefresh = prefs.lastEpgRefreshTime.first().let { t ->
-                    if (t == 0L) "Never" else java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(t))
+                val channelCount = try { db.channelDao().getCount() }     catch (_: Exception) { -1 }
+                val favCount     = try { db.channelDao().getFavoriteCount() } catch (_: Exception) { -1 }
+                val vodCount     = try { db.vodDao().getCount() }          catch (_: Exception) { -1 }
+                val seriesCount  = try { db.seriesDao().getCount() }       catch (_: Exception) { -1 }
+                val epgCount     = try { db.epgDao().getEpgCount() }       catch (_: Exception) { -1 }
+                val format       = prefs.preferredFormat.first()
+                val usaOnly      = prefs.usaOnlyChannels.first()
+                val serverUrl    = try {
+                    prefs.credentials.first().serverUrl.let { u ->
+                        java.net.URI(u).let { "${it.host}:${it.port}" }
+                    }
+                } catch (_: Exception) { "unknown" }
+                val lastRefresh  = prefs.lastEpgRefreshTime.first().let { t ->
+                    if (t == 0L) "Never"
+                    else SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(t))
                 }
-                val autoRefreshHours = prefs.epgAutoRefreshHours.first()
-                val autoRefreshStr = if (autoRefreshHours == 0) "Off" else "Every ${autoRefreshHours}h"
-                val missingOnly = prefs.epgRefreshMissingOnly.first()
-                val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-                val memInfo = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
-                val ramFree = "%.1f GB".format(memInfo.availMem / 1e9)
-                val ramTotal = "%.1f GB".format(memInfo.totalMem / 1e9)
-                val stat = android.os.StatFs(android.os.Environment.getDataDirectory().path)
-                val storageFree = "%.1f GB".format(stat.availableBlocksLong * stat.blockSizeLong / 1e9)
-                val dm = resources.displayMetrics
-                val screen = "${dm.widthPixels}x${dm.heightPixels} (${dm.densityDpi}dpi)"
-                val epgWorkState = try {
+                val autoH        = prefs.epgAutoRefreshHours.first()
+                val missingOnly  = prefs.epgRefreshMissingOnly.first()
+                val am           = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                val memInfo      = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+                val ramFree      = "%.1f GB".format(memInfo.availMem / 1e9)
+                val ramTotal     = "%.1f GB".format(memInfo.totalMem / 1e9)
+                val stat         = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+                val storageFree  = "%.1f GB".format(stat.availableBlocksLong * stat.blockSizeLong / 1e9)
+                val dm           = resources.displayMetrics
+                val screen       = "${dm.widthPixels}x${dm.heightPixels} (${dm.densityDpi}dpi)"
+                val epgState     = try {
                     workManager.getWorkInfosForUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME).get()
                         .firstOrNull()?.state?.name ?: "None"
                 } catch (_: Exception) { "Unknown" }
-                binding.tvTvDebugStatus.text = "Reading crash log..."
+                setItemValue("backup_debug", "Reading crash log...")
                 val crashLog = IptvApplication.getCrashLog(this@TvSettingsActivity)
                 val debugText = """
                     App: v${pInfo.versionName} (${pInfo.longVersionCode})
                     Device: ${Build.MANUFACTURER} ${Build.MODEL}
                     Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
-                    Screen: $screen
-                    Network: $netType
-                    RAM: $ramFree free / $ramTotal total
-                    Storage: $storageFree free
+                    Screen: $screen  Network: $netType
+                    RAM: $ramFree free / $ramTotal total  Storage: $storageFree free
                     Server: $serverUrl
                     Channels: $channelCount | Favorites: $favCount
                     VOD: $vodCount | Series: $seriesCount | EPG: $epgCount
                     Format: $format | USA Only: $usaOnly
-                    Last EPG Refresh: $lastRefresh
-                    Auto-refresh: $autoRefreshStr | Missing-only: $missingOnly
-                    EPG Worker: $epgWorkState
+                    Last EPG: $lastRefresh | Auto: ${if (autoH == 0) "Off" else "${autoH}h"} | Missing: $missingOnly
+                    EPG Worker: $epgState
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
-                val title = "Debug Report - v${pInfo.versionName}.${pInfo.longVersionCode} - ${Build.MODEL}"
-                val body = "## Device Debug Report\n\n```\n$fullDebug\n```"
-                val json = JSONObject().apply {
-                    put("title", title)
-                    put("body", body)
-                    put("labels", JSONArray().put("debug-report"))
+                val reportTitle = "Debug Report — v${pInfo.versionName} — ${Build.MODEL}"
+                val discordJson = JSONObject().apply {
+                    put("username", "Captain Hook")
+                    put("embeds", JSONArray().put(JSONObject().apply {
+                        put("title", reportTitle)
+                        put("description", "```\n${fullDebug.take(3900)}\n```")
+                        put("color", 0xF57C00)
+                    }))
                 }
-                binding.tvTvDebugStatus.text = "Sending..."
-                val client = OkHttpClient()
-                val request = Request.Builder()
-                    .url("https://api.github.com/repos/Oliver29Klozoff/IPTV-Mj/issues")
-                    .addHeader("Authorization", "token $token")
-                    .addHeader("Accept", "application/vnd.github.v3+json")
-                    .post(json.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
-                if (response.isSuccessful) {
-                    binding.tvTvDebugStatus.text = "Report sent successfully"
+                setItemValue("backup_debug", "Sending...")
+                val response = withContext(Dispatchers.IO) {
+                    OkHttpClient().newCall(
+                        Request.Builder()
+                            .url(AppConstants.DISCORD_WEBHOOK)
+                            .post(discordJson.toString().toRequestBody("application/json".toMediaType()))
+                            .build()
+                    ).execute()
+                }
+                if (response.isSuccessful || response.code == 204) {
+                    setItemValue("backup_debug", "Report sent ✓")
                     toast("Debug report sent")
                 } else {
-                    binding.tvTvDebugStatus.text = "Failed: ${response.code}"
+                    setItemValue("backup_debug", "Failed: ${response.code}")
                 }
             } catch (e: Exception) {
-                binding.tvTvDebugStatus.text = "Error: ${e.message}"
+                setItemValue("backup_debug", "Error: ${e.message}")
             } finally {
-                binding.btnTvSendDebug.isEnabled = true
+                setItemEnabled("backup_debug", true)
             }
         }
     }
 
     // ─── Sync ─────────────────────────────────────────────────────────────────
 
-    private fun setupSyncPanel() {
+    private fun showPairingCodeDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. ABC12345"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setPadding(32, 16, 32, 16)
+            lifecycleScope.launch {
+                val existing = prefs.getSyncGistId()
+                if (existing.isNotBlank()) setText(existing.take(8).uppercase())
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Enter Pairing Code")
+            .setMessage("Enter the 8-character sync code shown on your other device.")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val code = input.text.toString().trim()
+                lifecycleScope.launch {
+                    syncManager.setPairingCode(code)
+                    toast(if (code.isBlank()) "Pairing code cleared" else "Paired ✓ — tap Pull from Cloud")
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun doSyncUp() {
+        setItemEnabled("sync_up",   false)
+        setItemEnabled("sync_down", false)
         lifecycleScope.launch {
-            binding.switchTvSyncEnabled.isChecked = prefs.syncEnabled.first()
-            val summary = syncManager.getLastSyncSummary()
-            binding.tvTvSyncStatus.text = summary
+            val result = syncManager.syncUp()
+            setItemValue("sync_status", result)
+            setItemEnabled("sync_up",   true)
+            setItemEnabled("sync_down", true)
+            toast(result)
         }
-        binding.btnTvSetToken.visibility = android.view.View.GONE
-        binding.switchTvSyncEnabled.setOnCheckedChangeListener { _, enabled ->
-            lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
-        }
-        binding.btnTvSyncUp.setOnClickListener {
-            binding.tvTvSyncStatus.text = "Pushing to cloud..."
-            binding.btnTvSyncUp.isEnabled = false
-            binding.btnTvSyncDown.isEnabled = false
-            lifecycleScope.launch {
-                val result = syncManager.syncUp()
-                binding.tvTvSyncStatus.text = result
-                binding.btnTvSyncUp.isEnabled = true
-                binding.btnTvSyncDown.isEnabled = true
-                toast(result)
-            }
-        }
-        binding.btnTvSyncDown.setOnClickListener {
-            binding.tvTvSyncStatus.text = "Pulling from cloud..."
-            binding.btnTvSyncUp.isEnabled = false
-            binding.btnTvSyncDown.isEnabled = false
-            lifecycleScope.launch {
-                val result = syncManager.syncDown()
-                binding.tvTvSyncStatus.text = result
-                binding.btnTvSyncUp.isEnabled = true
-                binding.btnTvSyncDown.isEnabled = true
-                toast(result)
-            }
+    }
+
+    private fun doSyncDown() {
+        setItemEnabled("sync_up",   false)
+        setItemEnabled("sync_down", false)
+        lifecycleScope.launch {
+            val result = syncManager.syncDown()
+            setItemValue("sync_status", result)
+            setItemEnabled("sync_up",   true)
+            setItemEnabled("sync_down", true)
+            toast(result)
         }
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
-
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 

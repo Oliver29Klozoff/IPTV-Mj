@@ -57,6 +57,7 @@ class PreferencesManager @Inject constructor(
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         val LAST_CHANNELS_FETCH_TIME = longPreferencesKey("last_channels_fetch_time")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
+        val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -195,6 +196,9 @@ class PreferencesManager @Inject constructor(
 
     val githubToken: Flow<String> = context.dataStore.data.map { it[Keys.GITHUB_TOKEN] ?: "" }
     suspend fun setGithubToken(token: String) { context.dataStore.edit { it[Keys.GITHUB_TOKEN] = token } }
+
+    val preWarmOnFocus: Flow<Boolean> = context.dataStore.data.map { it[Keys.PRE_WARM_ON_FOCUS] ?: true }
+    suspend fun setPreWarmOnFocus(enabled: Boolean) { context.dataStore.edit { it[Keys.PRE_WARM_ON_FOCUS] = enabled } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->

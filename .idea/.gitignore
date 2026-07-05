@@ -1,3 +1,9 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+
+# Machine-specific IDE state
+/emulatorDisplays.xml
+/deploymentTargetSelector.xml
+/appInsightsSettings.xml
+/studiobot.xml

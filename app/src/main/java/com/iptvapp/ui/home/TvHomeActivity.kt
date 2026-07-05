@@ -3,7 +3,6 @@ package com.iptvapp.ui.home
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import android.view.KeyEvent
 import android.view.View
 import android.widget.Toast
@@ -19,7 +18,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.databinding.ActivityTvHomeBinding
-import com.iptvapp.ui.guide.GuideAdapter
+import com.iptvapp.ui.guide.EpgTimelineActivity
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
@@ -44,9 +43,13 @@ class TvHomeActivity : AppCompatActivity() {
 
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
+    private lateinit var channelGridAdapter: ChannelGridAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
-    private lateinit var guideAdapter: GuideAdapter
+
+    private var isGridMode = false
+    private var preWarmEnabled = true
+    private var preWarmJob: kotlinx.coroutines.Job? = null
 
     private var miniPlayer: ExoPlayer? = null
     private var currentMiniUrl: String = ""
@@ -55,13 +58,45 @@ class TvHomeActivity : AppCompatActivity() {
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private var openPlayerJob: kotlinx.coroutines.Job? = null
+    private var clockJob: kotlinx.coroutines.Job? = null
+    private var autoPreviewJob: kotlinx.coroutines.Job? = null
     private var externalPlayerChoice = "internal"
+    private var pendingContentFocus = false
 
-    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@registerForActivityResult
-            binding.tvEtSearch.setText(text)
-            dispatchSearch(text)
+            val sid = result.data?.getIntExtra("stream_id", -1) ?: -1
+            val url = result.data?.getStringExtra("stream_url") ?: return@registerForActivityResult
+            val title = result.data?.getStringExtra("stream_title") ?: return@registerForActivityResult
+            if (sid != -1 && url.isNotEmpty()) {
+                currentMiniStreamId = sid
+                currentMiniUrl = url
+                currentMiniTitle = title
+                binding.tvTvChannelName.text = title
+                miniPlayer?.let {
+                    it.setMediaItem(MediaItem.fromUri(url))
+                    it.prepare()
+                    it.playWhenReady = true
+                }
+                lifecycleScope.launch { refreshMiniEpg(sid) }
+                startEpgRefreshLoop(sid)
+            }
+        }
+    }
+
+    private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val streamId = result.data?.getIntExtra("stream_id", -1) ?: -1
+            val timeshiftUrl = result.data?.getStringExtra("timeshift_url")
+            val timeshiftTitle = result.data?.getStringExtra("timeshift_title")
+            when {
+                timeshiftUrl != null && timeshiftTitle != null ->
+                    openPlayer(timeshiftUrl, timeshiftTitle, streamId)
+                streamId != -1 -> lifecycleScope.launch {
+                    val channel = viewModel.getChannelById(streamId) ?: return@launch
+                    playInMiniPlayer(channel)
+                }
+            }
         }
     }
 
@@ -79,7 +114,7 @@ class TvHomeActivity : AppCompatActivity() {
         observeViewModel()
         observeSidebarVisibility()
         viewModel.loadAll()
-        selectSection(Section.LIVE)
+        selectSection(Section.FAVORITES)
         handleDeepLink(intent)
         FeatureTourDialog.showIfNeeded(this)
         UpdateChecker(this).check(lifecycleScope)
@@ -108,19 +143,33 @@ class TvHomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        lifecycleScope.launch {
-            val recent = viewModel.getRecentChannel()
-            when {
-                recent != null && recent.streamId != currentMiniStreamId -> playInMiniPlayer(recent)
-                currentMiniUrl.isNotEmpty() -> {
-                    if (miniPlayer?.playbackState == Player.STATE_IDLE) {
-                        miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
-                        miniPlayer?.prepare()
-                    }
-                    miniPlayer?.play()
-                }
+        com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
+        // playerLauncher already handles resume after fullscreen — only auto-load on cold start
+        if (currentMiniUrl.isEmpty()) {
+            lifecycleScope.launch {
+                val recent = viewModel.getRecentChannel()
+                if (recent != null) playInMiniPlayer(recent)
+            }
+        } else if (miniPlayer?.isPlaying == false) {
+            if (miniPlayer?.playbackState == Player.STATE_IDLE) {
+                miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
+                miniPlayer?.prepare()
+            }
+            miniPlayer?.play()
+        }
+        val clockFmt = java.text.SimpleDateFormat("h:mm a", Locale.getDefault())
+        clockJob = lifecycleScope.launch {
+            while (true) {
+                binding.tvClock.text = clockFmt.format(java.util.Date())
+                delay(30_000)
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        clockJob?.cancel()
+        autoPreviewJob?.cancel()
     }
 
     override fun onStop() {
@@ -202,6 +251,22 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun preWarmChannel(channel: com.iptvapp.data.local.entities.ChannelEntity) {
+        preWarmJob?.cancel()
+        preWarmJob = lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = viewModel.getLiveStreamUrl(channel.streamId)
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "HEAD"
+                conn.connectTimeout = 3000
+                conn.readTimeout = 2000
+                conn.instanceFollowRedirects = true
+                conn.connect()
+                conn.disconnect()
+            } catch (_: Exception) {}
+        }
+    }
+
     // ── Adapters ─────────────────────────────────────────────────────────────
 
     private fun setupAdapters() {
@@ -231,7 +296,6 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             },
             onChannelDoubleClick = { channel ->
-                // Double-click / long-press → fullscreen
                 val ids = viewModel.channels.value.map { it.streamId }.toIntArray()
                 lifecycleScope.launch {
                     val url = viewModel.getLiveStreamUrl(channel.streamId)
@@ -245,6 +309,20 @@ class TvHomeActivity : AppCompatActivity() {
             },
             onChannelLongClick = { channel -> showTvReminderDialog(channel) }
         )
+        channelAdapter.isTvMode = true
+        channelAdapter.onChannelFocused = { channel ->
+            binding.tvTvChannelName.text = channel.name
+            val epgText = viewModel.channelEpgText.value[channel.streamId]
+            binding.tvTvEpg.text = epgText ?: ""
+            val progress = viewModel.channelEpgProgress.value[channel.streamId] ?: 0
+            if (progress > 0) {
+                binding.tvEpgProgress.progress = progress
+                binding.tvEpgProgress.visibility = View.VISIBLE
+            } else {
+                binding.tvEpgProgress.visibility = View.GONE
+            }
+            if (preWarmEnabled) preWarmChannel(channel)
+        }
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
@@ -277,24 +355,19 @@ class TvHomeActivity : AppCompatActivity() {
             }
         )
 
-        guideAdapter = GuideAdapter(
-            onChannelClick = { row ->
+        channelGridAdapter = ChannelGridAdapter(
+            onChannelClick = { channel ->
                 lifecycleScope.launch {
-                    playInMiniPlayer(row.channel)
-                    val url = viewModel.getLiveStreamUrl(row.channel.streamId)
-                    openPlayer(url, row.channel.name, row.channel.streamId)
+                    playInMiniPlayer(channel)
+                    viewModel.markChannelWatched(channel.streamId)
+                    viewModel.setCurrentlyPlaying(channel.streamId)
                 }
             },
-            onReplayClick = { row, program ->
-                lifecycleScope.launch {
-                    val startSec = if (program.startTimestamp < 100000000000L)
-                        program.startTimestamp else program.startTimestamp / 1000L
-                    val stopSec = if (program.stopTimestamp < 100000000000L)
-                        program.stopTimestamp else program.stopTimestamp / 1000L
-                    val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
-                    val url = viewModel.getTimeshiftUrl(row.channel.streamId, startSec, durationMin)
-                    openPlayer(url, "${row.channel.name} — ${program.title}", row.channel.streamId)
-                }
+            onChannelFocused = { channel ->
+                binding.tvTvChannelName.text = channel.name
+                val epgText = viewModel.channelEpgText.value[channel.streamId]
+                binding.tvTvEpg.text = epgText ?: ""
+                if (preWarmEnabled) preWarmChannel(channel)
             }
         )
 
@@ -322,8 +395,31 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
         binding.btnTvGuide.setOnClickListener { selectSection(Section.GUIDE) }
+        binding.btnTvGuide.setOnLongClickListener {
+            timelineLauncher.launch(Intent(this, EpgTimelineActivity::class.java))
+            true
+        }
+        binding.btnTvGrid.setOnClickListener { toggleGridMode() }
         binding.btnTvSettings.setOnClickListener {
             startActivity(Intent(this, TvSettingsActivity::class.java))
+        }
+    }
+
+    private fun toggleGridMode() {
+        isGridMode = !isGridMode
+        binding.btnTvGrid.setTextColor(if (isGridMode) 0xFF008CFF.toInt() else 0xFF888888.toInt())
+        applyGuideLayout()
+    }
+
+    private fun applyGuideLayout() {
+        if (isGridMode) {
+            binding.tvRvContent.layoutManager = GridLayoutManager(this, 4)
+            binding.tvRvContent.adapter = channelGridAdapter
+            channelGridAdapter.submitList(viewModel.channels.value)
+            channelGridAdapter.submitEpgText(viewModel.channelEpgText.value)
+        } else {
+            binding.tvRvContent.layoutManager = LinearLayoutManager(this)
+            binding.tvRvContent.adapter = channelAdapter
         }
     }
 
@@ -333,6 +429,16 @@ class TvHomeActivity : AppCompatActivity() {
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
         activeSidebarButton().setTextColor(0xFF008CFF.toInt())
 
+        val isGuide = section == Section.GUIDE
+        binding.btnTvGrid.visibility = if (isGuide) View.VISIBLE else View.GONE
+        if (!isGuide) {
+            // reset grid mode when leaving Guide
+            isGridMode = false
+            binding.btnTvGrid.setTextColor(0xFF888888.toInt())
+            binding.tvRvContent.layoutManager = LinearLayoutManager(this)
+        }
+
+        pendingContentFocus = true
         when (section) {
             Section.LIVE -> showLive()
             Section.CATEGORIES -> showFavCategories()
@@ -340,14 +446,6 @@ class TvHomeActivity : AppCompatActivity() {
             Section.SERIES -> showSeries()
             Section.FAVORITES -> showFavorites()
             Section.GUIDE -> showGuide()
-        }
-
-        // Move D-pad focus into content list after section switch
-        binding.tvRvContent.post {
-            val lm = binding.tvRvContent.layoutManager
-            val first = lm?.findViewByPosition(0)
-            if (first != null) first.requestFocus()
-            else binding.tvRvContent.requestFocus()
         }
     }
 
@@ -391,6 +489,8 @@ class TvHomeActivity : AppCompatActivity() {
                     activeSidebarButton().requestFocus()
                     return true
                 }
+                KeyEvent.KEYCODE_GUIDE -> return true  // prevent SHIELD Guide button from backgrounding the app
+
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_Y -> {
                     // MENU key on any focused channel → open fullscreen
                     if (currentMiniUrl.isNotEmpty()) {
@@ -450,8 +550,8 @@ class TvHomeActivity : AppCompatActivity() {
 
     private fun showGuide() {
         binding.tvRvCategories.visibility = View.GONE
-        binding.tvRvContent.adapter = guideAdapter
-        viewModel.loadGuide()
+        applyGuideLayout()
+        viewModel.reloadCurrentLiveCategory()
     }
 
     // ── Search ───────────────────────────────────────────────────────────────
@@ -478,15 +578,6 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvBtnClearSearch.setOnClickListener {
             binding.tvEtSearch.setText("")
             binding.tvEtSearch.clearFocus()
-        }
-        binding.tvBtnVoiceSearch.setOnClickListener {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Search channels...")
-            }
-            try { voiceLauncher.launch(intent) } catch (e: Exception) {
-                Toast.makeText(this, "Voice search not available", Toast.LENGTH_SHORT).show()
-            }
         }
     }
 
@@ -523,14 +614,32 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channels.collect { channels ->
+                if (currentSection == Section.MOVIES || currentSection == Section.SERIES) return@collect
+
+                if (binding.tvRvContent.adapter === channelGridAdapter) {
+                    channelGridAdapter.submitList(channels)
+                    viewModel.loadEpgForChannels(channels)
+                    return@collect
+                }
+
+                if (binding.tvRvContent.adapter !== channelAdapter) return@collect
+
                 val focusedChild = binding.tvRvContent.focusedChild
                 val focusedPos = if (focusedChild != null)
                     binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
+                val wantFocus = pendingContentFocus
+                if (wantFocus) pendingContentFocus = false
+
                 channelAdapter.submitList(channels) {
-                    if (focusedPos >= 0) {
-                        binding.tvRvContent.post {
-                            binding.tvRvContent.findViewHolderForAdapterPosition(focusedPos)
-                                ?.itemView?.requestFocus()
+                    binding.tvRvContent.post {
+                        when {
+                            focusedPos >= 0 ->
+                                binding.tvRvContent.findViewHolderForAdapterPosition(focusedPos)
+                                    ?.itemView?.requestFocus()
+                            wantFocus ->
+                                binding.tvRvContent.findViewHolderForAdapterPosition(0)
+                                    ?.itemView?.requestFocus()
+                                    ?: binding.tvRvContent.requestFocus()
                         }
                     }
                 }
@@ -539,22 +648,43 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.vod.collect {
-                if (currentSection == Section.MOVIES) vodAdapter.submitList(it)
+                if (currentSection == Section.MOVIES) {
+                    val wantFocus = pendingContentFocus
+                    if (wantFocus) pendingContentFocus = false
+                    vodAdapter.submitList(it) {
+                        if (wantFocus) binding.tvRvContent.post {
+                            binding.tvRvContent.findViewHolderForAdapterPosition(0)
+                                ?.itemView?.requestFocus() ?: binding.tvRvContent.requestFocus()
+                        }
+                    }
+                }
             }
         }
         lifecycleScope.launch {
             viewModel.series.collect {
-                if (currentSection == Section.SERIES) seriesAdapter.submitList(it)
+                if (currentSection == Section.SERIES) {
+                    val wantFocus = pendingContentFocus
+                    if (wantFocus) pendingContentFocus = false
+                    seriesAdapter.submitList(it) {
+                        if (wantFocus) binding.tvRvContent.post {
+                            binding.tvRvContent.findViewHolderForAdapterPosition(0)
+                                ?.itemView?.requestFocus() ?: binding.tvRvContent.requestFocus()
+                        }
+                    }
+                }
             }
-        }
-        lifecycleScope.launch {
-            viewModel.guideRows.collect { guideAdapter.submitList(it) }
         }
         lifecycleScope.launch {
             viewModel.currentlyPlayingStreamId.collect { channelAdapter.setCurrentlyPlayingStreamId(it) }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgText.collect { channelAdapter.submitEpgText(it) }
+            viewModel.channelEpgText.collect {
+                channelAdapter.submitEpgText(it)
+                if (binding.tvRvContent.adapter === channelGridAdapter) channelGridAdapter.submitEpgText(it)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.channelEpgNextText.collect { channelAdapter.submitEpgNextText(it) }
         }
         lifecycleScope.launch {
             viewModel.channelEpgProgress.collect { channelAdapter.submitEpgProgress(it) }
@@ -569,6 +699,9 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.externalPlayer.collect { externalPlayerChoice = it }
+        }
+        lifecycleScope.launch {
+            viewModel.preWarmOnFocus.collect { preWarmEnabled = it }
         }
         lifecycleScope.launch {
             viewModel.loading.collect { isLoading ->
@@ -620,7 +753,7 @@ class TvHomeActivity : AppCompatActivity() {
         openPlayerJob?.cancel()
         openPlayerJob = lifecycleScope.launch {
             delay(1200)
-            startActivity(Intent(this@TvHomeActivity, PlayerActivity::class.java).apply {
+            playerLauncher.launch(Intent(this@TvHomeActivity, PlayerActivity::class.java).apply {
                 putExtra("stream_url", url)
                 putExtra("stream_title", title)
                 putExtra("stream_id", streamId)

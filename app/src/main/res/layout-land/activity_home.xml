@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Landscape variant — left nav sidebar, mini player above channel list.
+    Landscape variant — left nav sidebar, mini player left-centered, categories/channels on right.
     All IDs must match activity_home.xml exactly.
 -->
 <androidx.constraintlayout.widget.ConstraintLayout
@@ -21,7 +21,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <!-- App title -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -35,7 +34,6 @@
 
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" />
 
-        <!-- Vertical nav buttons (trigger the hidden tabLayout) -->
         <Button
             android:id="@+id/landBtnLive"
             android:layout_width="match_parent"
@@ -116,7 +114,6 @@
 
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" android:layout_marginTop="4dp" />
 
-        <!-- Search -->
         <EditText
             android:id="@+id/etSearch"
             android:layout_width="match_parent"
@@ -133,10 +130,8 @@
             android:imeOptions="actionSearch"
             android:singleLine="true" />
 
-        <!-- Spacer -->
         <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
 
-        <!-- Settings + sort at bottom -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -167,14 +162,16 @@
 
         <!-- Hidden views required by HomeActivity binding -->
         <ImageButton android:id="@+id/btnClearSearch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        <ImageButton android:id="@+id/btnVoiceSearch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        <Button android:id="@+id/btnMosaic" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+<Button android:id="@+id/btnMosaic" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         <Button android:id="@+id/btnWhatsOn" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         <Button android:id="@+id/btnTimelineView" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <Button android:id="@+id/btnHeroWatch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <ImageButton android:id="@+id/btnFullscreen" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <ImageView android:id="@+id/ivHeroChannelLogo" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
 
     </LinearLayout>
 
-    <!-- Divider -->
+    <!-- Sidebar divider -->
     <View
         android:layout_width="1dp"
         android:layout_height="0dp"
@@ -183,160 +180,156 @@
         app:layout_constraintStart_toEndOf="@id/topBar"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- CENTER: mini player on top, channels below -->
+    <!-- CONTENT AREA: mini player LEFT | categories+channels RIGHT -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/topBar"
         app:layout_constraintTop_toTopOf="parent">
 
-        <!-- MINI PLAYER (compact in landscape) -->
-        <FrameLayout
-            android:id="@+id/miniPlayerContainer"
-            android:layout_width="match_parent"
-            android:layout_height="160dp"
-            android:background="#000000">
+        <!-- MIDDLE: categories -->
+        <LinearLayout
+            android:id="@+id/categoriesColumn"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:orientation="vertical">
 
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/miniPlayerView"
+            <HorizontalScrollView
+                android:id="@+id/genreFilterScroll"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:resize_mode="fit"
-                app:use_controller="false" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/hero_gradient_scrim" />
-
-            <!-- Channel name + EPG overlay -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom"
-                android:orientation="vertical"
-                android:paddingHorizontal="12dp"
-                android:paddingBottom="6dp">
+                android:layout_height="40dp"
+                android:background="#1A1A1A"
+                android:scrollbars="none"
+                android:visibility="gone">
 
                 <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:id="@+id/genreChipContainer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:gravity="center_vertical" />
 
-                    <ImageView
-                        android:id="@+id/ivHeroChannelLogo"
-                        android:layout_width="32dp"
-                        android:layout_height="24dp"
-                        android:scaleType="fitCenter"
-                        android:layout_marginEnd="8dp"
-                        android:visibility="gone" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/tvMiniChannelName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:textColor="#FFFFFF"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:maxLines="1"
-                            android:ellipsize="end" />
-
-                        <TextView
-                            android:id="@+id/tvMiniEpg"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:textColor="#BBBBBB"
-                            android:textSize="11sp"
-                            android:maxLines="1"
-                            android:ellipsize="end" />
-
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/btnHeroWatch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="28dp"
-                        android:backgroundTint="#008CFF"
-                        android:text="Watch"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:paddingHorizontal="10dp" />
-
-                    <ImageButton
-                        android:id="@+id/btnFullscreen"
-                        android:layout_width="28dp"
-                        android:layout_height="28dp"
-                        android:layout_marginStart="4dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:src="@android:drawable/ic_menu_zoom"
-                        android:tint="#FFFFFF" />
-
-                </LinearLayout>
-
-                <ProgressBar
-                    android:id="@+id/miniEpgProgress"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="2dp"
-                    android:layout_marginTop="4dp"
-                    android:max="100"
-                    android:progressTint="#008CFF"
-                    android:progressBackgroundTint="#333333" />
-
-            </LinearLayout>
-
-            <!-- Fullscreen collapse button -->
-            <Button
-                android:id="@+id/btnCollapsePip"
-                android:layout_width="wrap_content"
-                android:layout_height="28dp"
-                android:layout_gravity="top|start"
-                android:layout_margin="6dp"
-                android:background="@android:color/transparent"
-                android:text="PiP ▼"
-                android:textColor="#AAAAAA"
-                android:visibility="gone" />
-
-            <ProgressBar
-                android:id="@+id/miniPlayerProgress"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_gravity="center"
-                android:indeterminateTint="#008CFF"
-                android:visibility="gone" />
-
-        </FrameLayout>
-
-        <!-- Category strip + channel list below player -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal">
+            </HorizontalScrollView>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvCategories"
-                android:layout_width="140dp"
-                android:layout_height="match_parent"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:background="#141414"
                 android:paddingTop="8dp" />
 
-            <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#2A2A2A" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2A2A" />
+
+        </LinearLayout>
+
+        <!-- Column divider -->
+        <View
+            android:id="@+id/categoriesDivider"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#222222" />
+
+        <!-- RIGHT: mini player on top, channels below -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <FrameLayout
+                android:id="@+id/miniPlayerContainer"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="#000000">
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/miniPlayerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:resize_mode="fit"
+                    app:use_controller="false" >
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/hero_gradient_scrim" />
+                </androidx.media3.ui.PlayerView>
+
+                <!-- Channel name + EPG overlay -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="12dp"
+                    android:paddingBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/tvMiniChannelName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/tvMiniEpg"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="#BBBBBB"
+                        android:textSize="11sp"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:layout_marginTop="2dp" />
+
+                    <ProgressBar
+                        android:id="@+id/miniEpgProgress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="2dp"
+                        android:layout_marginTop="6dp"
+                        android:max="100"
+                        android:progressTint="#008CFF"
+                        android:progressBackgroundTint="#333333" />
+
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnCollapsePip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="28dp"
+                    android:layout_gravity="top|start"
+                    android:layout_margin="6dp"
+                    android:background="@android:color/transparent"
+                    android:text="PiP ▼"
+                    android:textColor="#AAAAAA"
+                    android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/miniPlayerProgress"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="#008CFF"
+                    android:visibility="gone" />
+
+            </FrameLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvChannels"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
                 android:layout_weight="1"
                 android:paddingTop="8dp" />
 
@@ -364,7 +357,6 @@
     <TextView android:id="@+id/tvHeroDescription" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
     <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- PiP corner (must exist for binding) -->
     <FrameLayout
         android:id="@+id/pipCorner"
         android:layout_width="0dp"

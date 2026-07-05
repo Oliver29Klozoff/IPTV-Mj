@@ -6,6 +6,8 @@
     android:background="#0F0F0F">
 
     <!-- TOP BAR -->
+
+    <!-- MINI PLAYER -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="0dp"
@@ -15,40 +17,9 @@
         android:orientation="horizontal"
         android:paddingHorizontal="12dp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
-
-        <ImageButton
-            android:id="@+id/btnMenu"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_sort_by_size"
-            android:tint="#FFFFFF" />
-
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:text="MKTV"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etSearch"
-            android:layout_width="160dp"
-            android:layout_height="34dp"
-            android:background="@drawable/search_bg"
-            android:hint="Search..."
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:paddingHorizontal="10dp"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#666666"
-            android:textSize="13sp" />
 
         <Button
             android:id="@+id/btnMosaic"
@@ -78,24 +49,6 @@
             android:tint="#888888"
             android:visibility="gone" />
 
-        <ImageButton
-            android:id="@+id/btnRefresh"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_popup_sync"
-            android:tint="#888888" />
-
-        <ImageButton
-            android:id="@+id/btnVoiceSearch"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_btn_speak_now"
-            android:tint="#008CFF" />
-
         <Button
             android:id="@+id/btnTimelineView"
             android:layout_width="wrap_content"
@@ -107,9 +60,43 @@
             android:textSize="12sp"
             android:visibility="gone" />
 
+        <ImageButton
+            android:id="@+id/btnMenu"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:tint="#FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/btnRefresh"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="15dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_popup_sync"
+            android:tint="#888888" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="180dp"
+            android:layout_height="34dp"
+            android:background="@drawable/search_bg"
+            android:hint="Search..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingHorizontal="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#666666"
+            android:textSize="13sp" />
+
     </LinearLayout>
 
-    <!-- MINI PLAYER -->
     <FrameLayout
         android:id="@+id/miniPlayerContainer"
         android:layout_width="0dp"
@@ -124,7 +111,9 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:resize_mode="fit"
-            app:use_controller="false" />
+            app:use_controller="false" >
+
+        </androidx.media3.ui.PlayerView>
 
         <!-- Cinematic gradient scrim -->
         <View
@@ -185,18 +174,6 @@
 
                 </LinearLayout>
 
-                <Button
-                    android:id="@+id/btnHeroWatch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:layout_marginStart="8dp"
-                    android:backgroundTint="#008CFF"
-                    android:text="▶ WATCH"
-                    android:textColor="#FFFFFF"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:paddingHorizontal="12dp" />
-
             </LinearLayout>
 
             <TextView
@@ -223,16 +200,6 @@
 
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/btnFullscreen"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="top|end"
-            android:layout_margin="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_zoom"
-            android:tint="#FFFFFF" />
-
         <ProgressBar
             android:id="@+id/miniPlayerProgress"
             android:layout_width="wrap_content"
@@ -244,14 +211,14 @@
         <Button
             android:id="@+id/btnCollapsePip"
             android:layout_width="wrap_content"
-            android:layout_height="28dp"
+            android:layout_height="32dp"
             android:layout_gravity="top|start"
             android:layout_margin="8dp"
             android:background="@android:color/transparent"
+            android:padding="4dp"
             android:text="PiP ▼"
             android:textColor="#AAAAAA"
-            android:textSize="11sp"
-            android:padding="4dp" />
+            android:textSize="11sp" />
     </FrameLayout>
 
     <!-- PiP corner overlay - floats over channel list when mini player is collapsed -->
@@ -328,30 +295,58 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvCategories"
-            android:layout_width="160dp"
-            android:layout_height="match_parent"
-            android:background="#141414"
-            android:paddingTop="8dp" />
+        <!-- Genre filter chips — shown only in Live tab when M3U genres are present -->
+        <HorizontalScrollView
+            android:id="@+id/genreFilterScroll"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#1A1A1A"
+            android:scrollbars="none"
+            android:visibility="gone">
 
-        <View
-            android:layout_width="1dp"
-            android:layout_height="match_parent"
-            android:background="#2A2A2A" />
+            <LinearLayout
+                android:id="@+id/genreChipContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:gravity="center_vertical" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvChannels"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+        </HorizontalScrollView>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:paddingTop="8dp" />
+            android:orientation="horizontal">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvCategories"
+                android:layout_width="160dp"
+                android:layout_height="match_parent"
+                android:background="#141414"
+                android:paddingTop="8dp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#2A2A2A" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChannels"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:paddingTop="8dp" />
+
+        </LinearLayout>
     </LinearLayout>
 
     <ProgressBar

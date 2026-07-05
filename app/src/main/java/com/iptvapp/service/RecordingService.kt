@@ -35,6 +35,8 @@ class RecordingService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
+    private var currentRecordingId = -1
+    private var recordingCompleted = false
 
     companion object {
         const val CHANNEL_ID = "recording_notifications"
@@ -67,6 +69,9 @@ class RecordingService : Service() {
             startForeground(NOTIF_ID, buildNotif(name))
         }
 
+        currentRecordingId = recordingId
+        recordingCompleted = false
+
         job = scope.launch {
             if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "RECORDING")
 
@@ -79,6 +84,7 @@ class RecordingService : Service() {
 
             finalizeTarget(target, ok)
 
+            recordingCompleted = true
             if (recordingId != -1) {
                 database.recordingDao().updateStatus(recordingId, if (ok) "DONE" else "FAILED")
             }
@@ -292,6 +298,14 @@ class RecordingService : Service() {
 
     override fun onDestroy() {
         job?.cancel()
+        val rid = currentRecordingId
+        if (rid != -1 && !recordingCompleted) {
+            runCatching {
+                kotlinx.coroutines.runBlocking {
+                    database.recordingDao().updateStatus(rid, "FAILED")
+                }
+            }
+        }
         scope.cancel()
         super.onDestroy()
     }

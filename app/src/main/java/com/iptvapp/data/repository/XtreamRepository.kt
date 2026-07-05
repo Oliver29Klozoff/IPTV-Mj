@@ -8,9 +8,12 @@ import com.iptvapp.data.local.dao.ChannelUserData
 import com.iptvapp.data.local.entities.*
 import com.iptvapp.util.M3uParser
 import com.iptvapp.util.Resource
+import com.iptvapp.util.XmltvFetcher
 import com.iptvapp.util.safeApiCall
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import javax.inject.Inject
@@ -44,7 +47,7 @@ class XtreamRepository @Inject constructor(
 
     suspend fun logout() {
         prefs.clearCredentials()
-        db.clearAllTables()
+        withContext(Dispatchers.IO) { db.clearAllTables() }
     }
 
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
@@ -172,6 +175,8 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun getLiveStreamUrlForRecording(streamId: Int): String {
+        val channel = db.channelDao().getChannelById(streamId)
+        if (channel?.streamUrl != null) return channel.streamUrl
         return urlBuilder().liveStreamUrl(streamId, "ts")
     }
 
@@ -267,6 +272,65 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    /**
+     * Fetch EPG from the provider's XMLTV endpoint (xmltv.php) and upsert into epg_entries.
+     * Returns the number of programs written, or 0 if the endpoint returns nothing useful.
+     * Never throws — silently no-ops on any failure.
+     */
+    suspend fun fetchXmltvEpg(): Int = withContext(Dispatchers.IO) {
+        try {
+            val c = creds()
+            if (!c.isLoggedIn || c.serverUrl.isEmpty()) return@withContext 0
+
+            val url = XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password)
+            val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
+            if (xmlPrograms.isEmpty()) return@withContext 0
+
+            // Build lookup: xmltv channel id (lowercase) → DB stream id
+            val allChannels = db.channelDao().getAllChannels().first()
+            val byEpgId = mutableMapOf<String, Int>()
+            val byName  = mutableMapOf<String, Int>()
+            allChannels.forEach { ch ->
+                if (!ch.epgChannelId.isNullOrBlank())
+                    byEpgId[ch.epgChannelId.lowercase()] = ch.streamId
+                byName[normalizeForMatch(ch.name)] = ch.streamId
+            }
+
+            // Also index xmltv display-names for name-based fallback
+            val xmlNameToId = xmlChannels.associate { normalizeForMatch(it.displayName) to it.id }
+
+            val nowSec = System.currentTimeMillis() / 1000
+            val entities = mutableListOf<EpgEntity>()
+
+            xmlPrograms.forEach { prog ->
+                val streamId = byEpgId[prog.channelId.lowercase()]
+                    ?: xmlChannels.firstOrNull { it.id == prog.channelId }
+                        ?.let { byName[normalizeForMatch(it.displayName)] }
+                    ?: return@forEach
+
+                entities.add(EpgEntity(
+                    id             = "x_${prog.channelId}_${prog.startSec}",
+                    streamId       = streamId,
+                    title          = prog.title,
+                    description    = prog.description,
+                    startTimestamp = prog.startSec,
+                    stopTimestamp  = prog.stopSec,
+                    nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
+                    hasArchive     = 0
+                ))
+            }
+
+            entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
+            entities.size
+        } catch (_: Exception) { 0 }
+    }
+
+    private fun normalizeForMatch(name: String): String =
+        name.lowercase()
+            .replace(Regex("\\s*(hd|fhd|uhd|4k|sd|\\bthe\\b|us|usa|\\(us\\)|\\(usa\\))\\s*"), " ")
+            .replace(Regex("[^a-z0-9]"), "")
+            .trim()
+
     fun getEpgForStream(streamId: Int): Flow<List<EpgEntity>> =
         db.epgDao().getEpgForStream(streamId)
 
@@ -346,13 +410,14 @@ class XtreamRepository @Inject constructor(
         if (channels.isEmpty()) throw Exception("No channels found in playlist")
 
         val groups = channels.map { it.groupTitle }.distinct()
-        db.categoryDao().deleteCategoriesByType("m3u")
+        db.categoryDao().deleteM3uCategories()
+        db.channelDao().deleteM3uChannels()
         db.categoryDao().upsertCategories(groups.mapIndexed { idx, name ->
             CategoryEntity(
                 categoryId = "m3u_${name.hashCode().toLong() and 0xFFFFFFFFL}",
                 categoryName = name,
                 parentId = 0,
-                type = "m3u"
+                type = "live"
             )
         })
 

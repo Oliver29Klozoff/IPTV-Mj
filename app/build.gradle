@@ -17,6 +17,10 @@ android {
         versionCode 191
         versionName "3.53"
 
+        def localProps = new Properties()
+        def localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) localProps.load(new FileInputStream(localPropsFile))
+        buildConfigField "String", "DISCORD_WEBHOOK", "\"${localProps['DISCORD_WEBHOOK'] ?: ''}\""
     }
     signingConfigs {
         release {
@@ -32,6 +36,7 @@ android {
 
     buildFeatures {
         buildConfig true
+        viewBinding true
     }
     buildTypes {
         debug {
@@ -53,9 +58,6 @@ android {
         jvmTarget = '17'
     }
 
-    buildFeatures {
-        viewBinding true
-    }
 }
 
 dependencies {

@@ -48,6 +48,7 @@
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CATEGORIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MOVIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SERIES" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HISTORY" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
     </com.google.android.material.tabs.TabLayout>
@@ -62,10 +63,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tabLayout">
 
-        <!-- Categories - left panel -->
+        <!-- Categories - left panel (weight 2 = ~25%) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvCategories"
-            android:layout_width="220dp"
+            android:layout_width="0dp"
+            android:layout_weight="2"
             android:layout_height="match_parent"
             android:background="#141414"
             android:paddingTop="8dp"
@@ -74,12 +76,12 @@
 
         <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#2A2A2A" />
 
-        <!-- Channels list - middle -->
+        <!-- Channels list - middle (weight 3 = ~37.5%) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvChannels"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_weight="3"
             android:paddingTop="8dp"
             android:focusable="true"
             android:nextFocusLeft="@+id/rvCategories"
@@ -87,10 +89,11 @@
 
         <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#2A2A2A" />
 
-        <!-- Mini player - right panel -->
+        <!-- Mini player - right panel (weight 3 = ~37.5%) -->
         <FrameLayout
             android:id="@+id/miniPlayerContainer"
-            android:layout_width="400dp"
+            android:layout_width="0dp"
+            android:layout_weight="3"
             android:layout_height="match_parent"
             android:background="#000000">
             <androidx.media3.ui.PlayerView

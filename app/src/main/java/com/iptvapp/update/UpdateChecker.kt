@@ -122,8 +122,20 @@ class UpdateChecker(
         }
     }
 
+    /** Call from Activity.onResume() — resumes a pending download if permission was just granted. */
+    fun resumeCheck(scope: CoroutineScope) {
+        val prefs = context.getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
+        val pendingUrl = prefs.getString("pending_apk_url", null) ?: return
+        if (!canInstallUnknownSources()) return
+        prefs.edit().remove("pending_apk_url").apply()
+        Toast.makeText(context, "Downloading update…", Toast.LENGTH_SHORT).show()
+        downloadAndInstall(pendingUrl)
+    }
+
     private fun downloadAndInstall(apkUrl: String) {
         if (!canInstallUnknownSources()) {
+            val prefs = context.getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putString("pending_apk_url", apkUrl).apply()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                     data = Uri.parse("package:${context.packageName}")
@@ -131,7 +143,7 @@ class UpdateChecker(
                 }
                 context.startActivity(intent)
             }
-            Toast.makeText(context, "Please allow installing from unknown sources", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Allow installing from unknown sources, then return to the app", Toast.LENGTH_LONG).show()
             return
         }
 

@@ -12,7 +12,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="MKTV"
-        android:textColor="#FFFFFF"
+        android:textColor="#008CFF"
         android:textSize="48sp"
         android:textStyle="bold"
         android:letterSpacing="0.2"
@@ -28,7 +28,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Connect to your server"
-        android:textColor="#AACCEE"
+        android:textColor="#008CFF"
         android:textSize="16sp"
         app:layout_constraintBottom_toTopOf="@id/cardLogin"
         app:layout_constraintEnd_toEndOf="parent"
@@ -69,8 +69,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
-                    android:textColor="#1A2B4A"
-                    android:imeOptions="actionNext" />
+                    android:textColor="#008CFF"
+                    android:imeOptions="actionNext"
+                    app:backgroundTint="#1A3A6A"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
@@ -88,8 +90,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text"
-                    android:textColor="#1A2B4A"
-                    android:imeOptions="actionNext" />
+                    android:textColor="#008CFF"
+                    android:imeOptions="actionNext"
+                    app:backgroundTint="#1A3A6A"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
@@ -107,8 +111,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text"
-                    android:textColor="#1A2B4A"
-                    android:imeOptions="actionNext" />
+                    android:textColor="#008CFF"
+                    android:imeOptions="actionNext"
+                    app:backgroundTint="#1A3A6A"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
@@ -127,8 +133,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textPassword"
-                    android:textColor="#1A2B4A"
-                    android:imeOptions="actionNext" />
+                    android:textColor="#008CFF"
+                    android:imeOptions="actionNext"
+                    app:backgroundTint="#1A3A6A"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
@@ -143,11 +151,13 @@
                 app:boxBackgroundColor="#F2F6FF">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etEpgUrl"
+                    app:backgroundTint="#1A3A6A"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:imeOptions="actionDone"
                     android:inputType="textUri"
-                    android:textColor="#1A2B4A" />
+                    android:textColor="#008CFF"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton
@@ -155,11 +165,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:layout_marginTop="24dp"
+                app:backgroundTint="#1A3A6A"
                 android:text="Connect"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                app:backgroundTint="#008CFF"
-                app:cornerRadius="8dp" />
+                app:strokeColor="#008CFF"
+                app:strokeWidth="1dp"
+                app:cornerRadius="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnImportM3u"

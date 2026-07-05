@@ -14,7 +14,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import androidx.core.content.ContextCompat
-import android.speech.RecognizerIntent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -79,13 +78,6 @@ class HomeActivity : AppCompatActivity() {
 
     private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
-    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@registerForActivityResult
-            binding.etSearch.setText(text)
-            dispatchSearch(text)
-        }
-    }
     private val settingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
         // Sync sort mode in case it changed in settings
         viewModel.setSortMode(
@@ -270,6 +262,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         if (suppressMiniAutoResume) {
             // Returning from the guide grid with an explicit channel choice — don't override it
             suppressMiniAutoResume = false
@@ -690,20 +683,12 @@ class HomeActivity : AppCompatActivity() {
             binding.etSearch.setText("")
             binding.etSearch.clearFocus()
         }
-        binding.btnVoiceSearch?.setOnClickListener {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Search channels...")
-            }
-            try { voiceLauncher.launch(intent) } catch (e: Exception) {
-                Toast.makeText(this, "Voice search not available", Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
             2 -> viewModel.searchVod(query)
+            5 -> { /* Favorites tab ignores search — prevents TextWatcher from re-triggering live channels on rotation */ }
             else -> viewModel.searchChannels(query)
         }
     }
@@ -995,6 +980,10 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channels.collect { list ->
+                // Guard: never let live-category channels bleed onto the Favorites tab.
+                // inFavoritesMode is false whenever selectLiveCategory was the last call;
+                // if that happens to race with showFavorites(), we drop the stale update.
+                if (binding.tabLayout.selectedTabPosition == 5 && !viewModel.inFavoritesMode) return@collect
                 channelAdapter.submitList(list)
                 viewModel.loadEpgForChannels(list)
                 if (pendingScrollToCurrent && list.isNotEmpty()) {

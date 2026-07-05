@@ -66,6 +66,8 @@ interface ChannelDao {
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
     @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden FROM channels")
     suspend fun getUserData(): List<ChannelUserData>
+    @Query("DELETE FROM channels WHERE categoryId LIKE 'm3u_%'")
+    suspend fun deleteM3uChannels()
 }
 
 @Dao
@@ -76,6 +78,8 @@ interface CategoryDao {
     suspend fun upsertCategories(categories: List<CategoryEntity>)
     @Query("DELETE FROM categories WHERE type = :type")
     suspend fun deleteCategoriesByType(type: String)
+    @Query("DELETE FROM categories WHERE categoryId LIKE 'm3u_%'")
+    suspend fun deleteM3uCategories()
 }
 
 @Dao

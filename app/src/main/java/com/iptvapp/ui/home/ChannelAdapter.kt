@@ -22,8 +22,11 @@ class ChannelAdapter(
 
     var itemTouchHelper: ItemTouchHelper? = null
     var showDragHandles: Boolean = false
+    var isTvMode: Boolean = false
+    var onChannelFocused: ((ChannelEntity) -> Unit)? = null
 
     private var epgTextByStreamId: Map<Int, String> = emptyMap()
+    private var epgNextTextByStreamId: Map<Int, String> = emptyMap()
     private var epgProgressByStreamId: Map<Int, Int> = emptyMap()
     private var currentlyPlayingStreamId: Int = -1
     private var healthByStreamId: Map<Int, Boolean?> = emptyMap()
@@ -35,6 +38,11 @@ class ChannelAdapter(
 
     fun submitEpgText(epgMap: Map<Int, String>) {
         epgTextByStreamId = epgMap
+        notifyDataSetChanged()
+    }
+
+    fun submitEpgNextText(nextMap: Map<Int, String>) {
+        epgNextTextByStreamId = nextMap
         notifyDataSetChanged()
     }
 
@@ -54,6 +62,26 @@ class ChannelAdapter(
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
             binding.tvEpgNow.text = epgTextByStreamId[item.streamId] ?: "Guide loading..."
+
+            val nextText = epgNextTextByStreamId[item.streamId]
+            if (isTvMode && nextText != null) {
+                binding.tvEpgNext?.text = "Next: $nextText"
+            } else {
+                binding.tvEpgNext?.visibility = View.GONE
+            }
+
+            if (isTvMode) {
+                binding.root.setOnFocusChangeListener { _, focused ->
+                    if (focused) {
+                        if (nextText != null) binding.tvEpgNext?.visibility = View.VISIBLE
+                        onChannelFocused?.invoke(item)
+                    } else {
+                        binding.tvEpgNext?.visibility = View.GONE
+                    }
+                }
+            } else {
+                binding.root.onFocusChangeListener = null
+            }
 
             val progress = epgProgressByStreamId[item.streamId] ?: 0
             binding.epgProgressBar.visibility = if (progress > 0) View.VISIBLE else View.INVISIBLE

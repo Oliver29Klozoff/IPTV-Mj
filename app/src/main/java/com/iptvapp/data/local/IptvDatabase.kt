@@ -16,7 +16,7 @@ import com.iptvapp.data.local.entities.*
         EpgEntity::class,
         RecordingEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -86,6 +86,26 @@ abstract class IptvDatabase : RoomDatabase() {
                         durationMs INTEGER NOT NULL,
                         outputPath TEXT NOT NULL,
                         status TEXT NOT NULL DEFAULT 'SCHEDULED'
+                    )
+                """.trimIndent())
+            }
+        }
+
+        // Drop and recreate epg_entries to add nowPlaying and hasArchive columns
+        // that were missing from older installs. EPG data is re-fetchable so data loss is fine.
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS epg_entries")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS epg_entries (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        streamId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        startTimestamp INTEGER NOT NULL,
+                        stopTimestamp INTEGER NOT NULL,
+                        nowPlaying INTEGER NOT NULL DEFAULT 0,
+                        hasArchive INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
             }

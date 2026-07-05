@@ -117,6 +117,9 @@ class SettingsActivity : AppCompatActivity() {
                 .show()
         }
 
+        binding.btnNavRefreshEpg.setOnClickListener { startEpgRefresh() }
+        binding.btnNavCheckUpdate.setOnClickListener { checkForUpdate() }
+
         binding.btnWhatsNew.setOnClickListener { showChangelog() }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdate() }
 

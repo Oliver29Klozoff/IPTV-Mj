@@ -3,7 +3,9 @@ package com.iptvapp.ui.login
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -63,8 +65,9 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private val restoreLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
         if (uri != null) {
             lifecycleScope.launch {
                 try {
@@ -187,7 +190,16 @@ class LoginActivity : AppCompatActivity() {
             .setTitle("Restore backup?")
             .setMessage("Choose a backup file to restore your favorites and settings, or skip.")
             .setPositiveButton("Choose Backup") { _, _ ->
-                restoreLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        putExtra(DocumentsContract.EXTRA_INITIAL_URI, DocumentsContract.buildDocumentUri(
+                            "com.android.externalstorage.documents", "primary:"
+                        ))
+                    }
+                }
+                restoreLauncher.launch(intent)
             }
             .setNegativeButton("Skip") { _, _ -> goToHome() }
             .setCancelable(false)

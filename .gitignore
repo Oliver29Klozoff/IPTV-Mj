@@ -14,3 +14,22 @@
 .cxx
 local.properties
 
+# Build artifacts
+*.apk
+
+# Dev scratch / junk
+crash.txt
+*.rollbackbak
+write_tv_layout.ps1
+
+# IDE state (machine-specific)
+.claude/settings.json
+.claude/settings.local.json
+
+# Unrelated project files
+S4MK3/
+
+# Firebase config
+.vscode/.firebaserc
+.firebaserc
+

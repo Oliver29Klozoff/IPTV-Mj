@@ -58,6 +58,17 @@ class EpgRefreshWorker @AssistedInject constructor(
         return try {
             db.epgDao().deleteExpiredEpg()
 
+            // Try XMLTV bulk fetch first — silently skipped if provider doesn't support it
+            setProgress(Data.Builder()
+                .putInt(KEY_PROGRESS, 0)
+                .putString(KEY_STATUS, "Fetching XMLTV guide...").build())
+            val xmltvCount = repository.fetchXmltvEpg()
+            if (xmltvCount > 0) {
+                setProgress(Data.Builder()
+                    .putInt(KEY_PROGRESS, 5)
+                    .putString(KEY_STATUS, "XMLTV: $xmltvCount programs loaded").build())
+            }
+
             setProgress(
                 Data.Builder()
                     .putInt(KEY_PROGRESS, 0)

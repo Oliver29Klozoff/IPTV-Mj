@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.data.local.IptvDatabase
+import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.RecordingEntity
 import com.iptvapp.data.repository.XtreamRepository
@@ -47,6 +48,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRecordingSchedulerBinding
     private var allChannels: List<ChannelEntity> = emptyList()
+    private var allCategories: List<CategoryEntity> = emptyList()
+    private var epgNowMap: Map<Int, String> = emptyMap()
     private val dateFmt = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
 
     private val recordingAdapter = RecordingAdapter(
@@ -69,7 +72,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         binding.fabAdd.setOnClickListener { showScheduleDialog() }
 
         lifecycleScope.launch {
-            val usCategories = database.categoryDao().getCategoriesByType("live").first()
+            allCategories = database.categoryDao().getCategoriesByType("live").first()
                 .filter { cat ->
                     val name = cat.categoryName
                     name.startsWith("US|", ignoreCase = true) ||
@@ -77,12 +80,24 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     name.contains("|US|", ignoreCase = true) ||
                     name.contains("|USA|", ignoreCase = true)
                 }
-                .map { it.categoryId }
-                .toSet()
 
+            val categoryIds = allCategories.map { it.categoryId }.toSet()
             allChannels = database.channelDao().getAllChannels().first()
-                .filter { it.categoryId in usCategories }
+                .filter { it.categoryId in categoryIds }
+
+            // Build a "currently airing" map for the channel picker
+            if (allChannels.isNotEmpty()) {
+                val nowMs = System.currentTimeMillis()
+                val epg = repository.getEpgForStreams(allChannels.map { it.streamId }).first()
+                epgNowMap = epg.filter { entry ->
+                    val startMs = if (entry.startTimestamp < 100_000_000_000L) entry.startTimestamp * 1000L else entry.startTimestamp
+                    val stopMs  = if (entry.stopTimestamp  < 100_000_000_000L) entry.stopTimestamp  * 1000L else entry.stopTimestamp
+                    startMs <= nowMs && stopMs > nowMs
+                }.associate { it.streamId to it.title }
+            }
         }
+
+        lifecycleScope.launch { cleanupStaleRecordings() }
 
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->
@@ -92,53 +107,118 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
     }
 
+    private suspend fun cleanupStaleRecordings() {
+        val now = System.currentTimeMillis()
+        database.recordingDao().getAll().first()
+            .filter { it.status == "RECORDING" && (it.scheduledStartMs + it.durationMs) < now - 60_000L }
+            .forEach { database.recordingDao().updateStatus(it.id, "FAILED") }
+    }
+
     private fun showScheduleDialog() {
         if (allChannels.isEmpty()) {
             Toast.makeText(this, "Channel list not loaded yet", Toast.LENGTH_SHORT).show()
             return
         }
 
-        var filtered = allChannels.toMutableList()
-        var selectedChannel: ChannelEntity? = allChannels.firstOrNull()
+        var filteredChannels = allChannels.toMutableList()
+        var filteredCategories = allCategories.toMutableList()
+        var selectedChannel: ChannelEntity? = null
+        var currentCategoryId: String? = null  // null = category level, non-null = channel level
 
+        val FILL = -1; val WRAP = -2
         val layout = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(16, 16, 16, 0)
         }
 
         val etSearch = android.widget.EditText(this).apply {
-            hint = "Search channels..."
+            hint = "Search all channels..."
             setSingleLine()
-            layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = android.widget.LinearLayout.LayoutParams(FILL, WRAP)
         }
         layout.addView(etSearch)
 
-        val listHeight = (resources.displayMetrics.heightPixels * 0.4f).toInt()
+        // Breadcrumb shown when inside a category; tap to go back
+        val tvBreadcrumb = android.widget.TextView(this).apply {
+            textSize = 13f
+            setTextColor(0xFF008CFF.toInt())
+            setPadding(4, 8, 4, 4)
+            layoutParams = android.widget.LinearLayout.LayoutParams(FILL, WRAP)
+            visibility = View.GONE
+        }
+        layout.addView(tvBreadcrumb)
+
+        val listHeight = (resources.displayMetrics.heightPixels * 0.45f).toInt()
         val listView = android.widget.ListView(this).apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, listHeight
-            )
+            layoutParams = android.widget.LinearLayout.LayoutParams(FILL, listHeight)
             choiceMode = android.widget.AbsListView.CHOICE_MODE_SINGLE
         }
         layout.addView(listView)
 
         fun rebuildList() {
             val q = etSearch.text.toString().trim().lowercase()
-            filtered = (if (q.isEmpty()) allChannels
-                        else allChannels.filter { it.name.lowercase().contains(q) }).toMutableList()
-            listView.adapter = android.widget.ArrayAdapter(
-                this, android.R.layout.simple_list_item_activated_1,
-                filtered.map { it.name }
-            )
-            selectedChannel = filtered.firstOrNull()
-            if (filtered.isNotEmpty()) listView.setItemChecked(0, true)
+            when {
+                q.isNotEmpty() -> {
+                    // Search across all channels regardless of category
+                    filteredChannels = allChannels.filter { it.name.lowercase().contains(q) }.toMutableList()
+                    listView.adapter = android.widget.ArrayAdapter(
+                        this, android.R.layout.simple_list_item_activated_1,
+                        filteredChannels.map { ch ->
+                            val now = epgNowMap[ch.streamId]
+                            if (now != null) "${ch.name}  —  $now" else ch.name
+                        }
+                    )
+                    selectedChannel = filteredChannels.firstOrNull()
+                    if (filteredChannels.isNotEmpty()) listView.setItemChecked(0, true)
+                    tvBreadcrumb.visibility = View.GONE
+                    listView.setOnItemClickListener { _, _, pos, _ ->
+                        selectedChannel = filteredChannels.getOrNull(pos)
+                    }
+                }
+                currentCategoryId == null -> {
+                    // Category level
+                    filteredCategories = allCategories.toMutableList()
+                    listView.adapter = android.widget.ArrayAdapter(
+                        this, android.R.layout.simple_list_item_1,
+                        filteredCategories.map { cat ->
+                            val count = allChannels.count { it.categoryId == cat.categoryId }
+                            "📁 ${cat.categoryName}  ($count)"
+                        }
+                    )
+                    selectedChannel = null
+                    tvBreadcrumb.visibility = View.GONE
+                    listView.setOnItemClickListener { _, _, pos, _ ->
+                        val cat = filteredCategories.getOrNull(pos) ?: return@setOnItemClickListener
+                        currentCategoryId = cat.categoryId
+                        tvBreadcrumb.text = "◀ All Categories  /  ${cat.categoryName}"
+                        tvBreadcrumb.visibility = View.VISIBLE
+                        rebuildList()
+                    }
+                }
+                else -> {
+                    // Channel level (inside a category)
+                    filteredChannels = allChannels.filter { it.categoryId == currentCategoryId }.toMutableList()
+                    listView.adapter = android.widget.ArrayAdapter(
+                        this, android.R.layout.simple_list_item_activated_1,
+                        filteredChannels.map { ch ->
+                            val now = epgNowMap[ch.streamId]
+                            if (now != null) "${ch.name}  —  $now" else ch.name
+                        }
+                    )
+                    selectedChannel = filteredChannels.firstOrNull()
+                    if (filteredChannels.isNotEmpty()) listView.setItemChecked(0, true)
+                    listView.setOnItemClickListener { _, _, pos, _ ->
+                        selectedChannel = filteredChannels.getOrNull(pos)
+                    }
+                }
+            }
         }
 
-        listView.setOnItemClickListener { _, _, pos, _ ->
-            selectedChannel = filtered.getOrNull(pos)
+        // Breadcrumb tap → back to category list
+        tvBreadcrumb.setOnClickListener {
+            currentCategoryId = null
+            selectedChannel = null
+            rebuildList()
         }
 
         etSearch.addTextChangedListener(object : android.text.TextWatcher {
@@ -377,8 +457,11 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 if (rec.status == "DONE") {
                     b.btnPlay.visibility = View.VISIBLE
                     b.btnPlay.setOnClickListener { playFile(rec.outputPath) }
+                    b.btnShare.visibility = View.VISIBLE
+                    b.btnShare.setOnClickListener { shareFile(rec.outputPath) }
                 } else {
                     b.btnPlay.visibility = View.GONE
+                    b.btnShare.visibility = View.GONE
                 }
             }
         }
@@ -417,5 +500,33 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
         runCatching { startActivity(chooser) }
             .onFailure { Toast.makeText(this, "No video player installed", Toast.LENGTH_SHORT).show() }
+    }
+
+    private fun shareFile(path: String) {
+        val uri: Uri
+
+        if (path.startsWith("content://")) {
+            uri = Uri.parse(path)
+        } else {
+            val file = File(path)
+            if (!file.exists()) {
+                Toast.makeText(this, "File not found", Toast.LENGTH_SHORT).show()
+                return
+            }
+            uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
+        }
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "video/*"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        val chooser = Intent.createChooser(intent, "Upload recording to...").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        runCatching { startActivity(chooser) }
+            .onFailure { Toast.makeText(this, "No sharing app available", Toast.LENGTH_SHORT).show() }
     }
 }

@@ -117,6 +117,7 @@ class PlayerActivity : AppCompatActivity() {
     private var currentIndex: Int = -1
 
     private var retryCount = 0
+    private var lastBackPressMs = 0L
     private val maxRetries = 20
     private var retryJob: Job? = null
     private var channelSwitchJob: Job? = null
@@ -463,12 +464,15 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupResizeButton() {
-        binding.btnResize.setOnClickListener {
-            resizeModeIndex = (resizeModeIndex + 1) % resizeModes.size
-            binding.playerView.resizeMode = resizeModes[resizeModeIndex]
-            Toast.makeText(this, resizeModeLabels[resizeModeIndex], Toast.LENGTH_SHORT).show()
-            resetHideTimer()
-        }
+        binding.btnResize.setOnClickListener { cycleResizeMode() }
+    }
+
+    private fun cycleResizeMode() {
+        resizeModeIndex = (resizeModeIndex + 1) % resizeModes.size
+        binding.playerView.resizeMode = resizeModes[resizeModeIndex]
+        binding.playerView.requestLayout()
+        Toast.makeText(this, resizeModeLabels[resizeModeIndex], Toast.LENGTH_SHORT).show()
+        resetHideTimer()
     }
 
     // ─── Brightness & Volume gesture helpers ────────────────────────────────
@@ -829,6 +833,7 @@ class PlayerActivity : AppCompatActivity() {
         if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE
         updatePlayPauseButton()
         resetHideTimer()
+        binding.btnPlayPause.post { binding.btnPlayPause.requestFocus() }
         if (!isVod && streamId != -1) {
             lifecycleScope.launch {
                 repository.fetchEpg(streamId)
@@ -898,35 +903,52 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                if (!isOverlayVisible) { showOverlay(); true }
-                else if (!isVod) { previousChannel(); showChannelOsd(); true }
-                else super.onKeyDown(keyCode, event)
+            KeyEvent.KEYCODE_BACK -> {
+                val now = System.currentTimeMillis()
+                when {
+                    isOverlayVisible && now - lastBackPressMs < 500 -> {
+                        // Double back while overlay open → exit
+                        finish(); true
+                    }
+                    isOverlayVisible -> {
+                        // Single back → dismiss overlay only
+                        lastBackPressMs = now
+                        hideHandler.removeCallbacks(hideRunnable)
+                        hideRunnable.run()
+                        true
+                    }
+                    else -> super.onKeyDown(keyCode, event)
+                }
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (!isOverlayVisible) { showOverlay(); true }
-                else if (!isVod) { nextChannel(); showChannelOsd(); true }
-                else super.onKeyDown(keyCode, event)
+            KeyEvent.KEYCODE_DPAD_UP -> when {
+                !isOverlayVisible && !isVod -> { nextChannel(); showChannelOsd(); true }
+                !isOverlayVisible -> { showOverlay(); true }
+                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (!isOverlayVisible) { showOverlay(); true }
-                else if (isVod) { player?.seekTo(((player?.currentPosition ?: 0L) - 10000L).coerceAtLeast(0L)); true }
-                else super.onKeyDown(keyCode, event)
+            KeyEvent.KEYCODE_DPAD_DOWN -> when {
+                !isOverlayVisible && !isVod -> { previousChannel(); showChannelOsd(); true }
+                !isOverlayVisible -> { showOverlay(); true }
+                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (!isOverlayVisible) { showOverlay(); true }
-                else if (isVod) { player?.seekTo(((player?.currentPosition ?: 0L) + 10000L).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
-                else super.onKeyDown(keyCode, event)
+            KeyEvent.KEYCODE_DPAD_LEFT -> when {
+                !isOverlayVisible -> { showOverlay(); true }
+                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - 10000L).coerceAtLeast(0L)); true }
+                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> when {
+                !isOverlayVisible -> { showOverlay(); true }
+                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + 10000L).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
+                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()
                 updatePlayPauseButton(); true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
-                if (!isOverlayVisible) showOverlay()
-                else { if (player?.isPlaying == true) player?.pause() else player?.play(); updatePlayPauseButton() }
-                true
+                if (!isOverlayVisible) { showOverlay(); true }
+                else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
+            KeyEvent.KEYCODE_GUIDE -> { if (!isOverlayVisible) showOverlay(); true }
             else -> super.onKeyDown(keyCode, event)
         }
     }
@@ -951,12 +973,9 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnBack.visibility = View.GONE
             binding.btnGuide.visibility = View.GONE
             binding.btnPlayPause.visibility = View.GONE
-            binding.btnResize.visibility = View.GONE
             binding.bottomControls.visibility = View.GONE
             binding.btnCast.visibility = View.GONE
             binding.bufferHealthBadge.visibility = View.GONE
-        } else {
-            binding.btnResize.visibility = View.VISIBLE
         }
     }
 
