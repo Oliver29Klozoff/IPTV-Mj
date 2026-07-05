@@ -14,8 +14,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 184
-        versionName "3.46"
+        versionCode 185
+        versionName "3.47"
 
     }
     signingConfigs {
