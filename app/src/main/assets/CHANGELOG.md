@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.55
+- player: video now plays through screen rotation — portrait and landscape both work; no more video stopping when you rotate the phone
+
 ## v3.54
 - player: auto-reconnect capped at 5 attempts instead of 20 — stops retrying sooner on dead streams
 - TV: channel number jumping — type digits on the remote (e.g. 5, 12, 100) to jump to that channel position in the list

@@ -1,10 +1,6 @@
 {
-  "versionCode": 192,
-  "versionName": "3.54",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.54/MKTV.apk",
-  "changelog": [
-    "player: auto-reconnect capped at 5 attempts instead of 20 — stops retrying sooner on dead streams",
-    "TV: channel number jumping — type digits on the remote (e.g. 5, 12, 100) to jump to that channel position in the list",
-    "EPG: tap a future show to get \"Record\" or \"Remind Me\" options — Record opens the scheduler and auto-schedules the recording"
-  ]
+  "versionCode": 193,
+  "versionName": "3.55",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.55/MKTV.apk",
+  "changelog": "player: video now plays through screen rotation — portrait and landscape both work; no more video stopping when you rotate the phone"
 }
