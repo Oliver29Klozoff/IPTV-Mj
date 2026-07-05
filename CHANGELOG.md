@@ -1,13 +1,18 @@
 # IPTV App - Changelog
 
 ## v3.43 - 2026-07-04
-- Update to v3.43
+- fix: recordings stuck as "RECORDING" — service kill now writes FAILED status synchronously in onDestroy
+- fix: opening Recordings screen auto-clears any entry still showing RECORDING past its expected end time
 
 ## v3.42 - 2026-07-04
-- Update to v3.42
+- TV guide: pressing Guide now opens the full-screen EPG timeline (same as phone) instead of crashing
+- TV fullscreen player: D-pad up/down changes channel immediately without needing overlay open first
+- TV focus: hovering a channel row updates the info panel (name + EPG) without loading video; press OK to play
+- removed: grid logo toggle and hints bar
 
 ## v3.41 - 2026-07-04
-- Update to v3.41
+- TV home revamp: clock in sidebar, Now & Next EPG row expands on focus, auto-preview info on D-pad hover
+- TV remote shortcuts: D-pad left returns to sidebar, Guide key handled, up/down channel nav in player
 
 ## v3.40 - 2026-07-04
 - fix: SHIELD Guide button no longer backgrounds the app; shows overlay in player
