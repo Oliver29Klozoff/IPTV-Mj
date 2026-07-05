@@ -1,7 +1,9 @@
 # IPTV App - Changelog
 
+## v3.57
+- player: reverted TextureView (caused blank video on many devices) — back to SurfaceView; rotation handled by lifecycle guard instead
+
 ## v3.56
-- player: switch to TextureView so the video surface survives rotation without destroying and recreating
 - player: player is no longer released during config changes — video keeps playing seamlessly through rotation
 - player: expanded configChanges coverage to handle Samsung/LG OEM rotation edge cases
 
