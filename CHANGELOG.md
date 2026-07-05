@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.48 - 2026-07-05
+- Update to v3.48
+
 ## v3.47 - 2026-07-05
 - Update to v3.47
 
