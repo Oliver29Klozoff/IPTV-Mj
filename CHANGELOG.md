@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v3.76 - 2026-07-06
+- Fix crash opening recording scheduler on large channel lists (SQLite variable limit exceeded with 55k+ channel IDs)
+
+## v3.75 - 2026-07-06
+- TV sidebar: app icon + MKTV wordmark with live clock, properly sized for Shield remote navigation
+
+## v3.74 - 2026-07-06
+- TV sidebar: replaced MKTV text with app logo (initial attempt)
+
 ## v3.73 - 2026-07-06
 - TV player: press Yellow button (or X/F key) on remote to instantly cycle aspect ratio (Best Fit → Zoom → Stretch) without opening the control overlay
 

@@ -142,6 +142,8 @@ interface EpgDao {
     fun getEpgForStreams(streamIds: List<Int>): Flow<List<EpgEntity>>
     @Query("SELECT DISTINCT streamId FROM epg_entries")
     suspend fun getStreamIdsWithEpg(): List<Int>
+    @Query("SELECT * FROM epg_entries WHERE startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
+    suspend fun getCurrentlyAiring(nowMs: Long): List<EpgEntity>
     @Query("SELECT MIN(startTimestamp) FROM epg_entries")
     suspend fun getOldestEpgStartTimestamp(): Long?
     @Query("SELECT MAX(stopTimestamp) FROM epg_entries")

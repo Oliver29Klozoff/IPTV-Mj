@@ -83,15 +83,10 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             allChannels = database.channelDao().getAllChannels().first()
 
             // Build a "currently airing" map for the channel picker
-            if (allChannels.isNotEmpty()) {
-                val nowMs = System.currentTimeMillis()
-                val epg = repository.getEpgForStreams(allChannels.map { it.streamId }).first()
-                epgNowMap = epg.filter { entry ->
-                    val startMs = if (entry.startTimestamp < 100_000_000_000L) entry.startTimestamp * 1000L else entry.startTimestamp
-                    val stopMs  = if (entry.stopTimestamp  < 100_000_000_000L) entry.stopTimestamp  * 1000L else entry.stopTimestamp
-                    startMs <= nowMs && stopMs > nowMs
-                }.associate { it.streamId to it.title }
-            }
+            val nowMs = System.currentTimeMillis()
+            val nowSec = nowMs / 1000L
+            epgNowMap = database.epgDao().getCurrentlyAiring(nowSec)
+                .associate { it.streamId to it.title }
         }
 
         lifecycleScope.launch { cleanupStaleRecordings() }
