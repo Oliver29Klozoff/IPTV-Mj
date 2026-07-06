@@ -1,6 +1,6 @@
 {
-  "versionCode": 214,
-  "versionName": "3.76",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.76/MKTV.apk",
-  "changelog": "Fix crash opening recording scheduler when channel list is large"
+  "versionCode": 215,
+  "versionName": "3.77",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.77/MKTV.apk",
+  "changelog": "Recording scheduler: only show US| channels and categories"
 }

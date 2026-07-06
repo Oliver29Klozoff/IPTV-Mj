@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.77 - 2026-07-06
+- Recording scheduler: only US| categories and channels shown (phone and TV)
+
 ## v3.76 - 2026-07-06
 - Fix crash opening recording scheduler on large channel lists (SQLite variable limit exceeded with 55k+ channel IDs)
 

@@ -79,8 +79,10 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             allCategories = database.categoryDao().getCategoriesByType("live").first()
-
+                .filter { it.categoryName.startsWith("US|", ignoreCase = true) }
+            val usCategoryIds = allCategories.map { it.categoryId }.toSet()
             allChannels = database.channelDao().getAllChannels().first()
+                .filter { it.categoryId in usCategoryIds }
 
             // Build a "currently airing" map for the channel picker
             val nowMs = System.currentTimeMillis()
