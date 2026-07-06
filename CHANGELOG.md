@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.64 - 2026-07-05
+- Fix home screen mini player: cancel racing load jobs, skip re-prepare when player already active after rotation
+
 ## v3.63
 - player: live streams now retry indefinitely on connection loss (backoff ramps to 30s then holds) — no more "stream unavailable" dead ends on spotty car/WiFi connections; VOD still stops at 5 attempts since VOD URLs can expire
 

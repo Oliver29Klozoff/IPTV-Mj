@@ -1,6 +1,6 @@
 {
-  "versionCode": 201,
-  "versionName": "3.63",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.63/MKTV.apk",
-  "changelog": "player: live streams now retry indefinitely on connection loss (backoff ramps to 30s then holds) — no more \"stream unavailable\" dead ends on spotty car/WiFi connections; VOD still stops at 5 attempts since VOD URLs can expire"
+  "versionCode": 202,
+  "versionName": "3.64",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.64/MKTV.apk",
+  "changelog": "Fix home screen mini player: cancel racing load jobs, skip re-prepare when player already active after rotation"
 }
