@@ -462,24 +462,17 @@ class TvSettingsActivity : AppCompatActivity() {
 
     private suspend fun doQrBackup() {
         try {
-            val creds          = prefs.credentials.first()
-            val favCategoryIds = prefs.favoriteLiveCategoryIds.first()
-            val favChannels    = db.channelDao().getFavoriteChannelIds()
-            val json = JSONObject().apply {
-                put("serverUrl",           creds.serverUrl)
-                put("username",            creds.username)
-                put("password",            creds.password)
-                put("epgUrls",             JSONArray(prefs.getEpgUrls()))
-                put("preferredFormat",     prefs.preferredFormat.first())
-                put("usaOnlyChannels",     prefs.usaOnlyChannels.first())
-                put("showMovies",          prefs.showMovies.first())
-                put("showSeries",          prefs.showSeries.first())
-                put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
-                put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
-                put("favoriteCategoryIds", JSONArray(favCategoryIds.toList()))
-                put("favoriteChannelIds",  JSONArray(favChannels))
-            }
-            showQrDialog(json.toString())
+            val creds = prefs.credentials.first()
+            val payload = JSONObject().apply {
+                put("s", creds.serverUrl)
+                put("u", creds.username)
+                put("p", creds.password)
+            }.toString()
+            val encoded = android.util.Base64.encodeToString(
+                payload.toByteArray(Charsets.UTF_8),
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+            )
+            showQrDialog("mktv://restore?d=$encoded")
         } catch (_: Exception) {
             toast("Backup failed")
         }
@@ -504,8 +497,8 @@ class TvSettingsActivity : AppCompatActivity() {
             setImageBitmap(bitmap); setPadding(32, 32, 32, 32)
         }
         AlertDialog.Builder(this)
-            .setTitle("Backup QR Code")
-            .setMessage("Scan with your phone to restore settings")
+            .setTitle("Scan to Login on Phone")
+            .setMessage("Open MKTV on your phone and scan this code to restore login credentials")
             .setView(iv)
             .setPositiveButton("Done", null)
             .show()

@@ -84,6 +84,12 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Handle mktv://restore?d= QR scan from TV
+        val restoreUri = intent?.data
+        if (restoreUri?.scheme == "mktv" && restoreUri.host == "restore") {
+            handleRestoreDeepLink(restoreUri)
+            return
+        }
         lifecycleScope.launch {
             val creds = prefs.credentials.first()
             if (creds.isLoggedIn) {
@@ -92,6 +98,21 @@ class LoginActivity : AppCompatActivity() {
             }
             showLoginForm()
         }
+    }
+
+    private fun handleRestoreDeepLink(uri: Uri) {
+        showLoginForm()
+        val encoded = uri.getQueryParameter("d") ?: return
+        val json = try {
+            JSONObject(String(android.util.Base64.decode(encoded, android.util.Base64.URL_SAFE)))
+        } catch (_: Exception) { return }
+        val serverUrl = json.optString("s")
+        val username  = json.optString("u")
+        val password  = json.optString("p")
+        if (serverUrl.isEmpty() || username.isEmpty()) return
+        binding.etServerUrl.setText(serverUrl)
+        binding.etUsername.setText(username)
+        binding.etPassword.setText(password)
     }
 
     private fun showLoginForm() {

@@ -1,6 +1,6 @@
 {
-  "versionCode": 209,
-  "versionName": "3.71",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.71/MKTV.apk",
-  "changelog": "TV: EPG guide DPad navigation, timeline header, fullscreen button relocated, progress bar under player"
+  "versionCode": 210,
+  "versionName": "3.72",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.72/MKTV.apk",
+  "changelog": "Fix EPG auto-refresh (all favorites, not US-only), fix recordings showing all channels, fix backup QR (credentials only, scannable), TV logo in sidebar"
 }

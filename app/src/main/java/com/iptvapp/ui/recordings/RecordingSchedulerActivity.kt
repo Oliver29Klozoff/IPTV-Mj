@@ -43,6 +43,12 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class RecordingSchedulerActivity : AppCompatActivity() {
 
+    companion object {
+        const val EXTRA_PREFILL_STREAM_ID = "prefill_stream_id"
+        const val EXTRA_PREFILL_START_MS = "prefill_start_ms"
+        const val EXTRA_PREFILL_DURATION_MS = "prefill_duration_ms"
+    }
+
     @Inject lateinit var database: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
 
@@ -73,17 +79,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             allCategories = database.categoryDao().getCategoriesByType("live").first()
-                .filter { cat ->
-                    val name = cat.categoryName
-                    name.startsWith("US|", ignoreCase = true) ||
-                    name.startsWith("USA|", ignoreCase = true) ||
-                    name.contains("|US|", ignoreCase = true) ||
-                    name.contains("|USA|", ignoreCase = true)
-                }
 
-            val categoryIds = allCategories.map { it.categoryId }.toSet()
             allChannels = database.channelDao().getAllChannels().first()
-                .filter { it.categoryId in categoryIds }
 
             // Build a "currently airing" map for the channel picker
             if (allChannels.isNotEmpty()) {
@@ -103,6 +100,21 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             database.recordingDao().getAll().collect { list ->
                 recordingAdapter.submitList(list)
                 binding.tvEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
+
+        val prefillStreamId = intent.getIntExtra(EXTRA_PREFILL_STREAM_ID, -1)
+        if (prefillStreamId != -1) {
+            val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
+            val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            lifecycleScope.launch {
+                val channel = database.channelDao().getAllChannels().first()
+                    .firstOrNull { it.streamId == prefillStreamId }
+                if (channel == null) {
+                    Toast.makeText(this@RecordingSchedulerActivity, "Channel not found", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                scheduleRecording(channel, prefillStartMs, prefillDurationMs)
             }
         }
     }

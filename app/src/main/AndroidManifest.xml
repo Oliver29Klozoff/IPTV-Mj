@@ -47,7 +47,14 @@
             android:name=".ui.login.LoginActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mktv" android:host="restore" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".ui.home.HomeActivity"
@@ -90,7 +97,7 @@
             android:exported="false"
             android:screenOrientation="landscape"
             android:supportsPictureInPicture="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize" />
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|density|uiMode|keyboard|navigation|fontScale" />
 
         <activity
             android:name=".ui.player.MultiViewActivity"
@@ -124,7 +131,7 @@
         <service
             android:name=".service.RecordingService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="dataSync" />
 
                 <receiver
             android:name=".ui.recordings.RecordingAlarmReceiver"
