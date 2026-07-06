@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.iptvapp.worker.ReminderWorker
@@ -31,6 +32,12 @@ class IptvApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // The app's theme is DayNight, but every custom screen hardcodes a dark palette
+        // regardless of system setting. Left on DayNight, only stock components (AlertDialog,
+        // DatePickerDialog, etc.) would follow the system's light/dark setting — on a device
+        // in light mode that meant dialogs with a light background and our hardcoded white
+        // text became invisible. Force dark everywhere so stock dialogs always match.
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         setupCrashHandler()
         createNotificationChannels()
         try { CastContext.getSharedInstance(this) } catch (_: Exception) {}

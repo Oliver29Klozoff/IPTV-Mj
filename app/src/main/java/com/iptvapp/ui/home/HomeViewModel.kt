@@ -316,11 +316,13 @@ class HomeViewModel @Inject constructor(
             _channelEpgProgress.value = progressMap
             _channelEpgNextText.value = nextTextMap
 
-            // Full program list per channel (not-yet-ended programs), for the proportional-width guide
+            // Full program list per channel for the proportional-width guide: a few hours of
+            // history (so the timeline can be scrolled back) plus everything still to come.
             val nowMs = nowSecs * 1000L
+            val historyMs = 3 * 60 * 60 * 1000L
             _channelEpgPrograms.value = visibleChannels.associate { channel ->
                 val programs = epgByStream[channel.streamId].orEmpty()
-                    .filter { it.stopMs() > nowMs }
+                    .filter { it.stopMs() > nowMs - historyMs }
                     .sortedBy { it.startTimestamp }
                 channel.streamId to programs
             }

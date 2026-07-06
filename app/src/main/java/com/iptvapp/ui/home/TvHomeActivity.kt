@@ -69,6 +69,7 @@ class TvHomeActivity : AppCompatActivity() {
     private enum class NavState { SIDEBAR, CATEGORIES, CHANNELS }
     private var navState = NavState.SIDEBAR
     private var navHasCategoryStep = false
+    private var lastBackPressTime = 0L
 
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -222,10 +223,17 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    // Prefer the same shared channelEpgText/channelEpgProgress source the guide and the
+    // channel-focus preview use, so the mini player never disagrees with what the guide
+    // shows for "now playing". Only fall back to a fresh single-stream fetch if this
+    // channel isn't in that batch (e.g. played from outside the currently browsed list).
     private suspend fun refreshMiniEpg(streamId: Int) {
-        val epg = viewModel.getEpgText(streamId)
+        val sharedText = viewModel.channelEpgText.value[streamId]
+        val sharedProgress = viewModel.channelEpgProgress.value[streamId]
+        val epg = sharedText ?: viewModel.getEpgText(streamId)
+        val progress = sharedProgress ?: viewModel.getMiniEpgProgress(streamId)
+
         binding.tvTvEpg.text = epg
-        val progress = viewModel.getMiniEpgProgress(streamId)
         if (progress > 0) {
             binding.tvEpgProgress.progress = progress
             binding.tvEpgProgress.visibility = View.VISIBLE
@@ -298,6 +306,7 @@ class TvHomeActivity : AppCompatActivity() {
                     viewModel.markChannelWatched(channel.streamId)
                     viewModel.setCurrentlyPlaying(channel.streamId)
                 }
+                scrollGuideToChannel(channel.streamId)
             },
             onChannelDoubleClick = { channel ->
                 val ids = viewModel.channels.value.map { it.streamId }.toIntArray()
@@ -369,6 +378,11 @@ class TvHomeActivity : AppCompatActivity() {
             }
         )
         epgGuideAdapter.onScrollSynced = { x -> binding.tvGuideTimelineScroll.scrollTo(x, 0) }
+        binding.btnGuideNow.setOnClickListener { epgGuideAdapter.scrollToNow(this) }
+        binding.btnGuideRefresh.setOnClickListener {
+            Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
+            viewModel.loadEpgForChannels(viewModel.channels.value)
+        }
 
         binding.tvRvCategories.layoutManager = LinearLayoutManager(this)
         binding.tvRvCategories.adapter = categoryAdapter
@@ -562,8 +576,8 @@ class TvHomeActivity : AppCompatActivity() {
                         }
                     }
                 }
-                // Left goes back one level; from the first program block in the guide
-                // returns to the channel list. Deeper in a row, let focus move left normally.
+                // Left only adjusts focus within the guide (back to channel list from the
+                // first program block); it no longer drills back a level. Use BACK for that.
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
                     val focused = binding.tvRvEpgGuide.findFocus()
                     if (binding.tvRvEpgGuide.hasFocus() && focused != null) {
@@ -573,19 +587,14 @@ class TvHomeActivity : AppCompatActivity() {
                             binding.tvRvContent.requestFocus()
                             return true
                         }
-                    } else {
-                        when (navState) {
-                            NavState.CATEGORIES -> { showSidebar(); return true }
-                            NavState.CHANNELS -> {
-                                if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
-                                else showSidebar()
-                                return true
-                            }
-                            NavState.SIDEBAR -> {}
-                        }
+                        // pos > 0: fall through so the program block's own key listener
+                        // moves focus one item to the left within the row.
+                    } else if (navState == NavState.CATEGORIES || navState == NavState.CHANNELS) {
+                        return true
                     }
                 }
-                // Back goes up one drill level; from EPG guide returns to channel list
+                // Back goes up one drill level; from EPG guide returns to channel list.
+                // At the top level (sidebar), require a second Back press within 2s to exit.
                 KeyEvent.KEYCODE_BACK -> {
                     if (binding.tvRvEpgGuide.hasFocus()) {
                         binding.tvRvContent.requestFocus()
@@ -598,7 +607,16 @@ class TvHomeActivity : AppCompatActivity() {
                             return true
                         }
                         NavState.CATEGORIES -> { showSidebar(); return true }
-                        NavState.SIDEBAR -> {}
+                        NavState.SIDEBAR -> {
+                            val now = System.currentTimeMillis()
+                            if (now - lastBackPressTime < 2000L) {
+                                finishAffinity()
+                            } else {
+                                lastBackPressTime = now
+                                Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                            }
+                            return true
+                        }
                     }
                 }
                 KeyEvent.KEYCODE_GUIDE -> return true
@@ -827,6 +845,15 @@ class TvHomeActivity : AppCompatActivity() {
     private fun hasRealEpg(epgText: Map<Int, String>, streamId: Int): Boolean {
         val text = epgText[streamId] ?: return false
         return text.isNotBlank() && text != "—"
+    }
+
+    /** Brings the just-selected channel's row into view in the EPG guide, so you can see
+     * what it's playing without having to manually scroll the right panel to find it. */
+    private fun scrollGuideToChannel(streamId: Int) {
+        val idx = epgGuideAdapter.currentList.indexOfFirst { it.streamId == streamId }
+        if (idx >= 0) {
+            binding.tvRvEpgGuide.smoothScrollToPosition(idx)
+        }
     }
 
     private fun buildGuideTimelineHeader() {

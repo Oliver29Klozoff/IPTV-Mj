@@ -1,7 +1,9 @@
 package com.iptvapp.ui.recordings
 
 import android.app.AlarmManager
+import android.app.DatePickerDialog
 import android.app.PendingIntent
+import android.app.TimePickerDialog
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -13,7 +15,7 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.NumberPicker
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -47,21 +49,21 @@ class TvRecordingActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityTvRecordingBinding
 
-    private enum class Step { LIST, CATEGORY, CHANNEL, DATETIME, DURATION }
+    private enum class Step { LIST, CATEGORY, CHANNEL }
     private var step = Step.LIST
 
     private var allCategories: List<CategoryEntity> = emptyList()
     private var allChannels: List<ChannelEntity> = emptyList()
     private var epgNowMap: Map<Int, String> = emptyMap()
 
-    private var selectedCategory: CategoryEntity? = null
+    private var currentChannels: List<ChannelEntity> = emptyList()
     private var selectedChannel: ChannelEntity? = null
-    private var selectedStartMs: Long = 0L
 
     private val dateFmt = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
 
-    // Duration steps in minutes
-    private val durationSteps = intArrayOf(15, 30, 45, 60, 90, 120, 150, 180, 240, 300)
+    companion object {
+        private const val FAVORITES_CATEGORY_ID = "__favorites__"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,10 +71,23 @@ class TvRecordingActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupRecordingsList()
-        setupNumberPickers()
+        setupSearch()
         setupButtons()
         loadData()
         showStep(Step.LIST)
+    }
+
+    private fun setupSearch() {
+        binding.etSearchCategory.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable) = rebuildCategoryList(s.toString())
+            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
+        })
+        binding.etSearchChannel.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable) = rebuildChannelList(s.toString())
+            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
+        })
     }
 
     private fun loadData() {
@@ -87,12 +102,24 @@ class TvRecordingActivity : AppCompatActivity() {
                 .associate { it.streamId to it.title }
         }
 
+        lifecycleScope.launch { cleanupStaleRecordings() }
+
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->
                 (binding.rvRecordings.adapter as? RecordingListAdapter)?.submitList(list)
                 binding.tvEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
             }
         }
+    }
+
+    /** If RecordingService got killed mid-recording (common on TV boxes under memory
+     * pressure), the DB row is stuck at "RECORDING" forever since onDestroy never ran
+     * to mark it FAILED. Sweep anything whose window has clearly passed. */
+    private suspend fun cleanupStaleRecordings() {
+        val now = System.currentTimeMillis()
+        database.recordingDao().getAll().first()
+            .filter { it.status == "RECORDING" && (it.scheduledStartMs + it.durationMs) < now - 60_000L }
+            .forEach { database.recordingDao().updateStatus(it.id, "FAILED") }
     }
 
     private fun setupRecordingsList() {
@@ -112,75 +139,84 @@ class TvRecordingActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupNumberPickers() {
-        val cal = Calendar.getInstance()
-
-        binding.npMonth.apply {
-            minValue = 1; maxValue = 12
-            value = cal.get(Calendar.MONTH) + 1
-            displayedValues = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-            wrapSelectorWheel = true
-        }
-        binding.npDay.apply {
-            minValue = 1; maxValue = 31
-            value = cal.get(Calendar.DAY_OF_MONTH)
-            wrapSelectorWheel = true
-        }
-        binding.npYear.apply {
-            minValue = cal.get(Calendar.YEAR)
-            maxValue = cal.get(Calendar.YEAR) + 1
-            value = cal.get(Calendar.YEAR)
-            wrapSelectorWheel = false
-        }
-        binding.npHour.apply {
-            minValue = 0; maxValue = 23
-            value = cal.get(Calendar.HOUR_OF_DAY)
-            wrapSelectorWheel = true
-        }
-        binding.npMinute.apply {
-            minValue = 0; maxValue = 11
-            displayedValues = arrayOf("00","05","10","15","20","25","30","35","40","45","50","55")
-            value = cal.get(Calendar.MINUTE) / 5
-            wrapSelectorWheel = true
-        }
-        binding.npDuration.apply {
-            minValue = 0; maxValue = durationSteps.size - 1
-            displayedValues = durationSteps.map { it.toString() }.toTypedArray()
-            value = 3 // default 60 min
-            wrapSelectorWheel = false
-        }
-    }
-
     private fun setupButtons() {
         binding.btnAddNew.setOnClickListener { showStep(Step.CATEGORY) }
         binding.btnCatBack.setOnClickListener { showStep(Step.LIST) }
         binding.btnChanBack.setOnClickListener { showStep(Step.CATEGORY) }
-        binding.btnDateBack.setOnClickListener { showStep(Step.CHANNEL) }
-        binding.btnDurBack.setOnClickListener { showStep(Step.DATETIME) }
+    }
 
-        binding.btnDateNext.setOnClickListener {
-            val cal = Calendar.getInstance()
-            cal.set(
-                binding.npYear.value,
-                binding.npMonth.value - 1,
-                binding.npDay.value,
-                binding.npHour.value,
-                binding.npMinute.value * 5,
-                0
-            )
-            cal.set(Calendar.MILLISECOND, 0)
-            selectedStartMs = cal.timeInMillis
-            val ch = selectedChannel ?: return@setOnClickListener
-            binding.tvDurChannel.text = ch.name
-            binding.tvDurDateTime.text = dateFmt.format(Date(selectedStartMs))
-            showStep(Step.DURATION)
-        }
+    private fun rebuildCategoryList(query: String) {
+        val q = query.trim().lowercase()
+        val favoriteChannels = allChannels.filter { it.isFavorite }
 
-        binding.btnSchedule.setOnClickListener {
-            val ch = selectedChannel ?: return@setOnClickListener
-            val durationMs = durationSteps[binding.npDuration.value] * 60_000L
-            scheduleRecording(ch, selectedStartMs, durationMs)
+        val items = mutableListOf<PickerItem>()
+        if (favoriteChannels.isNotEmpty() && (q.isEmpty() || "favorites".contains(q))) {
+            items.add(PickerItem(FAVORITES_CATEGORY_ID, "★ FAVORITES", "${favoriteChannels.size} channels"))
         }
+        items.addAll(
+            allCategories
+                .filter { q.isEmpty() || it.categoryName.lowercase().contains(q) }
+                .map {
+                    val count = allChannels.count { ch -> ch.categoryId == it.categoryId }
+                    PickerItem(it.categoryId, it.categoryName.removePrefix("US|").trim(), "$count channels")
+                }
+        )
+
+        binding.rvCategories.adapter = PickerAdapter(items) { item ->
+            binding.tvChanCategoryName.text = item.name
+            currentChannels = if (item.id == FAVORITES_CATEGORY_ID) {
+                favoriteChannels
+            } else {
+                allChannels.filter { it.categoryId == item.id }
+            }
+            binding.etSearchChannel.setText("")
+            rebuildChannelList("")
+            showStep(Step.CHANNEL)
+        }
+    }
+
+    private fun rebuildChannelList(query: String) {
+        val q = query.trim().lowercase()
+        val filtered = currentChannels.filter { q.isEmpty() || it.name.lowercase().contains(q) }
+        binding.rvChannels.adapter = PickerAdapter(
+            items = filtered.map { PickerItem(it.streamId.toString(), it.name, epgNowMap[it.streamId]) }
+        ) { chanItem ->
+            selectedChannel = filtered.first { it.streamId.toString() == chanItem.id }
+            promptDateTimeAndSchedule()
+        }
+    }
+
+    private fun promptDateTimeAndSchedule() {
+        val ch = selectedChannel ?: return
+        val now = Calendar.getInstance()
+        DatePickerDialog(this, { _, year, month, day ->
+            TimePickerDialog(this, { _, hour, minute ->
+                val cal = Calendar.getInstance()
+                cal.set(year, month, day, hour, minute, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                pickDuration { durationMs -> scheduleRecording(ch, cal.timeInMillis, durationMs) }
+            }, now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), false).show()
+        }, now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)).show()
+    }
+
+    private fun pickDuration(onDone: (Long) -> Unit) {
+        val input = EditText(this).apply {
+            hint = "Minutes"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText("60")
+            setTextColor(android.graphics.Color.WHITE)
+            setHintTextColor(0xFF555555.toInt())
+            setPadding(48, 32, 48, 32)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Duration (minutes)")
+            .setView(input)
+            .setPositiveButton("Schedule") { _, _ ->
+                val mins = input.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 60L
+                onDone(mins * 60_000L)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showStep(s: Step) {
@@ -188,8 +224,6 @@ class TvRecordingActivity : AppCompatActivity() {
         binding.stepList.visibility     = if (s == Step.LIST)     View.VISIBLE else View.GONE
         binding.stepCategory.visibility = if (s == Step.CATEGORY) View.VISIBLE else View.GONE
         binding.stepChannel.visibility  = if (s == Step.CHANNEL)  View.VISIBLE else View.GONE
-        binding.stepDateTime.visibility = if (s == Step.DATETIME) View.VISIBLE else View.GONE
-        binding.stepDuration.visibility = if (s == Step.DURATION) View.VISIBLE else View.GONE
 
         when (s) {
             Step.LIST -> {
@@ -197,40 +231,13 @@ class TvRecordingActivity : AppCompatActivity() {
             }
             Step.CATEGORY -> {
                 binding.rvCategories.layoutManager = LinearLayoutManager(this)
-                binding.rvCategories.adapter = PickerAdapter(
-                    items = allCategories.map {
-                        val count = allChannels.count { ch -> ch.categoryId == it.categoryId }
-                        PickerItem(it.categoryId, it.categoryName.removePrefix("US|").trim(), "$count channels")
-                    },
-                    onSelect = { item ->
-                        selectedCategory = allCategories.first { it.categoryId == item.id }
-                        binding.tvChanCategoryName.text = item.name
-                        val chans = allChannels.filter { it.categoryId == item.id }
-                        binding.rvChannels.layoutManager = LinearLayoutManager(this)
-                        binding.rvChannels.adapter = PickerAdapter(
-                            items = chans.map {
-                                val epg = epgNowMap[it.streamId]
-                                PickerItem(it.streamId.toString(), it.name, epg)
-                            },
-                            onSelect = { chanItem ->
-                                selectedChannel = chans.first { it.streamId.toString() == chanItem.id }
-                                binding.tvDateChannel.text = selectedChannel?.name
-                                showStep(Step.DATETIME)
-                            }
-                        )
-                        showStep(Step.CHANNEL)
-                    }
-                )
+                binding.etSearchCategory.setText("")
+                rebuildCategoryList("")
                 binding.rvCategories.requestFocus()
             }
             Step.CHANNEL -> {
+                binding.rvChannels.layoutManager = LinearLayoutManager(this)
                 binding.rvChannels.requestFocus()
-            }
-            Step.DATETIME -> {
-                binding.npMonth.requestFocus()
-            }
-            Step.DURATION -> {
-                binding.npDuration.requestFocus()
             }
         }
     }
@@ -241,8 +248,6 @@ class TvRecordingActivity : AppCompatActivity() {
                 Step.LIST     -> finish()
                 Step.CATEGORY -> showStep(Step.LIST)
                 Step.CHANNEL  -> showStep(Step.CATEGORY)
-                Step.DATETIME -> showStep(Step.CHANNEL)
-                Step.DURATION -> showStep(Step.DATETIME)
             }
             return true
         }

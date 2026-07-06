@@ -421,20 +421,56 @@
             android:progressTint="#008CFF"
             android:visibility="gone" />
 
-        <!-- FULL SCREEN button (replaces WHAT'S ON label) -->
-        <Button
-            android:id="@+id/btnTvFullscreen"
+        <!-- FULL SCREEN / NOW / REFRESH GUIDE row (replaces WHAT'S ON label) -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="36dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:text="FULL SCREEN"
-            android:textAllCaps="false"
-            android:textColor="#008CFF"
-            android:textSize="12sp" />
+            android:orientation="horizontal">
 
-        <!-- Timeline ruler: scrolls in sync with the guide rows below -->
+            <Button
+                android:id="@+id/btnTvFullscreen"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:text="FULL SCREEN"
+                android:textAllCaps="false"
+                android:textColor="#008CFF"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnGuideNow"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="⦿ NOW"
+                android:textAllCaps="false"
+                android:textColor="#008CFF"
+                android:textSize="11sp"
+                android:letterSpacing="0.05"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
+                android:id="@+id/btnGuideRefresh"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="⟳ REFRESH"
+                android:textAllCaps="false"
+                android:textColor="#008CFF"
+                android:textSize="11sp"
+                android:letterSpacing="0.05"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+        </LinearLayout>
+
+        <!-- Timeline ruler: scrolls in sync with the guide rows below (display only) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="24dp"

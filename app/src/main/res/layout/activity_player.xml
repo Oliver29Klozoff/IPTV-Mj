@@ -48,13 +48,13 @@
     <!-- Left brightness indicator -->
     <LinearLayout
         android:id="@+id/brightnessIndicator"
-        android:layout_width="36dp"
-        android:layout_height="160dp"
+        android:layout_width="44dp"
+        android:layout_height="184dp"
         android:layout_marginStart="12dp"
         android:orientation="vertical"
         android:gravity="center|bottom"
-        android:padding="4dp"
-        android:background="#CC000000"
+        android:padding="6dp"
+        android:background="@drawable/player_gesture_indicator_bg"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -65,13 +65,23 @@
             android:layout_height="wrap_content"
             android:text="☀"
             android:textColor="#FFDD00"
-            android:textSize="16sp" />
+            android:textSize="18sp" />
+        <TextView
+            android:id="@+id/tvBrightnessPercent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="50%"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
         <ProgressBar
             android:id="@+id/brightnessBar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="120dp"
             android:layout_height="8dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:max="100"
             android:progress="50"
             android:progressTint="#FFDD00"
@@ -82,13 +92,13 @@
     <!-- Right volume indicator -->
     <LinearLayout
         android:id="@+id/volumeIndicator"
-        android:layout_width="36dp"
-        android:layout_height="160dp"
+        android:layout_width="44dp"
+        android:layout_height="184dp"
         android:layout_marginEnd="12dp"
         android:orientation="vertical"
         android:gravity="center|bottom"
-        android:padding="4dp"
-        android:background="#CC000000"
+        android:padding="6dp"
+        android:background="@drawable/player_gesture_indicator_bg"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -99,13 +109,23 @@
             android:layout_height="wrap_content"
             android:text="🔊"
             android:textColor="#FFFFFF"
-            android:textSize="14sp" />
+            android:textSize="16sp" />
+        <TextView
+            android:id="@+id/tvVolumePercent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="50%"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
         <ProgressBar
             android:id="@+id/volumeBar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="120dp"
             android:layout_height="8dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:max="100"
             android:progress="50"
             android:progressTint="#008CFF"

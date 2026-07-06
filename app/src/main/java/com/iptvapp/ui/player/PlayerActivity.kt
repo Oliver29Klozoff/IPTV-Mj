@@ -124,6 +124,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var sleepTimer: CountDownTimer? = null
     private var isAdjustingGesture = false
+    private var gestureAccumY = 0f
     private val seekHandler = Handler(Looper.getMainLooper())
     private var seekRunnable: Runnable? = null
 
@@ -480,20 +481,41 @@ class PlayerActivity : AppCompatActivity() {
     private fun adjustBrightness(delta: Float) {
         val lp = window.attributes
         val current = if (lp.screenBrightness < 0f) 0.5f else lp.screenBrightness
-        lp.screenBrightness = (current + delta).coerceIn(0.01f, 1f)
+        val newBrightness = (current + delta).coerceIn(0.01f, 1f)
+        val hitEdge = (newBrightness <= 0.01f || newBrightness >= 1f) && newBrightness != current
+        lp.screenBrightness = newBrightness
         window.attributes = lp
-        val pct = (lp.screenBrightness * 100).toInt()
+        val pct = (newBrightness * 100).toInt()
         binding.brightnessBar.progress = pct
+        binding.tvBrightnessPercent.text = "$pct%"
+        binding.tvBrightnessIcon.text = if (pct < 40) "🔅" else "☀"
         showIndicator(binding.brightnessIndicator, hideBrightnessRunnable)
+        if (hitEdge) hapticTick()
     }
 
     private fun adjustVolume(delta: Float) {
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         val newVol = (current + (delta * max).toInt()).coerceIn(0, max)
+        val hitEdge = (newVol == 0 || newVol == max) && newVol != current
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-        binding.volumeBar.progress = if (max > 0) (newVol * 100 / max) else 0
+        val pct = if (max > 0) (newVol * 100 / max) else 0
+        binding.volumeBar.progress = pct
+        binding.tvVolumePercent.text = "$pct%"
+        binding.tvVolumeIcon.text = when {
+            newVol == 0 -> "🔇"
+            pct < 50 -> "🔉"
+            else -> "🔊"
+        }
         showIndicator(binding.volumeIndicator, hideVolumeRunnable)
+        if (hitEdge) hapticTick()
+    }
+
+    private fun hapticTick() {
+        binding.root.performHapticFeedback(
+            android.view.HapticFeedbackConstants.CLOCK_TICK,
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
+        )
     }
 
     private fun showIndicator(view: View, hideRunnable: Runnable) {
@@ -509,6 +531,7 @@ class PlayerActivity : AppCompatActivity() {
 
             override fun onDown(e: MotionEvent): Boolean {
                 isAdjustingGesture = false
+                gestureAccumY = 0f
                 return true
             }
 
@@ -518,6 +541,15 @@ class PlayerActivity : AppCompatActivity() {
                 val startX = e1?.x ?: return false
                 if (abs(distanceY) < abs(distanceX)) return false  // horizontal scroll — ignore
                 val sensitivity = 1.5f / h
+
+                // Small dead zone before the first engagement so a slightly wobbly tap
+                // (meant to toggle the controls) doesn't nudge brightness/volume by accident.
+                if (!isAdjustingGesture) {
+                    gestureAccumY += distanceY
+                    val deadZonePx = resources.displayMetrics.density * 10f
+                    if (abs(gestureAccumY) < deadZonePx) return false
+                }
+
                 return when {
                     startX < w * 0.35f -> {
                         isAdjustingGesture = true

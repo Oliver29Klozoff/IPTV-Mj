@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import com.iptvapp.data.local.IptvDatabase
@@ -34,9 +35,13 @@ class RecordingService : Service() {
     @Inject lateinit var database: IptvDatabase
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var job: Job? = null
-    private var currentRecordingId = -1
-    private var recordingCompleted = false
+    // Keyed by recordingId: when two recordings are scheduled concurrently, onStartCommand
+    // fires twice on this same Service instance. A single shared job/wakeLock field would
+    // let the second recording's start overwrite the first's wakelock, and the first
+    // recording finishing would release/null out the second's wakelock out from under it.
+    private val jobs = mutableMapOf<Int, Job>()
+    private val wakeLocks = mutableMapOf<Int, PowerManager.WakeLock>()
+    private val activeRecordingIds = mutableSetOf<Int>()
 
     companion object {
         const val CHANNEL_ID = "recording_notifications"
@@ -64,15 +69,20 @@ class RecordingService : Service() {
         val target = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return START_NOT_STICKY
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, buildNotif(name), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            startForeground(NOTIF_ID, buildNotif(name), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(NOTIF_ID, buildNotif(name))
         }
 
-        currentRecordingId = recordingId
-        recordingCompleted = false
+        // Keep CPU alive for the duration of this specific recording
+        wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
+        wakeLocks[recordingId] = (getSystemService(POWER_SERVICE) as PowerManager)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "mktv:recording:$recordingId")
+            .apply { acquire(durationMs + 60_000L) }
 
-        job = scope.launch {
+        activeRecordingIds.add(recordingId)
+
+        jobs[recordingId] = scope.launch {
             if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "RECORDING")
 
             val ok = runCatching {
@@ -84,15 +94,17 @@ class RecordingService : Service() {
 
             finalizeTarget(target, ok)
 
-            recordingCompleted = true
+            activeRecordingIds.remove(recordingId)
             if (recordingId != -1) {
                 database.recordingDao().updateStatus(recordingId, if (ok) "DONE" else "FAILED")
             }
 
+            wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
+            jobs.remove(recordingId)
             stopSelf(startId)
         }
 
-        return START_NOT_STICKY
+        return START_REDELIVER_INTENT
     }
 
     private fun openRecordingOutput(target: String): OutputStream {
@@ -297,16 +309,19 @@ class RecordingService : Service() {
     }
 
     override fun onDestroy() {
-        job?.cancel()
-        val rid = currentRecordingId
-        if (rid != -1 && !recordingCompleted) {
+        jobs.values.forEach { it.cancel() }
+        if (activeRecordingIds.isNotEmpty()) {
             runCatching {
                 kotlinx.coroutines.runBlocking {
-                    database.recordingDao().updateStatus(rid, "FAILED")
+                    activeRecordingIds.forEach { rid ->
+                        if (rid != -1) database.recordingDao().updateStatus(rid, "FAILED")
+                    }
                 }
             }
         }
         scope.cancel()
+        wakeLocks.values.forEach { if (it.isHeld) it.release() }
+        wakeLocks.clear()
         super.onDestroy()
     }
 

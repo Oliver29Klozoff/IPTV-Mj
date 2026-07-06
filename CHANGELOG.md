@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v3.82 - 2026-07-06
+- TV guide: fixed D-pad LEFT/RIGHT getting stuck deep in a row (Android's default focus search can't find off-screen items) — now uses deterministic position-based focus movement
+- TV guide: extended to include ~3 hours of history so the timeline can actually be scrolled back, with cross-row time alignment preserved
+- TV guide: added a NOW button (next to FULL SCREEN) to jump back to the current time, and a REFRESH GUIDE button to force-reload EPG data
+- TV home: D-pad LEFT no longer drills back a screen (sidebar/categories/channels) — only the Back button does; double-press Back at the top level to exit, with a confirmation toast
+- TV home: fixed selecting a channel in Live/Categories/Favorites knocking focus up to the back button — ChannelAdapter was using notifyDataSetChanged() which detaches/reattaches views; switched to targeted notifyItemRangeChanged
+- TV home: selecting a channel in Favorites/Live/Categories now scrolls the EPG guide to that channel's row automatically
+- TV home: fixed mini player showing a different "now playing" title than the guide — it was fetching EPG independently instead of using the same shared data source
+- TV home: fixed double-click-to-fullscreen not working — the double-click timer was being reset on every EPG refresh rebind
+- TV recording: fixed recordings stuck showing "RECORDING" forever if the service was killed mid-recording (added the same stale-recording sweep the phone scheduler already had)
+- TV recording: fixed two recordings scheduled at the same time corrupting each other's wakelock, which could cut a recording short — now tracked per-recording instead of in shared fields
+- TV recording: added a ★ FAVORITES folder pinned to the top of the category list, containing your favorite channels, for quick access when scheduling
+- TV recording: fixed duration entry text being invisible — the app's DayNight theme was following the system's light/dark setting for stock dialogs while every custom screen stayed hardcoded dark; now forced dark everywhere
+- Player: gesture volume/brightness controls now show a live percentage readout, icons that change with the level (mute/low/high), a small dead-zone so a stray tap doesn't nudge the level, and a haptic tick when you hit 0% or 100%
+
 ## v3.81 - 2026-07-06
 - TV guide: replaced fixed hourly columns with a proportional-width grid, like the phone's grid feature — each program block's width reflects its actual duration, current program shrinks as it plays, D-pad scrolls smoothly through upcoming shows, all channel rows stay time-aligned
 

@@ -31,33 +31,42 @@ class ChannelAdapter(
     private var currentlyPlayingStreamId: Int = -1
     private var healthByStreamId: Map<Int, Boolean?> = emptyMap()
 
+    // Targeted range-changed notifications (not notifyDataSetChanged) so RecyclerView
+    // rebinds existing views in place instead of detaching/reattaching them — a full
+    // invalidate was knocking D-pad focus off the channel item and onto whatever
+    // focusable view sits above the list (e.g. the back button).
     fun setCurrentlyPlayingStreamId(streamId: Int) {
         currentlyPlayingStreamId = streamId
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
     }
 
     fun submitEpgText(epgMap: Map<Int, String>) {
         epgTextByStreamId = epgMap
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
     }
 
     fun submitEpgNextText(nextMap: Map<Int, String>) {
         epgNextTextByStreamId = nextMap
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
     }
 
     fun submitEpgProgress(progressMap: Map<Int, Int>) {
         epgProgressByStreamId = progressMap
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
     }
 
     fun submitHealth(healthMap: Map<Int, Boolean?>) {
         healthByStreamId = healthMap
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount)
     }
 
     inner class ViewHolder(val binding: ItemChannelBinding) :
         RecyclerView.ViewHolder(binding.root) {
+
+        // Must survive across rebinds (a click triggers an EPG/health refresh that rebinds
+        // this holder almost immediately) — a local var inside bind() reset to 0 every time,
+        // which meant the second click of a double-click was never within the window.
+        private var lastClickTime = 0L
 
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
@@ -102,7 +111,6 @@ class ChannelAdapter(
                 else android.graphics.Color.parseColor("#444444")
             )
 
-            var lastClickTime = 0L
             binding.root.isSelected = item.streamId == currentlyPlayingStreamId
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()
