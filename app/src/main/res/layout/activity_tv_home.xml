@@ -373,66 +373,79 @@
                 <TextView
                     android:id="@+id/tvTvEpg"
                     android:layout_width="match_parent"
-                    android:layout_height="61dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:ellipsize="end"
-                    android:maxLines="2"
+                    android:maxLines="4"
                     android:textColor="#AAAAAA"
-                    android:textSize="12sp" />
-
-                <ProgressBar
-                    android:id="@+id/tvEpgProgress"
-                    style="@android:style/Widget.ProgressBar.Horizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="3dp"
-                    android:layout_marginTop="10dp"
-                    android:max="100"
-                    android:progress="0"
-                    android:progressBackgroundTint="#333333"
-                    android:progressTint="#008CFF"
-                    android:visibility="gone" />
-
-                <Button
-                    android:id="@+id/btnTvFullscreen"
-                    android:layout_width="match_parent"
-                    android:layout_height="70dp"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/tv_sidebar_focus"
-                    android:focusable="true"
-                    android:focusableInTouchMode="false"
-                    android:text="FULL SCREEN"
-                    android:textAllCaps="false"
-                    android:textColor="#008CFF"
                     android:textSize="12sp" />
 
             </LinearLayout>
 
         </LinearLayout>
 
-        <!-- WHAT'S ON header -->
-        <TextView
+        <!-- EPG progress bar: full width, directly under mini player -->
+        <ProgressBar
+            android:id="@+id/tvEpgProgress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:max="100"
+            android:progress="0"
+            android:progressBackgroundTint="#1A1F2E"
+            android:progressTint="#008CFF"
+            android:visibility="gone" />
+
+        <!-- FULL SCREEN button (replaces WHAT'S ON label) -->
+        <Button
+            android:id="@+id/btnTvFullscreen"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:text="FULL SCREEN"
+            android:textAllCaps="false"
+            android:textColor="#008CFF"
+            android:textSize="12sp" />
+
+        <!-- Timeline header: NOW / time slots -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="28dp"
-            android:text="  WHAT'S ON"
-            android:textColor="#444444"
-            android:textSize="10sp"
-            android:gravity="center_vertical"
-            android:letterSpacing="0.12"
-            android:background="#0C0F1A" />
+            android:orientation="horizontal"
+            android:background="#0A0D16">
+
+            <View
+                android:layout_width="111dp"
+                android:layout_height="match_parent" />
+
+            <TextView
+                android:id="@+id/tvGuideTimeLabel"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:paddingStart="10dp"
+                android:textColor="#555555"
+                android:textSize="10sp"
+                android:letterSpacing="0.05" />
+
+        </LinearLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="#1A1F2E" />
 
-        <!-- LIVE EPG GUIDE -->
+        <!-- LIVE EPG GUIDE (focusable via DPad right from channel list) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/tvRvEpgGuide"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:focusable="false"
-            android:descendantFocusability="blocksDescendants"
+            android:focusable="true"
+            android:descendantFocusability="afterDescendants"
             android:paddingTop="4dp" />
 
     </LinearLayout>

@@ -148,7 +148,10 @@ class TvHomeActivity : AppCompatActivity() {
         val clockFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
         clockJob = lifecycleScope.launch {
             while (true) {
-                binding.tvClock.text = clockFmt.format(Date())
+                val now = Date()
+                binding.tvClock.text = clockFmt.format(now)
+                val nextTime = Date(now.time + 2 * 60 * 60 * 1000L)
+                binding.tvGuideTimeLabel.text = "NOW  ${clockFmt.format(now)}          NEXT  ${clockFmt.format(nextTime)}"
                 delay(30_000)
             }
         }
@@ -542,30 +545,48 @@ class TvHomeActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
                 }
-                // Right only drills in from sidebar; blocks going to EPG guide from other panels
+                // Right: drills in from sidebar; from channels goes to EPG guide
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (navState) {
                     NavState.SIDEBAR -> { drillInFromFocusedButton(); return true }
-                    NavState.CATEGORIES, NavState.CHANNELS -> return true
-                }
-                // Left goes back one level
-                KeyEvent.KEYCODE_DPAD_LEFT -> when (navState) {
-                    NavState.CATEGORIES -> { showSidebar(); return true }
+                    NavState.CATEGORIES -> return true
                     NavState.CHANNELS -> {
-                        if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
-                        else showSidebar()
+                        if (!binding.tvRvEpgGuide.hasFocus()) {
+                            binding.tvRvEpgGuide.requestFocus()
+                        }
                         return true
                     }
-                    NavState.SIDEBAR -> {}
                 }
-                // Back goes up one drill level
-                KeyEvent.KEYCODE_BACK -> when (navState) {
-                    NavState.CHANNELS -> {
-                        if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
-                        else showSidebar()
+                // Left goes back one level; from EPG guide returns to channel list
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (binding.tvRvEpgGuide.hasFocus()) {
+                        binding.tvRvContent.requestFocus()
                         return true
                     }
-                    NavState.CATEGORIES -> { showSidebar(); return true }
-                    NavState.SIDEBAR -> {}
+                    when (navState) {
+                        NavState.CATEGORIES -> { showSidebar(); return true }
+                        NavState.CHANNELS -> {
+                            if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
+                            else showSidebar()
+                            return true
+                        }
+                        NavState.SIDEBAR -> {}
+                    }
+                }
+                // Back goes up one drill level; from EPG guide returns to channel list
+                KeyEvent.KEYCODE_BACK -> {
+                    if (binding.tvRvEpgGuide.hasFocus()) {
+                        binding.tvRvContent.requestFocus()
+                        return true
+                    }
+                    when (navState) {
+                        NavState.CHANNELS -> {
+                            if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
+                            else showSidebar()
+                            return true
+                        }
+                        NavState.CATEGORIES -> { showSidebar(); return true }
+                        NavState.SIDEBAR -> {}
+                    }
                 }
                 KeyEvent.KEYCODE_GUIDE -> return true
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_Y -> {
@@ -777,13 +798,13 @@ class TvHomeActivity : AppCompatActivity() {
             viewModel.channels.collect { channels ->
                 allEpgChannels = channels
                 val epgText = viewModel.channelEpgText.value
-                epgGuideAdapter.submitList(channels.filter { epgText[it.streamId] != null })
+                epgGuideAdapter.submitList(channels.filter { hasRealEpg(epgText, it.streamId) })
             }
         }
         lifecycleScope.launch {
             viewModel.channelEpgText.collect { epgText ->
                 epgGuideAdapter.submitEpgText(epgText)
-                epgGuideAdapter.submitList(allEpgChannels.filter { epgText[it.streamId] != null })
+                epgGuideAdapter.submitList(allEpgChannels.filter { hasRealEpg(epgText, it.streamId) })
             }
         }
         lifecycleScope.launch {
@@ -792,6 +813,11 @@ class TvHomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.channelEpgProgress.collect { epgGuideAdapter.submitEpgProgress(it) }
         }
+    }
+
+    private fun hasRealEpg(epgText: Map<Int, String>, streamId: Int): Boolean {
+        val text = epgText[streamId] ?: return false
+        return text.isNotBlank() && text != "—"
     }
 
     private fun observeSidebarVisibility() {
