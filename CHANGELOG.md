@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.81 - 2026-07-06
+- TV guide: replaced fixed hourly columns with a proportional-width grid, like the phone's grid feature — each program block's width reflects its actual duration, current program shrinks as it plays, D-pad scrolls smoothly through upcoming shows, all channel rows stay time-aligned
+
 ## v3.80 - 2026-07-06
 - TV guide: hourly view — each channel row now shows NOW + next 3 full-hour slots (e.g. 8 PM, 9 PM, 10 PM) with time labels in the header
 

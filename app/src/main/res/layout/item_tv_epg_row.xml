@@ -6,7 +6,6 @@
     android:focusable="false"
     android:gravity="center_vertical">
 
-    <!-- Channel name -->
     <TextView
         android:id="@+id/tvEpgRowChannel"
         android:layout_width="110dp"
@@ -23,152 +22,13 @@
         android:layout_height="match_parent"
         android:background="#1A1F2E" />
 
-    <!-- NOW slot -->
-    <LinearLayout
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvPrograms"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/tvEpgRowNowLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="NOW"
-            android:textColor="#008CFF"
-            android:textSize="9sp"
-            android:letterSpacing="0.05"
-            android:layout_marginBottom="2dp" />
-
-        <TextView
-            android:id="@+id/tvEpgRowNow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-        <ProgressBar
-            android:id="@+id/tvEpgRowProgress"
-            style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="2dp"
-            android:layout_marginTop="3dp"
-            android:max="100"
-            android:progress="0"
-            android:progressBackgroundTint="#222222"
-            android:progressTint="#008CFF"
-            android:visibility="gone" />
-
-    </LinearLayout>
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#1A1F2E" />
-
-    <!-- +1h slot -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/tvEpgRow1Label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#444466"
-            android:textSize="9sp"
-            android:letterSpacing="0.05"
-            android:layout_marginBottom="2dp" />
-
-        <TextView
-            android:id="@+id/tvEpgRow1"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#888888"
-            android:textSize="11sp"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-    </LinearLayout>
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#1A1F2E" />
-
-    <!-- +2h slot -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/tvEpgRow2Label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#444466"
-            android:textSize="9sp"
-            android:letterSpacing="0.05"
-            android:layout_marginBottom="2dp" />
-
-        <TextView
-            android:id="@+id/tvEpgRow2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#888888"
-            android:textSize="11sp"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-    </LinearLayout>
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#1A1F2E" />
-
-    <!-- +3h slot -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/tvEpgRow3Label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#444466"
-            android:textSize="9sp"
-            android:letterSpacing="0.05"
-            android:layout_marginBottom="2dp" />
-
-        <TextView
-            android:id="@+id/tvEpgRow3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#888888"
-            android:textSize="11sp"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-    </LinearLayout>
+        android:clipToPadding="false"
+        android:paddingHorizontal="6dp"
+        android:descendantFocusability="afterDescendants" />
 
 </LinearLayout>

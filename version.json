@@ -1,6 +1,6 @@
 {
-  "versionCode": 218,
-  "versionName": "3.80",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.80/MKTV.apk",
-  "changelog": "TV guide: hourly view — NOW, +1h, +2h, +3h columns per channel"
+  "versionCode": 219,
+  "versionName": "3.81",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.81/MKTV.apk",
+  "changelog": "TV guide: proportional-width blocks show full program length, like the phone's grid view"
 }

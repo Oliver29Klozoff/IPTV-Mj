@@ -434,66 +434,33 @@
             android:textColor="#008CFF"
             android:textSize="12sp" />
 
-        <!-- Timeline header: 4 hourly slot labels matching the guide columns -->
+        <!-- Timeline ruler: scrolls in sync with the guide rows below -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="28dp"
+            android:layout_height="24dp"
             android:orientation="horizontal"
             android:background="#0A0D16">
 
-            <View android:layout_width="111dp" android:layout_height="match_parent" />
+            <View android:layout_width="110dp" android:layout_height="match_parent" />
             <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#1A1F2E" />
 
-            <TextView
-                android:id="@+id/tvGuideTimeLabel"
+            <HorizontalScrollView
+                android:id="@+id/tvGuideTimelineScroll"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:text="NOW"
-                android:textColor="#008CFF"
-                android:textSize="10sp"
-                android:letterSpacing="0.05" />
+                android:scrollbars="none"
+                android:paddingHorizontal="6dp"
+                android:clipToPadding="false"
+                android:focusable="false">
 
-            <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#1A1F2E" />
+                <LinearLayout
+                    android:id="@+id/tvGuideTimelineContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal" />
 
-            <TextView
-                android:id="@+id/tvGuideSlot1"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:textColor="#444466"
-                android:textSize="10sp"
-                android:letterSpacing="0.05" />
-
-            <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#1A1F2E" />
-
-            <TextView
-                android:id="@+id/tvGuideSlot2"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:textColor="#444466"
-                android:textSize="10sp"
-                android:letterSpacing="0.05" />
-
-            <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#1A1F2E" />
-
-            <TextView
-                android:id="@+id/tvGuideSlot3"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:textColor="#444466"
-                android:textSize="10sp"
-                android:letterSpacing="0.05" />
+            </HorizontalScrollView>
 
         </LinearLayout>
 

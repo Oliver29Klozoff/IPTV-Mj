@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -16,6 +17,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
@@ -147,19 +149,12 @@ class TvHomeActivity : AppCompatActivity() {
             miniPlayer?.play()
         }
         val clockFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
-        val slotFmt  = SimpleDateFormat("h a", Locale.getDefault())
         clockJob = lifecycleScope.launch {
             while (true) {
                 val now = Date()
                 binding.tvClock.text = clockFmt.format(now)
-                val cal = Calendar.getInstance()
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                cal.set(Calendar.MILLISECOND, 0)
-                val hourMs = cal.timeInMillis
-                binding.tvGuideSlot1.text = slotFmt.format(Date(hourMs + 3_600_000L))
-                binding.tvGuideSlot2.text = slotFmt.format(Date(hourMs + 7_200_000L))
-                binding.tvGuideSlot3.text = slotFmt.format(Date(hourMs + 10_800_000L))
+                buildGuideTimelineHeader()
+                if (navState == NavState.CHANNELS) viewModel.loadEpgForChannels(viewModel.channels.value)
                 delay(30_000)
             }
         }
@@ -373,6 +368,7 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             }
         )
+        epgGuideAdapter.onScrollSynced = { x -> binding.tvGuideTimelineScroll.scrollTo(x, 0) }
 
         binding.tvRvCategories.layoutManager = LinearLayoutManager(this)
         binding.tvRvCategories.adapter = categoryAdapter
@@ -553,31 +549,40 @@ class TvHomeActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
                 }
-                // Right: drills in from sidebar; from channels goes to EPG guide
+                // Right: drills in from sidebar; from channels enters the EPG guide.
+                // Once inside the guide, let the system focus finder move horizontally
+                // between program blocks (don't swallow the event).
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (navState) {
                     NavState.SIDEBAR -> { drillInFromFocusedButton(); return true }
                     NavState.CATEGORIES -> return true
                     NavState.CHANNELS -> {
                         if (!binding.tvRvEpgGuide.hasFocus()) {
                             binding.tvRvEpgGuide.requestFocus()
-                        }
-                        return true
-                    }
-                }
-                // Left goes back one level; from EPG guide returns to channel list
-                KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (binding.tvRvEpgGuide.hasFocus()) {
-                        binding.tvRvContent.requestFocus()
-                        return true
-                    }
-                    when (navState) {
-                        NavState.CATEGORIES -> { showSidebar(); return true }
-                        NavState.CHANNELS -> {
-                            if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
-                            else showSidebar()
                             return true
                         }
-                        NavState.SIDEBAR -> {}
+                    }
+                }
+                // Left goes back one level; from the first program block in the guide
+                // returns to the channel list. Deeper in a row, let focus move left normally.
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val focused = binding.tvRvEpgGuide.findFocus()
+                    if (binding.tvRvEpgGuide.hasFocus() && focused != null) {
+                        val parentRv = focused.parent as? RecyclerView
+                        val pos = parentRv?.getChildAdapterPosition(focused) ?: -1
+                        if (pos <= 0) {
+                            binding.tvRvContent.requestFocus()
+                            return true
+                        }
+                    } else {
+                        when (navState) {
+                            NavState.CATEGORIES -> { showSidebar(); return true }
+                            NavState.CHANNELS -> {
+                                if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
+                                else showSidebar()
+                                return true
+                            }
+                            NavState.SIDEBAR -> {}
+                        }
                     }
                 }
                 // Back goes up one drill level; from EPG guide returns to channel list
@@ -811,15 +816,11 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channelEpgText.collect { epgText ->
-                epgGuideAdapter.submitEpgText(epgText)
                 epgGuideAdapter.submitList(allEpgChannels.filter { hasRealEpg(epgText, it.streamId) })
             }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgHourly.collect { epgGuideAdapter.submitHourlyData(it) }
-        }
-        lifecycleScope.launch {
-            viewModel.channelEpgProgress.collect { epgGuideAdapter.submitEpgProgress(it) }
+            viewModel.channelEpgPrograms.collect { epgGuideAdapter.submitPrograms(it) }
         }
     }
 
@@ -827,6 +828,32 @@ class TvHomeActivity : AppCompatActivity() {
         val text = epgText[streamId] ?: return false
         return text.isNotBlank() && text != "—"
     }
+
+    private fun buildGuideTimelineHeader() {
+        val container = binding.tvGuideTimelineContent
+        container.removeAllViews()
+        val slotMinutes = 30
+        val totalMinutes = 4 * 60
+        val slotWidthDp = TV_EPG_DP_PER_MIN * slotMinutes
+        val tickFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+        val nowMs = System.currentTimeMillis()
+        for (i in 0 until totalMinutes / slotMinutes) {
+            val label = if (i == 0) "NOW" else tickFmt.format(Date(nowMs + i * slotMinutes * 60_000L))
+            val tv = android.widget.TextView(this).apply {
+                text = label
+                setTextColor(if (i == 0) 0xFF008CFF.toInt() else 0xFF555555.toInt())
+                textSize = 10f
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    dpToPx(slotWidthDp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            container.addView(tv)
+        }
+    }
+
+    private fun dpToPx(dp: Float): Float =
+        android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics)
 
     private fun observeSidebarVisibility() {
         lifecycleScope.launch {
