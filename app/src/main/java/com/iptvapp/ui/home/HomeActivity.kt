@@ -163,9 +163,12 @@ class HomeActivity : AppCompatActivity() {
     private var currentMiniStreamId: Int = -1
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
+    private var miniRetryCount: Int = 0
+    private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var isPipMode = false
     private var externalPlayerChoice = "internal"
+    private var currentAccent: Int = android.graphics.Color.parseColor("#008CFF")
 
     @javax.inject.Inject lateinit var prefs: PreferencesManager
 
@@ -211,6 +214,9 @@ class HomeActivity : AppCompatActivity() {
         binding.tabLayout.getTabAt(5)?.select()
         showFavorites()
         setupLandscapeSidebar()
+        lifecycleScope.launch {
+            applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
+        }
         FeatureTourDialog.showIfNeeded(this)
     }
 
@@ -244,24 +250,51 @@ class HomeActivity : AppCompatActivity() {
             button?.setOnClickListener {
                 binding.tabLayout.getTabAt(index)?.select()
                 tabs.forEach { (b, _) -> b?.setTextColor(0xFFAAAAAA.toInt()) }
-                button.setTextColor(0xFF008CFF.toInt())
+                button.setTextColor(currentAccent)
             }
         }
         binding.tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
                 val idx = tab?.position ?: return
                 tabs.forEach { (b, _) -> b?.setTextColor(0xFFAAAAAA.toInt()) }
-                tabs.firstOrNull { it.second == idx }?.first?.setTextColor(0xFF008CFF.toInt())
+                tabs.firstOrNull { it.second == idx }?.first?.setTextColor(currentAccent)
             }
             override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
             override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
         })
         // Sync initial highlight to tab 5 (Favorites)
-        btn(R.id.landBtnFavorites)?.setTextColor(0xFF008CFF.toInt())
+        btn(R.id.landBtnFavorites)?.setTextColor(currentAccent)
+    }
+
+    private fun applyAccent(colorInt: Int) {
+        currentAccent = colorInt
+        binding.tabLayout.setSelectedTabIndicatorColor(colorInt)
+        val csl = android.content.res.ColorStateList.valueOf(colorInt)
+        binding.miniPlayerProgress.indeterminateTintList = csl
+        binding.progressBar.indeterminateTintList = csl
+        binding.miniEpgProgress.progressTintList = csl
+        binding.tvMiniEpg.setTextColor(colorInt)
+        binding.btnTimelineView?.setTextColor(colorInt)
+        // Re-highlight the active sidebar button (landscape layouts only)
+        val tabIdx = binding.tabLayout.selectedTabPosition
+        val sidebarMap = listOf(
+            R.id.landBtnLive to 0, R.id.landBtnCategories to 1,
+            R.id.landBtnMovies to 2, R.id.landBtnSeries to 3,
+            R.id.landBtnWatching to 4, R.id.landBtnFavorites to 5,
+            R.id.landBtnGuide to 6
+        )
+        sidebarMap.forEach { (id, idx) ->
+            binding.root.findViewById<android.widget.Button?>(id)?.setTextColor(
+                if (idx == tabIdx) colorInt else 0xFFAAAAAA.toInt()
+            )
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        lifecycleScope.launch {
+            applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
+        }
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         if (suppressMiniAutoResume) {
             // Returning from the guide grid with an explicit channel choice — don't override it
@@ -321,6 +354,19 @@ class HomeActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     binding.miniPlayerProgress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    if (miniRetryCount >= 5 || currentMiniUrl.isEmpty()) return
+                    miniRetryCount++
+                    miniPlayJob?.cancel()
+                    miniPlayJob = lifecycleScope.launch {
+                        delay(3000L)
+                        miniPlayer?.let {
+                            it.setMediaItem(androidx.media3.common.MediaItem.fromUri(currentMiniUrl))
+                            it.prepare()
+                            it.playWhenReady = true
+                        }
+                    }
                 }
             })
         }
@@ -401,7 +447,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun playInMiniPlayer(channel: ChannelEntity) {
-        lifecycleScope.launch {
+        miniPlayJob?.cancel()
+        miniRetryCount = 0
+        miniPlayJob = lifecycleScope.launch {
             val url = viewModel.getLiveStreamUrl(channel.streamId)
             currentMiniUrl = url
             currentMiniTitle = channel.name
@@ -740,7 +788,7 @@ class HomeActivity : AppCompatActivity() {
                     shape = android.graphics.drawable.GradientDrawable.RECTANGLE
                     cornerRadius = 32f
                     if (selected) {
-                        setColor(0xFF008CFF.toInt())
+                        setColor(currentAccent)
                     } else {
                         setColor(0xFF2A2A2A.toInt())
                         setStroke(2, 0xFF555555.toInt())
@@ -912,7 +960,13 @@ class HomeActivity : AppCompatActivity() {
         try {
             startActivity(if (pkg != null) Intent(base).setPackage(pkg) else base)
         } catch (e: android.content.ActivityNotFoundException) {
-            try { startActivity(base) } catch (_: android.content.ActivityNotFoundException) {
+            if (pkg != null) {
+                // Specific player not installed — fall back to built-in silently
+                lifecycleScope.launch { prefs.setExternalPlayer("internal") }
+                externalPlayerChoice = "internal"
+                android.widget.Toast.makeText(this, "${player.uppercase()} not installed — using built-in player", android.widget.Toast.LENGTH_SHORT).show()
+                openPlayer(url, title, -1)
+            } else {
                 android.widget.Toast.makeText(this, "No video player found", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
@@ -1049,6 +1103,16 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.externalPlayer.collect { externalPlayerChoice = it }
+        }
+        // Auto-play the most recent channel as soon as watch history is available.
+        // This handles the case where getRecentChannel() returned null during initMiniPlayer
+        // because the DB hadn't emitted yet (e.g. after a fresh channel sync).
+        lifecycleScope.launch {
+            viewModel.recentChannels.collect { channels ->
+                if (currentMiniStreamId == -1 && channels.isNotEmpty() && miniPlayer != null) {
+                    playInMiniPlayer(channels.first())
+                }
+            }
         }
     }
 

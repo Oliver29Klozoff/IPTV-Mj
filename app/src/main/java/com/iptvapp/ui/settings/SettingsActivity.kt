@@ -93,6 +93,11 @@ class SettingsActivity : AppCompatActivity() {
     private val sortLabels = listOf("Default", "A-Z", "Popular", "Recent")
     private var currentSortIndex = 0
 
+    private val accentPalette = listOf(
+        "#008CFF", "#FF3B30", "#34C759", "#AF52DE", "#FF9500", "#FF2D55", "#5AC8FA"
+    )
+    private var currentAccentColor = "#008CFF"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
@@ -292,7 +297,7 @@ class SettingsActivity : AppCompatActivity() {
                     if (i == index) Color.parseColor("#1A3A5C") else Color.parseColor("#1A1A1A")
                 )
                 btn.setTextColor(
-                    if (i == index) Color.parseColor("#008CFF") else Color.parseColor("#AAAAAA")
+                    if (i == index) Color.parseColor(currentAccentColor) else Color.parseColor("#AAAAAA")
                 )
             }
         }
@@ -302,6 +307,59 @@ class SettingsActivity : AppCompatActivity() {
         }
         selectPanel(0)
         setupCollapsibleCards()
+    }
+
+    private fun setupAccentPicker() {
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density + 0.5f).toInt()
+        val row = binding.accentColorRow
+        row.removeAllViews()
+        accentPalette.forEachIndexed { i, hex ->
+            val outer = android.widget.FrameLayout(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                    if (i > 0) marginStart = dp(8)
+                }
+            }
+            val swatch = View(this).apply {
+                val gd = android.graphics.drawable.GradientDrawable()
+                gd.shape = android.graphics.drawable.GradientDrawable.OVAL
+                gd.setColor(Color.parseColor(hex))
+                background = gd
+                tag = hex
+                layoutParams = android.widget.FrameLayout.LayoutParams(dp(32), dp(32)).apply {
+                    gravity = android.view.Gravity.CENTER
+                }
+            }
+            val ring = View(this).apply {
+                val gd = android.graphics.drawable.GradientDrawable()
+                gd.shape = android.graphics.drawable.GradientDrawable.OVAL
+                gd.setStroke(dp(2), Color.WHITE)
+                gd.setColor(Color.TRANSPARENT)
+                background = gd
+                visibility = if (hex == currentAccentColor) View.VISIBLE else View.GONE
+                layoutParams = android.widget.FrameLayout.LayoutParams(dp(40), dp(40)).apply {
+                    gravity = android.view.Gravity.CENTER
+                }
+            }
+            outer.addView(swatch)
+            outer.addView(ring)
+            outer.setOnClickListener {
+                currentAccentColor = hex
+                for (j in 0 until row.childCount) {
+                    val child = row.getChildAt(j) as? android.widget.FrameLayout ?: continue
+                    child.getChildAt(1)?.visibility = if (child.getChildAt(0)?.tag == hex) View.VISIBLE else View.GONE
+                }
+                lifecycleScope.launch { prefs.setAccentColor(hex) }
+                applyAccentToSettings(Color.parseColor(hex))
+            }
+            row.addView(outer)
+        }
+    }
+
+    private fun applyAccentToSettings(colorInt: Int) {
+        navButtonViews.forEachIndexed { i, btn ->
+            btn.setTextColor(if (i == currentPanelIndex) colorInt else Color.parseColor("#AAAAAA"))
+        }
     }
 
     private fun wireCollapsible(headerId: Int, bodyId: Int, chevronId: Int) {
@@ -739,6 +797,9 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
                 binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
+                currentAccentColor = prefs.accentColor.first()
+                setupAccentPicker()
+                applyAccentToSettings(Color.parseColor(currentAccentColor))
                 updateLastRefreshText()
                 updateCacheAgeText()
                 binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
@@ -873,7 +934,7 @@ class SettingsActivity : AppCompatActivity() {
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = if (activeIndex == -1) "● ACTIVE" else "INACTIVE"
-                setTextColor(if (activeIndex == -1) Color.parseColor("#008CFF") else Color.parseColor("#555555"))
+                setTextColor(if (activeIndex == -1) Color.parseColor(currentAccentColor) else Color.parseColor("#555555"))
                 textSize = 12f
                 primaryRow.addView(this)
             }
@@ -905,7 +966,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = if (activeIndex == i) "● ACTIVE" else "INACTIVE"
-                    setTextColor(if (activeIndex == i) Color.parseColor("#008CFF") else Color.parseColor("#555555"))
+                    setTextColor(if (activeIndex == i) Color.parseColor(currentAccentColor) else Color.parseColor("#555555"))
                     textSize = 12f
                     row.addView(this)
                 }

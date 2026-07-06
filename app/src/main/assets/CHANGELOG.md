@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.67 - 2026-07-06
+- Settings → Display: accent color picker — choose from 7 colors (Blue, Red, Green, Purple, Orange, Pink, Teal); applies immediately to tab indicator, sidebar buttons, mini player progress, and EPG text; persists across restarts
+
 ## v3.66 - 2026-07-05
 - Mini player: stop retrying after 5 errors on a bad stream
 

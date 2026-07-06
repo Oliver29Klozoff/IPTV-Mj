@@ -58,6 +58,7 @@ class PreferencesManager @Inject constructor(
         val LAST_CHANNELS_FETCH_TIME = longPreferencesKey("last_channels_fetch_time")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
+        val ACCENT_COLOR = stringPreferencesKey("accent_color")
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data
@@ -199,6 +200,9 @@ class PreferencesManager @Inject constructor(
 
     val preWarmOnFocus: Flow<Boolean> = context.dataStore.data.map { it[Keys.PRE_WARM_ON_FOCUS] ?: true }
     suspend fun setPreWarmOnFocus(enabled: Boolean) { context.dataStore.edit { it[Keys.PRE_WARM_ON_FOCUS] = enabled } }
+
+    val accentColor: Flow<String> = context.dataStore.data.map { it[Keys.ACCENT_COLOR] ?: "#008CFF" }
+    suspend fun setAccentColor(color: String) { context.dataStore.edit { it[Keys.ACCENT_COLOR] = color } }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->
