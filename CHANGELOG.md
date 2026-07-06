@@ -1,5 +1,22 @@
 # IPTV App - Changelog
 
+## v3.73 - 2026-07-06
+- TV player: press Yellow button (or X/F key) on remote to instantly cycle aspect ratio (Best Fit → Zoom → Stretch) without opening the control overlay
+
+## v3.72 - 2026-07-06
+- Fix EPG auto-refresh: was silently skipping all channels due to US-only category filter; now refreshes all favorited channels
+- Fix recordings channel list: same filter bug — recordings now shows all live channels and categories
+- Fix backup QR code: was too large/dense to scan; now encodes only login credentials as a compact URL — always scannable with phone camera
+- Scanning the QR with phone camera opens MKTV app and pre-fills the login form
+- TV sidebar: replaced "MKTV" text with app logo image
+
+## v3.71 - 2026-07-06
+- TV EPG guide: DPad right from channel list moves focus into the EPG guide; DPad left or Back returns to channel list
+- TV EPG guide: timeline header above guide shows NOW and NEXT (+2h) times, updated every 30s
+- TV home: FULL SCREEN button relocated to header row (was inside mini player info panel)
+- TV home: EPG progress bar moved to full-width strip directly under mini player (matches video width)
+- TV EPG guide: filter improved to exclude blank and placeholder entries
+
 ## v3.70 - 2026-07-06
 - TV home: remove icon from RECORDINGS sidebar button
 

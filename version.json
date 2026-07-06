@@ -1,6 +1,6 @@
 {
-  "versionCode": 211,
-  "versionName": "3.73",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.73/MKTV.apk",
-  "changelog": "TV player: press Yellow button (or X/F) to cycle aspect ratio (Fit/Zoom/Stretch) without opening the overlay"
+  "versionCode": 212,
+  "versionName": "3.74",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.74/MKTV.apk",
+  "changelog": "TV sidebar logo: fits full width with time centered underneath"
 }
