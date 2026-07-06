@@ -270,10 +270,10 @@ class HomeActivity : AppCompatActivity() {
         currentAccent = colorInt
         binding.tabLayout.setSelectedTabIndicatorColor(colorInt)
         val csl = android.content.res.ColorStateList.valueOf(colorInt)
-        binding.miniPlayerProgress.indeterminateTintList = csl
-        binding.progressBar.indeterminateTintList = csl
-        binding.miniEpgProgress.progressTintList = csl
-        binding.tvMiniEpg.setTextColor(colorInt)
+        binding.miniPlayerProgress?.indeterminateTintList = csl
+        binding.progressBar?.indeterminateTintList = csl
+        binding.miniEpgProgress?.progressTintList = csl
+        binding.tvMiniEpg?.setTextColor(colorInt)
         binding.btnTimelineView?.setTextColor(colorInt)
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
