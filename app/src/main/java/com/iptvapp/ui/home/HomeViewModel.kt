@@ -306,7 +306,7 @@ class HomeViewModel @Inject constructor(
                 val text = when {
                     now != null && next != null -> "NOW: ${now.title}$timeStr  •  NEXT: ${next.title}"
                     now != null -> "NOW: ${now.title}$timeStr"
-                    else -> "No guide data"
+                    else -> "—"
                 }
                 channel.streamId to text
             }

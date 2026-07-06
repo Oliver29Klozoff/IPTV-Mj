@@ -1,6 +1,6 @@
 {
-  "versionCode": 216,
-  "versionName": "3.78",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.78/MKTV.apk",
-  "changelog": "TV: new D-pad native recording scheduler (category → channel → date/time → duration)"
+  "versionCode": 217,
+  "versionName": "3.79",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.79/MKTV.apk",
+  "changelog": "TV guide: only channels with actual EPG data appear in the guide list"
 }

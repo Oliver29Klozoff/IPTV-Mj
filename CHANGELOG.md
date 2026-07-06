@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.79 - 2026-07-06
+- TV guide: fix channels with no EPG data appearing in guide list (were showing "No guide data" which bypassed the filter)
+
 ## v3.78 - 2026-07-06
 - TV: dedicated D-pad native recording scheduler — full-screen step-by-step flow: category → channel → date/time (NumberPickers) → duration → schedule; replaces the phone-style dialog on TV
 
