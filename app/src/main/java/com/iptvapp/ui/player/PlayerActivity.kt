@@ -118,7 +118,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var retryCount = 0
     private var lastBackPressMs = 0L
-    private val maxRetries = 20
+    private val maxRetries = 5
     private var retryJob: Job? = null
     private var channelSwitchJob: Job? = null
 
@@ -635,17 +635,23 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun scheduleRetry() {
-        if (retryCount >= maxRetries) {
+        if (isVod && retryCount >= maxRetries) {
             binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
             binding.tvRetryStatus.visibility = View.VISIBLE
             return
         }
         retryJob?.cancel()
         retryJob = lifecycleScope.launch {
-            val backoffMs = (2000L * (retryCount + 1)).coerceAtMost(16000L)
+            val backoffMs = if (isVod) {
+                (2000L * (retryCount + 1)).coerceAtMost(16000L)
+            } else {
+                // Live: ramp up to 30s then hold there
+                (2000L * (retryCount + 1)).coerceAtMost(30000L)
+            }
             val attempt = retryCount + 1
             val delaySec = backoffMs / 1000
-            binding.tvRetryStatus.text = "● Reconnecting in ${delaySec}s (attempt $attempt of $maxRetries)…"
+            val suffix = if (isVod) " (attempt $attempt of $maxRetries)" else ""
+            binding.tvRetryStatus.text = "● Reconnecting in ${delaySec}s$suffix…"
             binding.tvRetryStatus.visibility = View.VISIBLE
             delay(backoffMs)
             retryCount++
@@ -949,6 +955,9 @@ class PlayerActivity : AppCompatActivity() {
                 else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             KeyEvent.KEYCODE_GUIDE -> { if (!isOverlayVisible) showOverlay(); true }
+            // Yellow / X / F key cycles aspect ratio without opening the overlay
+            KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_BUTTON_X,
+            KeyEvent.KEYCODE_PROG_YELLOW, KeyEvent.KEYCODE_F -> { cycleResizeMode(); true }
             else -> super.onKeyDown(keyCode, event)
         }
     }
@@ -1035,6 +1044,11 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        player?.let { binding.playerView.player = it }
+    }
+
     override fun onStart() {
         super.onStart()
         if (player == null) {
@@ -1051,8 +1065,10 @@ class PlayerActivity : AppCompatActivity() {
         seekRunnable?.let { seekHandler.removeCallbacks(it) }
         statsHandler.removeCallbacks(statsRunnable)
         stopHealthBadge()
-        player?.release()
-        player = null
+        if (!isChangingConfigurations) {
+            player?.release()
+            player = null
+        }
     }
 
     override fun finish() {

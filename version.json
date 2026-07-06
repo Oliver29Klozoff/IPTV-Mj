@@ -1,6 +1,6 @@
 {
-  "versionCode": 210,
-  "versionName": "3.72",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.72/MKTV.apk",
-  "changelog": "Fix EPG auto-refresh (all favorites, not US-only), fix recordings showing all channels, fix backup QR (credentials only, scannable), TV logo in sidebar"
+  "versionCode": 211,
+  "versionName": "3.73",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.73/MKTV.apk",
+  "changelog": "TV player: press Yellow button (or X/F) to cycle aspect ratio (Fit/Zoom/Stretch) without opening the overlay"
 }
