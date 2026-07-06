@@ -1,6 +1,6 @@
 {
-  "versionCode": 200,
-  "versionName": "3.62",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.62/MKTV.apk",
-  "changelog": "player: reverted fullSensor orientation (was breaking playback on phones and car boxes) — back to landscape lock which is stable on all devices; home screen rotation is handled separately by retained mini player"
+  "versionCode": 201,
+  "versionName": "3.63",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.63/MKTV.apk",
+  "changelog": "player: live streams now retry indefinitely on connection loss (backoff ramps to 30s then holds) — no more \"stream unavailable\" dead ends on spotty car/WiFi connections; VOD still stops at 5 attempts since VOD URLs can expire"
 }

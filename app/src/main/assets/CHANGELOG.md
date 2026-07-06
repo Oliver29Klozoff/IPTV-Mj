@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.63
+- player: live streams now retry indefinitely on connection loss (backoff ramps to 30s then holds) — no more "stream unavailable" dead ends on spotty car/WiFi connections; VOD still stops at 5 attempts since VOD URLs can expire
+
 ## v3.62
 - player: reverted fullSensor orientation (was breaking playback on phones and car boxes) — back to landscape lock which is stable on all devices; home screen rotation is handled separately by retained mini player
 
