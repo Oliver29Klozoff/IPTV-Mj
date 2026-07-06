@@ -1,6 +1,6 @@
 {
-  "versionCode": 202,
-  "versionName": "3.64",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.64/MKTV.apk",
-  "changelog": "Fix home screen mini player: cancel racing load jobs, skip re-prepare when player already active after rotation"
+  "versionCode": 203,
+  "versionName": "3.65",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.65/MKTV.apk",
+  "changelog": "Fix home screen mini player: remove stale retained-player logic, add reactive auto-play from recentChannels observer"
 }

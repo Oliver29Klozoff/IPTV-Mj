@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.65 - 2026-07-05
+- Fix home screen mini player: remove stale retained-player logic, add reactive auto-play from recentChannels observer
+
 ## v3.64 - 2026-07-05
 - Fix home screen mini player: cancel racing load jobs, skip re-prepare when player already active after rotation
 
