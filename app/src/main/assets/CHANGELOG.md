@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v3.69 - 2026-07-06
+- TV home: added RECORDINGS button to sidebar — opens recording scheduler directly from Shield remote
+- TV home: EPG guide only shows channels that have EPG data
+
 ## v3.68 - 2026-07-06
 - TV home: left panel drill-down nav — sidebar → categories → channels; back button goes up one level
 - TV home: DPad up/down stays within sidebar (never drifts right)

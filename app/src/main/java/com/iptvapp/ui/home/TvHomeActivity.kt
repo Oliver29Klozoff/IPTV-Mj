@@ -18,6 +18,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
+import com.iptvapp.ui.recordings.RecordingSchedulerActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -410,6 +411,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvMovies,
             binding.btnTvSeries,
             binding.btnTvFavorites,
+            binding.btnTvRecordings,
             binding.btnTvSettings
         ).filter { it.visibility == View.VISIBLE }
         val idx = buttons.indexOfFirst { it == currentFocus }
@@ -419,12 +421,13 @@ class TvHomeActivity : AppCompatActivity() {
 
     private fun drillInFromFocusedButton() {
         when (currentFocus) {
-            binding.btnTvLive       -> selectSection(Section.LIVE)
-            binding.btnTvCategories -> selectSection(Section.CATEGORIES)
-            binding.btnTvMovies     -> selectSection(Section.MOVIES)
-            binding.btnTvSeries     -> selectSection(Section.SERIES)
-            binding.btnTvFavorites  -> selectSection(Section.FAVORITES)
-            binding.btnTvSettings   -> startActivity(Intent(this, TvSettingsActivity::class.java))
+            binding.btnTvLive        -> selectSection(Section.LIVE)
+            binding.btnTvCategories  -> selectSection(Section.CATEGORIES)
+            binding.btnTvMovies      -> selectSection(Section.MOVIES)
+            binding.btnTvSeries      -> selectSection(Section.SERIES)
+            binding.btnTvFavorites   -> selectSection(Section.FAVORITES)
+            binding.btnTvRecordings  -> startActivity(Intent(this, RecordingSchedulerActivity::class.java))
+            binding.btnTvSettings    -> startActivity(Intent(this, TvSettingsActivity::class.java))
         }
     }
 
@@ -444,6 +447,9 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvMovies.setOnClickListener { selectSection(Section.MOVIES) }
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
+        binding.btnTvRecordings.setOnClickListener {
+            startActivity(Intent(this, RecordingSchedulerActivity::class.java))
+        }
         binding.btnTvSettings.setOnClickListener {
             startActivity(Intent(this, TvSettingsActivity::class.java))
         }
@@ -764,12 +770,21 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    private var allEpgChannels: List<ChannelEntity> = emptyList()
+
     private fun observeEpgGuide() {
         lifecycleScope.launch {
-            viewModel.channels.collect { epgGuideAdapter.submitList(it) }
+            viewModel.channels.collect { channels ->
+                allEpgChannels = channels
+                val epgText = viewModel.channelEpgText.value
+                epgGuideAdapter.submitList(channels.filter { epgText[it.streamId] != null })
+            }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgText.collect { epgGuideAdapter.submitEpgText(it) }
+            viewModel.channelEpgText.collect { epgText ->
+                epgGuideAdapter.submitEpgText(epgText)
+                epgGuideAdapter.submitList(allEpgChannels.filter { epgText[it.streamId] != null })
+            }
         }
         lifecycleScope.launch {
             viewModel.channelEpgNextText.collect { epgGuideAdapter.submitEpgNextText(it) }

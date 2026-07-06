@@ -65,15 +65,15 @@
                 android:id="@+id/btnTvCategories"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="CATEGORIES"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
-                android:textAllCaps="false"
-                android:gravity="start|center_vertical"
-                android:paddingStart="30dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="30dp"
+                android:text="CATEGORIES"
+                android:textAllCaps="false"
+                android:textColor="#008CFF"
+                android:textSize="13sp" />
 
             <Button
                 android:id="@+id/btnTvMovies"
@@ -113,6 +113,20 @@
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="35dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
+                android:id="@+id/btnTvRecordings"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="⏺  RECORDINGS"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="28dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
                 android:focusableInTouchMode="false" />
