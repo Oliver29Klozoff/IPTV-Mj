@@ -30,6 +30,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -146,12 +147,19 @@ class TvHomeActivity : AppCompatActivity() {
             miniPlayer?.play()
         }
         val clockFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+        val slotFmt  = SimpleDateFormat("h a", Locale.getDefault())
         clockJob = lifecycleScope.launch {
             while (true) {
                 val now = Date()
                 binding.tvClock.text = clockFmt.format(now)
-                val nextTime = Date(now.time + 2 * 60 * 60 * 1000L)
-                binding.tvGuideTimeLabel.text = "NOW  ${clockFmt.format(now)}          NEXT  ${clockFmt.format(nextTime)}"
+                val cal = Calendar.getInstance()
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val hourMs = cal.timeInMillis
+                binding.tvGuideSlot1.text = slotFmt.format(Date(hourMs + 3_600_000L))
+                binding.tvGuideSlot2.text = slotFmt.format(Date(hourMs + 7_200_000L))
+                binding.tvGuideSlot3.text = slotFmt.format(Date(hourMs + 10_800_000L))
                 delay(30_000)
             }
         }
@@ -808,7 +816,7 @@ class TvHomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgNextText.collect { epgGuideAdapter.submitEpgNextText(it) }
+            viewModel.channelEpgHourly.collect { epgGuideAdapter.submitHourlyData(it) }
         }
         lifecycleScope.launch {
             viewModel.channelEpgProgress.collect { epgGuideAdapter.submitEpgProgress(it) }

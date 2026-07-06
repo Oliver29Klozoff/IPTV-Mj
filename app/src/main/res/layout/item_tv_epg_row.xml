@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="60dp"
+    android:layout_height="64dp"
     android:orientation="horizontal"
     android:focusable="false"
     android:gravity="center_vertical">
 
+    <!-- Channel name -->
     <TextView
         android:id="@+id/tvEpgRowChannel"
         android:layout_width="110dp"
@@ -22,21 +23,32 @@
         android:layout_height="match_parent"
         android:background="#1A1F2E" />
 
+    <!-- NOW slot -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical"
         android:gravity="center_vertical"
-        android:paddingHorizontal="10dp"
-        android:paddingVertical="8dp">
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:id="@+id/tvEpgRowNowLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="NOW"
+            android:textColor="#008CFF"
+            android:textSize="9sp"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="2dp" />
 
         <TextView
             android:id="@+id/tvEpgRowNow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -52,12 +64,107 @@
             android:progressTint="#008CFF"
             android:visibility="gone" />
 
+    </LinearLayout>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#1A1F2E" />
+
+    <!-- +1h slot -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp">
+
         <TextView
-            android:id="@+id/tvEpgRowNext"
+            android:id="@+id/tvEpgRow1Label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:textColor="#555555"
+            android:textColor="#444466"
+            android:textSize="9sp"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvEpgRow1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#888888"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#1A1F2E" />
+
+    <!-- +2h slot -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:id="@+id/tvEpgRow2Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#444466"
+            android:textSize="9sp"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvEpgRow2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#888888"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#1A1F2E" />
+
+    <!-- +3h slot -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:id="@+id/tvEpgRow3Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#444466"
+            android:textSize="9sp"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tvEpgRow3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#888888"
             android:textSize="11sp"
             android:maxLines="1"
             android:ellipsize="end" />

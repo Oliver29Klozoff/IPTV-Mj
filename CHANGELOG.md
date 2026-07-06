@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.80 - 2026-07-06
+- TV guide: hourly view — each channel row now shows NOW + next 3 full-hour slots (e.g. 8 PM, 9 PM, 10 PM) with time labels in the header
+
 ## v3.79 - 2026-07-06
 - TV guide: fix channels with no EPG data appearing in guide list (were showing "No guide data" which bypassed the filter)
 

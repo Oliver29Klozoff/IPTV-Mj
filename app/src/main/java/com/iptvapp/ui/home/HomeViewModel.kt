@@ -19,7 +19,13 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
+
+data class EpgSlot(val label: String, val title: String, val progress: Int = 0)
 
 private fun EpgEntity.startMs() = if (startTimestamp < 100_000_000_000L) startTimestamp * 1000L else startTimestamp
 private fun EpgEntity.stopMs()  = if (stopTimestamp  < 100_000_000_000L) stopTimestamp  * 1000L else stopTimestamp
@@ -70,6 +76,9 @@ class HomeViewModel @Inject constructor(
 
     private val _channelEpgNextText = MutableStateFlow<Map<Int, String>>(emptyMap())
     val channelEpgNextText: StateFlow<Map<Int, String>> = _channelEpgNextText
+
+    private val _channelEpgHourly = MutableStateFlow<Map<Int, List<EpgSlot>>>(emptyMap())
+    val channelEpgHourly: StateFlow<Map<Int, List<EpgSlot>>> = _channelEpgHourly
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
@@ -312,6 +321,31 @@ class HomeViewModel @Inject constructor(
             }
             _channelEpgProgress.value = progressMap
             _channelEpgNextText.value = nextTextMap
+
+            // Hourly slots: NOW, next full hour, +2h, +3h
+            val slotFmt = SimpleDateFormat("h a", Locale.getDefault())
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+            val hourBoundarySec = cal.timeInMillis / 1000L
+            val slotTimes = listOf(
+                nowSecs        to "NOW",
+                hourBoundarySec + 3600 to slotFmt.format(Date((hourBoundarySec + 3600) * 1000L)),
+                hourBoundarySec + 7200 to slotFmt.format(Date((hourBoundarySec + 7200) * 1000L)),
+                hourBoundarySec + 10800 to slotFmt.format(Date((hourBoundarySec + 10800) * 1000L))
+            )
+            _channelEpgHourly.value = visibleChannels.associate { channel ->
+                val programs = epgByStream[channel.streamId].orEmpty()
+                val slots = slotTimes.map { (slotSec, label) ->
+                    val prog = programs.firstOrNull { it.startTimestamp <= slotSec && it.stopTimestamp > slotSec }
+                    val progress = if (label == "NOW" && prog != null && prog.stopTimestamp > prog.startTimestamp) {
+                        val elapsed = (nowSecs - prog.startTimestamp).coerceAtLeast(0)
+                        val total = prog.stopTimestamp - prog.startTimestamp
+                        ((elapsed * 100L) / total).coerceIn(0, 100).toInt()
+                    } else 0
+                    EpgSlot(label, prog?.title ?: "—", progress)
+                }
+                channel.streamId to slots
+            }
         }
     }
 
