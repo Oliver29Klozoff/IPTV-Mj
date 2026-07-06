@@ -1,6 +1,6 @@
 {
-  "versionCode": 207,
-  "versionName": "3.69",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.69/MKTV.apk",
-  "changelog": "TV home: Recordings button in sidebar; EPG guide filtered to channels with data"
+  "versionCode": 208,
+  "versionName": "3.70",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.70/MKTV.apk",
+  "changelog": "TV home: drill-down nav, DPad fix, EPG guide, Recordings button"
 }

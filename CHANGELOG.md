@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.70 - 2026-07-06
+- TV home: remove icon from RECORDINGS sidebar button
+
 ## v3.69 - 2026-07-06
 - TV home: added RECORDINGS button to sidebar — opens recording scheduler directly from Shield remote
 - TV home: EPG guide only shows channels that have EPG data

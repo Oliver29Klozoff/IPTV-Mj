@@ -121,7 +121,7 @@
                 android:id="@+id/btnTvRecordings"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="⏺  RECORDINGS"
+                android:text="RECORDINGS"
                 android:textColor="#888888"
                 android:textSize="13sp"
                 android:textAllCaps="false"
