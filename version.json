@@ -1,6 +1,6 @@
 {
-  "versionCode": 215,
-  "versionName": "3.77",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.77/MKTV.apk",
-  "changelog": "Recording scheduler: only show US| channels and categories"
+  "versionCode": 216,
+  "versionName": "3.78",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.78/MKTV.apk",
+  "changelog": "TV: new D-pad native recording scheduler (category → channel → date/time → duration)"
 }

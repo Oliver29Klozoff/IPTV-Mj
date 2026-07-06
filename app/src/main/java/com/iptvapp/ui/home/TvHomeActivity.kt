@@ -18,7 +18,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
-import com.iptvapp.ui.recordings.RecordingSchedulerActivity
+import com.iptvapp.ui.recordings.TvRecordingActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -429,7 +429,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvMovies      -> selectSection(Section.MOVIES)
             binding.btnTvSeries      -> selectSection(Section.SERIES)
             binding.btnTvFavorites   -> selectSection(Section.FAVORITES)
-            binding.btnTvRecordings  -> startActivity(Intent(this, RecordingSchedulerActivity::class.java))
+            binding.btnTvRecordings  -> startActivity(Intent(this, TvRecordingActivity::class.java))
             binding.btnTvSettings    -> startActivity(Intent(this, TvSettingsActivity::class.java))
         }
     }
@@ -451,7 +451,7 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
         binding.btnTvRecordings.setOnClickListener {
-            startActivity(Intent(this, RecordingSchedulerActivity::class.java))
+            startActivity(Intent(this, TvRecordingActivity::class.java))
         }
         binding.btnTvSettings.setOnClickListener {
             startActivity(Intent(this, TvSettingsActivity::class.java))

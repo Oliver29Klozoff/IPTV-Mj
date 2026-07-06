@@ -128,6 +128,11 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
 
+        <activity
+            android:name=".ui.recordings.TvRecordingActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
         <service
             android:name=".service.RecordingService"
             android:exported="false"

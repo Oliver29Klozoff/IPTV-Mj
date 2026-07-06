@@ -1,0 +1,465 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#07090F">
+
+    <!-- STEP: Recordings List -->
+    <LinearLayout
+        android:id="@+id/stepList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SCHEDULED RECORDINGS"
+                android:textColor="#008CFF"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <Button
+                android:id="@+id/btnAddNew"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="+ SCHEDULE NEW"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="20dp" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2A3A"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No recordings scheduled. Press  + SCHEDULE NEW  to add one."
+            android:textColor="#555555"
+            android:textSize="15sp"
+            android:gravity="center"
+            android:paddingTop="40dp"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvRecordings"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:focusable="true"
+            android:descendantFocusability="afterDescendants" />
+
+    </LinearLayout>
+
+    <!-- STEP: Category Picker -->
+    <LinearLayout
+        android:id="@+id/stepCategory"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="16dp">
+
+            <Button
+                android:id="@+id/btnCatBack"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="← BACK"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="16dp"
+                android:layout_marginEnd="20dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SELECT CATEGORY"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2A3A"
+            android:layout_marginBottom="8dp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvCategories"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:focusable="true"
+            android:descendantFocusability="afterDescendants" />
+
+    </LinearLayout>
+
+    <!-- STEP: Channel Picker -->
+    <LinearLayout
+        android:id="@+id/stepChannel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="16dp">
+
+            <Button
+                android:id="@+id/btnChanBack"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="← CATEGORIES"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="16dp"
+                android:layout_marginEnd="20dp" />
+
+            <TextView
+                android:id="@+id/tvChanCategoryName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2A3A"
+            android:layout_marginBottom="8dp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvChannels"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:focusable="true"
+            android:descendantFocusability="afterDescendants" />
+
+    </LinearLayout>
+
+    <!-- STEP: Date/Time Picker -->
+    <LinearLayout
+        android:id="@+id/stepDateTime"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="16dp">
+
+            <Button
+                android:id="@+id/btnDateBack"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="← BACK"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="16dp"
+                android:layout_marginEnd="20dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvDateChannel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#008CFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="SELECT START DATE &amp; TIME"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2A3A"
+            android:layout_marginBottom="24dp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginHorizontal="12dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="MONTH" android:textColor="#555555" android:textSize="11sp"
+                    android:letterSpacing="0.05" android:layout_marginBottom="6dp" />
+                <NumberPicker android:id="@+id/npMonth"
+                    android:layout_width="90dp" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginHorizontal="12dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="DAY" android:textColor="#555555" android:textSize="11sp"
+                    android:letterSpacing="0.05" android:layout_marginBottom="6dp" />
+                <NumberPicker android:id="@+id/npDay"
+                    android:layout_width="70dp" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginHorizontal="12dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="YEAR" android:textColor="#555555" android:textSize="11sp"
+                    android:letterSpacing="0.05" android:layout_marginBottom="6dp" />
+                <NumberPicker android:id="@+id/npYear"
+                    android:layout_width="90dp" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <View android:layout_width="40dp" android:layout_height="1dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginHorizontal="12dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="HOUR" android:textColor="#555555" android:textSize="11sp"
+                    android:letterSpacing="0.05" android:layout_marginBottom="6dp" />
+                <NumberPicker android:id="@+id/npHour"
+                    android:layout_width="70dp" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text=":" android:textColor="#555555" android:textSize="28sp"
+                android:layout_marginHorizontal="4dp" android:layout_marginTop="20dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginHorizontal="12dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="MIN" android:textColor="#555555" android:textSize="11sp"
+                    android:letterSpacing="0.05" android:layout_marginBottom="6dp" />
+                <NumberPicker android:id="@+id/npMinute"
+                    android:layout_width="70dp" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnDateNext"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:layout_gravity="end"
+            android:text="NEXT  →"
+            android:textColor="#008CFF"
+            android:textSize="14sp"
+            android:textAllCaps="false"
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:paddingHorizontal="32dp" />
+
+    </LinearLayout>
+
+    <!-- STEP: Duration Picker -->
+    <LinearLayout
+        android:id="@+id/stepDuration"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="16dp">
+
+            <Button
+                android:id="@+id/btnDurBack"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="← BACK"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="16dp"
+                android:layout_marginEnd="20dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvDurChannel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#008CFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDurDateTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#888888"
+                    android:textSize="13sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1E2A3A"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="SELECT DURATION"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MINUTES"
+                android:textColor="#555555"
+                android:textSize="11sp"
+                android:letterSpacing="0.05"
+                android:gravity="center"
+                android:layout_marginBottom="6dp" />
+
+            <NumberPicker
+                android:id="@+id/npDuration"
+                android:layout_width="120dp"
+                android:layout_height="wrap_content" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnSchedule"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:layout_gravity="end"
+            android:text="SCHEDULE RECORDING"
+            android:textColor="#008CFF"
+            android:textSize="14sp"
+            android:textAllCaps="false"
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:paddingHorizontal="32dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

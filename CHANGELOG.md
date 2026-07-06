@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.78 - 2026-07-06
+- TV: dedicated D-pad native recording scheduler — full-screen step-by-step flow: category → channel → date/time (NumberPickers) → duration → schedule; replaces the phone-style dialog on TV
+
 ## v3.77 - 2026-07-06
 - Recording scheduler: only US| categories and channels shown (phone and TV)
 
