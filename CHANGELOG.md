@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.62
+- player: reverted fullSensor orientation (was breaking playback on phones and car boxes) — back to landscape lock which is stable on all devices; home screen rotation is handled separately by retained mini player
+
 ## v3.61
 - player: if VLC or MX Player is selected but not installed, automatically switch back to built-in player and save the preference — no more system chooser popup
 

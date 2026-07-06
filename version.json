@@ -1,6 +1,6 @@
 {
-  "versionCode": 199,
-  "versionName": "3.61",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.61/MKTV.apk",
-  "changelog": "player: if VLC or MX Player is selected but not installed, automatically switch back to built-in player and save the preference — no more system chooser popup"
+  "versionCode": 200,
+  "versionName": "3.62",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.62/MKTV.apk",
+  "changelog": "player: reverted fullSensor orientation (was breaking playback on phones and car boxes) — back to landscape lock which is stable on all devices; home screen rotation is handled separately by retained mini player"
 }
