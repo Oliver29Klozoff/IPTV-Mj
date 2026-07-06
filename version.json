@@ -1,6 +1,6 @@
 {
-  "versionCode": 203,
-  "versionName": "3.65",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.65/MKTV.apk",
-  "changelog": "Fix home screen mini player: remove stale retained-player logic, add reactive auto-play from recentChannels observer"
+  "versionCode": 204,
+  "versionName": "3.66",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.66/MKTV.apk",
+  "changelog": "Mini player: stop retrying after 5 errors on a bad stream"
 }

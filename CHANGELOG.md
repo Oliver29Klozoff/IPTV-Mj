@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v3.66 - 2026-07-05
+- Mini player: stop retrying after 5 errors on a bad stream
+
 ## v3.65 - 2026-07-05
 - Fix home screen mini player: remove stale retained-player logic, add reactive auto-play from recentChannels observer
 
