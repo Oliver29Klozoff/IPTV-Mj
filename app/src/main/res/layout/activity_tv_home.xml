@@ -6,181 +6,297 @@
     android:background="#07090F"
     android:orientation="horizontal">
 
-    <!-- LEFT SIDEBAR -->
-    <LinearLayout
-        android:id="@+id/tvSidebar"
-        android:layout_width="140dp"
-        android:layout_height="match_parent"
-        android:background="#0C0F1A"
-        android:orientation="vertical"
-        android:paddingTop="20dp"
-        android:paddingBottom="16dp"
-        android:elevation="4dp">
+    <!-- LEFT PANEL: drillable (sidebar → categories → channels) -->
+    <FrameLayout
+        android:layout_width="280dp"
+        android:layout_height="match_parent">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingStart="40dp"
-            android:paddingBottom="2dp"
-            android:text="MKTV"
-            android:textColor="#008CFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvClock"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingStart="40dp"
-            android:paddingBottom="4dp"
-            android:textColor="#888888"
-            android:textSize="13sp" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginVertical="8dp"
-            android:background="#1E2A3A" />
-
-        <Button
-            android:id="@+id/btnTvLive"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="LIVE"
-            android:textColor="#008CFF"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="50dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
-
-        <Button
-            android:id="@+id/btnTvCategories"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="CATEGORIES"
-            android:textColor="#008CFF"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="30dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
-
-        <Button
-            android:id="@+id/btnTvMovies"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="MOVIES"
-            android:textColor="#008CFF"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="45dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
-
-        <Button
-            android:id="@+id/btnTvSeries"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="SERIES"
-            android:textColor="#008CFF"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="45dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
-
-        <Button
-            android:id="@+id/btnTvFavorites"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="FAVORITES"
-            android:textColor="#008CFF"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="35dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent" />
-
+        <!-- LEVEL 0: Sidebar nav -->
         <LinearLayout
+            android:id="@+id/tvSidebar"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:orientation="horizontal">
+            android:layout_height="match_parent"
+            android:background="#0C0F1A"
+            android:orientation="vertical"
+            android:paddingTop="20dp"
+            android:paddingBottom="16dp"
+            android:elevation="4dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="40dp"
+                android:paddingBottom="2dp"
+                android:text="MKTV"
+                android:textColor="#008CFF"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvClock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="40dp"
+                android:paddingBottom="4dp"
+                android:textColor="#888888"
+                android:textSize="13sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="#1E2A3A" />
 
             <Button
-                android:id="@+id/btnTvGuide"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:text="GUIDE"
+                android:id="@+id/btnTvLive"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="LIVE"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="48dp"
+                android:paddingStart="50dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:nextFocusRight="@id/tvRvContent"
-                android:nextFocusDown="@id/btnTvSettings" />
+                android:focusableInTouchMode="false" />
 
             <Button
-                android:id="@+id/btnTvGrid"
-                android:layout_width="44dp"
-                android:layout_height="match_parent"
-                android:text="⊞"
-                android:textSize="19sp"
-                android:textColor="#888888"
+                android:id="@+id/btnTvCategories"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="CATEGORIES"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="30dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:padding="0dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:nextFocusDown="@id/btnTvSettings"
+                android:focusableInTouchMode="false" />
+
+            <Button
+                android:id="@+id/btnTvMovies"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="MOVIES"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="45dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
+                android:id="@+id/btnTvSeries"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="SERIES"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="45dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
+                android:id="@+id/btnTvFavorites"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="FAVORITES"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="35dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <!-- Hidden grid toggle kept for binding compatibility -->
+            <Button
+                android:id="@+id/btnTvGrid"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:focusable="false"
                 android:visibility="gone" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnTvSettings"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="⚙  SETTINGS"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="16dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
 
         </LinearLayout>
 
-        <View
+        <!-- LEVEL 1: Category panel (hidden until drill-in) -->
+        <LinearLayout
+            android:id="@+id/tvCatPanel"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="#0C0F1A"
+            android:visibility="gone">
 
-        <Button
-            android:id="@+id/btnTvSettings"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#0A0D16">
+
+                <Button
+                    android:id="@+id/tvBtnCatBack"
+                    android:layout_width="52dp"
+                    android:layout_height="match_parent"
+                    android:text="←"
+                    android:textSize="18sp"
+                    android:textColor="#888888"
+                    android:background="@drawable/tv_sidebar_focus"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
+
+                <TextView
+                    android:id="@+id/tvCatTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="10dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#1E2A3A" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvCategories"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:paddingTop="4dp"
+                android:descendantFocusability="afterDescendants"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+        </LinearLayout>
+
+        <!-- LEVEL 2: Channel panel (hidden until drill-in) -->
+        <LinearLayout
+            android:id="@+id/tvChanPanel"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="⚙  SETTINGS"
-            android:textColor="#888888"
-            android:textSize="13sp"
-            android:textAllCaps="false"
-            android:gravity="start|center_vertical"
-            android:paddingStart="16dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:nextFocusRight="@id/tvRvContent"
-            android:nextFocusUp="@id/btnTvGuide" />
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="#0C0F1A"
+            android:visibility="gone">
 
-    </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#0A0D16">
 
-    <!-- RIGHT CONTENT AREA -->
+                <Button
+                    android:id="@+id/tvBtnChanBack"
+                    android:layout_width="52dp"
+                    android:layout_height="match_parent"
+                    android:text="←"
+                    android:textSize="18sp"
+                    android:textColor="#888888"
+                    android:background="@drawable/tv_sidebar_focus"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
+
+                <TextView
+                    android:id="@+id/tvChanTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="10dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#1E2A3A" />
+
+            <!-- Search bar inside channel panel -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="#0C0F1A"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="8dp">
+
+                <EditText
+                    android:id="@+id/tvEtSearch"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/search_bg"
+                    android:hint="Search…"
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:nextFocusDown="@id/tvRvContent"
+                    android:paddingHorizontal="10dp"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#555555"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/tvBtnClearSearch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="✕"
+                    android:textColor="#888888"
+                    android:textSize="14sp"
+                    android:background="@android:color/transparent"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvContent"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:descendantFocusability="afterDescendants"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingTop="4dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- RIGHT PANEL: mini player + live EPG guide -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
@@ -194,10 +310,9 @@
             android:background="#000000"
             android:orientation="horizontal">
 
-            <!-- Player surface -->
             <FrameLayout
                 android:id="@+id/tvMiniPlayerContainer"
-                android:layout_width="231dp"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1.6"
                 android:background="#000000"
@@ -221,7 +336,6 @@
 
             </FrameLayout>
 
-            <!-- Player info panel -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -281,79 +395,31 @@
 
         </LinearLayout>
 
-        <!-- SEARCH BAR -->
-        <LinearLayout
+        <!-- WHAT'S ON header -->
+        <TextView
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="#0C0F1A"
-            android:orientation="horizontal"
+            android:layout_height="28dp"
+            android:text="  WHAT'S ON"
+            android:textColor="#444444"
+            android:textSize="10sp"
             android:gravity="center_vertical"
-            android:paddingHorizontal="12dp">
+            android:letterSpacing="0.12"
+            android:background="#0C0F1A" />
 
-            <EditText
-                android:id="@+id/tvEtSearch"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1"
-                android:background="@drawable/search_bg"
-                android:hint="Search…"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:nextFocusDown="@id/tvRvContent"
-                android:paddingHorizontal="12dp"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#555555"
-                android:textSize="13sp" />
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1A1F2E" />
 
-            <Button
-                android:id="@+id/tvBtnClearSearch"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:text="✕"
-                android:textColor="#888888"
-                android:textSize="14sp"
-                android:background="@android:color/transparent"
-                android:visibility="gone" />
-
-        </LinearLayout>
-
-        <!-- CATEGORY + CONTENT -->
-        <LinearLayout
+        <!-- LIVE EPG GUIDE -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/tvRvEpgGuide"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:orientation="horizontal">
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/tvRvCategories"
-                android:layout_width="170dp"
-                android:layout_height="match_parent"
-                android:background="#0C0F1A"
-                android:paddingTop="8dp"
-                android:descendantFocusability="afterDescendants"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:nextFocusLeft="@id/tvSidebar"
-                android:nextFocusRight="@id/tvRvContent"
-                android:visibility="gone" />
-
-            <View
-                android:layout_width="1dp"
-                android:layout_height="match_parent"
-                android:background="#1E2A3A" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/tvRvContent"
-                android:layout_width="491dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:descendantFocusability="afterDescendants"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:nextFocusLeft="@id/tvSidebar"
-                android:paddingTop="8dp" />
-
-        </LinearLayout>
+            android:focusable="false"
+            android:descendantFocusability="blocksDescendants"
+            android:paddingTop="4dp" />
 
     </LinearLayout>
 

@@ -1,6 +1,6 @@
 {
-  "versionCode": 205,
-  "versionName": "3.67",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.67/MKTV.apk",
-  "changelog": "Settings → Display: accent color picker (7 colors, persists, applies at runtime)"
+  "versionCode": 206,
+  "versionName": "3.68",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.68/MKTV.apk",
+  "changelog": "TV home: drill-down nav, DPad fix, live EPG guide on right panel"
 }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v3.68 - 2026-07-06
+- TV home: left panel drill-down nav — sidebar → categories → channels; back button goes up one level
+- TV home: DPad up/down stays within sidebar (never drifts right)
+- TV home: right panel replaced with live EPG guide (channel + now/next programs)
+- TV home: removed Guide button from sidebar
+
 ## v3.67 - 2026-07-06
 - Settings → Display: accent color picker — choose from 7 colors (Blue, Red, Green, Purple, Orange, Pink, Teal); applies immediately to tab indicator, sidebar buttons, mini player progress, and EPG text; persists across restarts
 
