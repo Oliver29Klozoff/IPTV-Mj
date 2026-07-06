@@ -1,6 +1,6 @@
 {
-  "versionCode": 212,
-  "versionName": "3.74",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.74/MKTV.apk",
-  "changelog": "TV sidebar logo: fits full width with time centered underneath"
+  "versionCode": 213,
+  "versionName": "3.75",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.75/MKTV.apk",
+  "changelog": "TV sidebar: app icon + MKTV wordmark with clock, properly sized for sidebar"
 }
