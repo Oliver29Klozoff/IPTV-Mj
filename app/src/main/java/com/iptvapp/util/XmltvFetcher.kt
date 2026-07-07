@@ -35,10 +35,13 @@ object XmltvFetcher {
             conn.connect()
             if (conn.responseCode !in 200..299) return Pair(emptyList(), emptyList())
 
-            val encoding = conn.contentEncoding ?: ""
-            val stream: InputStream = if (encoding.equals("gzip", true) ||
-                url.endsWith(".gz", ignoreCase = true)
-            ) GZIPInputStream(conn.inputStream) else conn.inputStream
+            val buffered = conn.inputStream.buffered()
+            buffered.mark(2)
+            val b0 = buffered.read()
+            val b1 = buffered.read()
+            buffered.reset()
+            val isGzip = b0 == 0x1f && b1 == 0x8b
+            val stream: InputStream = if (isGzip) GZIPInputStream(buffered) else buffered
 
             stream.buffered().use { parse(it) }
         } catch (e: Exception) {

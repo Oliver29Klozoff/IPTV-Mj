@@ -47,6 +47,13 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("showWatching", prefs.showWatching.first())
                 put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
                 put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
+                put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {
+                    JSONObject().apply {
+                        put("streamId", it.streamId)
+                        put("lastWatched", it.lastWatched)
+                        put("viewCount", it.viewCount)
+                    }
+                }))
             }
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())

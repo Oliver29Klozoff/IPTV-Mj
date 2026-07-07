@@ -1,6 +1,7 @@
 {
-  "versionCode": 223,
-  "versionName": "3.85",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.85/MKTV.apk",
-  "changelog": "Fix in-app What's New changelog viewer showing \"not available\" (was missing from the app's assets folder)"
+  "versionCode": 224,
+  "versionName": "3.86",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.86/MKTV.apk",
+  "apkSha256": "a55b1a2f8bb939dc83a99effaa9a95213b07dd52bc2f383c33ad90ff38a4d0f4",
+  "changelog": "Fixed a silent XMLTV parsing failure (gzip magic-byte sniffing); Backup & Restore now includes watch history; in-app updates now verify APK checksum before installing; fixed a double-install race"
 }

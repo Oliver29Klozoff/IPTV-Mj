@@ -56,6 +56,8 @@ class XtreamRepository @Inject constructor(
             val response = api.getLiveCategories(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
+            val unnamed = list.count { it.categoryName.isNullOrBlank() }
+            android.util.Log.d("VodDiag", "Live category count: ${list.size}, unnamed: $unnamed")
             db.categoryDao().deleteCategoriesByType("live")
             db.categoryDao().upsertCategories(list.map {
                 CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
@@ -186,6 +188,7 @@ class XtreamRepository @Inject constructor(
             val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
+            android.util.Log.d("VodDiag", "VOD stream count from provider: ${list.size}")
             db.vodDao().upsertVod(list.map {
                 VodEntity(
                     streamId = it.streamId,
@@ -207,6 +210,8 @@ class XtreamRepository @Inject constructor(
             val response = api.getVodCategories(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
+            val unnamed = list.count { it.categoryName.isNullOrBlank() }
+            android.util.Log.d("VodDiag", "VOD category count: ${list.size}, unnamed: $unnamed")
             db.categoryDao().deleteCategoriesByType("vod")
             db.categoryDao().upsertCategories(list.map {
                 CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod")

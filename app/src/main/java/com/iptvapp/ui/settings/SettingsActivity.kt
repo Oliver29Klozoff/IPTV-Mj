@@ -604,6 +604,7 @@ class SettingsActivity : AppCompatActivity() {
                 val latestCode = obj.getInt("versionCode")
                 val latestName = obj.getString("versionName")
                 val apkUrl = obj.getString("apkUrl")
+                val apkSha256 = obj.optString("apkSha256", "").takeIf { it.isNotBlank() }
                 val installedCode = packageManager.getPackageInfo(packageName, 0).longVersionCode
                 if (latestCode > installedCode) {
                     val changelog = buildString {
@@ -614,7 +615,7 @@ class SettingsActivity : AppCompatActivity() {
                     AlertDialog.Builder(this@SettingsActivity)
                         .setTitle("MKTV $latestName Available")
                         .setMessage("What's new:\n\n$changelog")
-                        .setPositiveButton("Update now") { _, _ -> downloadAndInstall(apkUrl, latestName) }
+                        .setPositiveButton("Update now") { _, _ -> downloadAndInstall(apkUrl, latestName, apkSha256) }
                         .setNegativeButton("Later", null)
                         .show()
                 } else {
@@ -643,15 +644,25 @@ class SettingsActivity : AppCompatActivity() {
         return finalUrl
     }
 
-    private fun downloadAndInstall(apkUrl: String, versionName: String) {
+    private fun downloadAndInstall(apkUrl: String, versionName: String, expectedSha256: String?) {
         binding.tvUpdateStatus.text = "Resolving download URL..."
         lifecycleScope.launch {
             val resolvedUrl = withContext(Dispatchers.IO) { resolveRedirect(apkUrl) }
-            downloadFromUrl(resolvedUrl, versionName)
+            downloadFromUrl(resolvedUrl, versionName, expectedSha256)
         }
     }
 
-    private fun downloadFromUrl(apkUrl: String, versionName: String) {
+    private fun sha256Of(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) digest.update(buffer, 0, read)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun downloadFromUrl(apkUrl: String, versionName: String, expectedSha256: String?) {
         binding.tvUpdateStatus.text = "Downloading v$versionName..."
         val fileName = "MKTV-update-$versionName.apk"
         val file = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -664,6 +675,7 @@ class SettingsActivity : AppCompatActivity() {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val downloadId = dm.enqueue(request)
+        val installTriggered = java.util.concurrent.atomic.AtomicBoolean(false)
         val progressHandler = Handler(Looper.getMainLooper())
         val progressRunnable = object : Runnable {
             override fun run() {
@@ -679,8 +691,10 @@ class SettingsActivity : AppCompatActivity() {
                     val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
                         progressHandler.removeCallbacks(this)
-                        binding.tvUpdateStatus.text = "Download complete — installing..."
-                        installApk(file)
+                        if (installTriggered.compareAndSet(false, true)) {
+                            binding.tvUpdateStatus.text = "Download complete — verifying..."
+                            verifyAndInstall(file, expectedSha256)
+                        }
                     } else if (status == DownloadManager.STATUS_FAILED) {
                         progressHandler.removeCallbacks(this)
                         binding.tvUpdateStatus.text = "Download failed"
@@ -698,7 +712,10 @@ class SettingsActivity : AppCompatActivity() {
                 if (id == downloadId) {
                     unregisterReceiver(this)
                     progressHandler.removeCallbacks(progressRunnable)
-                    installApk(file)
+                    if (installTriggered.compareAndSet(false, true)) {
+                        binding.tvUpdateStatus.text = "Download complete — verifying..."
+                        verifyAndInstall(file, expectedSha256)
+                    }
                 }
             }
         }
@@ -707,6 +724,27 @@ class SettingsActivity : AppCompatActivity() {
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        }
+    }
+
+    private fun verifyAndInstall(file: File, expectedSha256: String?) {
+        if (expectedSha256 == null) {
+            installApk(file)
+            return
+        }
+        lifecycleScope.launch {
+            val actual = withContext(Dispatchers.IO) { sha256Of(file) }
+            if (actual.equals(expectedSha256, ignoreCase = true)) {
+                installApk(file)
+            } else {
+                file.delete()
+                binding.tvUpdateStatus.text = "Update verification failed — download discarded"
+                AlertDialog.Builder(this@SettingsActivity)
+                    .setTitle("Update Verification Failed")
+                    .setMessage("The downloaded update did not match the expected checksum and was discarded for your safety. Please try again or check your network.")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
         }
     }
 
@@ -1177,6 +1215,13 @@ class SettingsActivity : AppCompatActivity() {
             put("showWatching", prefs.showWatching.first())
             put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
             put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
+            put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {
+                JSONObject().apply {
+                    put("streamId", it.streamId)
+                    put("lastWatched", it.lastWatched)
+                    put("viewCount", it.viewCount)
+                }
+            }))
         }
     }
 
@@ -1220,6 +1265,22 @@ class SettingsActivity : AppCompatActivity() {
             ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
             val missingIds = ids.filter { it !in existingIds }.toSet()
             if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
+        }
+
+        val watchHistoryArray = json.optJSONArray("watchHistory")
+        if (watchHistoryArray != null) {
+            val existingIds = db.channelDao().getAllChannelIds().toSet()
+            for (i in 0 until watchHistoryArray.length()) {
+                val entry = watchHistoryArray.getJSONObject(i)
+                val streamId = entry.optInt("streamId", -1)
+                if (streamId in existingIds) {
+                    db.channelDao().restoreWatchHistory(
+                        streamId,
+                        entry.optLong("lastWatched", 0L),
+                        entry.optInt("viewCount", 0)
+                    )
+                }
+            }
         }
 
         // Reload UI after all prefs are set

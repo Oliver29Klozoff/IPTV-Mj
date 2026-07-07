@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v3.86 - 2026-07-07
+- Fixed a silent XMLTV parsing failure: gzip detection now sniffs the actual magic bytes
+  instead of trusting the server's Content-Encoding header/URL suffix, so a provider that
+  serves gzip without setting the header no longer causes EPG refresh to quietly return 0
+  programs
+- Backup & Restore now includes watch history (last-watched time, view count) alongside
+  favorites — restores merge against your current channel list the same safe way favorites
+  already do
+- **Security**: in-app updates now verify the downloaded APK's SHA-256 checksum before
+  installing (when the update manifest provides one) — a corrupted or tampered download is
+  discarded instead of silently installed
+- Fixed a latent race where a fast download could trigger the update installer twice
+
 ## v3.85 - 2026-07-07
 - Fixed the in-app "What's New" changelog viewer always showing "not available" — it reads
   CHANGELOG.md from the app's assets folder, but that folder was empty; the changelog was

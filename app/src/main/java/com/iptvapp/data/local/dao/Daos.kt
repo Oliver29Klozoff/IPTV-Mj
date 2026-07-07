@@ -13,6 +13,12 @@ data class ChannelUserData(
     val isHidden: Boolean
 )
 
+data class WatchHistoryEntry(
+    val streamId: Int,
+    val lastWatched: Long,
+    val viewCount: Int
+)
+
 @Dao
 interface ChannelDao {
     @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY num ASC")
@@ -66,6 +72,10 @@ interface ChannelDao {
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
     @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden FROM channels")
     suspend fun getUserData(): List<ChannelUserData>
+    @Query("SELECT streamId, lastWatched, viewCount FROM channels WHERE lastWatched IS NOT NULL")
+    suspend fun getWatchHistoryForBackup(): List<WatchHistoryEntry>
+    @Query("UPDATE channels SET lastWatched = :lastWatched, viewCount = :viewCount WHERE streamId = :streamId")
+    suspend fun restoreWatchHistory(streamId: Int, lastWatched: Long, viewCount: Int)
     @Query("DELETE FROM channels WHERE categoryId LIKE 'm3u_%'")
     suspend fun deleteM3uChannels()
 }
