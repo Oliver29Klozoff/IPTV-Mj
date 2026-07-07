@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v3.85 - 2026-07-07
+- Fixed the in-app "What's New" changelog viewer always showing "not available" — it reads
+  CHANGELOG.md from the app's assets folder, but that folder was empty; the changelog was
+  only ever being maintained at the project root for GitHub release notes. Build now
+  auto-copies it into assets every time, so this can't silently drift out of sync again.
+
 ## v3.84 - 2026-07-07
 - **Security**: fixed credential exposure through crash reports — Xtream stream URLs embed
   the account's plaintext username/password in their path, and network/player exceptions

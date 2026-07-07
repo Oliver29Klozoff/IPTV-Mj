@@ -1,6 +1,6 @@
 {
-  "versionCode": 222,
-  "versionName": "3.84",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.84/MKTV.apk",
-  "changelog": "Security: credentials no longer exposed via crash reports or public backup files. TV guide simplified and fixed, D-pad navigation fixes, series search fix"
+  "versionCode": 223,
+  "versionName": "3.85",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.85/MKTV.apk",
+  "changelog": "Fix in-app What's New changelog viewer showing \"not available\" (was missing from the app's assets folder)"
 }

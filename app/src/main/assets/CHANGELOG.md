@@ -1,5 +1,115 @@
 # IPTV App - Changelog
 
+## v3.85 - 2026-07-07
+- Fixed the in-app "What's New" changelog viewer always showing "not available" — it reads
+  CHANGELOG.md from the app's assets folder, but that folder was empty; the changelog was
+  only ever being maintained at the project root for GitHub release notes. Build now
+  auto-copies it into assets every time, so this can't silently drift out of sync again.
+
+## v3.84 - 2026-07-07
+- **Security**: fixed credential exposure through crash reports — Xtream stream URLs embed
+  the account's plaintext username/password in their path, and network/player exceptions
+  routinely include the failing URL; the crash handler now redacts these before they're
+  ever written to disk, with a second redaction pass at the "Send Debug Report" upload
+  boundary for defense in depth
+- **Security**: `AutoBackupWorker`'s periodic backup no longer writes plaintext credentials
+  to a public MediaStore Downloads folder any app with storage/media permissions could
+  read — moved to app-private storage
+- **Security**: the manual Backup/Restore feature (phone Settings) now uses Android's
+  Storage Access Framework instead of auto-writing to public storage — the user explicitly
+  picks the save/open location, keeping full portability without the exposure
+- TV guide: replaced the scrollable proportional-width timeline grid with a plain NOW/NEXT
+  text list — the grid had recurring alignment/navigation bugs from keeping a header ruler,
+  N independently-scrolling rows, and live background refreshes all in sync; the simple
+  list can't desync because there's no shared timeline to keep in sync in the first place
+  (the grid version remains available in git history)
+- TV guide: fixed only showing the first ~50 channels of a list (alphabetically) even
+  though the rest already had EPG data cached — the fetch-triggering window and the
+  displayed-text computation were wrongly capped together; fetching stays bounded (to
+  avoid flooding the server for huge categories) but display now covers every channel
+- TV: auto-refresh EPG job wasn't being re-asserted on app launch the way the phone always
+  has — if Android (or a TV-box "clear background apps" tool) force-stopped the app, which
+  silently cancels all its scheduled jobs, auto-refresh would just stop forever until the
+  user happened to reopen Settings and re-touch the option. TV now re-asserts it on every
+  launch, same as the phone always did
+- TV recordings: a recording whose service got killed mid-capture left an orphaned,
+  truncated `.pending` file that never showed up in Gallery and just sat there consuming
+  storage forever; the stale-recording sweep now deletes it instead of just marking it failed
+- TV home: D-pad Right no longer opens sidebar sections/categories (only OK does); Right/
+  Left now only move focus, matching how Left already worked
+- TV home: fixed the channel list jumping focus to the back button while scrolling —
+  Android's default focus search can fail mid-scroll when new items aren't laid out yet
+  and escapes the list entirely; now uses the same deterministic position-based focus
+  movement already used for the guide
+- TV Settings: Back button now steps back one level instead of exiting immediately
+- Phone: fixed the Series tab's search silently searching channels instead of series
+  (the DAO query existed but was never wired up)
+
+## v3.83 - 2026-07-06
+- Recordings now auto-compress after capture: the raw file is recorded exactly as before (no live-transcode risk), then re-encoded in the background at a "medium" bitrate tier (2.8 Mbps 1080p / 1.6 Mbps 720p / 900 Kbps SD) once the capture finishes safely. The raw original is deleted only after the compressed file is verified — a failed compression just leaves the recording at its original size, never loses it
+- New "COMPRESSING" status shown in the recordings list (purple) between RECORDING and DONE; stale-recording cleanup now tells a genuinely failed capture apart from one that was safely captured but never finished compressing
+- TV recordings list: added file size, a working Play button (the whole row), and a Share button for finished recordings — matching the phone
+- Phone recordings list: added file size; fixed Play using a hardcoded .ts mime type, which broke playback for compressed .mp4 recordings
+- TV Settings: replaced the single ~30-row scrolling list with a two-level menu — a short list of sections (Stream, Display, EPG, Updates, Backup, Servers, Account, Sync), drill into one to see just its settings
+- TV Settings: added an Accent Color picker (Display section) — same 7 colors as the phone
+- TV home: applies the chosen accent color to the sidebar, header buttons, progress bars, and focus rings (previously hardcoded blue everywhere)
+
+## v3.82 - 2026-07-06
+- TV guide: fixed D-pad LEFT/RIGHT getting stuck deep in a row (Android's default focus search can't find off-screen items) — now uses deterministic position-based focus movement
+- TV guide: extended to include ~3 hours of history so the timeline can actually be scrolled back, with cross-row time alignment preserved
+- TV guide: added a NOW button (next to FULL SCREEN) to jump back to the current time, and a REFRESH GUIDE button to force-reload EPG data
+- TV home: D-pad LEFT no longer drills back a screen (sidebar/categories/channels) — only the Back button does; double-press Back at the top level to exit, with a confirmation toast
+- TV home: fixed selecting a channel in Live/Categories/Favorites knocking focus up to the back button — ChannelAdapter was using notifyDataSetChanged() which detaches/reattaches views; switched to targeted notifyItemRangeChanged
+- TV home: selecting a channel in Favorites/Live/Categories now scrolls the EPG guide to that channel's row automatically
+- TV home: fixed mini player showing a different "now playing" title than the guide — it was fetching EPG independently instead of using the same shared data source
+- TV home: fixed double-click-to-fullscreen not working — the double-click timer was being reset on every EPG refresh rebind
+- TV recording: fixed recordings stuck showing "RECORDING" forever if the service was killed mid-recording (added the same stale-recording sweep the phone scheduler already had)
+- TV recording: fixed two recordings scheduled at the same time corrupting each other's wakelock, which could cut a recording short — now tracked per-recording instead of in shared fields
+- TV recording: added a ★ FAVORITES folder pinned to the top of the category list, containing your favorite channels, for quick access when scheduling
+- TV recording: fixed duration entry text being invisible — the app's DayNight theme was following the system's light/dark setting for stock dialogs while every custom screen stayed hardcoded dark; now forced dark everywhere
+- Player: gesture volume/brightness controls now show a live percentage readout, icons that change with the level (mute/low/high), a small dead-zone so a stray tap doesn't nudge the level, and a haptic tick when you hit 0% or 100%
+
+## v3.81 - 2026-07-06
+- TV guide: replaced fixed hourly columns with a proportional-width grid, like the phone's grid feature — each program block's width reflects its actual duration, current program shrinks as it plays, D-pad scrolls smoothly through upcoming shows, all channel rows stay time-aligned
+
+## v3.80 - 2026-07-06
+- TV guide: hourly view — each channel row now shows NOW + next 3 full-hour slots (e.g. 8 PM, 9 PM, 10 PM) with time labels in the header
+
+## v3.79 - 2026-07-06
+- TV guide: fix channels with no EPG data appearing in guide list (were showing "No guide data" which bypassed the filter)
+
+## v3.78 - 2026-07-06
+- TV: dedicated D-pad native recording scheduler — full-screen step-by-step flow: category → channel → date/time (NumberPickers) → duration → schedule; replaces the phone-style dialog on TV
+
+## v3.77 - 2026-07-06
+- Recording scheduler: only US| categories and channels shown (phone and TV)
+
+## v3.76 - 2026-07-06
+- Fix crash opening recording scheduler on large channel lists (SQLite variable limit exceeded with 55k+ channel IDs)
+
+## v3.75 - 2026-07-06
+- TV sidebar: app icon + MKTV wordmark with live clock, properly sized for Shield remote navigation
+
+## v3.74 - 2026-07-06
+- TV sidebar: replaced MKTV text with app logo (initial attempt)
+
+## v3.73 - 2026-07-06
+- TV player: press Yellow button (or X/F key) on remote to instantly cycle aspect ratio (Best Fit → Zoom → Stretch) without opening the control overlay
+
+## v3.72 - 2026-07-06
+- Fix EPG auto-refresh: was silently skipping all channels due to US-only category filter; now refreshes all favorited channels
+- Fix recordings channel list: same filter bug — recordings now shows all live channels and categories
+- Fix backup QR code: was too large/dense to scan; now encodes only login credentials as a compact URL — always scannable with phone camera
+- Scanning the QR with phone camera opens MKTV app and pre-fills the login form
+- TV sidebar: replaced "MKTV" text with app logo image
+
+## v3.71 - 2026-07-06
+- TV EPG guide: DPad right from channel list moves focus into the EPG guide; DPad left or Back returns to channel list
+- TV EPG guide: timeline header above guide shows NOW and NEXT (+2h) times, updated every 30s
+- TV home: FULL SCREEN button relocated to header row (was inside mini player info panel)
+- TV home: EPG progress bar moved to full-width strip directly under mini player (matches video width)
+- TV EPG guide: filter improved to exclude blank and placeholder entries
+
 ## v3.70 - 2026-07-06
 - TV home: remove icon from RECORDINGS sidebar button
 

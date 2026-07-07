@@ -14,8 +14,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 222
-        versionName "3.84"
+        versionCode 223
+        versionName "3.85"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -58,6 +58,18 @@ android {
         jvmTarget = '17'
     }
 
+}
+
+// The in-app "What's New" viewer reads CHANGELOG.md from assets, but the changelog is
+// maintained at the project root (that's also what's used for GitHub release notes).
+// Auto-copy it into assets on every build so the two can never drift out of sync again —
+// this had silently been broken with no assets/ folder at all until this was added.
+tasks.register("syncChangelogToAssets", Copy) {
+    from(rootProject.file("CHANGELOG.md"))
+    into("src/main/assets")
+}
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn("syncChangelogToAssets")
 }
 
 dependencies {
