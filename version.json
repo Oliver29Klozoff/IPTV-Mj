@@ -1,6 +1,6 @@
 {
-  "versionCode": 220,
-  "versionName": "3.82",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.82/MKTV.apk",
-  "changelog": "TV guide navigation fixes, concurrent recording fix, dark-mode dialog fix, Favorites folder in recording scheduler, better player gesture controls"
+  "versionCode": 221,
+  "versionName": "3.83",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.83/MKTV.apk",
+  "changelog": "Recordings now auto-compress after capture (smaller files), plus file size + Play/Share on TV and compact TV Settings menu"
 }

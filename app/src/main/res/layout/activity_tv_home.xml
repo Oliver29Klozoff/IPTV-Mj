@@ -47,6 +47,7 @@
                     android:paddingStart="10dp">
 
                     <TextView
+                        android:id="@+id/tvMktvWordmark"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="MKTV"

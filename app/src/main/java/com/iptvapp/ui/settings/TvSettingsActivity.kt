@@ -69,6 +69,13 @@ class TvSettingsActivity : AppCompatActivity() {
     @Inject lateinit var syncManager: SyncManager
 
     private val settingsItems = mutableListOf<TvSettingItem>()
+    private val sectionItems = linkedMapOf<String, MutableList<TvSettingItem>>()
+    private var activeSection: String? = null
+    private val accentPalette = listOf(
+        "Blue" to "#008CFF", "Red" to "#FF3B30", "Green" to "#34C759", "Purple" to "#AF52DE",
+        "Orange" to "#FF9500", "Pink" to "#FF2D55", "Teal" to "#5AC8FA"
+    )
+    private var currentAccentColorHex = "#008CFF"
     private val epgUrls = mutableListOf<String>()
     private val extraServers = mutableListOf<List<String>>()
     private var currentEpgWorkId: UUID? = null
@@ -86,16 +93,69 @@ class TvSettingsActivity : AppCompatActivity() {
             adapter = this@TvSettingsActivity.adapter
         }
 
-        lifecycleScope.launch { buildSettingsList() }
+        lifecycleScope.launch {
+            buildSettingsList()
+            showSectionMenu()
+        }
         observeEpgWork()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-            finish()
+            if (activeSection != null) showSectionMenu() else finish()
             return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    // ─── Section drill-down ─────────────────────────────────────────────────
+    // The settings list used to be one long flat scroll of ~30 rows across 8
+    // sections. Splitting it into a short section menu (one row per section)
+    // plus a per-section detail view keeps each screen short and scannable.
+
+    private fun groupIntoSections() {
+        sectionItems.clear()
+        var current = "General"
+        for (item in settingsItems) {
+            if (item is TvSettingItem.Header) {
+                current = item.title
+                sectionItems.getOrPut(current) { mutableListOf() }
+            } else {
+                sectionItems.getOrPut(current) { mutableListOf() }.add(item)
+            }
+        }
+    }
+
+    private fun showSectionMenu(focusFirst: Boolean = true) {
+        activeSection = null
+        settingsItems.clear()
+        sectionItems.forEach { (title, items) ->
+            settingsItems += TvSettingItem.Action("section_$title", title, value = "${items.size} settings") {
+                showSection(title)
+            }
+        }
+        adapter.notifyDataSetChanged()
+        binding.tvSettingsSectionTitle.text = "Settings"
+        if (focusFirst) focusFirstItem()
+    }
+
+    private fun showSection(title: String, focusFirst: Boolean = true) {
+        activeSection = title
+        settingsItems.clear()
+        settingsItems.addAll(sectionItems[title].orEmpty())
+        adapter.notifyDataSetChanged()
+        binding.tvSettingsSectionTitle.text = title
+        if (focusFirst) focusFirstItem()
+    }
+
+    private fun focusFirstItem() {
+        binding.rvTvSettings.scrollToPosition(0)
+        binding.rvTvSettings.post {
+            for (i in 0 until binding.rvTvSettings.childCount) {
+                val child = binding.rvTvSettings.getChildAt(i)
+                if (child?.isFocusable == true) { child.requestFocus(); break }
+            }
+        }
     }
 
     // ─── List building ────────────────────────────────────────────────────────
@@ -138,7 +198,10 @@ class TvSettingsActivity : AppCompatActivity() {
             checked = preWarm) { c -> lifecycleScope.launch { prefs.setPreWarmOnFocus(c) } }
 
         // ── DISPLAY ──
+        currentAccentColorHex = prefs.accentColor.first()
         settingsItems += TvSettingItem.Header("Display")
+        settingsItems += TvSettingItem.Action("display_accent", "Accent Color",
+            value = accentColorName(currentAccentColorHex)) { showAccentColorDialog() }
         settingsItems += TvSettingItem.Toggle("display_usa", "USA Channels Only",
             checked = usaOnly) { c -> lifecycleScope.launch { prefs.setUsaOnlyChannels(c) } }
         settingsItems += TvSettingItem.Toggle("display_movies", "Show Movies Tab",
@@ -222,14 +285,7 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Action("sync_down", "Pull from Cloud") { doSyncDown() }
         settingsItems += TvSettingItem.Info("sync_status", syncSummary)
 
-        adapter.notifyDataSetChanged()
-
-        binding.rvTvSettings.post {
-            for (i in 0 until binding.rvTvSettings.childCount) {
-                val child = binding.rvTvSettings.getChildAt(i)
-                if (child?.isFocusable == true) { child.requestFocus(); break }
-            }
-        }
+        groupIntoSections()
     }
 
     // ─── Item helpers ─────────────────────────────────────────────────────────
@@ -273,8 +329,10 @@ class TvSettingsActivity : AppCompatActivity() {
     private fun rebuildList(scrollToId: String? = null) {
         val lm = binding.rvTvSettings.layoutManager as LinearLayoutManager
         val savedPos = lm.findFirstVisibleItemPosition()
+        val section = activeSection
         lifecycleScope.launch {
             buildSettingsList()
+            if (section != null) showSection(section, focusFirst = false) else showSectionMenu(focusFirst = false)
             val pos = if (scrollToId != null) {
                 indexOfItem(scrollToId).coerceAtLeast(0)
             } else {
@@ -438,6 +496,31 @@ class TvSettingsActivity : AppCompatActivity() {
                     scheduleAutoEpgRefresh(h)
                     setItemValue("epg_auto_refresh", if (h == 0) "Off" else "Every ${h}h")
                     toast(if (h == 0) "Auto EPG refresh off" else "Auto EPG refresh every $h hours")
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ─── Display ─────────────────────────────────────────────────────────────
+
+    private fun accentColorName(hex: String): String =
+        accentPalette.firstOrNull { it.second.equals(hex, ignoreCase = true) }?.first ?: "Blue"
+
+    private fun showAccentColorDialog() {
+        val names = accentPalette.map { it.first }.toTypedArray()
+        val selIdx = accentPalette.indexOfFirst { it.second.equals(currentAccentColorHex, ignoreCase = true) }
+            .coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Accent Color")
+            .setSingleChoiceItems(names, selIdx) { dialog, which ->
+                val hex = accentPalette[which].second
+                currentAccentColorHex = hex
+                lifecycleScope.launch {
+                    prefs.setAccentColor(hex)
+                    setItemValue("display_accent", accentPalette[which].first)
+                    toast("Accent color set to ${accentPalette[which].first}")
                 }
                 dialog.dismiss()
             }

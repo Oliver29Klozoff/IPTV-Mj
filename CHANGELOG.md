@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v3.83 - 2026-07-06
+- Recordings now auto-compress after capture: the raw file is recorded exactly as before (no live-transcode risk), then re-encoded in the background at a "medium" bitrate tier (2.8 Mbps 1080p / 1.6 Mbps 720p / 900 Kbps SD) once the capture finishes safely. The raw original is deleted only after the compressed file is verified — a failed compression just leaves the recording at its original size, never loses it
+- New "COMPRESSING" status shown in the recordings list (purple) between RECORDING and DONE; stale-recording cleanup now tells a genuinely failed capture apart from one that was safely captured but never finished compressing
+- TV recordings list: added file size, a working Play button (the whole row), and a Share button for finished recordings — matching the phone
+- Phone recordings list: added file size; fixed Play using a hardcoded .ts mime type, which broke playback for compressed .mp4 recordings
+- TV Settings: replaced the single ~30-row scrolling list with a two-level menu — a short list of sections (Stream, Display, EPG, Updates, Backup, Servers, Account, Sync), drill into one to see just its settings
+- TV Settings: added an Accent Color picker (Display section) — same 7 colors as the phone
+- TV home: applies the chosen accent color to the sidebar, header buttons, progress bars, and focus rings (previously hardcoded blue everywhere)
+
 ## v3.82 - 2026-07-06
 - TV guide: fixed D-pad LEFT/RIGHT getting stuck deep in a row (Android's default focus search can't find off-screen items) — now uses deterministic position-based focus movement
 - TV guide: extended to include ~3 hours of history so the timeline can actually be scrolled back, with cross-row time alignment preserved

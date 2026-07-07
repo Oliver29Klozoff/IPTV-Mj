@@ -93,10 +93,18 @@ class RecordingService : Service() {
             }.isSuccess
 
             finalizeTarget(target, ok)
-
+            // The raw capture is safely on disk now (or definitively failed) — nothing past
+            // this point can lose the recording, so it no longer needs onDestroy's
+            // kill-safety net treating it as a still-in-flight recording.
             activeRecordingIds.remove(recordingId)
-            if (recordingId != -1) {
-                database.recordingDao().updateStatus(recordingId, if (ok) "DONE" else "FAILED")
+
+            if (ok) {
+                if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
+                val compressedPath = runCatching { tryCompressRecording(target, name) }.getOrNull()
+                val finalPath = compressedPath ?: target
+                if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
+            } else {
+                if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "FAILED")
             }
 
             wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
@@ -105,6 +113,73 @@ class RecordingService : Service() {
         }
 
         return START_REDELIVER_INTENT
+    }
+
+    /** Re-encodes the just-finished raw recording at a lower bitrate to shrink it, then deletes
+     * the raw original. Runs only after the raw capture is confirmed safely written — never
+     * live — so a transcode failure just means the recording stays at its original (larger)
+     * size instead of risking the capture itself. Returns the new path, or null to keep the
+     * original untouched. */
+    private suspend fun tryCompressRecording(sourceTarget: String, channelName: String): String? {
+        val tempFile = File(cacheDir, "compress_${System.currentTimeMillis()}.mp4")
+        return try {
+            val sourceUri = if (sourceTarget.startsWith("content://")) {
+                Uri.parse(sourceTarget)
+            } else {
+                Uri.fromFile(File(sourceTarget))
+            }
+            val height = probeVideoHeight(sourceUri)
+            val success = RecordingCompressor.compress(this, sourceUri, tempFile.absolutePath, height)
+            if (!success || tempFile.length() < 1024) return null
+
+            val finalTarget = createCompressedOutputTarget(channelName)
+            openRecordingOutput(finalTarget).use { out -> tempFile.inputStream().use { it.copyTo(out) } }
+            finalizeTarget(finalTarget, true)
+
+            if (sourceTarget.startsWith("content://")) {
+                runCatching { contentResolver.delete(Uri.parse(sourceTarget), null, null) }
+            } else {
+                runCatching { File(sourceTarget).delete() }
+            }
+            finalTarget
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching { tempFile.delete() }
+        }
+    }
+
+    private fun probeVideoHeight(uri: Uri): Int {
+        val retriever = android.media.MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(this, uri)
+            retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull() ?: 1080
+        } catch (_: Exception) {
+            1080
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun createCompressedOutputTarget(channelName: String): String {
+        val safeName = channelName.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
+        val fileName = "${safeName}_${System.currentTimeMillis()}_compressed.mp4"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                put(MediaStore.Video.Media.RELATIVE_PATH, "${android.os.Environment.DIRECTORY_MOVIES}/MKTV")
+                put(MediaStore.Video.Media.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            if (uri != null) return uri.toString()
+        }
+
+        val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "MKTV")
+        dir.mkdirs()
+        return File(dir, fileName).absolutePath
     }
 
     private fun openRecordingOutput(target: String): OutputStream {

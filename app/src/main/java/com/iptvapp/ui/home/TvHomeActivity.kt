@@ -30,6 +30,7 @@ import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -41,6 +42,8 @@ class TvHomeActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityTvHomeBinding
     private val viewModel: HomeViewModel by viewModels()
+
+    @javax.inject.Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
@@ -111,6 +114,22 @@ class TvHomeActivity : AppCompatActivity() {
         handleDeepLink(intent)
         FeatureTourDialog.showIfNeeded(this)
         UpdateChecker(this).check(lifecycleScope)
+        lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
+    }
+
+    /** Recolors the sidebar, header buttons, and progress bars to the accent chosen in
+     * Settings → Display, including a matching focus-ring color (not just the hardcoded blue). */
+    private fun applyAccent(accent: Int) {
+        listOf(
+            binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
+            binding.btnTvSeries, binding.btnTvFavorites,
+            binding.btnTvFullscreen, binding.btnGuideNow, binding.btnGuideRefresh
+        ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
+
+        binding.tvMktvWordmark.setTextColor(accent)
+        binding.tvEpgProgress.progressTintList = android.content.res.ColorStateList.valueOf(accent)
+        binding.tvMiniPlayerProgress.indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
+        binding.tvProgressBar.indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -137,6 +156,7 @@ class TvHomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
+        lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
         if (currentMiniUrl.isEmpty()) {
             lifecycleScope.launch {
                 val recent = viewModel.getRecentChannel()

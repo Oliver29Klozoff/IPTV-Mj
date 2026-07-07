@@ -30,6 +30,7 @@ import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityRecordingSchedulerBinding
 import com.iptvapp.databinding.ItemRecordingBinding
 import com.iptvapp.service.RecordingService
+import com.iptvapp.util.RecordingFileUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -119,8 +120,19 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     private suspend fun cleanupStaleRecordings() {
         val now = System.currentTimeMillis()
         database.recordingDao().getAll().first()
-            .filter { it.status == "RECORDING" && (it.scheduledStartMs + it.durationMs) < now - 60_000L }
-            .forEach { database.recordingDao().updateStatus(it.id, "FAILED") }
+            .filter { rec ->
+                when (rec.status) {
+                    "RECORDING" -> (rec.scheduledStartMs + rec.durationMs) < now - 60_000L
+                    // Compression runs after the raw file is already safely captured, so if the
+                    // service died mid-compress the recording itself is still good — just give
+                    // it a longer grace window since transcoding legitimately takes a while.
+                    "COMPRESSING" -> (rec.scheduledStartMs + rec.durationMs) < now - 15 * 60_000L
+                    else -> false
+                }
+            }
+            .forEach { rec ->
+                database.recordingDao().updateStatus(rec.id, if (rec.status == "RECORDING") "FAILED" else "DONE")
+            }
     }
 
     private fun showScheduleDialog() {
@@ -449,14 +461,17 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             fun bind(rec: RecordingEntity) {
                 b.tvRecChannel.text = rec.channelName
                 val durMin = rec.durationMs / 60_000
-                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))} - ${durMin}min"
+                val sizeLabel = RecordingFileUtils.sizeLabel(b.root.context, rec.outputPath)
+                val sizeSuffix = if (sizeLabel.isNotEmpty()) " - $sizeLabel" else ""
+                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))} - ${durMin}min$sizeSuffix"
                 b.tvRecStatus.text = rec.status
 
                 val (bg, fg) = when (rec.status) {
-                    "RECORDING" -> 0x33FF4444.toInt() to 0xFFFF4444.toInt()
-                    "DONE"      -> 0x3300CC66.toInt() to 0xFF00CC66.toInt()
-                    "FAILED"    -> 0x33FF8800.toInt() to 0xFFFF8800.toInt()
-                    else        -> 0x33008CFF.toInt() to 0xFF008CFF.toInt()
+                    "RECORDING"   -> 0x33FF4444.toInt() to 0xFFFF4444.toInt()
+                    "COMPRESSING" -> 0x33AF52DE.toInt() to 0xFFAF52DE.toInt()
+                    "DONE"        -> 0x3300CC66.toInt() to 0xFF00CC66.toInt()
+                    "FAILED"      -> 0x33FF8800.toInt() to 0xFFFF8800.toInt()
+                    else          -> 0x33008CFF.toInt() to 0xFF008CFF.toInt()
                 }
 
                 b.tvRecStatus.setBackgroundColor(bg)
@@ -478,7 +493,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
     private fun playFile(path: String) {
         val uri: Uri
-        val type = "video/mp2t"
+        val type = if (path.contains(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
 
         if (path.startsWith("content://")) {
             uri = Uri.parse(path)

@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.view.KeyEvent
@@ -19,6 +20,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -31,6 +33,7 @@ import com.iptvapp.databinding.ActivityTvRecordingBinding
 import com.iptvapp.databinding.ItemTvPickerBinding
 import com.iptvapp.databinding.ItemTvRecordingRowBinding
 import com.iptvapp.service.RecordingService
+import com.iptvapp.util.RecordingFileUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -118,25 +121,80 @@ class TvRecordingActivity : AppCompatActivity() {
     private suspend fun cleanupStaleRecordings() {
         val now = System.currentTimeMillis()
         database.recordingDao().getAll().first()
-            .filter { it.status == "RECORDING" && (it.scheduledStartMs + it.durationMs) < now - 60_000L }
-            .forEach { database.recordingDao().updateStatus(it.id, "FAILED") }
+            .filter { rec ->
+                when (rec.status) {
+                    "RECORDING" -> (rec.scheduledStartMs + rec.durationMs) < now - 60_000L
+                    // Compression runs after the raw file is already safely captured, so if the
+                    // service died mid-compress the recording itself is still good — just give
+                    // it a longer grace window since transcoding legitimately takes a while.
+                    "COMPRESSING" -> (rec.scheduledStartMs + rec.durationMs) < now - 15 * 60_000L
+                    else -> false
+                }
+            }
+            .forEach { rec ->
+                database.recordingDao().updateStatus(rec.id, if (rec.status == "RECORDING") "FAILED" else "DONE")
+            }
     }
 
     private fun setupRecordingsList() {
         binding.rvRecordings.layoutManager = LinearLayoutManager(this)
-        binding.rvRecordings.adapter = RecordingListAdapter { rec ->
-            AlertDialog.Builder(this)
-                .setTitle("Delete Recording?")
-                .setMessage("${rec.channelName}\n${dateFmt.format(Date(rec.scheduledStartMs))}")
-                .setPositiveButton("Delete") { _, _ ->
-                    lifecycleScope.launch {
-                        cancelAlarm(rec.id)
-                        database.recordingDao().delete(rec)
+        binding.rvRecordings.adapter = RecordingListAdapter(
+            onPlay = { rec -> playFile(rec.outputPath) },
+            onShare = { rec -> shareFile(rec.outputPath) },
+            onDelete = { rec ->
+                AlertDialog.Builder(this)
+                    .setTitle("Delete Recording?")
+                    .setMessage("${rec.channelName}\n${dateFmt.format(Date(rec.scheduledStartMs))}")
+                    .setPositiveButton("Delete") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelAlarm(rec.id)
+                            database.recordingDao().delete(rec)
+                        }
                     }
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        )
+    }
+
+    private fun playFile(path: String) {
+        val type = if (path.contains(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
+        val uri: Uri = if (path.startsWith("content://")) {
+            Uri.parse(path)
+        } else {
+            val file = File(path)
+            if (!file.exists()) { Toast.makeText(this, "File not found", Toast.LENGTH_LONG).show(); return }
+            FileProvider.getUriForFile(this, "$packageName.provider", file)
         }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, type)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(intent, "Open recording with...").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { startActivity(chooser) }
+            .onFailure { Toast.makeText(this, "No video player installed", Toast.LENGTH_SHORT).show() }
+    }
+
+    private fun shareFile(path: String) {
+        val uri: Uri = if (path.startsWith("content://")) {
+            Uri.parse(path)
+        } else {
+            val file = File(path)
+            if (!file.exists()) { Toast.makeText(this, "File not found", Toast.LENGTH_SHORT).show(); return }
+            FileProvider.getUriForFile(this, "$packageName.provider", file)
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "video/*"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(intent, "Upload recording to...").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { startActivity(chooser) }
+            .onFailure { Toast.makeText(this, "No sharing app available", Toast.LENGTH_SHORT).show() }
     }
 
     private fun setupButtons() {
@@ -385,6 +443,8 @@ class TvRecordingActivity : AppCompatActivity() {
     }
 
     inner class RecordingListAdapter(
+        private val onPlay: (RecordingEntity) -> Unit,
+        private val onShare: (RecordingEntity) -> Unit,
         private val onDelete: (RecordingEntity) -> Unit
     ) : RecyclerView.Adapter<RecordingListAdapter.VH>() {
 
@@ -405,29 +465,39 @@ class TvRecordingActivity : AppCompatActivity() {
 
         inner class VH(private val b: ItemTvRecordingRowBinding) : RecyclerView.ViewHolder(b.root) {
             init {
-                b.root.setOnKeyListener { _, keyCode, event ->
+                b.rowRecordingMain.setOnKeyListener { _, keyCode, event ->
                     if (event.action == KeyEvent.ACTION_DOWN &&
                         (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-                        onDelete(items[adapterPosition])
+                        onPlay(items[bindingAdapterPosition])
                         true
                     } else false
                 }
-                b.root.setOnClickListener { onDelete(items[adapterPosition]) }
+                b.rowRecordingMain.setOnClickListener { onPlay(items[bindingAdapterPosition]) }
+                b.btnTvRecShare.setOnClickListener { onShare(items[bindingAdapterPosition]) }
+                b.btnTvRecDelete.setOnClickListener { onDelete(items[bindingAdapterPosition]) }
             }
 
             fun bind(rec: RecordingEntity) {
                 b.tvRecChannel.text = rec.channelName
                 val durMin = rec.durationMs / 60_000
-                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))}  •  ${durMin} min"
+                val sizeLabel = RecordingFileUtils.sizeLabel(b.root.context, rec.outputPath)
+                val sizeSuffix = if (sizeLabel.isNotEmpty()) "  •  $sizeLabel" else ""
+                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))}  •  ${durMin} min$sizeSuffix"
                 b.tvRecStatus.text = rec.status
                 val (bg, fg) = when (rec.status) {
-                    "RECORDING" -> 0x33FF4444.toInt() to 0xFFFF4444.toInt()
-                    "DONE"      -> 0x3300CC66.toInt() to 0xFF00CC66.toInt()
-                    "FAILED"    -> 0x33FF8800.toInt() to 0xFFFF8800.toInt()
-                    else        -> 0x33008CFF.toInt() to 0xFF008CFF.toInt()
+                    "RECORDING"   -> 0x33FF4444.toInt() to 0xFFFF4444.toInt()
+                    "COMPRESSING" -> 0x33AF52DE.toInt() to 0xFFAF52DE.toInt()
+                    "DONE"        -> 0x3300CC66.toInt() to 0xFF00CC66.toInt()
+                    "FAILED"      -> 0x33FF8800.toInt() to 0xFFFF8800.toInt()
+                    else          -> 0x33008CFF.toInt() to 0xFF008CFF.toInt()
                 }
                 b.tvRecStatus.setBackgroundColor(bg)
                 b.tvRecStatus.setTextColor(fg)
+
+                val isDone = rec.status == "DONE"
+                b.btnTvRecShare.visibility = if (isDone) View.VISIBLE else View.GONE
+                b.rowRecordingMain.isFocusable = true
+                b.rowRecordingMain.isFocusableInTouchMode = false
             }
         }
     }

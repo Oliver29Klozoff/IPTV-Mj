@@ -166,6 +166,8 @@ interface RecordingDao {
     suspend fun insert(recording: RecordingEntity): Long
     @Query("UPDATE recordings SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Int, status: String)
+    @Query("UPDATE recordings SET outputPath = :path, status = :status WHERE id = :id")
+    suspend fun updatePathAndStatus(id: Int, path: String, status: String)
     @Delete
     suspend fun delete(recording: RecordingEntity)
     @Query("SELECT * FROM recordings WHERE id = :id")
