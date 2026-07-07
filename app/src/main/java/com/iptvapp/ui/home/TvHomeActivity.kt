@@ -18,6 +18,10 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
@@ -28,6 +32,7 @@ import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.tv.TvHomeChannelPublisher
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
+import com.iptvapp.worker.EpgRefreshWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -36,6 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
 class TvHomeActivity : AppCompatActivity() {
@@ -96,7 +102,7 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES }
-    private var currentSection = Section.FAVORITES
+    private var currentSection = Section.LIVE
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,11 +116,33 @@ class TvHomeActivity : AppCompatActivity() {
         observeEpgGuide()
         observeSidebarVisibility()
         viewModel.loadAll()
-        selectSection(Section.FAVORITES)
+        showSidebar()
         handleDeepLink(intent)
         FeatureTourDialog.showIfNeeded(this)
         UpdateChecker(this).check(lifecycleScope)
         lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
+        rescheduleEpgRefreshIfNeeded()
+    }
+
+    // Android (and TV-box "clear background apps" utilities especially) can force-stop
+    // an app, which silently cancels ALL of its scheduled WorkManager jobs — including the
+    // periodic EPG auto-refresh. The phone's HomeActivity already re-asserts this on every
+    // launch; TvHomeActivity never did, so once that job got killed on a Shield/TV box, EPG
+    // auto-refresh would just stop forever until the user happened to open Settings and
+    // re-touch the Auto Refresh option. KEEP means this won't reset the interval clock if
+    // the job is already alive — it only revives it if something cancelled it.
+    private fun rescheduleEpgRefreshIfNeeded() {
+        lifecycleScope.launch {
+            val hours = prefs.epgAutoRefreshHours.first()
+            if (hours > 0) {
+                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
+                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
+                    .build()
+                WorkManager.getInstance(this@TvHomeActivity).enqueueUniquePeriodicWork(
+                    "auto_epg_refresh_work", ExistingPeriodicWorkPolicy.KEEP, req
+                )
+            }
+        }
     }
 
     /** Recolors the sidebar, header buttons, and progress bars to the accent chosen in
@@ -122,8 +150,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun applyAccent(accent: Int) {
         listOf(
             binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
-            binding.btnTvSeries, binding.btnTvFavorites,
-            binding.btnTvFullscreen, binding.btnGuideNow, binding.btnGuideRefresh
+            binding.btnTvSeries, binding.btnTvFavorites, binding.btnTvFullscreen
         ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
 
         binding.tvMktvWordmark.setTextColor(accent)
@@ -149,7 +176,7 @@ class TvHomeActivity : AppCompatActivity() {
                     openPlayer(url, channel.name, channel.streamId)
                 }
             }
-            "home" -> selectSection(Section.FAVORITES)
+            "home" -> showSidebar()
         }
     }
 
@@ -174,7 +201,6 @@ class TvHomeActivity : AppCompatActivity() {
             while (true) {
                 val now = Date()
                 binding.tvClock.text = clockFmt.format(now)
-                buildGuideTimelineHeader()
                 if (navState == NavState.CHANNELS) viewModel.loadEpgForChannels(viewModel.channels.value)
                 delay(30_000)
             }
@@ -397,8 +423,6 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             }
         )
-        epgGuideAdapter.onScrollSynced = { x -> binding.tvGuideTimelineScroll.scrollTo(x, 0) }
-        binding.btnGuideNow.setOnClickListener { epgGuideAdapter.scrollToNow(this) }
         binding.btnGuideRefresh.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
             viewModel.loadEpgForChannels(viewModel.channels.value)
@@ -460,17 +484,6 @@ class TvHomeActivity : AppCompatActivity() {
         buttons.getOrNull(if (up) idx - 1 else idx + 1)?.requestFocus()
     }
 
-    private fun drillInFromFocusedButton() {
-        when (currentFocus) {
-            binding.btnTvLive        -> selectSection(Section.LIVE)
-            binding.btnTvCategories  -> selectSection(Section.CATEGORIES)
-            binding.btnTvMovies      -> selectSection(Section.MOVIES)
-            binding.btnTvSeries      -> selectSection(Section.SERIES)
-            binding.btnTvFavorites   -> selectSection(Section.FAVORITES)
-            binding.btnTvRecordings  -> startActivity(Intent(this, TvRecordingActivity::class.java))
-            binding.btnTvSettings    -> startActivity(Intent(this, TvSettingsActivity::class.java))
-        }
-    }
 
     // ── Sidebar navigation ───────────────────────────────────────────────────
 
@@ -579,36 +592,39 @@ class TvHomeActivity : AppCompatActivity() {
                 // Sidebar: up/down stays within sidebar buttons only
                 KeyEvent.KEYCODE_DPAD_UP -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = true); return true
+                } else if (binding.tvRvContent.hasFocus()) {
+                    moveChannelListFocus(up = true); return true
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
+                } else if (binding.tvRvContent.hasFocus()) {
+                    moveChannelListFocus(up = false); return true
                 }
-                // Right: drills in from sidebar; from channels enters the EPG guide.
-                // Once inside the guide, let the system focus finder move horizontally
-                // between program blocks (don't swallow the event).
+                // Right only moves focus — it no longer opens/drills in like OK does. From
+                // channels it enters the EPG guide (a plain vertical list — up/down within it
+                // works via default focus search, same as the channel list itself). The FULL
+                // SCREEN/REFRESH GUIDE header row needs plain lateral movement between its
+                // own buttons — don't hijack that.
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (navState) {
-                    NavState.SIDEBAR -> { drillInFromFocusedButton(); return true }
+                    NavState.SIDEBAR -> return true
                     NavState.CATEGORIES -> return true
                     NavState.CHANNELS -> {
-                        if (!binding.tvRvEpgGuide.hasFocus()) {
+                        if (isGuideHeaderButton(currentFocus)) {
+                            // let default focus search move within the header row
+                        } else if (!binding.tvRvEpgGuide.hasFocus()) {
                             binding.tvRvEpgGuide.requestFocus()
                             return true
                         }
                     }
                 }
-                // Left only adjusts focus within the guide (back to channel list from the
-                // first program block); it no longer drills back a level. Use BACK for that.
+                // Left returns to the channel list from the guide; it no longer drills back
+                // a level. Use BACK for that.
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    val focused = binding.tvRvEpgGuide.findFocus()
-                    if (binding.tvRvEpgGuide.hasFocus() && focused != null) {
-                        val parentRv = focused.parent as? RecyclerView
-                        val pos = parentRv?.getChildAdapterPosition(focused) ?: -1
-                        if (pos <= 0) {
-                            binding.tvRvContent.requestFocus()
-                            return true
-                        }
-                        // pos > 0: fall through so the program block's own key listener
-                        // moves focus one item to the left within the row.
+                    if (binding.tvRvEpgGuide.hasFocus()) {
+                        binding.tvRvContent.requestFocus()
+                        return true
+                    } else if (isGuideHeaderButton(currentFocus)) {
+                        // let default focus search move within the header row
                     } else if (navState == NavState.CATEGORIES || navState == NavState.CHANNELS) {
                         return true
                     }
@@ -854,11 +870,43 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channelEpgText.collect { epgText ->
+                epgGuideAdapter.submitEpgText(epgText)
                 epgGuideAdapter.submitList(allEpgChannels.filter { hasRealEpg(epgText, it.streamId) })
             }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgPrograms.collect { epgGuideAdapter.submitPrograms(it) }
+            viewModel.channelEpgNextText.collect { epgGuideAdapter.submitEpgNextText(it) }
+        }
+        lifecycleScope.launch {
+            viewModel.channelEpgProgress.collect { epgGuideAdapter.submitEpgProgress(it) }
+        }
+    }
+
+    private fun isGuideHeaderButton(v: View?): Boolean =
+        v === binding.btnTvFullscreen || v === binding.btnGuideRefresh
+
+    /** Android's default focus search can fail to find the next/previous item while fast
+     * D-pad scrolling outruns RecyclerView's layout of not-yet-created views — the same
+     * failure mode already fixed for the EPG guide. When that happens it doesn't just stop;
+     * it escapes the RecyclerView entirely and lands on the nearest focusable view outside
+     * it (the back button above the list), which then requires scrolling back down into the
+     * list to recover — repeating every time the same layout race reoccurs. Moving focus by
+     * adapter position explicitly, the same fix used for the guide, sidesteps the race
+     * entirely instead of depending on whichever views happen to be attached at that instant. */
+    private fun moveChannelListFocus(up: Boolean) {
+        val rv = binding.tvRvContent
+        val focused = rv.findFocus() ?: return
+        val pos = rv.getChildAdapterPosition(focused)
+        if (pos == RecyclerView.NO_POSITION) return
+        val itemCount = rv.adapter?.itemCount ?: 0
+        val target = if (up) pos - 1 else pos + 1
+        if (target < 0 || target >= itemCount) return
+        val holder = rv.findViewHolderForAdapterPosition(target)
+        if (holder != null) {
+            holder.itemView.requestFocus()
+        } else {
+            rv.scrollToPosition(target)
+            rv.post { rv.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
         }
     }
 
@@ -876,31 +924,6 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildGuideTimelineHeader() {
-        val container = binding.tvGuideTimelineContent
-        container.removeAllViews()
-        val slotMinutes = 30
-        val totalMinutes = 4 * 60
-        val slotWidthDp = TV_EPG_DP_PER_MIN * slotMinutes
-        val tickFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
-        val nowMs = System.currentTimeMillis()
-        for (i in 0 until totalMinutes / slotMinutes) {
-            val label = if (i == 0) "NOW" else tickFmt.format(Date(nowMs + i * slotMinutes * 60_000L))
-            val tv = android.widget.TextView(this).apply {
-                text = label
-                setTextColor(if (i == 0) 0xFF008CFF.toInt() else 0xFF555555.toInt())
-                textSize = 10f
-                layoutParams = android.widget.LinearLayout.LayoutParams(
-                    dpToPx(slotWidthDp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                gravity = android.view.Gravity.CENTER_VERTICAL
-            }
-            container.addView(tv)
-        }
-    }
-
-    private fun dpToPx(dp: Float): Float =
-        android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics)
 
     private fun observeSidebarVisibility() {
         lifecycleScope.launch {

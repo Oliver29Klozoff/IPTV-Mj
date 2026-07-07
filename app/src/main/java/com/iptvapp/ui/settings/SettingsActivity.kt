@@ -5,8 +5,6 @@ import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.IntentFilter
 import android.graphics.Color
 import android.net.ConnectivityManager
@@ -15,7 +13,6 @@ import android.os.Build
 import android.os.Bundle
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.provider.MediaStore
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Environment
 import android.os.Handler
@@ -38,6 +35,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.iptvapp.AppConstants
 import com.iptvapp.IptvApplication
+import com.iptvapp.util.LogSanitizer
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
@@ -89,6 +87,18 @@ class SettingsActivity : AppCompatActivity() {
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     @Inject lateinit var syncManager: com.iptvapp.sync.SyncManager
+
+    // The backup file contains the account's plaintext username/password. Rather than
+    // auto-writing it to a fixed public location any app with storage/media permissions
+    // could read, the user explicitly picks the destination/source via the system file
+    // picker — still fully portable (Downloads, Drive, USB, wherever they choose), just not
+    // silently exposed to every other app on the device by default.
+    private val createBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) lifecycleScope.launch { writeBackupToUri(uri) }
+    }
+    private val openBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) lifecycleScope.launch { restoreBackupFromUri(uri) }
+    }
 
     private val sortLabels = listOf("Default", "A-Z", "Popular", "Recent")
     private var currentSortIndex = 0
@@ -440,7 +450,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun updateAutoBackupPathLabel(enabled: Boolean) {
-        binding.tvAutoBackupPath.text = if (enabled) "Saves to: Download/MKTV" else ""
+        binding.tvAutoBackupPath.text = if (enabled) "Saved privately to app storage (weekly)" else ""
     }
 
     private fun scheduleAutoBackup() {
@@ -463,31 +473,22 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun backupSettings() {
-        lifecycleScope.launch { saveBackupDirectly() }
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        createBackupLauncher.launch("MKTV_backup_$timestamp.json")
     }
 
-    private suspend fun saveBackupDirectly() {
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val fileName = "MKTV_backup_$timestamp.json"
+    private suspend fun writeBackupToUri(uri: Uri) {
         val body = buildBackupJson().toString(2)
-        withContext(Dispatchers.IO) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                    put(MediaStore.Downloads.MIME_TYPE, "application/json")
-                    put(MediaStore.Downloads.RELATIVE_PATH, "Download/MKTV/")
-                }
-                val uri = contentResolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-                    ?: throw IllegalStateException("MediaStore insert failed")
+        try {
+            withContext(Dispatchers.IO) {
                 contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
-            } else {
-                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MKTV")
-                dir.mkdirs()
-                File(dir, fileName).writeText(body)
+                    ?: throw IllegalStateException("Could not open output stream")
             }
+            binding.tvBackupStatus.text = "✓ Backup saved"
+            Toast.makeText(this, "Backup saved", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Backup failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
-        binding.tvBackupStatus.text = "✓ Saved to Download/MKTV"
-        Toast.makeText(this, "Backup saved: $fileName", Toast.LENGTH_LONG).show()
     }
 
     private fun sendDebugReport() {
@@ -539,7 +540,9 @@ class SettingsActivity : AppCompatActivity() {
                         .firstOrNull()?.state?.name ?: "None"
                 } catch (_: Exception) { "Unknown" }
                 binding.tvReportStatus.text = "Reading crash log & sending..."
-                val crashLog = IptvApplication.getCrashLog(this@SettingsActivity)
+                // Defense in depth: the crash handler already redacts before writing to disk,
+                // but redact again here too in case anything else ever lands in this log.
+                val crashLog = LogSanitizer.redactCredentials(IptvApplication.getCrashLog(this@SettingsActivity))
                 val debugText = """
                     App: v${pInfo.versionName} (${pInfo.longVersionCode})
                     Device: ${Build.MANUFACTURER} ${Build.MODEL}
@@ -1180,42 +1183,7 @@ class SettingsActivity : AppCompatActivity() {
 
 
     private fun showRestoreDialog() {
-        data class BackupEntry(val name: String, val uri: Uri)
-        val entries = mutableListOf<BackupEntry>()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            val projection = arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME)
-            val selection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
-            contentResolver.query(collection, projection, selection, arrayOf("MKTV_backup_%.json"),
-                "${MediaStore.Downloads.DATE_ADDED} DESC")?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idCol)
-                    val name = cursor.getString(nameCol)
-                    entries += BackupEntry(name, ContentUris.withAppendedId(collection, id))
-                }
-            }
-        } else {
-            val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MKTV")
-            dir.listFiles { f -> f.name.startsWith("MKTV_backup_") && f.name.endsWith(".json") }
-                ?.sortedByDescending { it.lastModified() }
-                ?.forEach { entries += BackupEntry(it.name, Uri.fromFile(it)) }
-        }
-
-        if (entries.isEmpty()) {
-            Toast.makeText(this, "No backups found in Download/MKTV", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Restore Backup")
-            .setItems(entries.map { it.name }.toTypedArray()) { _, i ->
-                lifecycleScope.launch { restoreBackupFromUri(entries[i].uri) }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        openBackupLauncher.launch(arrayOf("application/json"))
     }
 
     private suspend fun restoreBackupFromUri(uri: Uri) {

@@ -151,12 +151,22 @@ class EpgTimelineActivity : AppCompatActivity() {
     private fun showTimerDialog(row: GuideRow, program: EpgEntity) {
         val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp else program.startTimestamp / 1000L
         val startMs = startSec * 1000L
-        if (startMs <= nowMs) return  // already started
+        if (startMs <= nowMs) return
+        val stopMs = if (program.stopTimestamp < 100_000_000_000L) program.stopTimestamp * 1000L else program.stopTimestamp
+        val durationMs = (stopMs - startMs).coerceAtLeast(60_000L)
         val timeStr = SimpleDateFormat("h:mm a", Locale.US).format(Date(startMs))
         AlertDialog.Builder(this)
-            .setTitle("Set Reminder")
-            .setMessage("Remind me when \"${program.title}\" starts on ${row.channel.name} at $timeStr?")
-            .setPositiveButton("Set Reminder") { _, _ ->
+            .setTitle("\"${program.title}\"")
+            .setMessage("${row.channel.name} · $timeStr")
+            .setPositiveButton("Record") { _, _ ->
+                startActivity(
+                    Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
+                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, row.channel.streamId)
+                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
+                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
+                )
+            }
+            .setNeutralButton("Remind Me") { _, _ ->
                 ChannelTimerScheduler.schedule(this, row.channel.streamId, row.channel.name, program.title, startMs)
                 android.widget.Toast.makeText(this, "Reminder set for $timeStr", android.widget.Toast.LENGTH_SHORT).show()
             }

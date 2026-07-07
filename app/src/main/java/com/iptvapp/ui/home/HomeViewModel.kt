@@ -71,9 +71,6 @@ class HomeViewModel @Inject constructor(
     private val _channelEpgNextText = MutableStateFlow<Map<Int, String>>(emptyMap())
     val channelEpgNextText: StateFlow<Map<Int, String>> = _channelEpgNextText
 
-    private val _channelEpgPrograms = MutableStateFlow<Map<Int, List<EpgEntity>>>(emptyMap())
-    val channelEpgPrograms: StateFlow<Map<Int, List<EpgEntity>>> = _channelEpgPrograms
-
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
 
@@ -116,6 +113,7 @@ class HomeViewModel @Inject constructor(
     private var channelJob: Job? = null
     private var vodJob: Job? = null
     private var searchJob: Job? = null
+    private var seriesSearchJob: Job? = null
     private var guideJob: Job? = null
     private var observerJob: Job? = null
 
@@ -273,21 +271,30 @@ class HomeViewModel @Inject constructor(
 
     fun loadEpgForChannels(channels: List<ChannelEntity>) {
         viewModelScope.launch {
-            val visibleChannels = channels.take(50)
-            visibleChannels.forEach { repository.fetchEpg(it.streamId) }
-            val ids = visibleChannels.map { it.streamId }
-            if (ids.isEmpty()) {
+            if (channels.isEmpty()) {
                 _channelEpgText.value = emptyMap()
                 _channelEpgProgress.value = emptyMap()
                 _channelEpgNextText.value = emptyMap()
                 return@launch
             }
-            val epgEntries = repository.getEpgForStreams(ids).first()
+
+            // Only trigger a fresh per-channel network fetch for a bounded window — firing
+            // one API call per channel for an entire large category would flood the server.
+            // The periodic full-catalog XMLTV refresh already keeps everything else
+            // reasonably fresh in the background. But the DISPLAYED now/next text below is
+            // computed for every channel in the list from whatever's already in the DB —
+            // capping that too meant channels past the fetch window never showed a guide
+            // entry at all, even once their EPG data existed, cutting the list short.
+            channels.take(50).forEach { repository.fetchEpg(it.streamId) }
+
+            val ids = channels.map { it.streamId }
+            // Chunked to stay well under SQLite's bound-parameter limit for large categories.
+            val epgEntries = ids.chunked(500).flatMap { chunk -> repository.getEpgForStreams(chunk).first() }
             val epgByStream = epgEntries.groupBy { it.streamId }
             val nowSecs = System.currentTimeMillis() / 1000
             val progressMap = mutableMapOf<Int, Int>()
             val nextTextMap = mutableMapOf<Int, String>()
-            _channelEpgText.value = visibleChannels.associate { channel ->
+            _channelEpgText.value = channels.associate { channel ->
                 val programs = epgByStream[channel.streamId].orEmpty()
                 val now = programs.firstOrNull()
                 val next = programs.drop(1).firstOrNull()
@@ -315,17 +322,6 @@ class HomeViewModel @Inject constructor(
             }
             _channelEpgProgress.value = progressMap
             _channelEpgNextText.value = nextTextMap
-
-            // Full program list per channel for the proportional-width guide: a few hours of
-            // history (so the timeline can be scrolled back) plus everything still to come.
-            val nowMs = nowSecs * 1000L
-            val historyMs = 3 * 60 * 60 * 1000L
-            _channelEpgPrograms.value = visibleChannels.associate { channel ->
-                val programs = epgByStream[channel.streamId].orEmpty()
-                    .filter { it.stopMs() > nowMs - historyMs }
-                    .sortedBy { it.startTimestamp }
-                channel.streamId to programs
-            }
         }
     }
 
@@ -412,6 +408,17 @@ class HomeViewModel @Inject constructor(
                 selectedVodCategoryId?.let { selectVodCategory(it) }
             } else {
                 repository.searchVod(query).collectLatest { _vod.value = it }
+            }
+        }
+    }
+
+    fun searchSeries(query: String) {
+        seriesSearchJob?.cancel()
+        seriesSearchJob = viewModelScope.launch {
+            if (query.isBlank()) {
+                repository.getAllSeries().collectLatest { _series.value = it }
+            } else {
+                repository.searchSeries(query).collectLatest { _series.value = it }
             }
         }
     }

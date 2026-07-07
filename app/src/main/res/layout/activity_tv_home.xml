@@ -422,7 +422,7 @@
             android:progressTint="#008CFF"
             android:visibility="gone" />
 
-        <!-- FULL SCREEN / NOW / REFRESH GUIDE row (replaces WHAT'S ON label) -->
+        <!-- FULL SCREEN / REFRESH GUIDE row (replaces WHAT'S ON label) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="36dp"
@@ -442,20 +442,6 @@
                 android:textSize="12sp" />
 
             <Button
-                android:id="@+id/btnGuideNow"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:text="⦿ NOW"
-                android:textAllCaps="false"
-                android:textColor="#008CFF"
-                android:textSize="11sp"
-                android:letterSpacing="0.05"
-                android:background="@drawable/tv_sidebar_focus"
-                android:focusable="true"
-                android:focusableInTouchMode="false" />
-
-            <Button
                 android:id="@+id/btnGuideRefresh"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -468,36 +454,6 @@
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
                 android:focusableInTouchMode="false" />
-
-        </LinearLayout>
-
-        <!-- Timeline ruler: scrolls in sync with the guide rows below (display only) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="24dp"
-            android:orientation="horizontal"
-            android:background="#0A0D16">
-
-            <View android:layout_width="110dp" android:layout_height="match_parent" />
-            <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#1A1F2E" />
-
-            <HorizontalScrollView
-                android:id="@+id/tvGuideTimelineScroll"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:scrollbars="none"
-                android:paddingHorizontal="6dp"
-                android:clipToPadding="false"
-                android:focusable="false">
-
-                <LinearLayout
-                    android:id="@+id/tvGuideTimelineContent"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal" />
-
-            </HorizontalScrollView>
 
         </LinearLayout>
 

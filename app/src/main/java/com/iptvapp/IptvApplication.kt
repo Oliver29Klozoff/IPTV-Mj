@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.iptvapp.util.LogSanitizer
 import com.iptvapp.worker.ReminderWorker
 import com.google.android.gms.cast.framework.CastContext
 import dagger.hilt.android.HiltAndroidApp
@@ -62,7 +63,11 @@ class IptvApplication : Application(), Configuration.Provider {
             try {
                 val sw = StringWriter()
                 throwable.printStackTrace(PrintWriter(sw))
-                val stackTrace = sw.toString()
+                // Xtream stream URLs embed the account's plaintext username/password in their
+                // path, and network/player exceptions routinely include the failing URL in
+                // their message — redact before this ever touches disk, not just at the point
+                // where it's later uploaded via "Send Debug Report".
+                val stackTrace = LogSanitizer.redactCredentials(sw.toString())
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                 val logEntry = "=== CRASH $timestamp ===\nThread: ${thread.name}\n$stackTrace\n\n"
                 val logFile = File(filesDir, "crash_log.txt")

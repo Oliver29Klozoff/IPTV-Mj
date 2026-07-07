@@ -1,5 +1,44 @@
 # IPTV App - Changelog
 
+## v3.84 - 2026-07-07
+- **Security**: fixed credential exposure through crash reports — Xtream stream URLs embed
+  the account's plaintext username/password in their path, and network/player exceptions
+  routinely include the failing URL; the crash handler now redacts these before they're
+  ever written to disk, with a second redaction pass at the "Send Debug Report" upload
+  boundary for defense in depth
+- **Security**: `AutoBackupWorker`'s periodic backup no longer writes plaintext credentials
+  to a public MediaStore Downloads folder any app with storage/media permissions could
+  read — moved to app-private storage
+- **Security**: the manual Backup/Restore feature (phone Settings) now uses Android's
+  Storage Access Framework instead of auto-writing to public storage — the user explicitly
+  picks the save/open location, keeping full portability without the exposure
+- TV guide: replaced the scrollable proportional-width timeline grid with a plain NOW/NEXT
+  text list — the grid had recurring alignment/navigation bugs from keeping a header ruler,
+  N independently-scrolling rows, and live background refreshes all in sync; the simple
+  list can't desync because there's no shared timeline to keep in sync in the first place
+  (the grid version remains available in git history)
+- TV guide: fixed only showing the first ~50 channels of a list (alphabetically) even
+  though the rest already had EPG data cached — the fetch-triggering window and the
+  displayed-text computation were wrongly capped together; fetching stays bounded (to
+  avoid flooding the server for huge categories) but display now covers every channel
+- TV: auto-refresh EPG job wasn't being re-asserted on app launch the way the phone always
+  has — if Android (or a TV-box "clear background apps" tool) force-stopped the app, which
+  silently cancels all its scheduled jobs, auto-refresh would just stop forever until the
+  user happened to reopen Settings and re-touch the option. TV now re-asserts it on every
+  launch, same as the phone always did
+- TV recordings: a recording whose service got killed mid-capture left an orphaned,
+  truncated `.pending` file that never showed up in Gallery and just sat there consuming
+  storage forever; the stale-recording sweep now deletes it instead of just marking it failed
+- TV home: D-pad Right no longer opens sidebar sections/categories (only OK does); Right/
+  Left now only move focus, matching how Left already worked
+- TV home: fixed the channel list jumping focus to the back button while scrolling —
+  Android's default focus search can fail mid-scroll when new items aren't laid out yet
+  and escapes the list entirely; now uses the same deterministic position-based focus
+  movement already used for the guide
+- TV Settings: Back button now steps back one level instead of exiting immediately
+- Phone: fixed the Series tab's search silently searching channels instead of series
+  (the DAO query existed but was never wired up)
+
 ## v3.83 - 2026-07-06
 - Recordings now auto-compress after capture: the raw file is recorded exactly as before (no live-transcode risk), then re-encoded in the background at a "medium" bitrate tier (2.8 Mbps 1080p / 1.6 Mbps 720p / 900 Kbps SD) once the capture finishes safely. The raw original is deleted only after the compressed file is verified — a failed compression just leaves the recording at its original size, never loses it
 - New "COMPRESSING" status shown in the recordings list (purple) between RECORDING and DONE; stale-recording cleanup now tells a genuinely failed capture apart from one that was safely captured but never finished compressing

@@ -131,7 +131,21 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 }
             }
             .forEach { rec ->
-                database.recordingDao().updateStatus(rec.id, if (rec.status == "RECORDING") "FAILED" else "DONE")
+                if (rec.status == "RECORDING") {
+                    // The service died before finalizeTarget() ran, so this is an orphaned,
+                    // truncated .pending file that will never show up in Gallery (IS_PENDING
+                    // stays set) and will just sit there consuming storage forever otherwise.
+                    runCatching {
+                        if (rec.outputPath.startsWith("content://")) {
+                            contentResolver.delete(Uri.parse(rec.outputPath), null, null)
+                        } else {
+                            File(rec.outputPath).delete()
+                        }
+                    }
+                    database.recordingDao().updateStatus(rec.id, "FAILED")
+                } else {
+                    database.recordingDao().updateStatus(rec.id, "DONE")
+                }
             }
     }
 

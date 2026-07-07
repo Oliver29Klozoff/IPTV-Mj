@@ -736,6 +736,7 @@ class HomeActivity : AppCompatActivity() {
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
             2 -> viewModel.searchVod(query)
+            3 -> viewModel.searchSeries(query)
             5 -> { /* Favorites tab ignores search — prevents TextWatcher from re-triggering live channels on rotation */ }
             else -> viewModel.searchChannels(query)
         }

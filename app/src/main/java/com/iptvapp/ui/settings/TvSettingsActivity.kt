@@ -30,6 +30,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.iptvapp.AppConstants
 import com.iptvapp.IptvApplication
+import com.iptvapp.util.LogSanitizer
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
@@ -101,7 +102,8 @@ class TvSettingsActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || event.keyCode == KeyEvent.KEYCODE_BACK)) {
             if (activeSection != null) showSectionMenu() else finish()
             return true
         }
@@ -721,7 +723,9 @@ class TvSettingsActivity : AppCompatActivity() {
                         .firstOrNull()?.state?.name ?: "None"
                 } catch (_: Exception) { "Unknown" }
                 setItemValue("backup_debug", "Reading crash log...")
-                val crashLog = IptvApplication.getCrashLog(this@TvSettingsActivity)
+                // Defense in depth: the crash handler already redacts before writing to disk,
+                // but redact again here too in case anything else ever lands in this log.
+                val crashLog = LogSanitizer.redactCredentials(IptvApplication.getCrashLog(this@TvSettingsActivity))
                 val debugText = """
                     App: v${pInfo.versionName} (${pInfo.longVersionCode})
                     Device: ${Build.MANUFACTURER} ${Build.MODEL}

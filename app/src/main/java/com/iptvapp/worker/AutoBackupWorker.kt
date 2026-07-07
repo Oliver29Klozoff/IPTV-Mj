@@ -2,14 +2,9 @@ package com.iptvapp.worker
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
 import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -58,57 +53,22 @@ class AutoBackupWorker @AssistedInject constructor(
             val fileName = "MKTV_backup_$timestamp.json"
             val body = json.toString(2)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                saveToMktvFolder(fileName, body)
-                pruneOldBackups()
-            } else {
-                val dir = File(Environment.getExternalStorageDirectory(), "MKTV")
-                dir.mkdirs()
-                File(dir, fileName).writeText(body)
-                dir.listFiles { f -> f.name.startsWith("MKTV_backup_") && f.name.endsWith(".json") }
-                    ?.sortedByDescending { it.lastModified() }
-                    ?.drop(5)
-                    ?.forEach { it.delete() }
-            }
+            // This file contains the account's plaintext username/password (needed so a
+            // restore can log back in) — it must live in app-private storage, never a public
+            // Downloads/MediaStore location that any other app with storage/media
+            // permissions could read.
+            val dir = File(appContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
+            File(dir, fileName).writeText(body)
+            dir.listFiles { f -> f.name.startsWith("MKTV_backup_") && f.name.endsWith(".json") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(5)
+                ?.forEach { it.delete() }
 
             notifyComplete()
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Auto backup failed: ${e.message}", e)
             Result.retry()
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun saveToMktvFolder(fileName: String, body: String) {
-        val resolver = appContext.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, "application/json")
-            put(MediaStore.Downloads.RELATIVE_PATH, "Download/MKTV/")
-        }
-        val uri = resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-            ?: throw IllegalStateException("MediaStore insert failed for $fileName")
-        resolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
-            ?: throw IllegalStateException("Could not open output stream for $fileName")
-    }
-
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun pruneOldBackups() {
-        val resolver = appContext.contentResolver
-        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val projection = arrayOf(MediaStore.Downloads._ID)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ? AND ${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
-        val selectionArgs = arrayOf("MKTV_backup_%.json", "Download/MKTV%")
-        val sortOrder = "${MediaStore.Downloads.DATE_ADDED} DESC"
-
-        val ids = mutableListOf<Long>()
-        resolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-            while (cursor.moveToNext()) ids.add(cursor.getLong(idCol))
-        }
-        ids.drop(5).forEach { id ->
-            resolver.delete(ContentUris.withAppendedId(collection, id), null, null)
         }
     }
 

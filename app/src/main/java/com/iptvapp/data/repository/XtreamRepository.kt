@@ -226,6 +226,8 @@ class XtreamRepository @Inject constructor(
 
     fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(query)
 
+    fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(query)
+
     suspend fun fetchSeries(): Resource<List<Series>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
@@ -286,7 +288,7 @@ class XtreamRepository @Inject constructor(
             val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
             if (xmlPrograms.isEmpty()) return@withContext 0
 
-            // Build lookup: xmltv channel id (lowercase) → DB stream id
+            // Build lookup: our DB channel epg-id/name → DB stream id
             val allChannels = db.channelDao().getAllChannels().first()
             val byEpgId = mutableMapOf<String, Int>()
             val byName  = mutableMapOf<String, Int>()
@@ -296,17 +298,31 @@ class XtreamRepository @Inject constructor(
                 byName[normalizeForMatch(ch.name)] = ch.streamId
             }
 
-            // Also index xmltv display-names for name-based fallback
-            val xmlNameToId = xmlChannels.associate { normalizeForMatch(it.displayName) to it.id }
+            // Resolve each distinct xmltv channel to a stream id once (not per-program —
+            // there can be thousands of programs but only a few hundred channels):
+            // 1) exact epg-channel-id match, 2) exact normalized-name match,
+            // 3) substring match on normalized names, which catches near-miss naming like
+            //    "ESPN2" vs "ESPN 2" or a provider adding/dropping a region suffix — this is
+            //    what was missing before, causing correctly-available EPG data to be
+            //    silently dropped as "no information" whenever names weren't byte-identical.
+            val xmlChannelToStreamId = mutableMapOf<String, Int>()
+            xmlChannels.forEach { xmlCh ->
+                val normXml = normalizeForMatch(xmlCh.displayName)
+                val resolved = byEpgId[xmlCh.id.lowercase()]
+                    ?: byName[normXml]
+                    ?: if (normXml.isBlank()) null else {
+                        byName.entries.firstOrNull { (key, _) ->
+                            key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
+                        }?.value
+                    }
+                if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
+            }
 
             val nowSec = System.currentTimeMillis() / 1000
             val entities = mutableListOf<EpgEntity>()
 
             xmlPrograms.forEach { prog ->
-                val streamId = byEpgId[prog.channelId.lowercase()]
-                    ?: xmlChannels.firstOrNull { it.id == prog.channelId }
-                        ?.let { byName[normalizeForMatch(it.displayName)] }
-                    ?: return@forEach
+                val streamId = xmlChannelToStreamId[prog.channelId] ?: return@forEach
 
                 entities.add(EpgEntity(
                     id             = "x_${prog.channelId}_${prog.startSec}",
@@ -325,9 +341,13 @@ class XtreamRepository @Inject constructor(
         } catch (_: Exception) { 0 }
     }
 
+    // Word-boundary-safe: the previous version's tokens had no \b, so e.g. "us"/"hd" could
+    // strip a matching substring out of the middle of an unrelated word instead of only
+    // matching whole quality/region tags, causing inconsistent normalization between a
+    // channel's Xtream name and its XMLTV display name.
     private fun normalizeForMatch(name: String): String =
         name.lowercase()
-            .replace(Regex("\\s*(hd|fhd|uhd|4k|sd|\\bthe\\b|us|usa|\\(us\\)|\\(usa\\))\\s*"), " ")
+            .replace(Regex("\\b(hd|fhd|uhd|4k|sd|the|us|usa|uk|ca|east|west|hevc|h264|h265)\\b"), " ")
             .replace(Regex("[^a-z0-9]"), "")
             .trim()
 

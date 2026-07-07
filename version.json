@@ -1,6 +1,6 @@
 {
-  "versionCode": 221,
-  "versionName": "3.83",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.83/MKTV.apk",
-  "changelog": "Recordings now auto-compress after capture (smaller files), plus file size + Play/Share on TV and compact TV Settings menu"
+  "versionCode": 222,
+  "versionName": "3.84",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.84/MKTV.apk",
+  "changelog": "Security: credentials no longer exposed via crash reports or public backup files. TV guide simplified and fixed, D-pad navigation fixes, series search fix"
 }
