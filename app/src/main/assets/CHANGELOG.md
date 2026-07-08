@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v3.87 - 2026-07-07
+- Release APKs are now signed with both the v1 and v2 (and v3) signature schemes instead of
+  v2 only, which can reduce Play Protect/antivirus warnings on sideload installs. Same
+  signing key — updates still install over previous versions with no reinstall needed.
+
 ## v3.86 - 2026-07-07
 - Fixed a silent XMLTV parsing failure: gzip detection now sniffs the actual magic bytes
   instead of trusting the server's Content-Encoding header/URL suffix, so a provider that

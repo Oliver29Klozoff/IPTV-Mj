@@ -14,8 +14,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 224
-        versionName "3.86"
+        versionCode 225
+        versionName "3.87"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -31,6 +31,9 @@ android {
             storePassword props['RELEASE_STORE_PASSWORD'] ?: 'android'
             keyAlias props['RELEASE_KEY_ALIAS'] ?: 'androiddebugkey'
             keyPassword props['RELEASE_KEY_PASSWORD'] ?: 'android'
+            v1SigningEnabled true
+            v2SigningEnabled true
+            enableV3Signing true
         }
     }
 

@@ -1,7 +1,7 @@
 {
-  "versionCode": 224,
-  "versionName": "3.86",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.86/MKTV.apk",
-  "apkSha256": "a55b1a2f8bb939dc83a99effaa9a95213b07dd52bc2f383c33ad90ff38a4d0f4",
-  "changelog": "Fixed a silent XMLTV parsing failure (gzip magic-byte sniffing); Backup & Restore now includes watch history; in-app updates now verify APK checksum before installing; fixed a double-install race"
+  "versionCode": 225,
+  "versionName": "3.87",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.87/MKTV.apk",
+  "apkSha256": "260cd488d418ddaab1dfd9386bb9195a7c02bca39da25fad295bc7a040bbcb27",
+  "changelog": "Release APKs are now signed with v1+v2+v3 signature schemes (was v2 only) to reduce Play Protect/antivirus warnings on install. Same signing key — updates over previous versions still work."
 }
