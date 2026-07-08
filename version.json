@@ -2,6 +2,6 @@
   "versionCode": 228,
   "versionName": "3.90",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.90/MKTV.apk",
-  "apkSha256": "fda7104e035297fa47583b42232279e3d8174aa487a1f329bff8cf115742194f",
-  "changelog": "In-app updates on Android 12+ now install via PackageInstaller.Session instead of the classic installer intent, which can skip the scan/confirmation interstitial for self-updates. Falls back automatically on older Android or if unavailable."
+  "apkSha256": "5c4470463a29d709fafbef1e76b8caa24de6164e56c91f7e6f3f9df851948a9d",
+  "changelog": "New optional setting (Settings > Updates): Silent Self-Update, off by default. When enabled on Android 12+, updates install via PackageInstaller.Session, which can skip the visible confirmation screen for self-updates."
 }
