@@ -1,7 +1,7 @@
 {
-  "versionCode": 230,
-  "versionName": "3.92",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.92/MKTV.apk",
-  "apkSha256": "32089dd27a2c29fa566a5bf185866e5f14106c137b7969558d792bc3c2fac361",
-  "changelog": "Trakt is now available on the phone too (Settings > Trakt) with the same device-code login and scrobbling as TV."
+  "versionCode": 231,
+  "versionName": "3.93",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.93/MKTV.apk",
+  "apkSha256": "f134bfd1ea28d064778a8dc75da54cea63f1cf7c2553fcb46eec97c73aff7752",
+  "changelog": "Trakt login/scrobbling now works end-to-end — the secret-holding proxy moved from Cloudflare Workers (blocked by Trakt) to Deno Deploy."
 }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v3.93 - 2026-07-08
+- Trakt login/scrobbling is now fully working end-to-end — the secret-holding proxy moved
+  from Cloudflare Workers (which Trakt's own anti-bot protection blocks outright) to Deno
+  Deploy, which isn't blocked. If you already deployed the Cloudflare version, redeploy
+  using cloudflare/trakt-proxy-deno.ts on Deno Deploy instead.
+
 ## v3.92 - 2026-07-08
 - Trakt is now available on the phone too (Settings > Trakt) — same device-code login and
   scrobbling as TV. Previously it was only wired up in TV Settings.

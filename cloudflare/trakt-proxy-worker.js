@@ -1,3 +1,10 @@
+// DO NOT USE — confirmed via live testing that Trakt's own anti-bot protection blocks
+// outbound requests from Cloudflare Workers' IP ranges (a full "Sorry, you have been
+// blocked" Cloudflare challenge page comes back from trakt.tv, not a real API response).
+// Use cloudflare/trakt-proxy-deno.ts on Deno Deploy instead — same code, different
+// infrastructure that Trakt doesn't block. Kept here only as a reference/history of what
+// was tried.
+//
 // Trakt OAuth proxy — holds the client_secret server-side so it never ships inside the app.
 //
 // Deploy this as a Cloudflare Worker (free tier is plenty for personal use):
@@ -44,7 +51,12 @@ export default {
 
     const resp = await fetch(`https://api.trakt.tv${traktPath}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; MKTV-TraktProxy/1.0)",
+        "trakt-api-version": "2",
+        "trakt-api-key": env.TRAKT_CLIENT_ID,
+      },
       body: JSON.stringify(traktBody),
     });
 
