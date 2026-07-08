@@ -18,6 +18,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -199,6 +200,11 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setAmoledBlack(isChecked) }
             Toast.makeText(this, "Restart the app for AMOLED Black to fully apply", Toast.LENGTH_LONG).show()
+        }
+
+        binding.switchSilentSelfUpdate.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setSilentSelfUpdateEnabled(isChecked) }
         }
 
         binding.cbShowMovies.setOnCheckedChangeListener { _, isChecked ->
@@ -770,6 +776,27 @@ class SettingsActivity : AppCompatActivity() {
             binding.tvUpdateStatus.text = "Allow installs from unknown sources, then retry"
             return
         }
+        // On Android 12+ (API 31), PackageInstaller.Session with setRequireUserAction(false)
+        // lets an app that is already the "installer of record" for itself update silently —
+        // no confirmation dialog, no Play Protect scan interstitial. First-ever installs (or
+        // any app that isn't the installer of record) still get STATUS_PENDING_USER_ACTION,
+        // which we handle by launching the confirmation intent Android hands back — so this
+        // naturally degrades to the old visible-install behavior when silent isn't allowed.
+        // Opt-in only (off by default) — this skips a user-facing OS security gate, so it
+        // must be a deliberate choice, not a default.
+        val silentUpdateEnabled = kotlinx.coroutines.runBlocking { prefs.silentSelfUpdateEnabled.first() }
+        if (silentUpdateEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                installApkViaSession(file)
+                return
+            } catch (e: Exception) {
+                Log.e("SettingsActivity", "Session install failed, falling back: ${e.message}")
+            }
+        }
+        installApkViaIntent(file)
+    }
+
+    private fun installApkViaIntent(file: File) {
         val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             FileProvider.getUriForFile(this, "${packageName}.provider", file)
         } else Uri.fromFile(file)
@@ -781,6 +808,63 @@ class SettingsActivity : AppCompatActivity() {
             })
         } catch (e: Exception) {
             binding.tvUpdateStatus.text = "Install failed: ${e.message}"
+        }
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.S)
+    private fun installApkViaSession(file: File) {
+        val installer = packageManager.packageInstaller
+        val params = android.content.pm.PackageInstaller.SessionParams(
+            android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+        ).apply {
+            setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val sessionId = installer.createSession(params)
+        val session = installer.openSession(sessionId)
+        session.use {
+            it.openWrite("update", 0, file.length()).use { out ->
+                file.inputStream().use { input -> input.copyTo(out) }
+                it.fsync(out)
+            }
+            val action = "com.iptvapp.INSTALL_RESULT"
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    unregisterReceiver(this)
+                    when (val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
+                        android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
+                            binding.tvUpdateStatus.text = "✓ Updated successfully"
+                            Toast.makeText(this@SettingsActivity, "MKTV updated", Toast.LENGTH_LONG).show()
+                        }
+                        android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                            @Suppress("DEPRECATION")
+                            val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                            if (confirmIntent != null) {
+                                confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(confirmIntent)
+                            } else {
+                                installApkViaIntent(file)
+                            }
+                        }
+                        else -> {
+                            val msg = intent.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE)
+                            Log.e("SettingsActivity", "Session install status=$status msg=$msg — falling back")
+                            installApkViaIntent(file)
+                        }
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(receiver, IntentFilter(action))
+            }
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                this, sessionId, Intent(action).setPackage(packageName),
+                android.app.PendingIntent.FLAG_MUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            binding.tvUpdateStatus.text = "Installing update..."
+            it.commit(pendingIntent.intentSender)
         }
     }
 
@@ -826,6 +910,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
                 binding.cbAmoledBlack.isChecked = prefs.amoledBlack.first()
+                binding.switchSilentSelfUpdate.isChecked = prefs.silentSelfUpdateEnabled.first()
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()
                 binding.cbShowSeries.isChecked = prefs.showSeries.first()
                 binding.cbShowWatching.isChecked = prefs.showWatching.first()

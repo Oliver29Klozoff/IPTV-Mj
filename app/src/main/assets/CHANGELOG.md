@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v3.90 - 2026-07-08
+- New optional setting (Settings > Updates): "Silent Self-Update" — off by default. When
+  enabled on Android 12+, in-app updates install via PackageInstaller.Session instead of
+  the classic system installer intent, which can skip the visible scan/confirmation
+  screen when the OS recognizes MKTV as its own installer of record. Leave it off to keep
+  the standard visible install confirmation for every update.
+
 ## v3.89 - 2026-07-08
 - **New**: Trakt.tv scrobbling — connect via device-code login (Settings > Trakt) and your
   watch activity on movies/episodes is automatically tracked. Requires a free Trakt API app;

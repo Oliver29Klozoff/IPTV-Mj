@@ -72,7 +72,13 @@ class PreferencesManager @Inject constructor(
         val SUBTITLE_OUTLINE_COLOR = intPreferencesKey("subtitle_outline_color")
         val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
+        val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
     }
+
+    val silentSelfUpdateEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.SILENT_SELF_UPDATE_ENABLED] ?: false }
+    suspend fun setSilentSelfUpdateEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SILENT_SELF_UPDATE_ENABLED] = v }
 
     val tunneledPlaybackEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
