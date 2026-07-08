@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v3.91 - 2026-07-08
+- Version bump only — v3.90 was tagged but never had a working release published (blocked
+  mid-ship while fixing a Trakt credential exposure issue). This is the first real release
+  containing v3.90's changes: the Silent Self-Update setting and the Trakt proxy fix below.
+
 ## v3.90 - 2026-07-08
 - New optional setting (Settings > Updates): "Silent Self-Update" — off by default. When
   enabled on Android 12+, in-app updates install via PackageInstaller.Session instead of

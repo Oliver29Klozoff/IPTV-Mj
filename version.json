@@ -1,7 +1,7 @@
 {
-  "versionCode": 228,
-  "versionName": "3.90",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.90/MKTV.apk",
-  "apkSha256": "c3ed4a11cbef901f730ef0f520e344f66e0e0ddb01e6629b0ab051d9f3ffc3d9",
+  "versionCode": 229,
+  "versionName": "3.91",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.91/MKTV.apk",
+  "apkSha256": "7277c73ce5cfac9f0b9995f918482fee702455e931b4994f98aa0829198aee96",
   "changelog": "New optional Silent Self-Update setting (off by default, Settings > Updates). Security: Trakt client_secret removed from the app entirely, now handled by a self-hosted proxy."
 }
