@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v3.92 - 2026-07-08
+- Trakt is now available on the phone too (Settings > Trakt) — same device-code login and
+  scrobbling as TV. Previously it was only wired up in TV Settings.
+
 ## v3.91 - 2026-07-08
 - Version bump only — v3.90 was tagged but never had a working release published (blocked
   mid-ship while fixing a Trakt credential exposure issue). This is the first real release

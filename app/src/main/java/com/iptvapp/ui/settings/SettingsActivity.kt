@@ -77,17 +77,19 @@ class SettingsActivity : AppCompatActivity() {
 
     private val panelViews get() = listOf(
         binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates,
-        binding.sectionBackup, binding.sectionServers, binding.sectionSync
+        binding.sectionBackup, binding.sectionServers, binding.sectionSync, binding.sectionTrakt
     )
     private val navButtonViews get() = listOf(
         binding.headerStream, binding.headerDisplay, binding.headerUpdates,
-        binding.headerBackup, binding.headerServers, binding.headerSync
+        binding.headerBackup, binding.headerServers, binding.headerSync, binding.headerTrakt
     )
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     @Inject lateinit var syncManager: com.iptvapp.sync.SyncManager
+    @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
+    private var traktAuthJob: kotlinx.coroutines.Job? = null
 
     // The backup file contains the account's plaintext username/password. Rather than
     // auto-writing it to a fixed public location any app with storage/media permissions
@@ -305,6 +307,7 @@ class SettingsActivity : AppCompatActivity() {
         setupBackupRestore()
         setupServers()
         setupSyncSection()
+        setupTraktSection()
         observeEpgRefreshWork()
         loadSettings()
     }
@@ -1192,6 +1195,86 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun setupTraktSection() {
+        refreshTraktStatus()
+        binding.btnTraktConnect.setOnClickListener { showTraktConnectDialog() }
+        binding.btnTraktDisconnect.setOnClickListener {
+            lifecycleScope.launch {
+                traktManager.disconnect()
+                refreshTraktStatus()
+                Toast.makeText(this@SettingsActivity, "Disconnected from Trakt", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun refreshTraktStatus() {
+        lifecycleScope.launch {
+            if (!traktManager.isConfigured) {
+                binding.tvTraktStatus.text = "Trakt is not configured for this build"
+                binding.btnTraktConnect.visibility = View.GONE
+                binding.btnTraktDisconnect.visibility = View.GONE
+                return@launch
+            }
+            val connected = traktManager.isConnected.first()
+            if (connected) {
+                binding.tvTraktStatus.text = "✓ Connected — scrobbling your watch activity"
+                binding.btnTraktConnect.visibility = View.GONE
+                binding.btnTraktDisconnect.visibility = View.VISIBLE
+            } else {
+                binding.tvTraktStatus.text = "Not connected"
+                binding.btnTraktConnect.visibility = View.VISIBLE
+                binding.btnTraktDisconnect.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun showTraktConnectDialog() {
+        val messageView = android.widget.TextView(this).apply {
+            text = "Contacting Trakt…"
+            setPadding(48, 24, 48, 24)
+            textSize = 16f
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Connect to Trakt")
+            .setView(messageView)
+            .setNegativeButton("Cancel", null)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        traktAuthJob?.cancel()
+        traktAuthJob = lifecycleScope.launch {
+            traktManager.startDeviceAuth { result ->
+                runOnUiThread {
+                    when (result) {
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Pending -> {
+                            messageView.text = "1. On any device, go to:\n${result.verificationUrl}\n\n" +
+                                "2. Enter this code:\n\n${result.userCode}\n\n" +
+                                "Waiting for you to authorize…"
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Success -> {
+                            dialog.dismiss()
+                            Toast.makeText(this@SettingsActivity, "Connected to Trakt", Toast.LENGTH_SHORT).show()
+                            refreshTraktStatus()
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Expired -> {
+                            dialog.dismiss()
+                            Toast.makeText(this@SettingsActivity, "Trakt code expired — try again", Toast.LENGTH_SHORT).show()
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Denied -> {
+                            dialog.dismiss()
+                            Toast.makeText(this@SettingsActivity, "Trakt authorization denied", Toast.LENGTH_SHORT).show()
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Error -> {
+                            dialog.dismiss()
+                            Toast.makeText(this@SettingsActivity, "Trakt error: ${result.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun setupSyncSection() {

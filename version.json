@@ -1,7 +1,7 @@
 {
-  "versionCode": 229,
-  "versionName": "3.91",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.91/MKTV.apk",
-  "apkSha256": "7277c73ce5cfac9f0b9995f918482fee702455e931b4994f98aa0829198aee96",
-  "changelog": "New optional Silent Self-Update setting (off by default, Settings > Updates). Security: Trakt client_secret removed from the app entirely, now handled by a self-hosted proxy."
+  "versionCode": 230,
+  "versionName": "3.92",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.92/MKTV.apk",
+  "apkSha256": "32089dd27a2c29fa566a5bf185866e5f14106c137b7969558d792bc3c2fac361",
+  "changelog": "Trakt is now available on the phone too (Settings > Trakt) with the same device-code login and scrobbling as TV."
 }
