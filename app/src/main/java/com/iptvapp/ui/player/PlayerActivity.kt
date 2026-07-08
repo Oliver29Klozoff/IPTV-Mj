@@ -45,6 +45,10 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.ui.home.ChannelAdapter
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
@@ -59,6 +63,23 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class PlayerActivity : AppCompatActivity() {
+
+    companion object {
+        // Shared on-disk cache backing the live-TV timeshift/DVR buffer. A single SimpleCache
+        // instance must be reused for a given directory for the process lifetime — ExoPlayer
+        // throws if two instances open the same cache dir at once.
+        private const val TIMESHIFT_CACHE_MAX_BYTES = 1024L * 1024L * 1024L // 1GB rolling window
+        private var timeshiftCache: SimpleCache? = null
+
+        @Synchronized
+        fun getTimeshiftCache(context: Context): SimpleCache {
+            return timeshiftCache ?: SimpleCache(
+                java.io.File(context.cacheDir, "timeshift"),
+                LeastRecentlyUsedCacheEvictor(TIMESHIFT_CACHE_MAX_BYTES),
+                StandaloneDatabaseProvider(context)
+            ).also { timeshiftCache = it }
+        }
+    }
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
@@ -75,6 +96,8 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnGuide.visibility = View.GONE
         binding.btnPlayPause.visibility = View.GONE
         binding.bottomControls.visibility = View.GONE
+        binding.btnDvrRewind.visibility = View.GONE
+        binding.btnDvrLive.visibility = View.GONE
         binding.btnCast.visibility = View.GONE
         binding.bufferHealthBadge.visibility = View.GONE
     }
@@ -311,6 +334,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updateHealthBadge() {
         val p = player ?: return
+        if (!isVod && binding.btnDvrLive.visibility == View.VISIBLE) updateDvrLiveButton()
         val bufPct = p.bufferedPercentage
         val vf = p.videoFormat
         val bitrate = if (vf != null && vf.bitrate > 0)
@@ -589,10 +613,21 @@ class PlayerActivity : AppCompatActivity() {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(50000, 120000, 5000, 10000)
             .setPrioritizeTimeOverSizeThresholds(true)
+            // Retain already-played media so live channels can rewind without a network
+            // re-fetch for the last couple of minutes; older content still seeks fine via
+            // the on-disk timeshift cache below.
+            .setBackBuffer(120_000, true)
             .build()
 
-        val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
-        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory)
+        val upstreamDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+        // DVR/timeshift: cache every byte of the live stream to disk as it plays, so
+        // rewinding into recently-played live TV re-reads from local disk instead of
+        // requiring the provider to support server-side catchup.
+        val cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(getTimeshiftCache(applicationContext))
+            .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
 
         return ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
@@ -616,6 +651,23 @@ class PlayerActivity : AppCompatActivity() {
                     if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
                     updatePlayPauseButton()
                     resetHideTimer()
+                }
+
+                binding.btnDvrRewind.setOnClickListener {
+                    if (!isVod) {
+                        exoPlayer.seekTo((exoPlayer.currentPosition - 60_000L).coerceAtLeast(0L))
+                        updateDvrLiveButton()
+                        resetHideTimer()
+                    }
+                }
+
+                binding.btnDvrLive.setOnClickListener {
+                    if (!isVod) {
+                        exoPlayer.seekToDefaultPosition()
+                        exoPlayer.play()
+                        updateDvrLiveButton()
+                        resetHideTimer()
+                    }
                 }
 
                 exoPlayer.addListener(object : Player.Listener {
@@ -663,6 +715,17 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnPlayPause.setImageResource(
             if (isPlaying) android.R.drawable.ic_media_pause
             else android.R.drawable.ic_media_play
+        )
+    }
+
+    /** Dims the "● LIVE" button while behind the live edge, highlights it once caught up. */
+    private fun updateDvrLiveButton() {
+        if (isVod) return
+        val p = player ?: return
+        val offsetMs = p.currentLiveOffset
+        val atLiveEdge = offsetMs == androidx.media3.common.C.TIME_UNSET || offsetMs < 5_000L
+        binding.btnDvrLive.setTextColor(
+            if (atLiveEdge) 0xFF555555.toInt() else 0xFFFF3B30.toInt()
         )
     }
 
@@ -867,6 +930,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnGuide.visibility = View.VISIBLE
         binding.btnPlayPause.visibility = View.VISIBLE
         binding.bottomControls.visibility = View.VISIBLE
+        if (!isVod) {
+            binding.btnDvrRewind.visibility = View.VISIBLE
+            binding.btnDvrLive.visibility = View.VISIBLE
+            updateDvrLiveButton()
+        }
         if (castAvailable) binding.btnCast.visibility = View.VISIBLE
         if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE
         updatePlayPauseButton()

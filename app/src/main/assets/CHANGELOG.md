@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v3.88 - 2026-07-08
+- **New**: Live TV DVR — pause and rewind live channels using a local disk buffer (no
+  provider support needed). Rewind button jumps back 60s; "● LIVE" button jumps back to
+  the live edge and dims once you're caught up.
+- Fixed the mini-player preview (name/EPG/progress) staying stuck on the last channel you
+  scrolled past instead of resetting to what's actually playing when you back out to the
+  sidebar or Categories panel
+- TV Settings: EPG and Sync sections now have collapsible sub-groups (Sources/Refresh,
+  Pairing/Actions) to keep related settings together
+- Phone Settings: Display, Updates, and Sync panels now use the same collapsible card
+  style as the Stream panel
+
 ## v3.87 - 2026-07-07
 - Release APKs are now signed with both the v1 and v2 (and v3) signature schemes instead of
   v2 only, which can reduce Play Protect/antivirus warnings on sideload installs. Same

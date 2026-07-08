@@ -390,6 +390,12 @@ class SettingsActivity : AppCompatActivity() {
         wireCollapsible(R.id.hdrEpgSection,  R.id.bodyEpgSection,  R.id.chevEpgSection)
         wireCollapsible(R.id.hdrSpeedTest,   R.id.bodySpeedTest,   R.id.chevSpeedTest)
         wireCollapsible(R.id.hdrDoh,         R.id.bodyDoh,         R.id.chevDoh)
+        wireCollapsible(R.id.hdrChannelsTabs,     R.id.bodyChannelsTabs,     R.id.chevChannelsTabs)
+        wireCollapsible(R.id.hdrAccentColor,      R.id.bodyAccentColor,      R.id.chevAccentColor)
+        wireCollapsible(R.id.hdrQuickActions,     R.id.bodyQuickActions,     R.id.chevQuickActions)
+        wireCollapsible(R.id.hdrUpdates,          R.id.bodyUpdates,          R.id.chevUpdates)
+        wireCollapsible(R.id.hdrCrossDeviceSync,  R.id.bodyCrossDeviceSync,  R.id.chevCrossDeviceSync)
+        wireCollapsible(R.id.hdrDiagnostics,      R.id.bodyDiagnostics,      R.id.chevDiagnostics)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

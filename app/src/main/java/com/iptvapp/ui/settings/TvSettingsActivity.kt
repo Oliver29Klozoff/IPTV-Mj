@@ -144,10 +144,35 @@ class TvSettingsActivity : AppCompatActivity() {
     private fun showSection(title: String, focusFirst: Boolean = true) {
         activeSection = title
         settingsItems.clear()
-        settingsItems.addAll(sectionItems[title].orEmpty())
+        settingsItems.addAll(visibleItemsForSection(title))
         adapter.notifyDataSetChanged()
         binding.tvSettingsSectionTitle.text = title
         if (focusFirst) focusFirstItem()
+    }
+
+    /** Filters out rows that fall under a collapsed SubHeader within a section. */
+    private fun visibleItemsForSection(title: String): List<TvSettingItem> {
+        val all = sectionItems[title].orEmpty()
+        val result = mutableListOf<TvSettingItem>()
+        var hiding = false
+        for (item in all) {
+            if (item is TvSettingItem.SubHeader) {
+                hiding = !item.expanded
+                result += item
+                continue
+            }
+            if (!hiding) result += item
+        }
+        return result
+    }
+
+    /** Toggles a SubHeader's expanded state in place and re-renders the current section. */
+    private fun toggleSubHeader(sectionTitle: String, subHeaderId: String) {
+        val sub = sectionItems[sectionTitle].orEmpty()
+            .filterIsInstance<TvSettingItem.SubHeader>()
+            .firstOrNull { it.id == subHeaderId } ?: return
+        sub.expanded = !sub.expanded
+        showSection(sectionTitle, focusFirst = false)
     }
 
     private fun focusFirstItem() {
@@ -213,6 +238,7 @@ class TvSettingsActivity : AppCompatActivity() {
 
         // ── EPG ──
         settingsItems += TvSettingItem.Header("EPG")
+        settingsItems += TvSettingItem.SubHeader("epg_sub_sources", "Sources") { toggleSubHeader("EPG", "epg_sub_sources") }
         if (epgUrls.isEmpty()) {
             settingsItems += TvSettingItem.Info("epg_no_sources", "No EPG sources configured")
         }
@@ -222,6 +248,7 @@ class TvSettingsActivity : AppCompatActivity() {
                 value = url.take(60)) { showEpgSourceOptions(i) }
         }
         settingsItems += TvSettingItem.Action("epg_add", "Add EPG Source") { showAddEpgDialog() }
+        settingsItems += TvSettingItem.SubHeader("epg_sub_refresh", "Refresh") { toggleSubHeader("EPG", "epg_sub_refresh") }
         settingsItems += TvSettingItem.Action("epg_refresh",
             if (isEpgRefreshing) "Cancel EPG Refresh" else "Refresh EPG Now",
             value = lastRefresh) { startOrCancelEpgRefresh() }
@@ -281,8 +308,10 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Header("Sync")
         val ownCode = syncManager.getOwnSyncCode().take(8).uppercase()
         settingsItems += TvSettingItem.Info("sync_own_code", if (ownCode.isNotEmpty()) "Your sync code: $ownCode" else "")
+        settingsItems += TvSettingItem.SubHeader("sync_sub_pairing", "Pairing") { toggleSubHeader("Sync", "sync_sub_pairing") }
         settingsItems += TvSettingItem.Action("sync_pair", "Enter Pairing Code",
             value = "Set to pull another device's favorites") { showPairingCodeDialog() }
+        settingsItems += TvSettingItem.SubHeader("sync_sub_actions", "Actions") { toggleSubHeader("Sync", "sync_sub_actions") }
         settingsItems += TvSettingItem.Action("sync_up", "Push to Cloud") { doSyncUp() }
         settingsItems += TvSettingItem.Action("sync_down", "Pull from Cloud") { doSyncDown() }
         settingsItems += TvSettingItem.Info("sync_status", syncSummary)

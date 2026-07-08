@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="52dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/tv_sidebar_focus"
+    android:paddingHorizontal="24dp"
+    android:focusable="true"
+    android:clickable="true">
+
+    <TextView
+        android:id="@+id/tvSubHeaderTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="#AAAAAA"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textAllCaps="true"
+        android:letterSpacing="0.1" />
+
+    <TextView
+        android:id="@+id/tvSubHeaderChevron"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#555555"
+        android:textSize="14sp" />
+
+</LinearLayout>

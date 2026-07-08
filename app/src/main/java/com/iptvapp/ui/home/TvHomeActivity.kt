@@ -445,6 +445,23 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.GONE
         activeSidebarButton().requestFocus()
+        resetMiniPreviewToNowPlaying()
+    }
+
+    /** Undoes the scroll-preview text left behind by channelAdapter.onChannelFocused, so the
+     * mini-player's name/EPG match what's actually playing once the user leaves the channel list. */
+    private fun resetMiniPreviewToNowPlaying() {
+        if (currentMiniStreamId == -1) return
+        binding.tvTvChannelName.text = currentMiniTitle
+        val epgText = viewModel.channelEpgText.value[currentMiniStreamId]
+        binding.tvTvEpg.text = epgText ?: ""
+        val progress = viewModel.channelEpgProgress.value[currentMiniStreamId] ?: 0
+        if (progress > 0) {
+            binding.tvEpgProgress.progress = progress
+            binding.tvEpgProgress.visibility = View.VISIBLE
+        } else {
+            binding.tvEpgProgress.visibility = View.GONE
+        }
     }
 
     private fun showCategoryPanel(title: String) {
@@ -458,6 +475,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.tvRvCategories.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                 ?: binding.tvRvCategories.requestFocus()
         }
+        resetMiniPreviewToNowPlaying()
     }
 
     private fun showChannelPanel(title: String) {

@@ -12,35 +12,39 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
     RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
-        private const val TYPE_HEADER = 0
-        private const val TYPE_TOGGLE = 1
-        private const val TYPE_ACTION = 2
-        private const val TYPE_INFO   = 3
+        private const val TYPE_HEADER    = 0
+        private const val TYPE_TOGGLE    = 1
+        private const val TYPE_ACTION    = 2
+        private const val TYPE_INFO      = 3
+        private const val TYPE_SUBHEADER = 4
     }
 
     override fun getItemViewType(pos: Int) = when (items[pos]) {
-        is TvSettingItem.Header -> TYPE_HEADER
-        is TvSettingItem.Toggle -> TYPE_TOGGLE
-        is TvSettingItem.Action -> TYPE_ACTION
-        is TvSettingItem.Info   -> TYPE_INFO
+        is TvSettingItem.Header    -> TYPE_HEADER
+        is TvSettingItem.Toggle    -> TYPE_TOGGLE
+        is TvSettingItem.Action    -> TYPE_ACTION
+        is TvSettingItem.Info      -> TYPE_INFO
+        is TvSettingItem.SubHeader -> TYPE_SUBHEADER
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inf = LayoutInflater.from(parent.context)
         return when (viewType) {
-            TYPE_HEADER -> HeaderVH(inf.inflate(R.layout.item_tv_setting_header, parent, false))
-            TYPE_TOGGLE -> ToggleVH(inf.inflate(R.layout.item_tv_setting_toggle, parent, false))
-            TYPE_ACTION -> ActionVH(inf.inflate(R.layout.item_tv_setting_action, parent, false))
-            else        -> InfoVH(inf.inflate(R.layout.item_tv_setting_info, parent, false))
+            TYPE_HEADER    -> HeaderVH(inf.inflate(R.layout.item_tv_setting_header, parent, false))
+            TYPE_TOGGLE    -> ToggleVH(inf.inflate(R.layout.item_tv_setting_toggle, parent, false))
+            TYPE_ACTION    -> ActionVH(inf.inflate(R.layout.item_tv_setting_action, parent, false))
+            TYPE_SUBHEADER -> SubHeaderVH(inf.inflate(R.layout.item_tv_setting_subheader, parent, false))
+            else           -> InfoVH(inf.inflate(R.layout.item_tv_setting_info, parent, false))
         }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, pos: Int) {
         when (val item = items[pos]) {
-            is TvSettingItem.Header -> (holder as HeaderVH).bind(item)
-            is TvSettingItem.Toggle -> (holder as ToggleVH).bind(item)
-            is TvSettingItem.Action -> (holder as ActionVH).bind(item)
-            is TvSettingItem.Info   -> (holder as InfoVH).bind(item)
+            is TvSettingItem.Header    -> (holder as HeaderVH).bind(item)
+            is TvSettingItem.Toggle    -> (holder as ToggleVH).bind(item)
+            is TvSettingItem.Action    -> (holder as ActionVH).bind(item)
+            is TvSettingItem.Info      -> (holder as InfoVH).bind(item)
+            is TvSettingItem.SubHeader -> (holder as SubHeaderVH).bind(item)
         }
     }
 
@@ -87,6 +91,17 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
             itemView.alpha      = if (item.enabled) 1f else 0.45f
             itemView.isFocusable = item.enabled
             itemView.setOnClickListener { if (item.enabled) item.onClick() }
+        }
+    }
+
+    class SubHeaderVH(view: View) : RecyclerView.ViewHolder(view) {
+        private val tvTitle: TextView = view.findViewById(R.id.tvSubHeaderTitle)
+        private val tvChevron: TextView = view.findViewById(R.id.tvSubHeaderChevron)
+
+        fun bind(item: TvSettingItem.SubHeader) {
+            tvTitle.text = item.title
+            tvChevron.text = if (item.expanded) "▲" else "▼"
+            itemView.setOnClickListener { item.onToggle() }
         }
     }
 

@@ -23,4 +23,10 @@ sealed class TvSettingItem {
         val id: String,
         var text: String
     ) : TvSettingItem()
+    data class SubHeader(
+        val id: String,
+        val title: String,
+        var expanded: Boolean = true,
+        val onToggle: () -> Unit
+    ) : TvSettingItem()
 }
