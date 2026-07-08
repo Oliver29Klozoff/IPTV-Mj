@@ -5,10 +5,11 @@ import com.iptvapp.BuildConfig
 import com.iptvapp.data.api.TraktApiService
 import com.iptvapp.data.api.TraktDeviceCodeRequest
 import com.iptvapp.data.api.TraktDeviceCodeResponse
-import com.iptvapp.data.api.TraktDeviceTokenRequest
 import com.iptvapp.data.api.TraktEpisode
 import com.iptvapp.data.api.TraktMovie
-import com.iptvapp.data.api.TraktRefreshTokenRequest
+import com.iptvapp.data.api.TraktProxyApiService
+import com.iptvapp.data.api.TraktProxyCodeRequest
+import com.iptvapp.data.api.TraktProxyRefreshRequest
 import com.iptvapp.data.api.TraktScrobbleRequest
 import com.iptvapp.data.api.TraktShow
 import com.iptvapp.data.local.PreferencesManager
@@ -31,12 +32,16 @@ data class ParsedTitle(val title: String, val year: Int?)
 @Singleton
 class TraktManager @Inject constructor(
     private val api: TraktApiService,
+    private val proxyApi: TraktProxyApiService,
     private val prefs: PreferencesManager
 ) {
     private val clientId = BuildConfig.TRAKT_CLIENT_ID
-    private val clientSecret = BuildConfig.TRAKT_CLIENT_SECRET
+    private val proxyUrl = BuildConfig.TRAKT_PROXY_URL
 
-    val isConfigured: Boolean get() = clientId.isNotBlank() && clientSecret.isNotBlank()
+    // client_secret is never embedded in the app — only client_id (not sensitive) plus the
+    // proxy URL. The proxy (see cloudflare/trakt-proxy-worker.js) holds the secret and does
+    // the token exchange/refresh on the app's behalf.
+    val isConfigured: Boolean get() = clientId.isNotBlank() && proxyUrl.isNotBlank()
     val isConnected: Flow<Boolean> get() = prefs.traktConnected
 
     fun parseTitle(raw: String): ParsedTitle {
@@ -74,9 +79,7 @@ class TraktManager @Inject constructor(
         while (System.currentTimeMillis() < deadline) {
             delay(code.interval * 1000L)
             try {
-                val tokenResp = api.getDeviceToken(
-                    TraktDeviceTokenRequest(code.deviceCode, clientId, clientSecret)
-                )
+                val tokenResp = proxyApi.getDeviceToken(TraktProxyCodeRequest(code.deviceCode))
                 when (tokenResp.code()) {
                     200 -> {
                         val token = tokenResp.body() ?: continue
@@ -112,7 +115,7 @@ class TraktManager @Inject constructor(
 
         val refresh = prefs.getTraktRefreshToken() ?: return null
         return try {
-            val resp = api.refreshToken(TraktRefreshTokenRequest(refresh, clientId, clientSecret))
+            val resp = proxyApi.refreshToken(TraktProxyRefreshRequest(refresh))
             val body = resp.body() ?: return null
             prefs.saveTraktTokens(body.accessToken, body.refreshToken, System.currentTimeMillis() + body.expiresIn * 1000L)
             body.accessToken

@@ -19,19 +19,6 @@ data class TraktDeviceCodeRequest(
     @SerializedName("client_id") val clientId: String
 )
 
-data class TraktDeviceTokenRequest(
-    val code: String,
-    @SerializedName("client_id") val clientId: String,
-    @SerializedName("client_secret") val clientSecret: String
-)
-
-data class TraktRefreshTokenRequest(
-    @SerializedName("refresh_token") val refreshToken: String,
-    @SerializedName("client_id") val clientId: String,
-    @SerializedName("client_secret") val clientSecret: String,
-    @SerializedName("grant_type") val grantType: String = "refresh_token"
-)
-
 data class TraktTokenResponse(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("refresh_token") val refreshToken: String,
@@ -50,15 +37,22 @@ data class TraktScrobbleRequest(
     val progress: Float
 )
 
+// Sent to OUR proxy (not Trakt directly) — the proxy attaches client_id/client_secret itself,
+// so the app never needs to know the secret.
+data class TraktProxyCodeRequest(val code: String)
+data class TraktProxyRefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
+
+interface TraktProxyApiService {
+    @POST("device/token")
+    suspend fun getDeviceToken(@Body body: TraktProxyCodeRequest): Response<TraktTokenResponse>
+
+    @POST("refresh")
+    suspend fun refreshToken(@Body body: TraktProxyRefreshRequest): Response<TraktTokenResponse>
+}
+
 interface TraktApiService {
     @POST("oauth/device/code")
     suspend fun getDeviceCode(@Body body: TraktDeviceCodeRequest): Response<TraktDeviceCodeResponse>
-
-    @POST("oauth/device/token")
-    suspend fun getDeviceToken(@Body body: TraktDeviceTokenRequest): Response<TraktTokenResponse>
-
-    @POST("oauth/token")
-    suspend fun refreshToken(@Body body: TraktRefreshTokenRequest): Response<TraktTokenResponse>
 
     @Headers("Content-Type: application/json")
     @POST("sync/scrobble/start")

@@ -76,6 +76,22 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideTraktProxyApiService(okHttpClient: OkHttpClient): com.iptvapp.data.api.TraktProxyApiService {
+        // Points at the user's own Cloudflare Worker (cloudflare/trakt-proxy-worker.js), which
+        // holds the Trakt client_secret server-side. Falls back to a placeholder base URL when
+        // unconfigured — calls will simply fail until TRAKT_PROXY_URL is set in local.properties.
+        val base = com.iptvapp.BuildConfig.TRAKT_PROXY_URL.ifBlank { "https://unconfigured.invalid/" }
+        val normalizedBase = if (base.endsWith("/")) base else "$base/"
+        val retrofit = Retrofit.Builder()
+            .baseUrl(normalizedBase)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+        return retrofit.create(com.iptvapp.data.api.TraktProxyApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideDatabase(@ApplicationContext context: Context): IptvDatabase =
         Room.databaseBuilder(
             context,

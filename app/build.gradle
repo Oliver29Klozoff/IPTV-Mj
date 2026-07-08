@@ -21,11 +21,13 @@ android {
         def localPropsFile = rootProject.file("local.properties")
         if (localPropsFile.exists()) localProps.load(new FileInputStream(localPropsFile))
         buildConfigField "String", "DISCORD_WEBHOOK", "\"${localProps['DISCORD_WEBHOOK'] ?: ''}\""
-        // Trakt.tv API app credentials — create one free at https://trakt.tv/oauth/applications
-        // (any redirect_uri works, e.g. urn:ietf:wg:oauth:2.0:oob; the device-code flow used here
-        // doesn't redirect). Add TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET to local.properties.
+        // Trakt.tv API app — create one free at https://trakt.tv/oauth/applications
+        // (any redirect_uri works, e.g. urn:ietf:wg:oauth:2.0:oob; the device-code flow used
+        // here doesn't redirect). client_id is not sensitive and is embedded directly, but
+        // client_secret is NEVER embedded in the app — it lives only in the Cloudflare Worker
+        // proxy (see cloudflare/trakt-proxy-worker.js) so it can't be extracted from the APK.
         buildConfigField "String", "TRAKT_CLIENT_ID", "\"${localProps['TRAKT_CLIENT_ID'] ?: ''}\""
-        buildConfigField "String", "TRAKT_CLIENT_SECRET", "\"${localProps['TRAKT_CLIENT_SECRET'] ?: ''}\""
+        buildConfigField "String", "TRAKT_PROXY_URL", "\"${localProps['TRAKT_PROXY_URL'] ?: ''}\""
     }
     signingConfigs {
         release {

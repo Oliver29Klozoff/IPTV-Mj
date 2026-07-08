@@ -6,6 +6,11 @@
   the classic system installer intent, which can skip the visible scan/confirmation
   screen when the OS recognizes MKTV as its own installer of record. Leave it off to keep
   the standard visible install confirmation for every update.
+- **Security**: Trakt's client_secret is no longer compiled into the app at all — token
+  exchange/refresh now goes through a small self-hosted Cloudflare Worker proxy
+  (cloudflare/trakt-proxy-worker.js) that holds the secret server-side, so nothing
+  sensitive can be extracted from the public APK. Requires setting TRAKT_PROXY_URL in
+  local.properties after deploying the worker.
 
 ## v3.89 - 2026-07-08
 - **New**: Trakt.tv scrobbling — connect via device-code login (Settings > Trakt) and your
