@@ -2,7 +2,7 @@
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/tvSettingHeader"
     android:layout_width="match_parent"
-    android:layout_height="48dp"
+    android:layout_height="44dp"
     android:gravity="bottom"
     android:paddingStart="24dp"
     android:paddingBottom="8dp"
@@ -10,5 +10,5 @@
     android:textSize="11sp"
     android:textAllCaps="true"
     android:letterSpacing="0.12"
-    android:background="#050B14"
+    android:background="@android:color/transparent"
     android:focusable="false" />

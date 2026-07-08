@@ -59,6 +59,99 @@ class PreferencesManager @Inject constructor(
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
+        val AMOLED_BLACK = booleanPreferencesKey("amoled_black")
+        val TRAKT_ACCESS_TOKEN = stringPreferencesKey("trakt_access_token")
+        val TRAKT_REFRESH_TOKEN = stringPreferencesKey("trakt_refresh_token")
+        val TRAKT_TOKEN_EXPIRES_AT = longPreferencesKey("trakt_token_expires_at")
+        val SUBTITLE_SIZE_SCALE = floatPreferencesKey("subtitle_size_scale")
+        val SUBTITLE_VERTICAL_OFFSET_DP = intPreferencesKey("subtitle_vertical_offset_dp")
+        val SUBTITLE_BOLD = booleanPreferencesKey("subtitle_bold")
+        val SUBTITLE_TEXT_COLOR = intPreferencesKey("subtitle_text_color")
+        val SUBTITLE_BACKGROUND_COLOR = intPreferencesKey("subtitle_background_color")
+        val SUBTITLE_OUTLINE_ENABLED = booleanPreferencesKey("subtitle_outline_enabled")
+        val SUBTITLE_OUTLINE_COLOR = intPreferencesKey("subtitle_outline_color")
+        val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
+        val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
+    }
+
+    val tunneledPlaybackEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.TUNNELED_PLAYBACK_ENABLED] ?: false }
+    suspend fun setTunneledPlaybackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.TUNNELED_PLAYBACK_ENABLED] = v }
+
+    val dv7FallbackEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.DV7_FALLBACK_ENABLED] ?: false }
+    suspend fun setDv7FallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.DV7_FALLBACK_ENABLED] = v }
+
+    data class SubtitleStyle(
+        val sizeScale: Float,
+        val verticalOffsetDp: Int,
+        val bold: Boolean,
+        val textColor: Int,
+        val backgroundColor: Int,
+        val outlineEnabled: Boolean,
+        val outlineColor: Int
+    )
+
+    val subtitleStyle: Flow<SubtitleStyle> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { p ->
+            SubtitleStyle(
+                sizeScale = p[Keys.SUBTITLE_SIZE_SCALE] ?: 1.0f,
+                verticalOffsetDp = p[Keys.SUBTITLE_VERTICAL_OFFSET_DP] ?: 0,
+                bold = p[Keys.SUBTITLE_BOLD] ?: false,
+                textColor = p[Keys.SUBTITLE_TEXT_COLOR] ?: 0xFFFFFFFF.toInt(),
+                backgroundColor = p[Keys.SUBTITLE_BACKGROUND_COLOR] ?: 0x00000000,
+                outlineEnabled = p[Keys.SUBTITLE_OUTLINE_ENABLED] ?: true,
+                outlineColor = p[Keys.SUBTITLE_OUTLINE_COLOR] ?: 0xFF000000.toInt()
+            )
+        }
+
+    suspend fun setSubtitleSizeScale(v: Float) = context.dataStore.edit { it[Keys.SUBTITLE_SIZE_SCALE] = v }
+    suspend fun setSubtitleVerticalOffsetDp(v: Int) = context.dataStore.edit { it[Keys.SUBTITLE_VERTICAL_OFFSET_DP] = v }
+    suspend fun setSubtitleBold(v: Boolean) = context.dataStore.edit { it[Keys.SUBTITLE_BOLD] = v }
+    suspend fun setSubtitleTextColor(v: Int) = context.dataStore.edit { it[Keys.SUBTITLE_TEXT_COLOR] = v }
+    suspend fun setSubtitleBackgroundColor(v: Int) = context.dataStore.edit { it[Keys.SUBTITLE_BACKGROUND_COLOR] = v }
+    suspend fun setSubtitleOutlineEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SUBTITLE_OUTLINE_ENABLED] = v }
+    suspend fun setSubtitleOutlineColor(v: Int) = context.dataStore.edit { it[Keys.SUBTITLE_OUTLINE_COLOR] = v }
+
+    val traktAccessToken: Flow<String?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.TRAKT_ACCESS_TOKEN] }
+
+    val traktConnected: Flow<Boolean> = traktAccessToken.map { !it.isNullOrBlank() }
+
+    suspend fun traktAccessTokenBlocking(): String? = traktAccessToken.first()
+
+    suspend fun saveTraktTokens(accessToken: String, refreshToken: String, expiresAt: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.TRAKT_ACCESS_TOKEN] = accessToken
+            prefs[Keys.TRAKT_REFRESH_TOKEN] = refreshToken
+            prefs[Keys.TRAKT_TOKEN_EXPIRES_AT] = expiresAt
+        }
+    }
+
+    suspend fun getTraktRefreshToken(): String? =
+        context.dataStore.data.map { it[Keys.TRAKT_REFRESH_TOKEN] }.first()
+
+    suspend fun getTraktTokenExpiresAt(): Long =
+        context.dataStore.data.map { it[Keys.TRAKT_TOKEN_EXPIRES_AT] ?: 0L }.first()
+
+    suspend fun clearTraktTokens() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(Keys.TRAKT_ACCESS_TOKEN)
+            prefs.remove(Keys.TRAKT_REFRESH_TOKEN)
+            prefs.remove(Keys.TRAKT_TOKEN_EXPIRES_AT)
+        }
+    }
+
+    val amoledBlack: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.AMOLED_BLACK] ?: false }
+
+    suspend fun setAmoledBlack(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.AMOLED_BLACK] = enabled }
     }
 
     val credentials: Flow<ServerCredentials> = context.dataStore.data

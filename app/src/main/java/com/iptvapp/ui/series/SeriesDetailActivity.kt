@@ -35,6 +35,7 @@ class SeriesDetailActivity : AppCompatActivity() {
 
     private var allEpisodes: Map<String, List<Episode>> = emptyMap()
     private var currentSeasonEpisodes: List<Episode> = emptyList()
+    private var seriesNameField: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +44,7 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         val seriesId = intent.getIntExtra("series_id", -1)
         val seriesName = intent.getStringExtra("series_name") ?: ""
+        seriesNameField = seriesName
         val seriesCover = intent.getStringExtra("series_cover")
         val seriesGenre = intent.getStringExtra("series_genre")
         val seriesRating = intent.getStringExtra("series_rating")
@@ -134,6 +136,9 @@ class SeriesDetailActivity : AppCompatActivity() {
                 putExtra("stream_title", "S${episode.season}E${episode.episodeNum} ${episode.title}")
                 putExtra("stream_id", episode.id.hashCode())
                 putExtra("is_vod", true)
+                putExtra("series_name", seriesNameField)
+                putExtra("season_num", episode.season)
+                putExtra("episode_num", episode.episodeNum)
                 putExtra("ep_index", index)
                 putStringArrayListExtra("ep_ids",      ArrayList(episodes.map { it.id }))
                 putStringArrayListExtra("ep_titles",   ArrayList(episodes.map { "S${it.season}E${it.episodeNum} ${it.title}" }))

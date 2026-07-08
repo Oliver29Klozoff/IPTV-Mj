@@ -65,6 +65,17 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideTraktApiService(okHttpClient: OkHttpClient): com.iptvapp.data.api.TraktApiService {
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://api.trakt.tv/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+        return retrofit.create(com.iptvapp.data.api.TraktApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideDatabase(@ApplicationContext context: Context): IptvDatabase =
         Room.databaseBuilder(
             context,

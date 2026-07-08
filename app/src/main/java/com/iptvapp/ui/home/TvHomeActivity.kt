@@ -108,6 +108,7 @@ class TvHomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityTvHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs)
         setupAdapters()
         setupSidebar()
         setupSearch()

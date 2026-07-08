@@ -3,12 +3,13 @@
     android:id="@+id/tvInfoText"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginHorizontal="20dp"
+    android:layout_marginVertical="4dp"
     android:minHeight="48dp"
     android:gravity="center_vertical"
-    android:paddingStart="28dp"
-    android:paddingEnd="24dp"
+    android:paddingHorizontal="20dp"
     android:paddingVertical="10dp"
-    android:textColor="#556677"
+    android:textColor="#7A8A9A"
     android:textSize="14sp"
     android:focusable="false"
-    android:background="#060C14" />
+    android:background="@drawable/tv_setting_info_bg" />

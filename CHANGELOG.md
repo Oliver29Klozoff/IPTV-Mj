@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v3.89 - 2026-07-08
+- **New**: Trakt.tv scrobbling — connect via device-code login (Settings > Trakt) and your
+  watch activity on movies/episodes is automatically tracked. Requires a free Trakt API app;
+  see Settings > Trakt for status if not yet configured.
+- **New**: AMOLED Black display option — pure black backgrounds for OLED screens (Settings >
+  Display).
+- **New**: Subtitle customization — size, vertical offset, bold, text/background/outline
+  color (Settings > Subtitles).
+- **New**: Tunneled Playback and DV7→HEVC Fallback toggles (Settings > Stream) for
+  device-specific playback tuning.
+
 ## v3.88 - 2026-07-08
 - **New**: Live TV DVR — pause and rewind live channels using a local disk buffer (no
   provider support needed). Rewind button jumps back 60s; "● LIVE" button jumps back to

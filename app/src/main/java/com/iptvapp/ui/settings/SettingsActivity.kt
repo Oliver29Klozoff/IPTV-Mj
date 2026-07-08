@@ -112,6 +112,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs)
         workManager = WorkManager.getInstance(this)
 
         binding.btnBack.setOnClickListener { finish() }
@@ -192,6 +193,12 @@ class SettingsActivity : AppCompatActivity() {
         binding.cbUsaOnlyChannels.setOnCheckedChangeListener { _, isChecked ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setUsaOnlyChannels(isChecked) }
+        }
+
+        binding.cbAmoledBlack.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setAmoledBlack(isChecked) }
+            Toast.makeText(this, "Restart the app for AMOLED Black to fully apply", Toast.LENGTH_LONG).show()
         }
 
         binding.cbShowMovies.setOnCheckedChangeListener { _, isChecked ->
@@ -818,6 +825,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
+                binding.cbAmoledBlack.isChecked = prefs.amoledBlack.first()
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()
                 binding.cbShowSeries.isChecked = prefs.showSeries.first()
                 binding.cbShowWatching.isChecked = prefs.showWatching.first()

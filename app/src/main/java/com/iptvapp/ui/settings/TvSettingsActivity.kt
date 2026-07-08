@@ -68,6 +68,8 @@ class TvSettingsActivity : AppCompatActivity() {
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var syncManager: SyncManager
+    @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
+    private var traktAuthJob: kotlinx.coroutines.Job? = null
 
     private val settingsItems = mutableListOf<TvSettingItem>()
     private val sectionItems = linkedMapOf<String, MutableList<TvSettingItem>>()
@@ -86,6 +88,7 @@ class TvSettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityTvSettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs)
         workManager = WorkManager.getInstance(this)
 
         adapter = TvSettingsAdapter(settingsItems)
@@ -128,11 +131,25 @@ class TvSettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun sectionIcon(title: String): String = when (title) {
+        "Stream" -> "📡"
+        "Display" -> "🎨"
+        "EPG" -> "📺"
+        "Updates" -> "⬇️"
+        "Backup & Restore" -> "💾"
+        "Servers" -> "🖥️"
+        "Account" -> "👤"
+        "Sync" -> "☁️"
+        "Trakt" -> "🎬"
+        "Subtitles" -> "💬"
+        else -> "⚙️"
+    }
+
     private fun showSectionMenu(focusFirst: Boolean = true) {
         activeSection = null
         settingsItems.clear()
         sectionItems.forEach { (title, items) ->
-            settingsItems += TvSettingItem.Action("section_$title", title, value = "${items.size} settings") {
+            settingsItems += TvSettingItem.Action("section_$title", "${sectionIcon(title)}   $title") {
                 showSection(title)
             }
         }
@@ -223,12 +240,29 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Toggle("stream_prewarm", "Pre-warm Streams on Focus",
             subtitle = "Starts resolving a stream URL when a channel tile receives focus, before you press play",
             checked = preWarm) { c -> lifecycleScope.launch { prefs.setPreWarmOnFocus(c) } }
+        settingsItems += TvSettingItem.SubHeader("stream_sub_decoder", "Decoder") { toggleSubHeader("Stream", "stream_sub_decoder") }
+        settingsItems += TvSettingItem.Info("stream_decoder_note",
+            "Hardware (device) decoders are always used — this build has no software decoder fallback to prefer against.")
+        settingsItems += TvSettingItem.Toggle("stream_tunneling", "Tunneled Playback",
+            subtitle = "Lets the device handle audio/video sync in hardware — smoother on supported devices, but can cause glitches on some. Off by default.",
+            checked = prefs.tunneledPlaybackEnabled.first()) { c -> lifecycleScope.launch { prefs.setTunneledPlaybackEnabled(c) } }
+        settingsItems += TvSettingItem.Toggle("stream_dv7_fallback", "DV7 → HEVC Fallback",
+            subtitle = "Maps Dolby Vision Profile 7 content to standard HEVC for devices without proper DV7 hardware support",
+            checked = prefs.dv7FallbackEnabled.first()) { c -> lifecycleScope.launch { prefs.setDv7FallbackEnabled(c) } }
 
         // ── DISPLAY ──
         currentAccentColorHex = prefs.accentColor.first()
         settingsItems += TvSettingItem.Header("Display")
         settingsItems += TvSettingItem.Action("display_accent", "Accent Color",
             value = accentColorName(currentAccentColorHex)) { showAccentColorDialog() }
+        settingsItems += TvSettingItem.Toggle("display_amoled", "AMOLED Black",
+            subtitle = "Pure black backgrounds — saves battery and looks better on OLED TVs",
+            checked = prefs.amoledBlack.first()) { c ->
+            lifecycleScope.launch {
+                prefs.setAmoledBlack(c)
+                Toast.makeText(this@TvSettingsActivity, "Restart the app for AMOLED Black to fully apply", Toast.LENGTH_LONG).show()
+            }
+        }
         settingsItems += TvSettingItem.Toggle("display_usa", "USA Channels Only",
             checked = usaOnly) { c -> lifecycleScope.launch { prefs.setUsaOnlyChannels(c) } }
         settingsItems += TvSettingItem.Toggle("display_movies", "Show Movies Tab",
@@ -270,6 +304,44 @@ class TvSettingsActivity : AppCompatActivity() {
             UpdateChecker(this).check(lifecycleScope)
         }
         settingsItems += TvSettingItem.Action("update_whats_new", "What's New") { showChangelog() }
+
+        // ── SUBTITLES ──
+        val subStyle = prefs.subtitleStyle.first()
+        settingsItems += TvSettingItem.Header("Subtitles")
+        settingsItems += TvSettingItem.Action("sub_size", "Subtitle Size",
+            value = "${(subStyle.sizeScale * 100).toInt()}%") { showSubtitleSizeDialog(subStyle.sizeScale) }
+        settingsItems += TvSettingItem.Action("sub_offset", "Vertical Offset",
+            value = "${subStyle.verticalOffsetDp}dp") { showSubtitleOffsetDialog(subStyle.verticalOffsetDp) }
+        settingsItems += TvSettingItem.Toggle("sub_bold", "Bold",
+            subtitle = "Use a heavier subtitle font weight",
+            checked = subStyle.bold) { c -> lifecycleScope.launch { prefs.setSubtitleBold(c) } }
+        settingsItems += TvSettingItem.Action("sub_text_color", "Text Color",
+            value = "#%08X".format(subStyle.textColor)) { showSubtitleColorDialog("Text Color", subStyle.textColor) { prefs.setSubtitleTextColor(it) } }
+        settingsItems += TvSettingItem.Action("sub_bg_color", "Background Color",
+            value = "#%08X".format(subStyle.backgroundColor)) { showSubtitleColorDialog("Background Color", subStyle.backgroundColor) { prefs.setSubtitleBackgroundColor(it) } }
+        settingsItems += TvSettingItem.Toggle("sub_outline", "Outline",
+            subtitle = "Draw a border around subtitle text",
+            checked = subStyle.outlineEnabled) { c -> lifecycleScope.launch { prefs.setSubtitleOutlineEnabled(c) } }
+        settingsItems += TvSettingItem.Action("sub_outline_color", "Outline Color",
+            value = "#%08X".format(subStyle.outlineColor)) { showSubtitleColorDialog("Outline Color", subStyle.outlineColor) { prefs.setSubtitleOutlineColor(it) } }
+        settingsItems += TvSettingItem.Info("sub_ass_note",
+            "Advanced ASS/SSA subtitle rendering (custom styles, positioning, animations) requires a libass-based player engine and isn't supported by the current ExoPlayer-based player.")
+
+        // ── TRAKT ──
+        settingsItems += TvSettingItem.Header("Trakt")
+        if (!traktManager.isConfigured) {
+            settingsItems += TvSettingItem.Info("trakt_not_configured", "Trakt is not configured for this build")
+        } else {
+            val traktConnected = traktManager.isConnected.first()
+            if (traktConnected) {
+                settingsItems += TvSettingItem.Info("trakt_status", "✓ Connected — scrobbling your watch activity")
+                settingsItems += TvSettingItem.Action("trakt_disconnect", "Disconnect Trakt", danger = true) {
+                    lifecycleScope.launch { traktManager.disconnect(); buildSettingsList(); showSection("Trakt", focusFirst = false) }
+                }
+            } else {
+                settingsItems += TvSettingItem.Action("trakt_connect", "Connect to Trakt") { showTraktConnectDialog() }
+            }
+        }
 
         // ── BACKUP ──
         settingsItems += TvSettingItem.Header("Backup & Restore")
@@ -463,6 +535,98 @@ class TvSettingsActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
+        }
+    }
+
+    private fun showSubtitleSizeDialog(current: Float) {
+        val options = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+        val labels = options.map { "${(it * 100).toInt()}%" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Subtitle Size")
+            .setSingleChoiceItems(labels, options.indexOf(current).coerceAtLeast(0)) { dialog, which ->
+                lifecycleScope.launch { prefs.setSubtitleSizeScale(options[which]); rebuildList("sub_size") }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSubtitleOffsetDialog(current: Int) {
+        val options = listOf(-60, -40, -20, 0, 20, 40, 60)
+        val labels = options.map { if (it == 0) "Default" else "${it}dp" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Vertical Offset")
+            .setSingleChoiceItems(labels, options.indexOf(current).coerceAtLeast(options.indexOf(0))) { dialog, which ->
+                lifecycleScope.launch { prefs.setSubtitleVerticalOffsetDp(options[which]); rebuildList("sub_offset") }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSubtitleColorDialog(title: String, current: Int, onPicked: suspend (Int) -> Unit) {
+        val presets = linkedMapOf(
+            "White" to 0xFFFFFFFF.toInt(),
+            "Yellow" to 0xFFFFFF00.toInt(),
+            "Black" to 0xFF000000.toInt(),
+            "Transparent" to 0x00000000
+        )
+        val labels = presets.keys.toTypedArray()
+        val values = presets.values.toList()
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
+                lifecycleScope.launch { onPicked(values[which]); buildSettingsList(); showSection("Subtitles", focusFirst = false) }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showTraktConnectDialog() {
+        val messageView = android.widget.TextView(this).apply {
+            text = "Contacting Trakt…"
+            setPadding(48, 24, 48, 24)
+            textSize = 16f
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Connect to Trakt")
+            .setView(messageView)
+            .setNegativeButton("Cancel", null)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        traktAuthJob?.cancel()
+        traktAuthJob = lifecycleScope.launch {
+            traktManager.startDeviceAuth { result ->
+                runOnUiThread {
+                    when (result) {
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Pending -> {
+                            messageView.text = "1. On any device, go to:\n${result.verificationUrl}\n\n" +
+                                "2. Enter this code:\n\n${result.userCode}\n\n" +
+                                "Waiting for you to authorize…"
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Success -> {
+                            dialog.dismiss()
+                            toast("Connected to Trakt")
+                            lifecycleScope.launch { buildSettingsList(); showSection("Trakt", focusFirst = false) }
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Expired -> {
+                            dialog.dismiss()
+                            toast("Trakt code expired — try again")
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Denied -> {
+                            dialog.dismiss()
+                            toast("Trakt authorization denied")
+                        }
+                        is com.iptvapp.trakt.TraktDeviceAuthResult.Error -> {
+                            dialog.dismiss()
+                            toast("Trakt error: ${result.message}")
+                        }
+                    }
+                }
+            }
         }
     }
 

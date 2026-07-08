@@ -116,6 +116,16 @@ class PlayerActivity : AppCompatActivity() {
     private var isVod: Boolean = false
     private var resumePositionMs: Long = 0L
 
+    // Trakt scrobbling (VOD only — live channels have no stable Trakt-identifiable content)
+    @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
+    private var traktSeriesName: String = ""
+    private var traktSeason: Int = -1
+    private var traktEpisode: Int = -1
+    private var traktScrobbleStarted = false
+    private val traktIoScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
+
     // Episode playlist for auto-play next
     private var epIds: List<String> = emptyList()
     private var epTitles: List<String> = emptyList()
@@ -133,6 +143,7 @@ class PlayerActivity : AppCompatActivity() {
 
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var okHttpClient: OkHttpClient
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
@@ -209,6 +220,9 @@ class PlayerActivity : AppCompatActivity() {
         epTitles = intent.getStringArrayListExtra("ep_titles") ?: emptyList()
         epExts   = intent.getStringArrayListExtra("ep_exts")   ?: emptyList()
         epIndex  = intent.getIntExtra("ep_index", -1)
+        traktSeriesName = intent.getStringExtra("series_name") ?: ""
+        traktSeason  = intent.getIntExtra("season_num", -1)
+        traktEpisode = intent.getIntExtra("episode_num", -1)
 
         setupChannelZones()
         setupGestureDetector()
@@ -273,6 +287,11 @@ class PlayerActivity : AppCompatActivity() {
                 putStringArrayListExtra("ep_ids",    ArrayList(epIds))
                 putStringArrayListExtra("ep_titles", ArrayList(epTitles))
                 putStringArrayListExtra("ep_exts",   ArrayList(epExts))
+                putExtra("series_name", traktSeriesName)
+                traktManager.parseSeasonEpisode(epTitles[nextIndex])?.let { (s, e) ->
+                    putExtra("season_num", s)
+                    putExtra("episode_num", e)
+                }
             }
             finish()
             startActivity(intent)
@@ -629,14 +648,44 @@ class PlayerActivity : AppCompatActivity() {
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
 
+        val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
+        val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }
+
+        // DV7 fallback: some devices lack proper Dolby Vision Profile 7 (dual-layer) decode
+        // support and either fail or black-screen. When enabled, redirect DV7 content to a
+        // standard HEVC decoder instead — DV7's base layer is valid HEVC on its own.
+        val codecSelector = if (dv7FallbackEnabled) {
+            androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+                if (mimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION) {
+                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(
+                        androidx.media3.common.MimeTypes.VIDEO_H265, requiresSecureDecoder, requiresTunnelingDecoder
+                    )
+                } else {
+                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(
+                        mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                    )
+                }
+            }
+        } else androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
+            .setMediaCodecSelector(codecSelector)
+
+        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+            if (tunnelingEnabled) parameters = buildUponParameters().setTunnelingEnabled(true).build()
+        }
+
         return ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setRenderersFactory(renderersFactory)
+            .setTrackSelector(trackSelector)
             .build()
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
                 binding.playerView.resizeMode = resizeModes[resizeModeIndex]
                 binding.playerView.useController = false
+                applySubtitleStyle()
 
                 binding.playerView.setOnClickListener {
                     if (binding.epgOverlay.visibility == View.VISIBLE) {
@@ -648,9 +697,12 @@ class PlayerActivity : AppCompatActivity() {
                 }
 
                 binding.btnPlayPause.setOnClickListener {
-                    if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                    val wasPlaying = exoPlayer.isPlaying
+                    if (wasPlaying) exoPlayer.pause() else exoPlayer.play()
                     updatePlayPauseButton()
                     resetHideTimer()
+                    if (wasPlaying) traktScrobble(::scrobblePauseCall)
+                    else if (traktScrobbleStarted) traktScrobble(::scrobbleStartCall)
                 }
 
                 binding.btnDvrRewind.setOnClickListener {
@@ -685,6 +737,10 @@ class PlayerActivity : AppCompatActivity() {
                                     exoPlayer.seekTo(resumePositionMs)
                                     resumePositionMs = 0L
                                 }
+                                if (isVod && !traktScrobbleStarted) {
+                                    traktScrobbleStarted = true
+                                    traktScrobble(::scrobbleStartCall)
+                                }
                             }
                             Player.STATE_BUFFERING -> {
                                 binding.progressBuffering.visibility = View.VISIBLE
@@ -693,6 +749,7 @@ class PlayerActivity : AppCompatActivity() {
                                 binding.progressBuffering.visibility = View.GONE
                                 if (!isVod) scheduleRetry()
                                 else showUpNextIfAvailable()
+                                if (isVod) traktScrobble(::scrobbleStopCall, progressOverride = 100f)
                             }
                             else -> binding.progressBuffering.visibility = View.GONE
                         }
@@ -708,6 +765,71 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 })
             }
+    }
+
+    private fun applySubtitleStyle() {
+        lifecycleScope.launch {
+            val s = prefs.subtitleStyle.first()
+            val subtitleView = binding.playerView.subtitleView ?: return@launch
+            subtitleView.setStyle(
+                androidx.media3.ui.CaptionStyleCompat(
+                    s.textColor,
+                    s.backgroundColor,
+                    android.graphics.Color.TRANSPARENT,
+                    if (s.outlineEnabled) androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE
+                    else androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_NONE,
+                    s.outlineColor,
+                    if (s.bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                )
+            )
+            subtitleView.setFractionalTextSize(
+                androidx.media3.ui.SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * s.sizeScale
+            )
+            subtitleView.translationY = -s.verticalOffsetDp * resources.displayMetrics.density
+        }
+    }
+
+    private fun scrobbleProgress(): Float {
+        val p = player ?: return 0f
+        val duration = p.duration.takeIf { it > 0 } ?: return 0f
+        return (p.currentPosition.toFloat() / duration.toFloat() * 100f).coerceIn(0f, 100f)
+    }
+
+    private suspend fun scrobbleStartCall(progress: Float) {
+        if (traktSeason >= 0 && traktEpisode >= 0 && traktSeriesName.isNotBlank()) {
+            traktManager.scrobbleEpisodeStart(traktSeriesName, traktSeason, traktEpisode, progress)
+        } else {
+            val parsed = traktManager.parseTitle(streamTitle)
+            traktManager.scrobbleMovieStart(parsed.title, parsed.year, progress)
+        }
+    }
+
+    private suspend fun scrobblePauseCall(progress: Float) {
+        if (traktSeason >= 0 && traktEpisode >= 0 && traktSeriesName.isNotBlank()) {
+            traktManager.scrobbleEpisodePause(traktSeriesName, traktSeason, traktEpisode, progress)
+        } else {
+            val parsed = traktManager.parseTitle(streamTitle)
+            traktManager.scrobbleMoviePause(parsed.title, parsed.year, progress)
+        }
+    }
+
+    private suspend fun scrobbleStopCall(progress: Float) {
+        if (traktSeason >= 0 && traktEpisode >= 0 && traktSeriesName.isNotBlank()) {
+            traktManager.scrobbleEpisodeStop(traktSeriesName, traktSeason, traktEpisode, progress)
+        } else {
+            val parsed = traktManager.parseTitle(streamTitle)
+            traktManager.scrobbleMovieStop(parsed.title, parsed.year, progress)
+        }
+    }
+
+    private fun traktScrobble(call: suspend (Float) -> Unit, progressOverride: Float? = null) {
+        if (!isVod) return
+        val progress = progressOverride ?: scrobbleProgress()
+        // Uses a process-wide scope, not lifecycleScope — finish()'s stop-scrobble call must
+        // survive the activity being destroyed right after this is fired.
+        traktIoScope.launch {
+            try { call(progress) } catch (_: Exception) { /* best-effort — never blocks playback */ }
+        }
     }
 
     private fun updatePlayPauseButton() {
@@ -1177,6 +1299,10 @@ class PlayerActivity : AppCompatActivity() {
             putExtra("stream_url", streamUrl)
             putExtra("stream_title", streamTitle)
         })
+        if (isVod && traktScrobbleStarted) {
+            traktScrobbleStarted = false
+            traktScrobble(::scrobbleStopCall)
+        }
         super.finish()
     }
 

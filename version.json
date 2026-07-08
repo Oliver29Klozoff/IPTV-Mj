@@ -1,7 +1,7 @@
 {
-  "versionCode": 226,
-  "versionName": "3.88",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.88/MKTV.apk",
-  "apkSha256": "f0b40136dfd9f4c67e94582a1038e70269517301d8d5ca35e207d86391411374",
-  "changelog": "New: Live TV DVR (pause/rewind live channels via local buffer, no provider support needed). Fixed mini-player preview resetting to the actually-playing channel when backing out. TV Settings EPG/Sync sections now have collapsible sub-groups. Phone Settings Display/Updates/Sync panels now collapsible like Stream."
+  "versionCode": 227,
+  "versionName": "3.89",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.89/MKTV.apk",
+  "apkSha256": "17f3441910fb4a1cedccf08ae9e033a0a2811efc8e0b31ac963d51f652ce7d93",
+  "changelog": "New: Trakt.tv scrobbling (device-code login, Settings > Trakt). New: AMOLED Black display option. New: Subtitle customization (size, offset, bold, colors, outline). New: Tunneled Playback and DV7-to-HEVC Fallback toggles."
 }
