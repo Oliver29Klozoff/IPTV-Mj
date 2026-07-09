@@ -31,33 +31,46 @@ class ChannelAdapter(
     private var currentlyPlayingStreamId: Int = -1
     private var healthByStreamId: Map<Int, Boolean?> = emptyMap()
 
-    // Targeted range-changed notifications (not notifyDataSetChanged) so RecyclerView
-    // rebinds existing views in place instead of detaching/reattaching them — a full
-    // invalidate was knocking D-pad focus off the channel item and onto whatever
-    // focusable view sits above the list (e.g. the back button).
+    // Targeted per-row notifications (never notifyDataSetChanged, and not even a blanket
+    // notifyItemRangeChanged across the whole list) — these EPG/health maps refresh on a
+    // timer, and rebinding a row re-triggers its Glide load and resets its view state.
+    // Rebinding every row on every tick — including whichever one currently has D-pad
+    // focus, even when that channel's own value didn't change — was causing a visible
+    // flicker on the focused row every refresh. Only notify rows whose value actually changed.
+    private inline fun notifyChangedRows(changed: (streamId: Int) -> Boolean) {
+        currentList.forEachIndexed { index, channel ->
+            if (changed(channel.streamId)) notifyItemChanged(index)
+        }
+    }
+
     fun setCurrentlyPlayingStreamId(streamId: Int) {
+        val old = currentlyPlayingStreamId
         currentlyPlayingStreamId = streamId
-        notifyItemRangeChanged(0, itemCount)
+        notifyChangedRows { it == old || it == streamId }
     }
 
     fun submitEpgText(epgMap: Map<Int, String>) {
+        val old = epgTextByStreamId
         epgTextByStreamId = epgMap
-        notifyItemRangeChanged(0, itemCount)
+        notifyChangedRows { old[it] != epgMap[it] }
     }
 
     fun submitEpgNextText(nextMap: Map<Int, String>) {
+        val old = epgNextTextByStreamId
         epgNextTextByStreamId = nextMap
-        notifyItemRangeChanged(0, itemCount)
+        notifyChangedRows { old[it] != nextMap[it] }
     }
 
     fun submitEpgProgress(progressMap: Map<Int, Int>) {
+        val old = epgProgressByStreamId
         epgProgressByStreamId = progressMap
-        notifyItemRangeChanged(0, itemCount)
+        notifyChangedRows { old[it] != progressMap[it] }
     }
 
     fun submitHealth(healthMap: Map<Int, Boolean?>) {
+        val old = healthByStreamId
         healthByStreamId = healthMap
-        notifyItemRangeChanged(0, itemCount)
+        notifyChangedRows { old[it] != healthMap[it] }
     }
 
     inner class ViewHolder(val binding: ItemChannelBinding) :

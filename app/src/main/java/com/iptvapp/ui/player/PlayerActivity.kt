@@ -45,7 +45,6 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.ui.home.ChannelAdapter
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -122,6 +121,7 @@ class PlayerActivity : AppCompatActivity() {
     private var traktSeason: Int = -1
     private var traktEpisode: Int = -1
     private var traktScrobbleStarted = false
+    private var suppressOverlayOnReady = false
     private val traktIoScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
@@ -654,11 +654,12 @@ class PlayerActivity : AppCompatActivity() {
         val upstreamDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
         // DVR/timeshift: cache every byte of the live stream to disk as it plays, so
         // rewinding into recently-played live TV re-reads from local disk instead of
-        // requiring the provider to support server-side catchup.
-        val cacheDataSourceFactory = CacheDataSource.Factory()
-            .setCache(getTimeshiftCache(applicationContext))
-            .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        // requiring the provider to support server-side catchup. The HLS playlist itself
+        // (.m3u8) must never be cached — it updates every few seconds — so it's routed
+        // around the cache while media segments still cache normally.
+        val cacheDataSourceFactory = ManifestBypassCacheDataSource.Factory(
+            getTimeshiftCache(applicationContext), upstreamDataSourceFactory
+        )
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
 
         val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
@@ -728,7 +729,17 @@ class PlayerActivity : AppCompatActivity() {
 
                 binding.btnDvrLive.setOnClickListener {
                     if (!isVod) {
-                        exoPlayer.seekToDefaultPosition()
+                        // seekToDefaultPosition() relies on ExoPlayer's live-window detection,
+                        // which some providers' HLS playlists don't signal correctly — it was
+                        // landing at the start of the buffered window instead of the live edge.
+                        // Seeking straight to the timeline's current duration is a more reliable
+                        // way to reach "now" regardless of whether live metadata is present.
+                        val dur = exoPlayer.duration
+                        if (dur != androidx.media3.common.C.TIME_UNSET && dur > 0) {
+                            exoPlayer.seekTo(dur)
+                        } else {
+                            exoPlayer.seekToDefaultPosition()
+                        }
                         exoPlayer.play()
                         updateDvrLiveButton()
                         resetHideTimer()
@@ -744,7 +755,10 @@ class PlayerActivity : AppCompatActivity() {
                                 binding.tvRetryStatus.visibility = View.GONE
                                 if (isVod) startSeekBarUpdater()
                                 startHealthBadge()
-                                showOverlay()
+                                // D-pad channel-change deliberately suppresses this so repeated
+                                // up/down keeps flipping channels instead of the first change
+                                // popping the overlay open and eating the next press.
+                                if (suppressOverlayOnReady) suppressOverlayOnReady = false else showOverlay()
                                 updatePlayPauseButton()
                                 if (isVod && resumePositionMs > 0L) {
                                     exoPlayer.seekTo(resumePositionMs)
@@ -1055,9 +1069,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun startSeekBarUpdater() {
         if (!isVod) return
-        binding.seekBar.visibility = View.VISIBLE
-        binding.tvTimeElapsed.visibility = View.VISIBLE
-        binding.tvTimeRemaining.visibility = View.VISIBLE
+        binding.vodSeekContainer.visibility = View.VISIBLE
         binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser) player?.seekTo(progress.toLong())
@@ -1176,12 +1188,12 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             KeyEvent.KEYCODE_DPAD_UP -> when {
-                !isOverlayVisible && !isVod -> { nextChannel(); showChannelOsd(); true }
+                !isVod -> { suppressOverlayOnReady = true; nextChannel(); showChannelOsd(); true }
                 !isOverlayVisible -> { showOverlay(); true }
                 else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> when {
-                !isOverlayVisible && !isVod -> { previousChannel(); showChannelOsd(); true }
+                !isVod -> { suppressOverlayOnReady = true; previousChannel(); showChannelOsd(); true }
                 !isOverlayVisible -> { showOverlay(); true }
                 else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }

@@ -368,35 +368,48 @@
             android:textColor="#888888"
             android:textSize="12sp" />
 
+    </RelativeLayout>
+
+    <!-- Persistent VOD seek bar — deliberately NOT inside epgOverlay: that overlay auto-hides
+         a few seconds into playback, but a movie's scrub bar/time should stay visible the
+         whole time, the way every other video app behaves, not disappear with the rest of
+         the transient controls. -->
+    <RelativeLayout
+        android:id="@+id/vodSeekContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_above="@id/tvChannelTitle"
-            android:layout_marginBottom="4dp"
             android:progressTint="#008CFF"
-            android:thumbTint="#008CFF"
-            android:visibility="gone" />
+            android:thumbTint="#008CFF" />
 
         <TextView
             android:id="@+id/tvTimeElapsed"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_above="@id/seekBar"
+            android:layout_below="@id/seekBar"
             android:layout_alignParentStart="true"
             android:textColor="#CCCCCC"
-            android:textSize="12sp"
-            android:visibility="gone" />
+            android:textSize="12sp" />
 
         <TextView
             android:id="@+id/tvTimeRemaining"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_above="@id/seekBar"
+            android:layout_below="@id/seekBar"
             android:layout_alignParentEnd="true"
             android:textColor="#CCCCCC"
-            android:textSize="12sp"
-            android:visibility="gone" />
+            android:textSize="12sp" />
     </RelativeLayout>
 
     <!-- Channel zones (click to switch) -->

@@ -102,6 +102,7 @@ class HomeActivity : AppCompatActivity() {
                 currentMiniStreamId = returnedId
                 currentMiniUrl = returnedUrl
                 currentMiniTitle = returnedTitle
+                currentMiniIsVod = false
                 binding.tvMiniChannelName.text = returnedTitle
                 viewModel.setCurrentlyPlaying(returnedId)
                 binding.rvChannels.post {
@@ -139,6 +140,7 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniUrl = timeshiftUrl
                     currentMiniTitle = timeshiftTitle
                     currentMiniStreamId = streamId
+                    currentMiniIsVod = false
                     binding.tvMiniChannelName.text = timeshiftTitle
                     binding.tvPipChannelName?.text = timeshiftTitle
                     miniPlayer?.let {
@@ -163,6 +165,10 @@ class HomeActivity : AppCompatActivity() {
     private var currentMiniStreamId: Int = -1
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
+    // Explicitly tracked instead of regexing currentMiniUrl for "movie|vod" — that regex
+    // missed series episode URLs (which contain "series", not "movie"/"vod"), causing the
+    // fullscreen button to treat series as live and skip resume-position entirely.
+    private var currentMiniIsVod: Boolean = false
     private var miniRetryCount: Int = 0
     private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
@@ -304,8 +310,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             val recent = viewModel.getRecentChannel()
-            val isLive = currentMiniUrl.isNotEmpty() &&
-                !currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+            val isLive = currentMiniUrl.isNotEmpty() && !currentMiniIsVod
             when {
                 recent != null && recent.streamId != currentMiniStreamId -> playInMiniPlayer(recent)
                 isLive -> {
@@ -324,8 +329,7 @@ class HomeActivity : AppCompatActivity() {
         if (miniPlayer == null) {
             initMiniPlayer()
         } else {
-            val isLive = currentMiniUrl.isNotEmpty() &&
-                !currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
+            val isLive = currentMiniUrl.isNotEmpty() && !currentMiniIsVod
             if (!isLive) {
                 // VOD: resume from current position; live streams handled in onResume
                 miniPlayer?.play()
@@ -373,14 +377,14 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.miniPlayerView.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+                val currentPos = miniPlayer?.currentPosition ?: 0L
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
         binding.btnFullscreen?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
-                val isVodStream = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVodStream, resumeMs = currentPos)
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
         binding.rvChannels.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
@@ -455,6 +459,7 @@ class HomeActivity : AppCompatActivity() {
             currentMiniUrl = url
             currentMiniTitle = channel.name
             currentMiniStreamId = channel.streamId
+            currentMiniIsVod = false
             viewModel.setCurrentlyPlaying(channel.streamId)
             binding.tvMiniChannelName.text = channel.name
             binding.tvPipChannelName?.text = channel.name
@@ -528,7 +533,12 @@ class HomeActivity : AppCompatActivity() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Sort Movies")
             .setSingleChoiceItems(labels, current) { dialog, which ->
+                val beforeFirst = vodAdapter.currentList.firstOrNull()?.name ?: "(empty)"
                 viewModel.setVodSort(options[which].first)
+                binding.rvChannels.post {
+                    val afterFirst = vodAdapter.currentList.firstOrNull()?.name ?: "(empty)"
+                    Toast.makeText(this, "Sort: ${options[which].second}\nBefore: $beforeFirst\nAfter: $afterFirst", Toast.LENGTH_LONG).show()
+                }
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -572,7 +582,8 @@ class HomeActivity : AppCompatActivity() {
             ?.setOnClickListener { togglePipMode() }
         binding.pipCorner?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+                val currentPos = miniPlayer?.currentPosition ?: 0L
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
     }
@@ -643,6 +654,7 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniUrl = url
                     currentMiniTitle = vod.name
                     currentMiniStreamId = vod.streamId
+                    currentMiniIsVod = true
                     binding.tvMiniChannelName.text = vod.name
                     miniPlayer?.let {
                         it.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
@@ -653,8 +665,7 @@ class HomeActivity : AppCompatActivity() {
                     binding.btnFullscreen?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
-                val isVodStream = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVodStream, resumeMs = currentPos)
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
                 }

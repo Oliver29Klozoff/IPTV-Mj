@@ -625,7 +625,13 @@ class TvHomeActivity : AppCompatActivity() {
                 // SCREEN/REFRESH GUIDE header row needs plain lateral movement between its
                 // own buttons — don't hijack that.
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (navState) {
-                    NavState.SIDEBAR -> return true
+                    NavState.SIDEBAR -> {
+                        // Let the cursor reach the FULL SCREEN / REFRESH buttons above the
+                        // content area instead of being a dead end at the sidebar's edge.
+                        navState = NavState.CHANNELS
+                        binding.btnTvFullscreen.requestFocus()
+                        return true
+                    }
                     NavState.CATEGORIES -> return true
                     NavState.CHANNELS -> {
                         if (isGuideHeaderButton(currentFocus)) {

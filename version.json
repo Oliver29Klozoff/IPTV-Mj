@@ -1,7 +1,7 @@
 {
-  "versionCode": 232,
-  "versionName": "3.94",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.94/MKTV.apk",
-  "apkSha256": "5d7dba3d013a632b4e1908e71e6c85c113d1e780d7c906d203de6e410ab2a374",
-  "changelog": "Fixed Movies/Series not loading their catalogs, USA-Only wiping VOD categories, an OOM crash on large catalogs, rotation losing mini-player state, a TV D-pad focus crash, and a Favorites drag-reorder crash. New: sync progress bar, movie sort (rating/year/added), elapsed/remaining time display, accelerating rewind/fast-forward."
+  "versionCode": 233,
+  "versionName": "3.95",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.95/MKTV.apk",
+  "apkSha256": "46975460a799aec7c38ddda6ba72a33d32e98c1cddb9f74f2a31e2484e6fd02c",
+  "changelog": "Fixed live/Shield stream repeating after a few minutes (stale cached HLS manifest), D-pad up/down not continuing channel changes on TV, sidebar not reaching header buttons, channel-list flicker on TV focus, movie/series timeline not showing (now persistent instead of hidden with overlay), resume-from-mini-player restarting from the beginning for series, and the Live/DVR button not returning to the live edge."
 }

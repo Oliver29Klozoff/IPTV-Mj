@@ -1,5 +1,27 @@
 # IPTV App - Changelog
 
+## v3.95 - 2026-07-09
+- **Fixed**: live TV on the Shield (and full screen generally) would play a few minutes then
+  repeat the same content — caused by the HLS playlist itself being cached alongside media
+  segments; live playlists must always be fetched fresh, so they're now routed around the
+  disk cache while segments still cache normally for DVR rewind.
+- **Fixed**: D-pad up/down on TV stopped changing channels after the first press, since the
+  channel-change overlay was popping open and eating the next key press.
+- **Fixed**: D-pad Right from the TV sidebar couldn't reach the FULL SCREEN/REFRESH header
+  buttons.
+- **Fixed**: the focused row in the TV channel list would visibly flicker on every EPG/health
+  refresh tick, even when that row's own data hadn't changed.
+- **Fixed**: the movie/series timeline (progress bar + elapsed/remaining time) wasn't visible
+  during playback — it was nested inside the auto-hiding overlay instead of staying
+  persistently on screen like a normal video player's scrub bar.
+- **Fixed**: resuming a movie or series episode from the mini player (via the fullscreen
+  button, tapping the mini player itself, or the PiP corner) could restart from the
+  beginning instead of resuming — a URL-pattern check used to tell VOD from live content
+  missed series episode URLs and dropped the saved resume position.
+- **Fixed**: the "● LIVE" button (jump to live edge) could land back at the start of the
+  buffered window instead of "now," since it relied on live-edge detection some providers'
+  playlists don't signal correctly.
+
 ## v3.94 - 2026-07-08
 - **Fixed**: Movies and Series were never actually loading their content (only categories) —
   the sync logic now fetches the real catalogs automatically on first run.
