@@ -361,6 +361,12 @@ class HomeActivity : AppCompatActivity() {
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    com.iptvapp.IptvApplication.logPlaybackEvent(
+                        applicationContext,
+                        "MINI PLAYER ERROR: isVod=$currentMiniIsVod streamId=$currentMiniStreamId " +
+                            "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
+                            "message=${error.message} retryCount=$miniRetryCount url=$currentMiniUrl"
+                    )
                     if (miniRetryCount >= 5 || currentMiniUrl.isEmpty()) return
                     miniRetryCount++
                     miniPlayJob?.cancel()

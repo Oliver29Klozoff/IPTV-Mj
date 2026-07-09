@@ -42,6 +42,13 @@ class IptvApplication : Application(), Configuration.Provider {
         setupCrashHandler()
         createNotificationChannels()
         try { CastContext.getSharedInstance(this) } catch (_: Exception) {}
+        // Marks which build is actually running the current process — an OTA update installs
+        // the new APK but a process already alive keeps running the old code until it's fully
+        // restarted, which otherwise silently defeats any logging added in the new version.
+        try {
+            val v = packageManager.getPackageInfo(packageName, 0)
+            logPlaybackEvent(this, "APP STARTED: v${v.versionName} (${v.longVersionCode})")
+        } catch (_: Exception) {}
     }
 
     private fun createNotificationChannels() {

@@ -155,6 +155,7 @@ class PlayerActivity : AppCompatActivity() {
     private val maxRetries = 5
     private var retryJob: Job? = null
     private var channelSwitchJob: Job? = null
+    private var bufferWatchdog: Runnable? = null
 
     private var sleepTimer: CountDownTimer? = null
     private var isAdjustingGesture = false
@@ -771,6 +772,21 @@ class PlayerActivity : AppCompatActivity() {
                             }
                             Player.STATE_BUFFERING -> {
                                 binding.progressBuffering.visibility = View.VISIBLE
+                                // Neither onPlayerError nor STATE_ENDED necessarily fires if a
+                                // stream just stalls indefinitely — that leaves a black screen
+                                // with zero trace in the debug report. Log once if buffering
+                                // hasn't cleared after 20s so a stall is at least visible.
+                                bufferWatchdog?.let { hideHandler.removeCallbacks(it) }
+                                bufferWatchdog = Runnable {
+                                    if (player?.playbackState == Player.STATE_BUFFERING) {
+                                        com.iptvapp.IptvApplication.logPlaybackEvent(
+                                            applicationContext,
+                                            "BUFFERING STALL: isVod=$isVod streamId=$streamId url=$streamUrl " +
+                                                "stuck 20s+ with no error/ended event"
+                                        )
+                                    }
+                                }
+                                hideHandler.postDelayed(bufferWatchdog!!, 20_000L)
                             }
                             Player.STATE_ENDED -> {
                                 binding.progressBuffering.visibility = View.GONE

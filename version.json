@@ -1,7 +1,7 @@
 {
-  "versionCode": 234,
-  "versionName": "3.96",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.96/MKTV.apk",
-  "apkSha256": "52bb9cfd9fa98e1ac92e4a7d89233e537ffdb994dc3b0f14229c8116064eff4a",
-  "changelog": "Diagnostic release: playback errors and reconnect-retry attempts are now logged (with the reason and error code) so 'Send Debug Report' can capture what's happening during a black-screen/reconnect-loop instead of showing nothing. No user-facing changes."
+  "versionCode": 235,
+  "versionName": "3.97",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.97/MKTV.apk",
+  "apkSha256": "06189374d6c0d4e844324f0254f209dee9cb7cb09db40a72d308849a9e292aed",
+  "changelog": "Diagnostic release: the previous v3.96 logging never fired, so this adds (1) a startup marker logging which build is actually running (an OTA install doesn't take effect in an already-running process until it's restarted), (2) logging for the mini player's own separate reconnect-retry loop, and (3) a 20s buffering-stall watchdog log for stalls that never trigger an error or STATE_ENDED event. Still no user-facing changes."
 }

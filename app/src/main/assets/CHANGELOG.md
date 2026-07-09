@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v3.97 - 2026-07-09
+- **Diagnostic**: v3.96's playback logging never actually captured anything on a repro —
+  most likely because the OTA install doesn't take effect in an already-running process
+  until it's restarted, so the old code kept running. Added: a startup log line recording
+  exactly which build/versionCode is running (so a future report can confirm this), logging
+  for the mini player's own separate reconnect-retry loop (distinct from the fullscreen
+  player's), and a 20-second buffering-stall watchdog log for stalls that never trigger an
+  error or STATE_ENDED event at all. Still no user-facing behavior change.
+
 ## v3.96 - 2026-07-09
 - **Diagnostic**: player errors, reconnect-retry attempts, and give-up events are now logged
   to the same crash log that "Send Debug Report" uploads (error code, cause, stream URL,
