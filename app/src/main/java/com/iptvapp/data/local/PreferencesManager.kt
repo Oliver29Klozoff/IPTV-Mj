@@ -73,6 +73,7 @@ class PreferencesManager @Inject constructor(
         val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
+        val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
     }
 
     val silentSelfUpdateEnabled: Flow<Boolean> = context.dataStore.data
@@ -89,6 +90,14 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.DV7_FALLBACK_ENABLED] ?: false }
     suspend fun setDv7FallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.DV7_FALLBACK_ENABLED] = v }
+
+    // Global, applies to every server — not a per-server setting. Defaults on since slower/
+    // less reliable IPTV providers are the norm here, and the bigger buffer directly trades
+    // a few extra seconds of initial load for fewer mid-playback stalls/freezes.
+    val extraBufferingEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
+    suspend fun setExtraBufferingEnabled(v: Boolean) = context.dataStore.edit { it[Keys.EXTRA_BUFFERING_ENABLED] = v }
 
     data class SubtitleStyle(
         val sizeScale: Float,

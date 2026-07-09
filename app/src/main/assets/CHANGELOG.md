@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v3.99 - 2026-07-09
+- **New**: Global Extra Buffering setting (Settings → Stream on phone; Settings → Stream →
+  Decoder on TV). On by default. Raises the fullscreen player's buffer targets — trades a
+  slightly slower start/seek for fewer mid-playback stalls on slow or inconsistent IPTV
+  providers. Applies globally to every server, not per-provider.
+
 ## v3.98 - 2026-07-09
 - **Fixed**: TV had the same VOD/live-detection bug fixed on phone in v3.95 — the fullscreen
   button, tapping the mini player, and the OK-button shortcut all used a URL regex

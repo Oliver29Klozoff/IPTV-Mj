@@ -643,8 +643,15 @@ class PlayerActivity : AppCompatActivity() {
     // ─── Player ─────────────────────────────────────────────────────────────
 
     private fun buildPlayer(): ExoPlayer {
+        // Global (applies to every server, not per-provider) — trades a slower initial
+        // load/seek for fewer mid-playback stalls, since some IPTV providers are slow or
+        // inconsistent enough that the default buffer runs dry mid-stream.
+        val extraBufferingEnabled = kotlinx.coroutines.runBlocking { prefs.extraBufferingEnabled.first() }
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(50000, 120000, 5000, 10000)
+            .apply {
+                if (extraBufferingEnabled) setBufferDurationsMs(90_000, 240_000, 10_000, 15_000)
+                else setBufferDurationsMs(50_000, 120_000, 5_000, 10_000)
+            }
             .setPrioritizeTimeOverSizeThresholds(true)
             // Retain already-played media so live channels can rewind without a network
             // re-fetch for the last couple of minutes; older content still seeks fine via

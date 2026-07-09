@@ -930,6 +930,7 @@ class SettingsActivity : AppCompatActivity() {
                     else -> binding.rbAutoOff.isChecked = true
                 }
                 binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
+                binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
                 binding.cbDohEnabled.isChecked = dohEnabled
                 binding.rgDohProvider.visibility = if (dohEnabled) android.view.View.VISIBLE else android.view.View.GONE
@@ -1297,6 +1298,10 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
+        }
+        binding.switchExtraBuffering.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
         binding.btnSyncUp.setOnClickListener {
             binding.tvSyncStatus.text = "Pushing to cloud..."

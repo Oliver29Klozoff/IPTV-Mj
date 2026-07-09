@@ -249,6 +249,9 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Toggle("stream_dv7_fallback", "DV7 → HEVC Fallback",
             subtitle = "Maps Dolby Vision Profile 7 content to standard HEVC for devices without proper DV7 hardware support",
             checked = prefs.dv7FallbackEnabled.first()) { c -> lifecycleScope.launch { prefs.setDv7FallbackEnabled(c) } }
+        settingsItems += TvSettingItem.Toggle("stream_extra_buffering", "Global Extra Buffering",
+            subtitle = "Enable extra buffering for all servers by default — trades a slower start/seek for fewer mid-playback stalls. On by default.",
+            checked = prefs.extraBufferingEnabled.first()) { c -> lifecycleScope.launch { prefs.setExtraBufferingEnabled(c) } }
 
         // ── DISPLAY ──
         currentAccentColorHex = prefs.accentColor.first()

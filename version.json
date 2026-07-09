@@ -1,7 +1,7 @@
 {
-  "versionCode": 236,
-  "versionName": "3.98",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.98/MKTV.apk",
-  "apkSha256": "fec155a2275b5db4716cad11786b16de1462bc04a384f9f369f3485490c67e5b",
-  "changelog": "Fixed the same VOD/live detection bug on TV that was fixed on phone in v3.95 — the TV fullscreen button, mini-player tap, and OK-button shortcut all used a URL regex that missed series episodes, causing them to open as live (no seek bar/resume) instead of VOD. Also includes v3.97's playback diagnostics for the phone's black-screen/frozen-fullscreen report."
+  "versionCode": 237,
+  "versionName": "3.99",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.99/MKTV.apk",
+  "apkSha256": "f3386e605706cf2c4353be1d5d8fae6eacf91d6e5862a63e1d6e010ee5602303",
+  "changelog": "New: Global Extra Buffering setting (Settings → Stream on phone, Settings → Stream → Decoder on TV). On by default — raises the fullscreen player's buffer targets (10s/15s start/rebuffer thresholds, up to 240s max buffered) to trade a slightly slower start/seek for fewer mid-playback stalls on slow or inconsistent IPTV providers. Applies to every server, not per-provider."
 }
