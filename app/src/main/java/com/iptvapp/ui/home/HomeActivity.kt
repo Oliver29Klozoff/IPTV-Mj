@@ -674,6 +674,10 @@ class HomeActivity : AppCompatActivity() {
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
+                    // Matches the live-channel pick behavior — collapse the expandable
+                    // channel strip in landscape after picking something to play, instead of
+                    // only doing this for live channels and leaving it stuck open for VOD.
+                    collapseChannelsLandscape()
                 }
             },
             onFavoriteClick = {}

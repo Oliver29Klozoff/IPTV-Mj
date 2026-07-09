@@ -1,7 +1,7 @@
 {
-  "versionCode": 239,
-  "versionName": "4.1",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.1/MKTV.apk",
-  "apkSha256": "5aebfceee4ac96e457deafe1c85e9a3029a0f1bbea2f31ec4fe47a949a68f03f",
-  "changelog": "Fixed movies/series showing a black screen in fullscreen (but playing fine in the mini player, which never resumes). Resuming applied the saved position as a seek AFTER the player had already buffered and become ready at position 0 — for progressively-served files, that forced a mid-stream HTTP range renegotiation some providers hang on instead of erroring, leaving playback stuck buffering forever with no visible error. The resume position is now applied as the initial start position when the media loads instead."
+  "versionCode": 240,
+  "versionName": "4.2",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.2/MKTV.apk",
+  "apkSha256": "e3495c2a6ebb9ecbf01e2855bfce412486e7c2ca4c86aadc02fbcf813ceae18a",
+  "changelog": "Fixed: in landscape on the phone, the expandable channel strip under the mini player collapses after picking a live channel, but selecting a movie left it stuck open — now it collapses after picking a movie too, matching live TV."
 }

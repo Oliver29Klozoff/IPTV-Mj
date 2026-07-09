@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.2 - 2026-07-09
+- **Fixed**: on the phone in landscape, the expandable channel strip under the mini player
+  collapses automatically after picking a live channel, but selecting a movie left it stuck
+  open. Now it collapses after picking a movie too, matching live TV.
+
 ## v4.1 - 2026-07-09
 - **Fixed**: movies/series showed a black screen in fullscreen but played fine in the mini
   player (which never resumes). The saved resume position was applied as a seek after the
