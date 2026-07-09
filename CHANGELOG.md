@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v4.5 - 2026-07-09
+- **Fixed**: fullscreen going to a black screen with an endless reconnect loop for content
+  that plays fine in the mini player. The fullscreen player's HTTP requests had no
+  User-Agent set (defaulting to raw OkHttp's own), while the mini player uses ExoPlayer's
+  built-in HTTP stack with its own default User-Agent instead — some Cloudflare-fronted
+  IPTV CDNs allow the latter but reject the former, which was the only real pipeline
+  difference between the two players. The fullscreen player now sends an ExoPlayer-style
+  User-Agent too.
+
 ## v4.4 - 2026-07-09
 - **Changed**: replaced the landscape channel list's broken auto-expand/collapse behavior
   (a hardcoded height that could overflow on some screens and only ever showed ~4 channels)

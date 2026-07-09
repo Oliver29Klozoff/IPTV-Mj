@@ -659,7 +659,15 @@ class PlayerActivity : AppCompatActivity() {
             .setBackBuffer(120_000, true)
             .build()
 
+        // Without an explicit User-Agent, OkHttpDataSource sends OkHttp's own default
+        // ("okhttp/4.x"). The mini player uses ExoPlayer's own built-in HTTP stack instead
+        // (no custom DataSource.Factory), which sends ExoPlayer's default User-Agent — some
+        // Cloudflare-fronted IPTV CDNs allow that but block/reject an unrecognized one,
+        // which looked exactly like "plays fine in the mini player, black screen + endless
+        // reconnect loop in fullscreen" since that's the only real pipeline difference
+        // between the two players for live channels.
         val upstreamDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
         // DVR/timeshift: cache every byte of the live stream to disk as it plays, so
         // rewinding into recently-played live TV re-reads from local disk instead of
         // requiring the provider to support server-side catchup. The HLS playlist itself

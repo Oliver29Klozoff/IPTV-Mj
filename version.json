@@ -1,7 +1,7 @@
 {
-  "versionCode": 242,
-  "versionName": "4.4",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.4/MKTV.apk",
-  "apkSha256": "b133e61b50d0316f19667c6ee2b1aa2c1c16aca2804558cb27cb56a26a69d4fc",
-  "changelog": "Replaced the broken landscape channel list (which showed only ~4 channels due to a fragile hardcoded-height expand/collapse mechanic) with an on-demand 'Channels' button below the mini player in landscape — tap it to open the full scrollable list in a bottom sheet, pick something, and it closes automatically. The mini player now gets the full column height instead of always sharing it with the list."
+  "versionCode": 243,
+  "versionName": "4.5",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.5/MKTV.apk",
+  "apkSha256": "f7836fdd50c8b5ee08826608ffd3e38689d7cc44975db399b01bc48dc8a7e79a",
+  "changelog": "Fixed fullscreen going to a black screen with an endless reconnect loop for content that plays fine in the mini player. The fullscreen player's HTTP requests had no User-Agent set (defaulting to raw OkHttp's), while the mini player uses ExoPlayer's own built-in HTTP stack with its default User-Agent instead — some Cloudflare-fronted IPTV CDNs allow the latter but block the former. The fullscreen player now sends an ExoPlayer-style User-Agent too."
 }
