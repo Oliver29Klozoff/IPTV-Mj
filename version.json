@@ -1,7 +1,7 @@
 {
-  "versionCode": 235,
-  "versionName": "3.97",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.97/MKTV.apk",
-  "apkSha256": "06189374d6c0d4e844324f0254f209dee9cb7cb09db40a72d308849a9e292aed",
-  "changelog": "Diagnostic release: the previous v3.96 logging never fired, so this adds (1) a startup marker logging which build is actually running (an OTA install doesn't take effect in an already-running process until it's restarted), (2) logging for the mini player's own separate reconnect-retry loop, and (3) a 20s buffering-stall watchdog log for stalls that never trigger an error or STATE_ENDED event. Still no user-facing changes."
+  "versionCode": 236,
+  "versionName": "3.98",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.98/MKTV.apk",
+  "apkSha256": "fec155a2275b5db4716cad11786b16de1462bc04a384f9f369f3485490c67e5b",
+  "changelog": "Fixed the same VOD/live detection bug on TV that was fixed on phone in v3.95 — the TV fullscreen button, mini-player tap, and OK-button shortcut all used a URL regex that missed series episodes, causing them to open as live (no seek bar/resume) instead of VOD. Also includes v3.97's playback diagnostics for the phone's black-screen/frozen-fullscreen report."
 }

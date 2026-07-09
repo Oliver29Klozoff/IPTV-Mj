@@ -66,6 +66,11 @@ class TvHomeActivity : AppCompatActivity() {
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
     private var currentMiniStreamId: Int = -1
+    // Explicitly tracked instead of regexing currentMiniUrl for "movie|vod" — that regex
+    // missed series episode URLs (which contain "series", not "movie"/"vod"), causing the
+    // fullscreen button to treat VOD as live and open with no seek bar/resume (same bug
+    // fixed on phone in HomeActivity).
+    private var currentMiniIsVod: Boolean = false
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private var openPlayerJob: kotlinx.coroutines.Job? = null
@@ -89,6 +94,7 @@ class TvHomeActivity : AppCompatActivity() {
                 currentMiniStreamId = sid
                 currentMiniUrl = url
                 currentMiniTitle = title
+                currentMiniIsVod = false
                 binding.tvTvChannelName.text = title
                 miniPlayer?.let {
                     it.setMediaItem(MediaItem.fromUri(url))
@@ -238,13 +244,15 @@ class TvHomeActivity : AppCompatActivity() {
             })
         }
         binding.tvMiniPlayerContainer.setOnClickListener {
-            if (currentMiniUrl.isNotEmpty()) openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+            if (currentMiniUrl.isNotEmpty()) {
+                val pos = miniPlayer?.currentPosition ?: 0L
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = pos)
+            }
         }
         binding.btnTvFullscreen.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val pos = miniPlayer?.currentPosition ?: 0L
-                val isVod = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVod, resumeMs = pos)
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = pos)
             }
         }
         lifecycleScope.launch {
@@ -259,6 +267,7 @@ class TvHomeActivity : AppCompatActivity() {
             currentMiniUrl = url
             currentMiniTitle = channel.name
             currentMiniStreamId = channel.streamId
+            currentMiniIsVod = false
             binding.tvTvChannelName.text = channel.name
             miniPlayer?.let {
                 it.setMediaItem(MediaItem.fromUri(url))
@@ -391,6 +400,7 @@ class TvHomeActivity : AppCompatActivity() {
                     currentMiniUrl = url
                     currentMiniTitle = vod.name
                     currentMiniStreamId = vod.streamId
+                    currentMiniIsVod = true
                     binding.tvTvChannelName.text = vod.name
                     miniPlayer?.let {
                         it.setMediaItem(MediaItem.fromUri(url))
@@ -684,8 +694,7 @@ class TvHomeActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_Y -> {
                     if (currentMiniUrl.isNotEmpty()) {
                         val pos = miniPlayer?.currentPosition ?: 0L
-                        val isVod = currentMiniUrl.contains(Regex("movie|vod", RegexOption.IGNORE_CASE))
-                        openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = isVod, resumeMs = pos)
+                        openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = pos)
                         return true
                     }
                 }

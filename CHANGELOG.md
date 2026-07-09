@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v3.98 - 2026-07-09
+- **Fixed**: TV had the same VOD/live-detection bug fixed on phone in v3.95 — the fullscreen
+  button, tapping the mini player, and the OK-button shortcut all used a URL regex
+  ("movie|vod") that missed series episode URLs, so those opened as live TV instead of VOD
+  (no seek bar, no resume). Now tracked explicitly instead of guessed from the URL.
+
 ## v3.97 - 2026-07-09
 - **Diagnostic**: v3.96's playback logging never actually captured anything on a repro —
   most likely because the OTA install doesn't take effect in an already-running process
