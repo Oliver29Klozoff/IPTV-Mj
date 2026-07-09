@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.4 - 2026-07-09
+- **Changed**: replaced the landscape channel list's broken auto-expand/collapse behavior
+  (a hardcoded height that could overflow on some screens and only ever showed ~4 channels)
+  with an on-demand "Channels ▾" button below the mini player. Tap it to open the full
+  scrollable list in a bottom sheet; picking anything plays it and closes the sheet
+  automatically. The mini player now gets the full column height by default instead of
+  permanently sharing it with the list.
+
 ## v4.3 - 2026-07-09
 - **Fixed**: rotating the phone made all channels disappear and the landscape channel-list
   pop-up stop working entirely. Root cause: an earlier fix disabled activity recreation on

@@ -1,7 +1,7 @@
 {
-  "versionCode": 241,
-  "versionName": "4.3",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.3/MKTV.apk",
-  "apkSha256": "c2a6ac46b0aa8f74aaa27a27b90a4ff279cc44e7d4552561c5bb4aa4be34a2eb",
-  "changelog": "Fixed: rotating the phone made all channels disappear and the landscape channel-list pop-up stop working. A prior fix disabled activity recreation on rotation to stop the mini player resetting, but Android only switches to the landscape-specific layout (the whole 3-column UI with the channel pop-up) by recreating the activity — with that disabled, rotating just squished the portrait layout into the landscape window instead. Recreation on rotation is restored, and the mini player's state (what's playing, position) is now preserved across it via the ViewModel instead."
+  "versionCode": 242,
+  "versionName": "4.4",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.4/MKTV.apk",
+  "apkSha256": "b133e61b50d0316f19667c6ee2b1aa2c1c16aca2804558cb27cb56a26a69d4fc",
+  "changelog": "Replaced the broken landscape channel list (which showed only ~4 channels due to a fragile hardcoded-height expand/collapse mechanic) with an on-demand 'Channels' button below the mini player in landscape — tap it to open the full scrollable list in a bottom sheet, pick something, and it closes automatically. The mini player now gets the full column height instead of always sharing it with the list."
 }

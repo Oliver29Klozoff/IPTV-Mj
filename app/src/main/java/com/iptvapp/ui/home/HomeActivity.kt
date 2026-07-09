@@ -10,8 +10,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import android.view.View
@@ -68,9 +66,6 @@ class HomeActivity : AppCompatActivity() {
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private var openPlayerJob: kotlinx.coroutines.Job? = null
     private lateinit var binding: ActivityHomeBinding
-    private var isLandscapeChannelsCollapsed = false
-    private val channelCollapseHandler = Handler(Looper.getMainLooper())
-    private val channelCollapseRunnable = Runnable { collapseChannelsLandscape() }
 
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
@@ -286,6 +281,33 @@ class HomeActivity : AppCompatActivity() {
         })
         // Sync initial highlight to tab 5 (Favorites)
         btn(R.id.landBtnFavorites)?.setTextColor(currentAccent)
+        root.findViewById<android.widget.Button?>(R.id.btnShowChannelList)?.setOnClickListener {
+            showChannelListSheet()
+        }
+    }
+
+    private var channelSheetDialog: com.google.android.material.bottomsheet.BottomSheetDialog? = null
+
+    // On-demand replacement for the old always-visible/auto-collapsing landscape channel
+    // list (removed in v4.4 — it relied on a hardcoded height that could overflow on some
+    // screens, plus a broken expand guard that meant the "bigger" state never triggered).
+    // Reuses whatever adapter is already bound to binding.rvChannels for the current tab
+    // (live/VOD/series/etc.) — a RecyclerView.Adapter can be attached to more than one
+    // RecyclerView at once, so this needs no separate data wiring.
+    private fun showChannelListSheet() {
+        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        val sheetRv = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+            adapter = binding.rvChannels.adapter
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.8).toInt()
+            )
+        }
+        dialog.setContentView(sheetRv)
+        dialog.setOnDismissListener { channelSheetDialog = null }
+        channelSheetDialog = dialog
+        dialog.show()
     }
 
     private fun applyAccent(colorInt: Int) {
@@ -354,7 +376,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cancelChannelCollapse()
+        channelSheetDialog?.dismiss()
         // Survives into the next HomeActivity instance via the ViewModel when this destroy
         // is a rotation-triggered recreation (a true app exit just leaves this unread, since
         // a fresh launch gets a brand new ViewModel with this field null by default).
@@ -420,22 +442,6 @@ class HomeActivity : AppCompatActivity() {
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
-        binding.rvChannels.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                when (e.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        expandChannelsLandscape()
-                        cancelChannelCollapse()
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (!isLandscapeChannelsCollapsed) scheduleChannelCollapse()
-                    }
-                }
-                return false
-            }
-            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
-            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
-        })
         restoredMiniState?.let { state ->
             restoredMiniState = null
             binding.tvMiniChannelName.text = state.title
@@ -448,42 +454,6 @@ class HomeActivity : AppCompatActivity() {
         } ?: loadLastWatchedChannel()
     }
 
-    private fun scheduleChannelCollapse() {
-        channelCollapseHandler.removeCallbacks(channelCollapseRunnable)
-        channelCollapseHandler.postDelayed(channelCollapseRunnable, 5000)
-    }
-
-    private fun cancelChannelCollapse() {
-        channelCollapseHandler.removeCallbacks(channelCollapseRunnable)
-    }
-
-    private fun isLandscape() =
-        resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-
-    private fun collapseChannelsLandscape() {
-        if (!isLandscape()) return
-        cancelChannelCollapse()
-        val rvParams = binding.rvChannels.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
-        rvParams.height = (110 * resources.displayMetrics.density).toInt()
-        rvParams.weight = 0f
-        binding.rvChannels.layoutParams = rvParams
-        isLandscapeChannelsCollapsed = true
-        binding.rvChannels.post {
-            val pos = channelAdapter.currentList.indexOfFirst { it.streamId == currentMiniStreamId }
-            if (pos >= 0) (binding.rvChannels.layoutManager as? LinearLayoutManager)
-                ?.scrollToPositionWithOffset(pos, 0)
-        }
-    }
-
-    private fun expandChannelsLandscape() {
-        if (!isLandscape() || !isLandscapeChannelsCollapsed) return
-        val rvParams = binding.rvChannels.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
-        rvParams.height = (450 * resources.displayMetrics.density).toInt()
-        rvParams.weight = 0f
-        binding.rvChannels.layoutParams = rvParams
-        isLandscapeChannelsCollapsed = false
-    }
-
     private fun loadLastWatchedChannel() {
         lifecycleScope.launch {
             val recent = viewModel.getRecentChannel()
@@ -494,6 +464,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun playInMiniPlayer(channel: ChannelEntity) {
+        channelSheetDialog?.dismiss()
         miniPlayJob?.cancel()
         miniRetryCount = 0
         miniPlayJob = lifecycleScope.launch {
@@ -528,7 +499,6 @@ class HomeActivity : AppCompatActivity() {
             }
             refreshMiniEpg(channel.streamId)
             startEpgRefreshLoop(channel.streamId)
-            collapseChannelsLandscape()
         }
     }
 
@@ -690,6 +660,7 @@ class HomeActivity : AppCompatActivity() {
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
+                channelSheetDialog?.dismiss()
                 lifecycleScope.launch {
                     val url = viewModel.getVodStreamUrl(vod.streamId, vod.containerExtension)
                     val progress = viewModel.getVodProgress(vod.streamId)
@@ -710,10 +681,6 @@ class HomeActivity : AppCompatActivity() {
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
         }
-                    // Matches the live-channel pick behavior — collapse the expandable
-                    // channel strip in landscape after picking something to play, instead of
-                    // only doing this for live channels and leaving it stuck open for VOD.
-                    collapseChannelsLandscape()
                 }
             },
             onFavoriteClick = {}
@@ -721,6 +688,7 @@ class HomeActivity : AppCompatActivity() {
 
         seriesAdapter = SeriesAdapter(
             onSeriesClick = { series ->
+                channelSheetDialog?.dismiss()
                 startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
                     putExtra("series_id", series.seriesId)
                     putExtra("series_name", series.name)
