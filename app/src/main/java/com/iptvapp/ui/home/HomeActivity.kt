@@ -515,12 +515,33 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun showVodSortDialog() {
+        val options = listOf(
+            HomeViewModel.VodSort.DEFAULT to "Default",
+            HomeViewModel.VodSort.RATING_DESC to "Rating (High to Low)",
+            HomeViewModel.VodSort.YEAR_NEWEST to "Year (Newest First)",
+            HomeViewModel.VodSort.YEAR_OLDEST to "Year (Oldest First)",
+            HomeViewModel.VodSort.RECENTLY_ADDED to "Recently Added"
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        val current = options.indexOfFirst { it.first == viewModel.vodSort.value }.coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort Movies")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                viewModel.setVodSort(options[which].first)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun setupMenu() {
         binding.btnWhatsOn?.setOnClickListener { showWhatsOnNow() }
         binding.btnRefresh?.setOnClickListener {
             viewModel.refreshNow()
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
+        binding.btnVodSort?.setOnClickListener { showVodSortDialog() }
         binding.btnSort?.setOnClickListener {
             viewModel.cycleSort()
             val label = when (viewModel.channelSort.value) {
@@ -690,6 +711,7 @@ class HomeActivity : AppCompatActivity() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 viewModel.lastTabPosition = tab?.position ?: 5
+                binding.btnVodSort?.visibility = if (tab?.position == 2) View.VISIBLE else View.GONE
                 when (tab?.position) {
                     0 -> showLive()
                     1 -> showFavCategories()
@@ -878,6 +900,10 @@ class HomeActivity : AppCompatActivity() {
                 val fromPos = from.bindingAdapterPosition
                 val toPos = to.bindingAdapterPosition
                 if (dragList.isEmpty()) dragList.addAll(channelAdapter.currentList)
+                // channelAdapter is shared across tabs (Live/Favorites/History) — if a
+                // background update swaps in a differently-sized list mid-drag, these
+                // positions can point outside dragList's bounds. Reject rather than crash.
+                if (fromPos !in dragList.indices || toPos !in dragList.indices) return false
                 dragList.add(toPos, dragList.removeAt(fromPos))
                 channelAdapter.submitList(dragList.toList())
                 return true
@@ -1013,6 +1039,18 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            viewModel.syncProgress.collect { progress ->
+                if (progress == null) {
+                    binding.syncProgressContainer?.visibility = View.GONE
+                } else {
+                    val (text, percent) = progress
+                    binding.syncProgressContainer?.visibility = View.VISIBLE
+                    binding.tvSyncStatus?.text = text
+                    binding.syncProgressBar?.progress = percent
+                }
+            }
+        }
+        lifecycleScope.launch {
             viewModel.liveCategories.collect { cats ->
                 if (binding.tabLayout.selectedTabPosition == 0) {
                     updateGenreChips(cats)
@@ -1057,9 +1095,16 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
+        var lastVodList: List<com.iptvapp.data.local.entities.VodEntity> = emptyList()
         lifecycleScope.launch {
             viewModel.vod.collect {
-                if (binding.tabLayout.selectedTabPosition == 2) vodAdapter.submitList(it)
+                lastVodList = it
+                if (binding.tabLayout.selectedTabPosition == 2) vodAdapter.submitList(viewModel.applyVodSort(it))
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.vodSort.collect {
+                if (binding.tabLayout.selectedTabPosition == 2) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
             }
         }
         lifecycleScope.launch {

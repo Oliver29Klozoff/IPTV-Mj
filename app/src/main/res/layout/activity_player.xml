@@ -377,6 +377,26 @@
             android:progressTint="#008CFF"
             android:thumbTint="#008CFF"
             android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvTimeElapsed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/seekBar"
+            android:layout_alignParentStart="true"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvTimeRemaining"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/seekBar"
+            android:layout_alignParentEnd="true"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp"
+            android:visibility="gone" />
     </RelativeLayout>
 
     <!-- Channel zones (click to switch) -->

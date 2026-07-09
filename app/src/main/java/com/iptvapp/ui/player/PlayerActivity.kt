@@ -479,11 +479,24 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
+    // Accelerating VOD skip: 10s per tap normally, 30s once you've tapped more than 10 times
+    // in a row without pausing — mirrors how most players speed up scrubbing on repeated presses.
+    private var vodSkipPressCount = 0
+    private var lastVodSkipTimeMs = 0L
+
+    private fun nextVodSkipAmountMs(): Long {
+        val now = System.currentTimeMillis()
+        if (now - lastVodSkipTimeMs > 1500L) vodSkipPressCount = 0
+        vodSkipPressCount++
+        lastVodSkipTimeMs = now
+        return if (vodSkipPressCount > 10) 30_000L else 10_000L
+    }
+
     private fun setupChannelZones() {
         binding.zonePrevious.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
             if (isVod) {
-                val pos = (player?.currentPosition ?: 0L) - 10000L
+                val pos = (player?.currentPosition ?: 0L) - nextVodSkipAmountMs()
                 player?.seekTo(pos.coerceAtLeast(0L))
                 updateSeekBar()
                 showOverlay()
@@ -495,7 +508,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.zoneNext.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
             if (isVod) {
-                val pos = (player?.currentPosition ?: 0L) + 10000L
+                val pos = (player?.currentPosition ?: 0L) + nextVodSkipAmountMs()
                 val duration = player?.duration ?: Long.MAX_VALUE
                 player?.seekTo(pos.coerceAtMost(duration))
                 updateSeekBar()
@@ -1020,17 +1033,31 @@ class PlayerActivity : AppCompatActivity() {
         lifecycleScope.launch { repository.saveVodProgress(streamId, watched, duration) }
     }
 
+    private fun formatDuration(ms: Long): String {
+        val totalSeconds = ms / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
+        else "%d:%02d".format(minutes, seconds)
+    }
+
     private fun updateSeekBar() {
         if (!isVod) return
         val duration = player?.duration ?: return
         if (duration <= 0) return
+        val position = player?.currentPosition ?: 0L
         binding.seekBar.max = duration.toInt()
-        binding.seekBar.progress = (player?.currentPosition ?: 0L).toInt()
+        binding.seekBar.progress = position.toInt()
+        binding.tvTimeElapsed.text = formatDuration(position)
+        binding.tvTimeRemaining.text = "-" + formatDuration((duration - position).coerceAtLeast(0L))
     }
 
     private fun startSeekBarUpdater() {
         if (!isVod) return
         binding.seekBar.visibility = View.VISIBLE
+        binding.tvTimeElapsed.visibility = View.VISIBLE
+        binding.tvTimeRemaining.visibility = View.VISIBLE
         binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser) player?.seekTo(progress.toLong())
@@ -1160,12 +1187,12 @@ class PlayerActivity : AppCompatActivity() {
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 !isOverlayVisible -> { showOverlay(); true }
-                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - 10000L).coerceAtLeast(0L)); true }
+                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - nextVodSkipAmountMs()).coerceAtLeast(0L)); true }
                 else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 !isOverlayVisible -> { showOverlay(); true }
-                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + 10000L).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
+                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + nextVodSkipAmountMs()).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
                 else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {

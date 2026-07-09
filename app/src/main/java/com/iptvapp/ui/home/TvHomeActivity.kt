@@ -914,7 +914,16 @@ class TvHomeActivity : AppCompatActivity() {
      * entirely instead of depending on whichever views happen to be attached at that instant. */
     private fun moveChannelListFocus(up: Boolean) {
         val rv = binding.tvRvContent
-        val focused = rv.findFocus() ?: return
+        val focusedDescendant = rv.findFocus() ?: return
+        // getChildAdapterPosition requires a direct child of the RecyclerView — findFocus()
+        // can return a nested view inside the row (e.g. a favorite-star button), which throws
+        // IllegalArgumentException instead of just failing gracefully. Walk up to the actual
+        // item view first.
+        var itemView: View? = focusedDescendant
+        while (itemView != null && itemView.parent !== rv) {
+            itemView = itemView.parent as? View
+        }
+        val focused = itemView ?: return
         val pos = rv.getChildAdapterPosition(focused)
         if (pos == RecyclerView.NO_POSITION) return
         val itemCount = rv.adapter?.itemCount ?: 0

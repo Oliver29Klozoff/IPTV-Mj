@@ -1,5 +1,30 @@
 # IPTV App - Changelog
 
+## v3.94 - 2026-07-08
+- **Fixed**: Movies and Series were never actually loading their content (only categories) —
+  the sync logic now fetches the real catalogs automatically on first run.
+- **Fixed**: "USA Channels Only" was incorrectly wiping out all Movie/Series categories,
+  since that filter only makes sense for live TV. Movies/Series categories are no longer
+  affected by it.
+- **Fixed**: a real out-of-memory crash on large catalogs (100k+ items) — movie/series sync
+  now processes in chunks instead of holding the entire catalog in memory at once, runs
+  sequentially instead of concurrently with other fetches, and the app now requests a
+  larger heap.
+- **Fixed**: rotating the phone during playback could reset the mini-player back to a live
+  channel, losing what was playing.
+- **Fixed**: a crash when navigating the TV channel list with the D-pad if focus landed on
+  a nested element (like the favorite-star button) instead of the row itself.
+- **Fixed**: a crash when reordering Favorites (drag-and-drop) if a background update
+  touched the shared channel list mid-drag.
+- **New**: a progress bar shows real save-progress ("Loading movies… 45000/175327") during
+  first-time or manual Movies/Series sync.
+- **New**: Movies can now be sorted by rating, year (newest/oldest), or recently added
+  (Movies tab, new sort icon in the top bar).
+- **New**: while playing a movie/episode, elapsed and remaining time now show next to the
+  seek bar.
+- **New**: rewind/fast-forward on movies and episodes now accelerates from 10s to 30s per
+  tap if you tap more than 10 times in a row — applies to both touch and TV remote D-pad.
+
 ## v3.93 - 2026-07-08
 - Trakt login/scrobbling is now fully working end-to-end — the secret-holding proxy moved
   from Cloudflare Workers (which Trakt's own anti-bot protection blocks outright) to Deno

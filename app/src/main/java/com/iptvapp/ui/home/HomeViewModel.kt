@@ -74,6 +74,10 @@ class HomeViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
 
+    /** Null when hidden. Pair of (status text, 0-100 percent) while a large catalog syncs. */
+    private val _syncProgress = MutableStateFlow<Pair<String, Int>?>(null)
+    val syncProgress: StateFlow<Pair<String, Int>?> = _syncProgress
+
     val showMovies = prefs.showMovies
     val showSeries = prefs.showSeries
     val showWatching = prefs.showWatching
@@ -145,11 +149,11 @@ class HomeViewModel @Inject constructor(
                     }
             }
             launch {
-                repository.getVodCategories()
-                    .combine(prefs.usaOnlyChannels) { cats, usaOnly ->
-                        if (usaOnly) cats.filter { isUsCategory(it.categoryName) } else cats
-                    }
-                    .collectLatest { _vodCategories.value = it }
+                // "USA Channels Only" is a live-TV concept (categories tagged "US|..." by the
+                // provider) — movie/series categories aren't tagged that way at all, so
+                // applying the same filter here was wiping out the entire VOD category list
+                // whenever the toggle was on.
+                repository.getVodCategories().collectLatest { _vodCategories.value = it }
             }
             launch {
                 repository.getAllVod().collectLatest { _vod.value = it }
@@ -165,7 +169,10 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // Network sync: always fetch if cache is empty; skip if fetched within last 4 hours
+        // Network sync: always fetch if cache is empty; skip if fetched within last 4 hours.
+        // VOD/series catalogs can be huge (100k+ items on some providers) — only auto-fetch
+        // those on first run (table empty), never repeatedly in the background. Manual
+        // refresh (refreshNow) always re-fetches everything since that's an explicit ask.
         viewModelScope.launch {
             val isEmpty = repository.getChannelCount() == 0
             val isStale = repository.isChannelCacheStale()
@@ -177,6 +184,20 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchLiveStreams() }
                     launch { repository.fetchVodCategories() }
                 }
+                // Run sequentially, after the smaller fetches above finish and their memory
+                // is freed — parsing a 100k+ item catalog concurrently with everything else
+                // spikes peak memory and can OOM-crash the whole app.
+                if (repository.getVodCount() == 0) {
+                    repository.fetchVodStreams { saved, total ->
+                        _syncProgress.value = "Loading movies… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))
+                    }
+                }
+                if (repository.getSeriesCount() == 0) {
+                    repository.fetchSeries { saved, total ->
+                        _syncProgress.value = "Loading series… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))
+                    }
+                }
+                _syncProgress.value = null
             } finally {
                 _loading.value = false
             }
@@ -192,6 +213,13 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchLiveStreams() }
                     launch { repository.fetchVodCategories() }
                 }
+                repository.fetchVodStreams { saved, total ->
+                    _syncProgress.value = "Loading movies… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))
+                }
+                repository.fetchSeries { saved, total ->
+                    _syncProgress.value = "Loading series… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))
+                }
+                _syncProgress.value = null
             } finally {
                 _loading.value = false
             }
@@ -232,6 +260,26 @@ class HomeViewModel @Inject constructor(
         ChannelSort.NAME_AZ -> list.sortedBy { it.name.lowercase() }
         ChannelSort.MOST_WATCHED -> list.sortedByDescending { it.viewCount }
         ChannelSort.RECENTLY_WATCHED -> list.sortedByDescending { it.lastWatched ?: 0L }
+    }
+
+    enum class VodSort { DEFAULT, RATING_DESC, YEAR_NEWEST, YEAR_OLDEST, RECENTLY_ADDED }
+
+    private val _vodSort = MutableStateFlow(VodSort.DEFAULT)
+    val vodSort: StateFlow<VodSort> = _vodSort
+
+    fun setVodSort(mode: VodSort) { _vodSort.value = mode }
+
+    /** Best-effort year parse from a title like "Jurassic Park (1993)" — providers embed it
+     * in the name; there's no separate year field. Returns null if the title has none. */
+    fun yearFromTitle(name: String): Int? =
+        Regex("""\((\d{4})\)\s*$""").find(name.trim())?.groupValues?.get(1)?.toIntOrNull()
+
+    fun applyVodSort(list: List<VodEntity>): List<VodEntity> = when (_vodSort.value) {
+        VodSort.DEFAULT -> list
+        VodSort.RATING_DESC -> list.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
+        VodSort.YEAR_NEWEST -> list.sortedByDescending { yearFromTitle(it.name) ?: -1 }
+        VodSort.YEAR_OLDEST -> list.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
+        VodSort.RECENTLY_ADDED -> list.sortedByDescending { it.added?.toLongOrNull() ?: 0L }
     }
 
     fun hasSelectedCategory(): Boolean = selectedLiveCategoryId != null

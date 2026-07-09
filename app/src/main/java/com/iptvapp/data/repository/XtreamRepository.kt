@@ -107,6 +107,10 @@ class XtreamRepository @Inject constructor(
 
     suspend fun getChannelCount(): Int = db.channelDao().getCount()
 
+    suspend fun getVodCount(): Int = db.vodDao().getCount()
+
+    suspend fun getSeriesCount(): Int = db.seriesDao().getCount()
+
     suspend fun getNewestEpgStop(): Long? = db.epgDao().getNewestEpgStopTimestamp()
 
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>> =
@@ -182,24 +186,33 @@ class XtreamRepository @Inject constructor(
         return urlBuilder().liveStreamUrl(streamId, "ts")
     }
 
-    suspend fun fetchVodStreams(): Resource<List<VodStream>> {
+    suspend fun fetchVodStreams(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<VodStream>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             android.util.Log.d("VodDiag", "VOD stream count from provider: ${list.size}")
-            db.vodDao().upsertVod(list.map {
-                VodEntity(
-                    streamId = it.streamId,
-                    name = it.name,
-                    streamIcon = it.streamIcon,
-                    categoryId = it.categoryId,
-                    rating = it.rating,
-                    containerExtension = it.containerExtension,
-                    added = it.added
-                )
-            })
+            // Some providers have 100k+ item catalogs — mapping the whole list to a second
+            // full-size List<VodEntity> before upserting doubles peak memory right when the
+            // raw deserialized response is already at its largest. Chunk map+upsert together
+            // so only one chunk's worth of entities exists at a time.
+            var saved = 0
+            list.chunked(2000).forEach { chunk ->
+                db.vodDao().upsertVod(chunk.map {
+                    VodEntity(
+                        streamId = it.streamId,
+                        name = it.name,
+                        streamIcon = it.streamIcon,
+                        categoryId = it.categoryId,
+                        rating = it.rating,
+                        containerExtension = it.containerExtension,
+                        added = it.added
+                    )
+                })
+                saved += chunk.size
+                onProgress(saved, list.size)
+            }
             list
         }
     }
@@ -233,23 +246,28 @@ class XtreamRepository @Inject constructor(
 
     fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(query)
 
-    suspend fun fetchSeries(): Resource<List<Series>> {
+    suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
             val response = api.getSeries(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
-            db.seriesDao().upsertSeries(list.map {
-                SeriesEntity(
-                    seriesId = it.seriesId,
-                    name = it.name,
-                    cover = it.cover,
-                    plot = it.plot,
-                    genre = it.genre,
-                    rating = it.rating,
-                    categoryId = it.categoryId
-                )
-            })
+            var saved = 0
+            list.chunked(2000).forEach { chunk ->
+                db.seriesDao().upsertSeries(chunk.map {
+                    SeriesEntity(
+                        seriesId = it.seriesId,
+                        name = it.name,
+                        cover = it.cover,
+                        plot = it.plot,
+                        genre = it.genre,
+                        rating = it.rating,
+                        categoryId = it.categoryId
+                    )
+                })
+                saved += chunk.size
+                onProgress(saved, list.size)
+            }
             list
         }
     }

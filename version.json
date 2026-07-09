@@ -1,7 +1,7 @@
 {
-  "versionCode": 231,
-  "versionName": "3.93",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.93/MKTV.apk",
-  "apkSha256": "f134bfd1ea28d064778a8dc75da54cea63f1cf7c2553fcb46eec97c73aff7752",
-  "changelog": "Trakt login/scrobbling now works end-to-end — the secret-holding proxy moved from Cloudflare Workers (blocked by Trakt) to Deno Deploy."
+  "versionCode": 232,
+  "versionName": "3.94",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.94/MKTV.apk",
+  "apkSha256": "5d7dba3d013a632b4e1908e71e6c85c113d1e780d7c906d203de6e410ab2a374",
+  "changelog": "Fixed Movies/Series not loading their catalogs, USA-Only wiping VOD categories, an OOM crash on large catalogs, rotation losing mini-player state, a TV D-pad focus crash, and a Favorites drag-reorder crash. New: sync progress bar, movie sort (rating/year/added), elapsed/remaining time display, accelerating rewind/fast-forward."
 }
