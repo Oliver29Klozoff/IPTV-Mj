@@ -38,6 +38,16 @@ class HomeViewModel @Inject constructor(
     private val prefs: PreferencesManager
 ) : ViewModel() {
 
+    // Plain fields, not StateFlow — this only needs to survive HomeActivity being recreated
+    // on rotation (the ViewModel outlives that), not to be observed. HomeActivity reads this
+    // once in onCreate to restore what was in the mini player, and writes it in onPause
+    // before a rotation-triggered recreation would otherwise reset the mini player to
+    // whatever channel was last watched.
+    data class MiniPlayerState(
+        val url: String, val title: String, val streamId: Int, val isVod: Boolean, val positionMs: Long
+    )
+    var savedMiniPlayerState: MiniPlayerState? = null
+
     private val _liveCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val liveCategories: StateFlow<List<CategoryEntity>> = _liveCategories
 

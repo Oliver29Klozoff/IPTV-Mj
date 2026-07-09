@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.3 - 2026-07-09
+- **Fixed**: rotating the phone made all channels disappear and the landscape channel-list
+  pop-up stop working entirely. Root cause: an earlier fix disabled activity recreation on
+  rotation to stop the mini player resetting to a live channel — but Android only switches
+  to the landscape-specific layout (the whole 3-column UI including the channel pop-up) by
+  recreating the activity. With that disabled, rotating just squished the portrait layout
+  into the landscape window instead of loading the real landscape layout. Recreation on
+  rotation is restored, and the mini player's state (what's playing, playback position) is
+  now preserved across it through the ViewModel instead, so both bugs are fixed together.
+
 ## v4.2 - 2026-07-09
 - **Fixed**: on the phone in landscape, the expandable channel strip under the mini player
   collapses automatically after picking a live channel, but selecting a movie left it stuck

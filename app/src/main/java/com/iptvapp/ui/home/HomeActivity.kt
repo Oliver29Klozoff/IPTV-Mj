@@ -124,6 +124,12 @@ class HomeActivity : AppCompatActivity() {
     private var suppressMiniAutoResume = false
     private var tabPositionBeforePlayer: Int = -1
     private var pendingScrollToCurrent = false
+    // Populated in onCreate from the ViewModel (which survives activity recreation) when
+    // this instance is being recreated for a rotation — consumed once by initMiniPlayer()
+    // to resume exactly what was playing instead of initMiniPlayer()'s normal fallback of
+    // loading the last-watched *live* channel, which would otherwise silently replace
+    // whatever movie/show was actually in the mini player.
+    private var restoredMiniState: HomeViewModel.MiniPlayerState? = null
 
     private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -190,6 +196,15 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel.savedMiniPlayerState?.let { state ->
+            viewModel.savedMiniPlayerState = null
+            restoredMiniState = state
+            currentMiniUrl = state.url
+            currentMiniTitle = state.title
+            currentMiniStreamId = state.streamId
+            currentMiniIsVod = state.isVod
+            suppressMiniAutoResume = true
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
@@ -340,6 +355,18 @@ class HomeActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cancelChannelCollapse()
+        // Survives into the next HomeActivity instance via the ViewModel when this destroy
+        // is a rotation-triggered recreation (a true app exit just leaves this unread, since
+        // a fresh launch gets a brand new ViewModel with this field null by default).
+        if (currentMiniUrl.isNotEmpty()) {
+            viewModel.savedMiniPlayerState = HomeViewModel.MiniPlayerState(
+                url = currentMiniUrl,
+                title = currentMiniTitle,
+                streamId = currentMiniStreamId,
+                isVod = currentMiniIsVod,
+                positionMs = miniPlayer?.currentPosition ?: 0L
+            )
+        }
         miniPlayer?.release()
         miniPlayer = null
     }
@@ -409,7 +436,16 @@ class HomeActivity : AppCompatActivity() {
             override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
             override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
         })
-        loadLastWatchedChannel()
+        restoredMiniState?.let { state ->
+            restoredMiniState = null
+            binding.tvMiniChannelName.text = state.title
+            miniPlayer?.setMediaItem(
+                androidx.media3.common.MediaItem.fromUri(state.url),
+                if (state.isVod) state.positionMs else 0L
+            )
+            miniPlayer?.prepare()
+            miniPlayer?.playWhenReady = true
+        } ?: loadLastWatchedChannel()
     }
 
     private fun scheduleChannelCollapse() {
