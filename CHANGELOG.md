@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v4.1 - 2026-07-09
+- **Fixed**: movies/series showed a black screen in fullscreen but played fine in the mini
+  player (which never resumes). The saved resume position was applied as a seek after the
+  player had already buffered and become ready at position 0 — for progressively-served
+  files (.mkv movies), that forces a mid-stream HTTP range renegotiation, and some providers
+  hang on that instead of erroring, leaving playback stuck buffering forever with nothing
+  visibly wrong. The resume position is now applied as the initial start position at load
+  time instead of a follow-up seek.
+
 ## v4.0 - 2026-07-09
 - **Fixed**: TV mini player had no error recovery — any transient network blip left it
   permanently frozen/black, unlike the phone which retries automatically. TV now retries

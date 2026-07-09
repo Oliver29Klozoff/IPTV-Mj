@@ -1354,7 +1354,23 @@ class PlayerActivity : AppCompatActivity() {
                 "SESSION START: isVod=$isVod streamId=$streamId title=$streamTitle url=$streamUrl resumeMs=$resumePositionMs"
             )
             player = buildPlayer()
-            loadStream(streamUrl)
+            if (isVod && resumePositionMs > 0L) {
+                // Applying this as a seekTo() *after* the player had already buffered and
+                // become ready at position 0 forced a mid-stream HTTP range renegotiation for
+                // progressively-served files (.mkv movies) — some providers hang on that
+                // instead of erroring, leaving playback stuck in STATE_BUFFERING forever with
+                // no error/ended event to react to (black screen, "plays fine in mini player"
+                // because the mini player never resumes at all). Passing the start position
+                // at load time lets ExoPlayer request the correct range from the very first
+                // request instead of re-requesting a new range after already starting at 0.
+                val startPos = resumePositionMs
+                resumePositionMs = 0L
+                player?.setMediaItem(MediaItem.fromUri(streamUrl), startPos)
+                player?.prepare()
+                player?.playWhenReady = true
+            } else {
+                loadStream(streamUrl)
+            }
         }
     }
 
