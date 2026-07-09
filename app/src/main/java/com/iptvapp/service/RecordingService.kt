@@ -387,9 +387,14 @@ class RecordingService : Service() {
         jobs.values.forEach { it.cancel() }
         if (activeRecordingIds.isNotEmpty()) {
             runCatching {
+                // Bounded, not unbounded — this runs on the main thread during teardown
+                // (service destruction, possibly reboot cleanup), so a momentarily locked
+                // DB must not be able to hang it indefinitely and risk an ANR.
                 kotlinx.coroutines.runBlocking {
-                    activeRecordingIds.forEach { rid ->
-                        if (rid != -1) database.recordingDao().updateStatus(rid, "FAILED")
+                    kotlinx.coroutines.withTimeoutOrNull(3000L) {
+                        activeRecordingIds.forEach { rid ->
+                            if (rid != -1) database.recordingDao().updateStatus(rid, "FAILED")
+                        }
                     }
                 }
             }

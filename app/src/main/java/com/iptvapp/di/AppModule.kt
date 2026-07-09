@@ -11,8 +11,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -25,18 +24,33 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
+    // Process-lifetime scope backing the cached DoH prefs below — this OkHttpClient (and the
+    // Dns it holds) is a singleton that outlives every Activity, so there's no Activity/
+    // ViewModel scope to tie this to.
+    private val dohPrefsScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
+
     @Provides
     @Singleton
     fun provideOkHttpClient(prefs: PreferencesManager): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.HEADERS
         }
-        // Dynamic DoH DNS — checks pref on every lookup so toggling takes effect without restart
+        // Dns.lookup() runs on an OkHttp dispatcher thread for every single request (EPG
+        // polls, VOD/series sync, Trakt, update checks, ...). Calling runBlocking on a
+        // DataStore read here — once was twice, sequentially — blocked that thread on every
+        // lookup; under concurrent load (e.g. EPG refresh racing a VOD/series fetch) that
+        // could exhaust OkHttp's limited dispatcher pool and stall unrelated requests in a
+        // way that looks like a network problem but isn't. Instead, keep the prefs mirrored
+        // into plain fields via a background collector, so lookup() itself never suspends.
+        var dohEnabledCached = false
+        var dohProviderCached = "cloudflare"
+        dohPrefsScope.launch { prefs.dohEnabled.collect { dohEnabledCached = it } }
+        dohPrefsScope.launch { prefs.dohProvider.collect { dohProviderCached = it } }
         val dns = object : Dns {
             override fun lookup(hostname: String): List<java.net.InetAddress> {
-                val enabled = runBlocking { prefs.dohEnabled.first() }
-                val provider = runBlocking { prefs.dohProvider.first() }
-                return if (enabled) DoHDns(provider).lookup(hostname) else Dns.SYSTEM.lookup(hostname)
+                return if (dohEnabledCached) DoHDns(dohProviderCached).lookup(hostname) else Dns.SYSTEM.lookup(hostname)
             }
         }
         return OkHttpClient.Builder()

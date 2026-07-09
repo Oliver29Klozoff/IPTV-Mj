@@ -1,7 +1,7 @@
 {
-  "versionCode": 237,
-  "versionName": "3.99",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.99/MKTV.apk",
-  "apkSha256": "f3386e605706cf2c4353be1d5d8fae6eacf91d6e5862a63e1d6e010ee5602303",
-  "changelog": "New: Global Extra Buffering setting (Settings → Stream on phone, Settings → Stream → Decoder on TV). On by default — raises the fullscreen player's buffer targets (10s/15s start/rebuffer thresholds, up to 240s max buffered) to trade a slightly slower start/seek for fewer mid-playback stalls on slow or inconsistent IPTV providers. Applies to every server, not per-provider."
+  "versionCode": 238,
+  "versionName": "4.0",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.0/MKTV.apk",
+  "apkSha256": "15bc16cea43d704730560bfc773c935e3147162b85783ddb0d764b29a639b32c",
+  "changelog": "Codebase audit fixes: TV mini player now retries on playback error (was permanently stuck black on any network blip, unlike phone) and re-fetches to the live edge on resume (was resuming a stale buffered position). Removed a runBlocking DataStore read from the DNS lookup path used by every network request, which could stall unrelated requests under load. Bounded a blocking DB write in recording-service teardown to 3s so a locked DB can't risk an ANR. Consolidated duplicated play/share-recording logic between phone and TV into one shared helper."
 }

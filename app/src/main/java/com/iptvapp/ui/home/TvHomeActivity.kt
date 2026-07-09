@@ -71,6 +71,8 @@ class TvHomeActivity : AppCompatActivity() {
     // fullscreen button to treat VOD as live and open with no seek bar/resume (same bug
     // fixed on phone in HomeActivity).
     private var currentMiniIsVod: Boolean = false
+    private var miniRetryCount: Int = 0
+    private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private var openPlayerJob: kotlinx.coroutines.Job? = null
@@ -196,6 +198,12 @@ class TvHomeActivity : AppCompatActivity() {
                 val recent = viewModel.getRecentChannel()
                 if (recent != null) playInMiniPlayer(recent)
             }
+        } else if (!currentMiniIsVod) {
+            // Re-prepare so ExoPlayer re-fetches the manifest and starts at the real live
+            // edge, instead of resuming from whatever position was buffered before pausing.
+            miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
+            miniPlayer?.prepare()
+            miniPlayer?.playWhenReady = true
         } else if (miniPlayer?.isPlaying == false) {
             if (miniPlayer?.playbackState == Player.STATE_IDLE) {
                 miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
@@ -240,6 +248,26 @@ class TvHomeActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     binding.tvMiniPlayerProgress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                    if (state == Player.STATE_READY) miniRetryCount = 0
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    com.iptvapp.IptvApplication.logPlaybackEvent(
+                        applicationContext,
+                        "TV MINI PLAYER ERROR: isVod=$currentMiniIsVod streamId=$currentMiniStreamId " +
+                            "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
+                            "message=${error.message} retryCount=$miniRetryCount url=$currentMiniUrl"
+                    )
+                    if (miniRetryCount >= 5 || currentMiniUrl.isEmpty()) return
+                    miniRetryCount++
+                    miniPlayJob?.cancel()
+                    miniPlayJob = lifecycleScope.launch {
+                        delay(3000L)
+                        miniPlayer?.let {
+                            it.setMediaItem(MediaItem.fromUri(currentMiniUrl))
+                            it.prepare()
+                            it.playWhenReady = true
+                        }
+                    }
                 }
             })
         }

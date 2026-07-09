@@ -1,14 +1,70 @@
 package com.iptvapp.util
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import java.io.File
 
 /** Reads a recording's file size for display, whether it's a plain file path or a
  * MediaStore content:// URI. Local metadata lookups only — no network — so this is
- * cheap enough to call synchronously from an adapter bind(). */
+ * cheap enough to call synchronously from an adapter bind(). Also holds the
+ * play/share-a-recording logic — previously duplicated verbatim between
+ * RecordingSchedulerActivity (phone) and TvRecordingActivity (TV), the same drift risk
+ * that caused several other phone/TV bugs in this project. */
 object RecordingFileUtils {
+
+    // A real recorded file always ends in the actual container extension, so endsWith is
+    // safe here (unlike guessing content type from a live-stream URL, which can carry a
+    // query string after the extension).
+    fun mimeTypeFor(path: String): String =
+        if (path.endsWith(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
+
+    private fun resolveUri(context: Context, path: String): Uri? {
+        if (path.startsWith("content://")) return Uri.parse(path)
+        val file = File(path)
+        if (!file.exists()) {
+            Toast.makeText(context, "File not found: $path", Toast.LENGTH_LONG).show()
+            return null
+        }
+        return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+    }
+
+    fun playFile(context: Context, path: String) {
+        val uri = resolveUri(context, path) ?: return
+        if (!path.startsWith("content://")) {
+            val length = File(path).length()
+            if (length < 1024) {
+                Toast.makeText(context, "Recording incomplete ($length bytes)", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mimeTypeFor(path))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(intent, "Open recording with...").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(chooser) }
+            .onFailure { Toast.makeText(context, "No video player installed", Toast.LENGTH_SHORT).show() }
+    }
+
+    fun shareFile(context: Context, path: String) {
+        val uri = resolveUri(context, path) ?: return
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "video/*"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(intent, "Upload recording to...").apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(chooser) }
+            .onFailure { Toast.makeText(context, "No app available to share with", Toast.LENGTH_SHORT).show() }
+    }
 
     fun sizeLabel(context: Context, path: String): String {
         val bytes = sizeBytes(context, path)

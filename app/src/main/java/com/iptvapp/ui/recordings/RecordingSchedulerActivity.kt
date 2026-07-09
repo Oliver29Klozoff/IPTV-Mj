@@ -18,7 +18,6 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -505,66 +504,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
     }
 
-    private fun playFile(path: String) {
-        val uri: Uri
-        val type = if (path.contains(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
+    private fun playFile(path: String) = com.iptvapp.util.RecordingFileUtils.playFile(this, path)
 
-        if (path.startsWith("content://")) {
-            uri = Uri.parse(path)
-        } else {
-            val file = File(path)
-
-            if (!file.exists()) {
-                Toast.makeText(this, "File not found: $path", Toast.LENGTH_LONG).show()
-                return
-            }
-
-            if (file.length() < 1024) {
-                Toast.makeText(this, "Recording incomplete (${file.length()} bytes)", Toast.LENGTH_LONG).show()
-                return
-            }
-
-            uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
-        }
-
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, type)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        val chooser = Intent.createChooser(intent, "Open recording with...").apply {
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        runCatching { startActivity(chooser) }
-            .onFailure { Toast.makeText(this, "No video player installed", Toast.LENGTH_SHORT).show() }
-    }
-
-    private fun shareFile(path: String) {
-        val uri: Uri
-
-        if (path.startsWith("content://")) {
-            uri = Uri.parse(path)
-        } else {
-            val file = File(path)
-            if (!file.exists()) {
-                Toast.makeText(this, "File not found", Toast.LENGTH_SHORT).show()
-                return
-            }
-            uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
-        }
-
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "video/*"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        val chooser = Intent.createChooser(intent, "Upload recording to...").apply {
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        runCatching { startActivity(chooser) }
-            .onFailure { Toast.makeText(this, "No sharing app available", Toast.LENGTH_SHORT).show() }
-    }
+    private fun shareFile(path: String) = com.iptvapp.util.RecordingFileUtils.shareFile(this, path)
 }

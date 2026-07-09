@@ -1,5 +1,23 @@
 # IPTV App - Changelog
 
+## v4.0 - 2026-07-09
+- **Fixed**: TV mini player had no error recovery — any transient network blip left it
+  permanently frozen/black, unlike the phone which retries automatically. TV now retries
+  the same way (up to 5 attempts, 3s backoff), and logs the failure for debug reports.
+- **Fixed**: TV mini player didn't re-fetch to the live edge when resuming from background
+  — it could keep playing a stale buffered position instead of jumping to "now," unlike
+  the phone which already did this correctly.
+- **Fixed**: a `runBlocking` DataStore read ran on every single network request's DNS
+  lookup (EPG polls, VOD/series sync, Trakt, update checks, ...), which under concurrent
+  load could exhaust OkHttp's dispatcher thread pool and stall unrelated requests in a way
+  that looked like a network problem but wasn't. The relevant prefs are now cached in the
+  background instead of read synchronously on every lookup.
+- **Fixed**: a blocking, untimed database write during recording-service teardown could
+  hang the main thread indefinitely if the database was briefly locked — now bounded to 3
+  seconds.
+- **Cleanup**: consolidated duplicated play/share-recording logic between phone and TV into
+  one shared helper, removing a source of future phone/TV drift bugs.
+
 ## v3.99 - 2026-07-09
 - **New**: Global Extra Buffering setting (Settings → Stream on phone; Settings → Stream →
   Decoder on TV). On by default. Raises the fullscreen player's buffer targets — trades a
