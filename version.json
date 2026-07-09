@@ -1,7 +1,7 @@
 {
-  "versionCode": 233,
-  "versionName": "3.95",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.95/MKTV.apk",
-  "apkSha256": "46975460a799aec7c38ddda6ba72a33d32e98c1cddb9f74f2a31e2484e6fd02c",
-  "changelog": "Fixed live/Shield stream repeating after a few minutes (stale cached HLS manifest), D-pad up/down not continuing channel changes on TV, sidebar not reaching header buttons, channel-list flicker on TV focus, movie/series timeline not showing (now persistent instead of hidden with overlay), resume-from-mini-player restarting from the beginning for series, and the Live/DVR button not returning to the live edge."
+  "versionCode": 234,
+  "versionName": "3.96",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v3.96/MKTV.apk",
+  "apkSha256": "52bb9cfd9fa98e1ac92e4a7d89233e537ffdb994dc3b0f14229c8116064eff4a",
+  "changelog": "Diagnostic release: playback errors and reconnect-retry attempts are now logged (with the reason and error code) so 'Send Debug Report' can capture what's happening during a black-screen/reconnect-loop instead of showing nothing. No user-facing changes."
 }

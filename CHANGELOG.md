@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v3.96 - 2026-07-09
+- **Diagnostic**: player errors, reconnect-retry attempts, and give-up events are now logged
+  to the same crash log that "Send Debug Report" uploads (error code, cause, stream URL,
+  retry count). Previously these were silently handled and left zero trace when a stream
+  got stuck in a reconnect loop with a black screen — no user-facing behavior change.
+
 ## v3.95 - 2026-07-09
 - **Fixed**: live TV on the Shield (and full screen generally) would play a few minutes then
   repeat the same content — caused by the HLS playlist itself being cached alongside media

@@ -90,5 +90,20 @@ class IptvApplication : Application(), Configuration.Provider {
                 "Could not read crash log: ${e.message}"
             }
         }
+
+        // Non-fatal playback events (player errors, retry attempts) never throw, so the
+        // uncaught-exception handler above never sees them — without this, a black-screen
+        // retry loop leaves zero trace in "Send Debug Report". Appends to the same log file
+        // so a single report captures both crashes and this kind of silent, handled failure.
+        fun logPlaybackEvent(context: Context, message: String) {
+            try {
+                val sanitized = LogSanitizer.redactCredentials(message)
+                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                val logFile = File(context.filesDir, "crash_log.txt")
+                val existing = if (logFile.exists()) logFile.readText() else ""
+                val trimmed = if (existing.length > 50000) existing.takeLast(40000) else existing
+                logFile.writeText(trimmed + "[$timestamp] $sanitized\n")
+            } catch (_: Exception) {}
+        }
     }
 }

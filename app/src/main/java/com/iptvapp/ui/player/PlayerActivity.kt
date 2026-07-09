@@ -783,6 +783,11 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     override fun onPlayerError(error: PlaybackException) {
                         binding.progressBuffering.visibility = View.GONE
+                        com.iptvapp.IptvApplication.logPlaybackEvent(
+                            applicationContext,
+                            "PLAYER ERROR: isVod=$isVod streamId=$streamId errorCode=${error.errorCodeName} " +
+                                "cause=${error.cause?.javaClass?.simpleName} message=${error.message} url=$streamUrl"
+                        )
                         if (isVod) {
                             binding.tvRetryStatus.text = "Playback error: ${error.message}"
                             binding.tvRetryStatus.visibility = View.VISIBLE
@@ -882,6 +887,10 @@ class PlayerActivity : AppCompatActivity() {
         if (isVod && retryCount >= maxRetries) {
             binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
             binding.tvRetryStatus.visibility = View.VISIBLE
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext,
+                "RETRY GIVE UP: isVod=$isVod streamId=$streamId url=$streamUrl attempts=$retryCount"
+            )
             return
         }
         retryJob?.cancel()
@@ -897,6 +906,10 @@ class PlayerActivity : AppCompatActivity() {
             val suffix = if (isVod) " (attempt $attempt of $maxRetries)" else ""
             binding.tvRetryStatus.text = "● Reconnecting in ${delaySec}s$suffix…"
             binding.tvRetryStatus.visibility = View.VISIBLE
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext,
+                "RETRY SCHEDULED: isVod=$isVod streamId=$streamId url=$streamUrl attempt=$attempt delayMs=$backoffMs playerState=${player?.playbackState}"
+            )
             delay(backoffMs)
             retryCount++
             player?.let {
@@ -1313,6 +1326,10 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (player == null) {
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext,
+                "SESSION START: isVod=$isVod streamId=$streamId title=$streamTitle url=$streamUrl resumeMs=$resumePositionMs"
+            )
             player = buildPlayer()
             loadStream(streamUrl)
         }
