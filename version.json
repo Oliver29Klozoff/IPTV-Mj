@@ -1,7 +1,7 @@
 {
-  "versionCode": 253,
-  "versionName": "4.15",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.15/MKTV.apk",
-  "apkSha256": "200ce66bb1f6482b1b065de31ee3312e6c7bb2dd3d89344a67a2469e332aff20",
-  "changelog": "Fixed the 'Channels' button actually rendering as a solid blue bar instead of the intended dark/accent-text look — this app's Material theme auto-upgrades plain buttons to MaterialButton, which ignores a plain background color and paints its own colorPrimary tint over the whole button instead; now pinned to the intended gray via backgroundTint. Also: AMOLED Black now actually reaches the whole app instead of just the outermost screen background — it previously left nearly every card/panel/sidebar showing its own dark-gray color on top, since those are painted separately; enabling it now flattens all of that chrome to pure black too."
+  "versionCode": 254,
+  "versionName": "4.16",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.16/MKTV.apk",
+  "apkSha256": "9457b5f1c235e6a7d324861f6ea070ceac7fc8bd7910002910ed8391321ffb7a",
+  "changelog": "Landscape (phone): the middle categories column no longer takes a fixed share of the screen regardless of content — it now shrinks to fit the longest visible category name, freeing up space for the channel list/mini player. The genre filter chips (e.g. 'All Sports') on the Live tab moved from a horizontal row above categories to a vertical column to the right of the channel list instead."
 }

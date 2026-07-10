@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.16 - 2026-07-10
+- **Changed (phone landscape)**: the middle categories column no longer takes a fixed
+  share of the screen regardless of content — it now shrinks to fit the longest visible
+  category name, freeing up space for the channel list/mini player.
+- **Changed (phone landscape)**: the genre filter chips (e.g. "All Sports") on the Live tab
+  moved from a horizontal row above the categories list to a vertical column to the right
+  of the channel list.
+
 ## v4.15 - 2026-07-10
 - **Fixed**: the "Channels" button actually rendered as a solid blue bar, not the intended
   dark background with accent-colored text from v4.14. This app's Material theme

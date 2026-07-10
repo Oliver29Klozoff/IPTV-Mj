@@ -816,7 +816,7 @@ class HomeActivity : AppCompatActivity() {
         updateGenreChips(cats)
         val filtered = genreFilter(cats)
         categoryAdapter.resetSelection()
-        categoryAdapter.submitList(filtered)
+        submitCategories(filtered)
         if (filtered.isNotEmpty()) {
             if (viewModel.hasSelectedCategory()) viewModel.reloadCurrentLiveCategory()
             else viewModel.selectLiveCategory(filtered.first().categoryId)
@@ -829,63 +829,86 @@ class HomeActivity : AppCompatActivity() {
         return cats.filter { cat -> keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) } }
     }
 
+    // Portrait shows these in a horizontal scrolling row above the category list; landscape
+    // shows them in a vertical column to the right of the channel list instead (so they
+    // don't eat into the categories column's height there) — both containers are filled
+    // from the same detected-genre list, just laid out differently per orientation.
+    private fun setGenreFilterVisible(visible: Boolean) {
+        binding.genreFilterScroll?.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility =
+            if (visible) View.VISIBLE else View.GONE
+    }
+
+    private fun buildGenreChip(genre: String, selected: Boolean, vertical: Boolean): View {
+        return android.widget.TextView(this).apply {
+            text = genre
+            textSize = 12f
+            setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFFCCCCCC.toInt())
+            gravity = android.view.Gravity.CENTER
+            typeface = if (selected) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = 32f
+                if (selected) {
+                    setColor(currentAccent)
+                } else {
+                    setColor(0xFF2A2A2A.toInt())
+                    setStroke(2, 0xFF555555.toInt())
+                }
+            }
+            if (vertical) {
+                setPadding(20, 16, 20, 16)
+                layoutParams = android.view.ViewGroup.MarginLayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ).also { it.bottomMargin = 8 }
+            } else {
+                setPadding(24, 0, 24, 0)
+                layoutParams = android.view.ViewGroup.MarginLayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 72
+                ).also { it.marginEnd = 8 }
+            }
+            setOnClickListener {
+                activeGenre = if (genre == "All") null else genre
+                val filtered = genreFilter(viewModel.liveCategories.value)
+                categoryAdapter.resetSelection()
+                submitCategories(filtered)
+                if (filtered.isNotEmpty()) viewModel.selectLiveCategory(filtered.first().categoryId)
+                updateGenreChips(viewModel.liveCategories.value)
+            }
+        }
+    }
+
     private fun updateGenreChips(allCats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
-        val container = binding.genreChipContainer ?: return
-        container.removeAllViews()
+        val horizontalContainer = binding.genreChipContainer
+        val verticalContainer = binding.root.findViewById<android.widget.LinearLayout?>(R.id.genreChipContainerVertical)
+        horizontalContainer?.removeAllViews()
+        verticalContainer?.removeAllViews()
         val detected = GENRE_KEYWORDS.keys.filter { genre ->
             val keywords = GENRE_KEYWORDS[genre]!!
             keywords.isEmpty() || allCats.any { cat -> keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) } }
         }
         if (detected.size <= 1) {
-            binding.genreFilterScroll?.visibility = View.GONE
+            setGenreFilterVisible(false)
             return
         }
-        binding.genreFilterScroll?.visibility = View.VISIBLE
+        setGenreFilterVisible(true)
         val selectedGenre = activeGenre ?: "All"
         for (genre in detected) {
             val selected = (genre == selectedGenre)
-            val tv = android.widget.TextView(this).apply {
-                text = genre
-                textSize = 12f
-                setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFFCCCCCC.toInt())
-                setPadding(24, 0, 24, 0)
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                typeface = if (selected) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                    cornerRadius = 32f
-                    if (selected) {
-                        setColor(currentAccent)
-                    } else {
-                        setColor(0xFF2A2A2A.toInt())
-                        setStroke(2, 0xFF555555.toInt())
-                    }
-                }
-                layoutParams = android.view.ViewGroup.MarginLayoutParams(
-                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-                    72
-                ).also { it.marginEnd = 8 }
-                setOnClickListener {
-                    activeGenre = if (genre == "All") null else genre
-                    val filtered = genreFilter(viewModel.liveCategories.value)
-                    categoryAdapter.resetSelection()
-                    categoryAdapter.submitList(filtered)
-                    if (filtered.isNotEmpty()) viewModel.selectLiveCategory(filtered.first().categoryId)
-                    updateGenreChips(viewModel.liveCategories.value)
-                }
-            }
-            container.addView(tv)
+            horizontalContainer?.addView(buildGenreChip(genre, selected, vertical = false))
+            verticalContainer?.addView(buildGenreChip(genre, selected, vertical = true))
         }
     }
 
     private fun showFavCategories() {
         setLandscapeCategoriesVisible(true)
-        binding.genreFilterScroll?.visibility = View.GONE
+        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
         val favCats = viewModel.favoriteLiveCategories.value
-        categoryAdapter.submitList(favCats)
+        submitCategories(favCats)
         if (favCats.isNotEmpty()) {
             viewModel.selectFavCategory(favCats.first().categoryId)
         } else {
@@ -895,18 +918,18 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showVod() {
         setLandscapeCategoriesVisible(false)
-        binding.genreFilterScroll?.visibility = View.GONE
+        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = vodAdapter
         val cats = viewModel.vodCategories.value
-        categoryAdapter.submitList(cats)
+        submitCategories(cats)
         if (cats.isNotEmpty()) viewModel.selectVodCategory(cats.first().categoryId)
     }
 
     private fun showSeries() {
         setLandscapeCategoriesVisible(false)
-        binding.genreFilterScroll?.visibility = View.GONE
+        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = seriesAdapter
         seriesAdapter.submitList(viewModel.applySeriesSort(viewModel.series.value))
@@ -914,7 +937,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showWatching() {
         setLandscapeCategoriesVisible(false)
-        binding.genreFilterScroll?.visibility = View.GONE
+        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         channelAdapter.showDragHandles = false
@@ -927,7 +950,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showFavorites() {
         setLandscapeCategoriesVisible(false)
-        binding.genreFilterScroll?.visibility = View.GONE
+        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
         viewModel.showFavoriteChannels()
@@ -975,6 +998,36 @@ class HomeActivity : AppCompatActivity() {
         div?.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
+    private fun submitCategories(list: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        categoryAdapter.submitList(list)
+        resizeCategoriesColumnToContent(list)
+    }
+
+    // Landscape's categories column used to always take a fixed proportional share of the
+    // screen (layout_weight) regardless of how short the category names actually were,
+    // wasting horizontal space that could go to the channel list/mini player instead. This
+    // shrinks it to fit the longest visible category name (matching item_category.xml's
+    // 13sp text + 12dp horizontal padding on each side), within sane min/max bounds.
+    private fun resizeCategoriesColumnToContent(categories: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
+        val params = col.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        if (categories.isEmpty()) return
+        val density = resources.displayMetrics.density
+        val paint = android.graphics.Paint().apply {
+            textSize = 13f * resources.displayMetrics.scaledDensity
+        }
+        val maxTextWidth = categories.maxOf { paint.measureText(it.categoryName ?: "") }
+        val horizontalPadding = 24 * density // 12dp each side, from item_category.xml
+        val starIconAllowance = 24 * density // 18dp icon + 6dp margin, shown for favorites
+        val newWidth = (maxTextWidth + horizontalPadding + starIconAllowance).toInt()
+            .coerceIn((120 * density).toInt(), (320 * density).toInt())
+        if (params.width != newWidth) {
+            params.width = newWidth
+            params.weight = 0f
+            col.layoutParams = params
+        }
+    }
+
     private fun detachFavDrag() {
         channelAdapter.showDragHandles = false
         channelAdapter.itemTouchHelper = null
@@ -984,7 +1037,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showGuide() {
         setLandscapeCategoriesVisible(false)
-        binding.genreFilterScroll?.visibility = View.GONE
+        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = guideAdapter
         viewModel.loadGuide()
@@ -1098,7 +1151,7 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == 0) {
                     updateGenreChips(cats)
                     val filtered = genreFilter(cats)
-                    categoryAdapter.submitList(filtered)
+                    submitCategories(filtered)
                     if (filtered.isNotEmpty() && !viewModel.hasSelectedCategory()) {
                         viewModel.selectLiveCategory(filtered.first().categoryId)
                     }
@@ -1109,7 +1162,7 @@ class HomeActivity : AppCompatActivity() {
             viewModel.favoriteLiveCategories.collect { favs ->
                 categoryAdapter.submitFavoriteCategoryIds(favs.map { it.categoryId }.toSet())
                 if (binding.tabLayout.selectedTabPosition == 1) {
-                    categoryAdapter.submitList(favs)
+                    submitCategories(favs)
                     if (favs.isNotEmpty()) viewModel.selectFavCategory(favs.first().categoryId)
                     else channelAdapter.submitList(emptyList())
                 }
@@ -1184,7 +1237,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
-                if (binding.tabLayout.selectedTabPosition == 2) categoryAdapter.submitList(it)
+                if (binding.tabLayout.selectedTabPosition == 2) submitCategories(it)
             }
         }
         lifecycleScope.launch {
