@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.7 - 2026-07-09
+- **New**: movies/series now auto-retry on a playback error instead of dead-ending with a
+  static "Playback error" message. A transient network blip recovers on its own (backoff,
+  up to 5 attempts) the same way live TV already did, and resumes from where it left off
+  instead of restarting from the beginning.
+
 ## v4.6 - 2026-07-09
 - **Fixed**: movies gave a "Playback error: Source error" in fullscreen while playing fine
   in the mini player. The fullscreen player's disk cache (built for live TV timeshift/DVR

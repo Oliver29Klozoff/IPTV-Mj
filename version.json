@@ -1,7 +1,7 @@
 {
-  "versionCode": 244,
-  "versionName": "4.6",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.6/MKTV.apk",
-  "apkSha256": "ece2bbbde5814716993725e9e8848a7460fbc463f4d7201477434002381cd707",
-  "changelog": "Fixed movies giving a 'Playback error: Source error' in fullscreen while playing fine in the mini player. The fullscreen player's disk cache (built for live TV timeshift/DVR rewind) was being applied to VOD content too — its eviction policy is sized for live TV's small rolling segment window, not multi-gigabyte progressive movie files, which is a likely cause of the mismatch. VOD no longer goes through that cache at all (it doesn't need it — it has its own resume-position mechanism)."
+  "versionCode": 245,
+  "versionName": "4.7",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.7/MKTV.apk",
+  "apkSha256": "360d8adf6613bc3412d5952d87bf4eff0da2fda75ee26a2debf00149ad12be36",
+  "changelog": "New: movies/series now auto-retry on a playback error instead of dead-ending with a static 'Playback error' message — a transient network blip now recovers on its own (backoff, up to 5 attempts) the same way live TV already did, and resumes from where it left off instead of restarting from the beginning."
 }

@@ -829,12 +829,11 @@ class PlayerActivity : AppCompatActivity() {
                             "PLAYER ERROR: isVod=$isVod streamId=$streamId errorCode=${error.errorCodeName} " +
                                 "cause=${error.cause?.javaClass?.simpleName} message=${error.message} url=$streamUrl"
                         )
-                        if (isVod) {
-                            binding.tvRetryStatus.text = "Playback error: ${error.message}"
-                            binding.tvRetryStatus.visibility = View.VISIBLE
-                        } else {
-                            scheduleRetry()
-                        }
+                        // scheduleRetry() already has full VOD-aware backoff/give-up logic
+                        // (see below) — this used to dead-end VOD here instead of using it,
+                        // so a transient network blip on a movie meant manually backing out
+                        // and reopening it instead of recovering on its own like live TV does.
+                        scheduleRetry()
                     }
                 })
             }
@@ -935,6 +934,9 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         retryJob?.cancel()
+        // Captured now, before the delay below — otherwise a paused/stalled player's
+        // currentPosition could drift or reset by the time the retry actually reloads.
+        val resumeAt = if (isVod) (player?.currentPosition ?: 0L) else 0L
         retryJob = lifecycleScope.launch {
             val backoffMs = if (isVod) {
                 (2000L * (retryCount + 1)).coerceAtMost(16000L)
@@ -954,7 +956,8 @@ class PlayerActivity : AppCompatActivity() {
             delay(backoffMs)
             retryCount++
             player?.let {
-                it.setMediaItem(MediaItem.fromUri(streamUrl))
+                if (isVod && resumeAt > 0L) it.setMediaItem(MediaItem.fromUri(streamUrl), resumeAt)
+                else it.setMediaItem(MediaItem.fromUri(streamUrl))
                 it.prepare()
                 it.playWhenReady = true
             }
