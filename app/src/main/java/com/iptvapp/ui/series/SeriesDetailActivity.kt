@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -41,6 +43,22 @@ class SeriesDetailActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySeriesDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Targeting SDK 35 (Android 15+) makes edge-to-edge content mandatory — the season
+        // tab row was drawing underneath the status bar with nothing pushing it down,
+        // making the tabs behind the status bar/notification area untappable. Pad the top
+        // of the season tabs by exactly the system bar inset instead of guessing a fixed
+        // dp value that wouldn't match every device/notch.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            // Grow the row's height by the inset (rather than just padding within its fixed
+            // 48dp), so the tabs themselves keep their full tappable height below the
+            // status bar instead of being squeezed into whatever's left over.
+            binding.tabSeasons.updatePadding(top = bars.top)
+            binding.tabSeasons.updateLayoutParams<ViewGroup.LayoutParams> {
+                height = (48 * resources.displayMetrics.density).toInt() + bars.top
+            }
+            insets
+        }
 
         val seriesId = intent.getIntExtra("series_id", -1)
         val seriesName = intent.getStringExtra("series_name") ?: ""

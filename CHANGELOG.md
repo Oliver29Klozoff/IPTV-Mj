@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.12 - 2026-07-10
+- **Fixed**: the season tabs on the Series episode picker were drawn underneath the status
+  bar/notification area on some devices, making them untappable. Targeting Android 15+
+  makes edge-to-edge content mandatory, and this screen had no padding to compensate for
+  it. The season tab row now grows by the actual system bar inset instead of assuming a
+  fixed guessed height.
+
 ## v4.11 - 2026-07-10
 - **Tweaked**: the experimental English-only filter also matches a US/USA category tag now,
   not just EN/ENG/ENGLISH — matching only EN found nothing on providers whose categories

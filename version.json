@@ -1,7 +1,7 @@
 {
-  "versionCode": 249,
-  "versionName": "4.11",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.11/MKTV.apk",
-  "apkSha256": "d15644d8d594cb6616fbdb7d6133513696e13107d4056787eddfef71403d5a15",
-  "changelog": "The experimental English-only filter also matches a US/USA category tag now, not just EN/ENG/ENGLISH — the EN-only match found nothing on some providers whose categories are labeled by country instead of language."
+  "versionCode": 250,
+  "versionName": "4.12",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.12/MKTV.apk",
+  "apkSha256": "46aeb3a4eb814128c06fb95869530ce5cb6600fd8c6fd215a02da6f3926a9b2f",
+  "changelog": "Fixed the season tabs on the Series episode picker being drawn underneath the status bar/notification area, making them untappable on some devices — targeting Android 15+ makes edge-to-edge content mandatory, and this screen had no padding to compensate. The season tab row now grows by the actual system bar inset instead of a guessed fixed value."
 }
