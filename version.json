@@ -1,7 +1,7 @@
 {
-  "versionCode": 246,
-  "versionName": "4.8",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.8/MKTV.apk",
-  "apkSha256": "17aa26176122dd4bebe93b0b81f0e1c596ec5f82a3cd3eadc08e59e0aae55246",
-  "changelog": "New (phone): 'Show English Movie Categories Only' toggle in Settings → Stream. Experimental — Xtream doesn't have a real language field for VOD, so this only works if your provider tags movie category names with an EN/ENG/ENGLISH label; off by default."
+  "versionCode": 247,
+  "versionName": "4.9",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.9/MKTV.apk",
+  "apkSha256": "77275c0af872b1fe53bd0773963f818ebb33eaf4d88c6f0580b4f7c16e94cddb",
+  "changelog": "Fixed the 'What's new' dialog (shown after updating, and the update-available prompt) always being blank. It parsed version.json's changelog field as a JSON array, but it's always been published as a single string, so the actual release notes never showed up — just an empty message."
 }

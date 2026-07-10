@@ -68,14 +68,18 @@ class UpdateChecker(
         }
     }
 
-    private fun buildChangelog(json: JSONObject): String = buildString {
+    // version.json's "changelog" has always been published as a single string, never a JSON
+    // array — optJSONArray() silently returns null for a string field, and there's no
+    // "notes" field either, so this fell through to an empty message every single release.
+    private fun buildChangelog(json: JSONObject): String {
         val arr = json.optJSONArray("changelog")
         if (arr != null && arr.length() > 0) {
-            for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
-        } else {
-            append(json.optString("notes", ""))
+            return buildString { for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n") }.trimEnd()
         }
-    }.trimEnd()
+        val single = json.optString("changelog", "")
+        if (single.isNotBlank()) return single
+        return json.optString("notes", "")
+    }
 
     private fun getInstalledVersionCode(): Long {
         return try {

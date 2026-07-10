@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.9 - 2026-07-09
+- **Fixed**: the "What's new" dialog (shown after updating, and the update-available
+  prompt beforehand) always showed a blank message. It parsed `version.json`'s changelog
+  field as a JSON array, but every release has always published it as a single string —
+  so the actual release notes never displayed, ever, this whole time.
+
 ## v4.8 - 2026-07-09
 - **New (phone)**: "Show English Movie Categories Only" toggle in Settings → Stream.
   Experimental — Xtream has no real language field for VOD, so this only works if your
