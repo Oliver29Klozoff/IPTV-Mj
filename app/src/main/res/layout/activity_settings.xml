@@ -44,6 +44,19 @@
             android:textColor="#444444"
             android:textSize="11sp"
             android:paddingEnd="4dp" />
+        <Button
+            android:id="@+id/btnSettingsHelp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="@android:color/transparent"
+            app:backgroundTint="@android:color/transparent"
+            android:text="?"
+            android:textColor="#008CFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:minWidth="0dp"
+            android:padding="0dp" />
     </LinearLayout>
 
     <!-- TWO PANE -->

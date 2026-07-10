@@ -1,7 +1,7 @@
 {
-  "versionCode": 261,
-  "versionName": "4.23",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.23/MKTV.apk",
-  "apkSha256": "3046d0d472dab2b9b78de01c57c7d86a075ef2cc5fb34a8594e1b802b218f5cf",
-  "changelog": "New: unified 'Up Next' ticker across all favorite channels — long-press the 'What's On' button for a single chronological feed of what's airing next on every favorite, instead of checking channel-by-channel."
+  "versionCode": 262,
+  "versionName": "4.24",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.24/MKTV.apk",
+  "apkSha256": "3228aec99c3b105bbd54625461b18bbce3704701896abdad3e20a39c9102b38f",
+  "changelog": "New: help button (?) in Settings' top bar — tap it for a plain-language explanation of every control in whichever section you're currently viewing (Stream, Display, Updates, Backup, Servers, Sync, Trakt), so things like Tunneled Playback, DoH, or Extra Buffering aren't a mystery."
 }

@@ -84,6 +84,86 @@ class SettingsActivity : AppCompatActivity() {
         binding.headerBackup, binding.headerServers, binding.headerSync, binding.headerTrakt
     )
 
+    // Explains what each control in the currently-open section actually does — many of these
+    // toggles (Tunneled Playback, DV7 fallback, DoH, Extra Buffering...) are meaningful but
+    // not self-explanatory to someone who isn't already familiar with streaming internals.
+    private val sectionHelp = listOf(
+        // 0: Stream & EPG
+        "Stream Format (TS/M3U8): which container the provider serves live channels in. TS "
+            + "is the primary format; M3U8 is used as a fallback if TS fails.\n\n"
+            + "Video Player: which app actually plays streams — the built-in player, an "
+            + "installed external player (VLC/MX Player), or asking each time.\n\n"
+            + "EPG Refresh / Auto Refresh Schedule: how often the program guide data is "
+            + "re-downloaded from your provider in the background.\n\n"
+            + "Refresh only channels missing guide data: skips channels that already have "
+            + "EPG data, making refreshes faster.\n\n"
+            + "Server Speed Test: measures how fast your current server responds, to help "
+            + "compare multiple servers if you have them.\n\n"
+            + "DNS over HTTPS (DoH): encrypts DNS lookups so your ISP can't see (or throttle "
+            + "based on) which streaming domains you're connecting to.\n\n"
+            + "Global Extra Buffering: builds up a bigger buffer before playback starts, "
+            + "trading a slower start for fewer stalls mid-stream on slow/unreliable "
+            + "connections. On by default.\n\n"
+            + "Show USA Channels Only / English Movies & Series Only: filters live channels "
+            + "or VOD/series to just those tagged for that country/language by your "
+            + "provider — depends entirely on your provider's own naming, so may not work "
+            + "for every server.",
+        // 1: Display
+        "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
+            + "screen — the content itself isn't deleted, just the tab.\n\n"
+            + "Accent Color: the highlight color used for selected tabs, buttons, and "
+            + "progress bars throughout the app.\n\n"
+            + "AMOLED Black: forces pure black backgrounds everywhere instead of dark gray — "
+            + "saves battery on OLED screens and looks better in a dark room. Requires an "
+            + "app restart to fully apply everywhere.",
+        // 2: Updates
+        "Check for Updates: manually checks for a new version right now instead of waiting "
+            + "for the automatic background check.\n\n"
+            + "What's New / Changelog: shows what changed in the current and past versions.\n\n"
+            + "Silent Self-Update: on Android 12+, skips the \"Install update?\" confirmation "
+            + "screen when the OS allows it, updating more seamlessly. Off by default since "
+            + "it bypasses a normal Android security prompt — only turn this on if you're "
+            + "comfortable with that.",
+        // 3: Backup & Restore
+        "Backup / Restore: saves your server login, favorites, and settings to a file you "
+            + "choose (Downloads, Drive, USB, etc.), or loads them back in — useful before "
+            + "a factory reset or when moving to a new device. Nothing is uploaded "
+            + "anywhere automatically; you pick the exact file location yourself.\n\n"
+            + "Auto backup (weekly): does the same backup automatically once a week to that "
+            + "same chosen location, without you having to remember to do it manually.",
+        // 4: Servers
+        "Add, edit, or switch between multiple Xtream server logins if you have more than "
+            + "one IPTV subscription — only one is active for playback at a time, but you "
+            + "can switch instantly without re-entering credentials.",
+        // 5: Sync
+        "Cross-Device Sync: keeps your favorites and watch history in sync across your "
+            + "devices via a private Firebase-backed store — nothing public, only devices "
+            + "using the same Pairing Code see each other's data.\n\n"
+            + "Push to Cloud / Pull from Cloud: manually send this device's data up, or pull "
+            + "another device's data down, instead of waiting for automatic sync.\n\n"
+            + "Pairing Code: the code that links devices together — enter the same code on "
+            + "every device you want kept in sync.\n\n"
+            + "Send Debug Report: uploads device info and recent playback error logs so a "
+            + "problem can be diagnosed — no account credentials are included.",
+        // 6: Trakt
+        "Connect Trakt: links your Trakt.tv account so movies and TV episodes you watch in "
+            + "fullscreen are automatically tracked there — check trakt.tv itself (Currently "
+            + "Watching / History) to confirm it's working, since there's no local record in "
+            + "this app. Only counts something as \"watched\" once you've watched past "
+            + "roughly 80% of it, same as Trakt does everywhere else. Only tracks fullscreen "
+            + "playback, not the mini player."
+    )
+
+    private fun showSettingsHelp() {
+        val idx = currentPanelIndex.coerceIn(sectionHelp.indices)
+        val sectionName = navButtonViews.getOrNull(idx)?.text?.toString() ?: "Settings"
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("$sectionName — What do these do?")
+            .setMessage(sectionHelp[idx])
+            .setPositiveButton("Got it", null)
+            .show()
+    }
+
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
@@ -119,6 +199,7 @@ class SettingsActivity : AppCompatActivity() {
         workManager = WorkManager.getInstance(this)
 
         binding.btnBack.setOnClickListener { finish() }
+        binding.btnSettingsHelp.setOnClickListener { showSettingsHelp() }
 
         binding.btnLogout.setOnClickListener {
             AlertDialog.Builder(this)

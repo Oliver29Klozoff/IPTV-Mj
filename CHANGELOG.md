@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.24 - 2026-07-10
+- **New**: help button ("?") in Settings' top bar — tap it for a plain-language explanation
+  of every control in whichever section you're currently viewing (Stream, Display, Updates,
+  Backup, Servers, Sync, Trakt), so things like Tunneled Playback, DoH, or Extra Buffering
+  aren't a mystery.
+
 ## v4.23 - 2026-07-10
 - **New**: unified "Up Next" ticker across all favorite channels. Long-press the "What's On"
   button for a single chronological feed of what's airing next on every favorite, instead
