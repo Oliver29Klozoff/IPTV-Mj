@@ -198,6 +198,11 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setUsaOnlyChannels(isChecked) }
         }
 
+        binding.cbEnglishOnlyMovies.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setEnglishOnlyMovies(isChecked) }
+        }
+
         binding.cbAmoledBlack.setOnCheckedChangeListener { _, isChecked ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setAmoledBlack(isChecked) }
@@ -912,6 +917,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
+                binding.cbEnglishOnlyMovies.isChecked = prefs.englishOnlyMovies.first()
                 binding.cbAmoledBlack.isChecked = prefs.amoledBlack.first()
                 binding.switchSilentSelfUpdate.isChecked = prefs.silentSelfUpdateEnabled.first()
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.8 - 2026-07-09
+- **New (phone)**: "Show English Movie Categories Only" toggle in Settings → Stream.
+  Experimental — Xtream has no real language field for VOD, so this only works if your
+  provider tags movie category names with an EN/ENG/ENGLISH label. Off by default.
+
 ## v4.7 - 2026-07-09
 - **New**: movies/series now auto-retry on a playback error instead of dead-ending with a
   static "Playback error" message. A transient network blip recovers on its own (backoff,

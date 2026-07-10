@@ -137,6 +137,15 @@ class HomeViewModel @Inject constructor(
         return n.startsWith("US|") || n.contains("|US|")
     }
 
+    // "EN" as a whole token (not just a prefix) — avoids matching category names that
+    // merely start with those letters, like "ENTERTAINMENT" or "ENCORE". Experimental:
+    // depends on the provider actually tagging categories with a language code at all.
+    private fun isEnglishCategory(name: String?): Boolean {
+        if (name.isNullOrBlank()) return false
+        val n = name.trim().uppercase()
+        return n.split(Regex("[|\\-\\s:]+")).any { it == "EN" || it == "ENG" || it == "ENGLISH" }
+    }
+
     fun loadAll() {
         // Start DB observers immediately so cached data shows at once
         observerJob?.cancel()
@@ -163,7 +172,12 @@ class HomeViewModel @Inject constructor(
                 // provider) — movie/series categories aren't tagged that way at all, so
                 // applying the same filter here was wiping out the entire VOD category list
                 // whenever the toggle was on.
-                repository.getVodCategories().collectLatest { _vodCategories.value = it }
+                repository.getVodCategories()
+                    .combine(prefs.englishOnlyMovies) { categories, englishOnly ->
+                        if (englishOnly) categories.filter { isEnglishCategory(it.categoryName) }
+                        else categories
+                    }
+                    .collectLatest { _vodCategories.value = it }
             }
             launch {
                 repository.getAllVod().collectLatest { _vod.value = it }

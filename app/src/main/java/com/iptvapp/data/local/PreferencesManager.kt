@@ -74,6 +74,7 @@ class PreferencesManager @Inject constructor(
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
+        val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
     }
 
     val silentSelfUpdateEnabled: Flow<Boolean> = context.dataStore.data
@@ -199,6 +200,12 @@ class PreferencesManager @Inject constructor(
 
     val usaOnlyChannels: Flow<Boolean> = context.dataStore.data
         .map { it[Keys.USA_ONLY_CHANNELS] ?: true }
+
+    // Experimental — off by default since it depends entirely on the provider actually
+    // tagging category names with an "EN" language prefix, which isn't guaranteed.
+    val englishOnlyMovies: Flow<Boolean> = context.dataStore.data
+        .map { it[Keys.ENGLISH_ONLY_MOVIES] ?: false }
+    suspend fun setEnglishOnlyMovies(v: Boolean) = context.dataStore.edit { it[Keys.ENGLISH_ONLY_MOVIES] = v }
 
     val favoriteLiveCategoryIds: Flow<Set<String>> = context.dataStore.data
         .map { it[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet() }
