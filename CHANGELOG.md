@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.22 - 2026-07-10
+- **New**: bandwidth-aware auto buffering. If a stream stalls or retries 3+ times within
+  2 minutes in the same viewing session, Extra Buffering turns on automatically for future
+  streams — no need to notice the pattern yourself and go find the setting.
+
 ## v4.21 - 2026-07-10
 - **New**: channel reliability tracking. Every "Check Favorites Health" ping and every real
   mini-player playback attempt now records a success/fail outcome per channel (last 10

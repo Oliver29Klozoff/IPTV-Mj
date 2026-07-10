@@ -809,6 +809,7 @@ class PlayerActivity : AppCompatActivity() {
                                             "BUFFERING STALL: isVod=$isVod streamId=$streamId url=$streamUrl " +
                                                 "stuck 20s+ with no error/ended event"
                                         )
+                                        noteStallEvent()
                                     }
                                 }
                                 hideHandler.postDelayed(bufferWatchdog!!, 20_000L)
@@ -923,7 +924,39 @@ class PlayerActivity : AppCompatActivity() {
         )
     }
 
+    // Global (not per-server) — if this network/provider is stalling repeatedly in the same
+    // viewing session, turning on the bigger buffer profile automatically saves a trip to
+    // Settings after the fact. Only escalates once per session and only if it isn't already
+    // on; the new profile applies starting with the next player rebuild (retry/channel
+    // change), not instantly, since DefaultLoadControl is fixed at ExoPlayer construction.
+    private val stallTimestamps = mutableListOf<Long>()
+    private var autoEnabledExtraBuffering = false
+
+    private fun noteStallEvent() {
+        if (autoEnabledExtraBuffering) return
+        val now = System.currentTimeMillis()
+        stallTimestamps.add(now)
+        stallTimestamps.removeAll { now - it > 120_000L }
+        if (stallTimestamps.size < 3) return
+        autoEnabledExtraBuffering = true
+        lifecycleScope.launch {
+            if (!prefs.extraBufferingEnabled.first()) {
+                prefs.setExtraBufferingEnabled(true)
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "AUTO-ENABLED extra buffering after ${stallTimestamps.size} stalls in 2min: streamId=$streamId url=$streamUrl"
+                )
+                Toast.makeText(
+                    applicationContext,
+                    "Repeated stalls detected — enabled Extra Buffering for future streams",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     private fun scheduleRetry() {
+        noteStallEvent()
         if (isVod && retryCount >= maxRetries) {
             binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
             binding.tvRetryStatus.visibility = View.VISIBLE
