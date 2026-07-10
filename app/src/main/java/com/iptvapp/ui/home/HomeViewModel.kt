@@ -321,6 +321,23 @@ class HomeViewModel @Inject constructor(
         VodSort.RECENTLY_ADDED -> list.sortedByDescending { it.added?.toLongOrNull() ?: 0L }
     }
 
+    enum class SeriesSort { DEFAULT, RATING_DESC, YEAR_NEWEST, YEAR_OLDEST, RECENTLY_ADDED }
+
+    private val _seriesSort = MutableStateFlow(SeriesSort.DEFAULT)
+    val seriesSort: StateFlow<SeriesSort> = _seriesSort
+
+    fun setSeriesSort(mode: SeriesSort) { _seriesSort.value = mode }
+
+    // Series has no "added" timestamp field from the provider (unlike VOD) — cachedAt (when
+    // this app synced the row) is the closest available proxy for "recently added".
+    fun applySeriesSort(list: List<SeriesEntity>): List<SeriesEntity> = when (_seriesSort.value) {
+        SeriesSort.DEFAULT -> list
+        SeriesSort.RATING_DESC -> list.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
+        SeriesSort.YEAR_NEWEST -> list.sortedByDescending { yearFromTitle(it.name) ?: -1 }
+        SeriesSort.YEAR_OLDEST -> list.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
+        SeriesSort.RECENTLY_ADDED -> list.sortedByDescending { it.cachedAt }
+    }
+
     fun hasSelectedCategory(): Boolean = selectedLiveCategoryId != null
 
     fun selectLiveCategory(categoryId: String) {

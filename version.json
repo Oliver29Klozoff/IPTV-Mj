@@ -1,7 +1,7 @@
 {
-  "versionCode": 250,
-  "versionName": "4.12",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.12/MKTV.apk",
-  "apkSha256": "46aeb3a4eb814128c06fb95869530ce5cb6600fd8c6fd215a02da6f3926a9b2f",
-  "changelog": "Fixed the season tabs on the Series episode picker being drawn underneath the status bar/notification area, making them untappable on some devices — targeting Android 15+ makes edge-to-edge content mandatory, and this screen had no padding to compensate. The season tab row now grows by the actual system bar inset instead of a guessed fixed value."
+  "versionCode": 251,
+  "versionName": "4.13",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.13/MKTV.apk",
+  "apkSha256": "e4f21de9fe4cf913a3ae9d533dc4f61741960178611baf14c0dfe42d1b3045d5",
+  "changelog": "New: Series now has the same sort options Movies already had (Default, Rating, Year Newest/Oldest, Recently Added) — tap the sort button in the Series tab. Also removed a leftover debug toast from the Movies sort dialog."
 }

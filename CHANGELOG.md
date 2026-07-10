@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.13 - 2026-07-10
+- **New**: Series now has the same sort options Movies already had — Default, Rating,
+  Year (Newest/Oldest First), Recently Added. Tap the sort button while on the Series tab.
+- **Cleanup**: removed a leftover debug toast from the Movies sort dialog.
+
 ## v4.12 - 2026-07-10
 - **Fixed**: the season tabs on the Series episode picker were drawn underneath the status
   bar/notification area on some devices, making them untappable. Targeting Android 15+

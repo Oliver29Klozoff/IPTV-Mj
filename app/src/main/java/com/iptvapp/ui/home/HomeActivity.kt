@@ -545,12 +545,27 @@ class HomeActivity : AppCompatActivity() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Sort Movies")
             .setSingleChoiceItems(labels, current) { dialog, which ->
-                val beforeFirst = vodAdapter.currentList.firstOrNull()?.name ?: "(empty)"
                 viewModel.setVodSort(options[which].first)
-                binding.rvChannels.post {
-                    val afterFirst = vodAdapter.currentList.firstOrNull()?.name ?: "(empty)"
-                    Toast.makeText(this, "Sort: ${options[which].second}\nBefore: $beforeFirst\nAfter: $afterFirst", Toast.LENGTH_LONG).show()
-                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSeriesSortDialog() {
+        val options = listOf(
+            HomeViewModel.SeriesSort.DEFAULT to "Default",
+            HomeViewModel.SeriesSort.RATING_DESC to "Rating (High to Low)",
+            HomeViewModel.SeriesSort.YEAR_NEWEST to "Year (Newest First)",
+            HomeViewModel.SeriesSort.YEAR_OLDEST to "Year (Oldest First)",
+            HomeViewModel.SeriesSort.RECENTLY_ADDED to "Recently Added"
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        val current = options.indexOfFirst { it.first == viewModel.seriesSort.value }.coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort Series")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                viewModel.setSeriesSort(options[which].first)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -563,7 +578,9 @@ class HomeActivity : AppCompatActivity() {
             viewModel.refreshNow()
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
-        binding.btnVodSort?.setOnClickListener { showVodSortDialog() }
+        binding.btnVodSort?.setOnClickListener {
+            if (binding.tabLayout.selectedTabPosition == 3) showSeriesSortDialog() else showVodSortDialog()
+        }
         binding.btnSort?.setOnClickListener {
             viewModel.cycleSort()
             val label = when (viewModel.channelSort.value) {
@@ -736,7 +753,7 @@ class HomeActivity : AppCompatActivity() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 viewModel.lastTabPosition = tab?.position ?: 5
-                binding.btnVodSort?.visibility = if (tab?.position == 2) View.VISIBLE else View.GONE
+                binding.btnVodSort?.visibility = if (tab?.position == 2 || tab?.position == 3) View.VISIBLE else View.GONE
                 when (tab?.position) {
                     0 -> showLive()
                     1 -> showFavCategories()
@@ -891,7 +908,7 @@ class HomeActivity : AppCompatActivity() {
         binding.genreFilterScroll?.visibility = View.GONE
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = seriesAdapter
-        seriesAdapter.submitList(viewModel.series.value)
+        seriesAdapter.submitList(viewModel.applySeriesSort(viewModel.series.value))
     }
 
     private fun showWatching() {
@@ -1132,9 +1149,16 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == 2) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
             }
         }
+        var lastSeriesList: List<com.iptvapp.data.local.entities.SeriesEntity> = emptyList()
         lifecycleScope.launch {
             viewModel.series.collect {
-                if (binding.tabLayout.selectedTabPosition == 3) seriesAdapter.submitList(it)
+                lastSeriesList = it
+                if (binding.tabLayout.selectedTabPosition == 3) seriesAdapter.submitList(viewModel.applySeriesSort(it))
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.seriesSort.collect {
+                if (binding.tabLayout.selectedTabPosition == 3) seriesAdapter.submitList(viewModel.applySeriesSort(lastSeriesList))
             }
         }
         lifecycleScope.launch {
