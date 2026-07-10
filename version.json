@@ -1,7 +1,7 @@
 {
-  "versionCode": 255,
-  "versionName": "4.17",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.17/MKTV.apk",
-  "apkSha256": "e84b6ef5bf0d60dbebc54f1fcd16b9828ab15f4e9e7061f3e9d2310a22969958",
-  "changelog": "Landscape (phone): removed the 'Channels' button and bottom-sheet popup. Tapping Live, Categories, or Movies in the sidebar now shows that tab's category list in place; picking a category collapses it and shows the channels/movies within it in the same spot. Tap the sidebar item again to go back to the category list. Series, History, Favorites, and Guide (which have no categories) show their list directly."
+  "versionCode": 256,
+  "versionName": "4.18",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.18/MKTV.apk",
+  "apkSha256": "1e023ee2b7be3f878241fba011b11ffb181bfb1243a5f001a7fdf10a1d5ffa6f",
+  "changelog": "Landscape (phone): narrowed the inline channel list column so it doesn't take space from the mini player, which keeps its full size."
 }

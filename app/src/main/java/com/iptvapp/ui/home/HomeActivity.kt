@@ -314,7 +314,9 @@ class HomeActivity : AppCompatActivity() {
         val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
         val params = col.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
         params.width = 0
-        params.weight = 2f
+        // Was weight=2 (matching the categories column's own default) — narrower now so the
+        // mini player (weight=3, unchanged) doesn't lose any of its own share of the row.
+        params.weight = 1f
         col.layoutParams = params
     }
 

@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v4.18 - 2026-07-10
+- **Tweaked (phone landscape)**: narrowed the inline channel list column so it doesn't take
+  space from the mini player, which keeps its full size.
+
 ## v4.17 - 2026-07-10
 - **Changed (phone landscape)**: removed the "Channels" button and bottom-sheet popup.
   Tapping Live, Categories, or Movies in the sidebar now shows that tab's category list in
