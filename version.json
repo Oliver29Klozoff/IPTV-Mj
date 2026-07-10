@@ -1,7 +1,7 @@
 {
-  "versionCode": 257,
-  "versionName": "4.19",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.19/MKTV.apk",
-  "apkSha256": "ab04608d5589d59405949e67158c857bed8f14ba63c3a6f58145ec7639cef9a8",
-  "changelog": "Landscape (phone): the inline channel list now auto-collapses 10s after picking a channel to play, giving the mini player the full row width. Tap the sidebar tab again to bring the channel list straight back, scrolled to whatever's currently playing."
+  "versionCode": 258,
+  "versionName": "4.20",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.20/MKTV.apk",
+  "apkSha256": "42b0f0f851bb15d988b585834162b100d669732cd556044d525d7b0306c17ee7",
+  "changelog": "Landscape (phone): the app now starts on the plain sidebar + mini player view with the last-playing channel loaded, instead of immediately opening Favorites' channel list on every launch. Tap a sidebar item to open its list as usual."
 }

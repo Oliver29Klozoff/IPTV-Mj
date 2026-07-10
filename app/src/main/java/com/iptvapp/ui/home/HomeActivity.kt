@@ -232,6 +232,10 @@ class HomeActivity : AppCompatActivity() {
         // which would leave _channels showing stale data from the previous session.
         binding.tabLayout.getTabAt(5)?.select()
         showFavorites()
+        // Landscape: land on the plain sidebar + mini player view (last-playing channel
+        // loads into it via the existing initMiniPlayer()/restoredMiniState flow either
+        // way) instead of immediately opening Favorites' channel list on every launch.
+        collapseContentColumn()
         setupLandscapeSidebar()
         lifecycleScope.launch {
             applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))

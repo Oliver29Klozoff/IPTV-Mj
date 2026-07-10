@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.20 - 2026-07-10
+- **Changed (phone landscape)**: startup now lands on the plain sidebar + mini player view
+  with the last-playing channel already loaded, instead of immediately opening Favorites'
+  channel list on every launch. Tap a sidebar item to open its list as usual.
+
 ## v4.19 - 2026-07-10
 - **New (phone landscape)**: the inline channel list auto-collapses 10 seconds after
   picking a channel to play, giving the mini player the full row width. Tap the sidebar
