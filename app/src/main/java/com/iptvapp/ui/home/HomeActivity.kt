@@ -10,6 +10,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import android.view.View
@@ -278,10 +280,15 @@ class HomeActivity : AppCompatActivity() {
             }
             override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
             override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
-                // Tapping the already-active sidebar item is "go back" — from a drilled-into
-                // category's channel list, back up to that tab's category list. Tabs with no
-                // categories (Series/History/Favorites/Guide) have nothing to go back to.
-                if (tab?.position in 0..2) landscapeShowCategoriesMode()
+                when {
+                    // Auto-collapsed after picking something to play — bring the channel
+                    // list straight back (not categories), scrolled to what's playing.
+                    contentColumnCollapsed -> expandContentColumnToChannels()
+                    // Otherwise it's "go back" from a drilled-into category's channel list
+                    // up to that tab's category list. Tabs with no categories (Series/
+                    // History/Favorites/Guide) have nothing to go back to.
+                    tab?.position in 0..2 -> landscapeShowCategoriesMode()
+                }
             }
         })
         // Sync initial highlight to tab 5 (Favorites)
@@ -296,6 +303,10 @@ class HomeActivity : AppCompatActivity() {
     // History/Favorites/Guide have no categories, so they go straight to "channels" mode.
     private fun landscapeShowCategoriesMode() {
         if (!isLandscapeMode()) return
+        cancelContentAutoCollapse()
+        contentColumnCollapsed = false
+        binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
+        binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvChannels.visibility = View.GONE
         val cats = when (binding.tabLayout.selectedTabPosition) {
@@ -309,6 +320,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun landscapeShowChannelsMode() {
         if (!isLandscapeMode()) return
+        contentColumnCollapsed = false
+        binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
+        binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.visibility = View.VISIBLE
         val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
@@ -318,6 +332,42 @@ class HomeActivity : AppCompatActivity() {
         // mini player (weight=3, unchanged) doesn't lose any of its own share of the row.
         params.weight = 1f
         col.layoutParams = params
+    }
+
+    private var contentColumnCollapsed = false
+    private val contentAutoCollapseHandler = Handler(Looper.getMainLooper())
+    private val contentAutoCollapseRunnable = Runnable { collapseContentColumn() }
+
+    // The inline channel list auto-collapses 10s after picking something to play, giving
+    // the mini player the full row width — tapping the (already-selected) sidebar tab again
+    // brings it straight back to the channel list (not categories), scrolled to whatever's
+    // currently playing, since that's what the user just came from.
+    private fun scheduleContentAutoCollapse() {
+        contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
+        contentAutoCollapseHandler.postDelayed(contentAutoCollapseRunnable, 10_000L)
+    }
+
+    private fun cancelContentAutoCollapse() {
+        contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
+    }
+
+    private fun collapseContentColumn() {
+        if (!isLandscapeMode()) return
+        binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.GONE
+        binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.GONE
+        contentColumnCollapsed = true
+    }
+
+    private fun expandContentColumnToChannels() {
+        landscapeShowChannelsMode()
+        if (binding.rvChannels.adapter === channelAdapter) {
+            binding.rvChannels.post {
+                val pos = channelAdapter.currentList.indexOfFirst { it.streamId == currentMiniStreamId }
+                if (pos >= 0) (binding.rvChannels.layoutManager as? LinearLayoutManager)
+                    ?.scrollToPositionWithOffset(pos, 0)
+            }
+        }
+        scheduleContentAutoCollapse()
     }
 
     private fun applyAccent(colorInt: Int) {
@@ -386,6 +436,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cancelContentAutoCollapse()
         // Survives into the next HomeActivity instance via the ViewModel when this destroy
         // is a rotation-triggered recreation (a true app exit just leaves this unread, since
         // a fresh launch gets a brand new ViewModel with this field null by default).
@@ -668,6 +719,7 @@ class HomeActivity : AppCompatActivity() {
                     viewModel.markChannelWatched(channel.streamId)
                     viewModel.setCurrentlyPlaying(channel.streamId)
                 }
+                scheduleContentAutoCollapse()
             },
             onChannelDoubleClick = { channel ->
                 val currentIds = viewModel.channels.value.map { it.streamId }.toIntArray()

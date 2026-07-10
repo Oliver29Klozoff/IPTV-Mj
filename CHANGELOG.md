@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.19 - 2026-07-10
+- **New (phone landscape)**: the inline channel list auto-collapses 10 seconds after
+  picking a channel to play, giving the mini player the full row width. Tap the sidebar
+  tab again to bring the channel list straight back, scrolled to whatever's currently
+  playing (instead of going back to the category list).
+
 ## v4.18 - 2026-07-10
 - **Tweaked (phone landscape)**: narrowed the inline channel list column so it doesn't take
   space from the mini player, which keeps its full size.
