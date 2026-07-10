@@ -902,7 +902,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
-                                    android:text="Show English Movie Categories Only"
+                                    android:text="Show English Movies &amp; Series Only"
                                     android:textColor="#FFFFFF"
                                     android:textSize="14sp"
                                     android:buttonTint="#008CFF" />
@@ -910,7 +910,7 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="2dp"
-                                    android:text="Experimental — only works if your provider labels movie categories with an EN/ENG/ENGLISH tag."
+                                    android:text="Experimental — only works if your provider labels movie/series categories with an EN/ENG/ENGLISH tag."
                                     android:textColor="#888888"
                                     android:textSize="11sp" />
                                 <View

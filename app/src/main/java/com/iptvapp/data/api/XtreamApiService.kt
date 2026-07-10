@@ -56,6 +56,14 @@ interface XtreamApiService {
     ): Response<VodInfo>
 
     @GET
+    suspend fun getSeriesCategories(
+        @Url url: String,
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_series_categories"
+    ): Response<List<Category>>
+
+    @GET
     suspend fun getSeries(
         @Url url: String,
         @Query("username") username: String,

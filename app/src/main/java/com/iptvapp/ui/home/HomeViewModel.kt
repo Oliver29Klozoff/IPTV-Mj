@@ -183,7 +183,17 @@ class HomeViewModel @Inject constructor(
                 repository.getAllVod().collectLatest { _vod.value = it }
             }
             launch {
-                repository.getAllSeries().collectLatest { _series.value = it }
+                // Series has no per-category browsing UI (unlike VOD), so unlike the VOD
+                // categories filter above, this filters the series list directly using each
+                // series' own categoryId looked up against series categories' names.
+                combine(
+                    repository.getAllSeries(), repository.getSeriesCategories(), prefs.englishOnlyMovies
+                ) { series, categories, englishOnly ->
+                    if (!englishOnly) return@combine series
+                    val englishCategoryIds = categories.filter { isEnglishCategory(it.categoryName) }
+                        .map { it.categoryId }.toSet()
+                    series.filter { it.categoryId in englishCategoryIds }
+                }.collectLatest { _series.value = it }
             }
             launch {
                 repository.getInProgressVod().collectLatest { _continueWatching.value = it }
@@ -207,6 +217,7 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchLiveCategories() }
                     launch { repository.fetchLiveStreams() }
                     launch { repository.fetchVodCategories() }
+                    launch { repository.fetchSeriesCategories() }
                 }
                 // Run sequentially, after the smaller fetches above finish and their memory
                 // is freed — parsing a 100k+ item catalog concurrently with everything else
@@ -236,6 +247,7 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchLiveCategories() }
                     launch { repository.fetchLiveStreams() }
                     launch { repository.fetchVodCategories() }
+                    launch { repository.fetchSeriesCategories() }
                 }
                 repository.fetchVodStreams { saved, total ->
                     _syncProgress.value = "Loading movies… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))

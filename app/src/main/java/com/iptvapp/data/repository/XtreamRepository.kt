@@ -274,6 +274,22 @@ class XtreamRepository @Inject constructor(
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
 
+    suspend fun fetchSeriesCategories(): Resource<List<Category>> {
+        val b = urlBuilder(); val c = creds()
+        return safeApiCall {
+            val response = api.getSeriesCategories(b.apiUrl(), c.username, c.password)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+            val list = response.body() ?: emptyList()
+            db.categoryDao().deleteCategoriesByType("series")
+            db.categoryDao().upsertCategories(list.map {
+                CategoryEntity(it.categoryId, it.categoryName, it.parentId, "series")
+            })
+            list
+        }
+    }
+
+    fun getSeriesCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("series")
+
     suspend fun fetchEpg(streamId: Int): Resource<List<EpgEntity>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {

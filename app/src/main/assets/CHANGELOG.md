@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.10 - 2026-07-09
+- **New**: extended the experimental English-only filter to Series too (toggle renamed to
+  "Show English Movies & Series Only"). Series has no category-browsing UI like Movies
+  does, so this now also fetches series categories in the background and filters the
+  series list directly by looking up each show's own category for an EN/ENG/ENGLISH tag.
+
 ## v4.9 - 2026-07-09
 - **Fixed**: the "What's new" dialog (shown after updating, and the update-available
   prompt beforehand) always showed a blank message. It parsed `version.json`'s changelog
