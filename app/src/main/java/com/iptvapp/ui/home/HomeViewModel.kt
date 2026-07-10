@@ -103,6 +103,35 @@ class HomeViewModel @Inject constructor(
     suspend fun getReliabilityLabel(streamId: Int): String? =
         repository.getReliabilityLabel(streamId)
 
+    data class UpNextEntry(val channel: ChannelEntity, val title: String, val startTimestamp: Long)
+
+    // A single chronological feed of what's coming up next across ALL favorite channels —
+    // most IPTV apps only show "now/next" per channel one at a time, requiring you to check
+    // each favorite individually. This merges them so you can see what's worth switching to
+    // without hunting channel by channel.
+    // Some rows store startTimestamp in seconds, others in milliseconds (a pre-existing
+    // inconsistency elsewhere in this codebase's EPG data) — normalize to ms before comparing.
+    private fun epgStartMs(e: EpgEntity) = if (e.startTimestamp < 100_000_000_000L) e.startTimestamp * 1000L else e.startTimestamp
+
+    suspend fun getUpNextTicker(): List<UpNextEntry> {
+        val favorites = repository.getFavoriteChannels().first()
+        if (favorites.isEmpty()) return emptyList()
+        val ids = favorites.map { it.streamId }
+        val epg = repository.getEpgForStreams(ids).first()
+        val nowMs = System.currentTimeMillis()
+        val byChannel = favorites.associateBy { it.streamId }
+        return epg
+            .filter { epgStartMs(it) > nowMs && byChannel.containsKey(it.streamId) }
+            .groupBy { it.streamId }
+            // Nearest upcoming program per channel only — otherwise one channel with a full
+            // day of EPG data would flood the feed and bury every other channel's "next".
+            .mapNotNull { (streamId, programs) ->
+                val soonest = programs.minByOrNull { epgStartMs(it) } ?: return@mapNotNull null
+                UpNextEntry(byChannel.getValue(streamId), soonest.title, epgStartMs(soonest))
+            }
+            .sortedBy { it.startTimestamp }
+    }
+
     fun checkFavoritesHealth() {
         viewModelScope.launch {
             val favorites = repository.getFavoriteChannels().first()

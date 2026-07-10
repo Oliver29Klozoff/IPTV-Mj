@@ -654,6 +654,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupMenu() {
         binding.btnWhatsOn?.setOnClickListener { showWhatsOnNow() }
+        binding.btnWhatsOn?.setOnLongClickListener { showUpNextTicker(); true }
         binding.btnRefresh?.setOnClickListener {
             viewModel.refreshNow()
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
@@ -1515,5 +1516,64 @@ class HomeActivity : AppCompatActivity() {
             (resources.displayMetrics.widthPixels * 0.92).toInt(),
             (resources.displayMetrics.heightPixels * 0.75).toInt()
         )
+    }
+
+    // Long-press "What's On" — a single chronological feed of what's airing next across every
+    // favorite channel, instead of checking channel-by-channel. Reuses the same row layout as
+    // showWhatsOnNow() but shows a start-time instead of a live progress bar (nothing has
+    // started yet for these entries by definition).
+    private fun showUpNextTicker() {
+        lifecycleScope.launch {
+            val entries = viewModel.getUpNextTicker()
+            if (entries.isEmpty()) {
+                Toast.makeText(this@HomeActivity, "No upcoming EPG data for your favorites", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val timeFmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+            val inflater = layoutInflater
+            val rv = androidx.recyclerview.widget.RecyclerView(this@HomeActivity).apply {
+                layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity)
+                setPadding(0, 8, 0, 8)
+            }
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
+                .setTitle("Up Next — Favorites")
+                .setView(rv)
+                .setNegativeButton("Close", null)
+                .create()
+            val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+                inner class VH(val v: android.view.View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(v)
+                override fun getItemCount() = entries.size
+                override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): VH {
+                    val view = inflater.inflate(com.iptvapp.R.layout.item_whats_on, parent, false)
+                    return VH(view)
+                }
+                override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
+                    val entry = entries[position]
+                    val v = holder.itemView
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonChannel).text = entry.channel.name
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonProgram).text =
+                        "${timeFmt.format(java.util.Date(entry.startTimestamp))} · ${entry.title}"
+                    v.findViewById<android.widget.ProgressBar>(com.iptvapp.R.id.pbWonProgress).visibility = View.INVISIBLE
+                    com.bumptech.glide.Glide.with(v)
+                        .load(entry.channel.streamIcon)
+                        .placeholder(android.R.drawable.ic_media_play)
+                        .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
+                    v.setOnClickListener {
+                        dialog.dismiss()
+                        lifecycleScope.launch {
+                            playInMiniPlayer(entry.channel)
+                            viewModel.markChannelWatched(entry.channel.streamId)
+                            viewModel.setCurrentlyPlaying(entry.channel.streamId)
+                        }
+                    }
+                }
+            }
+            rv.adapter = adapter
+            dialog.show()
+            dialog.window?.setLayout(
+                (resources.displayMetrics.widthPixels * 0.92).toInt(),
+                (resources.displayMetrics.heightPixels * 0.75).toInt()
+            )
+        }
     }
 }

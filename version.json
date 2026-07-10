@@ -1,7 +1,7 @@
 {
-  "versionCode": 260,
-  "versionName": "4.22",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.22/MKTV.apk",
-  "apkSha256": "44335880e7f2b867bae63cdeb4c43d45c70b3f269296f4862fd1b7a642d3c40b",
-  "changelog": "New: bandwidth-aware auto buffering. If a stream stalls/retries 3+ times within 2 minutes in the same viewing session, Extra Buffering turns on automatically for future streams instead of you having to notice the pattern yourself and go find the setting."
+  "versionCode": 261,
+  "versionName": "4.23",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.23/MKTV.apk",
+  "apkSha256": "3046d0d472dab2b9b78de01c57c7d86a075ef2cc5fb34a8594e1b802b218f5cf",
+  "changelog": "New: unified 'Up Next' ticker across all favorite channels — long-press the 'What's On' button for a single chronological feed of what's airing next on every favorite, instead of checking channel-by-channel."
 }

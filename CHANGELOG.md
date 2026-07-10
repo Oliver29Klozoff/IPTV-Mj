@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.23 - 2026-07-10
+- **New**: unified "Up Next" ticker across all favorite channels. Long-press the "What's On"
+  button for a single chronological feed of what's airing next on every favorite, instead
+  of checking channel-by-channel.
+
 ## v4.22 - 2026-07-10
 - **New**: bandwidth-aware auto buffering. If a stream stalls or retries 3+ times within
   2 minutes in the same viewing session, Extra Buffering turns on automatically for future
