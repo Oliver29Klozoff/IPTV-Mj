@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.25 - 2026-07-10
+- **Updated**: refreshed the first-launch feature tour to cover everything added recently —
+  channel reliability, the Up Next ticker, landscape sidebar navigation, Movies/Series sort,
+  auto buffering, Trakt, and the new Settings help button. It'll show once more even if
+  you already dismissed the old one, since the content genuinely changed.
+
 ## v4.24 - 2026-07-10
 - **New**: help button ("?") in Settings' top bar — tap it for a plain-language explanation
   of every control in whichever section you're currently viewing (Stream, Display, Updates,

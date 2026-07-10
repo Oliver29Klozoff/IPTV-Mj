@@ -1,7 +1,7 @@
 {
-  "versionCode": 262,
-  "versionName": "4.24",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.24/MKTV.apk",
-  "apkSha256": "3228aec99c3b105bbd54625461b18bbce3704701896abdad3e20a39c9102b38f",
-  "changelog": "New: help button (?) in Settings' top bar — tap it for a plain-language explanation of every control in whichever section you're currently viewing (Stream, Display, Updates, Backup, Servers, Sync, Trakt), so things like Tunneled Playback, DoH, or Extra Buffering aren't a mystery."
+  "versionCode": 263,
+  "versionName": "4.25",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.25/MKTV.apk",
+  "apkSha256": "5850e771a4db9b3247940b2dd930dfaa90322ac6f9abeaf8f2dbe1bdbc79d79a",
+  "changelog": "Refreshed the first-launch feature tour to cover everything added recently — channel reliability, the Up Next ticker, landscape sidebar navigation, Movies/Series sort, auto buffering, Trakt, and the new Settings help button. Since this is a real content update, it'll show once more even if you already dismissed the old one."
 }

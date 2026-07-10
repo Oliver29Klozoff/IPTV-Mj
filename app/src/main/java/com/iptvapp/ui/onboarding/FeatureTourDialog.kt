@@ -13,22 +13,29 @@ object FeatureTourDialog {
 
     private data class Step(val icon: String, val title: String, val desc: String)
 
+    // Bump this whenever the tour content changes meaningfully — showIfNeeded() compares
+    // against a stored version number (not just a shown/not-shown flag), so existing users
+    // who already dismissed an older tour see the refreshed one once too, instead of it
+    // silently staying stuck on whatever was current when they first installed.
+    private const val TOUR_VERSION = 2
+
     private val steps = listOf(
         Step("📺", "Welcome to MKTV", "Stream live TV from your IPTV provider. Browse channels, movies, series, and more."),
-        Step("⭐", "Favorites", "Long-press any channel to favorite it. Your favorites load first every time you open the app."),
-        Step("📅", "TV Guide", "Tap the Guide tab to see what's on now and next. Tap any show to replay it (if your provider supports catch-up)."),
-        Step("▶", "Mini Player", "Switch categories while still watching. The mini player keeps your stream running in the background."),
-        Step("🔴", "Buffer Health", "The dot in the player shows stream quality: green = good, yellow = buffering, red = weak signal."),
-        Step("⚙", "Settings", "Back up your favorites, auto-refresh EPG, switch DNS providers, and check for updates.")
+        Step("⭐", "Favorites", "Long-press any channel to favorite it, or check its recent reliability (e.g. \"7/10 succeeded recently\") right from that same menu."),
+        Step("📅", "TV Guide & Up Next", "The Guide tab shows what's on now and next per channel. On phone, long-press the \"What's On\" button for a single feed of what's coming up across all your favorites at once."),
+        Step("▶", "Mini Player & Fullscreen", "Keep browsing while a stream plays in the mini player, or go fullscreen — resuming picks up right where you left off."),
+        Step("🧭", "Landscape Navigation (phone)", "Rotate to landscape: tap Live, Categories, or Movies in the sidebar to browse categories, then tap one to drill into its channels. Tap the sidebar item again to go back."),
+        Step("↕", "Sort Movies & Series", "Tap the sort button on the Movies or Series tab to reorder by rating, year, or recently added."),
+        Step("🔵", "Smarter Buffering", "If a stream keeps stalling, Extra Buffering turns on automatically for future streams — no settings hunt required."),
+        Step("🔗", "Trakt", "Connect your Trakt.tv account in Settings to automatically track movies and episodes you watch in fullscreen."),
+        Step("⚙", "Settings Help", "Tap the \"?\" in Settings for a plain-language explanation of whatever section you're looking at — buffering, DNS, sync, and more.")
     )
 
     fun showIfNeeded(activity: AppCompatActivity) {
-        val shown = activity.getSharedPreferences("tour_prefs", Context.MODE_PRIVATE)
-            .getBoolean("tour_shown", false)
-        if (shown) return
+        val prefs = activity.getSharedPreferences("tour_prefs", Context.MODE_PRIVATE)
+        if (prefs.getInt("tour_shown_version", 0) >= TOUR_VERSION) return
         show(activity) {
-            activity.getSharedPreferences("tour_prefs", Context.MODE_PRIVATE)
-                .edit().putBoolean("tour_shown", true).apply()
+            prefs.edit().putInt("tour_shown_version", TOUR_VERSION).apply()
         }
     }
 
