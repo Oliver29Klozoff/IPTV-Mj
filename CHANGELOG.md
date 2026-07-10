@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.6 - 2026-07-09
+- **Fixed**: movies gave a "Playback error: Source error" in fullscreen while playing fine
+  in the mini player. The fullscreen player's disk cache (built for live TV timeshift/DVR
+  rewind) was being applied to VOD content too — its eviction policy is sized for live TV's
+  small rolling segment window, not multi-gigabyte progressive movie files, a likely cause
+  of the mismatch. VOD no longer goes through that cache at all — it doesn't need it, since
+  it already has its own resume-position mechanism.
+
 ## v4.5 - 2026-07-09
 - **Fixed**: fullscreen going to a black screen with an endless reconnect loop for content
   that plays fine in the mini player. The fullscreen player's HTTP requests had no

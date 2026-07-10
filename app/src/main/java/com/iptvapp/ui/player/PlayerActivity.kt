@@ -673,10 +673,20 @@ class PlayerActivity : AppCompatActivity() {
         // requiring the provider to support server-side catchup. The HLS playlist itself
         // (.m3u8) must never be cached — it updates every few seconds — so it's routed
         // around the cache while media segments still cache normally.
-        val cacheDataSourceFactory = ManifestBypassCacheDataSource.Factory(
-            getTimeshiftCache(applicationContext), upstreamDataSourceFactory
-        )
-        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
+        // VOD deliberately does NOT go through this cache — it was applied unconditionally
+        // before, and this disk cache's eviction policy is sized for live TV's small rolling
+        // segment window, not multi-gigabyte progressive movie files. That mismatch is a
+        // likely cause of "Source error" specifically on VOD in fullscreen while the mini
+        // player (no cache wrapping at all) played the same file fine. VOD has its own
+        // resume-position mechanism already, so it has no need for this cache anyway.
+        val mediaSourceFactory = if (isVod) {
+            DefaultMediaSourceFactory(this).setDataSourceFactory(upstreamDataSourceFactory)
+        } else {
+            val cacheDataSourceFactory = ManifestBypassCacheDataSource.Factory(
+                getTimeshiftCache(applicationContext), upstreamDataSourceFactory
+            )
+            DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
+        }
 
         val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
         val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }

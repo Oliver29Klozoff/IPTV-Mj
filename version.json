@@ -1,7 +1,7 @@
 {
-  "versionCode": 243,
-  "versionName": "4.5",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.5/MKTV.apk",
-  "apkSha256": "f7836fdd50c8b5ee08826608ffd3e38689d7cc44975db399b01bc48dc8a7e79a",
-  "changelog": "Fixed fullscreen going to a black screen with an endless reconnect loop for content that plays fine in the mini player. The fullscreen player's HTTP requests had no User-Agent set (defaulting to raw OkHttp's), while the mini player uses ExoPlayer's own built-in HTTP stack with its default User-Agent instead — some Cloudflare-fronted IPTV CDNs allow the latter but block the former. The fullscreen player now sends an ExoPlayer-style User-Agent too."
+  "versionCode": 244,
+  "versionName": "4.6",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.6/MKTV.apk",
+  "apkSha256": "ece2bbbde5814716993725e9e8848a7460fbc463f4d7201477434002381cd707",
+  "changelog": "Fixed movies giving a 'Playback error: Source error' in fullscreen while playing fine in the mini player. The fullscreen player's disk cache (built for live TV timeshift/DVR rewind) was being applied to VOD content too — its eviction policy is sized for live TV's small rolling segment window, not multi-gigabyte progressive movie files, which is a likely cause of the mismatch. VOD no longer goes through that cache at all (it doesn't need it — it has its own resume-position mechanism)."
 }
