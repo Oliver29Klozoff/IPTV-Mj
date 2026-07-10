@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v4.15 - 2026-07-10
+- **Fixed**: the "Channels" button actually rendered as a solid blue bar, not the intended
+  dark background with accent-colored text from v4.14. This app's Material theme
+  auto-upgrades plain buttons to MaterialButton, which ignores a plain `android:background`
+  color and paints its own `colorPrimary` tint over the entire button instead — now pinned
+  to the intended gray via an explicit `backgroundTint`.
+- **Fixed**: AMOLED Black only ever painted the outermost screen background pure black,
+  leaving nearly every card/panel/sidebar showing its own separate dark-gray color on top
+  (since those paint their own background independently). Enabling it now walks the whole
+  screen and flattens all of that gray chrome to pure black too.
+
 ## v4.14 - 2026-07-10
 - **Tweaked**: restyled the "Channels" button under the mini player in landscape to match
   the left sidebar — dark/gray background with accent-colored text (follows your chosen

@@ -1,7 +1,7 @@
 {
-  "versionCode": 252,
-  "versionName": "4.14",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.14/MKTV.apk",
-  "apkSha256": "ff8f793521d308cad72674da4c213eef4574e6d60850406a703f7067bb73618b",
-  "changelog": "Restyled the 'Channels' button under the mini player in landscape to match the left sidebar — dark/gray background with accent-colored text (follows your chosen accent color in Settings) instead of a plain white-on-dark look."
+  "versionCode": 253,
+  "versionName": "4.15",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.15/MKTV.apk",
+  "apkSha256": "200ce66bb1f6482b1b065de31ee3312e6c7bb2dd3d89344a67a2469e332aff20",
+  "changelog": "Fixed the 'Channels' button actually rendering as a solid blue bar instead of the intended dark/accent-text look — this app's Material theme auto-upgrades plain buttons to MaterialButton, which ignores a plain background color and paints its own colorPrimary tint over the whole button instead; now pinned to the intended gray via backgroundTint. Also: AMOLED Black now actually reaches the whole app instead of just the outermost screen background — it previously left nearly every card/panel/sidebar showing its own dark-gray color on top, since those are painted separately; enabling it now flattens all of that chrome to pure black too."
 }

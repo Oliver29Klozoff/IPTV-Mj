@@ -331,10 +331,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:background="#1A1A1A"
+                app:backgroundTint="#1A1A1A"
                 android:text="Channels ▾"
                 android:textAllCaps="false"
                 android:textColor="#008CFF"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
 
             <!-- Not shown inline anymore — btnShowChannelList opens this list in an
                  on-demand bottom sheet instead, since a persistently-visible list here
