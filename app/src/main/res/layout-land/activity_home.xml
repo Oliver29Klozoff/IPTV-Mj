@@ -333,7 +333,7 @@
                 android:background="#1A1A1A"
                 android:text="Channels ▾"
                 android:textAllCaps="false"
-                android:textColor="#FFFFFF"
+                android:textColor="#008CFF"
                 android:textSize="13sp" />
 
             <!-- Not shown inline anymore — btnShowChannelList opens this list in an

@@ -1,7 +1,7 @@
 {
-  "versionCode": 251,
-  "versionName": "4.13",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.13/MKTV.apk",
-  "apkSha256": "e4f21de9fe4cf913a3ae9d533dc4f61741960178611baf14c0dfe42d1b3045d5",
-  "changelog": "New: Series now has the same sort options Movies already had (Default, Rating, Year Newest/Oldest, Recently Added) — tap the sort button in the Series tab. Also removed a leftover debug toast from the Movies sort dialog."
+  "versionCode": 252,
+  "versionName": "4.14",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.14/MKTV.apk",
+  "apkSha256": "ff8f793521d308cad72674da4c213eef4574e6d60850406a703f7067bb73618b",
+  "changelog": "Restyled the 'Channels' button under the mini player in landscape to match the left sidebar — dark/gray background with accent-colored text (follows your chosen accent color in Settings) instead of a plain white-on-dark look."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.14 - 2026-07-10
+- **Tweaked**: restyled the "Channels" button under the mini player in landscape to match
+  the left sidebar — dark/gray background with accent-colored text (follows your chosen
+  accent color in Settings) instead of a plain white-on-dark look.
+
 ## v4.13 - 2026-07-10
 - **New**: Series now has the same sort options Movies already had — Default, Rating,
   Year (Newest/Oldest First), Recently Added. Tap the sort button while on the Series tab.

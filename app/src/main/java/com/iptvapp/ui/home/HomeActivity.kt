@@ -319,6 +319,7 @@ class HomeActivity : AppCompatActivity() {
         binding.miniEpgProgress?.progressTintList = csl
         binding.tvMiniEpg?.setTextColor(colorInt)
         binding.btnTimelineView?.setTextColor(colorInt)
+        binding.root.findViewById<android.widget.Button?>(R.id.btnShowChannelList)?.setTextColor(colorInt)
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
