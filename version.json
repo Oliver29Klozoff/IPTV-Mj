@@ -1,7 +1,7 @@
 {
-  "versionCode": 248,
-  "versionName": "4.10",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.10/MKTV.apk",
-  "apkSha256": "b01571e1d59c960260300ed4048568c7ac64c2e47eeea04d9989ec536cdbb983",
-  "changelog": "Extended the experimental English-only filter to Series too (Settings toggle renamed to 'Show English Movies & Series Only'). Series has no category-browsing UI like Movies does, so this now also fetches series categories in the background and filters the series list directly by looking up each show's category name for an EN/ENG/ENGLISH tag."
+  "versionCode": 249,
+  "versionName": "4.11",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.11/MKTV.apk",
+  "apkSha256": "d15644d8d594cb6616fbdb7d6133513696e13107d4056787eddfef71403d5a15",
+  "changelog": "The experimental English-only filter also matches a US/USA category tag now, not just EN/ENG/ENGLISH — the EN-only match found nothing on some providers whose categories are labeled by country instead of language."
 }

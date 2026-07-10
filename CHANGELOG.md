@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.11 - 2026-07-10
+- **Tweaked**: the experimental English-only filter also matches a US/USA category tag now,
+  not just EN/ENG/ENGLISH — matching only EN found nothing on providers whose categories
+  are labeled by country instead of language.
+
 ## v4.10 - 2026-07-09
 - **New**: extended the experimental English-only filter to Series too (toggle renamed to
   "Show English Movies & Series Only"). Series has no category-browsing UI like Movies

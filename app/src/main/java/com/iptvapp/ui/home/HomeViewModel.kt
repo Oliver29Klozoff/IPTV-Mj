@@ -137,13 +137,16 @@ class HomeViewModel @Inject constructor(
         return n.startsWith("US|") || n.contains("|US|")
     }
 
-    // "EN" as a whole token (not just a prefix) — avoids matching category names that
-    // merely start with those letters, like "ENTERTAINMENT" or "ENCORE". Experimental:
-    // depends on the provider actually tagging categories with a language code at all.
+    // Matched as a whole token (not just a prefix) — avoids matching category names that
+    // merely start with those letters, like "ENTERTAINMENT", "ENCORE", or "USA NETWORK".
+    // Experimental: depends entirely on the provider's own naming convention, which varies
+    // a lot — "US" added after "EN" alone didn't match anything on this provider's catalog.
     private fun isEnglishCategory(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
         val n = name.trim().uppercase()
-        return n.split(Regex("[|\\-\\s:]+")).any { it == "EN" || it == "ENG" || it == "ENGLISH" }
+        return n.split(Regex("[|\\-\\s:]+")).any {
+            it == "EN" || it == "ENG" || it == "ENGLISH" || it == "US" || it == "USA"
+        }
     }
 
     fun loadAll() {
