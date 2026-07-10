@@ -277,37 +277,45 @@ class HomeActivity : AppCompatActivity() {
                 tabs.firstOrNull { it.second == idx }?.first?.setTextColor(currentAccent)
             }
             override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
-            override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+            override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                // Tapping the already-active sidebar item is "go back" — from a drilled-into
+                // category's channel list, back up to that tab's category list. Tabs with no
+                // categories (Series/History/Favorites/Guide) have nothing to go back to.
+                if (tab?.position in 0..2) landscapeShowCategoriesMode()
+            }
         })
         // Sync initial highlight to tab 5 (Favorites)
         btn(R.id.landBtnFavorites)?.setTextColor(currentAccent)
-        root.findViewById<android.widget.Button?>(R.id.btnShowChannelList)?.setOnClickListener {
-            showChannelListSheet()
-        }
     }
 
-    private var channelSheetDialog: com.google.android.material.bottomsheet.BottomSheetDialog? = null
+    private fun isLandscapeMode() =
+        resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-    // On-demand replacement for the old always-visible/auto-collapsing landscape channel
-    // list (removed in v4.4 — it relied on a hardcoded height that could overflow on some
-    // screens, plus a broken expand guard that meant the "bigger" state never triggered).
-    // Reuses whatever adapter is already bound to binding.rvChannels for the current tab
-    // (live/VOD/series/etc.) — a RecyclerView.Adapter can be attached to more than one
-    // RecyclerView at once, so this needs no separate data wiring.
-    private fun showChannelListSheet() {
-        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-        val sheetRv = RecyclerView(this).apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity)
-            adapter = binding.rvChannels.adapter
-            layoutParams = android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                (resources.displayMetrics.heightPixels * 0.8).toInt()
-            )
+    // Live/Categories/Movies (tabs 0-2) drill down: tap a category to replace rvCategories
+    // with rvChannels in the same column; tap the sidebar tab again to come back. Series/
+    // History/Favorites/Guide have no categories, so they go straight to "channels" mode.
+    private fun landscapeShowCategoriesMode() {
+        if (!isLandscapeMode()) return
+        binding.rvCategories.visibility = View.VISIBLE
+        binding.rvChannels.visibility = View.GONE
+        val cats = when (binding.tabLayout.selectedTabPosition) {
+            0 -> viewModel.liveCategories.value
+            1 -> viewModel.favoriteLiveCategories.value
+            2 -> viewModel.vodCategories.value
+            else -> emptyList()
         }
-        dialog.setContentView(sheetRv)
-        dialog.setOnDismissListener { channelSheetDialog = null }
-        channelSheetDialog = dialog
-        dialog.show()
+        resizeCategoriesColumnToContent(cats)
+    }
+
+    private fun landscapeShowChannelsMode() {
+        if (!isLandscapeMode()) return
+        binding.rvCategories.visibility = View.GONE
+        binding.rvChannels.visibility = View.VISIBLE
+        val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
+        val params = col.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        params.width = 0
+        params.weight = 2f
+        col.layoutParams = params
     }
 
     private fun applyAccent(colorInt: Int) {
@@ -319,7 +327,6 @@ class HomeActivity : AppCompatActivity() {
         binding.miniEpgProgress?.progressTintList = csl
         binding.tvMiniEpg?.setTextColor(colorInt)
         binding.btnTimelineView?.setTextColor(colorInt)
-        binding.root.findViewById<android.widget.Button?>(R.id.btnShowChannelList)?.setTextColor(colorInt)
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
@@ -377,7 +384,6 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        channelSheetDialog?.dismiss()
         // Survives into the next HomeActivity instance via the ViewModel when this destroy
         // is a rotation-triggered recreation (a true app exit just leaves this unread, since
         // a fresh launch gets a brand new ViewModel with this field null by default).
@@ -465,7 +471,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun playInMiniPlayer(channel: ChannelEntity) {
-        channelSheetDialog?.dismiss()
         miniPlayJob?.cancel()
         miniRetryCount = 0
         miniPlayJob = lifecycleScope.launch {
@@ -644,6 +649,7 @@ class HomeActivity : AppCompatActivity() {
                     1 -> viewModel.selectFavCategory(category.categoryId)
                     2 -> viewModel.selectVodCategory(category.categoryId)
                 }
+                landscapeShowChannelsMode()
             },
             onCategoryLongClick = { category ->
                 if (binding.tabLayout.selectedTabPosition == 0) {
@@ -678,7 +684,6 @@ class HomeActivity : AppCompatActivity() {
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
-                channelSheetDialog?.dismiss()
                 lifecycleScope.launch {
                     val url = viewModel.getVodStreamUrl(vod.streamId, vod.containerExtension)
                     val progress = viewModel.getVodProgress(vod.streamId)
@@ -706,7 +711,6 @@ class HomeActivity : AppCompatActivity() {
 
         seriesAdapter = SeriesAdapter(
             onSeriesClick = { series ->
-                channelSheetDialog?.dismiss()
                 startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
                     putExtra("series_id", series.seriesId)
                     putExtra("series_name", series.name)
@@ -808,7 +812,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
         private fun showLive() {
-        setLandscapeCategoriesVisible(true)
+        landscapeShowCategoriesMode()
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
@@ -902,7 +906,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showFavCategories() {
-        setLandscapeCategoriesVisible(true)
+        landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
@@ -917,7 +921,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showVod() {
-        setLandscapeCategoriesVisible(false)
+        landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
@@ -928,7 +932,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showSeries() {
-        setLandscapeCategoriesVisible(false)
+        landscapeShowChannelsMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = seriesAdapter
@@ -936,7 +940,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showWatching() {
-        setLandscapeCategoriesVisible(false)
+        landscapeShowChannelsMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
@@ -949,7 +953,7 @@ class HomeActivity : AppCompatActivity() {
     private var favItemTouchHelper: ItemTouchHelper? = null
 
     private fun showFavorites() {
-        setLandscapeCategoriesVisible(false)
+        landscapeShowChannelsMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
@@ -991,13 +995,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun setLandscapeCategoriesVisible(visible: Boolean) {
-        val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
-        val div = binding.root.findViewById<View?>(R.id.categoriesDivider)
-        col.visibility = if (visible) View.VISIBLE else View.GONE
-        div?.visibility = if (visible) View.VISIBLE else View.GONE
-    }
-
     private fun submitCategories(list: List<com.iptvapp.data.local.entities.CategoryEntity>) {
         categoryAdapter.submitList(list)
         resizeCategoriesColumnToContent(list)
@@ -1036,7 +1033,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showGuide() {
-        setLandscapeCategoriesVisible(false)
+        landscapeShowChannelsMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = guideAdapter

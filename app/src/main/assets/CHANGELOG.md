@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.17 - 2026-07-10
+- **Changed (phone landscape)**: removed the "Channels" button and bottom-sheet popup.
+  Tapping Live, Categories, or Movies in the sidebar now shows that tab's category list in
+  place; picking a category collapses it and shows the channels/movies within it in the
+  same spot instead. Tap the sidebar item again to go back to the category list. Series,
+  History, Favorites, and Guide (no categories) show their list directly.
+
 ## v4.16 - 2026-07-10
 - **Changed (phone landscape)**: the middle categories column no longer takes a fixed
   share of the screen regardless of content — it now shrinks to fit the longest visible

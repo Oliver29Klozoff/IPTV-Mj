@@ -206,6 +206,19 @@
                 android:background="#141414"
                 android:paddingTop="8dp" />
 
+            <!-- Drill-down replacement for rvCategories within the same column — tapping a
+                 category (Live/Categories/Movies tabs) hides rvCategories and shows this
+                 instead, in the same space; tapping the sidebar tab again goes back. Series/
+                 History/Favorites/Guide (no categories) show this directly. -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChannels"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="#141414"
+                android:visibility="gone"
+                android:paddingTop="8dp" />
+
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2A2A" />
 
         </LinearLayout>
@@ -306,30 +319,6 @@
                     android:visibility="gone" />
 
             </FrameLayout>
-
-            <Button
-                android:id="@+id/btnShowChannelList"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:background="#1A1A1A"
-                app:backgroundTint="#1A1A1A"
-                android:text="Channels ▾"
-                android:textAllCaps="false"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
-                xmlns:app="http://schemas.android.com/apk/res-auto" />
-
-            <!-- Not shown inline anymore — btnShowChannelList opens this list in an
-                 on-demand bottom sheet instead, since a persistently-visible list here
-                 either ate too much of the mini player (always-visible) or relied on a
-                 broken/fragile hardcoded-height show-on-touch hack (removed in v4.4). -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvChannels"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:visibility="gone"
-                android:paddingTop="8dp" />
 
         </LinearLayout>
 
