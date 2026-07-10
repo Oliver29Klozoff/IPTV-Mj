@@ -14,9 +14,10 @@ import com.iptvapp.data.local.entities.*
         VodEntity::class,
         SeriesEntity::class,
         EpgEntity::class,
-        RecordingEntity::class
+        RecordingEntity::class,
+        ChannelReliabilityEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun seriesDao(): SeriesDao
     abstract fun epgDao(): EpgDao
     abstract fun recordingDao(): RecordingDao
+    abstract fun reliabilityDao(): ReliabilityDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -106,6 +108,18 @@ abstract class IptvDatabase : RoomDatabase() {
                         stopTimestamp INTEGER NOT NULL,
                         nowPlaying INTEGER NOT NULL DEFAULT 0,
                         hasArchive INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS channel_reliability (
+                        streamId INTEGER NOT NULL PRIMARY KEY,
+                        outcomes TEXT NOT NULL DEFAULT '',
+                        lastUpdated INTEGER NOT NULL
                     )
                 """.trimIndent())
             }

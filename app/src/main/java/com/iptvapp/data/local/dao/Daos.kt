@@ -183,3 +183,13 @@ interface RecordingDao {
     @Query("SELECT * FROM recordings WHERE id = :id")
     suspend fun getById(id: Int): RecordingEntity?
 }
+
+@Dao
+interface ReliabilityDao {
+    @Query("SELECT * FROM channel_reliability WHERE streamId = :streamId")
+    suspend fun get(streamId: Int): ChannelReliabilityEntity?
+    @Query("SELECT * FROM channel_reliability")
+    suspend fun getAll(): List<ChannelReliabilityEntity>
+    @Upsert
+    suspend fun upsert(entity: ChannelReliabilityEntity)
+}

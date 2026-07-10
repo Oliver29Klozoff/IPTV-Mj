@@ -82,3 +82,14 @@ data class RecordingEntity(
     val outputPath: String,
     val status: String = "SCHEDULED"
 )
+
+// Rolling reliability history per channel — outcomes is a string of '1'/'0' characters,
+// oldest first, capped to the last 10 (see ReliabilityDao.recordOutcome). Built from both
+// explicit "check favorites health" pings and real playback attempts (mini player ready/
+// error), so it reflects actual usage, not just a one-off ping.
+@Entity(tableName = "channel_reliability")
+data class ChannelReliabilityEntity(
+    @PrimaryKey val streamId: Int,
+    val outcomes: String = "",
+    val lastUpdated: Long = System.currentTimeMillis()
+)

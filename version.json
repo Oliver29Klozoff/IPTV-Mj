@@ -1,7 +1,7 @@
 {
-  "versionCode": 258,
-  "versionName": "4.20",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.20/MKTV.apk",
-  "apkSha256": "42b0f0f851bb15d988b585834162b100d669732cd556044d525d7b0306c17ee7",
-  "changelog": "Landscape (phone): the app now starts on the plain sidebar + mini player view with the last-playing channel loaded, instead of immediately opening Favorites' channel list on every launch. Tap a sidebar item to open its list as usual."
+  "versionCode": 259,
+  "versionName": "4.21",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.21/MKTV.apk",
+  "apkSha256": "90798693389912c69f984e0ba5a2bd86d58e6ac4d5cc3717d13fd86179b85112",
+  "changelog": "New: channel reliability tracking. Every 'Check Favorites Health' ping and every real mini-player playback attempt now records a success/fail outcome per channel (last 10 kept). Long-press a channel to see it in the actions menu, e.g. '7/10 succeeded recently' — a flaky channel now surfaces itself instead of you rediscovering the same dead one over and over."
 }

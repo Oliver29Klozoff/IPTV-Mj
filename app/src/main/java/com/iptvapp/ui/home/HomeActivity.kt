@@ -173,6 +173,9 @@ class HomeActivity : AppCompatActivity() {
     // fullscreen button to treat series as live and skip resume-position entirely.
     private var currentMiniIsVod: Boolean = false
     private var miniRetryCount: Int = 0
+    // Guards against recording a reliability outcome more than once per channel selection —
+    // reset by playInMiniPlayer() whenever a *new* channel is chosen.
+    private var lastReliabilityOutcomeStreamId: Int = -1
     private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var isPipMode = false
@@ -472,6 +475,15 @@ class HomeActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     binding.miniPlayerProgress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                    // One reliability outcome per channel selection (guarded below) — reflects
+                    // real usage, not just an explicit "check favorites health" ping.
+                    if (state == Player.STATE_READY && !currentMiniIsVod &&
+                        lastReliabilityOutcomeStreamId != currentMiniStreamId
+                    ) {
+                        lastReliabilityOutcomeStreamId = currentMiniStreamId
+                        val streamId = currentMiniStreamId
+                        lifecycleScope.launch { viewModel.recordChannelOutcome(streamId, true) }
+                    }
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     com.iptvapp.IptvApplication.logPlaybackEvent(
@@ -480,6 +492,11 @@ class HomeActivity : AppCompatActivity() {
                             "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
                             "message=${error.message} retryCount=$miniRetryCount url=$currentMiniUrl"
                     )
+                    if (!currentMiniIsVod && lastReliabilityOutcomeStreamId != currentMiniStreamId) {
+                        lastReliabilityOutcomeStreamId = currentMiniStreamId
+                        val streamId = currentMiniStreamId
+                        lifecycleScope.launch { viewModel.recordChannelOutcome(streamId, false) }
+                    }
                     if (miniRetryCount >= 5 || currentMiniUrl.isEmpty()) return
                     miniRetryCount++
                     miniPlayJob?.cancel()
@@ -1322,6 +1339,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showChannelActionsMenu(channel: ChannelEntity) {
+        lifecycleScope.launch {
+            val label = viewModel.getReliabilityLabel(channel.streamId)
+            showChannelActionsMenuDialog(channel, label)
+        }
+    }
+
+    private fun showChannelActionsMenuDialog(channel: ChannelEntity, reliabilityLabel: String?) {
+        val title = if (reliabilityLabel != null) "${channel.name}\n$reliabilityLabel" else channel.name
         val options = mutableListOf(
             "Set Reminder",
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
@@ -1332,7 +1357,7 @@ class HomeActivity : AppCompatActivity() {
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(channel.name)
+            .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
                     "Set Reminder" -> showReminderDialog(channel)

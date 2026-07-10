@@ -453,6 +453,26 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // Rolling last-10-outcomes reliability history — fed by both explicit health-check pings
+    // and real playback attempts (mini player ready/error), so a channel that constantly
+    // fails during actual use surfaces itself instead of you rediscovering the same dead
+    // channel over and over.
+    suspend fun recordChannelOutcome(streamId: Int, success: Boolean) {
+        val existing = db.reliabilityDao().get(streamId)
+        val updated = ((existing?.outcomes ?: "") + if (success) "1" else "0").takeLast(10)
+        db.reliabilityDao().upsert(
+            com.iptvapp.data.local.entities.ChannelReliabilityEntity(streamId, updated, System.currentTimeMillis())
+        )
+    }
+
+    /** e.g. "7/10 succeeded recently" — null if there's no history yet for this channel. */
+    suspend fun getReliabilityLabel(streamId: Int): String? {
+        val outcomes = db.reliabilityDao().get(streamId)?.outcomes ?: return null
+        if (outcomes.isEmpty()) return null
+        val successes = outcomes.count { it == '1' }
+        return "$successes/${outcomes.length} succeeded recently"
+    }
+
     suspend fun importM3uFromUrl(url: String): Resource<Int> = safeApiCall {
         val request = Request.Builder().url(url).build()
         val content = okHttpClient.newCall(request).execute().use { it.body?.string() }

@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.21 - 2026-07-10
+- **New**: channel reliability tracking. Every "Check Favorites Health" ping and every real
+  mini-player playback attempt now records a success/fail outcome per channel (last 10
+  kept). Long-press a channel to see it in the actions menu title, e.g. "7/10 succeeded
+  recently" — a flaky channel now surfaces itself instead of you rediscovering the same
+  dead one over and over.
+
 ## v4.20 - 2026-07-10
 - **Changed (phone landscape)**: startup now lands on the plain sidebar + mini player view
   with the last-playing channel already loaded, instead of immediately opening Favorites'

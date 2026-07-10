@@ -97,6 +97,12 @@ class HomeViewModel @Inject constructor(
     private val _channelHealth = MutableStateFlow<Map<Int, Boolean?>>(emptyMap())
     val channelHealth: StateFlow<Map<Int, Boolean?>> = _channelHealth
 
+    suspend fun recordChannelOutcome(streamId: Int, success: Boolean) =
+        repository.recordChannelOutcome(streamId, success)
+
+    suspend fun getReliabilityLabel(streamId: Int): String? =
+        repository.getReliabilityLabel(streamId)
+
     fun checkFavoritesHealth() {
         viewModelScope.launch {
             val favorites = repository.getFavoriteChannels().first()
@@ -107,6 +113,7 @@ class HomeViewModel @Inject constructor(
                     val url = repository.getLiveStreamUrl(channel.streamId)
                     val alive = repository.checkStreamHealth(url)
                     _channelHealth.value = _channelHealth.value + (channel.streamId to alive)
+                    repository.recordChannelOutcome(channel.streamId, alive)
                 }
             }
         }
