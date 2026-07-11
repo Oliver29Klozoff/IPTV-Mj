@@ -569,7 +569,8 @@ class HomeActivity : AppCompatActivity() {
             }
 
             binding.btnHeroWatch?.setOnClickListener {
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId)
+                val currentPos = miniPlayer?.currentPosition ?: 0L
+                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
             }
 
             miniPlayer?.let {
@@ -1122,7 +1123,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun openPlayer(url: String, title: String, streamId: Int, streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(), isVod: Boolean = false, resumeMs: Long = 0L) {
         if (externalPlayerChoice != "internal") {
-            launchExternalPlayer(url, title, externalPlayerChoice)
+            launchExternalPlayer(url, title, externalPlayerChoice, isVod)
             return
         }
         tabPositionBeforePlayer = binding.tabLayout.selectedTabPosition
@@ -1144,7 +1145,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun launchExternalPlayer(url: String, title: String, player: String) {
+    private fun launchExternalPlayer(url: String, title: String, player: String, isVod: Boolean = false) {
         val base = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(android.net.Uri.parse(url), "video/*")
             putExtra("title", title)
@@ -1162,7 +1163,7 @@ class HomeActivity : AppCompatActivity() {
                 lifecycleScope.launch { prefs.setExternalPlayer("internal") }
                 externalPlayerChoice = "internal"
                 android.widget.Toast.makeText(this, "${player.uppercase()} not installed — using built-in player", android.widget.Toast.LENGTH_SHORT).show()
-                openPlayer(url, title, -1)
+                openPlayer(url, title, -1, isVod = isVod)
             } else {
                 android.widget.Toast.makeText(this, "No video player found", android.widget.Toast.LENGTH_SHORT).show()
             }

@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.26 - 2026-07-10
+- **Fixed**: a movie could loop/reconnect forever after finishing, found from a debug
+  report. A "hero" watch button (separate from the mini player's fullscreen button) still
+  opened fullscreen without passing whether the content was VOD, defaulting to live — so a
+  finished movie got treated as a disconnected live channel and endlessly retried. Fixed
+  the same gap in the external-player-not-installed fallback path too.
+
 ## v4.25 - 2026-07-10
 - **Updated**: refreshed the first-launch feature tour to cover everything added recently —
   channel reliability, the Up Next ticker, landscape sidebar navigation, Movies/Series sort,

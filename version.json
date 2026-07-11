@@ -1,7 +1,7 @@
 {
-  "versionCode": 263,
-  "versionName": "4.25",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.25/MKTV.apk",
-  "apkSha256": "5850e771a4db9b3247940b2dd930dfaa90322ac6f9abeaf8f2dbe1bdbc79d79a",
-  "changelog": "Refreshed the first-launch feature tour to cover everything added recently — channel reliability, the Up Next ticker, landscape sidebar navigation, Movies/Series sort, auto buffering, Trakt, and the new Settings help button. Since this is a real content update, it'll show once more even if you already dismissed the old one."
+  "versionCode": 264,
+  "versionName": "4.26",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.26/MKTV.apk",
+  "apkSha256": "e87bbe0126d012a6906d2f87ec8b2d8f44e137517596c84414a1f0423efc24c1",
+  "changelog": "Fixed a movie looping/reconnecting forever after finishing, from a debug report: a 'hero' watch button (separate from the mini player's fullscreen button) still opened fullscreen without passing whether the content was VOD, defaulting to live — so a finished movie got treated as a disconnected live channel and endlessly retried. Also fixed the same gap in the external-player-not-installed fallback path."
 }
