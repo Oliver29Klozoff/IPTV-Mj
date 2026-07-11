@@ -1,7 +1,7 @@
 {
-  "versionCode": 265,
-  "versionName": "4.27",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.27/MKTV.apk",
-  "apkSha256": "306f77e4abba62e37909c3df0c385f996db29ae74d9937f2638d503034e02994",
-  "changelog": "Diagnostic: Silent Self-Update now logs exactly what happened (succeeded, OS still required confirmation, or an actual error) to the same log Send Debug Report uses, so 'it isn't working' can be told apart from the expected Android restriction that silent installs only work once an app is already its own installer of record."
+  "versionCode": 266,
+  "versionName": "4.28",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.28/MKTV.apk",
+  "apkSha256": "1370d448e18128d2a351eaba3307a9b3a7541174450bcffc5a77d75969a745d4",
+  "changelog": "Fixed Silent Self-Update actually doing nothing for most people: the automatic 'Update available' popup shown on every app launch used a completely separate, older install path that always showed the visible confirmation screen and never checked the setting at all. Only the manual 'Check for Updates' button in Settings respected it. Both paths now behave the same way."
 }

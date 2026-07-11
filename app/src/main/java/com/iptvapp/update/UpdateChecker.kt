@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -176,7 +177,29 @@ class UpdateChecker(
         }
     }
 
+    // This is the path the automatic on-launch "Update available" popup uses — it used to
+    // always do a plain visible install regardless of the Silent Self-Update setting, which
+    // only SettingsActivity's manual "Check for Updates" button respected. Most users only
+    // ever see the automatic popup, so the toggle effectively did nothing for them.
     private fun installApk(apkFile: File) {
+        val silentEnabled = kotlinx.coroutines.runBlocking {
+            com.iptvapp.data.local.PreferencesManager(context).silentSelfUpdateEnabled.first()
+        }
+        if (silentEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            com.iptvapp.IptvApplication.logPlaybackEvent(context, "SILENT UPDATE (auto-popup path): attempting session install")
+            try {
+                installApkViaSession(apkFile)
+                return
+            } catch (e: Exception) {
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    context, "SILENT UPDATE (auto-popup path): session install threw ${e.javaClass.simpleName}: ${e.message} — falling back"
+                )
+            }
+        }
+        installApkViaIntent(apkFile)
+    }
+
+    private fun installApkViaIntent(apkFile: File) {
         val uri: Uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.provider",
@@ -190,5 +213,64 @@ class UpdateChecker(
         }
 
         context.startActivity(intent)
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.S)
+    private fun installApkViaSession(apkFile: File) {
+        val installer = context.packageManager.packageInstaller
+        val params = android.content.pm.PackageInstaller.SessionParams(
+            android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+        ).apply {
+            setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val sessionId = installer.createSession(params)
+        val session = installer.openSession(sessionId)
+        session.use {
+            it.openWrite("update", 0, apkFile.length()).use { out ->
+                apkFile.inputStream().use { input -> input.copyTo(out) }
+                it.fsync(out)
+            }
+            val action = "com.iptvapp.UPDATECHECKER_INSTALL_RESULT"
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(ctx: Context, intent: Intent) {
+                    context.unregisterReceiver(this)
+                    when (val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
+                        android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
+                            com.iptvapp.IptvApplication.logPlaybackEvent(context, "SILENT UPDATE (auto-popup path): STATUS_SUCCESS")
+                            Toast.makeText(context, "MKTV updated", Toast.LENGTH_LONG).show()
+                        }
+                        android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                            com.iptvapp.IptvApplication.logPlaybackEvent(
+                                context, "SILENT UPDATE (auto-popup path): STATUS_PENDING_USER_ACTION — falling back to visible install"
+                            )
+                            @Suppress("DEPRECATION")
+                            val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                            if (confirmIntent != null) {
+                                confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(confirmIntent)
+                            } else {
+                                installApkViaIntent(apkFile)
+                            }
+                        }
+                        else -> {
+                            val msg = intent.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE)
+                            com.iptvapp.IptvApplication.logPlaybackEvent(context, "SILENT UPDATE (auto-popup path) FAILED: status=$status msg=$msg — falling back")
+                            installApkViaIntent(apkFile)
+                        }
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(receiver, android.content.IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                context.registerReceiver(receiver, android.content.IntentFilter(action))
+            }
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                context, 0, Intent(action).setPackage(context.packageName),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+            )
+            it.commit(pendingIntent.intentSender)
+        }
     }
 }

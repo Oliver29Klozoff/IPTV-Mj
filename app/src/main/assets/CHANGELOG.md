@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.28 - 2026-07-10
+- **Fixed**: Silent Self-Update was effectively doing nothing for most people. The
+  automatic "Update available" popup shown on every app launch used a completely separate,
+  older install path that always showed the visible confirmation screen and never checked
+  the setting — only the manual "Check for Updates" button in Settings respected it. Both
+  paths now behave the same way and log the same diagnostics.
+
 ## v4.27 - 2026-07-10
 - **Diagnostic**: Silent Self-Update now logs exactly what happened (succeeded, OS still
   required confirmation, or an actual error) to the same log "Send Debug Report" uses — so
