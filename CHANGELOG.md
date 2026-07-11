@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v4.29 - 2026-07-11
+- No functional change — version bump to test Silent Self-Update logging live.
+
 ## v4.28 - 2026-07-10
 - **Fixed**: Silent Self-Update was effectively doing nothing for most people. The
   automatic "Update available" popup shown on every app launch used a completely separate,
