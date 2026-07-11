@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.27 - 2026-07-10
+- **Diagnostic**: Silent Self-Update now logs exactly what happened (succeeded, OS still
+  required confirmation, or an actual error) to the same log "Send Debug Report" uses — so
+  "it isn't working" can be told apart from the expected Android restriction that silent
+  installs only take effect once the app is already its own installer of record.
+
 ## v4.26 - 2026-07-10
 - **Fixed**: a movie could loop/reconnect forever after finishing, found from a debug
   report. A "hero" watch button (separate from the mini player's fullscreen button) still

@@ -875,12 +875,16 @@ class SettingsActivity : AppCompatActivity() {
         // must be a deliberate choice, not a default.
         val silentUpdateEnabled = kotlinx.coroutines.runBlocking { prefs.silentSelfUpdateEnabled.first() }
         if (silentUpdateEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "SILENT UPDATE: attempting session install (sdk=${Build.VERSION.SDK_INT})")
             try {
                 installApkViaSession(file)
                 return
             } catch (e: Exception) {
+                com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "SILENT UPDATE: session install threw ${e.javaClass.simpleName}: ${e.message} — falling back")
                 Log.e("SettingsActivity", "Session install failed, falling back: ${e.message}")
             }
+        } else if (silentUpdateEnabled) {
+            com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "SILENT UPDATE: enabled but sdk=${Build.VERSION.SDK_INT} < 31, not attempted")
         }
         installApkViaIntent(file)
     }
@@ -921,10 +925,21 @@ class SettingsActivity : AppCompatActivity() {
                     unregisterReceiver(this)
                     when (val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
                         android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
+                            com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "SILENT UPDATE: STATUS_SUCCESS")
                             binding.tvUpdateStatus.text = "✓ Updated successfully"
                             Toast.makeText(this@SettingsActivity, "MKTV updated", Toast.LENGTH_LONG).show()
                         }
                         android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                            // The most common outcome for a normal (non-Play-Store) app —
+                            // setRequireUserAction(false) only takes effect once this app is
+                            // already its own "installer of record", which this same
+                            // session-based path is what establishes going forward. Logged so
+                            // a debug report can distinguish "OS still requires confirmation"
+                            // from "something actually broke" without needing a live adb session.
+                            com.iptvapp.IptvApplication.logPlaybackEvent(
+                                applicationContext,
+                                "SILENT UPDATE: STATUS_PENDING_USER_ACTION (OS still requires confirmation — falling back to visible install)"
+                            )
                             @Suppress("DEPRECATION")
                             val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                             if (confirmIntent != null) {
@@ -936,6 +951,7 @@ class SettingsActivity : AppCompatActivity() {
                         }
                         else -> {
                             val msg = intent.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE)
+                            com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "SILENT UPDATE FAILED: status=$status msg=$msg — falling back")
                             Log.e("SettingsActivity", "Session install status=$status msg=$msg — falling back")
                             installApkViaIntent(file)
                         }

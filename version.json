@@ -1,7 +1,7 @@
 {
-  "versionCode": 264,
-  "versionName": "4.26",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.26/MKTV.apk",
-  "apkSha256": "e87bbe0126d012a6906d2f87ec8b2d8f44e137517596c84414a1f0423efc24c1",
-  "changelog": "Fixed a movie looping/reconnecting forever after finishing, from a debug report: a 'hero' watch button (separate from the mini player's fullscreen button) still opened fullscreen without passing whether the content was VOD, defaulting to live — so a finished movie got treated as a disconnected live channel and endlessly retried. Also fixed the same gap in the external-player-not-installed fallback path."
+  "versionCode": 265,
+  "versionName": "4.27",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.27/MKTV.apk",
+  "apkSha256": "306f77e4abba62e37909c3df0c385f996db29ae74d9937f2638d503034e02994",
+  "changelog": "Diagnostic: Silent Self-Update now logs exactly what happened (succeeded, OS still required confirmation, or an actual error) to the same log Send Debug Report uses, so 'it isn't working' can be told apart from the expected Android restriction that silent installs only work once an app is already its own installer of record."
 }
