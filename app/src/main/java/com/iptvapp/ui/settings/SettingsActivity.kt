@@ -1464,11 +1464,35 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 val result = traktManager.syncWatchedHistoryBack()
                 binding.btnTraktSyncHistory.isEnabled = true
+                val unmatchedCount = result.unmatchedMovies.size + result.unmatchedShows.size
                 binding.tvTraktSyncStatus.text =
                     "Matched ${result.moviesMatched} movies, ${result.showsMatched} shows " +
-                        "(${result.episodesMarked} episodes marked watched)"
+                        "(${result.episodesMarked} episodes marked watched)" +
+                        if (unmatchedCount > 0) " — $unmatchedCount unmatched (tap to view)" else ""
+                binding.tvTraktSyncStatus.setOnClickListener {
+                    if (unmatchedCount > 0) showUnmatchedTraktDialog(result)
+                }
             }
         }
+    }
+
+    private fun showUnmatchedTraktDialog(result: com.iptvapp.trakt.TraktManager.SyncBackResult) {
+        val message = buildString {
+            if (result.unmatchedMovies.isNotEmpty()) {
+                append("Movies not found in your library:\n")
+                result.unmatchedMovies.forEach { append("• $it\n") }
+            }
+            if (result.unmatchedShows.isNotEmpty()) {
+                if (isNotEmpty()) append("\n")
+                append("Shows not found in your library:\n")
+                result.unmatchedShows.forEach { append("• $it\n") }
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Unmatched Trakt Titles")
+            .setMessage(message)
+            .setPositiveButton("Close", null)
+            .show()
     }
 
     private fun refreshTraktStatus() {

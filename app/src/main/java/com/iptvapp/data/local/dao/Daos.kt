@@ -180,6 +180,8 @@ interface RecordingDao {
     suspend fun updateStatus(id: Int, status: String)
     @Query("UPDATE recordings SET outputPath = :path, status = :status WHERE id = :id")
     suspend fun updatePathAndStatus(id: Int, path: String, status: String)
+    @Query("UPDATE recordings SET channelName = :name WHERE id = :id")
+    suspend fun rename(id: Int, name: String)
     @Delete
     suspend fun delete(recording: RecordingEntity)
     @Query("SELECT * FROM recordings WHERE id = :id")

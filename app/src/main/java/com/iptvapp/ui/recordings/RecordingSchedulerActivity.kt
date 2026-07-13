@@ -64,8 +64,28 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 cancelRecordingAlarm(rec.id)
                 database.recordingDao().delete(rec)
             }
-        }
+        },
+        onRename = { rec -> showRenameDialog(rec) }
     )
+
+    private fun showRenameDialog(rec: RecordingEntity) {
+        val input = EditText(this).apply {
+            setText(rec.channelName)
+            setSelection(text.length)
+            setPadding(48, 24, 48, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Rename Recording")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    lifecycleScope.launch { database.recordingDao().rename(rec.id, name) }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -452,7 +472,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     }
 
     inner class RecordingAdapter(
-        private val onDelete: (RecordingEntity) -> Unit
+        private val onDelete: (RecordingEntity) -> Unit,
+        private val onRename: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -490,6 +511,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 b.tvRecStatus.setBackgroundColor(bg)
                 b.tvRecStatus.setTextColor(fg)
                 b.btnDelete.setOnClickListener { onDelete(rec) }
+                b.root.setOnLongClickListener { onRename(rec); true }
 
                 if (rec.status == "DONE") {
                     b.btnPlay.visibility = View.VISIBLE

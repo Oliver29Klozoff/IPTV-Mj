@@ -165,19 +165,28 @@ class TraktManager @Inject constructor(
         scrobble(progress, { auth, body -> api.scrobbleStop(auth, clientId, body = body) },
             show = TraktShow(showTitle), episode = TraktEpisode(season, episode))
 
-    data class SyncBackResult(val moviesMatched: Int, val showsMatched: Int, val episodesMarked: Int)
+    data class SyncBackResult(
+        val moviesMatched: Int,
+        val showsMatched: Int,
+        val episodesMarked: Int,
+        val unmatchedMovies: List<String> = emptyList(),
+        val unmatchedShows: List<String> = emptyList()
+    )
 
     /** One-time (re-runnable) pull of Trakt's watched history into local state — the reverse
      * of scrobbling. Matches by parsed title (+year for movies, since two different local VOD
      * entries can share a name) against Trakt's title, since neither side has a shared ID to
      * join on (the local catalog has no TMDB/IMDB ids). Movies get marked watched via the
      * existing watchedMs/durationMs fields; episodes have no local storage at all normally, so
-     * this is also what backs [EpisodeWatchedEntity] in the first place. */
+     * this is also what backs [EpisodeWatchedEntity] in the first place. Titles that don't
+     * match anything locally (not in your provider's catalog, or a naming mismatch) are
+     * reported back rather than silently skipped, so a bad match isn't a silent black box. */
     suspend fun syncWatchedHistoryBack(): SyncBackResult {
         val token = validAccessToken() ?: return SyncBackResult(0, 0, 0)
         val auth = "Bearer $token"
 
         var moviesMatched = 0
+        val unmatchedMovies = mutableListOf<String>()
         try {
             val watchedMovies = api.getWatchedMovies(auth, clientId).body().orEmpty()
             val localVod = db.vodDao().getAllVod().first()
@@ -186,7 +195,11 @@ class TraktManager @Inject constructor(
                     val parsed = parseTitle(vod.name)
                     parsed.title.equals(watched.movie.title, ignoreCase = true) &&
                         (parsed.year == null || watched.movie.year == null || parsed.year == watched.movie.year)
-                } ?: continue
+                }
+                if (match == null) {
+                    unmatchedMovies += watched.movie.year?.let { "${watched.movie.title} ($it)" } ?: watched.movie.title
+                    continue
+                }
                 val duration = match.durationMs.takeIf { it > 0 } ?: 1L
                 db.vodDao().updateWatchProgress(match.streamId, duration, duration)
                 moviesMatched++
@@ -197,13 +210,18 @@ class TraktManager @Inject constructor(
 
         var showsMatched = 0
         var episodesMarked = 0
+        val unmatchedShows = mutableListOf<String>()
         try {
             val watchedShows = api.getWatchedShows(auth, clientId).body().orEmpty()
             val localSeries = db.seriesDao().getAllSeries().first()
             for (watched in watchedShows) {
                 val match = localSeries.firstOrNull { series ->
                     parseTitle(series.name).title.equals(watched.show.title, ignoreCase = true)
-                } ?: continue
+                }
+                if (match == null) {
+                    unmatchedShows += watched.show.title
+                    continue
+                }
                 showsMatched++
                 for (season in watched.seasons) {
                     for (ep in season.episodes) {
@@ -216,6 +234,6 @@ class TraktManager @Inject constructor(
             Log.e("TraktManager", "Show history sync failed: ${e.message}")
         }
 
-        return SyncBackResult(moviesMatched, showsMatched, episodesMarked)
+        return SyncBackResult(moviesMatched, showsMatched, episodesMarked, unmatchedMovies, unmatchedShows)
     }
 }

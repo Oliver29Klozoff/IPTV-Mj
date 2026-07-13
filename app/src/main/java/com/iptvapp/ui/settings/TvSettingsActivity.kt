@@ -71,6 +71,7 @@ class TvSettingsActivity : AppCompatActivity() {
     @Inject lateinit var syncManager: SyncManager
     @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
     private var traktAuthJob: kotlinx.coroutines.Job? = null
+    private var lastTraktSyncResult: com.iptvapp.trakt.TraktManager.SyncBackResult? = null
 
     private val settingsItems = mutableListOf<TvSettingItem>()
     private val sectionItems = linkedMapOf<String, MutableList<TvSettingItem>>()
@@ -355,9 +356,16 @@ class TvSettingsActivity : AppCompatActivity() {
                     setItemValue("trakt_sync_history", "Syncing…")
                     lifecycleScope.launch {
                         val result = traktManager.syncWatchedHistoryBack()
-                        setItemEnabled("trakt_sync_history", true)
-                        setItemValue("trakt_sync_history",
-                            "Matched ${result.moviesMatched} movies, ${result.showsMatched} shows")
+                        lastTraktSyncResult = result
+                        Toast.makeText(this@TvSettingsActivity,
+                            "Matched ${result.moviesMatched} movies, ${result.showsMatched} shows", Toast.LENGTH_LONG).show()
+                        buildSettingsList()
+                        showSection("Trakt", focusFirst = false)
+                    }
+                }
+                if (lastTraktSyncResult?.let { it.unmatchedMovies.isNotEmpty() || it.unmatchedShows.isNotEmpty() } == true) {
+                    settingsItems += TvSettingItem.Action("trakt_sync_unmatched", "View Unmatched Titles") {
+                        showUnmatchedTraktDialog(lastTraktSyncResult!!)
                     }
                 }
                 settingsItems += TvSettingItem.Action("trakt_disconnect", "Disconnect Trakt", danger = true) {
@@ -621,6 +629,25 @@ class TvSettingsActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showUnmatchedTraktDialog(result: com.iptvapp.trakt.TraktManager.SyncBackResult) {
+        val message = buildString {
+            if (result.unmatchedMovies.isNotEmpty()) {
+                append("Movies not found in your library:\n")
+                result.unmatchedMovies.forEach { append("• $it\n") }
+            }
+            if (result.unmatchedShows.isNotEmpty()) {
+                if (isNotEmpty()) append("\n")
+                append("Shows not found in your library:\n")
+                result.unmatchedShows.forEach { append("• $it\n") }
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Unmatched Trakt Titles")
+            .setMessage(message)
+            .setPositiveButton("Close", null)
             .show()
     }
 

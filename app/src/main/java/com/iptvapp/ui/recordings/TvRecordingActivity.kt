@@ -166,6 +166,23 @@ class TvRecordingActivity : AppCompatActivity() {
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
+            },
+            onRename = { rec ->
+                val input = android.widget.EditText(this).apply {
+                    setText(rec.channelName)
+                    setSelection(text.length)
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Rename Recording")
+                    .setView(input)
+                    .setPositiveButton("Save") { _, _ ->
+                        val name = input.text.toString().trim()
+                        if (name.isNotEmpty()) {
+                            lifecycleScope.launch { database.recordingDao().rename(rec.id, name) }
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
         )
     }
@@ -422,7 +439,8 @@ class TvRecordingActivity : AppCompatActivity() {
     inner class RecordingListAdapter(
         private val onPlay: (RecordingEntity) -> Unit,
         private val onShare: (RecordingEntity) -> Unit,
-        private val onDelete: (RecordingEntity) -> Unit
+        private val onDelete: (RecordingEntity) -> Unit,
+        private val onRename: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingListAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -450,6 +468,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     } else false
                 }
                 b.rowRecordingMain.setOnClickListener { onPlay(items[bindingAdapterPosition]) }
+                b.rowRecordingMain.setOnLongClickListener { onRename(items[bindingAdapterPosition]); true }
                 b.btnTvRecShare.setOnClickListener { onShare(items[bindingAdapterPosition]) }
                 b.btnTvRecDelete.setOnClickListener { onDelete(items[bindingAdapterPosition]) }
             }

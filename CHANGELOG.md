@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.35 - 2026-07-13
+- **Added**: recordings can now be renamed (long-press a recording, both platforms) instead
+  of being stuck with the auto-generated channel+timestamp name.
+- **Added**: Trakt watched-history sync now reports which movies/shows it couldn't match
+  against your local library, instead of silently skipping them — tap the sync status
+  (phone) or "View Unmatched Titles" (TV) to see the list.
+- **Added**: the search box now shows your current server's nickname in its hint text (e.g.
+  "Search (Rich)…"), so which account you're on is visible at a glance without opening
+  Settings — useful if you've added more than one server.
+
 ## v4.34 - 2026-07-13
 - **Added**: Trakt watched-history sync-back — previously the app only sent scrobble data
   *to* Trakt, with no way to pull existing watched history back in. A new "Sync Watched

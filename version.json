@@ -1,7 +1,7 @@
 {
-  "versionCode": 272,
-  "versionName": "4.34",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.34/MKTV.apk",
-  "apkSha256": "2e7f2e3cf2fd4288bf6d666b47029cf3134f9e64c2039691d74f8800f9053a65",
-  "changelog": "Added Trakt watched-history sync-back: a new 'Sync Watched History from Trakt' button (Settings) pulls your existing watched movies and shows from Trakt and matches them against your local library, marking movies watched and recording watched episodes for shows (shown with a checkmark in the episode list)."
+  "versionCode": 273,
+  "versionName": "4.35",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.35/MKTV.apk",
+  "apkSha256": "6f5f877b9d8d187da10ebbac8e7edec461b81b1f6ad26ed1fe0a9662d05bfdf8",
+  "changelog": "Recordings can now be renamed (long-press). Trakt watched-history sync now shows which titles it couldn't match instead of silently skipping them. The search box hint now shows your current server's nickname so it's visible at a glance."
 }

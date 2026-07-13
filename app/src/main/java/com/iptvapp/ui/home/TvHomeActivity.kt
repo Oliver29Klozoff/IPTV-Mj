@@ -200,6 +200,11 @@ class TvHomeActivity : AppCompatActivity() {
         super.onResume()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
+        // Cheap, always-visible reminder of which server/account is currently active.
+        lifecycleScope.launch {
+            val nickname = prefs.serverNickname.first()
+            binding.tvEtSearch.hint = if (nickname.isNotBlank()) "Search ($nickname)…" else "Search…"
+        }
         if (currentMiniUrl.isEmpty()) {
             lifecycleScope.launch {
                 val recent = viewModel.getRecentChannel()

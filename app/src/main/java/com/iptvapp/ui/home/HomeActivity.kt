@@ -426,6 +426,13 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
         }
+        // Cheap, always-visible reminder of which server/account is currently active — useful
+        // after adding/switching between multiple servers, where otherwise nothing in the
+        // main channel list surfaces which one you're actually on.
+        lifecycleScope.launch {
+            val nickname = prefs.serverNickname.first()
+            binding.etSearch.hint = if (nickname.isNotBlank()) "Search ($nickname)…" else "Search…"
+        }
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         if (suppressMiniAutoResume) {
             // Returning from the guide grid with an explicit channel choice — don't override it
