@@ -3,6 +3,7 @@ package com.iptvapp.data.api
 import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.POST
@@ -37,6 +38,31 @@ data class TraktScrobbleRequest(
     val progress: Float
 )
 
+// GET /sync/watched/movies and /sync/watched/shows response shapes — used for one-time
+// history sync-back (seeding "already watched" state), not the outgoing scrobble calls above.
+data class TraktWatchedMovie(
+    val plays: Int,
+    @SerializedName("last_watched_at") val lastWatchedAt: String?,
+    val movie: TraktMovie
+)
+
+data class TraktWatchedShow(
+    val plays: Int,
+    @SerializedName("last_watched_at") val lastWatchedAt: String?,
+    val show: TraktShow,
+    val seasons: List<TraktWatchedSeason>
+)
+
+data class TraktWatchedSeason(
+    val number: Int,
+    val episodes: List<TraktWatchedEpisode>
+)
+
+data class TraktWatchedEpisode(
+    val number: Int,
+    val plays: Int
+)
+
 // Sent to OUR proxy (not Trakt directly) — the proxy attaches client_id/client_secret itself,
 // so the app never needs to know the secret.
 data class TraktProxyCodeRequest(val code: String)
@@ -65,4 +91,10 @@ interface TraktApiService {
     @Headers("Content-Type: application/json")
     @POST("sync/scrobble/stop")
     suspend fun scrobbleStop(@Header("Authorization") auth: String, @Header("trakt-api-key") key: String, @Header("trakt-api-version") version: String = "2", @Body body: TraktScrobbleRequest): Response<Unit>
+
+    @GET("sync/watched/movies")
+    suspend fun getWatchedMovies(@Header("Authorization") auth: String, @Header("trakt-api-key") key: String, @Header("trakt-api-version") version: String = "2"): Response<List<TraktWatchedMovie>>
+
+    @GET("sync/watched/shows")
+    suspend fun getWatchedShows(@Header("Authorization") auth: String, @Header("trakt-api-key") key: String, @Header("trakt-api-version") version: String = "2"): Response<List<TraktWatchedShow>>
 }

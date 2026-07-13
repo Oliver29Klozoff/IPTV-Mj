@@ -12,9 +12,12 @@ import com.iptvapp.data.api.TraktProxyCodeRequest
 import com.iptvapp.data.api.TraktProxyRefreshRequest
 import com.iptvapp.data.api.TraktScrobbleRequest
 import com.iptvapp.data.api.TraktShow
+import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
+import com.iptvapp.data.local.entities.EpisodeWatchedEntity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,7 +36,8 @@ data class ParsedTitle(val title: String, val year: Int?)
 class TraktManager @Inject constructor(
     private val api: TraktApiService,
     private val proxyApi: TraktProxyApiService,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val db: IptvDatabase
 ) {
     private val clientId = BuildConfig.TRAKT_CLIENT_ID
     private val proxyUrl = BuildConfig.TRAKT_PROXY_URL
@@ -160,4 +164,58 @@ class TraktManager @Inject constructor(
     suspend fun scrobbleEpisodeStop(showTitle: String, season: Int, episode: Int, progress: Float) =
         scrobble(progress, { auth, body -> api.scrobbleStop(auth, clientId, body = body) },
             show = TraktShow(showTitle), episode = TraktEpisode(season, episode))
+
+    data class SyncBackResult(val moviesMatched: Int, val showsMatched: Int, val episodesMarked: Int)
+
+    /** One-time (re-runnable) pull of Trakt's watched history into local state — the reverse
+     * of scrobbling. Matches by parsed title (+year for movies, since two different local VOD
+     * entries can share a name) against Trakt's title, since neither side has a shared ID to
+     * join on (the local catalog has no TMDB/IMDB ids). Movies get marked watched via the
+     * existing watchedMs/durationMs fields; episodes have no local storage at all normally, so
+     * this is also what backs [EpisodeWatchedEntity] in the first place. */
+    suspend fun syncWatchedHistoryBack(): SyncBackResult {
+        val token = validAccessToken() ?: return SyncBackResult(0, 0, 0)
+        val auth = "Bearer $token"
+
+        var moviesMatched = 0
+        try {
+            val watchedMovies = api.getWatchedMovies(auth, clientId).body().orEmpty()
+            val localVod = db.vodDao().getAllVod().first()
+            for (watched in watchedMovies) {
+                val match = localVod.firstOrNull { vod ->
+                    val parsed = parseTitle(vod.name)
+                    parsed.title.equals(watched.movie.title, ignoreCase = true) &&
+                        (parsed.year == null || watched.movie.year == null || parsed.year == watched.movie.year)
+                } ?: continue
+                val duration = match.durationMs.takeIf { it > 0 } ?: 1L
+                db.vodDao().updateWatchProgress(match.streamId, duration, duration)
+                moviesMatched++
+            }
+        } catch (e: Exception) {
+            Log.e("TraktManager", "Movie history sync failed: ${e.message}")
+        }
+
+        var showsMatched = 0
+        var episodesMarked = 0
+        try {
+            val watchedShows = api.getWatchedShows(auth, clientId).body().orEmpty()
+            val localSeries = db.seriesDao().getAllSeries().first()
+            for (watched in watchedShows) {
+                val match = localSeries.firstOrNull { series ->
+                    parseTitle(series.name).title.equals(watched.show.title, ignoreCase = true)
+                } ?: continue
+                showsMatched++
+                for (season in watched.seasons) {
+                    for (ep in season.episodes) {
+                        db.episodeWatchedDao().upsert(EpisodeWatchedEntity(match.seriesId, season.number, ep.number))
+                        episodesMarked++
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("TraktManager", "Show history sync failed: ${e.message}")
+        }
+
+        return SyncBackResult(moviesMatched, showsMatched, episodesMarked)
+    }
 }

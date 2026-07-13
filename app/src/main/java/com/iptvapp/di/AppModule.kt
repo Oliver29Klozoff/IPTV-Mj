@@ -124,7 +124,8 @@ object AppModule {
             IptvDatabase.MIGRATION_8_9,
             IptvDatabase.MIGRATION_9_10,
             IptvDatabase.MIGRATION_10_11,
-            IptvDatabase.MIGRATION_11_12
+            IptvDatabase.MIGRATION_11_12,
+            IptvDatabase.MIGRATION_12_13
         ).build()
 
     @Provides fun provideChannelDao(db: IptvDatabase) = db.channelDao()
@@ -134,4 +135,5 @@ object AppModule {
     @Provides fun provideReliabilityDao(db: IptvDatabase) = db.reliabilityDao()
     @Provides fun provideEpgDao(db: IptvDatabase) = db.epgDao()
     @Provides fun provideRecordingDao(db: IptvDatabase) = db.recordingDao()
+    @Provides fun provideEpisodeWatchedDao(db: IptvDatabase) = db.episodeWatchedDao()
 }

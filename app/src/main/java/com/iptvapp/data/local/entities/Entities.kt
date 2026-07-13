@@ -83,6 +83,19 @@ data class RecordingEntity(
     val status: String = "SCHEDULED"
 )
 
+// Per-episode watched state, keyed by (seriesId, season, episode) — deliberately independent
+// of whether that episode's stream info is currently cached locally (episodes themselves
+// aren't persisted; only fetched live from the provider per series). This exists purely so a
+// Trakt watched-history sync-back has somewhere to record "you've seen S02E05 of this show"
+// even for episodes the app has never itself fetched/played.
+@Entity(tableName = "episode_watched", primaryKeys = ["seriesId", "season", "episode"])
+data class EpisodeWatchedEntity(
+    val seriesId: Int,
+    val season: Int,
+    val episode: Int,
+    val watchedAt: Long = System.currentTimeMillis()
+)
+
 // Rolling reliability history per channel — outcomes is a string of '1'/'0' characters,
 // oldest first, capped to the last 10 (see ReliabilityDao.recordOutcome). Built from both
 // explicit "check favorites health" pings and real playback attempts (mini player ready/

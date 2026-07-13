@@ -1458,6 +1458,17 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.makeText(this@SettingsActivity, "Disconnected from Trakt", Toast.LENGTH_SHORT).show()
             }
         }
+        binding.btnTraktSyncHistory.setOnClickListener {
+            binding.btnTraktSyncHistory.isEnabled = false
+            binding.tvTraktSyncStatus.text = "Syncing watched history from Trakt…"
+            lifecycleScope.launch {
+                val result = traktManager.syncWatchedHistoryBack()
+                binding.btnTraktSyncHistory.isEnabled = true
+                binding.tvTraktSyncStatus.text =
+                    "Matched ${result.moviesMatched} movies, ${result.showsMatched} shows " +
+                        "(${result.episodesMarked} episodes marked watched)"
+            }
+        }
     }
 
     private fun refreshTraktStatus() {
@@ -1466,6 +1477,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvTraktStatus.text = "Trakt is not configured for this build"
                 binding.btnTraktConnect.visibility = View.GONE
                 binding.btnTraktDisconnect.visibility = View.GONE
+                binding.btnTraktSyncHistory.visibility = View.GONE
                 return@launch
             }
             val connected = traktManager.isConnected.first()
@@ -1473,10 +1485,12 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvTraktStatus.text = "✓ Connected — scrobbling your watch activity"
                 binding.btnTraktConnect.visibility = View.GONE
                 binding.btnTraktDisconnect.visibility = View.VISIBLE
+                binding.btnTraktSyncHistory.visibility = View.VISIBLE
             } else {
                 binding.tvTraktStatus.text = "Not connected"
                 binding.btnTraktConnect.visibility = View.VISIBLE
                 binding.btnTraktDisconnect.visibility = View.GONE
+                binding.btnTraktSyncHistory.visibility = View.GONE
             }
         }
     }

@@ -1788,6 +1788,24 @@
                                 android:textColor="#FF6B6B"
                                 android:textSize="13sp"
                                 android:visibility="gone" />
+                            <Button
+                                android:id="@+id/btnTraktSyncHistory"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="Sync Watched History from Trakt"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp"
+                                android:visibility="gone" />
+                            <TextView
+                                android:id="@+id/tvTraktSyncStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:text=""
+                                android:textColor="#777777"
+                                android:textSize="12sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
                 </LinearLayout>

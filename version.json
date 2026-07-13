@@ -1,7 +1,7 @@
 {
-  "versionCode": 271,
-  "versionName": "4.33",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.33/MKTV.apk",
-  "apkSha256": "f540e78411bc2858fc5df147c9bfa6ad8f3cd2a6cf07cfb69c795e07b72a6a0c",
-  "changelog": "The phone's landscape mode now matches TV: the category/channel list's auto-collapse arms as soon as it opens instead of only after playing a channel, and resets while you're actively scrolling, so it no longer gets yanked away mid-browse."
+  "versionCode": 272,
+  "versionName": "4.34",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.34/MKTV.apk",
+  "apkSha256": "2e7f2e3cf2fd4288bf6d666b47029cf3134f9e64c2039691d74f8800f9053a65",
+  "changelog": "Added Trakt watched-history sync-back: a new 'Sync Watched History from Trakt' button (Settings) pulls your existing watched movies and shows from Trakt and matches them against your local library, marking movies watched and recording watched episodes for shows (shown with a checkmark in the episode list)."
 }

@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v4.34 - 2026-07-13
+- **Added**: Trakt watched-history sync-back — previously the app only sent scrobble data
+  *to* Trakt, with no way to pull existing watched history back in. A new "Sync Watched
+  History from Trakt" button (Settings, both platforms, once connected) fetches your
+  watched movies and shows from Trakt and matches them against your local library by title
+  (and year, for movies). Matched movies are marked watched; matched shows have their
+  watched episodes recorded against a new local table (episodes aren't otherwise stored
+  locally at all) and now show a ✓ and dim in a series' episode list.
+- Confirmed Multi-View/Mosaic/TV channel-list improvements from the last two releases are
+  holding up well in day-to-day use; Cast and the recordings library were reviewed and found
+  to already be fully working, no changes needed there.
+
 ## v4.33 - 2026-07-13
 - **Changed (phone, landscape)**: the inline category/channel list's auto-collapse now
   matches TV's behavior — it arms as soon as the list opens (not only after picking a

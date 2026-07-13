@@ -34,10 +34,15 @@ class SeriesDetailActivity : AppCompatActivity() {
     private lateinit var episodeAdapter: EpisodeAdapter
 
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
 
     private var allEpisodes: Map<String, List<Episode>> = emptyMap()
     private var currentSeasonEpisodes: List<Episode> = emptyList()
     private var seriesNameField: String = ""
+    // (season, episode) pairs marked watched — currently only ever populated by a Trakt
+    // history sync-back, since the app has no other way yet to know about episodes watched
+    // outside itself (or before this device's own play history began).
+    private var watchedEpisodes: Set<Pair<Int, Int>> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +95,8 @@ class SeriesDetailActivity : AppCompatActivity() {
     private fun loadSeriesInfo(seriesId: Int) {
         binding.progressBar.visibility = View.VISIBLE
         lifecycleScope.launch {
+            watchedEpisodes = db.episodeWatchedDao().getForSeries(seriesId)
+                .map { it.season to it.episode }.toSet()
             when (val result = repository.fetchSeriesInfo(seriesId)) {
                 is Resource.Success -> {
                     binding.progressBar.visibility = View.GONE
@@ -178,9 +185,11 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val ep = getItem(position)
+            val watched = (ep.season to ep.episodeNum) in watchedEpisodes
             holder.binding.tvEpisodeNum.text = "E${ep.episodeNum}"
-            holder.binding.tvEpisodeTitle.text = ep.title
+            holder.binding.tvEpisodeTitle.text = if (watched) "✓ ${ep.title}" else ep.title
             holder.binding.tvEpisodeAdded.text = ep.added ?: ""
+            holder.binding.root.alpha = if (watched) 0.6f else 1f
             holder.binding.root.setOnClickListener { onEpisodeClick(ep) }
         }
     }

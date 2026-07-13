@@ -350,6 +350,16 @@ class TvSettingsActivity : AppCompatActivity() {
             val traktConnected = traktManager.isConnected.first()
             if (traktConnected) {
                 settingsItems += TvSettingItem.Info("trakt_status", "✓ Connected — scrobbling your watch activity")
+                settingsItems += TvSettingItem.Action("trakt_sync_history", "Sync Watched History from Trakt") {
+                    setItemEnabled("trakt_sync_history", false)
+                    setItemValue("trakt_sync_history", "Syncing…")
+                    lifecycleScope.launch {
+                        val result = traktManager.syncWatchedHistoryBack()
+                        setItemEnabled("trakt_sync_history", true)
+                        setItemValue("trakt_sync_history",
+                            "Matched ${result.moviesMatched} movies, ${result.showsMatched} shows")
+                    }
+                }
                 settingsItems += TvSettingItem.Action("trakt_disconnect", "Disconnect Trakt", danger = true) {
                     lifecycleScope.launch { traktManager.disconnect(); buildSettingsList(); showSection("Trakt", focusFirst = false) }
                 }

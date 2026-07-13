@@ -195,3 +195,13 @@ interface ReliabilityDao {
     @Upsert
     suspend fun upsert(entity: ChannelReliabilityEntity)
 }
+
+@Dao
+interface EpisodeWatchedDao {
+    @Upsert
+    suspend fun upsert(entity: EpisodeWatchedEntity)
+    @Query("SELECT * FROM episode_watched WHERE seriesId = :seriesId")
+    suspend fun getForSeries(seriesId: Int): List<EpisodeWatchedEntity>
+    @Query("SELECT EXISTS(SELECT 1 FROM episode_watched WHERE seriesId = :seriesId AND season = :season AND episode = :episode)")
+    suspend fun isWatched(seriesId: Int, season: Int, episode: Int): Boolean
+}
