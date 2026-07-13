@@ -151,7 +151,7 @@ class HomeViewModel @Inject constructor(
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
     var inFavoritesMode: Boolean = true
-    var lastTabPosition: Int = 5
+    var lastTabPosition: Int = 2
 
     private val _currentlyPlayingStreamId = MutableStateFlow<Int>(-1)
     val currentlyPlayingStreamId: StateFlow<Int> = _currentlyPlayingStreamId
@@ -306,28 +306,44 @@ class HomeViewModel @Inject constructor(
         _favoriteLiveCategories.value = categories.filter { it.categoryId in favoriteIds }
     }
 
-    enum class ChannelSort { DEFAULT, NAME_AZ, MOST_WATCHED, RECENTLY_WATCHED }
+    enum class ChannelSort { DEFAULT, NAME_AZ, MOST_WATCHED, RECENTLY_WATCHED, MOST_RELIABLE }
 
     private val _channelSort = MutableStateFlow(ChannelSort.DEFAULT)
     val channelSort: StateFlow<ChannelSort> = _channelSort
+
+    // Cached synchronously so applySortToChannels (called inline from collectLatest blocks)
+    // doesn't need to suspend — refreshed whenever reliability sort is selected and whenever
+    // new outcome data is recorded, so it doesn't need a full app restart to catch up.
+    private var reliabilityCache: Map<Int, Int> = emptyMap()
+
+    private suspend fun refreshReliabilityCache() {
+        reliabilityCache = repository.getAllReliabilityPercents()
+    }
 
     init {
         viewModelScope.launch {
             val saved = prefs.channelSortMode.first()
             _channelSort.value = ChannelSort.values().getOrElse(saved) { ChannelSort.DEFAULT }
+            if (_channelSort.value == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
         }
     }
 
     fun cycleSort() {
         val next = ChannelSort.values().let { it[(it.indexOf(_channelSort.value) + 1) % it.size] }
         _channelSort.value = next
-        viewModelScope.launch { prefs.setChannelSortMode(ChannelSort.values().indexOf(next)) }
-        reloadCurrentLiveCategory()
+        viewModelScope.launch {
+            prefs.setChannelSortMode(ChannelSort.values().indexOf(next))
+            if (next == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
+            reloadCurrentLiveCategory()
+        }
     }
 
     fun setSortMode(index: Int) {
         _channelSort.value = ChannelSort.values().getOrElse(index) { ChannelSort.DEFAULT }
-        reloadCurrentLiveCategory()
+        viewModelScope.launch {
+            if (_channelSort.value == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
+            reloadCurrentLiveCategory()
+        }
     }
 
     private fun applySortToChannels(list: List<ChannelEntity>): List<ChannelEntity> = when (_channelSort.value) {
@@ -335,6 +351,9 @@ class HomeViewModel @Inject constructor(
         ChannelSort.NAME_AZ -> list.sortedBy { it.name.lowercase() }
         ChannelSort.MOST_WATCHED -> list.sortedByDescending { it.viewCount }
         ChannelSort.RECENTLY_WATCHED -> list.sortedByDescending { it.lastWatched ?: 0L }
+        // Channels with no recorded outcomes yet default to 100 (treated as good) so a
+        // channel simply hasn't been tried isn't unfairly buried below ones proven flaky.
+        ChannelSort.MOST_RELIABLE -> list.sortedByDescending { reliabilityCache[it.streamId] ?: 100 }
     }
 
     enum class VodSort { DEFAULT, RATING_DESC, YEAR_NEWEST, YEAR_OLDEST, RECENTLY_ADDED }
@@ -477,6 +496,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** One-shot favorites read, independent of the shared `channels` StateFlow. That flow
+     * conflates equal consecutive values, so re-entering Favorites without the list actually
+     * changing (e.g. after just browsing Live/Categories/Guide) never redelivers it to
+     * collectors — this always re-queries so the Activity can reliably scroll to what's
+     * playing on every return to the tab, not just the first time. */
+    suspend fun getFavoriteChannelsSnapshot(): List<ChannelEntity> = repository.getFavoriteChannels().first()
+
+    /** Same one-shot-read reasoning as [getFavoriteChannelsSnapshot] but for a specific live
+     * category — lets a caller scroll to a channel right after selecting its category without
+     * racing the shared `channels` StateFlow's async collectLatest emission. */
+    suspend fun getChannelsByCategorySnapshot(categoryId: String): List<ChannelEntity> =
+        repository.getChannelsByCategory(categoryId).first()
+
     fun showFavoriteChannels() {
         inFavoritesMode = true
         searchJob?.cancel()
@@ -484,6 +516,26 @@ class HomeViewModel @Inject constructor(
         channelJob = viewModelScope.launch {
             repository.getFavoriteChannels().collectLatest { favorites ->
                 _channels.value = favorites
+            }
+        }
+    }
+
+    /** Filters within the favorites list rather than searching the whole channel catalog,
+     * so the Favorites tab's search box stays scoped to what's actually shown there. */
+    fun searchFavorites(query: String) {
+        inFavoritesMode = true
+        searchJob?.cancel()
+        channelJob?.cancel()
+        if (query.isBlank()) {
+            showFavoriteChannels()
+            return
+        }
+        searchJob = viewModelScope.launch {
+            repository.getFavoriteChannels().collectLatest { favorites ->
+                _channels.value = favorites.filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                        it.streamId.toString().contains(query)
+                }
             }
         }
     }

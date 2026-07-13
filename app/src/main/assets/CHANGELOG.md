@@ -1,5 +1,60 @@
 # IPTV App - Changelog
 
+## v4.31 - 2026-07-12
+- **Fixed (major)**: live TV could get stuck reconnecting in fullscreen on some providers,
+  while the mini player played the exact same channel fine. Root cause: the disk cache used
+  for live-TV rewind assumed segment URLs never change content, but some providers reuse the
+  same segment URL while overwriting it server-side — the cache kept serving stale bytes
+  instead of refetching, which looked exactly like a stuck/looping stream. The disk cache is
+  now removed from live playback entirely; rewind on live TV is limited to the ~2 minute
+  in-memory buffer instead of a disk-backed multi-minute window.
+- **Fixed**: DNS-over-HTTPS was creating a brand-new resolver (with its own cold connection)
+  on every single network request instead of reusing one, and ran two DNS lookups back-to-back
+  instead of in parallel, with no caching at all — adding real, avoidable latency to every
+  request while DoH was enabled.
+- **Fixed**: a corrupted/oversized `plot` field from some providers' series catalog could crash
+  the whole Series tab (`SQLiteBlobTooBigException`). Plot text is now capped at insert time.
+- **Fixed**: the phone's Favorites tab could fail to scroll/focus to the currently-playing
+  channel when returning from Live, Categories, or Guide — a stale-data race in how the list
+  was refreshed.
+- **Fixed**: hiding Movies/Series from Settings could silently hide Favorites/Guide instead,
+  left over from the phone's tab reorder.
+- **Fixed**: Android's autofill could silently substitute your saved login into the "Add
+  Server" dialog before it was saved, making it look like a new server's credentials reverted
+  to your existing one.
+- **Changed (phone)**: tab order is now Live, Categories, Favorites, Guide, History, Movies,
+  Series. Favorites tab search now works (previously disabled).
+- **Added**: genre-folder chips on both the Series and Movies tabs, grouping the often messy
+  raw genre/category tags providers send into a handful of broad folders (Comedy, Drama,
+  Action & Adventure, Documentary, ...).
+- **Added**: a "Most Reliable" channel sort option, ranking channels by their tracked
+  success-rate history.
+- **Added**: a Provider Health dashboard in Settings — tracked-channel reliability average,
+  playback errors/retries in the last 24 hours, and your least-reliable channels, all pulled
+  from the on-device log without needing to dig through it manually.
+- **Added**: an in-app camera QR scanner on the phone's login screen ("Scan QR from TV") that
+  reads the TV's backup QR code directly, instead of relying on the OS to recognize a custom
+  app link.
+- **Added (TV)**: full file-based Backup/Restore, entirely on the TV — no phone required.
+  Both platforms also gained a "Manage Backups on This Device" screen to list, restore,
+  delete, or (phone only) share previous backups.
+- **Added**: "Auto Sync to Cloud" now actually schedules a recurring background sync instead
+  of only running when manually triggered.
+- **Added**: "Allow Picture-in-Picture" setting on the phone; the floating PiP corner window
+  can now be dragged, pinch-resized, and tapped to restore the normal mini player.
+- **Added (TV)**: the channel/category list now auto-collapses back to the sidebar a few
+  seconds after picking a channel, matching the phone's landscape behavior. Selecting LIVE
+  from the sidebar now jumps straight to whatever channel is currently playing instead of
+  always starting at the category list.
+- **Added (TV)**: an "English Movies & Series Only" toggle in Settings (the filter already
+  applied automatically — the toggle to control it was missing).
+
+## v4.30 - 2026-07-11
+- **Changed (Shield/TV)**: the live EPG guide is now its own "GUIDE" section in the sidebar
+  instead of a permanent list under the mini player — the mini player now fills the whole
+  right side of the screen. The FULL SCREEN button was removed: press Right on the D-pad
+  from the sidebar or any list to reach the mini player itself, then OK to go fullscreen.
+
 ## v4.29 - 2026-07-11
 - No functional change — version bump to test Silent Self-Update logging live.
 

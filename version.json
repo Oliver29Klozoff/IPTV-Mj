@@ -1,7 +1,7 @@
 {
-  "versionCode": 267,
-  "versionName": "4.29",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.29/MKTV.apk",
-  "apkSha256": "fab9b9f799a976204140957398635c7dbdab64ee73a616a049ba6e6fb63efe38",
-  "changelog": "No functional change — version bump to test Silent Self-Update logging live."
+  "versionCode": 269,
+  "versionName": "4.31",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.31/MKTV.apk",
+  "apkSha256": "d5bbdd85e680a6f397a0d9cde7ed3b72d05bd81282df0c6252b2fba2d2d5ed56",
+  "changelog": "Fixed a major bug where live TV could get stuck reconnecting in fullscreen on some providers — the disk cache used for live rewind is now removed (rewind still works via a ~2min in-memory buffer). Fixed a DNS-over-HTTPS slowdown, a Series tab crash on corrupted provider data, Favorites tab not scrolling to the playing channel, and an autofill bug in Add Server. Added genre folders on Series/Movies, a Most Reliable sort option, a Provider Health dashboard, an in-app QR scanner for TV backup restore, full on-device TV backup/restore, working cloud auto-sync, and a draggable/resizable Picture-in-Picture window."
 }

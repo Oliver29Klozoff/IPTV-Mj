@@ -13,6 +13,9 @@ import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -64,6 +67,21 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+    private val qrScanLauncher = registerForActivityResult(ScanContract()) { result ->
+        val text = result.contents ?: return@registerForActivityResult
+        if (!applyRestorePayload(text)) {
+            Snackbar.make(binding.root, "QR code not recognized", Snackbar.LENGTH_LONG).show()
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) launchQrScanner() else {
+            Snackbar.make(binding.root, "Camera permission is required to scan", Snackbar.LENGTH_LONG).show()
+        }
+    }
+
     private val restoreLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -103,16 +121,42 @@ class LoginActivity : AppCompatActivity() {
     private fun handleRestoreDeepLink(uri: Uri) {
         showLoginForm()
         val encoded = uri.getQueryParameter("d") ?: return
+        applyRestorePayload(encoded)
+    }
+
+    /** Parses a raw `mktv://restore?d=` value OR a bare base64 payload (from an in-app QR scan)
+     * and fills the login form. Returns false if the text isn't a recognized MKTV backup payload. */
+    private fun applyRestorePayload(raw: String): Boolean {
+        val encoded = try {
+            val uri = Uri.parse(raw)
+            if (uri.scheme == "mktv" && uri.host == "restore") uri.getQueryParameter("d") ?: raw else raw
+        } catch (_: Exception) { raw }
         val json = try {
             JSONObject(String(android.util.Base64.decode(encoded, android.util.Base64.URL_SAFE)))
-        } catch (_: Exception) { return }
+        } catch (_: Exception) { return false }
         val serverUrl = json.optString("s")
         val username  = json.optString("u")
         val password  = json.optString("p")
-        if (serverUrl.isEmpty() || username.isEmpty()) return
+        if (serverUrl.isEmpty() || username.isEmpty()) return false
         binding.etServerUrl.setText(serverUrl)
         binding.etUsername.setText(username)
         binding.etPassword.setText(password)
+        return true
+    }
+
+    private fun scanQrClicked() {
+        val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) launchQrScanner() else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+    }
+
+    private fun launchQrScanner() {
+        qrScanLauncher.launch(ScanOptions().apply {
+            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            setPrompt("Scan the QR code shown on your TV")
+            setBeepEnabled(false)
+            setOrientationLocked(true)
+        })
     }
 
     private fun showLoginForm() {
@@ -128,6 +172,7 @@ class LoginActivity : AppCompatActivity() {
         }
         binding.btnLogin.setOnClickListener { attemptLogin() }
         binding.btnImportM3u.setOnClickListener { showM3uImportDialog() }
+        binding.btnScanQr.setOnClickListener { scanQrClicked() }
     }
 
     private fun showM3uImportDialog() {

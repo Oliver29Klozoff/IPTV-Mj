@@ -6,8 +6,11 @@
     android:background="#07090F"
     android:orientation="horizontal">
 
-    <!-- LEFT PANEL: drillable (sidebar → categories → channels) -->
+    <!-- LEFT PANEL: drillable (sidebar → categories → channels). Width is set at runtime —
+         narrow (fit to the sidebar's own text) while showing the sidebar, wider once
+         drilled into a category/channel/guide list so that list gets more room. -->
     <FrameLayout
+        android:id="@+id/tvLeftPanel"
         android:layout_width="280dp"
         android:layout_height="match_parent">
 
@@ -139,6 +142,20 @@
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="35dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
+                android:id="@+id/btnTvGuide"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="GUIDE"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="48dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
                 android:focusableInTouchMode="false" />
@@ -334,27 +351,103 @@
 
         </LinearLayout>
 
+        <!-- LEVEL 1b: Guide panel (hidden until GUIDE tab selected) — the live EPG guide
+             list used to live permanently under the mini player; it's its own sidebar
+             section now instead, freeing that space for the mini player. -->
+        <LinearLayout
+            android:id="@+id/tvGuidePanel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="#0C0F1A"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#0A0D16">
+
+                <Button
+                    android:id="@+id/tvBtnGuideBack"
+                    android:layout_width="52dp"
+                    android:layout_height="match_parent"
+                    android:text="←"
+                    android:textSize="18sp"
+                    android:textColor="#888888"
+                    android:background="@drawable/tv_sidebar_focus"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="10dp"
+                    android:text="GUIDE"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnGuideRefresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:paddingHorizontal="16dp"
+                    android:text="⟳ REFRESH"
+                    android:textAllCaps="false"
+                    android:textColor="#008CFF"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.05"
+                    android:background="@drawable/tv_sidebar_focus"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false" />
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#1E2A3A" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvEpgGuide"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:focusable="true"
+                android:descendantFocusability="afterDescendants"
+                android:paddingTop="4dp" />
+
+        </LinearLayout>
+
     </FrameLayout>
 
-    <!-- RIGHT PANEL: mini player + live EPG guide -->
+    <!-- RIGHT PANEL: mini player only — the EPG guide used to share this space; it's a
+         dedicated sidebar section now, so the mini player fills the whole right side. -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- MINI PLAYER ROW -->
+        <!-- MINI PLAYER ROW — fills the whole right panel now that the EPG guide has its
+             own sidebar section instead of sharing this space. Channel name + now/next used
+             to sit in a side panel next to the video; now it's a full-width footer below it
+             instead, since the video no longer needs to share width with anything. -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="200dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:background="#000000"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
             <FrameLayout
                 android:id="@+id/tvMiniPlayerContainer"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1.6"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:background="#000000"
                 android:focusable="true"
                 android:focusableInTouchMode="false">
@@ -377,11 +470,9 @@
             </FrameLayout>
 
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:background="#0C0F1A"
-                android:gravity="center_vertical"
                 android:orientation="vertical"
                 android:padding="16dp">
 
@@ -421,56 +512,6 @@
             android:progressBackgroundTint="#1A1F2E"
             android:progressTint="#008CFF"
             android:visibility="gone" />
-
-        <!-- FULL SCREEN / REFRESH GUIDE row (replaces WHAT'S ON label) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnTvFullscreen"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="2"
-                android:background="@drawable/tv_sidebar_focus"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:text="FULL SCREEN"
-                android:textAllCaps="false"
-                android:textColor="#008CFF"
-                android:textSize="12sp" />
-
-            <Button
-                android:id="@+id/btnGuideRefresh"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:text="⟳ REFRESH"
-                android:textAllCaps="false"
-                android:textColor="#008CFF"
-                android:textSize="11sp"
-                android:letterSpacing="0.05"
-                android:background="@drawable/tv_sidebar_focus"
-                android:focusable="true"
-                android:focusableInTouchMode="false" />
-
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#1A1F2E" />
-
-        <!-- LIVE EPG GUIDE (focusable via DPad right from channel list) -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/tvRvEpgGuide"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:focusable="true"
-            android:descendantFocusability="afterDescendants"
-            android:paddingTop="4dp" />
 
     </LinearLayout>
 

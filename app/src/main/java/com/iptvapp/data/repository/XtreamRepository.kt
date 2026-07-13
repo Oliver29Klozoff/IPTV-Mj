@@ -259,7 +259,12 @@ class XtreamRepository @Inject constructor(
                         seriesId = it.seriesId,
                         name = it.name,
                         cover = it.cover,
-                        plot = it.plot,
+                        // Some providers return a corrupted/duplicated `plot` field that's
+                        // absurdly long (megabytes) — one such row is enough to blow past
+                        // SQLite's CursorWindow limit and crash the whole series list query
+                        // with SQLiteBlobTooBigException. A plot summary has no legitimate
+                        // reason to exceed a few thousand characters.
+                        plot = it.plot?.take(4000),
                         genre = it.genre,
                         rating = it.rating,
                         categoryId = it.categoryId
@@ -472,6 +477,13 @@ class XtreamRepository @Inject constructor(
         val successes = outcomes.count { it == '1' }
         return "$successes/${outcomes.length} succeeded recently"
     }
+
+    /** streamId -> success percent, for channels with at least one recorded outcome — backs
+     * the "Most Reliable" sort option. */
+    suspend fun getAllReliabilityPercents(): Map<Int, Int> =
+        db.reliabilityDao().getAll()
+            .filter { it.outcomes.isNotEmpty() }
+            .associate { it.streamId to (it.outcomes.count { c -> c == '1' } * 100 / it.outcomes.length) }
 
     suspend fun importM3uFromUrl(url: String): Resource<Int> = safeApiCall {
         val request = Request.Builder().url(url).build()

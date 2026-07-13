@@ -48,9 +48,12 @@ object AppModule {
         var dohProviderCached = "cloudflare"
         dohPrefsScope.launch { prefs.dohEnabled.collect { dohEnabledCached = it } }
         dohPrefsScope.launch { prefs.dohProvider.collect { dohProviderCached = it } }
+        // One long-lived instance (not one per lookup) so its address cache and connection
+        // pool to the DoH resolver actually persist across requests — see DoHDns's kdoc.
+        val dohDns = DoHDns()
         val dns = object : Dns {
             override fun lookup(hostname: String): List<java.net.InetAddress> {
-                return if (dohEnabledCached) DoHDns(dohProviderCached).lookup(hostname) else Dns.SYSTEM.lookup(hostname)
+                return if (dohEnabledCached) dohDns.lookup(hostname, dohProviderCached) else Dns.SYSTEM.lookup(hostname)
             }
         }
         return OkHttpClient.Builder()

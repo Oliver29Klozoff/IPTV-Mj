@@ -832,6 +832,46 @@
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Allow Picture-in-Picture"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="14sp" />
+                                <Switch
+                                    android:id="@+id/switchPipEnabled"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Shrink live playback into a small floating window when you leave the app (e.g. press Home) instead of stopping it. On by default."
+                                android:textColor="#AAAAAA"
+                                android:textSize="12sp"
+                                android:lineSpacingExtra="2dp" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
                 </LinearLayout>
             </ScrollView>
 
@@ -1377,6 +1417,15 @@
                                 android:text=""
                                 android:textColor="#555555"
                                 android:textSize="11sp" />
+                            <Button
+                                android:id="@+id/btnManageBackups"
+                                android:layout_width="match_parent"
+                                android:layout_height="40dp"
+                                android:layout_marginTop="10dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="Manage Backups on This Device"
+                                android:textColor="#FFFFFF"
+                                android:textSize="12sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
                 </LinearLayout>
@@ -1513,7 +1562,7 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
-                                    android:text="Enable Sync"
+                                    android:text="Auto Sync to Cloud (daily)"
                                     android:textColor="#FFFFFF"
                                     android:textSize="14sp" />
                                 <Switch
@@ -1656,6 +1705,15 @@
                                     android:text=""
                                     android:textColor="#777777"
                                     android:textSize="12sp" />
+                                <Button
+                                    android:id="@+id/btnProviderHealth"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#1A1A1A"
+                                    android:text="Provider Health"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
                             </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>

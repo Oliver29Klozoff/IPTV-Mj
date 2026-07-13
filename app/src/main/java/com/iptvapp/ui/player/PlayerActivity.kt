@@ -45,9 +45,6 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.ui.home.ChannelAdapter
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
-import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
@@ -62,23 +59,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class PlayerActivity : AppCompatActivity() {
-
-    companion object {
-        // Shared on-disk cache backing the live-TV timeshift/DVR buffer. A single SimpleCache
-        // instance must be reused for a given directory for the process lifetime — ExoPlayer
-        // throws if two instances open the same cache dir at once.
-        private const val TIMESHIFT_CACHE_MAX_BYTES = 1024L * 1024L * 1024L // 1GB rolling window
-        private var timeshiftCache: SimpleCache? = null
-
-        @Synchronized
-        fun getTimeshiftCache(context: Context): SimpleCache {
-            return timeshiftCache ?: SimpleCache(
-                java.io.File(context.cacheDir, "timeshift"),
-                LeastRecentlyUsedCacheEvictor(TIMESHIFT_CACHE_MAX_BYTES),
-                StandaloneDatabaseProvider(context)
-            ).also { timeshiftCache = it }
-        }
-    }
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
@@ -668,25 +648,17 @@ class PlayerActivity : AppCompatActivity() {
         // between the two players for live channels.
         val upstreamDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
-        // DVR/timeshift: cache every byte of the live stream to disk as it plays, so
-        // rewinding into recently-played live TV re-reads from local disk instead of
-        // requiring the provider to support server-side catchup. The HLS playlist itself
-        // (.m3u8) must never be cached — it updates every few seconds — so it's routed
-        // around the cache while media segments still cache normally.
-        // VOD deliberately does NOT go through this cache — it was applied unconditionally
-        // before, and this disk cache's eviction policy is sized for live TV's small rolling
-        // segment window, not multi-gigabyte progressive movie files. That mismatch is a
-        // likely cause of "Source error" specifically on VOD in fullscreen while the mini
-        // player (no cache wrapping at all) played the same file fine. VOD has its own
-        // resume-position mechanism already, so it has no need for this cache anyway.
-        val mediaSourceFactory = if (isVod) {
-            DefaultMediaSourceFactory(this).setDataSourceFactory(upstreamDataSourceFactory)
-        } else {
-            val cacheDataSourceFactory = ManifestBypassCacheDataSource.Factory(
-                getTimeshiftCache(applicationContext), upstreamDataSourceFactory
-            )
-            DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
-        }
+        // Live TV used to route through an on-disk cache (ManifestBypassCacheDataSource) to
+        // power a DVR/rewind buffer beyond ExoPlayer's in-memory back buffer. Confirmed by
+        // A/B testing on the Shield and phone: some providers (shop4uu at least) reuse the
+        // same live segment URL while overwriting its content server-side — the cache assumed
+        // URLs are immutable (standard HTTP caching semantics) and kept serving stale cached
+        // bytes instead of refetching, which manifested as a fullscreen-only reconnect loop
+        // (PlaylistStuckException) that never happened in the mini player, which has no cache
+        // at all. Rewinding on live TV is now limited to the in-memory back buffer configured
+        // above (setBackBuffer, ~2 minutes) rather than a disk-backed multi-minute window —
+        // a real feature reduction, but a stuck live stream is worse than a shorter rewind.
+        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(upstreamDataSourceFactory)
 
         val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
         val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }
@@ -1322,7 +1294,8 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!isVod) enterPip()
+        val pipAllowed = kotlinx.coroutines.runBlocking { prefs.pipEnabled.first() }
+        if (!isVod && pipAllowed) enterPip()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {

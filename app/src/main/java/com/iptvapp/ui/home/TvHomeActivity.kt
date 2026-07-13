@@ -3,6 +3,8 @@ package com.iptvapp.ui.home
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -109,7 +111,7 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
-    private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES }
+    private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE }
     private var currentSection = Section.LIVE
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -159,7 +161,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun applyAccent(accent: Int) {
         listOf(
             binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
-            binding.btnTvSeries, binding.btnTvFavorites, binding.btnTvFullscreen
+            binding.btnTvSeries, binding.btnTvFavorites, binding.btnTvGuide
         ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
 
         binding.tvMktvWordmark.setTextColor(accent)
@@ -271,13 +273,9 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             })
         }
+        // Reachable via D-pad (Right from sidebar/content lists) since the FULL SCREEN
+        // button was removed — focusing this and pressing OK now does what that button did.
         binding.tvMiniPlayerContainer.setOnClickListener {
-            if (currentMiniUrl.isNotEmpty()) {
-                val pos = miniPlayer?.currentPosition ?: 0L
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = pos)
-            }
-        }
-        binding.btnTvFullscreen.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val pos = miniPlayer?.currentPosition ?: 0L
                 openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = pos)
@@ -391,6 +389,7 @@ class TvHomeActivity : AppCompatActivity() {
                     viewModel.setCurrentlyPlaying(channel.streamId)
                 }
                 scrollGuideToChannel(channel.streamId)
+                scheduleTvAutoCollapse()
             },
             onChannelDoubleClick = { channel ->
                 val ids = viewModel.channels.value.map { it.streamId }.toIntArray()
@@ -460,6 +459,7 @@ class TvHomeActivity : AppCompatActivity() {
                     viewModel.markChannelWatched(channel.streamId)
                     viewModel.setCurrentlyPlaying(channel.streamId)
                 }
+                scheduleTvAutoCollapse()
             }
         )
         binding.btnGuideRefresh.setOnClickListener {
@@ -477,12 +477,61 @@ class TvHomeActivity : AppCompatActivity() {
 
     // ── Left panel drill-down ────────────────────────────────────────────────
 
+    // Measured once from the sidebar's own button labels — the left panel used to be a
+    // fixed 280dp regardless of how short "GUIDE" or "LIVE" actually are, wasting width the
+    // drilled-in category/channel/guide lists could use instead.
+    private var sidebarContentWidthPx: Int = 0
+
+    private fun computeSidebarContentWidth(): Int {
+        if (sidebarContentWidthPx > 0) return sidebarContentWidthPx
+        val buttons = listOf(
+            binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies, binding.btnTvSeries,
+            binding.btnTvFavorites, binding.btnTvGuide, binding.btnTvRecordings, binding.btnTvSettings
+        )
+        val density = resources.displayMetrics.density
+        val paint = android.graphics.Paint().apply {
+            textSize = 13f * resources.displayMetrics.scaledDensity
+        }
+        val maxWidth = buttons.maxOf { btn ->
+            paint.measureText(btn.text.toString()) + btn.paddingStart + btn.paddingEnd
+        }
+        sidebarContentWidthPx = (maxWidth + 16 * density).toInt().coerceIn((160 * density).toInt(), (280 * density).toInt())
+        return sidebarContentWidthPx
+    }
+
+    // Narrow (content-fit) while the sidebar itself is showing; wider once drilled into a
+    // category/channel/guide list so that list gets the freed-up space instead of staying
+    // pinned to the sidebar's own narrow width.
+    private fun resizeLeftPanel(expanded: Boolean) {
+        val params = binding.tvLeftPanel.layoutParams
+        params.width = if (expanded) (420 * resources.displayMetrics.density).toInt() else computeSidebarContentWidth()
+        binding.tvLeftPanel.layoutParams = params
+    }
+
+    private val tvAutoCollapseHandler = Handler(Looper.getMainLooper())
+    private val tvAutoCollapseRunnable = Runnable { showSidebar() }
+
+    // Mirrors the phone's landscape behavior: after picking a channel to play, the
+    // list/category panel auto-collapses back to the sidebar a few seconds later, handing
+    // the full right side back to the mini player instead of leaving the list parked open.
+    private fun scheduleTvAutoCollapse() {
+        tvAutoCollapseHandler.removeCallbacks(tvAutoCollapseRunnable)
+        tvAutoCollapseHandler.postDelayed(tvAutoCollapseRunnable, 10_000L)
+    }
+
+    private fun cancelTvAutoCollapse() {
+        tvAutoCollapseHandler.removeCallbacks(tvAutoCollapseRunnable)
+    }
+
     private fun showSidebar() {
+        cancelTvAutoCollapse()
         navState = NavState.SIDEBAR
         navHasCategoryStep = false
+        resizeLeftPanel(expanded = false)
         binding.tvSidebar.visibility = View.VISIBLE
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.GONE
+        binding.tvGuidePanel.visibility = View.GONE
         activeSidebarButton().requestFocus()
         resetMiniPreviewToNowPlaying()
     }
@@ -504,11 +553,14 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun showCategoryPanel(title: String) {
+        cancelTvAutoCollapse()
         navState = NavState.CATEGORIES
         navHasCategoryStep = true
+        resizeLeftPanel(expanded = true)
         binding.tvSidebar.visibility = View.GONE
         binding.tvCatPanel.visibility = View.VISIBLE
         binding.tvChanPanel.visibility = View.GONE
+        binding.tvGuidePanel.visibility = View.GONE
         binding.tvCatTitle.text = title
         binding.tvRvCategories.post {
             binding.tvRvCategories.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
@@ -518,12 +570,34 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun showChannelPanel(title: String) {
+        cancelTvAutoCollapse()
         navState = NavState.CHANNELS
+        resizeLeftPanel(expanded = true)
         binding.tvSidebar.visibility = View.GONE
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.VISIBLE
+        binding.tvGuidePanel.visibility = View.GONE
         binding.tvChanTitle.text = title
         pendingContentFocus = true
+    }
+
+    // The EPG guide used to live permanently under the mini player, always reachable via
+    // D-pad Right from the channel list; it's its own sidebar section now instead, shown
+    // full-panel the same way the category/channel panels are.
+    private fun showGuidePanel() {
+        cancelTvAutoCollapse()
+        navState = NavState.CHANNELS
+        navHasCategoryStep = false
+        resizeLeftPanel(expanded = true)
+        binding.tvSidebar.visibility = View.GONE
+        binding.tvCatPanel.visibility = View.GONE
+        binding.tvChanPanel.visibility = View.GONE
+        binding.tvGuidePanel.visibility = View.VISIBLE
+        binding.tvRvEpgGuide.post {
+            binding.tvRvEpgGuide.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+                ?: binding.tvRvEpgGuide.requestFocus()
+        }
+        resetMiniPreviewToNowPlaying()
     }
 
     private fun moveSidebarFocus(up: Boolean) {
@@ -533,6 +607,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvMovies,
             binding.btnTvSeries,
             binding.btnTvFavorites,
+            binding.btnTvGuide,
             binding.btnTvRecordings,
             binding.btnTvSettings
         ).filter { it.visibility == View.VISIBLE }
@@ -549,7 +624,8 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvCategories,
         binding.btnTvMovies,
         binding.btnTvSeries,
-        binding.btnTvFavorites
+        binding.btnTvFavorites,
+        binding.btnTvGuide
     )
 
     private fun setupSidebar() {
@@ -558,6 +634,7 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvMovies.setOnClickListener { selectSection(Section.MOVIES) }
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
+        binding.btnTvGuide.setOnClickListener { selectSection(Section.GUIDE) }
         binding.btnTvRecordings.setOnClickListener {
             startActivity(Intent(this, TvRecordingActivity::class.java))
         }
@@ -569,6 +646,7 @@ class TvHomeActivity : AppCompatActivity() {
             if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
             else showSidebar()
         }
+        binding.tvBtnGuideBack.setOnClickListener { showSidebar() }
     }
 
     private fun selectSection(section: Section) {
@@ -577,10 +655,7 @@ class TvHomeActivity : AppCompatActivity() {
         activeSidebarButton().setTextColor(0xFF008CFF.toInt())
 
         when (section) {
-            Section.LIVE -> {
-                showLive()
-                showCategoryPanel("LIVE")
-            }
+            Section.LIVE -> openLiveOnCurrentChannel()
             Section.CATEGORIES -> {
                 showFavCategories()
                 showCategoryPanel("CATEGORIES")
@@ -597,6 +672,7 @@ class TvHomeActivity : AppCompatActivity() {
                 showFavorites()
                 showChannelPanel("FAVORITES")
             }
+            Section.GUIDE -> showGuidePanel()
         }
     }
 
@@ -606,6 +682,7 @@ class TvHomeActivity : AppCompatActivity() {
         Section.MOVIES     -> binding.btnTvMovies
         Section.SERIES     -> binding.btnTvSeries
         Section.FAVORITES  -> binding.btnTvFavorites
+        Section.GUIDE      -> binding.btnTvGuide
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -657,52 +734,52 @@ class TvHomeActivity : AppCompatActivity() {
                 } else if (binding.tvRvContent.hasFocus()) {
                     moveChannelListFocus(up = false); return true
                 }
-                // Right only moves focus — it no longer opens/drills in like OK does. From
-                // channels it enters the EPG guide (a plain vertical list — up/down within it
-                // works via default focus search, same as the channel list itself). The FULL
-                // SCREEN/REFRESH GUIDE header row needs plain lateral movement between its
-                // own buttons — don't hijack that.
+                // Right reaches the mini player (FULL SCREEN button removed — focusing the
+                // mini player itself and pressing OK does what that button did instead) from
+                // wherever the cursor currently is: sidebar, a category/channel list, or the
+                // guide list.
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (navState) {
                     NavState.SIDEBAR -> {
-                        // Let the cursor reach the FULL SCREEN / REFRESH buttons above the
-                        // content area instead of being a dead end at the sidebar's edge.
                         navState = NavState.CHANNELS
-                        binding.btnTvFullscreen.requestFocus()
+                        binding.tvMiniPlayerContainer.requestFocus()
                         return true
                     }
                     NavState.CATEGORIES -> return true
                     NavState.CHANNELS -> {
-                        if (isGuideHeaderButton(currentFocus)) {
-                            // let default focus search move within the header row
-                        } else if (!binding.tvRvEpgGuide.hasFocus()) {
-                            binding.tvRvEpgGuide.requestFocus()
+                        if (currentFocus !== binding.tvMiniPlayerContainer) {
+                            binding.tvMiniPlayerContainer.requestFocus()
                             return true
                         }
                     }
                 }
-                // Left returns to the channel list from the guide; it no longer drills back
-                // a level. Use BACK for that.
+                // Left returns from the mini player to whichever list it was reached from;
+                // it no longer drills back a level. Use BACK for that.
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (binding.tvRvEpgGuide.hasFocus()) {
-                        binding.tvRvContent.requestFocus()
+                    if (currentFocus === binding.tvMiniPlayerContainer) {
+                        when {
+                            binding.tvGuidePanel.visibility == View.VISIBLE -> binding.tvRvEpgGuide.requestFocus()
+                            binding.tvChanPanel.visibility == View.VISIBLE -> binding.tvRvContent.requestFocus()
+                            else -> showSidebar()
+                        }
                         return true
-                    } else if (isGuideHeaderButton(currentFocus)) {
-                        // let default focus search move within the header row
                     } else if (navState == NavState.CATEGORIES || navState == NavState.CHANNELS) {
                         return true
                     }
                 }
-                // Back goes up one drill level; from EPG guide returns to channel list.
-                // At the top level (sidebar), require a second Back press within 2s to exit.
+                // Back goes up one drill level. From the guide panel or a channel/movie/
+                // series list it returns to the sidebar (or the category panel it drilled
+                // from). At the top level (sidebar), require a second Back press within 2s
+                // to exit.
                 KeyEvent.KEYCODE_BACK -> {
-                    if (binding.tvRvEpgGuide.hasFocus()) {
-                        binding.tvRvContent.requestFocus()
-                        return true
-                    }
                     when (navState) {
                         NavState.CHANNELS -> {
-                            if (navHasCategoryStep) showCategoryPanel(binding.tvCatTitle.text.toString())
-                            else showSidebar()
+                            if (binding.tvGuidePanel.visibility == View.VISIBLE) {
+                                showSidebar()
+                            } else if (navHasCategoryStep) {
+                                showCategoryPanel(binding.tvCatTitle.text.toString())
+                            } else {
+                                showSidebar()
+                            }
                             return true
                         }
                         NavState.CATEGORIES -> { showSidebar(); return true }
@@ -739,6 +816,50 @@ class TvHomeActivity : AppCompatActivity() {
         categoryAdapter.submitList(cats)
         if (cats.isNotEmpty()) viewModel.selectLiveCategory(cats.first().categoryId)
         else viewModel.reloadCurrentLiveCategory()
+    }
+
+    /** Selecting LIVE from the sidebar used to always land on the category list — but if a
+     * channel is already playing, jumping straight to its channel list (scrolled/focused to
+     * it) is far more useful than making the user re-pick a category they were just on. */
+    private fun openLiveOnCurrentChannel() {
+        if (currentMiniIsVod || currentMiniStreamId < 0) {
+            showLive()
+            showCategoryPanel("LIVE")
+            return
+        }
+        lifecycleScope.launch {
+            val channel = viewModel.getChannelById(currentMiniStreamId)
+            val categoryId = channel?.categoryId
+            if (categoryId == null) {
+                showLive()
+                showCategoryPanel("LIVE")
+                return@launch
+            }
+            binding.tvRvCategories.adapter = categoryAdapter
+            binding.tvRvContent.adapter = channelAdapter
+            categoryAdapter.resetSelection()
+            categoryAdapter.submitList(viewModel.liveCategories.value)
+            viewModel.selectLiveCategory(categoryId)
+            showChannelPanel("LIVE")
+            // Read the category's channels directly instead of waiting on the shared
+            // `channels` StateFlow to notify — it conflates equal consecutive values, so if
+            // this category's list happens to be unchanged from last time, selectLiveCategory
+            // above would never redeliver it and the scroll-to-current below would silently
+            // no-op (same class of bug fixed earlier for the phone's Favorites tab).
+            val snapshot = viewModel.getChannelsByCategorySnapshot(categoryId)
+            channelAdapter.submitList(snapshot)
+            binding.tvRvContent.post {
+                val pos = snapshot.indexOfFirst { it.streamId == currentMiniStreamId }
+                if (pos >= 0) {
+                    (binding.tvRvContent.layoutManager as? LinearLayoutManager)
+                        ?.scrollToPositionWithOffset(pos, 0)
+                    binding.tvRvContent.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus()
+                        ?: binding.tvRvContent.requestFocus()
+                } else {
+                    binding.tvRvContent.requestFocus()
+                }
+            }
+        }
     }
 
     private fun showFavCategories() {
@@ -944,8 +1065,6 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun isGuideHeaderButton(v: View?): Boolean =
-        v === binding.btnTvFullscreen || v === binding.btnGuideRefresh
 
     /** Android's default focus search can fail to find the next/previous item while fast
      * D-pad scrolling outruns RecyclerView's layout of not-yet-created views — the same

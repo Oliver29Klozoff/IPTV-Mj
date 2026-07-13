@@ -83,12 +83,13 @@ class HomeActivity : AppCompatActivity() {
                 HomeViewModel.ChannelSort.NAME_AZ -> 1
                 HomeViewModel.ChannelSort.MOST_WATCHED -> 2
                 HomeViewModel.ChannelSort.RECENTLY_WATCHED -> 3
+                HomeViewModel.ChannelSort.MOST_RELIABLE -> 4
             }
         )
     }
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         // Always return to Favorites on fullscreen exit
-        binding.tabLayout.getTabAt(5)?.select()
+        binding.tabLayout.getTabAt(2)?.select()
         showFavorites()
         if (result.resultCode == Activity.RESULT_OK) {
             val returnedId  = result.data?.getIntExtra("stream_id", -1) ?: -1
@@ -231,9 +232,9 @@ class HomeActivity : AppCompatActivity() {
         viewModel.loadAll()
         observeTabVisibility()
         // Always start on FAVORITES. Call showFavorites() explicitly because onTabSelected
-        // may not fire if TabLayout restores to tab 5 from its own saved instance state,
+        // may not fire if TabLayout restores to tab 2 from its own saved instance state,
         // which would leave _channels showing stale data from the previous session.
-        binding.tabLayout.getTabAt(5)?.select()
+        binding.tabLayout.getTabAt(2)?.select()
         showFavorites()
         // Landscape: land on the plain sidebar + mini player view (last-playing channel
         // loads into it via the existing initMiniPlayer()/restoredMiniState flow either
@@ -266,11 +267,11 @@ class HomeActivity : AppCompatActivity() {
         val tabs = listOf(
             btn(R.id.landBtnLive) to 0,
             btn(R.id.landBtnCategories) to 1,
-            btn(R.id.landBtnMovies) to 2,
-            btn(R.id.landBtnSeries) to 3,
+            btn(R.id.landBtnFavorites) to 2,
+            btn(R.id.landBtnGuide) to 3,
             btn(R.id.landBtnWatching) to 4,
-            btn(R.id.landBtnFavorites) to 5,
-            btn(R.id.landBtnGuide) to 6
+            btn(R.id.landBtnMovies) to 5,
+            btn(R.id.landBtnSeries) to 6
         )
         tabs.forEach { (button, index) ->
             button?.setOnClickListener {
@@ -294,11 +295,11 @@ class HomeActivity : AppCompatActivity() {
                     // Otherwise it's "go back" from a drilled-into category's channel list
                     // up to that tab's category list. Tabs with no categories (Series/
                     // History/Favorites/Guide) have nothing to go back to.
-                    tab?.position in 0..2 -> landscapeShowCategoriesMode()
+                    tab?.position in listOf(0, 1, 5) -> landscapeShowCategoriesMode()
                 }
             }
         })
-        // Sync initial highlight to tab 5 (Favorites)
+        // Sync initial highlight to tab 2 (Favorites)
         btn(R.id.landBtnFavorites)?.setTextColor(currentAccent)
     }
 
@@ -319,7 +320,7 @@ class HomeActivity : AppCompatActivity() {
         val cats = when (binding.tabLayout.selectedTabPosition) {
             0 -> viewModel.liveCategories.value
             1 -> viewModel.favoriteLiveCategories.value
-            2 -> viewModel.vodCategories.value
+            5 -> viewModel.vodCategories.value
             else -> emptyList()
         }
         resizeCategoriesColumnToContent(cats)
@@ -390,9 +391,9 @@ class HomeActivity : AppCompatActivity() {
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
             R.id.landBtnLive to 0, R.id.landBtnCategories to 1,
-            R.id.landBtnMovies to 2, R.id.landBtnSeries to 3,
-            R.id.landBtnWatching to 4, R.id.landBtnFavorites to 5,
-            R.id.landBtnGuide to 6
+            R.id.landBtnFavorites to 2, R.id.landBtnGuide to 3,
+            R.id.landBtnWatching to 4, R.id.landBtnMovies to 5,
+            R.id.landBtnSeries to 6
         )
         sidebarMap.forEach { (id, idx) ->
             binding.root.findViewById<android.widget.Button?>(id)?.setTextColor(
@@ -661,7 +662,7 @@ class HomeActivity : AppCompatActivity() {
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
         binding.btnVodSort?.setOnClickListener {
-            if (binding.tabLayout.selectedTabPosition == 3) showSeriesSortDialog() else showVodSortDialog()
+            if (binding.tabLayout.selectedTabPosition == 6) showSeriesSortDialog() else showVodSortDialog()
         }
         binding.btnSort?.setOnClickListener {
             viewModel.cycleSort()
@@ -670,6 +671,7 @@ class HomeActivity : AppCompatActivity() {
                 HomeViewModel.ChannelSort.NAME_AZ -> "⇅ A-Z"
                 HomeViewModel.ChannelSort.MOST_WATCHED -> "⇅ Popular"
                 HomeViewModel.ChannelSort.RECENTLY_WATCHED -> "⇅ Recent"
+                HomeViewModel.ChannelSort.MOST_RELIABLE -> "⇅ Reliable"
             }
             binding.btnSort?.text = label
             Toast.makeText(this, "Sort: ${label.drop(2).trim()}", Toast.LENGTH_SHORT).show()
@@ -691,11 +693,62 @@ class HomeActivity : AppCompatActivity() {
         binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
         binding.root.findViewById<android.widget.TextView?>(R.id.btnPipRestore)
             ?.setOnClickListener { togglePipMode() }
-        binding.pipCorner?.setOnClickListener {
-            if (currentMiniUrl.isNotEmpty()) {
-                val currentPos = miniPlayer?.currentPosition ?: 0L
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+        setupPipCornerDragResize()
+    }
+
+    private var pipCornerWidthPx = 0
+    private var pipCornerHeightPx = 0
+
+    /** The floating PiP corner box: tap restores the inline mini player, drag moves it
+     * anywhere on screen, and pinch resizes it — like any other floating video window. */
+    private fun setupPipCornerDragResize() {
+        val pip = binding.pipCorner ?: return
+        val density = resources.displayMetrics.density
+        val minW = (140 * density).toInt()
+        val minH = (80 * density).toInt()
+        val maxW = (420 * density).toInt()
+        val maxH = (260 * density).toInt()
+
+        val gestureDetector = android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: android.view.MotionEvent): Boolean {
+                togglePipMode()
+                return true
             }
+        })
+        val scaleDetector = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
+                if (pipCornerWidthPx == 0) {
+                    pipCornerWidthPx = pip.layoutParams.width.takeIf { it > 0 } ?: (220 * density).toInt()
+                    pipCornerHeightPx = pip.layoutParams.height.takeIf { it > 0 } ?: (130 * density).toInt()
+                }
+                pipCornerWidthPx = (pipCornerWidthPx * detector.scaleFactor).toInt().coerceIn(minW, maxW)
+                pipCornerHeightPx = (pipCornerHeightPx * detector.scaleFactor).toInt().coerceIn(minH, maxH)
+                pip.layoutParams = pip.layoutParams.apply {
+                    width = pipCornerWidthPx
+                    height = pipCornerHeightPx
+                }
+                return true
+            }
+        })
+
+        var downRawX = 0f; var downRawY = 0f
+        var startTranslationX = 0f; var startTranslationY = 0f
+        pip.setOnTouchListener { view, event ->
+            scaleDetector.onTouchEvent(event)
+            gestureDetector.onTouchEvent(event)
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX; downRawY = event.rawY
+                    startTranslationX = view.translationX; startTranslationY = view.translationY
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (!scaleDetector.isInProgress) {
+                        view.translationX = startTranslationX + (event.rawX - downRawX)
+                        view.translationY = startTranslationY + (event.rawY - downRawY)
+                    }
+                }
+            }
+            true
         }
     }
 
@@ -723,7 +776,7 @@ class HomeActivity : AppCompatActivity() {
                 when (binding.tabLayout.selectedTabPosition) {
                     0 -> viewModel.selectLiveCategory(category.categoryId)
                     1 -> viewModel.selectFavCategory(category.categoryId)
-                    2 -> viewModel.selectVodCategory(category.categoryId)
+                    5 -> viewModel.selectVodCategory(category.categoryId)
                 }
                 landscapeShowChannelsMode()
             },
@@ -834,21 +887,21 @@ class HomeActivity : AppCompatActivity() {
     private fun setupTabs() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
-                viewModel.lastTabPosition = tab?.position ?: 5
-                binding.btnVodSort?.visibility = if (tab?.position == 2 || tab?.position == 3) View.VISIBLE else View.GONE
+                viewModel.lastTabPosition = tab?.position ?: 2
+                binding.btnVodSort?.visibility = if (tab?.position == 5 || tab?.position == 6) View.VISIBLE else View.GONE
                 when (tab?.position) {
                     0 -> showLive()
                     1 -> showFavCategories()
-                    2 -> showVod()
-                    3 -> showSeries()
+                    2 -> { showFavorites(); viewModel.checkFavoritesHealth() }
+                    3 -> showGuide()
                     4 -> showWatching()
-                    5 -> { showFavorites(); viewModel.checkFavoritesHealth() }
-                    6 -> showGuide()
+                    5 -> showVod()
+                    6 -> showSeries()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
-                if (tab?.position == 5) detachFavDrag()
-                if (tab?.position == 6) binding.btnTimelineView?.visibility = View.GONE
+                if (tab?.position == 2) detachFavDrag()
+                if (tab?.position == 3) binding.btnTimelineView?.visibility = View.GONE
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
@@ -882,9 +935,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
-            2 -> viewModel.searchVod(query)
-            3 -> viewModel.searchSeries(query)
-            5 -> { /* Favorites tab ignores search — prevents TextWatcher from re-triggering live channels on rotation */ }
+            5 -> viewModel.searchVod(query)
+            6 -> viewModel.searchSeries(query)
+            2 -> viewModel.searchFavorites(query)
             else -> viewModel.searchChannels(query)
         }
     }
@@ -921,8 +974,22 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun buildGenreChip(genre: String, selected: Boolean, vertical: Boolean): View {
+        return buildGenreChipView(genre, selected, vertical) {
+            activeGenre = if (genre == "All") null else genre
+            val filtered = genreFilter(viewModel.liveCategories.value)
+            categoryAdapter.resetSelection()
+            submitCategories(filtered)
+            if (filtered.isNotEmpty()) viewModel.selectLiveCategory(filtered.first().categoryId)
+            updateGenreChips(viewModel.liveCategories.value)
+        }
+    }
+
+    /** Shared visual builder for the pill-shaped genre/category filter chips — Live channels
+     * filter by keyword-matched categories, Series folders filter by the provider's own genre
+     * tag, but both are the same chip look-and-feel with a different click action. */
+    private fun buildGenreChipView(label: String, selected: Boolean, vertical: Boolean, onClick: () -> Unit): View {
         return android.widget.TextView(this).apply {
-            text = genre
+            text = label
             textSize = 12f
             setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFFCCCCCC.toInt())
             gravity = android.view.Gravity.CENTER
@@ -949,14 +1016,7 @@ class HomeActivity : AppCompatActivity() {
                     android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 72
                 ).also { it.marginEnd = 8 }
             }
-            setOnClickListener {
-                activeGenre = if (genre == "All") null else genre
-                val filtered = genreFilter(viewModel.liveCategories.value)
-                categoryAdapter.resetSelection()
-                submitCategories(filtered)
-                if (filtered.isNotEmpty()) viewModel.selectLiveCategory(filtered.first().categoryId)
-                updateGenreChips(viewModel.liveCategories.value)
-            }
+            setOnClickListener { onClick() }
         }
     }
 
@@ -999,21 +1059,161 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showVod() {
         landscapeShowCategoriesMode()
-        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = vodAdapter
         val cats = viewModel.vodCategories.value
-        submitCategories(cats)
-        if (cats.isNotEmpty()) viewModel.selectVodCategory(cats.first().categoryId)
+        updateVodGenreChips(cats)
+        submitFilteredVodCategories(cats)
     }
 
     private fun showSeries() {
         landscapeShowChannelsMode()
-        setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = seriesAdapter
-        seriesAdapter.submitList(viewModel.applySeriesSort(viewModel.series.value))
+        updateSeriesGenreChips(viewModel.series.value)
+        submitFilteredSeries(viewModel.series.value)
+    }
+
+    private var activeSeriesGenre: String? = null
+
+    // Providers' raw `genre` tags are all over the place — dozens of near-duplicate or
+    // one-off strings ("Dramedy", "Crime Drama", "Sci-Fi & Fantasy", ...). Bucketing them into
+    // a handful of broad folders by keyword (same approach as the Live tab's genre chips)
+    // gives a usable set of folders instead of one chip per raw tag. Order here is also the
+    // display order. "Other" (any show matching none of these) is appended only if non-empty.
+    private val GENRE_BUCKETS = linkedMapOf(
+        "Comedy" to listOf("comedy"),
+        "Drama" to listOf("drama"),
+        "Action & Adventure" to listOf("action", "adventure"),
+        "Sci-Fi & Fantasy" to listOf("sci-fi", "scifi", "science fiction", "fantasy"),
+        "Crime & Mystery" to listOf("crime", "mystery", "detective"),
+        "Horror & Thriller" to listOf("horror", "thriller", "suspense"),
+        "Animation" to listOf("animation", "anime", "cartoon"),
+        "Documentary" to listOf("documentary", "docu"),
+        "Kids & Family" to listOf("kids", "family", "children"),
+        "Reality" to listOf("reality", "game show", "talk show"),
+        "Romance" to listOf("romance", "romantic"),
+        "War & History" to listOf("war", "history", "historical"),
+        "Music" to listOf("music", "musical")
+    )
+
+    private fun seriesBuckets(series: com.iptvapp.data.local.entities.SeriesEntity): List<String> {
+        val tags = series.genre?.split(",").orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+        if (tags.isEmpty()) return emptyList()
+        val matched = GENRE_BUCKETS.filter { (_, keywords) ->
+            tags.any { tag -> keywords.any { kw -> tag.contains(kw, ignoreCase = true) } }
+        }.keys.toList()
+        return matched.ifEmpty { listOf("Other") }
+    }
+
+    private fun seriesGenres(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<String> {
+        val present = list.flatMap { seriesBuckets(it) }.toSet()
+        val ordered = GENRE_BUCKETS.keys.filter { it in present }
+        return if ("Other" in present) ordered + "Other" else ordered
+    }
+
+    private fun seriesGenreFilter(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<com.iptvapp.data.local.entities.SeriesEntity> {
+        val genre = activeSeriesGenre ?: return list
+        return list.filter { genre in seriesBuckets(it) }
+    }
+
+    private fun submitFilteredSeries(list: List<com.iptvapp.data.local.entities.SeriesEntity>) {
+        seriesAdapter.submitList(viewModel.applySeriesSort(seriesGenreFilter(list)))
+    }
+
+    private fun updateSeriesGenreChips(allSeries: List<com.iptvapp.data.local.entities.SeriesEntity>) {
+        val horizontalContainer = binding.genreChipContainer
+        val verticalContainer = binding.root.findViewById<android.widget.LinearLayout?>(R.id.genreChipContainerVertical)
+        horizontalContainer?.removeAllViews()
+        verticalContainer?.removeAllViews()
+        val genres = seriesGenres(allSeries)
+        if (genres.isEmpty()) {
+            setGenreFilterVisible(false)
+            return
+        }
+        if (activeSeriesGenre != null && genres.none { it.equals(activeSeriesGenre, ignoreCase = true) }) {
+            activeSeriesGenre = null
+        }
+        setGenreFilterVisible(true)
+        val allChip = buildSeriesGenreChip("All", activeSeriesGenre == null)
+        horizontalContainer?.addView(allChip)
+        verticalContainer?.addView(buildSeriesGenreChip("All", activeSeriesGenre == null, vertical = true))
+        for (genre in genres) {
+            val selected = activeSeriesGenre?.equals(genre, ignoreCase = true) == true
+            horizontalContainer?.addView(buildSeriesGenreChip(genre, selected))
+            verticalContainer?.addView(buildSeriesGenreChip(genre, selected, vertical = true))
+        }
+    }
+
+    private fun buildSeriesGenreChip(genre: String, selected: Boolean, vertical: Boolean = false): View {
+        return buildGenreChipView(genre, selected, vertical) {
+            activeSeriesGenre = if (genre == "All") null else genre
+            updateSeriesGenreChips(viewModel.series.value)
+            submitFilteredSeries(viewModel.series.value)
+        }
+    }
+
+    private var activeVodGenre: String? = null
+
+    // Movies already have real provider categories (unlike Series), but those raw category
+    // names are just as messy ("4K NEW MOVIES 2024", "ACTION MOVIES USA", ...) — bucketing
+    // them by the same keyword folders turns dozens of one-off categories into a handful of
+    // genre folders, same treatment as the Series tab.
+    private fun vodCategoryBuckets(cat: com.iptvapp.data.local.entities.CategoryEntity): List<String> {
+        val matched = GENRE_BUCKETS.filter { (_, keywords) ->
+            keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) }
+        }.keys.toList()
+        return matched.ifEmpty { listOf("Other") }
+    }
+
+    private fun vodGenres(cats: List<com.iptvapp.data.local.entities.CategoryEntity>): List<String> {
+        val present = cats.flatMap { vodCategoryBuckets(it) }.toSet()
+        val ordered = GENRE_BUCKETS.keys.filter { it in present }
+        return if ("Other" in present) ordered + "Other" else ordered
+    }
+
+    private fun vodCategoryFilter(cats: List<com.iptvapp.data.local.entities.CategoryEntity>): List<com.iptvapp.data.local.entities.CategoryEntity> {
+        val genre = activeVodGenre ?: return cats
+        return cats.filter { genre in vodCategoryBuckets(it) }
+    }
+
+    private fun submitFilteredVodCategories(cats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        val filtered = vodCategoryFilter(cats)
+        submitCategories(filtered)
+        if (filtered.isNotEmpty()) viewModel.selectVodCategory(filtered.first().categoryId)
+    }
+
+    private fun updateVodGenreChips(allCats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        val horizontalContainer = binding.genreChipContainer
+        val verticalContainer = binding.root.findViewById<android.widget.LinearLayout?>(R.id.genreChipContainerVertical)
+        horizontalContainer?.removeAllViews()
+        verticalContainer?.removeAllViews()
+        val genres = vodGenres(allCats)
+        if (genres.isEmpty()) {
+            setGenreFilterVisible(false)
+            return
+        }
+        if (activeVodGenre != null && genres.none { it.equals(activeVodGenre, ignoreCase = true) }) {
+            activeVodGenre = null
+        }
+        setGenreFilterVisible(true)
+        horizontalContainer?.addView(buildVodGenreChip("All", activeVodGenre == null))
+        verticalContainer?.addView(buildVodGenreChip("All", activeVodGenre == null, vertical = true))
+        for (genre in genres) {
+            val selected = activeVodGenre?.equals(genre, ignoreCase = true) == true
+            horizontalContainer?.addView(buildVodGenreChip(genre, selected))
+            verticalContainer?.addView(buildVodGenreChip(genre, selected, vertical = true))
+        }
+    }
+
+    private fun buildVodGenreChip(genre: String, selected: Boolean, vertical: Boolean = false): View {
+        return buildGenreChipView(genre, selected, vertical) {
+            activeVodGenre = if (genre == "All") null else genre
+            categoryAdapter.resetSelection()
+            updateVodGenreChips(viewModel.vodCategories.value)
+            submitFilteredVodCategories(viewModel.vodCategories.value)
+        }
     }
 
     private fun showWatching() {
@@ -1036,6 +1236,15 @@ class HomeActivity : AppCompatActivity() {
         binding.rvChannels.adapter = channelAdapter
         viewModel.showFavoriteChannels()
         pendingScrollToCurrent = true
+        lifecycleScope.launch {
+            val favorites = viewModel.getFavoriteChannelsSnapshot()
+            if (!pendingScrollToCurrent) return@launch
+            pendingScrollToCurrent = false
+            if (binding.tabLayout.selectedTabPosition != 2) return@launch
+            channelAdapter.submitList(favorites)
+            val streamId = viewModel.currentlyPlayingStreamId.value
+            if (streamId >= 0) scrollFavoritesToStreamId(streamId)
+        }
 
         channelAdapter.showDragHandles = true
         val callback = object : ItemTouchHelper.SimpleCallback(
@@ -1069,6 +1278,16 @@ class HomeActivity : AppCompatActivity() {
         favItemTouchHelper = ItemTouchHelper(callback).also {
             channelAdapter.itemTouchHelper = it
             it.attachToRecyclerView(binding.rvChannels)
+        }
+    }
+
+    private fun scrollFavoritesToStreamId(streamId: Int) {
+        binding.rvChannels.post {
+            val pos = channelAdapter.currentList.indexOfFirst { it.streamId == streamId }
+            if (pos >= 0) {
+                (binding.rvChannels.layoutManager as? LinearLayoutManager)
+                    ?.scrollToPositionWithOffset(pos, 0)
+            }
         }
     }
 
@@ -1182,13 +1401,13 @@ class HomeActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     viewModel.showMovies.collect { show: Boolean ->
-                        applyTabVisibility(2, show)
+                        applyTabVisibility(5, show)
                         binding.root.findViewById<android.widget.Button?>(R.id.landBtnMovies)?.visibility = if (show) View.VISIBLE else View.GONE
                     }
                 }
                 launch {
                     viewModel.showSeries.collect { show: Boolean ->
-                        applyTabVisibility(3, show)
+                        applyTabVisibility(6, show)
                         binding.root.findViewById<android.widget.Button?>(R.id.landBtnSeries)?.visibility = if (show) View.VISIBLE else View.GONE
                     }
                 }
@@ -1247,20 +1466,18 @@ class HomeActivity : AppCompatActivity() {
                 // Guard: never let live-category channels bleed onto the Favorites tab.
                 // inFavoritesMode is false whenever selectLiveCategory was the last call;
                 // if that happens to race with showFavorites(), we drop the stale update.
-                if (binding.tabLayout.selectedTabPosition == 5 && !viewModel.inFavoritesMode) return@collect
+                if (binding.tabLayout.selectedTabPosition == 2 && !viewModel.inFavoritesMode) return@collect
                 channelAdapter.submitList(list)
                 viewModel.loadEpgForChannels(list)
                 if (pendingScrollToCurrent && list.isNotEmpty()) {
-                    pendingScrollToCurrent = false
+                    // The currently-playing channel is only known once the mini player's
+                    // async cold-start resume (loadLastWatchedChannel) sets it — which can
+                    // land after this list first emits. Don't consume the flag on a miss;
+                    // let the currentlyPlayingStreamId collector below finish the job.
                     val streamId = viewModel.currentlyPlayingStreamId.value
                     if (streamId >= 0) {
-                        binding.rvChannels.post {
-                            val pos = channelAdapter.currentList.indexOfFirst { it.streamId == streamId }
-                            if (pos >= 0) {
-                                (binding.rvChannels.layoutManager as? LinearLayoutManager)
-                                    ?.scrollToPositionWithOffset(pos, 0)
-                            }
-                        }
+                        pendingScrollToCurrent = false
+                        scrollFavoritesToStreamId(streamId)
                     }
                 }
             }
@@ -1269,24 +1486,27 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.vod.collect {
                 lastVodList = it
-                if (binding.tabLayout.selectedTabPosition == 2) vodAdapter.submitList(viewModel.applyVodSort(it))
+                if (binding.tabLayout.selectedTabPosition == 5) vodAdapter.submitList(viewModel.applyVodSort(it))
             }
         }
         lifecycleScope.launch {
             viewModel.vodSort.collect {
-                if (binding.tabLayout.selectedTabPosition == 2) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
+                if (binding.tabLayout.selectedTabPosition == 5) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
             }
         }
         var lastSeriesList: List<com.iptvapp.data.local.entities.SeriesEntity> = emptyList()
         lifecycleScope.launch {
             viewModel.series.collect {
                 lastSeriesList = it
-                if (binding.tabLayout.selectedTabPosition == 3) seriesAdapter.submitList(viewModel.applySeriesSort(it))
+                if (binding.tabLayout.selectedTabPosition == 6) {
+                    updateSeriesGenreChips(it)
+                    submitFilteredSeries(it)
+                }
             }
         }
         lifecycleScope.launch {
             viewModel.seriesSort.collect {
-                if (binding.tabLayout.selectedTabPosition == 3) seriesAdapter.submitList(viewModel.applySeriesSort(lastSeriesList))
+                if (binding.tabLayout.selectedTabPosition == 6) submitFilteredSeries(lastSeriesList)
             }
         }
         lifecycleScope.launch {
@@ -1297,6 +1517,11 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.currentlyPlayingStreamId.collect { streamId ->
                 channelAdapter.setCurrentlyPlayingStreamId(streamId)
+                if (pendingScrollToCurrent && streamId >= 0 && channelAdapter.currentList.isNotEmpty() &&
+                    binding.tabLayout.selectedTabPosition == 2) {
+                    pendingScrollToCurrent = false
+                    scrollFavoritesToStreamId(streamId)
+                }
             }
         }
         lifecycleScope.launch {
@@ -1311,7 +1536,10 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
-                if (binding.tabLayout.selectedTabPosition == 2) submitCategories(it)
+                if (binding.tabLayout.selectedTabPosition == 5) {
+                    updateVodGenreChips(it)
+                    submitFilteredVodCategories(it)
+                }
             }
         }
         lifecycleScope.launch {

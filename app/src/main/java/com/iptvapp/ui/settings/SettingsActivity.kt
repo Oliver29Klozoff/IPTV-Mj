@@ -542,6 +542,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnBackupSettings.setOnClickListener { backupSettings() }
         binding.btnRestoreSettings.setOnClickListener { showRestoreDialog() }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
+        binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
+        binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
 
         lifecycleScope.launch {
             val enabled = prefs.autoBackupEnabled.first()
@@ -580,9 +582,96 @@ class SettingsActivity : AppCompatActivity() {
         Toast.makeText(this, "Auto backup disabled", Toast.LENGTH_SHORT).show()
     }
 
+    private fun scheduleAutoSync() {
+        val request = PeriodicWorkRequestBuilder<com.iptvapp.worker.SyncWorker>(1, TimeUnit.DAYS)
+            .setConstraints(Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            com.iptvapp.worker.SyncWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+        Toast.makeText(this, "Auto sync scheduled daily", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun cancelAutoSync() {
+        WorkManager.getInstance(this).cancelUniqueWork(com.iptvapp.worker.SyncWorker.WORK_NAME)
+    }
+
     private fun backupSettings() {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         createBackupLauncher.launch("MKTV_backup_$timestamp.json")
+    }
+
+    /** Same private, app-only folder AutoBackupWorker writes weekly snapshots into —
+     * keeping manual quick-backups alongside them means one list shows the full history. */
+    private fun privateBackupsDir(): File =
+        File(getExternalFilesDir(null), "backups").apply { mkdirs() }
+
+    private suspend fun quickBackupNow() {
+        try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val file = File(privateBackupsDir(), "MKTV_backup_$timestamp.json")
+            val body = buildBackupJson().toString(2)
+            withContext(Dispatchers.IO) { file.writeText(body) }
+            Toast.makeText(this, "Backup saved on this device", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Backup failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showManageBackupsDialog() {
+        val files = privateBackupsDir().listFiles { f -> f.name.endsWith(".json") }
+            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        val dateFmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+        val labels = arrayOf("+ Quick Backup Now") +
+            files.map { dateFmt.format(Date(it.lastModified())) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Backups on This Device")
+            .setItems(labels) { _, which ->
+                if (which == 0) {
+                    lifecycleScope.launch { quickBackupNow(); showManageBackupsDialog() }
+                } else {
+                    showBackupFileActionDialog(files[which - 1])
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showBackupFileActionDialog(file: File) {
+        val dateFmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+        AlertDialog.Builder(this)
+            .setTitle(dateFmt.format(Date(file.lastModified())))
+            .setItems(arrayOf("Restore this backup", "Share / export a copy", "Delete")) { _, which ->
+                when (which) {
+                    0 -> AlertDialog.Builder(this)
+                        .setTitle("Restore this backup?")
+                        .setMessage("This will overwrite your current login, favorites, and settings.")
+                        .setPositiveButton("Restore") { _, _ -> lifecycleScope.launch { restoreBackupFromFile(file) } }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                    1 -> shareBackupFile(file)
+                    2 -> {
+                        file.delete()
+                        Toast.makeText(this, "Backup deleted", Toast.LENGTH_SHORT).show()
+                        showManageBackupsDialog()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun shareBackupFile(file: File) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, "Share backup"))
     }
 
     private suspend fun writeBackupToUri(uri: Uri) {
@@ -596,6 +685,17 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(this, "Backup saved", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Backup failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showProviderHealthDialog() {
+        lifecycleScope.launch {
+            val report = com.iptvapp.util.ProviderHealth.build(this@SettingsActivity, db, prefs)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Provider Health")
+                .setMessage(com.iptvapp.util.ProviderHealth.formatReport(report))
+                .setPositiveButton("Close", null)
+                .show()
         }
     }
 
@@ -1034,6 +1134,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
+                binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
                 binding.cbDohEnabled.isChecked = dohEnabled
                 binding.rgDohProvider.visibility = if (dohEnabled) android.view.View.VISIBLE else android.view.View.GONE
@@ -1270,12 +1371,24 @@ class SettingsActivity : AppCompatActivity() {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(48, 24, 48, 0)
         }
-        val etNick = android.widget.EditText(this).apply { hint = "Nickname (optional)" }
-        val etUrl  = android.widget.EditText(this).apply { hint = "Server URL (http://...)" }
-        val etUser = android.widget.EditText(this).apply { hint = "Username" }
+        // Android's autofill service treats these as a generic login form and will silently
+        // suggest/inject the already-saved primary account's credentials into them — which
+        // looked exactly like "I typed a different provider's login but it reverted to mine"
+        // since the overwrite happens before the fields are ever read. Opting every field out
+        // of autofill (importantForAutofill + a no-op autofillHints) stops that substitution.
+        fun android.widget.EditText.disableAutofill() {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                setAutofillHints(null)
+            }
+        }
+        val etNick = android.widget.EditText(this).apply { hint = "Nickname (optional)"; disableAutofill() }
+        val etUrl  = android.widget.EditText(this).apply { hint = "Server URL (http://...)"; disableAutofill() }
+        val etUser = android.widget.EditText(this).apply { hint = "Username"; disableAutofill() }
         val etPass = android.widget.EditText(this).apply {
             hint = "Password"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            disableAutofill()
         }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
         AlertDialog.Builder(this)
@@ -1401,10 +1514,15 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
+            if (enabled) scheduleAutoSync() else cancelAutoSync()
         }
         binding.switchExtraBuffering.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
+        }
+        binding.switchPipEnabled.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setPipEnabled(enabled) }
         }
         binding.btnSyncUp.setOnClickListener {
             binding.tvSyncStatus.text = "Pushing to cloud..."
@@ -1524,8 +1642,19 @@ class SettingsActivity : AppCompatActivity() {
     private suspend fun restoreBackupFromUri(uri: Uri) {
         val jsonText = contentResolver.openInputStream(uri)
             ?.bufferedReader()?.use { it.readText() } ?: return
-        val json = JSONObject(jsonText)
+        applyBackupJson(JSONObject(jsonText))
+    }
 
+    private suspend fun restoreBackupFromFile(file: File) {
+        try {
+            val jsonText = withContext(Dispatchers.IO) { file.readText() }
+            applyBackupJson(JSONObject(jsonText))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Restore failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private suspend fun applyBackupJson(json: JSONObject) {
         val serverUrl = json.optString("serverUrl", "")
         val username  = json.optString("username", "")
         val password  = json.optString("password", "")

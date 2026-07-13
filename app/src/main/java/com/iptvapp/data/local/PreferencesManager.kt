@@ -52,6 +52,7 @@ class PreferencesManager @Inject constructor(
         val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         val EXTERNAL_PLAYER = stringPreferencesKey("external_player")
         val DOH_ENABLED = booleanPreferencesKey("doh_enabled")
+        val PIP_ENABLED = booleanPreferencesKey("pip_enabled")
         val DOH_PROVIDER = stringPreferencesKey("doh_provider")
         val CHANNEL_SORT_MODE = intPreferencesKey("channel_sort_mode")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
@@ -299,6 +300,9 @@ class PreferencesManager @Inject constructor(
 
     val dohEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DOH_ENABLED] ?: false }
     suspend fun setDohEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.DOH_ENABLED] = enabled } }
+
+    val pipEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.PIP_ENABLED] ?: true }
+    suspend fun setPipEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.PIP_ENABLED] = enabled } }
     val dohProvider: Flow<String> = context.dataStore.data.map { it[Keys.DOH_PROVIDER] ?: "cloudflare" }
     suspend fun setDohProvider(provider: String) { context.dataStore.edit { it[Keys.DOH_PROVIDER] = provider } }
     val channelSortMode: Flow<Int> = context.dataStore.data.map { it[Keys.CHANNEL_SORT_MODE] ?: 0 }

@@ -14,8 +14,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 267
-        versionName "4.29"
+        versionCode 269
+        versionName "4.31"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -122,6 +122,7 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     ksp 'com.github.bumptech.glide:ksp:4.16.0'
     implementation 'com.google.zxing:core:3.5.2'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
     implementation 'androidx.mediarouter:mediarouter:1.7.0'
     implementation 'androidx.datastore:datastore-preferences:1.0.0'

@@ -57,39 +57,6 @@
             android:paddingHorizontal="14dp" />
 
         <Button
-            android:id="@+id/landBtnMovies"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@android:color/transparent"
-            android:text="MOVIES"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
-            android:paddingHorizontal="14dp" />
-
-        <Button
-            android:id="@+id/landBtnSeries"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@android:color/transparent"
-            android:text="SERIES"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
-            android:paddingHorizontal="14dp" />
-
-        <Button
-            android:id="@+id/landBtnWatching"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@android:color/transparent"
-            android:text="HISTORY"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
-            android:paddingHorizontal="14dp" />
-
-        <Button
             android:id="@+id/landBtnFavorites"
             android:layout_width="match_parent"
             android:layout_height="44dp"
@@ -107,6 +74,39 @@
             android:layout_height="44dp"
             android:background="@android:color/transparent"
             android:text="GUIDE"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnWatching"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="HISTORY"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnMovies"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="MOVIES"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnSeries"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="SERIES"
             android:textColor="#AAAAAA"
             android:textSize="12sp"
             android:gravity="start|center_vertical"

@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -83,6 +84,14 @@ class TvSettingsActivity : AppCompatActivity() {
     private val extraServers = mutableListOf<List<String>>()
     private var currentEpgWorkId: UUID? = null
     private var isEpgRefreshing = false
+
+    private val createBackupLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> if (uri != null) lifecycleScope.launch { writeBackupToUri(uri) } }
+
+    private val openBackupLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) lifecycleScope.launch { restoreBackupFromUri(uri) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -268,6 +277,9 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         settingsItems += TvSettingItem.Toggle("display_usa", "USA Channels Only",
             checked = usaOnly) { c -> lifecycleScope.launch { prefs.setUsaOnlyChannels(c) } }
+        settingsItems += TvSettingItem.Toggle("display_english_only", "English Movies & Series Only",
+            subtitle = "Experimental — only works if your provider labels movie/series categories with an EN/ENG/ENGLISH/US/USA tag.",
+            checked = prefs.englishOnlyMovies.first()) { c -> lifecycleScope.launch { prefs.setEnglishOnlyMovies(c) } }
         settingsItems += TvSettingItem.Toggle("display_movies", "Show Movies Tab",
             checked = showMovies) { c -> lifecycleScope.launch { prefs.setShowMovies(c) } }
         settingsItems += TvSettingItem.Toggle("display_series", "Show Series Tab",
@@ -348,10 +360,21 @@ class TvSettingsActivity : AppCompatActivity() {
 
         // ── BACKUP ──
         settingsItems += TvSettingItem.Header("Backup & Restore")
+        settingsItems += TvSettingItem.Action("backup_to_file", "Backup to File") {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            createBackupLauncher.launch("MKTV_backup_$timestamp.json")
+        }
+        settingsItems += TvSettingItem.Action("restore_from_file", "Restore from File") {
+            openBackupLauncher.launch(arrayOf("application/json"))
+        }
+        settingsItems += TvSettingItem.Action("manage_backups", "Manage Backups on This Device") {
+            showManageBackupsDialog()
+        }
         settingsItems += TvSettingItem.Action("backup_qr", "Generate Backup QR Code") {
             lifecycleScope.launch { doQrBackup() }
         }
         settingsItems += TvSettingItem.Action("backup_debug", "Send Debug Report") { sendDebugReport() }
+        settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
 
         // ── SERVERS ──
         settingsItems += TvSettingItem.Header("Servers")
@@ -387,6 +410,11 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Action("sync_pair", "Enter Pairing Code",
             value = "Set to pull another device's favorites") { showPairingCodeDialog() }
         settingsItems += TvSettingItem.SubHeader("sync_sub_actions", "Actions") { toggleSubHeader("Sync", "sync_sub_actions") }
+        settingsItems += TvSettingItem.Toggle("sync_auto", "Auto Sync to Cloud (daily)",
+            checked = syncEnabled) { enabled ->
+            lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
+            if (enabled) scheduleAutoSync() else cancelAutoSync()
+        }
         settingsItems += TvSettingItem.Action("sync_up", "Push to Cloud") { doSyncUp() }
         settingsItems += TvSettingItem.Action("sync_down", "Pull from Cloud") { doSyncDown() }
         settingsItems += TvSettingItem.Info("sync_status", syncSummary)
@@ -741,6 +769,185 @@ class TvSettingsActivity : AppCompatActivity() {
 
     // ─── Backup ──────────────────────────────────────────────────────────────
 
+    private suspend fun buildBackupJson(): JSONObject {
+        val creds = prefs.credentials.first()
+        return JSONObject().apply {
+            put("serverUrl", creds.serverUrl)
+            put("username", creds.username)
+            put("password", creds.password)
+            put("epgUrl", prefs.epgUrl.first())
+            put("preferredFormat", prefs.preferredFormat.first())
+            put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
+            put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
+            put("usaOnlyChannels", prefs.usaOnlyChannels.first())
+            put("showMovies", prefs.showMovies.first())
+            put("showSeries", prefs.showSeries.first())
+            put("showWatching", prefs.showWatching.first())
+            put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
+            put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
+            put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {
+                JSONObject().apply {
+                    put("streamId", it.streamId)
+                    put("lastWatched", it.lastWatched)
+                    put("viewCount", it.viewCount)
+                }
+            }))
+        }
+    }
+
+    private suspend fun writeBackupToUri(uri: Uri) {
+        try {
+            val body = buildBackupJson().toString(2)
+            contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            toast("Backup saved")
+        } catch (e: Exception) {
+            toast("Backup failed: ${e.message}")
+        }
+    }
+
+    private suspend fun restoreBackupFromUri(uri: Uri) {
+        try {
+            val jsonText = contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() } ?: return
+            applyBackupJson(JSONObject(jsonText))
+        } catch (e: Exception) {
+            toast("Restore failed: ${e.message}")
+        }
+    }
+
+    private suspend fun restoreBackupFromFile(file: java.io.File) {
+        try {
+            val jsonText = withContext(Dispatchers.IO) { file.readText() }
+            applyBackupJson(JSONObject(jsonText))
+        } catch (e: Exception) {
+            toast("Restore failed: ${e.message}")
+        }
+    }
+
+    /** Same private, app-only folder AutoBackupWorker writes weekly snapshots into. */
+    private fun privateBackupsDir(): java.io.File =
+        java.io.File(getExternalFilesDir(null), "backups").apply { mkdirs() }
+
+    private suspend fun quickBackupNow() {
+        try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val file = java.io.File(privateBackupsDir(), "MKTV_backup_$timestamp.json")
+            val body = buildBackupJson().toString(2)
+            withContext(Dispatchers.IO) { file.writeText(body) }
+            toast("Backup saved on this device")
+        } catch (e: Exception) {
+            toast("Backup failed: ${e.message}")
+        }
+    }
+
+    private fun showManageBackupsDialog() {
+        val files = privateBackupsDir().listFiles { f -> f.name.endsWith(".json") }
+            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        val dateFmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+        val labels = arrayOf("+ Quick Backup Now") +
+            files.map { dateFmt.format(Date(it.lastModified())) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Backups on This Device")
+            .setItems(labels) { _, which ->
+                if (which == 0) {
+                    lifecycleScope.launch { quickBackupNow(); showManageBackupsDialog() }
+                } else {
+                    showBackupFileActionDialog(files[which - 1])
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showBackupFileActionDialog(file: java.io.File) {
+        val dateFmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+        AlertDialog.Builder(this)
+            .setTitle(dateFmt.format(Date(file.lastModified())))
+            .setItems(arrayOf("Restore this backup", "Delete")) { _, which ->
+                when (which) {
+                    0 -> AlertDialog.Builder(this)
+                        .setTitle("Restore this backup?")
+                        .setMessage("This will overwrite your current login, favorites, and settings.")
+                        .setPositiveButton("Restore") { _, _ -> lifecycleScope.launch { restoreBackupFromFile(file) } }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                    1 -> {
+                        file.delete()
+                        toast("Backup deleted")
+                        showManageBackupsDialog()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private suspend fun applyBackupJson(json: JSONObject) {
+        try {
+            val serverUrl = json.optString("serverUrl", "")
+            val username = json.optString("username", "")
+            val password = json.optString("password", "")
+            if (serverUrl.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
+                prefs.saveCredentials(serverUrl, username, password)
+            }
+
+            json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let { prefs.setEpgUrl(it) }
+            json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
+            if (json.has("epgAutoRefreshHours")) prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
+            if (json.has("epgRefreshMissingOnly")) prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
+            if (json.has("usaOnlyChannels")) prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))
+            if (json.has("showMovies")) prefs.setShowMovies(json.optBoolean("showMovies", true))
+            if (json.has("showSeries")) prefs.setShowSeries(json.optBoolean("showSeries", true))
+            if (json.has("showWatching")) prefs.setShowWatching(json.optBoolean("showWatching", true))
+
+            val favCatArray = json.optJSONArray("favoriteCategoryIds")
+            if (favCatArray != null) {
+                val ids = (0 until favCatArray.length()).map { favCatArray.getString(it) }.toSet()
+                prefs.setFavoriteLiveCategoryIds(ids)
+            }
+            val favChanArray = json.optJSONArray("favoriteChannelIds")
+            if (favChanArray != null) {
+                val ids = (0 until favChanArray.length()).map { favChanArray.getInt(it) }
+                val existingIds = db.channelDao().getAllChannelIds().toSet()
+                db.channelDao().clearAllFavorites()
+                ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
+                val missingIds = ids.filter { it !in existingIds }.toSet()
+                if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
+            }
+
+            val watchHistoryArray = json.optJSONArray("watchHistory")
+            if (watchHistoryArray != null) {
+                val existingIds = db.channelDao().getAllChannelIds().toSet()
+                for (i in 0 until watchHistoryArray.length()) {
+                    val entry = watchHistoryArray.getJSONObject(i)
+                    val streamId = entry.optInt("streamId", -1)
+                    if (streamId in existingIds) {
+                        db.channelDao().restoreWatchHistory(
+                            streamId,
+                            entry.optLong("lastWatched", 0L),
+                            entry.optInt("viewCount", 0)
+                        )
+                    }
+                }
+            }
+
+            buildSettingsList()
+            toast("Restore complete")
+        } catch (e: Exception) {
+            toast("Restore failed: ${e.message}")
+        }
+    }
+
+    private fun showProviderHealthDialog() {
+        lifecycleScope.launch {
+            val report = com.iptvapp.util.ProviderHealth.build(this@TvSettingsActivity, db, prefs)
+            AlertDialog.Builder(this@TvSettingsActivity)
+                .setTitle("Provider Health")
+                .setMessage(com.iptvapp.util.ProviderHealth.formatReport(report))
+                .setPositiveButton("Close", null)
+                .show()
+        }
+    }
+
     private suspend fun doQrBackup() {
         try {
             val creds = prefs.credentials.first()
@@ -993,6 +1200,24 @@ class TvSettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun scheduleAutoSync() {
+        val request = PeriodicWorkRequestBuilder<com.iptvapp.worker.SyncWorker>(1, TimeUnit.DAYS)
+            .setConstraints(androidx.work.Constraints.Builder()
+                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .build())
+            .build()
+        workManager.enqueueUniquePeriodicWork(
+            com.iptvapp.worker.SyncWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+        toast("Auto sync scheduled daily")
+    }
+
+    private fun cancelAutoSync() {
+        workManager.cancelUniqueWork(com.iptvapp.worker.SyncWorker.WORK_NAME)
     }
 
     private fun doSyncUp() {
