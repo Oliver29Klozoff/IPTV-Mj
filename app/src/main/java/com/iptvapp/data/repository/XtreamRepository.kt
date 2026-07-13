@@ -130,6 +130,8 @@ class XtreamRepository @Inject constructor(
 
     suspend fun getChannelById(streamId: Int) = db.channelDao().getChannelById(streamId)
 
+    suspend fun getChannelByNumber(num: Int) = db.channelDao().getChannelByNumber(num)
+
     suspend fun isChannelFavorite(streamId: Int): Boolean {
         return db.channelDao().getChannelById(streamId)?.isFavorite ?: false
     }

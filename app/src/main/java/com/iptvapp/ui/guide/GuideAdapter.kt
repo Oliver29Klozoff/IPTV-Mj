@@ -90,15 +90,27 @@ class GuideAdapter(
             val nowMs = System.currentTimeMillis()
             val startMs = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp * 1000L else program.startTimestamp
             if (startMs <= nowMs) return
+            val stopMs = if (program.stopTimestamp < 100_000_000_000L) program.stopTimestamp * 1000L else program.stopTimestamp
+            val durationMs = (stopMs - startMs).takeIf { it > 0 } ?: 60 * 60_000L
             val timeStr = SimpleDateFormat("h:mm a", Locale.US).format(Date(startMs))
-            AlertDialog.Builder(binding.root.context)
-                .setTitle("Set Reminder")
-                .setMessage("Remind me when \"${program.title}\" starts on ${row.channel.name} at $timeStr?")
-                .setPositiveButton("Set Reminder") { _, _ ->
-                    ChannelTimerScheduler.schedule(binding.root.context, row.channel.streamId, row.channel.name, program.title, startMs)
-                    Toast.makeText(binding.root.context, "Reminder set for $timeStr", Toast.LENGTH_SHORT).show()
+            val context = binding.root.context
+            AlertDialog.Builder(context)
+                .setTitle(program.title)
+                .setItems(arrayOf("Remind Me", "Record This")) { _, which ->
+                    when (which) {
+                        0 -> {
+                            ChannelTimerScheduler.schedule(context, row.channel.streamId, row.channel.name, program.title, startMs)
+                            Toast.makeText(context, "Reminder set for $timeStr", Toast.LENGTH_SHORT).show()
+                        }
+                        1 -> context.startActivity(
+                            android.content.Intent(context, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+                                putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, row.channel.streamId)
+                                putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
+                                putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
+                            }
+                        )
+                    }
                 }
-                .setNegativeButton("Cancel", null)
                 .show()
         }
 

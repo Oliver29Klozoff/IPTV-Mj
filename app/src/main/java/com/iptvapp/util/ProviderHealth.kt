@@ -16,7 +16,7 @@ import java.util.Locale
  */
 object ProviderHealth {
 
-    data class ChannelScore(val name: String, val reliabilityPercent: Int)
+    data class ChannelScore(val streamId: Int, val name: String, val reliabilityPercent: Int)
 
     data class Report(
         val serverLabel: String,
@@ -40,7 +40,9 @@ object ProviderHealth {
         val worst = percentages
             .sortedBy { it.second }
             .take(5)
-            .mapNotNull { (entity, pct) -> db.channelDao().getChannelById(entity.streamId)?.name?.let { ChannelScore(it, pct) } }
+            .mapNotNull { (entity, pct) ->
+                db.channelDao().getChannelById(entity.streamId)?.name?.let { ChannelScore(entity.streamId, it, pct) }
+            }
 
         val (stalls, retries) = countRecentEvents(context)
 
@@ -83,10 +85,6 @@ object ProviderHealth {
         sb.append("  Auto-retries: ${report.retriesLast24h}\n")
         if (report.stallsLast24h == 0) {
             sb.append("  ✓ No playback errors in the last day\n")
-        }
-        if (report.worstChannels.isNotEmpty()) {
-            sb.append("\nLeast reliable channels:\n")
-            report.worstChannels.forEach { sb.append("  ${it.name} — ${it.reliabilityPercent}%\n") }
         }
         return sb.toString()
     }

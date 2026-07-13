@@ -940,12 +940,44 @@ class TvSettingsActivity : AppCompatActivity() {
     private fun showProviderHealthDialog() {
         lifecycleScope.launch {
             val report = com.iptvapp.util.ProviderHealth.build(this@TvSettingsActivity, db, prefs)
-            AlertDialog.Builder(this@TvSettingsActivity)
+            val builder = AlertDialog.Builder(this@TvSettingsActivity)
                 .setTitle("Provider Health")
                 .setMessage(com.iptvapp.util.ProviderHealth.formatReport(report))
                 .setPositiveButton("Close", null)
-                .show()
+            if (report.worstChannels.isNotEmpty()) {
+                builder.setNeutralButton("Least Reliable Channels") { _, _ ->
+                    showWorstChannelsDialog(report.worstChannels)
+                }
+            }
+            builder.show()
         }
+    }
+
+    private fun showWorstChannelsDialog(channels: List<com.iptvapp.util.ProviderHealth.ChannelScore>) {
+        val labels = channels.map { "${it.name} — ${it.reliabilityPercent}%" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Least Reliable Channels")
+            .setItems(labels) { _, which -> showChannelHealthActionDialog(channels[which]) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showChannelHealthActionDialog(channel: com.iptvapp.util.ProviderHealth.ChannelScore) {
+        AlertDialog.Builder(this)
+            .setTitle("${channel.name} — ${channel.reliabilityPercent}%")
+            .setItems(arrayOf("Play This Channel", "Hide This Channel")) { _, which ->
+                when (which) {
+                    0 -> {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mktv://play/${channel.streamId}")))
+                        finish()
+                    }
+                    1 -> lifecycleScope.launch {
+                        db.channelDao().setHidden(channel.streamId, true)
+                        toast("${channel.name} hidden")
+                    }
+                }
+            }
+            .show()
     }
 
     private suspend fun doQrBackup() {

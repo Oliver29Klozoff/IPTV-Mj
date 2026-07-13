@@ -88,6 +88,11 @@ class TvHomeActivity : AppCompatActivity() {
     private var navState = NavState.SIDEBAR
     private var navHasCategoryStep = false
     private var lastBackPressTime = 0L
+    private val DPAD_KEYS = setOf(
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER
+    )
 
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -460,7 +465,8 @@ class TvHomeActivity : AppCompatActivity() {
                     viewModel.setCurrentlyPlaying(channel.streamId)
                 }
                 scheduleTvAutoCollapse()
-            }
+            },
+            onChannelLongClick = { channel -> showTvReminderDialog(channel) }
         )
         binding.btnGuideRefresh.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
@@ -553,7 +559,11 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun showCategoryPanel(title: String) {
-        cancelTvAutoCollapse()
+        // Arm (not just cancel) the auto-collapse here too — previously it only got scheduled
+        // once a channel was actually picked, so just browsing categories/channels without
+        // ever selecting one left the panel open indefinitely instead of returning to the
+        // sidebar after the same 10s of inactivity.
+        scheduleTvAutoCollapse()
         navState = NavState.CATEGORIES
         navHasCategoryStep = true
         resizeLeftPanel(expanded = true)
@@ -570,7 +580,7 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun showChannelPanel(title: String) {
-        cancelTvAutoCollapse()
+        scheduleTvAutoCollapse()
         navState = NavState.CHANNELS
         resizeLeftPanel(expanded = true)
         binding.tvSidebar.visibility = View.GONE
@@ -579,13 +589,25 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvGuidePanel.visibility = View.GONE
         binding.tvChanTitle.text = title
         pendingContentFocus = true
+        binding.tvBtnChanSort.visibility = if (title == "LIVE") View.VISIBLE else View.GONE
+        if (title == "LIVE") updateTvSortButtonLabel()
+    }
+
+    private fun updateTvSortButtonLabel() {
+        binding.tvBtnChanSort.text = when (viewModel.channelSort.value) {
+            HomeViewModel.ChannelSort.DEFAULT -> "⇅ Default"
+            HomeViewModel.ChannelSort.NAME_AZ -> "⇅ A-Z"
+            HomeViewModel.ChannelSort.MOST_WATCHED -> "⇅ Popular"
+            HomeViewModel.ChannelSort.RECENTLY_WATCHED -> "⇅ Recent"
+            HomeViewModel.ChannelSort.MOST_RELIABLE -> "⇅ Reliable"
+        }
     }
 
     // The EPG guide used to live permanently under the mini player, always reachable via
     // D-pad Right from the channel list; it's its own sidebar section now instead, shown
     // full-panel the same way the category/channel panels are.
     private fun showGuidePanel() {
-        cancelTvAutoCollapse()
+        scheduleTvAutoCollapse()
         navState = NavState.CHANNELS
         navHasCategoryStep = false
         resizeLeftPanel(expanded = true)
@@ -647,19 +669,21 @@ class TvHomeActivity : AppCompatActivity() {
             else showSidebar()
         }
         binding.tvBtnGuideBack.setOnClickListener { showSidebar() }
+        binding.tvBtnChanSort.setOnClickListener {
+            viewModel.cycleSort()
+            updateTvSortButtonLabel()
+        }
     }
 
     private fun selectSection(section: Section) {
         currentSection = section
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
         activeSidebarButton().setTextColor(0xFF008CFF.toInt())
+        binding.tvGenreChipScroll.visibility = View.GONE
 
         when (section) {
             Section.LIVE -> openLiveOnCurrentChannel()
-            Section.CATEGORIES -> {
-                showFavCategories()
-                showCategoryPanel("CATEGORIES")
-            }
+            Section.CATEGORIES -> openFavCategoriesOnCurrentChannel()
             Section.MOVIES -> {
                 showMovies()
                 showCategoryPanel("MOVIES")
@@ -668,10 +692,7 @@ class TvHomeActivity : AppCompatActivity() {
                 showSeries()
                 showChannelPanel("SERIES")
             }
-            Section.FAVORITES -> {
-                showFavorites()
-                showChannelPanel("FAVORITES")
-            }
+            Section.FAVORITES -> openFavoritesOnCurrentChannel()
             Section.GUIDE -> showGuidePanel()
         }
     }
@@ -687,6 +708,13 @@ class TvHomeActivity : AppCompatActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
+            // Any D-pad navigation while a panel is open resets the auto-collapse idle timer —
+            // previously it was armed once when the panel opened and never touched again, so
+            // actively scrolling through a long channel/category/guide list for more than 10s
+            // would still get yanked back to the sidebar mid-browse.
+            if (navState != NavState.SIDEBAR && event.keyCode in DPAD_KEYS) {
+                scheduleTvAutoCollapse()
+            }
             // Numeric channel jump (only in channel panel showing live/fav channels)
             val digit = when (event.keyCode) {
                 KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0 -> "0"
@@ -701,23 +729,31 @@ class TvHomeActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_9, KeyEvent.KEYCODE_NUMPAD_9 -> "9"
                 else -> null
             }
-            if (digit != null && navState == NavState.CHANNELS &&
-                currentSection in setOf(Section.LIVE, Section.FAVORITES, Section.CATEGORIES)) {
-                if (channelNumberBuffer.length < 3) channelNumberBuffer += digit
+            // Classic remote-control channel entry: works from anywhere (sidebar, browsing a
+            // list, watching fullscreen-in-mini-player) except while actually typing into the
+            // search box. Looks up the provider's real channel number (ChannelEntity.num),
+            // not a position within whatever list happens to be on screen right now — typing
+            // "105" should always mean channel 105, regardless of what's currently filtered/
+            // sorted/displayed.
+            if (digit != null && currentFocus !== binding.tvEtSearch) {
+                if (channelNumberBuffer.length < 4) channelNumberBuffer += digit
                 channelJumpJob?.cancel()
-                Toast.makeText(this, "Ch: $channelNumberBuffer", Toast.LENGTH_SHORT).show()
+                binding.tvChannelNumberEntry.text = channelNumberBuffer
+                binding.tvChannelNumberEntry.visibility = View.VISIBLE
                 channelJumpJob = lifecycleScope.launch {
                     delay(1500)
-                    val target = (channelNumberBuffer.toIntOrNull() ?: 0) - 1
+                    val num = channelNumberBuffer.toIntOrNull()
                     channelNumberBuffer = ""
-                    if (target < 0) return@launch
-                    val list = viewModel.channels.value
-                    if (target >= list.size) return@launch
-                    val lm = binding.tvRvContent.layoutManager as? LinearLayoutManager ?: return@launch
-                    lm.scrollToPositionWithOffset(target, 0)
-                    binding.tvRvContent.post {
-                        binding.tvRvContent.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus()
+                    binding.tvChannelNumberEntry.visibility = View.GONE
+                    if (num == null) return@launch
+                    val channel = viewModel.getChannelByNumber(num)
+                    if (channel == null) {
+                        Toast.makeText(this@TvHomeActivity, "No channel $num", Toast.LENGTH_SHORT).show()
+                        return@launch
                     }
+                    playInMiniPlayer(channel)
+                    viewModel.markChannelWatched(channel.streamId)
+                    viewModel.setCurrentlyPlaying(channel.streamId)
                 }
                 return true
             }
@@ -840,25 +876,108 @@ class TvHomeActivity : AppCompatActivity() {
             categoryAdapter.resetSelection()
             categoryAdapter.submitList(viewModel.liveCategories.value)
             viewModel.selectLiveCategory(categoryId)
+            // Skipping showCategoryPanel("LIVE") to jump straight to the channel list means
+            // navHasCategoryStep/tvCatTitle never got set by it — without this, Back would use
+            // whatever stale category-step state was left over from unrelated prior browsing.
+            navHasCategoryStep = true
+            binding.tvCatTitle.text = "LIVE"
             showChannelPanel("LIVE")
+            // showChannelPanel sets this true expecting the normal viewModel.channels
+            // collector to focus position 0 — this flow focuses a specific channel itself
+            // instead, so suppress that collector's own (conflicting) focus attempt.
+            pendingContentFocus = false
             // Read the category's channels directly instead of waiting on the shared
             // `channels` StateFlow to notify — it conflates equal consecutive values, so if
             // this category's list happens to be unchanged from last time, selectLiveCategory
             // above would never redeliver it and the scroll-to-current below would silently
             // no-op (same class of bug fixed earlier for the phone's Favorites tab).
             val snapshot = viewModel.getChannelsByCategorySnapshot(categoryId)
-            channelAdapter.submitList(snapshot)
-            binding.tvRvContent.post {
-                val pos = snapshot.indexOfFirst { it.streamId == currentMiniStreamId }
-                if (pos >= 0) {
-                    (binding.tvRvContent.layoutManager as? LinearLayoutManager)
-                        ?.scrollToPositionWithOffset(pos, 0)
-                    binding.tvRvContent.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus()
-                        ?: binding.tvRvContent.requestFocus()
-                } else {
-                    binding.tvRvContent.requestFocus()
-                }
+            scrollAndFocusChannel(snapshot, currentMiniStreamId)
+        }
+    }
+
+    // submitList's DiffUtil calculation runs off-thread, and even the commit callback + a
+    // couple of post{} frames aren't reliably enough time for a large list's layout pass to
+    // actually bind the target position's ViewHolder — findViewHolderForAdapterPosition kept
+    // returning null, the fallback requestFocus() on the (still effectively empty) RecyclerView
+    // was a no-op, and focus silently stayed on the back arrow button instead of the channel.
+    // Retrying across several frames instead of a fixed handful of nested posts makes this
+    // reliable regardless of list size or how long that layout pass actually takes.
+    private fun scrollAndFocusChannel(list: List<ChannelEntity>, streamId: Int) {
+        channelAdapter.submitList(list) {
+            val pos = list.indexOfFirst { it.streamId == streamId }
+            if (pos < 0) {
+                binding.tvRvContent.requestFocus()
+                return@submitList
             }
+            (binding.tvRvContent.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(pos, 0)
+            retryFocusAdapterPosition(pos, attemptsLeft = 15)
+        }
+    }
+
+    private fun retryFocusAdapterPosition(pos: Int, attemptsLeft: Int) {
+        binding.tvRvContent.post {
+            val holder = binding.tvRvContent.findViewHolderForAdapterPosition(pos)
+            if (holder != null) {
+                holder.itemView.requestFocus()
+            } else if (attemptsLeft > 0) {
+                retryFocusAdapterPosition(pos, attemptsLeft - 1)
+            } else {
+                binding.tvRvContent.requestFocus()
+            }
+        }
+    }
+
+    /** Same "jump straight to what's playing" treatment as [openLiveOnCurrentChannel], applied
+     * to the CATEGORIES (favorite-categories) sidebar tab. */
+    private fun openFavCategoriesOnCurrentChannel() {
+        if (currentMiniIsVod || currentMiniStreamId < 0) {
+            showFavCategories()
+            showCategoryPanel("CATEGORIES")
+            return
+        }
+        lifecycleScope.launch {
+            val channel = viewModel.getChannelById(currentMiniStreamId)
+            val categoryId = channel?.categoryId
+            val favCats = viewModel.favoriteLiveCategories.value
+            if (categoryId == null || favCats.none { it.categoryId == categoryId }) {
+                showFavCategories()
+                showCategoryPanel("CATEGORIES")
+                return@launch
+            }
+            binding.tvRvCategories.adapter = categoryAdapter
+            binding.tvRvContent.adapter = channelAdapter
+            categoryAdapter.resetSelection()
+            categoryAdapter.submitList(favCats)
+            viewModel.selectFavCategory(categoryId)
+            navHasCategoryStep = true
+            binding.tvCatTitle.text = "CATEGORIES"
+            showChannelPanel("CATEGORIES")
+            pendingContentFocus = false
+            val snapshot = viewModel.getChannelsByCategorySnapshot(categoryId)
+            scrollAndFocusChannel(snapshot, currentMiniStreamId)
+        }
+    }
+
+    /** Same treatment for the FAVORITES sidebar tab — flat channel list, no category to resolve. */
+    private fun openFavoritesOnCurrentChannel() {
+        if (currentMiniIsVod || currentMiniStreamId < 0) {
+            showFavorites()
+            showChannelPanel("FAVORITES")
+            return
+        }
+        lifecycleScope.launch {
+            val favorites = viewModel.getFavoriteChannelsSnapshot()
+            if (favorites.none { it.streamId == currentMiniStreamId }) {
+                showFavorites()
+                showChannelPanel("FAVORITES")
+                return@launch
+            }
+            binding.tvRvContent.adapter = channelAdapter
+            viewModel.showFavoriteChannels()
+            showChannelPanel("FAVORITES")
+            pendingContentFocus = false
+            scrollAndFocusChannel(favorites, currentMiniStreamId)
         }
     }
 
@@ -874,14 +993,92 @@ class TvHomeActivity : AppCompatActivity() {
     private fun showMovies() {
         binding.tvRvCategories.adapter = categoryAdapter
         binding.tvRvContent.adapter = vodAdapter
-        val cats = viewModel.vodCategories.value
-        categoryAdapter.submitList(cats)
-        if (cats.isNotEmpty()) viewModel.selectVodCategory(cats.first().categoryId)
+        updateTvVodGenreChips(viewModel.vodCategories.value)
+        submitFilteredTvVodCategories(viewModel.vodCategories.value)
     }
 
     private fun showSeries() {
         binding.tvRvContent.adapter = seriesAdapter
-        seriesAdapter.submitList(viewModel.series.value)
+        updateTvSeriesGenreChips(viewModel.series.value)
+        submitFilteredTvSeries(viewModel.series.value)
+    }
+
+    private fun submitFilteredTvSeries(list: List<com.iptvapp.data.local.entities.SeriesEntity>) {
+        val genre = activeTvSeriesGenre
+        val filtered = if (genre == null) list
+            else list.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }
+        seriesAdapter.submitList(filtered)
+    }
+
+    // ── Genre folder chips (Series/Movies) — same bucketing GenreBuckets provides on phone ──
+
+    private var activeTvSeriesGenre: String? = null
+    private var activeTvVodGenre: String? = null
+
+    private fun submitFilteredTvVodCategories(cats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        val genre = activeTvVodGenre
+        val filtered = if (genre == null) cats
+            else cats.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(listOf(it.categoryName)) }
+        categoryAdapter.submitList(filtered)
+        if (filtered.isNotEmpty()) viewModel.selectVodCategory(filtered.first().categoryId)
+    }
+
+    private fun updateTvSeriesGenreChips(list: List<com.iptvapp.data.local.entities.SeriesEntity>) {
+        val genres = com.iptvapp.util.GenreBuckets.presentBuckets(list.map { it.genre?.split(",").orEmpty() })
+        if (genres.isEmpty()) { binding.tvGenreChipScroll.visibility = View.GONE; return }
+        if (activeTvSeriesGenre != null && genres.none { it.equals(activeTvSeriesGenre, ignoreCase = true) }) activeTvSeriesGenre = null
+        binding.tvGenreChipScroll.visibility = View.VISIBLE
+        val container = binding.tvGenreChipContainer
+        container.removeAllViews()
+        container.addView(buildTvGenreChip("All", activeTvSeriesGenre == null) {
+            activeTvSeriesGenre = null
+            updateTvSeriesGenreChips(viewModel.series.value)
+            submitFilteredTvSeries(viewModel.series.value)
+        })
+        for (genre in genres) {
+            container.addView(buildTvGenreChip(genre, activeTvSeriesGenre?.equals(genre, ignoreCase = true) == true) {
+                activeTvSeriesGenre = genre
+                updateTvSeriesGenreChips(viewModel.series.value)
+                submitFilteredTvSeries(viewModel.series.value)
+            })
+        }
+    }
+
+    private fun updateTvVodGenreChips(cats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
+        val genres = com.iptvapp.util.GenreBuckets.presentBuckets(cats.map { listOf(it.categoryName) })
+        if (genres.isEmpty()) { binding.tvGenreChipScroll.visibility = View.GONE; return }
+        if (activeTvVodGenre != null && genres.none { it.equals(activeTvVodGenre, ignoreCase = true) }) activeTvVodGenre = null
+        binding.tvGenreChipScroll.visibility = View.VISIBLE
+        val container = binding.tvGenreChipContainer
+        container.removeAllViews()
+        container.addView(buildTvGenreChip("All", activeTvVodGenre == null) {
+            activeTvVodGenre = null
+            updateTvVodGenreChips(viewModel.vodCategories.value)
+            submitFilteredTvVodCategories(viewModel.vodCategories.value)
+        })
+        for (genre in genres) {
+            container.addView(buildTvGenreChip(genre, activeTvVodGenre?.equals(genre, ignoreCase = true) == true) {
+                activeTvVodGenre = genre
+                updateTvVodGenreChips(viewModel.vodCategories.value)
+                submitFilteredTvVodCategories(viewModel.vodCategories.value)
+            })
+        }
+    }
+
+    private fun buildTvGenreChip(label: String, selected: Boolean, onClick: () -> Unit): View {
+        return android.widget.Button(this).apply {
+            text = label
+            textSize = 12f
+            isAllCaps = false
+            setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF888888.toInt())
+            setBackgroundResource(com.iptvapp.R.drawable.tv_sidebar_focus)
+            setPadding(28, 0, 28, 0)
+            layoutParams = android.view.ViewGroup.MarginLayoutParams(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                (36 * resources.displayMetrics.density).toInt()
+            ).also { it.marginEnd = (8 * resources.displayMetrics.density).toInt() }
+            setOnClickListener { onClick() }
+        }
     }
 
     private fun showFavorites() {
@@ -994,7 +1191,11 @@ class TvHomeActivity : AppCompatActivity() {
                 if (currentSection == Section.SERIES) {
                     val wantFocus = pendingContentFocus
                     if (wantFocus) pendingContentFocus = false
-                    seriesAdapter.submitList(it) {
+                    updateTvSeriesGenreChips(it)
+                    val genre = activeTvSeriesGenre
+                    val filtered = if (genre == null) it
+                        else it.filter { s -> genre in com.iptvapp.util.GenreBuckets.bucketsFor(s.genre?.split(",").orEmpty()) }
+                    seriesAdapter.submitList(filtered) {
                         if (wantFocus) binding.tvRvContent.post {
                             binding.tvRvContent.findViewHolderForAdapterPosition(0)
                                 ?.itemView?.requestFocus() ?: binding.tvRvContent.requestFocus()
@@ -1020,7 +1221,10 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
-                if (currentSection == Section.MOVIES) categoryAdapter.submitList(it)
+                if (currentSection == Section.MOVIES) {
+                    updateTvVodGenreChips(it)
+                    submitFilteredTvVodCategories(it)
+                }
             }
         }
         lifecycleScope.launch {
@@ -1176,11 +1380,8 @@ class TvHomeActivity : AppCompatActivity() {
                 androidx.appcompat.app.AlertDialog.Builder(this@TvHomeActivity)
                     .setTitle("Remind me about ${channel.name}")
                     .setItems(options) { _, i ->
-                        ChannelTimerScheduler.schedule(
-                            this@TvHomeActivity, channel.streamId, channel.name,
-                            channel.name, System.currentTimeMillis() + deltas[i]
-                        )
-                        Toast.makeText(this@TvHomeActivity, "Reminder set for ${options[i]}", Toast.LENGTH_SHORT).show()
+                        val startMs = System.currentTimeMillis() + deltas[i]
+                        showTvReminderOrRecordChoice(channel, channel.name, startMs, 60 * 60_000L, options[i])
                     }
                     .setNegativeButton("Cancel", null).show()
                 return@launch
@@ -1199,13 +1400,33 @@ class TvHomeActivity : AppCompatActivity() {
                 .setItems(labels) { _, i ->
                     val epg = epgList[i]
                     val startMs = if (epg.startTimestamp > 1_000_000_000_000L) epg.startTimestamp else epg.startTimestamp * 1000L
-                    ChannelTimerScheduler.schedule(
-                        this@TvHomeActivity, channel.streamId, channel.name, epg.title, startMs
-                    )
-                    Toast.makeText(this@TvHomeActivity, "Reminder set for ${epg.title}", Toast.LENGTH_SHORT).show()
+                    val stopMs = if (epg.stopTimestamp > 1_000_000_000_000L) epg.stopTimestamp else epg.stopTimestamp * 1000L
+                    val durationMs = (stopMs - startMs).takeIf { it > 0 } ?: 60 * 60_000L
+                    showTvReminderOrRecordChoice(channel, epg.title, startMs, durationMs, epg.title)
                 }
                 .setNegativeButton("Cancel", null).show()
         }
+    }
+
+    private fun showTvReminderOrRecordChoice(
+        channel: ChannelEntity, programTitle: String, startMs: Long, durationMs: Long, label: String
+    ) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(programTitle)
+            .setItems(arrayOf("Remind Me", "Record This")) { _, which ->
+                when (which) {
+                    0 -> {
+                        ChannelTimerScheduler.schedule(this, channel.streamId, channel.name, programTitle, startMs)
+                        Toast.makeText(this, "Reminder set for $label", Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, channel.streamId)
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
+                    })
+                }
+            }
+            .show()
     }
 
     private fun launchExternalPlayer(url: String, title: String, player: String) {

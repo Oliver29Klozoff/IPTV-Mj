@@ -245,6 +245,24 @@ class HomeActivity : AppCompatActivity() {
             applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
         }
         FeatureTourDialog.showIfNeeded(this)
+        handleJumpToChannelExtra()
+    }
+
+    // Lets other screens (currently: Settings' Provider Health "Play This Channel" action)
+    // hand off to a specific channel without duplicating playback/navigation logic there.
+    private fun handleJumpToChannelExtra() {
+        val streamId = intent.getIntExtra(EXTRA_JUMP_TO_STREAM_ID, -1)
+        if (streamId < 0) return
+        lifecycleScope.launch {
+            val channel = viewModel.getChannelById(streamId) ?: return@launch
+            playInMiniPlayer(channel)
+            viewModel.markChannelWatched(channel.streamId)
+            viewModel.setCurrentlyPlaying(channel.streamId)
+        }
+    }
+
+    companion object {
+        const val EXTRA_JUMP_TO_STREAM_ID = "jump_to_stream_id"
     }
 
     private fun rescheduleEpgRefreshIfNeeded() {
@@ -1077,41 +1095,11 @@ class HomeActivity : AppCompatActivity() {
 
     private var activeSeriesGenre: String? = null
 
-    // Providers' raw `genre` tags are all over the place — dozens of near-duplicate or
-    // one-off strings ("Dramedy", "Crime Drama", "Sci-Fi & Fantasy", ...). Bucketing them into
-    // a handful of broad folders by keyword (same approach as the Live tab's genre chips)
-    // gives a usable set of folders instead of one chip per raw tag. Order here is also the
-    // display order. "Other" (any show matching none of these) is appended only if non-empty.
-    private val GENRE_BUCKETS = linkedMapOf(
-        "Comedy" to listOf("comedy"),
-        "Drama" to listOf("drama"),
-        "Action & Adventure" to listOf("action", "adventure"),
-        "Sci-Fi & Fantasy" to listOf("sci-fi", "scifi", "science fiction", "fantasy"),
-        "Crime & Mystery" to listOf("crime", "mystery", "detective"),
-        "Horror & Thriller" to listOf("horror", "thriller", "suspense"),
-        "Animation" to listOf("animation", "anime", "cartoon"),
-        "Documentary" to listOf("documentary", "docu"),
-        "Kids & Family" to listOf("kids", "family", "children"),
-        "Reality" to listOf("reality", "game show", "talk show"),
-        "Romance" to listOf("romance", "romantic"),
-        "War & History" to listOf("war", "history", "historical"),
-        "Music" to listOf("music", "musical")
-    )
+    private fun seriesBuckets(series: com.iptvapp.data.local.entities.SeriesEntity): List<String> =
+        com.iptvapp.util.GenreBuckets.bucketsFor(series.genre?.split(",").orEmpty())
 
-    private fun seriesBuckets(series: com.iptvapp.data.local.entities.SeriesEntity): List<String> {
-        val tags = series.genre?.split(",").orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
-        if (tags.isEmpty()) return emptyList()
-        val matched = GENRE_BUCKETS.filter { (_, keywords) ->
-            tags.any { tag -> keywords.any { kw -> tag.contains(kw, ignoreCase = true) } }
-        }.keys.toList()
-        return matched.ifEmpty { listOf("Other") }
-    }
-
-    private fun seriesGenres(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<String> {
-        val present = list.flatMap { seriesBuckets(it) }.toSet()
-        val ordered = GENRE_BUCKETS.keys.filter { it in present }
-        return if ("Other" in present) ordered + "Other" else ordered
-    }
+    private fun seriesGenres(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<String> =
+        com.iptvapp.util.GenreBuckets.presentBuckets(list.map { it.genre?.split(",").orEmpty() })
 
     private fun seriesGenreFilter(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<com.iptvapp.data.local.entities.SeriesEntity> {
         val genre = activeSeriesGenre ?: return list
@@ -1160,18 +1148,11 @@ class HomeActivity : AppCompatActivity() {
     // names are just as messy ("4K NEW MOVIES 2024", "ACTION MOVIES USA", ...) — bucketing
     // them by the same keyword folders turns dozens of one-off categories into a handful of
     // genre folders, same treatment as the Series tab.
-    private fun vodCategoryBuckets(cat: com.iptvapp.data.local.entities.CategoryEntity): List<String> {
-        val matched = GENRE_BUCKETS.filter { (_, keywords) ->
-            keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) }
-        }.keys.toList()
-        return matched.ifEmpty { listOf("Other") }
-    }
+    private fun vodCategoryBuckets(cat: com.iptvapp.data.local.entities.CategoryEntity): List<String> =
+        com.iptvapp.util.GenreBuckets.bucketsFor(listOf(cat.categoryName))
 
-    private fun vodGenres(cats: List<com.iptvapp.data.local.entities.CategoryEntity>): List<String> {
-        val present = cats.flatMap { vodCategoryBuckets(it) }.toSet()
-        val ordered = GENRE_BUCKETS.keys.filter { it in present }
-        return if ("Other" in present) ordered + "Other" else ordered
-    }
+    private fun vodGenres(cats: List<com.iptvapp.data.local.entities.CategoryEntity>): List<String> =
+        com.iptvapp.util.GenreBuckets.presentBuckets(cats.map { listOf(it.categoryName) })
 
     private fun vodCategoryFilter(cats: List<com.iptvapp.data.local.entities.CategoryEntity>): List<com.iptvapp.data.local.entities.CategoryEntity> {
         val genre = activeVodGenre ?: return cats
@@ -1657,11 +1638,8 @@ class HomeActivity : AppCompatActivity() {
                 androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
                     .setTitle("Remind me about ${channel.name}")
                     .setItems(options) { _, i ->
-                        ChannelTimerScheduler.schedule(
-                            this@HomeActivity, channel.streamId, channel.name,
-                            channel.name, System.currentTimeMillis() + deltas[i]
-                        )
-                        Toast.makeText(this@HomeActivity, "Reminder set for ${options[i]}", Toast.LENGTH_SHORT).show()
+                        val startMs = System.currentTimeMillis() + deltas[i]
+                        showReminderOrRecordChoice(channel, channel.name, startMs, 60 * 60_000L, options[i])
                     }
                     .setNegativeButton("Cancel", null).show()
                 return@launch
@@ -1680,13 +1658,36 @@ class HomeActivity : AppCompatActivity() {
                 .setItems(labels) { _, i ->
                     val epg = epgList[i]
                     val startMs = if (epg.startTimestamp > 1_000_000_000_000L) epg.startTimestamp else epg.startTimestamp * 1000L
-                    ChannelTimerScheduler.schedule(
-                        this@HomeActivity, channel.streamId, channel.name, epg.title, startMs
-                    )
-                    Toast.makeText(this@HomeActivity, "Reminder set for ${epg.title}", Toast.LENGTH_SHORT).show()
+                    val stopMs = if (epg.stopTimestamp > 1_000_000_000_000L) epg.stopTimestamp else epg.stopTimestamp * 1000L
+                    val durationMs = (stopMs - startMs).takeIf { it > 0 } ?: 60 * 60_000L
+                    showReminderOrRecordChoice(channel, epg.title, startMs, durationMs, epg.title)
                 }
                 .setNegativeButton("Cancel", null).show()
         }
+    }
+
+    /** "Remind me" already existed; recording a program used to require separately opening
+     * Recordings and re-entering the channel/time/duration by hand even though this dialog
+     * already knows all three — this lets either action reuse the same picked program/time. */
+    private fun showReminderOrRecordChoice(
+        channel: ChannelEntity, programTitle: String, startMs: Long, durationMs: Long, label: String
+    ) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(programTitle)
+            .setItems(arrayOf("Remind Me", "Record This")) { _, which ->
+                when (which) {
+                    0 -> {
+                        ChannelTimerScheduler.schedule(this, channel.streamId, channel.name, programTitle, startMs)
+                        Toast.makeText(this, "Reminder set for $label", Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, channel.streamId)
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
+                    })
+                }
+            }
+            .show()
     }
 
     private fun showWhatsOnNow() {

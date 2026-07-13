@@ -10,12 +10,19 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.databinding.ItemTvEpgRowBinding
 
 class TvEpgGuideAdapter(
-    private val onChannelClick: (ChannelEntity) -> Unit
+    private val onChannelClick: (ChannelEntity) -> Unit,
+    private val onChannelLongClick: (ChannelEntity) -> Unit = {}
 ) : ListAdapter<ChannelEntity, TvEpgGuideAdapter.VH>(Diff()) {
 
     private var epgText: Map<Int, String> = emptyMap()
     private var epgNextText: Map<Int, String> = emptyMap()
     private var epgProgress: Map<Int, Int> = emptyMap()
+
+    // Same reasoning as ChannelAdapter: rebinding a row the user is mid-long-press on can
+    // disrupt Android's pending long-press callback, which used a periodic full-list
+    // notifyItemRangeChanged here to begin with — every single row was rebinding on every
+    // refresh, not just changed ones, making this the more likely place to actually hit it.
+    private var pressedStreamId: Int? = null
 
     fun submitEpgText(map: Map<Int, String>) {
         epgText = map
@@ -39,6 +46,7 @@ class TvEpgGuideAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val ch = getItem(position)
+        if (ch.streamId == pressedStreamId) return
         val b = holder.b
         b.tvEpgRowChannel.text = ch.name
         b.tvEpgRowNow.text = epgText[ch.streamId] ?: "—"
@@ -48,6 +56,16 @@ class TvEpgGuideAdapter(
         b.tvEpgRowProgress.progress = prog
         b.tvEpgRowProgress.visibility = if (prog > 0) View.VISIBLE else View.GONE
         b.root.setOnClickListener { onChannelClick(ch) }
+        b.root.setOnLongClickListener { onChannelLongClick(ch); true }
+        b.root.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
+                when (event.action) {
+                    android.view.KeyEvent.ACTION_DOWN -> pressedStreamId = ch.streamId
+                    android.view.KeyEvent.ACTION_UP -> if (pressedStreamId == ch.streamId) pressedStreamId = null
+                }
+            }
+            false
+        }
     }
 
     private class Diff : DiffUtil.ItemCallback<ChannelEntity>() {

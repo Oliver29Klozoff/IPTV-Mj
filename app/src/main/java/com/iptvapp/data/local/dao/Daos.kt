@@ -23,6 +23,8 @@ data class WatchHistoryEntry(
 interface ChannelDao {
     @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY num ASC")
     fun getAllChannels(): Flow<List<ChannelEntity>>
+    @Query("SELECT * FROM channels WHERE num = :num AND isHidden = 0 LIMIT 1")
+    suspend fun getChannelByNumber(num: Int): ChannelEntity?
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY num ASC")
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")

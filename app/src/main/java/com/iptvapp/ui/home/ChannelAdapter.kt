@@ -31,6 +31,15 @@ class ChannelAdapter(
     private var currentlyPlayingStreamId: Int = -1
     private var healthByStreamId: Map<Int, Boolean?> = emptyMap()
 
+    // A periodic EPG refresh (every 30s on TV) recomputes progress for every visible channel,
+    // and since progress % changes almost every tick, it used to rebind nearly every row on
+    // every refresh — including whichever one the user happened to be mid-long-press on right
+    // then. Rebinding calls setOnLongClickListener again, which can disrupt Android's pending
+    // long-press callback for that gesture, making "hold to open channel actions" intermittently
+    // just not fire depending on unlucky timing. Track whichever row currently has a pointer
+    // down and skip rebinding it until released.
+    private var pressedStreamId: Int? = null
+
     // Targeted per-row notifications (never notifyDataSetChanged, and not even a blanket
     // notifyItemRangeChanged across the whole list) — these EPG/health maps refresh on a
     // timer, and rebinding a row re-triggers its Glide load and resets its view state.
@@ -39,7 +48,7 @@ class ChannelAdapter(
     // flicker on the focused row every refresh. Only notify rows whose value actually changed.
     private inline fun notifyChangedRows(changed: (streamId: Int) -> Boolean) {
         currentList.forEachIndexed { index, channel ->
-            if (changed(channel.streamId)) notifyItemChanged(index)
+            if (channel.streamId != pressedStreamId && changed(channel.streamId)) notifyItemChanged(index)
         }
     }
 
@@ -142,6 +151,31 @@ class ChannelAdapter(
                     onFavoriteClick(item)
                 }
                 true
+            }
+
+            @SuppressLint("ClickableViewAccessibility")
+            binding.root.setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> pressedStreamId = item.streamId
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                        if (pressedStreamId == item.streamId) pressedStreamId = null
+                }
+                v.onTouchEvent(event)
+            }
+
+            // TV long-press is a held D-pad OK/Enter key, not a touch gesture — needs the
+            // same pressed-row guard via key events instead of MotionEvent.
+            if (isTvMode) {
+                binding.root.setOnKeyListener { v, keyCode, event ->
+                    if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
+                        when (event.action) {
+                            android.view.KeyEvent.ACTION_DOWN -> pressedStreamId = item.streamId
+                            android.view.KeyEvent.ACTION_UP ->
+                                if (pressedStreamId == item.streamId) pressedStreamId = null
+                        }
+                    }
+                    false
+                }
             }
 
             binding.ivFavorite.setOnClickListener {

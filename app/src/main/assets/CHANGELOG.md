@@ -1,5 +1,36 @@
 # IPTV App - Changelog
 
+## v4.32 - 2026-07-13
+- **Fixed**: long-pressing a channel to open reminder/actions sometimes just didn't register.
+  A periodic EPG/progress refresh was rebinding list rows — including whichever one you
+  happened to be mid-long-press on — which can disrupt Android's pending long-press callback.
+  Rows you're actively pressing (touch or a held D-pad OK/Enter) are no longer rebound until
+  released.
+- **Fixed**: Multi-View and Mosaic could show a stream as solid white instead of video —
+  Multi-View's cause was an unset shutter background falling back to the theme's white
+  surface color; Mosaic's was a legacy system "selection ring" drawable that's mostly opaque
+  white, not a thin outline, covering the video whenever a tile was tapped (the video was
+  actually still playing underneath the whole time).
+- **Fixed**: Mosaic played every tile's audio simultaneously on open — nothing was focused by
+  default, and the mute logic only ever muted a tile relative to whichever one *was* focused.
+  The first tile is now focused (and the rest muted) as soon as Mosaic opens.
+- **Fixed (TV)**: the channel-number entry (type digits on the remote to jump to a channel)
+  treated the typed number as a position in whatever list happened to be on screen rather
+  than the provider's actual channel number, and only worked from specific lists. It now
+  works from anywhere and looks up the real channel number, tuning directly to it.
+- **Fixed (TV)**: the sidebar's auto-collapse (returns to the sidebar 10s after picking a
+  channel) only ever armed once when a panel opened — actively scrolling a long list for
+  more than 10s could still get yanked back to the sidebar mid-browse. It now resets on every
+  D-pad press, so it only collapses after genuine idle time.
+- **Changed (TV)**: re-selecting a sidebar tab (Live, Categories, or Favorites) after its
+  panel auto-collapsed now jumps straight back to whatever channel is currently playing,
+  scrolled and focused on it, instead of restarting at the top of the list.
+- **Added**: the Guide tab's long-press (reminder/record) now works consistently — TV's Guide
+  had no long-press at all before; phone's Guide only offered a plain reminder. Both now use
+  the same "Remind Me" / "Record This" choice as every other channel list.
+- **Added**: Multi-View — tapping a tile now also switches audio to it in one motion, instead
+  of needing the separate Audio button.
+
 ## v4.31 - 2026-07-12
 - **Fixed (major)**: live TV could get stuck reconnecting in fullscreen on some providers,
   while the mini player played the exact same channel fine. Root cause: the disk cache used

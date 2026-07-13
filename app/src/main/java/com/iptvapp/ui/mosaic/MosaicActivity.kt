@@ -91,6 +91,11 @@ class MosaicActivity : AppCompatActivity() {
             cells.add(cell)
             binding.mosaicGrid.addView(cell.root)
         }
+
+        // Default to the first tile focused, not none — loadChannel() only mutes a cell when
+        // focusedCell is set to something else, so with no focus at all every tile played its
+        // audio simultaneously the instant channels loaded in.
+        setFocus(0)
     }
 
     private fun buildCell(index: Int, player: ExoPlayer, cols: Int): MosaicCell {
@@ -118,6 +123,7 @@ class MosaicActivity : AppCompatActivity() {
             useController = false
             this.player = player
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            setShutterBackgroundColor(android.graphics.Color.BLACK)
         }
 
         val focusRing = View(this).apply {
@@ -125,7 +131,12 @@ class MosaicActivity : AppCompatActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
-            setBackgroundResource(android.R.drawable.picture_frame)
+            // android.R.drawable.picture_frame (a legacy Gallery-app decorative border) is
+            // largely opaque white, not a thin outline — showing it on tap made the tapped
+            // tile look like it had gone blank/white, when the video was actually still
+            // playing underneath it the whole time. Use the same transparent-fill/blue-stroke
+            // selection style Multi-View already uses.
+            setBackgroundResource(com.iptvapp.R.drawable.player_active_border)
             visibility = View.GONE
         }
 

@@ -691,12 +691,46 @@ class SettingsActivity : AppCompatActivity() {
     private fun showProviderHealthDialog() {
         lifecycleScope.launch {
             val report = com.iptvapp.util.ProviderHealth.build(this@SettingsActivity, db, prefs)
-            AlertDialog.Builder(this@SettingsActivity)
+            val builder = AlertDialog.Builder(this@SettingsActivity)
                 .setTitle("Provider Health")
                 .setMessage(com.iptvapp.util.ProviderHealth.formatReport(report))
                 .setPositiveButton("Close", null)
-                .show()
+            if (report.worstChannels.isNotEmpty()) {
+                builder.setNeutralButton("Least Reliable Channels") { _, _ ->
+                    showWorstChannelsDialog(report.worstChannels)
+                }
+            }
+            builder.show()
         }
+    }
+
+    private fun showWorstChannelsDialog(channels: List<com.iptvapp.util.ProviderHealth.ChannelScore>) {
+        val labels = channels.map { "${it.name} — ${it.reliabilityPercent}%" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Least Reliable Channels")
+            .setItems(labels) { _, which -> showChannelHealthActionDialog(channels[which]) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showChannelHealthActionDialog(channel: com.iptvapp.util.ProviderHealth.ChannelScore) {
+        AlertDialog.Builder(this)
+            .setTitle("${channel.name} — ${channel.reliabilityPercent}%")
+            .setItems(arrayOf("Play This Channel", "Hide This Channel")) { _, which ->
+                when (which) {
+                    0 -> {
+                        startActivity(Intent(this, com.iptvapp.ui.home.HomeActivity::class.java).apply {
+                            putExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, channel.streamId)
+                        })
+                        finish()
+                    }
+                    1 -> lifecycleScope.launch {
+                        db.channelDao().setHidden(channel.streamId, true)
+                        Toast.makeText(this@SettingsActivity, "${channel.name} hidden", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .show()
     }
 
     private fun sendDebugReport() {

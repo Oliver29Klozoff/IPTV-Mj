@@ -763,4 +763,7 @@ class HomeViewModel @Inject constructor(
 
     suspend fun getChannelById(streamId: Int): ChannelEntity? =
         repository.getChannelById(streamId)
+
+    suspend fun getChannelByNumber(num: Int): ChannelEntity? =
+        repository.getChannelByNumber(num)
 }

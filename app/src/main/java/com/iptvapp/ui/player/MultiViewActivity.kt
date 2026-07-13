@@ -71,6 +71,13 @@ class MultiViewActivity : AppCompatActivity() {
     // ─── Players ─────────────────────────────────────────────────────────────
 
     private fun setupPlayers() {
+        // PlayerView's shutter (the placeholder shown before the first video frame renders,
+        // and again briefly on every channel switch) falls back to the current theme's
+        // surface color when not set explicitly — on this app's light Material dialogs/theme
+        // remnants that resolves to white instead of black, which read as "the stream turns
+        // white" on every tap-triggered channel switch.
+        binding.playerLeft.setShutterBackgroundColor(Color.BLACK)
+        binding.playerRight.setShutterBackgroundColor(Color.BLACK)
         leftPlayer = ExoPlayer.Builder(this).build().also { binding.playerLeft.player = it }
         rightPlayer = ExoPlayer.Builder(this).build().also {
             binding.playerRight.player = it
@@ -154,6 +161,13 @@ class MultiViewActivity : AppCompatActivity() {
 
     private fun switchToSide(side: Int) {
         activeSide = side
+        // Tapping a tile is how you'd naturally expect to "switch to watching/listening to
+        // that stream" — previously it only marked the tile active for the channel picker,
+        // leaving audio on whichever side it happened to already be on.
+        audioSide = side
+        leftPlayer?.volume = if (audioSide == 0) 1f else 0f
+        rightPlayer?.volume = if (audioSide == 1) 1f else 0f
+        binding.btnMvAudio.text = "Audio: ${if (audioSide == 0) "Left" else "Right"}"
         updateActiveSideUI()
     }
 

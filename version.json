@@ -1,7 +1,7 @@
 {
-  "versionCode": 269,
-  "versionName": "4.31",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.31/MKTV.apk",
-  "apkSha256": "d5bbdd85e680a6f397a0d9cde7ed3b72d05bd81282df0c6252b2fba2d2d5ed56",
-  "changelog": "Fixed a major bug where live TV could get stuck reconnecting in fullscreen on some providers — the disk cache used for live rewind is now removed (rewind still works via a ~2min in-memory buffer). Fixed a DNS-over-HTTPS slowdown, a Series tab crash on corrupted provider data, Favorites tab not scrolling to the playing channel, and an autofill bug in Add Server. Added genre folders on Series/Movies, a Most Reliable sort option, a Provider Health dashboard, an in-app QR scanner for TV backup restore, full on-device TV backup/restore, working cloud auto-sync, and a draggable/resizable Picture-in-Picture window."
+  "versionCode": 270,
+  "versionName": "4.32",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.32/MKTV.apk",
+  "apkSha256": "bd4c8b70dab57a53f54bf4dbf0a1b37b2c6940004db54de94c3fea9f7f2a00db",
+  "changelog": "Fixed long-presses on channels sometimes not registering (a periodic refresh could interrupt the gesture mid-press). Fixed Multi-View and Mosaic showing a stream as solid white instead of video. Fixed Mosaic playing every tile's audio at once on open. Fixed TV's channel-number entry to use the real channel number and work from anywhere. Fixed the TV sidebar auto-collapsing mid-browse instead of only after real idle time. Re-selecting a TV sidebar tab now jumps straight to whatever's currently playing. The Guide tab's long-press now offers Remind Me/Record This everywhere, consistently."
 }
