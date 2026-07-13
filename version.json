@@ -1,7 +1,7 @@
 {
-  "versionCode": 270,
-  "versionName": "4.32",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.32/MKTV.apk",
-  "apkSha256": "bd4c8b70dab57a53f54bf4dbf0a1b37b2c6940004db54de94c3fea9f7f2a00db",
-  "changelog": "Fixed long-presses on channels sometimes not registering (a periodic refresh could interrupt the gesture mid-press). Fixed Multi-View and Mosaic showing a stream as solid white instead of video. Fixed Mosaic playing every tile's audio at once on open. Fixed TV's channel-number entry to use the real channel number and work from anywhere. Fixed the TV sidebar auto-collapsing mid-browse instead of only after real idle time. Re-selecting a TV sidebar tab now jumps straight to whatever's currently playing. The Guide tab's long-press now offers Remind Me/Record This everywhere, consistently."
+  "versionCode": 271,
+  "versionName": "4.33",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.33/MKTV.apk",
+  "apkSha256": "f540e78411bc2858fc5df147c9bfa6ad8f3cd2a6cf07cfb69c795e07b72a6a0c",
+  "changelog": "The phone's landscape mode now matches TV: the category/channel list's auto-collapse arms as soon as it opens instead of only after playing a channel, and resets while you're actively scrolling, so it no longer gets yanked away mid-browse."
 }

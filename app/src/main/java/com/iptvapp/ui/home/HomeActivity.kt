@@ -329,7 +329,7 @@ class HomeActivity : AppCompatActivity() {
     // History/Favorites/Guide have no categories, so they go straight to "channels" mode.
     private fun landscapeShowCategoriesMode() {
         if (!isLandscapeMode()) return
-        cancelContentAutoCollapse()
+        scheduleContentAutoCollapse()
         contentColumnCollapsed = false
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
@@ -346,6 +346,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun landscapeShowChannelsMode() {
         if (!isLandscapeMode()) return
+        scheduleContentAutoCollapse()
         contentColumnCollapsed = false
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
@@ -900,6 +901,17 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.layoutManager = LinearLayoutManager(this)
         binding.rvChannels.adapter = channelAdapter
+
+        // Scrolling either list while it's showing (landscape) counts as active browsing —
+        // resets the same idle timer picking a channel does, so actively scrolling a long
+        // list for more than 10s doesn't get the column yanked away mid-browse.
+        val resetOnScroll = object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (isLandscapeMode() && !contentColumnCollapsed) scheduleContentAutoCollapse()
+            }
+        }
+        binding.rvCategories.addOnScrollListener(resetOnScroll)
+        binding.rvChannels.addOnScrollListener(resetOnScroll)
     }
 
     private fun setupTabs() {

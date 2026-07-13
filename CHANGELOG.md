@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.33 - 2026-07-13
+- **Changed (phone, landscape)**: the inline category/channel list's auto-collapse now
+  matches TV's behavior — it arms as soon as the list opens (not only after picking a
+  channel to play), and resets on scroll, so actively browsing a long list for more than
+  10s no longer gets it yanked away mid-browse. Previously it only ever collapsed after
+  playing something, and never while just browsing.
+
 ## v4.32 - 2026-07-13
 - **Fixed**: long-pressing a channel to open reminder/actions sometimes just didn't register.
   A periodic EPG/progress refresh was rebinding list rows — including whichever one you
