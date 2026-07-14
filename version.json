@@ -1,7 +1,7 @@
 {
-  "versionCode": 277,
-  "versionName": "4.39",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.39/MKTV.apk",
-  "apkSha256": "813462e7282e37452a073aa6615668ee1788469b41da46345b91c15be45f6b36",
-  "changelog": "Favorites tab now sits first on phone, matching TV's tab order. The fullscreen Record button now sits directly next to Play/Pause on both phone and TV."
+  "versionCode": 278,
+  "versionName": "4.40",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.40/MKTV.apk",
+  "apkSha256": "10d12f366cdb13ff53d2f62589299dd145245da8282dc8ba8c5751be5631b601",
+  "changelog": "Fixed some providers rejecting requests due to a missing User-Agent, and paced out per-channel EPG prefetching to avoid tripping rate limits. Added a one-tap default US EPG guide option for providers with no program guide."
 }

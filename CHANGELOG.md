@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v4.40 - 2026-07-14
+- **Fixed**: added a spoofed browser User-Agent to all Xtream API calls — some providers'
+  Cloudflare/WAF protection was silently rejecting requests (401/429) that carried OkHttp's
+  default library user-agent, even with correct credentials, while any real player app
+  connected fine with the same login.
+- **Fixed**: the per-channel EPG prefetch (up to 50 channels on every list load) now paces
+  each request 150ms apart instead of firing them all back-to-back — the previous unpaced
+  burst was, on its own, enough to trip some providers' rate limiting.
+- **Added**: a one-tap "Use Default US Guide" option in EPG settings (phone: Stream tab; TV:
+  Settings > EPG) for providers that don't supply their own program guide data, pre-filled
+  with a public US XMLTV source (iptv-epg.org).
+
 ## v4.39 - 2026-07-14
 - **Changed**: on phone, the Favorites tab (and sidebar entry in landscape) now sits first,
   matching TV's tab order — Favorites, Live, Categories, Movies, Series, Guide, History.

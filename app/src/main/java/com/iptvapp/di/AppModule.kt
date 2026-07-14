@@ -56,7 +56,33 @@ object AppModule {
                 return if (dohEnabledCached) dohDns.lookup(hostname, dohProviderCached) else Dns.SYSTEM.lookup(hostname)
             }
         }
+        // Xtream panels are commonly fronted by Cloudflare (or similar WAFs) configured to
+        // block/rate-limit known HTTP-library user agents like OkHttp's default
+        // ("okhttp/4.x") to deter scraping/reselling tools — a real player app never sends
+        // that. Without this, some providers 401 or instantly 429 even brand-new, valid
+        // credentials, while any legitimate player (VLC, TiviMate, ...) connects fine with
+        // the exact same login.
+        val userAgentInterceptor = okhttp3.Interceptor { chain ->
+            val original = chain.request()
+            // Playback requests (OkHttpDataSource.Factory.setUserAgent in PlayerActivity)
+            // already set their own User-Agent on this same shared client — don't clobber it,
+            // only fill in the header when nothing set one already (the player_api.php JSON
+            // calls, which had no User-Agent at all before this).
+            val request = if (original.header("User-Agent") != null) {
+                original
+            } else {
+                original.newBuilder()
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    )
+                    .build()
+            }
+            chain.proceed(request)
+        }
         return OkHttpClient.Builder()
+            .addInterceptor(userAgentInterceptor)
             .addInterceptor(logging)
             .dns(dns)
             .connectTimeout(30, TimeUnit.SECONDS)

@@ -437,51 +437,68 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
 
+            // Show whatever's already in the DB immediately — don't make the guide text wait
+            // on the network prefetch below, which is now deliberately paced and can take
+            // several seconds on a slow or rate-limit-sensitive provider.
+            publishEpgDisplay(channels)
+
             // Only trigger a fresh per-channel network fetch for a bounded window — firing
             // one API call per channel for an entire large category would flood the server.
             // The periodic full-catalog XMLTV refresh already keeps everything else
-            // reasonably fresh in the background. But the DISPLAYED now/next text below is
+            // reasonably fresh in the background. But the DISPLAYED now/next text above is
             // computed for every channel in the list from whatever's already in the DB —
             // capping that too meant channels past the fetch window never showed a guide
             // entry at all, even once their EPG data existed, cutting the list short.
-            channels.take(50).forEach { repository.fetchEpg(it.streamId) }
-
-            val ids = channels.map { it.streamId }
-            // Chunked to stay well under SQLite's bound-parameter limit for large categories.
-            val epgEntries = ids.chunked(500).flatMap { chunk -> repository.getEpgForStreams(chunk).first() }
-            val epgByStream = epgEntries.groupBy { it.streamId }
-            val nowSecs = System.currentTimeMillis() / 1000
-            val progressMap = mutableMapOf<Int, Int>()
-            val nextTextMap = mutableMapOf<Int, String>()
-            _channelEpgText.value = channels.associate { channel ->
-                val programs = epgByStream[channel.streamId].orEmpty()
-                val now = programs.firstOrNull()
-                val next = programs.drop(1).firstOrNull()
-
-                // Compute progress 0-100 for the current program
-                val prog = if (now != null && now.stopTimestamp > now.startTimestamp) {
-                    val elapsed = (nowSecs - now.startTimestamp).coerceAtLeast(0)
-                    val total = now.stopTimestamp - now.startTimestamp
-                    ((elapsed * 100L) / total).coerceIn(0, 100).toInt()
-                } else 0
-                progressMap[channel.streamId] = prog
-
-                // Time remaining suffix
-                val minutesLeft = if (now != null) ((now.stopTimestamp - nowSecs) / 60).coerceAtLeast(0) else 0L
-                val timeStr = if (now != null && minutesLeft > 0) " (${minutesLeft}m)" else ""
-
-                if (next != null) nextTextMap[channel.streamId] = next.title
-
-                val text = when {
-                    now != null && next != null -> "NOW: ${now.title}$timeStr  •  NEXT: ${next.title}"
-                    now != null -> "NOW: ${now.title}$timeStr"
-                    else -> "—"
-                }
-                channel.streamId to text
+            //
+            // A 429 storm on a real provider (tv.media4u.top) showed these 50 back-to-back
+            // calls with zero pacing was enough on its own to trip Cloudflare rate-limiting —
+            // and that rate-limit then also blocked the actual channel-playback request that
+            // happened to land moments later. A small delay between each call keeps this well
+            // under any reasonable per-IP burst limit.
+            channels.take(50).forEach {
+                repository.fetchEpg(it.streamId)
+                kotlinx.coroutines.delay(150)
             }
-            _channelEpgProgress.value = progressMap
-            _channelEpgNextText.value = nextTextMap
+            publishEpgDisplay(channels)
         }
+    }
+
+    private suspend fun publishEpgDisplay(channels: List<ChannelEntity>) {
+        val ids = channels.map { it.streamId }
+        // Chunked to stay well under SQLite's bound-parameter limit for large categories.
+        val epgEntries = ids.chunked(500).flatMap { chunk -> repository.getEpgForStreams(chunk).first() }
+        val epgByStream = epgEntries.groupBy { it.streamId }
+        val nowSecs = System.currentTimeMillis() / 1000
+        val progressMap = mutableMapOf<Int, Int>()
+        val nextTextMap = mutableMapOf<Int, String>()
+        _channelEpgText.value = channels.associate { channel ->
+            val programs = epgByStream[channel.streamId].orEmpty()
+            val now = programs.firstOrNull()
+            val next = programs.drop(1).firstOrNull()
+
+            // Compute progress 0-100 for the current program
+            val prog = if (now != null && now.stopTimestamp > now.startTimestamp) {
+                val elapsed = (nowSecs - now.startTimestamp).coerceAtLeast(0)
+                val total = now.stopTimestamp - now.startTimestamp
+                ((elapsed * 100L) / total).coerceIn(0, 100).toInt()
+            } else 0
+            progressMap[channel.streamId] = prog
+
+            // Time remaining suffix
+            val minutesLeft = if (now != null) ((now.stopTimestamp - nowSecs) / 60).coerceAtLeast(0) else 0L
+            val timeStr = if (now != null && minutesLeft > 0) " (${minutesLeft}m)" else ""
+
+            if (next != null) nextTextMap[channel.streamId] = next.title
+
+            val text = when {
+                now != null && next != null -> "NOW: ${now.title}$timeStr  •  NEXT: ${next.title}"
+                now != null -> "NOW: ${now.title}$timeStr"
+                else -> "—"
+            }
+            channel.streamId to text
+        }
+        _channelEpgProgress.value = progressMap
+        _channelEpgNextText.value = nextTextMap
     }
 
     fun reloadCurrentLiveCategory() {

@@ -239,7 +239,17 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 prefs.setEpgUrl(binding.etEpgUrl.text.toString().trim())
                 Toast.makeText(this@SettingsActivity, "EPG URL saved", Toast.LENGTH_SHORT).show()
+                binding.btnUseDefaultUsEpg.visibility =
+                    if (binding.etEpgUrl.text.isBlank()) View.VISIBLE else View.GONE
             }
+        }
+        binding.btnUseDefaultUsEpg.setOnClickListener {
+            binding.etEpgUrl.setText(com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
+            lifecycleScope.launch {
+                prefs.setEpgUrl(com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
+                Toast.makeText(this@SettingsActivity, "Default US guide set — tap Refresh EPG to load it", Toast.LENGTH_LONG).show()
+            }
+            binding.btnUseDefaultUsEpg.visibility = View.GONE
         }
 
         binding.btnSpeedTest.setOnClickListener { lifecycleScope.launch { runSpeedTest() } }
@@ -1144,6 +1154,8 @@ class SettingsActivity : AppCompatActivity() {
             isLoadingSettings = true
             try {
                 binding.etEpgUrl.setText(prefs.epgUrl.first())
+                binding.btnUseDefaultUsEpg.visibility =
+                    if (binding.etEpgUrl.text.isBlank()) View.VISIBLE else View.GONE
                 when (prefs.preferredFormat.first()) {
                     "ts" -> binding.rbTs.isChecked = true
                     else -> binding.rbM3u8.isChecked = true

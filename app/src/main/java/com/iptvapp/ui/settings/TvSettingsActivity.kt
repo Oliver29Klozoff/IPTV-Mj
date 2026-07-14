@@ -297,6 +297,14 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.SubHeader("epg_sub_sources", "Sources") { toggleSubHeader("EPG", "epg_sub_sources") }
         if (epgUrls.isEmpty()) {
             settingsItems += TvSettingItem.Info("epg_no_sources", "No EPG sources configured")
+            settingsItems += TvSettingItem.Action("epg_add_default_us", "Use Default US Guide") {
+                epgUrls.add(com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
+                lifecycleScope.launch {
+                    prefs.saveEpgUrls(epgUrls)
+                    rebuildList("epg_add_default_us")
+                    toast("Default US guide added — refresh EPG to load it")
+                }
+            }
         }
         epgUrls.forEachIndexed { i, url ->
             settingsItems += TvSettingItem.Action("epg_source_$i",
