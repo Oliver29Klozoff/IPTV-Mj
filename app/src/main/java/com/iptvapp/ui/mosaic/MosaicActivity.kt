@@ -96,6 +96,7 @@ class MosaicActivity : AppCompatActivity() {
         // focusedCell is set to something else, so with no focus at all every tile played its
         // audio simultaneously the instant channels loaded in.
         setFocus(0)
+        cells.getOrNull(0)?.root?.requestFocus()
     }
 
     private fun buildCell(index: Int, player: ExoPlayer, cols: Int): MosaicCell {
@@ -113,6 +114,10 @@ class MosaicActivity : AppCompatActivity() {
                 p.setMargins(margin, margin, margin, margin)
             }
             setBackgroundColor(0xFF111111.toInt())
+            // Built with only touch in mind originally — not reachable via D-pad at all on TV
+            // without these, since a plain FrameLayout isn't focusable by default.
+            isFocusable = true
+            isFocusableInTouchMode = false
         }
 
         val playerView = PlayerView(this).apply {
@@ -194,6 +199,15 @@ class MosaicActivity : AppCompatActivity() {
             true
         }
 
+        // D-pad moves View focus between cells automatically (GridLayout + isFocusable),
+        // but until now nothing reacted to that — only a tap/click called setFocus(), so the
+        // highlight ring never followed the D-pad cursor, making it "hard to tell where the
+        // dpad is." Route D-pad focus into the same setFocus() path used for taps, so the
+        // ring (and audio-follows-focus) tracks the actual key-navigation cursor.
+        root.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) setFocus(index)
+        }
+
         return cell
     }
 
@@ -229,6 +243,17 @@ class MosaicActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     cell.progress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                }
+                // Mosaic previously logged nothing at all — any failure (very plausible given
+                // it opens several simultaneous connections on one account, which can exceed a
+                // provider's concurrent-connection limit) left zero trace anywhere.
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    com.iptvapp.IptvApplication.logPlaybackEvent(
+                        applicationContext,
+                        "MOSAIC PLAYER ERROR: cell=$index streamId=${channel.streamId} " +
+                            "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
+                            "message=${error.message} url=$url"
+                    )
                 }
             })
         }

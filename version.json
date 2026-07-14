@@ -1,7 +1,7 @@
 {
-  "versionCode": 274,
-  "versionName": "4.36",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.36/MKTV.apk",
-  "apkSha256": "1bcc1f790b8139d170846008046c932f18f8591f788514c5175c5389d6b459e3",
-  "changelog": "Added a Record button to the fullscreen live player — starts an immediate recording (30 min/1 hour/2 hours/4 hours) without leaving the player."
+  "versionCode": 275,
+  "versionName": "4.37",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.37/MKTV.apk",
+  "apkSha256": "244c282a37863526ab5f915ab426786b3d7738d777d323fcbd6a0bbc005f257b",
+  "changelog": "Fixed a silent buffering stall (spinner spins forever) to force a reconnect after 20s. Mosaic/Multi-View is now fully reachable on phone and TV, with D-pad focus and a focus-highlight ring."
 }

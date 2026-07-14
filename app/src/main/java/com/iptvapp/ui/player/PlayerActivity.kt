@@ -114,12 +114,21 @@ class PlayerActivity : AppCompatActivity() {
     private var epIndex: Int = -1
     private var upNextJob: kotlinx.coroutines.Job? = null
 
-    private val resizeModes = listOf(
-        AspectRatioFrameLayout.RESIZE_MODE_FIT,
-        AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-        AspectRatioFrameLayout.RESIZE_MODE_FILL
+    // AspectRatioFrameLayout's Fit/Zoom/Stretch only react to a mismatch between the video's
+    // *reported* dimensions and the container's — when a channel's codec metadata already
+    // matches the screen's aspect ratio (the common case: 16:9 IPTV on a 16:9 TV), all three
+    // modes end up visually identical, even though the actual picture can still have baked-in
+    // black bars (common on SD-upscaled channels) that resize modes can't see or crop. The last
+    // two steps add a plain view scale transform on top of Fit, which crops those out
+    // regardless of what the codec reports.
+    private data class ResizeStep(val mode: Int, val scale: Float, val label: String)
+    private val resizeSteps = listOf(
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.0f, "Best Fit"),
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, 1.0f, "Zoom (aspect)"),
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FILL, 1.0f, "Stretch"),
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.15f, "Zoom In 15%"),
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.3f, "Zoom In 30%")
     )
-    private val resizeModeLabels = listOf("Best Fit", "Zoom", "Stretch")
     private var resizeModeIndex = 0
 
     @Inject lateinit var repository: XtreamRepository
@@ -452,6 +461,7 @@ class PlayerActivity : AppCompatActivity() {
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                     .build()
+                lifecycleScope.launch { prefs.setSubtitlesEnabled(false) }
             }
             for (group in textGroups) {
                 for (i in 0 until group.length) {
@@ -464,6 +474,7 @@ class PlayerActivity : AppCompatActivity() {
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, i))
                             .build()
+                        lifecycleScope.launch { prefs.setSubtitlesEnabled(true) }
                     }
                 }
             }
@@ -526,11 +537,18 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleResizeMode() {
-        resizeModeIndex = (resizeModeIndex + 1) % resizeModes.size
-        binding.playerView.resizeMode = resizeModes[resizeModeIndex]
-        binding.playerView.requestLayout()
-        Toast.makeText(this, resizeModeLabels[resizeModeIndex], Toast.LENGTH_SHORT).show()
+        resizeModeIndex = (resizeModeIndex + 1) % resizeSteps.size
+        applyResizeStep()
+        Toast.makeText(this, resizeSteps[resizeModeIndex].label, Toast.LENGTH_SHORT).show()
         resetHideTimer()
+    }
+
+    private fun applyResizeStep() {
+        val step = resizeSteps[resizeModeIndex]
+        binding.playerView.resizeMode = step.mode
+        binding.playerView.scaleX = step.scale
+        binding.playerView.scaleY = step.scale
+        binding.playerView.requestLayout()
     }
 
     // ─── Brightness & Volume gesture helpers ────────────────────────────────
@@ -703,8 +721,13 @@ class PlayerActivity : AppCompatActivity() {
         val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
             .setMediaCodecSelector(codecSelector)
 
+        val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
-            if (tunnelingEnabled) parameters = buildUponParameters().setTunnelingEnabled(true).build()
+            parameters = buildUponParameters()
+                .apply { if (tunnelingEnabled) setTunnelingEnabled(true) }
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !subtitlesEnabled)
+                .setSelectUndeterminedTextLanguage(subtitlesEnabled)
+                .build()
         }
 
         return ExoPlayer.Builder(this)
@@ -715,7 +738,7 @@ class PlayerActivity : AppCompatActivity() {
             .build()
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
-                binding.playerView.resizeMode = resizeModes[resizeModeIndex]
+                applyResizeStep()
                 binding.playerView.useController = false
                 applySubtitleStyle()
 
@@ -799,9 +822,14 @@ class PlayerActivity : AppCompatActivity() {
                                         com.iptvapp.IptvApplication.logPlaybackEvent(
                                             applicationContext,
                                             "BUFFERING STALL: isVod=$isVod streamId=$streamId url=$streamUrl " +
-                                                "stuck 20s+ with no error/ended event"
+                                                "stuck 20s+ with no error/ended event — forcing reconnect"
                                         )
-                                        noteStallEvent()
+                                        // Previously only logged/counted the stall — the player
+                                        // itself was never told to do anything, so with no
+                                        // onPlayerError/STATE_ENDED firing the spinner just spun
+                                        // forever. scheduleRetry() already has the VOD/live-aware
+                                        // backoff+give-up logic used for real errors; reuse it here.
+                                        scheduleRetry()
                                     }
                                 }
                                 hideHandler.postDelayed(bufferWatchdog!!, 20_000L)
@@ -1271,14 +1299,17 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             KeyEvent.KEYCODE_DPAD_UP -> when {
+                // Overlay open → D-pad should move freely between its buttons (Back/Cast/
+                // Record/etc.), same as LEFT/RIGHT already do below. Channel-zap only applies
+                // when the overlay is hidden and up/down has nothing else to navigate.
+                isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 !isVod -> { suppressOverlayOnReady = true; nextChannel(); showChannelOsd(); true }
-                !isOverlayVisible -> { showOverlay(); true }
-                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
+                else -> { showOverlay(); true }
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> when {
+                isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 !isVod -> { suppressOverlayOnReady = true; previousChannel(); showChannelOsd(); true }
-                !isOverlayVisible -> { showOverlay(); true }
-                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
+                else -> { showOverlay(); true }
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 !isOverlayVisible -> { showOverlay(); true }

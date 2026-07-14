@@ -117,7 +117,7 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE }
-    private var currentSection = Section.LIVE
+    private var currentSection = Section.FAVORITES
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -165,8 +165,8 @@ class TvHomeActivity : AppCompatActivity() {
      * Settings → Display, including a matching focus-ring color (not just the hardcoded blue). */
     private fun applyAccent(accent: Int) {
         listOf(
-            binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
-            binding.btnTvSeries, binding.btnTvFavorites, binding.btnTvGuide
+            binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories,
+            binding.btnTvMovies, binding.btnTvSeries, binding.btnTvGuide
         ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
 
         binding.tvMktvWordmark.setTextColor(accent)
@@ -496,8 +496,8 @@ class TvHomeActivity : AppCompatActivity() {
     private fun computeSidebarContentWidth(): Int {
         if (sidebarContentWidthPx > 0) return sidebarContentWidthPx
         val buttons = listOf(
-            binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies, binding.btnTvSeries,
-            binding.btnTvFavorites, binding.btnTvGuide, binding.btnTvRecordings, binding.btnTvSettings
+            binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
+            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvRecordings, binding.btnTvSettings
         )
         val density = resources.displayMetrics.density
         val paint = android.graphics.Paint().apply {
@@ -629,11 +629,11 @@ class TvHomeActivity : AppCompatActivity() {
 
     private fun moveSidebarFocus(up: Boolean) {
         val buttons = listOf(
+            binding.btnTvFavorites,
             binding.btnTvLive,
             binding.btnTvCategories,
             binding.btnTvMovies,
             binding.btnTvSeries,
-            binding.btnTvFavorites,
             binding.btnTvGuide,
             binding.btnTvRecordings,
             binding.btnTvSettings
@@ -647,11 +647,11 @@ class TvHomeActivity : AppCompatActivity() {
     // ── Sidebar navigation ───────────────────────────────────────────────────
 
     private val sectionButtons get() = listOf(
+        binding.btnTvFavorites,
         binding.btnTvLive,
         binding.btnTvCategories,
         binding.btnTvMovies,
         binding.btnTvSeries,
-        binding.btnTvFavorites,
         binding.btnTvGuide
     )
 

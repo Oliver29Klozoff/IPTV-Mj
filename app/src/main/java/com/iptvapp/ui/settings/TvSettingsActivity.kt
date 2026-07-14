@@ -265,6 +265,12 @@ class TvSettingsActivity : AppCompatActivity() {
 
         // ── DISPLAY ──
         currentAccentColorHex = prefs.accentColor.first()
+        // ── MULTI-VIEW ──
+        settingsItems += TvSettingItem.Header("Multi-View")
+        settingsItems += TvSettingItem.Action("open_mosaic", "Open Mosaic (4/6-channel grid)") {
+            startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
+        }
+
         settingsItems += TvSettingItem.Header("Display")
         settingsItems += TvSettingItem.Action("display_accent", "Accent Color",
             value = accentColorName(currentAccentColorHex)) { showAccentColorDialog() }

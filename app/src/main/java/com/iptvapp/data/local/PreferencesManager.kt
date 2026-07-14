@@ -71,6 +71,7 @@ class PreferencesManager @Inject constructor(
         val SUBTITLE_BACKGROUND_COLOR = intPreferencesKey("subtitle_background_color")
         val SUBTITLE_OUTLINE_ENABLED = booleanPreferencesKey("subtitle_outline_enabled")
         val SUBTITLE_OUTLINE_COLOR = intPreferencesKey("subtitle_outline_color")
+        val SUBTITLES_ENABLED = booleanPreferencesKey("subtitles_enabled")
         val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
@@ -132,6 +133,14 @@ class PreferencesManager @Inject constructor(
     suspend fun setSubtitleBackgroundColor(v: Int) = context.dataStore.edit { it[Keys.SUBTITLE_BACKGROUND_COLOR] = v }
     suspend fun setSubtitleOutlineEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SUBTITLE_OUTLINE_ENABLED] = v }
     suspend fun setSubtitleOutlineColor(v: Int) = context.dataStore.edit { it[Keys.SUBTITLE_OUTLINE_COLOR] = v }
+
+    // Subtitles used to require picking a track manually every single session (never
+    // persisted, never auto-selected) — default true so whatever track is available just
+    // shows up on its own, with the existing CC dialog's "Off" option now actually sticking.
+    val subtitlesEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.SUBTITLES_ENABLED] ?: true }
+    suspend fun setSubtitlesEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SUBTITLES_ENABLED] = v }
 
     val traktAccessToken: Flow<String?> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }

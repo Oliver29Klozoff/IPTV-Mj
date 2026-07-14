@@ -77,6 +77,20 @@
                 android:background="#1E2A3A" />
 
             <Button
+                android:id="@+id/btnTvFavorites"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="FAVORITES"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="35dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
                 android:id="@+id/btnTvLive"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
@@ -128,20 +142,6 @@
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="45dp"
-                android:background="@drawable/tv_sidebar_focus"
-                android:focusable="true"
-                android:focusableInTouchMode="false" />
-
-            <Button
-                android:id="@+id/btnTvFavorites"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="FAVORITES"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
-                android:textAllCaps="false"
-                android:gravity="start|center_vertical"
-                android:paddingStart="35dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
                 android:focusableInTouchMode="false" />

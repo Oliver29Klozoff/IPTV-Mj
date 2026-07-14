@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.37 - 2026-07-13
+- **Fixed**: a silent buffering stall (spinner spins forever, no error/reconnect message shown)
+  now forces a reconnect after 20 seconds instead of just logging the stall — previously this
+  spinner had no error to trigger a retry, so it could spin indefinitely.
+- **Added**: Multi-View/Mosaic is now fully reachable — a real button on both phone layouts,
+  a "Multi-View" entry in TV Settings, D-pad focus support, a focus-following highlight ring
+  on TV, and error logging for playback failures (mirrors the rest of the app's crash log).
+
 ## v4.36 - 2026-07-13
 - **Added**: a Record button in the fullscreen live player — starts an immediate recording of
   what you're watching (choose 30 min / 1 hour / 2 hours / 4 hours) without leaving the
