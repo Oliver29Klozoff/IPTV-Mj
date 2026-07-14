@@ -1,7 +1,7 @@
 {
-  "versionCode": 278,
-  "versionName": "4.40",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.40/MKTV.apk",
-  "apkSha256": "10d12f366cdb13ff53d2f62589299dd145245da8282dc8ba8c5751be5631b601",
-  "changelog": "Fixed some providers rejecting requests due to a missing User-Agent, and paced out per-channel EPG prefetching to avoid tripping rate limits. Added a one-tap default US EPG guide option for providers with no program guide."
+  "versionCode": 279,
+  "versionName": "4.41",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.41/MKTV.apk",
+  "apkSha256": "48a3aba46454867a529da8bcb359acfa1c1446444118f4ae44b46a0a3e09feb6",
+  "changelog": "The default US EPG guide option is now an always-visible checkbox/toggle on both phone and TV, instead of a hint that only showed when the EPG URL field was empty."
 }

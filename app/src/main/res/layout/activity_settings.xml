@@ -312,17 +312,14 @@
                                     android:textColor="#000000"
                                     android:textStyle="bold"
                                     android:textSize="13sp" />
-                                <TextView
-                                    android:id="@+id/btnUseDefaultUsEpg"
-                                    android:layout_width="wrap_content"
+                                <CheckBox
+                                    android:id="@+id/cbUseDefaultUsEpg"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="10dp"
-                                    android:clickable="true"
-                                    android:focusable="true"
-                                    android:background="?attr/selectableItemBackground"
-                                    android:padding="4dp"
-                                    android:text="No guide from your provider? Tap to use the default US guide"
-                                    android:textColor="#008CFF"
+                                    android:buttonTint="#008CFF"
+                                    android:text="No guide from your provider? Use the default US guide"
+                                    android:textColor="#AAAAAA"
                                     android:textSize="12sp" />
                             </LinearLayout>
                         </LinearLayout>

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.41 - 2026-07-14
+- **Changed**: the default US EPG guide option (added in v4.40) is now a checkbox/toggle
+  instead of a hint that only appeared when the EPG URL field was empty — it's always visible
+  on both phone (Stream tab) and TV (Settings > EPG) so it's easy to find and toggle off again.
+
 ## v4.40 - 2026-07-14
 - **Fixed**: added a spoofed browser User-Agent to all Xtream API calls — some providers'
   Cloudflare/WAF protection was silently rejecting requests (401/429) that carried OkHttp's

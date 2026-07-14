@@ -237,19 +237,24 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnSaveEpg.setOnClickListener {
             lifecycleScope.launch {
-                prefs.setEpgUrl(binding.etEpgUrl.text.toString().trim())
+                val url = binding.etEpgUrl.text.toString().trim()
+                prefs.setEpgUrl(url)
                 Toast.makeText(this@SettingsActivity, "EPG URL saved", Toast.LENGTH_SHORT).show()
-                binding.btnUseDefaultUsEpg.visibility =
-                    if (binding.etEpgUrl.text.isBlank()) View.VISIBLE else View.GONE
+                binding.cbUseDefaultUsEpg.isChecked = (url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
             }
         }
-        binding.btnUseDefaultUsEpg.setOnClickListener {
-            binding.etEpgUrl.setText(com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
+        binding.cbUseDefaultUsEpg.setOnCheckedChangeListener { _, checked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            val url = if (checked) com.iptvapp.AppConstants.DEFAULT_US_EPG_URL else ""
+            binding.etEpgUrl.setText(url)
             lifecycleScope.launch {
-                prefs.setEpgUrl(com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
-                Toast.makeText(this@SettingsActivity, "Default US guide set — tap Refresh EPG to load it", Toast.LENGTH_LONG).show()
+                prefs.setEpgUrl(url)
+                Toast.makeText(
+                    this@SettingsActivity,
+                    if (checked) "Default US guide set — tap Refresh EPG to load it" else "EPG URL cleared",
+                    Toast.LENGTH_LONG
+                ).show()
             }
-            binding.btnUseDefaultUsEpg.visibility = View.GONE
         }
 
         binding.btnSpeedTest.setOnClickListener { lifecycleScope.launch { runSpeedTest() } }
@@ -1153,9 +1158,9 @@ class SettingsActivity : AppCompatActivity() {
 
             isLoadingSettings = true
             try {
-                binding.etEpgUrl.setText(prefs.epgUrl.first())
-                binding.btnUseDefaultUsEpg.visibility =
-                    if (binding.etEpgUrl.text.isBlank()) View.VISIBLE else View.GONE
+                val savedEpgUrl = prefs.epgUrl.first()
+                binding.etEpgUrl.setText(savedEpgUrl)
+                binding.cbUseDefaultUsEpg.isChecked = (savedEpgUrl == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
                 when (prefs.preferredFormat.first()) {
                     "ts" -> binding.rbTs.isChecked = true
                     else -> binding.rbM3u8.isChecked = true
