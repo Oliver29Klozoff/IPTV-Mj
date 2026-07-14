@@ -1,7 +1,7 @@
 {
-  "versionCode": 275,
-  "versionName": "4.37",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.37/MKTV.apk",
-  "apkSha256": "244c282a37863526ab5f915ab426786b3d7738d777d323fcbd6a0bbc005f257b",
-  "changelog": "Fixed a silent buffering stall (spinner spins forever) to force a reconnect after 20s. Mosaic/Multi-View is now fully reachable on phone and TV, with D-pad focus and a focus-highlight ring."
+  "versionCode": 276,
+  "versionName": "4.38",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.38/MKTV.apk",
+  "apkSha256": "34064054abba24d9910e4eb82d191865f8f780316f9f23a6f920f331ef26a2b7",
+  "changelog": "Trakt moved into the Sync tab on phone. Mosaic/Multi-View moved into Settings > Display, since it only works with multi-connection provider plans."
 }

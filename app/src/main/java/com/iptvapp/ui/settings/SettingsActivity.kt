@@ -77,11 +77,11 @@ class SettingsActivity : AppCompatActivity() {
 
     private val panelViews get() = listOf(
         binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates,
-        binding.sectionBackup, binding.sectionServers, binding.sectionSync, binding.sectionTrakt
+        binding.sectionBackup, binding.sectionServers, binding.sectionSync
     )
     private val navButtonViews get() = listOf(
         binding.headerStream, binding.headerDisplay, binding.headerUpdates,
-        binding.headerBackup, binding.headerServers, binding.headerSync, binding.headerTrakt
+        binding.headerBackup, binding.headerServers, binding.headerSync
     )
 
     // Explains what each control in the currently-open section actually does — many of these
@@ -144,10 +144,9 @@ class SettingsActivity : AppCompatActivity() {
             + "Pairing Code: the code that links devices together — enter the same code on "
             + "every device you want kept in sync.\n\n"
             + "Send Debug Report: uploads device info and recent playback error logs so a "
-            + "problem can be diagnosed — no account credentials are included.",
-        // 6: Trakt
-        "Connect Trakt: links your Trakt.tv account so movies and TV episodes you watch in "
-            + "fullscreen are automatically tracked there — check trakt.tv itself (Currently "
+            + "problem can be diagnosed — no account credentials are included.\n\n"
+            + "Connect Trakt: links your Trakt.tv account so movies and TV episodes you watch "
+            + "in fullscreen are automatically tracked there — check trakt.tv itself (Currently "
             + "Watching / History) to confirm it's working, since there's no local record in "
             + "this app. Only counts something as \"watched\" once you've watched past "
             + "roughly 80% of it, same as Trakt does everywhere else. Only tracks fullscreen "
@@ -394,6 +393,9 @@ class SettingsActivity : AppCompatActivity() {
         setupServers()
         setupSyncSection()
         setupTraktSection()
+        binding.btnOpenMosaic.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
+        }
         observeEpgRefreshWork()
         loadSettings()
     }

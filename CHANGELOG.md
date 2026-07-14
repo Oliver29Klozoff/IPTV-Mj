@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.38 - 2026-07-14
+- **Changed**: on phone, Trakt is now part of the Sync tab instead of its own separate tab
+  (Trakt is itself a form of watch-history sync).
+- **Changed**: Mosaic/Multi-View moved from a top-bar button into Settings → Display, under a
+  new "Multi-View" card — since it opens several simultaneous streams, it only works on
+  provider plans that allow more than one connection at a time.
+
 ## v4.37 - 2026-07-13
 - **Fixed**: a silent buffering stall (spinner spins forever, no error/reconnect message shown)
   now forces a reconnect after 20 seconds instead of just logging the stall — previously this
