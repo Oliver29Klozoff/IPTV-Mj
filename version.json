@@ -1,7 +1,7 @@
 {
-  "versionCode": 276,
-  "versionName": "4.38",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.38/MKTV.apk",
-  "apkSha256": "34064054abba24d9910e4eb82d191865f8f780316f9f23a6f920f331ef26a2b7",
-  "changelog": "Trakt moved into the Sync tab on phone. Mosaic/Multi-View moved into Settings > Display, since it only works with multi-connection provider plans."
+  "versionCode": 277,
+  "versionName": "4.39",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.39/MKTV.apk",
+  "apkSha256": "813462e7282e37452a073aa6615668ee1788469b41da46345b91c15be45f6b36",
+  "changelog": "Favorites tab now sits first on phone, matching TV's tab order. The fullscreen Record button now sits directly next to Play/Pause on both phone and TV."
 }

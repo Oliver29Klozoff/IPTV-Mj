@@ -151,7 +151,7 @@ class HomeViewModel @Inject constructor(
     private var selectedLiveCategoryId: String? = null
     private var selectedVodCategoryId: String? = null
     var inFavoritesMode: Boolean = true
-    var lastTabPosition: Int = 2
+    var lastTabPosition: Int = 0
 
     private val _currentlyPlayingStreamId = MutableStateFlow<Int>(-1)
     val currentlyPlayingStreamId: StateFlow<Int> = _currentlyPlayingStreamId

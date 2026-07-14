@@ -232,19 +232,6 @@
             android:minWidth="0dp"
             android:minHeight="0dp" />
 
-        <!-- Record — live channels only, starts an immediate ad-hoc recording -->
-        <ImageButton
-            android:id="@+id/btnRecord"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:src="@android:drawable/ic_menu_camera"
-            android:nextFocusUp="@id/btnGuide"
-            android:scaleType="fitCenter"
-            android:padding="18dp"
-            android:visibility="gone"
-            app:tint="#FF4444" />
-
         <ImageButton
             android:id="@+id/btnDvrRewind"
             android:layout_width="72dp"
@@ -256,6 +243,20 @@
             android:padding="14dp"
             android:visibility="gone"
             app:tint="#FFFFFF" />
+
+        <!-- Record — live channels only, starts an immediate ad-hoc recording. Placed right
+             next to Play/Pause so it sits with the other transport controls. -->
+        <ImageButton
+            android:id="@+id/btnRecord"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:background="@drawable/tv_sidebar_focus"
+            android:src="@android:drawable/ic_menu_camera"
+            android:nextFocusUp="@id/btnGuide"
+            android:scaleType="fitCenter"
+            android:padding="18dp"
+            android:visibility="gone"
+            app:tint="#FF4444" />
 
         <ImageButton
             android:id="@+id/btnPlayPause"

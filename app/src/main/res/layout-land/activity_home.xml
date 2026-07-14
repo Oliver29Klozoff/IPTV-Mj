@@ -35,6 +35,18 @@
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" />
 
         <Button
+            android:id="@+id/landBtnFavorites"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="FAVORITES"
+            android:textColor="#008CFF"
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
             android:id="@+id/landBtnLive"
             android:layout_width="match_parent"
             android:layout_height="44dp"
@@ -57,13 +69,23 @@
             android:paddingHorizontal="14dp" />
 
         <Button
-            android:id="@+id/landBtnFavorites"
+            android:id="@+id/landBtnMovies"
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:background="@android:color/transparent"
-            android:text="FAVORITES"
-            android:textColor="#008CFF"
-            android:textStyle="bold"
+            android:text="MOVIES"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp" />
+
+        <Button
+            android:id="@+id/landBtnSeries"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:text="SERIES"
+            android:textColor="#AAAAAA"
             android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
@@ -85,28 +107,6 @@
             android:layout_height="44dp"
             android:background="@android:color/transparent"
             android:text="HISTORY"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
-            android:paddingHorizontal="14dp" />
-
-        <Button
-            android:id="@+id/landBtnMovies"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@android:color/transparent"
-            android:text="MOVIES"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:gravity="start|center_vertical"
-            android:paddingHorizontal="14dp" />
-
-        <Button
-            android:id="@+id/landBtnSeries"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@android:color/transparent"
-            android:text="SERIES"
             android:textColor="#AAAAAA"
             android:textSize="12sp"
             android:gravity="start|center_vertical"
@@ -352,13 +352,13 @@
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="LIVE" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CATEGORIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MOVIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SERIES" />
-        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HISTORY" />
-        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HISTORY" />
     </com.google.android.material.tabs.TabLayout>
 
     <TextView android:id="@+id/tvHeroDescription" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />

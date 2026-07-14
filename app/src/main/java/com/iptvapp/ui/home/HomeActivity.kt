@@ -89,7 +89,7 @@ class HomeActivity : AppCompatActivity() {
     }
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         // Always return to Favorites on fullscreen exit
-        binding.tabLayout.getTabAt(2)?.select()
+        binding.tabLayout.getTabAt(0)?.select()
         showFavorites()
         if (result.resultCode == Activity.RESULT_OK) {
             val returnedId  = result.data?.getIntExtra("stream_id", -1) ?: -1
@@ -234,7 +234,7 @@ class HomeActivity : AppCompatActivity() {
         // Always start on FAVORITES. Call showFavorites() explicitly because onTabSelected
         // may not fire if TabLayout restores to tab 2 from its own saved instance state,
         // which would leave _channels showing stale data from the previous session.
-        binding.tabLayout.getTabAt(2)?.select()
+        binding.tabLayout.getTabAt(0)?.select()
         showFavorites()
         // Landscape: land on the plain sidebar + mini player view (last-playing channel
         // loads into it via the existing initMiniPlayer()/restoredMiniState flow either
@@ -283,13 +283,13 @@ class HomeActivity : AppCompatActivity() {
         val root = binding.root
         fun btn(id: Int) = root.findViewById<android.widget.Button?>(id)
         val tabs = listOf(
-            btn(R.id.landBtnLive) to 0,
-            btn(R.id.landBtnCategories) to 1,
-            btn(R.id.landBtnFavorites) to 2,
-            btn(R.id.landBtnGuide) to 3,
-            btn(R.id.landBtnWatching) to 4,
-            btn(R.id.landBtnMovies) to 5,
-            btn(R.id.landBtnSeries) to 6
+            btn(R.id.landBtnFavorites) to 0,
+            btn(R.id.landBtnLive) to 1,
+            btn(R.id.landBtnCategories) to 2,
+            btn(R.id.landBtnMovies) to 3,
+            btn(R.id.landBtnSeries) to 4,
+            btn(R.id.landBtnGuide) to 5,
+            btn(R.id.landBtnWatching) to 6
         )
         tabs.forEach { (button, index) ->
             button?.setOnClickListener {
@@ -313,18 +313,18 @@ class HomeActivity : AppCompatActivity() {
                     // Otherwise it's "go back" from a drilled-into category's channel list
                     // up to that tab's category list. Tabs with no categories (Series/
                     // History/Favorites/Guide) have nothing to go back to.
-                    tab?.position in listOf(0, 1, 5) -> landscapeShowCategoriesMode()
+                    tab?.position in listOf(1, 2, 3) -> landscapeShowCategoriesMode()
                 }
             }
         })
-        // Sync initial highlight to tab 2 (Favorites)
+        // Sync initial highlight to tab 0 (Favorites)
         btn(R.id.landBtnFavorites)?.setTextColor(currentAccent)
     }
 
     private fun isLandscapeMode() =
         resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-    // Live/Categories/Movies (tabs 0-2) drill down: tap a category to replace rvCategories
+    // Live/Categories/Movies (tabs 1-3) drill down: tap a category to replace rvCategories
     // with rvChannels in the same column; tap the sidebar tab again to come back. Series/
     // History/Favorites/Guide have no categories, so they go straight to "channels" mode.
     private fun landscapeShowCategoriesMode() {
@@ -336,9 +336,9 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvChannels.visibility = View.GONE
         val cats = when (binding.tabLayout.selectedTabPosition) {
-            0 -> viewModel.liveCategories.value
-            1 -> viewModel.favoriteLiveCategories.value
-            5 -> viewModel.vodCategories.value
+            1 -> viewModel.liveCategories.value
+            2 -> viewModel.favoriteLiveCategories.value
+            3 -> viewModel.vodCategories.value
             else -> emptyList()
         }
         resizeCategoriesColumnToContent(cats)
@@ -409,10 +409,10 @@ class HomeActivity : AppCompatActivity() {
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
-            R.id.landBtnLive to 0, R.id.landBtnCategories to 1,
-            R.id.landBtnFavorites to 2, R.id.landBtnGuide to 3,
-            R.id.landBtnWatching to 4, R.id.landBtnMovies to 5,
-            R.id.landBtnSeries to 6
+            R.id.landBtnFavorites to 0, R.id.landBtnLive to 1,
+            R.id.landBtnCategories to 2, R.id.landBtnMovies to 3,
+            R.id.landBtnSeries to 4, R.id.landBtnGuide to 5,
+            R.id.landBtnWatching to 6
         )
         sidebarMap.forEach { (id, idx) ->
             binding.root.findViewById<android.widget.Button?>(id)?.setTextColor(
@@ -688,7 +688,7 @@ class HomeActivity : AppCompatActivity() {
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
         binding.btnVodSort?.setOnClickListener {
-            if (binding.tabLayout.selectedTabPosition == 6) showSeriesSortDialog() else showVodSortDialog()
+            if (binding.tabLayout.selectedTabPosition == 4) showSeriesSortDialog() else showVodSortDialog()
         }
         binding.btnSort?.setOnClickListener {
             viewModel.cycleSort()
@@ -797,14 +797,14 @@ class HomeActivity : AppCompatActivity() {
         categoryAdapter = CategoryAdapter(
             onCategoryClick = { category ->
                 when (binding.tabLayout.selectedTabPosition) {
-                    0 -> viewModel.selectLiveCategory(category.categoryId)
-                    1 -> viewModel.selectFavCategory(category.categoryId)
-                    5 -> viewModel.selectVodCategory(category.categoryId)
+                    1 -> viewModel.selectLiveCategory(category.categoryId)
+                    2 -> viewModel.selectFavCategory(category.categoryId)
+                    3 -> viewModel.selectVodCategory(category.categoryId)
                 }
                 landscapeShowChannelsMode()
             },
             onCategoryLongClick = { category ->
-                if (binding.tabLayout.selectedTabPosition == 0) {
+                if (binding.tabLayout.selectedTabPosition == 1) {
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
                 }
@@ -921,21 +921,21 @@ class HomeActivity : AppCompatActivity() {
     private fun setupTabs() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
-                viewModel.lastTabPosition = tab?.position ?: 2
-                binding.btnVodSort?.visibility = if (tab?.position == 5 || tab?.position == 6) View.VISIBLE else View.GONE
+                viewModel.lastTabPosition = tab?.position ?: 0
+                binding.btnVodSort?.visibility = if (tab?.position == 3 || tab?.position == 4) View.VISIBLE else View.GONE
                 when (tab?.position) {
-                    0 -> showLive()
-                    1 -> showFavCategories()
-                    2 -> { showFavorites(); viewModel.checkFavoritesHealth() }
-                    3 -> showGuide()
-                    4 -> showWatching()
-                    5 -> showVod()
-                    6 -> showSeries()
+                    0 -> { showFavorites(); viewModel.checkFavoritesHealth() }
+                    1 -> showLive()
+                    2 -> showFavCategories()
+                    3 -> showVod()
+                    4 -> showSeries()
+                    5 -> showGuide()
+                    6 -> showWatching()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
-                if (tab?.position == 2) detachFavDrag()
-                if (tab?.position == 3) binding.btnTimelineView?.visibility = View.GONE
+                if (tab?.position == 0) detachFavDrag()
+                if (tab?.position == 5) binding.btnTimelineView?.visibility = View.GONE
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
@@ -969,9 +969,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
-            5 -> viewModel.searchVod(query)
-            6 -> viewModel.searchSeries(query)
-            2 -> viewModel.searchFavorites(query)
+            3 -> viewModel.searchVod(query)
+            4 -> viewModel.searchSeries(query)
+            0 -> viewModel.searchFavorites(query)
             else -> viewModel.searchChannels(query)
         }
     }
@@ -1237,7 +1237,7 @@ class HomeActivity : AppCompatActivity() {
             val favorites = viewModel.getFavoriteChannelsSnapshot()
             if (!pendingScrollToCurrent) return@launch
             pendingScrollToCurrent = false
-            if (binding.tabLayout.selectedTabPosition != 2) return@launch
+            if (binding.tabLayout.selectedTabPosition != 0) return@launch
             channelAdapter.submitList(favorites)
             val streamId = viewModel.currentlyPlayingStreamId.value
             if (streamId >= 0) scrollFavoritesToStreamId(streamId)
@@ -1438,7 +1438,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.liveCategories.collect { cats ->
-                if (binding.tabLayout.selectedTabPosition == 0) {
+                if (binding.tabLayout.selectedTabPosition == 1) {
                     updateGenreChips(cats)
                     val filtered = genreFilter(cats)
                     submitCategories(filtered)
@@ -1451,7 +1451,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.favoriteLiveCategories.collect { favs ->
                 categoryAdapter.submitFavoriteCategoryIds(favs.map { it.categoryId }.toSet())
-                if (binding.tabLayout.selectedTabPosition == 1) {
+                if (binding.tabLayout.selectedTabPosition == 2) {
                     submitCategories(favs)
                     if (favs.isNotEmpty()) viewModel.selectFavCategory(favs.first().categoryId)
                     else channelAdapter.submitList(emptyList())
@@ -1463,7 +1463,7 @@ class HomeActivity : AppCompatActivity() {
                 // Guard: never let live-category channels bleed onto the Favorites tab.
                 // inFavoritesMode is false whenever selectLiveCategory was the last call;
                 // if that happens to race with showFavorites(), we drop the stale update.
-                if (binding.tabLayout.selectedTabPosition == 2 && !viewModel.inFavoritesMode) return@collect
+                if (binding.tabLayout.selectedTabPosition == 0 && !viewModel.inFavoritesMode) return@collect
                 channelAdapter.submitList(list)
                 viewModel.loadEpgForChannels(list)
                 if (pendingScrollToCurrent && list.isNotEmpty()) {
@@ -1483,19 +1483,19 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.vod.collect {
                 lastVodList = it
-                if (binding.tabLayout.selectedTabPosition == 5) vodAdapter.submitList(viewModel.applyVodSort(it))
+                if (binding.tabLayout.selectedTabPosition == 3) vodAdapter.submitList(viewModel.applyVodSort(it))
             }
         }
         lifecycleScope.launch {
             viewModel.vodSort.collect {
-                if (binding.tabLayout.selectedTabPosition == 5) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
+                if (binding.tabLayout.selectedTabPosition == 3) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
             }
         }
         var lastSeriesList: List<com.iptvapp.data.local.entities.SeriesEntity> = emptyList()
         lifecycleScope.launch {
             viewModel.series.collect {
                 lastSeriesList = it
-                if (binding.tabLayout.selectedTabPosition == 6) {
+                if (binding.tabLayout.selectedTabPosition == 4) {
                     updateSeriesGenreChips(it)
                     submitFilteredSeries(it)
                 }
@@ -1503,7 +1503,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.seriesSort.collect {
-                if (binding.tabLayout.selectedTabPosition == 6) submitFilteredSeries(lastSeriesList)
+                if (binding.tabLayout.selectedTabPosition == 4) submitFilteredSeries(lastSeriesList)
             }
         }
         lifecycleScope.launch {
@@ -1515,7 +1515,7 @@ class HomeActivity : AppCompatActivity() {
             viewModel.currentlyPlayingStreamId.collect { streamId ->
                 channelAdapter.setCurrentlyPlayingStreamId(streamId)
                 if (pendingScrollToCurrent && streamId >= 0 && channelAdapter.currentList.isNotEmpty() &&
-                    binding.tabLayout.selectedTabPosition == 2) {
+                    binding.tabLayout.selectedTabPosition == 0) {
                     pendingScrollToCurrent = false
                     scrollFavoritesToStreamId(streamId)
                 }
@@ -1533,7 +1533,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
-                if (binding.tabLayout.selectedTabPosition == 5) {
+                if (binding.tabLayout.selectedTabPosition == 3) {
                     updateVodGenreChips(it)
                     submitFilteredVodCategories(it)
                 }
@@ -1541,7 +1541,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.continueWatching.collect { list ->
-                if (binding.tabLayout.selectedTabPosition == 4) vodAdapter.submitList(list)
+                if (binding.tabLayout.selectedTabPosition == 6) vodAdapter.submitList(list)
             }
         }
         lifecycleScope.launch {

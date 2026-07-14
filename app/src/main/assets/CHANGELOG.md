@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.39 - 2026-07-14
+- **Changed**: on phone, the Favorites tab (and sidebar entry in landscape) now sits first,
+  matching TV's tab order — Favorites, Live, Categories, Movies, Series, Guide, History.
+- **Changed**: the Record button in fullscreen live playback now sits directly next to
+  Play/Pause instead of two spots over, on both phone and TV.
+
 ## v4.38 - 2026-07-14
 - **Changed**: on phone, Trakt is now part of the Sync tab instead of its own separate tab
   (Trakt is itself a form of watch-history sync).
