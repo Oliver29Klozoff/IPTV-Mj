@@ -77,6 +77,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.bottomControls.visibility = View.GONE
         binding.btnDvrRewind.visibility = View.GONE
         binding.btnDvrLive.visibility = View.GONE
+        binding.btnRecord.visibility = View.GONE
         binding.btnCast.visibility = View.GONE
         binding.bufferHealthBadge.visibility = View.GONE
     }
@@ -306,6 +307,25 @@ class PlayerActivity : AppCompatActivity() {
             }
             resetHideTimer()
         }
+        binding.btnRecord.setOnClickListener { showRecordDialog() }
+    }
+
+    private fun showRecordDialog() {
+        if (isVod || streamId == -1) return
+        val options = arrayOf("30 minutes", "1 hour", "2 hours", "4 hours")
+        val durationsMs = longArrayOf(30 * 60_000L, 60 * 60_000L, 120 * 60_000L, 240 * 60_000L)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Record \"$streamTitle\"")
+            .setItems(options) { _, which ->
+                startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+                    putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, streamId)
+                    putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, System.currentTimeMillis())
+                    putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationsMs[which])
+                })
+                Toast.makeText(this, "Recording started: ${options[which]}", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+        resetHideTimer()
     }
 
     private fun updateStats() {
@@ -1157,6 +1177,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnDvrRewind.visibility = View.VISIBLE
             binding.btnDvrLive.visibility = View.VISIBLE
             updateDvrLiveButton()
+            if (streamId != -1) binding.btnRecord.visibility = View.VISIBLE
         }
         if (castAvailable) binding.btnCast.visibility = View.VISIBLE
         if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE

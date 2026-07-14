@@ -1,7 +1,7 @@
 {
-  "versionCode": 273,
-  "versionName": "4.35",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.35/MKTV.apk",
-  "apkSha256": "6f5f877b9d8d187da10ebbac8e7edec461b81b1f6ad26ed1fe0a9662d05bfdf8",
-  "changelog": "Recordings can now be renamed (long-press). Trakt watched-history sync now shows which titles it couldn't match instead of silently skipping them. The search box hint now shows your current server's nickname so it's visible at a glance."
+  "versionCode": 274,
+  "versionName": "4.36",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.36/MKTV.apk",
+  "apkSha256": "1bcc1f790b8139d170846008046c932f18f8591f788514c5175c5389d6b459e3",
+  "changelog": "Added a Record button to the fullscreen live player — starts an immediate recording (30 min/1 hour/2 hours/4 hours) without leaving the player."
 }

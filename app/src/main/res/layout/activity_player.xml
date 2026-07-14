@@ -205,6 +205,20 @@
         app:layout_constraintEnd_toStartOf="@id/btnBack"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Record button — live channels only, starts an immediate ad-hoc recording -->
+    <ImageButton
+        android:id="@+id/btnRecord"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:background="@drawable/tv_sidebar_focus"
+        android:src="@android:drawable/ic_menu_camera"
+        android:padding="12dp"
+        app:tint="#FF4444"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/btnCast"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- Bottom controls: Sleep | Play/Pause | CC -->
     <LinearLayout
         android:id="@+id/bottomControls"

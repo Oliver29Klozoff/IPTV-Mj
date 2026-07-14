@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.36 - 2026-07-13
+- **Added**: a Record button in the fullscreen live player — starts an immediate recording of
+  what you're watching (choose 30 min / 1 hour / 2 hours / 4 hours) without leaving the
+  player or navigating to the recordings screen first.
+
 ## v4.35 - 2026-07-13
 - **Added**: recordings can now be renamed (long-press a recording, both platforms) instead
   of being stuck with the auto-generated channel+timestamp name.
