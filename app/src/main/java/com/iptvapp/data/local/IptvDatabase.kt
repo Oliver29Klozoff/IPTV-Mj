@@ -17,9 +17,10 @@ import com.iptvapp.data.local.entities.*
         RecordingEntity::class,
         ChannelReliabilityEntity::class,
         EpisodeWatchedEntity::class,
-        MergedChannelEntity::class
+        MergedChannelEntity::class,
+        FavoriteFolderEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun reliabilityDao(): ReliabilityDao
     abstract fun episodeWatchedDao(): EpisodeWatchedDao
     abstract fun mergedChannelDao(): MergedChannelDao
+    abstract fun favoriteFolderDao(): FavoriteFolderDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -164,6 +166,19 @@ abstract class IptvDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE merged_channels ADD COLUMN categoryId TEXT")
                 db.execSQL("ALTER TABLE merged_channels ADD COLUMN categoryName TEXT")
+            }
+        }
+
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS favorite_folders (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        sortOrder INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("ALTER TABLE channels ADD COLUMN favoriteFolderId INTEGER")
             }
         }
     }

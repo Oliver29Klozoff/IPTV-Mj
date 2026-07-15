@@ -1,7 +1,7 @@
 {
-  "versionCode": 281,
-  "versionName": "4.43",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.43/MKTV.apk",
-  "apkSha256": "75cfb255c699068828ac5956ff7e7322c2d0745c2a4e753d3055f88d79aaae2d",
-  "changelog": "Fixed landscape mode having no refresh option for any tab, including All Providers - long-press the ALL PROVIDERS sidebar entry to refresh."
+  "versionCode": 282,
+  "versionName": "4.44",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.44/MKTV.apk",
+  "apkSha256": "87ce0260919a5abc8f841140a94b7da4156d44af1cb243a1b3a3099881407f45",
+  "changelog": "Added custom favorite folders on phone - organize favorites into named groups (Sports, News, etc.) with the same drill-down style as Movies, working identically in landscape. Long-press a favorite to move it into a folder."
 }

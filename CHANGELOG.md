@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.44 - 2026-07-15
+- **Added**: custom favorite folders (phone) — organize favorites into named groups (e.g.
+  "Sports", "News") instead of one flat list, same drill-down style as Movies. The Favorites
+  tab now opens to a picker: "All Favorites", "Unsorted", and any folders you've created.
+  Long-press a favorite channel → "Move to Folder" to assign it (create a new folder inline);
+  long-press a folder in the picker to rename or delete it. Works identically in landscape.
+  TV keeps the existing flat Favorites list for now.
+
 ## v4.43 - 2026-07-15
 - **Fixed**: landscape mode (used by car-dock/head-unit devices) had no way to refresh
   channels at all for any tab, including the new All Providers view — long-press the "ALL

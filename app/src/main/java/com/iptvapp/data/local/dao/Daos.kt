@@ -80,6 +80,31 @@ interface ChannelDao {
     suspend fun restoreWatchHistory(streamId: Int, lastWatched: Long, viewCount: Int)
     @Query("DELETE FROM channels WHERE categoryId LIKE 'm3u_%'")
     suspend fun deleteM3uChannels()
+
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 AND favoriteFolderId = :folderId ORDER BY favOrder ASC, name ASC")
+    fun getFavoritesInFolder(folderId: Int): Flow<List<ChannelEntity>>
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 AND favoriteFolderId IS NULL ORDER BY favOrder ASC, name ASC")
+    fun getUnfiledFavorites(): Flow<List<ChannelEntity>>
+    @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM channels WHERE isFavorite = 1 AND isHidden = 0 GROUP BY favoriteFolderId")
+    fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
+    @Query("UPDATE channels SET favoriteFolderId = :folderId WHERE streamId = :streamId")
+    suspend fun setFavoriteFolder(streamId: Int, folderId: Int?)
+    @Query("UPDATE channels SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
+    suspend fun clearFolderFromChannels(folderId: Int)
+}
+
+data class FavoriteFolderCount(val favoriteFolderId: Int?, val channelCount: Int)
+
+@Dao
+interface FavoriteFolderDao {
+    @Query("SELECT * FROM favorite_folders ORDER BY sortOrder ASC, name ASC")
+    fun getAll(): Flow<List<FavoriteFolderEntity>>
+    @Insert
+    suspend fun insert(folder: FavoriteFolderEntity): Long
+    @Query("UPDATE favorite_folders SET name = :name WHERE id = :id")
+    suspend fun rename(id: Int, name: String)
+    @Query("DELETE FROM favorite_folders WHERE id = :id")
+    suspend fun delete(id: Int)
 }
 
 @Dao

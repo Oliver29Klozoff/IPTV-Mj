@@ -448,6 +448,33 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // ── Favorite folders ──────────────────────────────────────────────────────
+    fun getFavoriteFolders(): Flow<List<FavoriteFolderEntity>> = db.favoriteFolderDao().getAll()
+
+    suspend fun createFavoriteFolder(name: String): Int {
+        val existing = db.favoriteFolderDao().getAll().first()
+        return db.favoriteFolderDao().insert(
+            FavoriteFolderEntity(name = name, sortOrder = existing.size)
+        ).toInt()
+    }
+
+    suspend fun renameFavoriteFolder(id: Int, name: String) = db.favoriteFolderDao().rename(id, name)
+
+    suspend fun deleteFavoriteFolder(id: Int) {
+        db.channelDao().clearFolderFromChannels(id)
+        db.favoriteFolderDao().delete(id)
+    }
+
+    suspend fun setChannelFavoriteFolder(streamId: Int, folderId: Int?) =
+        db.channelDao().setFavoriteFolder(streamId, folderId)
+
+    fun getFavoritesInFolder(folderId: Int): Flow<List<ChannelEntity>> = db.channelDao().getFavoritesInFolder(folderId)
+
+    fun getUnfiledFavorites(): Flow<List<ChannelEntity>> = db.channelDao().getUnfiledFavorites()
+
+    fun getFavoriteCountsByFolder(): Flow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> =
+        db.channelDao().getFavoriteCountsByFolder()
+
     suspend fun checkStreamHealth(url: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val client = okhttp3.OkHttpClient.Builder()

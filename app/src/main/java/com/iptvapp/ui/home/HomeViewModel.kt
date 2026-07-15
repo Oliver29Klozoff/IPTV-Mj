@@ -72,6 +72,53 @@ class HomeViewModel @Inject constructor(
     private val _continueWatching = MutableStateFlow<List<VodEntity>>(emptyList())
     val continueWatching: StateFlow<List<VodEntity>> = _continueWatching
 
+    // User-created groups for organizing favorites (e.g. "Sports", "News") — same drill-down
+    // shape as Live/Movies categories, but user-named instead of provider-supplied.
+    private val _favoriteFolders = MutableStateFlow<List<com.iptvapp.data.local.entities.FavoriteFolderEntity>>(emptyList())
+    val favoriteFolders: StateFlow<List<com.iptvapp.data.local.entities.FavoriteFolderEntity>> = _favoriteFolders
+
+    private val _favoriteFolderCounts = MutableStateFlow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>>(emptyList())
+    val favoriteFolderCounts: StateFlow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> = _favoriteFolderCounts
+
+    // null = "All Favorites" (every favorite, unfiltered — the original flat view),
+    // -1 = "Unsorted" (favorites not yet assigned to any folder), >=0 = a real folder id.
+    var selectedFavoriteFolder: Int? = null; private set
+
+    // Reuses the same channelJob every other Favorites/Live channel-list load already uses
+    // (searchFavorites, showFavoriteChannels) so switching between them cancels correctly.
+    fun selectFavoriteFolderView(folderId: Int?) {
+        inFavoritesMode = true
+        selectedFavoriteFolder = folderId
+        searchJob?.cancel()
+        channelJob?.cancel()
+        channelJob = viewModelScope.launch {
+            val flow = when (folderId) {
+                null -> repository.getFavoriteChannels()
+                -1 -> repository.getUnfiledFavorites()
+                else -> repository.getFavoritesInFolder(folderId)
+            }
+            flow.collectLatest { _channels.value = it }
+        }
+    }
+
+    fun createFavoriteFolder(name: String) {
+        viewModelScope.launch { repository.createFavoriteFolder(name) }
+    }
+
+    suspend fun createFavoriteFolderAndGetId(name: String): Int = repository.createFavoriteFolder(name)
+
+    fun renameFavoriteFolder(id: Int, name: String) {
+        viewModelScope.launch { repository.renameFavoriteFolder(id, name) }
+    }
+
+    fun deleteFavoriteFolder(id: Int) {
+        viewModelScope.launch { repository.deleteFavoriteFolder(id) }
+    }
+
+    fun setChannelFavoriteFolder(streamId: Int, folderId: Int?) {
+        viewModelScope.launch { repository.setChannelFavoriteFolder(streamId, folderId) }
+    }
+
     // "All Providers" is a 3-level drill-down (server -> category -> channels), same shape as
     // Live's category drilldown — a single provider can itself have tens of thousands of
     // channels, so neither a cross-server nor a per-server flat list is usable.
@@ -313,6 +360,12 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getMergedServerSummaries().collectLatest { _mergedServers.value = it }
+            }
+            launch {
+                repository.getFavoriteFolders().collectLatest { _favoriteFolders.value = it }
+            }
+            launch {
+                repository.getFavoriteCountsByFolder().collectLatest { _favoriteFolderCounts.value = it }
             }
         }
 
@@ -592,7 +645,7 @@ class HomeViewModel @Inject constructor(
      * changing (e.g. after just browsing Live/Categories/Guide) never redelivers it to
      * collectors — this always re-queries so the Activity can reliably scroll to what's
      * playing on every return to the tab, not just the first time. */
-    suspend fun getFavoriteChannelsSnapshot(): List<ChannelEntity> = repository.getFavoriteChannels().first()
+    suspend fun getFavoriteChannelsSnapshot(): List<ChannelEntity> = favoriteFlowForSelection().first()
 
     /** Same one-shot-read reasoning as [getFavoriteChannelsSnapshot] but for a specific live
      * category — lets a caller scroll to a channel right after selecting its category without
@@ -600,29 +653,27 @@ class HomeViewModel @Inject constructor(
     suspend fun getChannelsByCategorySnapshot(categoryId: String): List<ChannelEntity> =
         repository.getChannelsByCategory(categoryId).first()
 
-    fun showFavoriteChannels() {
-        inFavoritesMode = true
-        searchJob?.cancel()
-        channelJob?.cancel()
-        channelJob = viewModelScope.launch {
-            repository.getFavoriteChannels().collectLatest { favorites ->
-                _channels.value = favorites
-            }
-        }
+    fun showFavoriteChannels() = selectFavoriteFolderView(null)
+
+    private fun favoriteFlowForSelection() = when (selectedFavoriteFolder) {
+        null -> repository.getFavoriteChannels()
+        -1 -> repository.getUnfiledFavorites()
+        else -> repository.getFavoritesInFolder(selectedFavoriteFolder!!)
     }
 
-    /** Filters within the favorites list rather than searching the whole channel catalog,
-     * so the Favorites tab's search box stays scoped to what's actually shown there. */
+    /** Filters within whichever favorites view (All/Unsorted/folder) is currently selected,
+     * rather than searching the whole favorites list — so the Favorites tab's search box
+     * stays scoped to what's actually shown there. */
     fun searchFavorites(query: String) {
         inFavoritesMode = true
         searchJob?.cancel()
         channelJob?.cancel()
         if (query.isBlank()) {
-            showFavoriteChannels()
+            selectFavoriteFolderView(selectedFavoriteFolder)
             return
         }
         searchJob = viewModelScope.launch {
-            repository.getFavoriteChannels().collectLatest { favorites ->
+            favoriteFlowForSelection().collectLatest { favorites ->
                 _channels.value = favorites.filter {
                     it.name.contains(query, ignoreCase = true) ||
                         it.streamId.toString().contains(query)

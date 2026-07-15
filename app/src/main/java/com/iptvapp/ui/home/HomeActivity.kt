@@ -3,6 +3,7 @@ package com.iptvapp.ui.home
 import com.iptvapp.R
 import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.util.isLargeScreenDevice
+import androidx.appcompat.app.AlertDialog
 import javax.inject.Inject
 
 import android.app.Activity
@@ -324,8 +325,9 @@ class HomeActivity : AppCompatActivity() {
                     contentColumnCollapsed -> expandContentColumnToChannels()
                     // Otherwise it's "go back" from a drilled-into category's channel list
                     // up to that tab's category list. Tabs with no categories (Series/
-                    // History/Favorites/Guide) have nothing to go back to.
+                    // History/Guide) have nothing to go back to.
                     tab?.position in listOf(1, 2, 3) -> landscapeShowCategoriesMode()
+                    tab?.position == 0 -> showFavorites()
                     tab?.position == 7 -> showAllProviders()
                 }
             }
@@ -844,6 +846,13 @@ class HomeActivity : AppCompatActivity() {
                         landscapeShowChannelsMode()
                         binding.rvChannels.adapter = mergedChannelAdapter
                     }
+                } else if (binding.tabLayout.selectedTabPosition == 0) {
+                    when (category.categoryId) {
+                        FAV_NEW_FOLDER_ID -> showCreateFavoriteFolderDialog()
+                        FAV_ALL_ID -> showFavoriteFolderChannels(null)
+                        FAV_UNSORTED_ID -> showFavoriteFolderChannels(-1)
+                        else -> showFavoriteFolderChannels(category.categoryId.toInt())
+                    }
                 } else {
                     when (binding.tabLayout.selectedTabPosition) {
                         1 -> viewModel.selectLiveCategory(category.categoryId)
@@ -857,6 +866,10 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == 1) {
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
+                } else if (binding.tabLayout.selectedTabPosition == 0 &&
+                    category.categoryId !in listOf(FAV_ALL_ID, FAV_UNSORTED_ID, FAV_NEW_FOLDER_ID)
+                ) {
+                    showFolderOptionsDialog(category.categoryId.toInt())
                 }
             }
         )
@@ -1027,7 +1040,18 @@ class HomeActivity : AppCompatActivity() {
         when (binding.tabLayout.selectedTabPosition) {
             3 -> viewModel.searchVod(query)
             4 -> viewModel.searchSeries(query)
-            0 -> viewModel.searchFavorites(query)
+            0 -> {
+                if (query.isBlank()) {
+                    // Back to the folder picker, not a dead end.
+                    showFavorites()
+                } else {
+                    viewModel.searchFavorites(query)
+                    landscapeShowChannelsMode()
+                    binding.rvCategories.visibility = View.GONE
+                    binding.rvChannels.adapter = channelAdapter
+                    channelAdapter.showDragHandles = false
+                }
+            }
             7 -> {
                 if (query.isBlank()) {
                     // Back to wherever the server/category drill-down was, not a dead end.
@@ -1378,12 +1402,45 @@ class HomeActivity : AppCompatActivity() {
 
     private var favItemTouchHelper: ItemTouchHelper? = null
 
+    private val FAV_ALL_ID = "__all__"
+    private val FAV_UNSORTED_ID = "__unsorted__"
+    private val FAV_NEW_FOLDER_ID = "__new_folder__"
+
+    // Favorites now drills down the same way Movies/Live do: pick "All Favorites", "Unsorted",
+    // or a named folder first, then see that group's channels. Folders are user-created (long-
+    // press a favorite -> "Move to Folder"), not provider-supplied.
     private fun showFavorites() {
-        landscapeShowChannelsMode()
+        landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
+        binding.rvCategories.visibility = View.VISIBLE
+        binding.rvCategories.adapter = categoryAdapter
+        binding.rvChannels.adapter = channelAdapter
+        submitCategories(favoriteFoldersToSynthetic())
+    }
+
+    private fun favoriteFoldersToSynthetic(): List<CategoryEntity> {
+        val counts = viewModel.favoriteFolderCounts.value.associate { it.favoriteFolderId to it.channelCount }
+        val totalCount = counts.values.sum()
+        val unsortedCount = counts[null] ?: 0
+        val list = mutableListOf(
+            CategoryEntity(FAV_ALL_ID, "All Favorites ($totalCount)", 0, "fav_folder"),
+        )
+        if (unsortedCount > 0) {
+            list.add(CategoryEntity(FAV_UNSORTED_ID, "Unsorted ($unsortedCount)", 0, "fav_folder"))
+        }
+        viewModel.favoriteFolders.value.forEach { folder ->
+            val count = counts[folder.id] ?: 0
+            list.add(CategoryEntity(folder.id.toString(), "${folder.name} ($count)", 0, "fav_folder"))
+        }
+        list.add(CategoryEntity(FAV_NEW_FOLDER_ID, "+ New Folder", 0, "fav_folder"))
+        return list
+    }
+
+    private fun showFavoriteFolderChannels(folderId: Int?) {
+        landscapeShowChannelsMode()
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
-        viewModel.showFavoriteChannels()
+        viewModel.selectFavoriteFolderView(folderId)
         pendingScrollToCurrent = true
         lifecycleScope.launch {
             val favorites = viewModel.getFavoriteChannelsSnapshot()
@@ -1428,6 +1485,52 @@ class HomeActivity : AppCompatActivity() {
             channelAdapter.itemTouchHelper = it
             it.attachToRecyclerView(binding.rvChannels)
         }
+    }
+
+    private fun showCreateFavoriteFolderDialog() {
+        val et = android.widget.EditText(this).apply { hint = "Folder name" }
+        AlertDialog.Builder(this)
+            .setTitle("New Folder")
+            .setView(et)
+            .setPositiveButton("Create") { _, _ ->
+                val name = et.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    viewModel.createFavoriteFolder(name)
+                    lifecycleScope.launch {
+                        // Give the DB write + StateFlow re-emission a beat before re-reading
+                        // the list, otherwise the new folder wouldn't show until the next
+                        // unrelated recomposition of this screen.
+                        kotlinx.coroutines.delay(150)
+                        submitCategories(favoriteFoldersToSynthetic())
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showFolderOptionsDialog(folderId: Int) {
+        val folder = viewModel.favoriteFolders.value.firstOrNull { it.id == folderId } ?: return
+        AlertDialog.Builder(this)
+            .setTitle(folder.name)
+            .setPositiveButton("Rename") { _, _ ->
+                val et = android.widget.EditText(this).apply { setText(folder.name) }
+                AlertDialog.Builder(this)
+                    .setTitle("Rename Folder")
+                    .setView(et)
+                    .setPositiveButton("Save") { _, _ ->
+                        val name = et.text.toString().trim()
+                        if (name.isNotEmpty()) viewModel.renameFavoriteFolder(folderId, name)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            .setNegativeButton("Delete") { _, _ ->
+                viewModel.deleteFavoriteFolder(folderId)
+                Toast.makeText(this, "Folder deleted — its channels moved to Unsorted", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Cancel", null)
+            .show()
     }
 
     private fun scrollFavoritesToStreamId(streamId: Int) {
@@ -1737,6 +1840,7 @@ class HomeActivity : AppCompatActivity() {
             "Hide Channel",
             "Channels Like This"
         )
+        if (channel.isFavorite) options.add("Move to Folder")
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
         }
@@ -1759,12 +1863,45 @@ class HomeActivity : AppCompatActivity() {
                         Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
                     }
                     "Channels Like This" -> showSimilarChannelsSheet(channel)
+                    "Move to Folder" -> showMoveToFolderDialog(channel)
                     else -> if (options[i].startsWith("✓ Add")) {
                         viewModel.bulkAddFavorites(bulkSelectedIds.toList())
                         Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
                         bulkSelectedIds.clear()
                         bulkSelectMode = false
                     }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showMoveToFolderDialog(channel: ChannelEntity) {
+        val folders = viewModel.favoriteFolders.value
+        val labels = mutableListOf("Unsorted") + folders.map { it.name } + "+ New Folder"
+        AlertDialog.Builder(this)
+            .setTitle("Move \"${channel.name}\" to")
+            .setItems(labels.toTypedArray()) { _, i ->
+                when (i) {
+                    0 -> viewModel.setChannelFavoriteFolder(channel.streamId, null)
+                    labels.size - 1 -> {
+                        val et = android.widget.EditText(this).apply { hint = "Folder name" }
+                        AlertDialog.Builder(this)
+                            .setTitle("New Folder")
+                            .setView(et)
+                            .setPositiveButton("Create") { _, _ ->
+                                val name = et.text.toString().trim()
+                                if (name.isNotEmpty()) {
+                                    lifecycleScope.launch {
+                                        val newId = viewModel.createFavoriteFolderAndGetId(name)
+                                        viewModel.setChannelFavoriteFolder(channel.streamId, newId)
+                                    }
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    else -> viewModel.setChannelFavoriteFolder(channel.streamId, folders[i - 1].id)
                 }
             }
             .setNegativeButton("Cancel", null)

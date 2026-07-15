@@ -18,7 +18,18 @@ data class ChannelEntity(
     val streamUrl: String? = null,
     val favOrder: Int = 0,
     val viewCount: Int = 0,
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    // Null = not in a folder (shows in "Unsorted"). Only meaningful when isFavorite is true.
+    val favoriteFolderId: Int? = null
+)
+
+// User-created groups for organizing favorites (e.g. "Sports", "News", "Kids") — same
+// drill-down UX as Movies' categories, but user-named instead of provider-supplied.
+@Entity(tableName = "favorite_folders")
+data class FavoriteFolderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val sortOrder: Int = 0
 )
 
 @Entity(tableName = "categories")
