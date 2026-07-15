@@ -1,7 +1,7 @@
 {
-  "versionCode": 282,
-  "versionName": "4.44",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.44/MKTV.apk",
-  "apkSha256": "87ce0260919a5abc8f841140a94b7da4156d44af1cb243a1b3a3099881407f45",
-  "changelog": "Added custom favorite folders on phone - organize favorites into named groups (Sports, News, etc.) with the same drill-down style as Movies, working identically in landscape. Long-press a favorite to move it into a folder."
+  "versionCode": 283,
+  "versionName": "4.45",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.45/MKTV.apk",
+  "apkSha256": "ce7c0358d0f19088e37917a46cc8519bdad733055bbfcf01e0511d7792ac1261",
+  "changelog": "Fixed a real bug: manually-added or Default EPG sources were saved but never actually fetched from - now they're properly fetched and merged. Added an EPG URL field to the Add/Edit Server dialog."
 }

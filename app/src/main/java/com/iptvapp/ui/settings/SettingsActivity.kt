@@ -1484,7 +1484,13 @@ class SettingsActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             disableAutofill()
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
+        val etEpg = android.widget.EditText(this).apply {
+            hint = "EPG URL (optional, http://...)"
+            setText(server.getOrElse(4) { "" })
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            disableAutofill()
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Edit Server")
             .setView(layout)
@@ -1495,9 +1501,10 @@ class SettingsActivity : AppCompatActivity() {
                 val url = etUrl.text.toString().replace(" ", "").trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
+                val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
-                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim())
+                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
                         Toast.makeText(this@SettingsActivity, "Server updated", Toast.LENGTH_SHORT).show()
@@ -1533,7 +1540,12 @@ class SettingsActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             disableAutofill()
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
+        val etEpg = android.widget.EditText(this).apply {
+            hint = "EPG URL (optional, http://...)"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            disableAutofill()
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Add Server")
             .setView(layout)
@@ -1541,10 +1553,11 @@ class SettingsActivity : AppCompatActivity() {
                 val url  = etUrl.text.toString().replace(" ", "").trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
+                val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
                         val fresh = prefs.getExtraServersWithNick().toMutableList()
-                        fresh.add(listOf(url, user, pass, etNick.text.toString().trim()))
+                        fresh.add(listOf(url, user, pass, etNick.text.toString().trim(), epgUrl))
                         extraServers.clear()
                         extraServers.addAll(fresh)
                         prefs.saveExtraServersWithNick(extraServers)

@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.45 - 2026-07-15
+- **Fixed**: a real bug found while extending EPG — any manually-added EPG source (Settings >
+  EPG "Add EPG Source", or the "Default US Guide" toggle) was saved but never actually
+  fetched from; the EPG refresh only ever pulled from the primary server's own built-in guide.
+  Now every configured EPG source is fetched and merged, matched against your channels the
+  same way as before — so multiple/custom EPG sources actually work now, not just display in
+  Settings.
+- **Added**: an EPG URL field when adding or editing a saved server (Settings > Servers),
+  for providers where you have a separate guide URL from the login itself.
+
 ## v4.44 - 2026-07-15
 - **Added**: custom favorite folders (phone) — organize favorites into named groups (e.g.
   "Sports", "News") instead of one flat list, same drill-down style as Movies. The Favorites

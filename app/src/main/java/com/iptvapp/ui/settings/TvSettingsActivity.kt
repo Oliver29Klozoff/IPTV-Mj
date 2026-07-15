@@ -1117,7 +1117,12 @@ class TvSettingsActivity : AppCompatActivity() {
             setText(server.getOrElse(2) { "" })
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
+        val etEpg = EditText(this).apply {
+            hint = "EPG URL (optional, http://...)"
+            setText(server.getOrElse(4) { "" })
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Edit Server")
             .setView(layout)
@@ -1128,9 +1133,10 @@ class TvSettingsActivity : AppCompatActivity() {
                 val url = etUrl.text.toString().replace(" ", "").trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
+                val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
-                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim())
+                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
                         rebuildList("server_add")
@@ -1180,7 +1186,11 @@ class TvSettingsActivity : AppCompatActivity() {
             hint = "Password"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
+        val etEpg = EditText(this).apply {
+            hint = "EPG URL (optional, http://...)"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Add Server")
             .setView(layout)
@@ -1189,10 +1199,11 @@ class TvSettingsActivity : AppCompatActivity() {
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
                 val nick = etNick.text.toString().trim()
+                val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
                         val fresh = prefs.getExtraServersWithNick().toMutableList()
-                        fresh.add(listOf(url, user, pass, nick))
+                        fresh.add(listOf(url, user, pass, nick, epgUrl))
                         extraServers.clear(); extraServers.addAll(fresh)
                         prefs.saveExtraServersWithNick(extraServers)
                         toast("Server added")

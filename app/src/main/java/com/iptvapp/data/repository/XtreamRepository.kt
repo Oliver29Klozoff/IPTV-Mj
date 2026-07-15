@@ -327,66 +327,90 @@ class XtreamRepository @Inject constructor(
      * Returns the number of programs written, or 0 if the endpoint returns nothing useful.
      * Never throws — silently no-ops on any failure.
      */
+    // Fetches from the primary server's own built-in xmltv.php AND every manually-configured
+    // EPG source (Settings > EPG "Add EPG Source" / the "Default US Guide" toggle) — these
+    // used to be saved to prefs but never actually fetched from anywhere, since this method
+    // only ever looked at the primary server's own guide. A provider with no EPG of its own
+    // (relying entirely on a manual/default source) previously got zero program data despite
+    // the source being "configured" in Settings.
     suspend fun fetchXmltvEpg(): Int = withContext(Dispatchers.IO) {
-        try {
-            val c = creds()
-            if (!c.isLoggedIn || c.serverUrl.isEmpty()) return@withContext 0
+        val c = creds()
+        val sources = mutableListOf<String>()
+        if (c.isLoggedIn && c.serverUrl.isNotEmpty()) {
+            sources.add(XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password))
+        }
+        sources.addAll(prefs.getEpgUrls().filter { it.isNotBlank() })
+        if (sources.isEmpty()) return@withContext 0
 
-            val url = XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password)
-            val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
-            if (xmlPrograms.isEmpty()) return@withContext 0
+        // Build lookup once, shared across every source — the same primary-server channel
+        // table is what every EPG source is matched against regardless of which XMLTV feed
+        // supplied the program data.
+        val allChannels = db.channelDao().getAllChannels().first()
+        val byEpgId = mutableMapOf<String, Int>()
+        val byName  = mutableMapOf<String, Int>()
+        allChannels.forEach { ch ->
+            if (!ch.epgChannelId.isNullOrBlank())
+                byEpgId[ch.epgChannelId.lowercase()] = ch.streamId
+            byName[normalizeForMatch(ch.name)] = ch.streamId
+        }
 
-            // Build lookup: our DB channel epg-id/name → DB stream id
-            val allChannels = db.channelDao().getAllChannels().first()
-            val byEpgId = mutableMapOf<String, Int>()
-            val byName  = mutableMapOf<String, Int>()
-            allChannels.forEach { ch ->
-                if (!ch.epgChannelId.isNullOrBlank())
-                    byEpgId[ch.epgChannelId.lowercase()] = ch.streamId
-                byName[normalizeForMatch(ch.name)] = ch.streamId
-            }
+        var totalCount = 0
+        for (url in sources) {
+            totalCount += try {
+                fetchXmltvFromUrl(url, byEpgId, byName)
+            } catch (_: Exception) { 0 }
+        }
+        totalCount
+    }
 
-            // Resolve each distinct xmltv channel to a stream id once (not per-program —
-            // there can be thousands of programs but only a few hundred channels):
-            // 1) exact epg-channel-id match, 2) exact normalized-name match,
-            // 3) substring match on normalized names, which catches near-miss naming like
-            //    "ESPN2" vs "ESPN 2" or a provider adding/dropping a region suffix — this is
-            //    what was missing before, causing correctly-available EPG data to be
-            //    silently dropped as "no information" whenever names weren't byte-identical.
-            val xmlChannelToStreamId = mutableMapOf<String, Int>()
-            xmlChannels.forEach { xmlCh ->
-                val normXml = normalizeForMatch(xmlCh.displayName)
-                val resolved = byEpgId[xmlCh.id.lowercase()]
-                    ?: byName[normXml]
-                    ?: if (normXml.isBlank()) null else {
-                        byName.entries.firstOrNull { (key, _) ->
-                            key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
-                        }?.value
-                    }
-                if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
-            }
+    private suspend fun fetchXmltvFromUrl(
+        url: String,
+        byEpgId: Map<String, Int>,
+        byName: Map<String, Int>
+    ): Int {
+        val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
+        if (xmlPrograms.isEmpty()) return 0
 
-            val nowSec = System.currentTimeMillis() / 1000
-            val entities = mutableListOf<EpgEntity>()
+        // Resolve each distinct xmltv channel to a stream id once (not per-program —
+        // there can be thousands of programs but only a few hundred channels):
+        // 1) exact epg-channel-id match, 2) exact normalized-name match,
+        // 3) substring match on normalized names, which catches near-miss naming like
+        //    "ESPN2" vs "ESPN 2" or a provider adding/dropping a region suffix — this is
+        //    what was missing before, causing correctly-available EPG data to be
+        //    silently dropped as "no information" whenever names weren't byte-identical.
+        val xmlChannelToStreamId = mutableMapOf<String, Int>()
+        xmlChannels.forEach { xmlCh ->
+            val normXml = normalizeForMatch(xmlCh.displayName)
+            val resolved = byEpgId[xmlCh.id.lowercase()]
+                ?: byName[normXml]
+                ?: if (normXml.isBlank()) null else {
+                    byName.entries.firstOrNull { (key, _) ->
+                        key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
+                    }?.value
+                }
+            if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
+        }
 
-            xmlPrograms.forEach { prog ->
-                val streamId = xmlChannelToStreamId[prog.channelId] ?: return@forEach
+        val nowSec = System.currentTimeMillis() / 1000
+        val entities = mutableListOf<EpgEntity>()
 
-                entities.add(EpgEntity(
-                    id             = "x_${prog.channelId}_${prog.startSec}",
-                    streamId       = streamId,
-                    title          = prog.title,
-                    description    = prog.description,
-                    startTimestamp = prog.startSec,
-                    stopTimestamp  = prog.stopSec,
-                    nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
-                    hasArchive     = 0
-                ))
-            }
+        xmlPrograms.forEach { prog ->
+            val streamId = xmlChannelToStreamId[prog.channelId] ?: return@forEach
 
-            entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
-            entities.size
-        } catch (_: Exception) { 0 }
+            entities.add(EpgEntity(
+                id             = "x_${prog.channelId}_${prog.startSec}",
+                streamId       = streamId,
+                title          = prog.title,
+                description    = prog.description,
+                startTimestamp = prog.startSec,
+                stopTimestamp  = prog.stopSec,
+                nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
+                hasArchive     = 0
+            ))
+        }
+
+        entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
+        return entities.size
     }
 
     // Word-boundary-safe: the previous version's tokens had no \b, so e.g. "us"/"hd" could
