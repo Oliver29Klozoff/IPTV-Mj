@@ -3,6 +3,7 @@ package com.iptvapp.ui.home
 import com.iptvapp.R
 import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.util.isLargeScreenDevice
+import javax.inject.Inject
 
 import android.app.Activity
 import android.content.Intent
@@ -49,6 +50,7 @@ import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.worker.EpgRefreshWorker
 import kotlinx.coroutines.flow.first
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -159,8 +161,10 @@ class HomeActivity : AppCompatActivity() {
         }
     }
     private val viewModel: HomeViewModel by viewModels()
+    @Inject lateinit var okHttpClient: okhttp3.OkHttpClient
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
+    private lateinit var mergedChannelAdapter: MergedChannelAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var guideAdapter: GuideAdapter
@@ -289,7 +293,8 @@ class HomeActivity : AppCompatActivity() {
             btn(R.id.landBtnMovies) to 3,
             btn(R.id.landBtnSeries) to 4,
             btn(R.id.landBtnGuide) to 5,
-            btn(R.id.landBtnWatching) to 6
+            btn(R.id.landBtnWatching) to 6,
+            btn(R.id.landBtnProviders) to 7
         )
         tabs.forEach { (button, index) ->
             button?.setOnClickListener {
@@ -314,6 +319,7 @@ class HomeActivity : AppCompatActivity() {
                     // up to that tab's category list. Tabs with no categories (Series/
                     // History/Favorites/Guide) have nothing to go back to.
                     tab?.position in listOf(1, 2, 3) -> landscapeShowCategoriesMode()
+                    tab?.position == 7 -> showAllProviders()
                 }
             }
         })
@@ -412,7 +418,7 @@ class HomeActivity : AppCompatActivity() {
             R.id.landBtnFavorites to 0, R.id.landBtnLive to 1,
             R.id.landBtnCategories to 2, R.id.landBtnMovies to 3,
             R.id.landBtnSeries to 4, R.id.landBtnGuide to 5,
-            R.id.landBtnWatching to 6
+            R.id.landBtnWatching to 6, R.id.landBtnProviders to 7
         )
         sidebarMap.forEach { (id, idx) ->
             binding.root.findViewById<android.widget.Button?>(id)?.setTextColor(
@@ -496,7 +502,19 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun initMiniPlayer() {
-        miniPlayer = ExoPlayer.Builder(this).build().also { player ->
+        // Without an explicit User-Agent, ExoPlayer's built-in HTTP stack sends its own
+        // default ("ExoPlayerLib/x.x.x") — some Cloudflare-fronted IPTV CDNs block/reject
+        // that on the stream endpoint specifically (even while the API endpoint works fine
+        // with the same UA), which surfaced as PARSING_MANIFEST_MALFORMED then a network-
+        // error retry loop for one provider's channels. Fullscreen playback (PlayerActivity)
+        // already sets a browser-like UA via a custom OkHttpDataSource.Factory; mirror that
+        // here so the mini player (which merged-provider channels now launch into first)
+        // gets the same treatment.
+        val upstreamDataSourceFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${android.os.Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(upstreamDataSourceFactory)
+        miniPlayer = ExoPlayer.Builder(this).setMediaSourceFactory(mediaSourceFactory).build().also { player ->
             binding.miniPlayerView.player = player
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
@@ -687,6 +705,10 @@ class HomeActivity : AppCompatActivity() {
             viewModel.refreshNow()
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
+        binding.btnRefreshProviders?.setOnClickListener {
+            viewModel.refreshMergedChannels()
+            Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+        }
         binding.btnVodSort?.setOnClickListener {
             if (binding.tabLayout.selectedTabPosition == 4) showSeriesSortDialog() else showVodSortDialog()
         }
@@ -796,12 +818,33 @@ class HomeActivity : AppCompatActivity() {
     private fun setupRecyclerViews() {
         categoryAdapter = CategoryAdapter(
             onCategoryClick = { category ->
-                when (binding.tabLayout.selectedTabPosition) {
-                    1 -> viewModel.selectLiveCategory(category.categoryId)
-                    2 -> viewModel.selectFavCategory(category.categoryId)
-                    3 -> viewModel.selectVodCategory(category.categoryId)
+                if (binding.tabLayout.selectedTabPosition == 7) {
+                    // 3-level drill (server -> category -> channels): the first tap picks a
+                    // server and should show ITS categories next, not jump to channels yet.
+                    if (viewModel.selectedMergedServerIndex == null) {
+                        viewModel.selectMergedServer(category.categoryId.toInt())
+                        categoryAdapter.submitList(emptyList())
+                        lifecycleScope.launch {
+                            viewModel.mergedCategories.collect { cats ->
+                                if (viewModel.selectedMergedServerIndex != null) {
+                                    categoryAdapter.submitList(mergedCategoriesToSynthetic(cats))
+                                }
+                            }
+                        }
+                    } else {
+                        val categoryId = if (category.categoryId == NO_CATEGORY_ID) null else category.categoryId
+                        viewModel.selectMergedCategory(categoryId)
+                        landscapeShowChannelsMode()
+                        binding.rvChannels.adapter = mergedChannelAdapter
+                    }
+                } else {
+                    when (binding.tabLayout.selectedTabPosition) {
+                        1 -> viewModel.selectLiveCategory(category.categoryId)
+                        2 -> viewModel.selectFavCategory(category.categoryId)
+                        3 -> viewModel.selectVodCategory(category.categoryId)
+                    }
+                    landscapeShowChannelsMode()
                 }
-                landscapeShowChannelsMode()
             },
             onCategoryLongClick = { category ->
                 if (binding.tabLayout.selectedTabPosition == 1) {
@@ -833,6 +876,10 @@ class HomeActivity : AppCompatActivity() {
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             },
             onChannelLongClick = { channel -> showChannelActionsMenu(channel) }
+        )
+
+        mergedChannelAdapter = MergedChannelAdapter(
+            onChannelClick = { channel -> playMergedChannel(channel) }
         )
 
         vodAdapter = VodAdapter(
@@ -923,6 +970,7 @@ class HomeActivity : AppCompatActivity() {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 viewModel.lastTabPosition = tab?.position ?: 0
                 binding.btnVodSort?.visibility = if (tab?.position == 3 || tab?.position == 4) View.VISIBLE else View.GONE
+                binding.btnRefreshProviders?.visibility = if (tab?.position == 7) View.VISIBLE else View.GONE
                 when (tab?.position) {
                     0 -> { showFavorites(); viewModel.checkFavoritesHealth() }
                     1 -> showLive()
@@ -931,6 +979,7 @@ class HomeActivity : AppCompatActivity() {
                     4 -> showSeries()
                     5 -> showGuide()
                     6 -> showWatching()
+                    7 -> showAllProviders()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
@@ -972,6 +1021,18 @@ class HomeActivity : AppCompatActivity() {
             3 -> viewModel.searchVod(query)
             4 -> viewModel.searchSeries(query)
             0 -> viewModel.searchFavorites(query)
+            7 -> {
+                if (query.isBlank()) {
+                    // Back to wherever the server/category drill-down was, not a dead end.
+                    showAllProviders()
+                } else {
+                    viewModel.searchMergedChannels(query)
+                    landscapeShowChannelsMode()
+                    binding.rvCategories.visibility = View.GONE
+                    binding.rvChannels.adapter = mergedChannelAdapter
+                    mergedChannelAdapter.submitList(viewModel.mergedChannels.value)
+                }
+            }
             else -> viewModel.searchChannels(query)
         }
     }
@@ -1222,6 +1283,90 @@ class HomeActivity : AppCompatActivity() {
         // Submit snapshot on entry — StateFlow won't re-emit if value is unchanged, so the
         // adapter would otherwise keep showing whatever the previous tab's list was
         channelAdapter.submitList(viewModel.recentChannels.value.toList())
+    }
+
+    // Browse-and-play-only merged view across every configured server (Settings > Servers) —
+    // deliberately no favorite/record support here, see MergedChannelEntity kdoc for why.
+    // 3-level drill-down (server -> category -> channels), same shape as Live, since a single
+    // provider can itself have tens of thousands of channels.
+    private fun showAllProviders() {
+        viewModel.resetMergedSelection()
+        landscapeShowCategoriesMode()
+        setGenreFilterVisible(false)
+        binding.rvCategories.visibility = View.VISIBLE
+        binding.rvCategories.adapter = categoryAdapter
+        binding.rvChannels.adapter = mergedChannelAdapter
+        categoryAdapter.submitList(mergedServersToSynthetic(viewModel.mergedServers.value))
+    }
+
+    private val NO_CATEGORY_ID = "__uncategorized__"
+
+    private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> =
+        list.map {
+            CategoryEntity(
+                categoryId = it.serverIndex.toString(),
+                categoryName = "${it.serverNickname} (${it.channelCount})",
+                parentId = 0,
+                type = "merged_server"
+            )
+        }
+
+    private fun mergedCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedCategorySummary>): List<CategoryEntity> =
+        list.map {
+            CategoryEntity(
+                categoryId = it.categoryId ?: NO_CATEGORY_ID,
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.channelCount})",
+                parentId = 0,
+                type = "merged_category"
+            )
+        }
+
+    // Tapping a merged channel now behaves like every other channel list: starts in the mini
+    // player first, and only goes fullscreen if the mini player itself or its fullscreen
+    // button is tapped next. currentMiniUrl/Title/StreamId/IsVod are plain generic fields (not
+    // tied to ChannelEntity), and the existing miniPlayerView/btnFullscreen click listeners
+    // already just read those fields — so setting them here is all that's needed for both to
+    // work correctly with zero extra wiring.
+    private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        miniPlayJob?.cancel()
+        miniRetryCount = 0
+        miniPlayJob = lifecycleScope.launch {
+            try {
+                val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
+                android.util.Log.d("MergedChannels", "playMergedChannel: serverIndex=${channel.serverIndex} streamId=${channel.streamId} resolvedUrl=$url")
+                val title = "${channel.name} · ${channel.serverNickname}"
+                // streamId = -1: no DB-backed identity for this channel (it lives only in the
+                // merged_channels cache, not the primary server's channels table) — same
+                // convention already used by the external-player-fallback path.
+                currentMiniUrl = url
+                currentMiniTitle = title
+                currentMiniStreamId = -1
+                currentMiniIsVod = false
+                binding.tvMiniChannelName.text = title
+                binding.tvPipChannelName?.text = title
+                if (!channel.streamIcon.isNullOrBlank()) {
+                    binding.ivHeroChannelLogo?.visibility = View.VISIBLE
+                    com.bumptech.glide.Glide.with(this@HomeActivity)
+                        .load(channel.streamIcon)
+                        .placeholder(android.R.drawable.ic_media_play)
+                        .error(android.R.drawable.ic_media_play)
+                        .into(binding.ivHeroChannelLogo!!)
+                } else {
+                    binding.ivHeroChannelLogo?.visibility = View.GONE
+                }
+                binding.btnHeroWatch?.setOnClickListener {
+                    val currentPos = miniPlayer?.currentPosition ?: 0L
+                    openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+                }
+                miniPlayer?.let {
+                    it.setMediaItem(MediaItem.fromUri(url))
+                    it.prepare()
+                    it.playWhenReady = true
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@HomeActivity, "Couldn't load this channel — tap Refresh and try again", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private var favItemTouchHelper: ItemTouchHelper? = null
@@ -1546,6 +1691,11 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.recentChannels.collect { /* snapshot submitted in showWatching() on tab entry */ }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedChannels.collect { list ->
+                if (binding.tabLayout.selectedTabPosition == 7) mergedChannelAdapter.submitList(list)
+            }
         }
         lifecycleScope.launch {
             viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }

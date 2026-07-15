@@ -106,3 +106,32 @@ data class ChannelReliabilityEntity(
     val outcomes: String = "",
     val lastUpdated: Long = System.currentTimeMillis()
 )
+
+// Browse-and-play-only cache for the merged "All Providers" view — deliberately separate from
+// ChannelEntity (whose bare streamId PK assumes global uniqueness) since two different Xtream
+// servers can reuse the same numeric stream id. serverIndex -1 = primary server, 0..N-1 =
+// extraServers[i]. Refetched wholesale on manual refresh; never touched by favorites/recording/
+// Trakt, which remain scoped to the primary server's ChannelEntity table only.
+@Entity(tableName = "merged_channels", primaryKeys = ["serverIndex", "streamId"])
+data class MergedChannelEntity(
+    val serverIndex: Int,
+    val streamId: Int,
+    val name: String,
+    val streamIcon: String?,
+    val num: Int,
+    val serverNickname: String,
+    // A single server can itself have tens of thousands of channels (real-world reseller
+    // panels observed at 30k-85k), so category grouping is required even per-server, not just
+    // across servers — categoryName is denormalized here rather than a separate merged
+    // categories table, since this whole cache is wholesale-refetched on every manual refresh
+    // anyway (no incremental-update case to optimize for).
+    val categoryId: String?,
+    val categoryName: String?,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+// Small aggregate row (not a persisted entity) for the server-picker and category-picker
+// screens in the "All Providers" view — computed with GROUP BY so the UI never needs to load
+// or diff a server/provider's full multi-tens-of-thousands channel list just to show counts.
+data class MergedServerSummary(val serverIndex: Int, val serverNickname: String, val channelCount: Int)
+data class MergedCategorySummary(val categoryId: String?, val categoryName: String?, val channelCount: Int)

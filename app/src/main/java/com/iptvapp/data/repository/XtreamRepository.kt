@@ -11,6 +11,8 @@ import com.iptvapp.util.Resource
 import com.iptvapp.util.XmltvFetcher
 import com.iptvapp.util.safeApiCall
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -535,5 +537,103 @@ class XtreamRepository @Inject constructor(
         String(Base64.decode(encoded, Base64.DEFAULT))
     } catch (e: Exception) {
         encoded
+    }
+
+    private data class ConfiguredServer(
+        val serverIndex: Int,
+        val serverUrl: String,
+        val username: String,
+        val password: String,
+        val nickname: String
+    )
+
+    // serverIndex -1 = primary, 0..N-1 = extraServers[i] — same convention as
+    // PreferencesManager.activeServerIndex.
+    private suspend fun allConfiguredServers(): List<ConfiguredServer> {
+        val primary = creds()
+        val primaryNick = prefs.serverNickname.first().ifBlank { primary.username }
+        val servers = mutableListOf(
+            ConfiguredServer(-1, primary.serverUrl, primary.username, primary.password, primaryNick)
+        )
+        prefs.getExtraServersWithNick().forEachIndexed { i, s ->
+            val nick = s.getOrElse(3) { "" }.ifBlank { s[1] }
+            servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick))
+        }
+        return servers
+    }
+
+    /** Fetches live channels from every configured server (primary + extras) in parallel for
+     * the "All Providers" merged browse-and-play view — a deliberately separate cache from the
+     * primary server's ChannelEntity table, since two different Xtream servers can reuse the
+     * same numeric stream id. Only servers that fetch successfully are written, in one atomic
+     * clear+upsert, so a network hiccup on one server doesn't wipe a previously-cached other
+     * server's rows. Returns serverIndex -> error message for any servers that failed. */
+    suspend fun refreshMergedChannels(): Map<Int, String> {
+        val servers = allConfiguredServers()
+        val errors = mutableMapOf<Int, String>()
+        val results = mutableListOf<MergedChannelEntity>()
+        coroutineScope {
+            servers.map { server ->
+                async {
+                    try {
+                        val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+                        // Categories are fetched too — a single provider can itself have tens
+                        // of thousands of channels, so a flat per-server list is just as
+                        // unusable as one giant cross-server list; category grouping is
+                        // required at both levels.
+                        val catResponse = api.getLiveCategories(builder.apiUrl(), server.username, server.password)
+                        val categoryNames = if (catResponse.isSuccessful) {
+                            (catResponse.body() ?: emptyList()).associate { it.categoryId to it.categoryName }
+                        } else emptyMap()
+                        val response = api.getLiveStreams(builder.apiUrl(), server.username, server.password)
+                        if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                        val list = response.body() ?: emptyList()
+                        android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) fetched ${list.size} channels, ${categoryNames.size} categories")
+                        android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} sample category names: ${categoryNames.values.take(30)}")
+                        synchronized(results) {
+                            results.addAll(list.map {
+                                MergedChannelEntity(
+                                    serverIndex = server.serverIndex,
+                                    streamId = it.streamId,
+                                    name = it.name,
+                                    streamIcon = it.streamIcon,
+                                    num = it.num,
+                                    serverNickname = server.nickname,
+                                    categoryId = it.categoryId,
+                                    categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized"
+                                )
+                            })
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: ${e.message}", e)
+                        errors[server.serverIndex] = e.message ?: "Unknown error"
+                    }
+                }
+            }.forEach { it.await() }
+        }
+        android.util.Log.d("MergedChannels", "refresh done: ${results.size} total channels, errors=$errors")
+        db.mergedChannelDao().clearAll()
+        db.mergedChannelDao().upsertAll(results)
+        return errors
+    }
+
+    fun getMergedServerSummaries(): Flow<List<MergedServerSummary>> = db.mergedChannelDao().getServerSummaries()
+
+    fun getMergedCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>> =
+        db.mergedChannelDao().getCategorySummaries(serverIndex)
+
+    fun getMergedChannelsByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>> =
+        db.mergedChannelDao().getByServerAndCategory(serverIndex, categoryId)
+
+    fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
+        db.mergedChannelDao().search(query)
+
+    /** Builds a playback URL using the specific server a merged channel came from, not
+     * whatever's currently the primary/active server. Always m3u8 (matches the app's default
+     * preferred format) so the same URL works for both direct playback and Chromecast. */
+    suspend fun getMergedLiveStreamUrl(serverIndex: Int, streamId: Int): String {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+            ?: throw Exception("Server no longer configured")
+        return XtreamUrlBuilder(server.serverUrl, server.username, server.password).liveStreamUrl(streamId, "m3u8")
     }
 }

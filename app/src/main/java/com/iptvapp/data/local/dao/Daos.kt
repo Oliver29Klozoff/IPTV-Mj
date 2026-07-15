@@ -207,3 +207,27 @@ interface EpisodeWatchedDao {
     @Query("SELECT EXISTS(SELECT 1 FROM episode_watched WHERE seriesId = :seriesId AND season = :season AND episode = :episode)")
     suspend fun isWatched(seriesId: Int, season: Int, episode: Int): Boolean
 }
+
+@Dao
+interface MergedChannelDao {
+    @Query("SELECT * FROM merged_channels ORDER BY serverIndex ASC, num ASC")
+    fun getAll(): Flow<List<MergedChannelEntity>>
+    @Upsert
+    suspend fun upsertAll(channels: List<MergedChannelEntity>)
+    @Query("DELETE FROM merged_channels")
+    suspend fun clearAll()
+
+    @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
+    fun getServerSummaries(): Flow<List<MergedServerSummary>>
+
+    @Query("SELECT categoryId, categoryName, COUNT(*) as channelCount FROM merged_channels WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
+    fun getCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>>
+
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY num")
+    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>>
+
+    // Searches across every configured server at once (not scoped to a selected server/
+    // category) — matches how search already works on every other tab in this app.
+    @Query("SELECT * FROM merged_channels WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, num")
+    fun search(query: String): Flow<List<MergedChannelEntity>>
+}

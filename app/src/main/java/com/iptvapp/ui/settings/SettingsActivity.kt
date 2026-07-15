@@ -1371,6 +1371,14 @@ class SettingsActivity : AppCompatActivity() {
                     textSize = 12f
                     row.addView(this)
                 }
+                android.widget.TextView(this@SettingsActivity).apply {
+                    text = url
+                    setTextColor(Color.parseColor("#777777"))
+                    textSize = 11f
+                    setSingleLine(true)
+                    ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                    row.addView(this)
+                }
                 val btnRow = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.HORIZONTAL
                     layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -1379,10 +1387,29 @@ class SettingsActivity : AppCompatActivity() {
                     ).also { it.topMargin = 12 }
                 }
                 android.widget.Button(this@SettingsActivity).apply {
-                    text = "Switch"
+                    text = "Edit"
+                    isAllCaps = false
+                    textSize = 13f
                     setTextColor(Color.WHITE)
-                    setBackgroundColor(Color.parseColor("#1976D2"))
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
+                    val heightPx = (40 * resources.displayMetrics.density).toInt()
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
+                        .also { it.marginEnd = 8 }
+                    setOnClickListener { showEditServerDialog(i) }
+                    btnRow.addView(this)
+                }
+                android.widget.Button(this@SettingsActivity).apply {
+                    text = "Switch"
+                    isAllCaps = false
+                    textSize = 13f
+                    setTextColor(Color.BLACK)
+                    // setBackgroundColor() replaces the Material theme's rounded button
+                    // background with a flat square rectangle — backgroundTintList keeps the
+                    // theme's rounded shape/ripple and just recolors it, matching every other
+                    // button in the app (all of which set backgroundTint, never a raw color).
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#008CFF"))
+                    val heightPx = (40 * resources.displayMetrics.density).toInt()
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
                         .also { it.marginEnd = 8 }
                     setOnClickListener {
                         lifecycleScope.launch {
@@ -1403,12 +1430,23 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 android.widget.Button(this@SettingsActivity).apply {
                     text = "Remove"
-                    setTextColor(Color.WHITE)
-                    setBackgroundColor(Color.parseColor("#CC0000"))
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    isAllCaps = false
+                    textSize = 13f
+                    setTextColor(Color.parseColor("#FF6B6B"))
+                    // Matches the app's established "danger" button convention (e.g. Trakt
+                    // Disconnect): a subdued dark fill with red text, not a solid red block.
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E1E1E"))
+                    val heightPx = (40 * resources.displayMetrics.density).toInt()
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
                     setOnClickListener {
                         extraServers.removeAt(i)
-                        lifecycleScope.launch { prefs.saveExtraServersWithNick(extraServers) }
+                        lifecycleScope.launch {
+                            prefs.saveExtraServersWithNick(extraServers)
+                            // Removing a server shifts every later server's index, which could
+                            // silently re-attribute stale merged-channel rows to the wrong
+                            // server until the next manual refresh — just clear the cache.
+                            db.mergedChannelDao().clearAll()
+                        }
                         updateServerList()
                     }
                     btnRow.addView(this)
@@ -1417,6 +1455,58 @@ class SettingsActivity : AppCompatActivity() {
                 ll.addView(row)
             }
         }
+    }
+
+    private fun showEditServerDialog(index: Int) {
+        val server = extraServers.getOrNull(index) ?: return
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        fun android.widget.EditText.disableAutofill() {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                setAutofillHints(null)
+            }
+        }
+        val etNick = android.widget.EditText(this).apply {
+            hint = "Nickname (optional)"; setText(server.getOrElse(3) { "" }); disableAutofill()
+        }
+        val etUrl = android.widget.EditText(this).apply {
+            hint = "Server URL (http://...)"; setText(server.getOrElse(0) { "" }); disableAutofill()
+        }
+        val etUser = android.widget.EditText(this).apply {
+            hint = "Username"; setText(server.getOrElse(1) { "" }); disableAutofill()
+        }
+        val etPass = android.widget.EditText(this).apply {
+            hint = "Password"
+            setText(server.getOrElse(2) { "" })
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            disableAutofill()
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
+        AlertDialog.Builder(this)
+            .setTitle("Edit Server")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                // A URL should never legitimately contain whitespace — strip it all, not just
+                // leading/trailing, since a stray space pasted mid-string (e.g. from a wrapped
+                // line) silently breaks every request to that server with no visible error.
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isNotEmpty() && user.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim())
+                        prefs.saveExtraServersWithNick(extraServers)
+                        db.mergedChannelDao().clearAll()
+                        Toast.makeText(this@SettingsActivity, "Server updated", Toast.LENGTH_SHORT).show()
+                        updateServerList()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showAddServerDialog() {
@@ -1448,7 +1538,7 @@ class SettingsActivity : AppCompatActivity() {
             .setTitle("Add Server")
             .setView(layout)
             .setPositiveButton("Add") { _, _ ->
-                val url  = etUrl.text.toString().trim()
+                val url  = etUrl.text.toString().replace(" ", "").trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {

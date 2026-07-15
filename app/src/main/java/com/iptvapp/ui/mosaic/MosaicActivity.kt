@@ -32,6 +32,7 @@ class MosaicActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMosaicBinding
     private val viewModel: HomeViewModel by viewModels()
+    @javax.inject.Inject lateinit var okHttpClient: okhttp3.OkHttpClient
 
     private val players = mutableListOf<ExoPlayer>()
     private val cells = mutableListOf<MosaicCell>()
@@ -84,8 +85,14 @@ class MosaicActivity : AppCompatActivity() {
         binding.mosaicGrid.columnCount = cols
         binding.mosaicGrid.rowCount = rows
 
+        // See HomeActivity.initMiniPlayer's kdoc — ExoPlayer's default User-Agent gets
+        // blocked by some Cloudflare-fronted IPTV CDNs on the stream endpoint specifically.
+        val upstreamDataSourceFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${android.os.Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(upstreamDataSourceFactory)
         repeat(size) { index ->
-            val player = ExoPlayer.Builder(this).build()
+            val player = ExoPlayer.Builder(this).setMediaSourceFactory(mediaSourceFactory).build()
             players.add(player)
             val cell = buildCell(index, player, cols)
             cells.add(cell)

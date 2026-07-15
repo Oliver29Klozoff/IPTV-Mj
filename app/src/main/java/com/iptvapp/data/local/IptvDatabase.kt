@@ -16,9 +16,10 @@ import com.iptvapp.data.local.entities.*
         EpgEntity::class,
         RecordingEntity::class,
         ChannelReliabilityEntity::class,
-        EpisodeWatchedEntity::class
+        EpisodeWatchedEntity::class,
+        MergedChannelEntity::class
     ],
-    version = 13,
+    version = 15,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -30,6 +31,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun recordingDao(): RecordingDao
     abstract fun reliabilityDao(): ReliabilityDao
     abstract fun episodeWatchedDao(): EpisodeWatchedDao
+    abstract fun mergedChannelDao(): MergedChannelDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -138,6 +140,30 @@ abstract class IptvDatabase : RoomDatabase() {
                         PRIMARY KEY(seriesId, season, episode)
                     )
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS merged_channels (
+                        serverIndex INTEGER NOT NULL,
+                        streamId INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        streamIcon TEXT,
+                        num INTEGER NOT NULL,
+                        serverNickname TEXT NOT NULL,
+                        cachedAt INTEGER NOT NULL,
+                        PRIMARY KEY(serverIndex, streamId)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN categoryId TEXT")
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN categoryName TEXT")
             }
         }
     }

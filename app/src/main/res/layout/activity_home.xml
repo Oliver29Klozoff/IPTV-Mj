@@ -86,6 +86,16 @@
             android:tint="#888888"
             android:visibility="gone" />
 
+        <ImageButton
+            android:id="@+id/btnRefreshProviders"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_popup_sync"
+            android:tint="#888888"
+            android:visibility="gone" />
+
         <EditText
             android:id="@+id/etSearch"
             android:layout_width="180dp"
@@ -293,6 +303,7 @@
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SERIES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GUIDE" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HISTORY" />
+        <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ALL PROVIDERS" />
     </com.google.android.material.tabs.TabLayout>
 
     <!-- SYNC PROGRESS — shown while a large catalog (movies/series) is downloading -->

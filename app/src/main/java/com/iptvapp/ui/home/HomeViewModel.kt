@@ -72,6 +72,73 @@ class HomeViewModel @Inject constructor(
     private val _continueWatching = MutableStateFlow<List<VodEntity>>(emptyList())
     val continueWatching: StateFlow<List<VodEntity>> = _continueWatching
 
+    // "All Providers" is a 3-level drill-down (server -> category -> channels), same shape as
+    // Live's category drilldown — a single provider can itself have tens of thousands of
+    // channels, so neither a cross-server nor a per-server flat list is usable.
+    private val _mergedServers = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedServerSummary>>(emptyList())
+    val mergedServers: StateFlow<List<com.iptvapp.data.local.entities.MergedServerSummary>> = _mergedServers
+
+    private val _mergedCategories = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedCategorySummary>>(emptyList())
+    val mergedCategories: StateFlow<List<com.iptvapp.data.local.entities.MergedCategorySummary>> = _mergedCategories
+
+    private val _mergedChannels = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedChannelEntity>>(emptyList())
+    val mergedChannels: StateFlow<List<com.iptvapp.data.local.entities.MergedChannelEntity>> = _mergedChannels
+
+    private var mergedCategoriesJob: Job? = null
+    private var mergedChannelsJob: Job? = null
+    var selectedMergedServerIndex: Int? = null; private set
+
+    /** Manual refresh only — fetches every configured server's live channels in parallel for
+     * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
+    fun refreshMergedChannels() {
+        viewModelScope.launch { repository.refreshMergedChannels() }
+    }
+
+    fun resetMergedSelection() {
+        selectedMergedServerIndex = null
+        mergedCategoriesJob?.cancel()
+        mergedChannelsJob?.cancel()
+        _mergedCategories.value = emptyList()
+        _mergedChannels.value = emptyList()
+    }
+
+    fun selectMergedServer(serverIndex: Int) {
+        selectedMergedServerIndex = serverIndex
+        mergedCategoriesJob?.cancel()
+        mergedCategoriesJob = viewModelScope.launch {
+            repository.getMergedCategorySummaries(serverIndex)
+                .combine(prefs.usaOnlyChannels) { categories, usaOnly ->
+                    if (usaOnly) categories.filter { isUsCategory(it.categoryName) } else categories
+                }
+                .collectLatest { _mergedCategories.value = it }
+        }
+    }
+
+    fun selectMergedCategory(categoryId: String?) {
+        val serverIndex = selectedMergedServerIndex ?: return
+        mergedChannelsJob?.cancel()
+        mergedChannelsJob = viewModelScope.launch {
+            repository.getMergedChannelsByCategory(serverIndex, categoryId).collectLatest { _mergedChannels.value = it }
+        }
+    }
+
+    // Searches across every configured server at once, ignoring whatever server/category is
+    // currently drilled into — matches how search already works on every other tab. Also
+    // respects "USA Only" so a search doesn't resurface channels the filter is meant to hide.
+    fun searchMergedChannels(query: String) {
+        mergedChannelsJob?.cancel()
+        mergedChannelsJob = viewModelScope.launch {
+            repository.searchMergedChannels(query)
+                .combine(prefs.usaOnlyChannels) { channels, usaOnly ->
+                    if (usaOnly) channels.filter { isUsCategory(it.categoryName) } else channels
+                }
+                .collectLatest { _mergedChannels.value = it }
+        }
+    }
+
+    suspend fun getMergedLiveStreamUrl(serverIndex: Int, streamId: Int): String =
+        repository.getMergedLiveStreamUrl(serverIndex, streamId)
+
     private val _channelEpgText = MutableStateFlow<Map<Int, String>>(emptyMap())
     val channelEpgText: StateFlow<Map<Int, String>> = _channelEpgText
 
@@ -169,7 +236,11 @@ class HomeViewModel @Inject constructor(
 
     private fun isUsCategory(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
-        val n = name.trim().uppercase()
+        // Different providers format the same "US" tag differently — some use "US|..." with
+        // no spacing, others "US | ..." with spaces around the pipe. Collapsing whitespace
+        // around every "|" before matching makes this work across both conventions instead of
+        // only the first provider's exact style.
+        val n = name.trim().uppercase().replace(Regex("\\s*\\|\\s*"), "|")
         return n.startsWith("US|") || n.contains("|US|")
     }
 
@@ -239,6 +310,9 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getRecentChannels().collectLatest { _recentChannels.value = it }
+            }
+            launch {
+                repository.getMergedServerSummaries().collectLatest { _mergedServers.value = it }
             }
         }
 

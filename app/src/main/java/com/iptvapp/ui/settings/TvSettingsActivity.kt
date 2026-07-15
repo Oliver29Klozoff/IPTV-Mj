@@ -423,7 +423,7 @@ class TvSettingsActivity : AppCompatActivity() {
             val isActive = activeIdx == i
             settingsItems += TvSettingItem.Action("server_$i",
                 "${if (isActive) "●  " else ""}$nick",
-                value = server.getOrElse(0) { "" }.take(45)) { switchToServer(i) }
+                value = server.getOrElse(0) { "" }.take(45)) { showServerOptions(i) }
         }
         settingsItems += TvSettingItem.Action("server_add", "Add Server") { showAddServerDialog() }
 
@@ -1082,6 +1082,66 @@ class TvSettingsActivity : AppCompatActivity() {
 
     // ─── Servers ─────────────────────────────────────────────────────────────
 
+    private fun showServerOptions(index: Int) {
+        val server = extraServers.getOrNull(index) ?: return
+        AlertDialog.Builder(this)
+            .setTitle(server.getOrElse(3) { "" }.ifBlank { "Server ${index + 2}" })
+            .setMessage(server.getOrElse(0) { "" })
+            .setPositiveButton("Switch") { _, _ -> switchToServer(index) }
+            .setNeutralButton("Edit") { _, _ -> showEditServerDialog(index) }
+            .setNegativeButton("Remove") { _, _ ->
+                extraServers.removeAt(index)
+                lifecycleScope.launch {
+                    prefs.saveExtraServersWithNick(extraServers)
+                    // Removing a server shifts every later server's index, which could
+                    // silently re-attribute stale merged-channel rows to the wrong server
+                    // until the next manual refresh — just clear the cache.
+                    db.mergedChannelDao().clearAll()
+                    rebuildList("server_add")
+                    toast("Server removed")
+                }
+            }
+            .show()
+    }
+
+    private fun showEditServerDialog(index: Int) {
+        val server = extraServers.getOrNull(index) ?: return
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 0)
+        }
+        val etNick = EditText(this).apply { hint = "Nickname (optional)"; setText(server.getOrElse(3) { "" }) }
+        val etUrl  = EditText(this).apply { hint = "Server URL (http://...)"; setText(server.getOrElse(0) { "" }) }
+        val etUser = EditText(this).apply { hint = "Username"; setText(server.getOrElse(1) { "" }) }
+        val etPass = EditText(this).apply {
+            hint = "Password"
+            setText(server.getOrElse(2) { "" })
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass)
+        AlertDialog.Builder(this)
+            .setTitle("Edit Server")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                // A URL should never legitimately contain whitespace — strip it all, not just
+                // leading/trailing, since a stray space pasted mid-string silently breaks every
+                // request to that server with no visible error.
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isNotEmpty() && user.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim())
+                        prefs.saveExtraServersWithNick(extraServers)
+                        db.mergedChannelDao().clearAll()
+                        rebuildList("server_add")
+                        toast("Server updated")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun switchToServer(i: Int) {
         AlertDialog.Builder(this)
             .setTitle("Switch Server")
@@ -1125,7 +1185,7 @@ class TvSettingsActivity : AppCompatActivity() {
             .setTitle("Add Server")
             .setView(layout)
             .setPositiveButton("Add") { _, _ ->
-                val url  = etUrl.text.toString().trim()
+                val url  = etUrl.text.toString().replace(" ", "").trim()
                 val user = etUser.text.toString().trim()
                 val pass = etPass.text.toString().trim()
                 val nick = etNick.text.toString().trim()

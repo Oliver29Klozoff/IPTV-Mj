@@ -1,7 +1,7 @@
 {
-  "versionCode": 279,
-  "versionName": "4.41",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.41/MKTV.apk",
-  "apkSha256": "48a3aba46454867a529da8bcb359acfa1c1446444118f4ae44b46a0a3e09feb6",
-  "changelog": "The default US EPG guide option is now an always-visible checkbox/toggle on both phone and TV, instead of a hint that only showed when the EPG URL field was empty."
+  "versionCode": 280,
+  "versionName": "4.42",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.42/MKTV.apk",
+  "apkSha256": "0e33f8f891fdab8f73abee746c621cc657d2e9880c306b0250ed3cd72ebbbade",
+  "changelog": "Added All Providers - browse and watch channels from every configured server together, with server/category drilldown, search, and USA-only filtering. Fixed a real playback bug where the mini player and Mosaic used a default User-Agent some CDNs silently reject. Fixed USA-only filtering to recognize spaced category naming. Added an Edit option for saved servers."
 }

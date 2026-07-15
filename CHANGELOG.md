@@ -1,5 +1,24 @@
 # IPTV App - Changelog
 
+## v4.42 - 2026-07-15
+- **Added**: "ALL PROVIDERS" — browse and watch channels from every configured server
+  (Settings > Servers) together, not just your primary one. Drill down by server, then by
+  category (a single provider can have tens of thousands of channels, so both levels are
+  grouped), with its own search box and respecting "USA Only" across every provider's own
+  category-naming convention. Tapping a channel plays it in the mini player first, same as
+  every other channel list — fullscreen only if you tap through.
+- **Fixed**: a real playback bug, not just a merged-providers issue — the mini player (and
+  Mosaic) used ExoPlayer's bare default User-Agent instead of a proper browser-style one, which
+  some providers' CDNs silently reject on the actual video-stream endpoint (even while their
+  API endpoint accepts it fine). This only showed up as broken because a stricter provider was
+  added, but it could affect any provider with that CDN behavior — now fixed to match what
+  fullscreen playback already does.
+- **Fixed**: "USA Only" channel filtering now recognizes both `US|...` and `US | ...`
+  (spaced) category-naming conventions, instead of only the first format.
+- **Added**: an "Edit" option for saved servers (Settings > Servers) to view/fix the full
+  nickname, URL, username, and password — the server list now also shows each server's URL
+  directly instead of only its nickname.
+
 ## v4.41 - 2026-07-14
 - **Changed**: the default US EPG guide option (added in v4.40) is now a checkbox/toggle
   instead of a hint that only appeared when the EPG URL field was empty — it's always visible

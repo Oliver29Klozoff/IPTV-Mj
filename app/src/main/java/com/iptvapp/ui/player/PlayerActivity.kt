@@ -1047,7 +1047,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.bufferHealthBadge.visibility = View.GONE
         lifecycleScope.launch {
             delay(1500)
-            val directUrl = if (!isVod) repository.getLiveStreamUrlForCast(streamId) else streamUrl
+            // streamId == -1 means this playback has no DB-backed identity (e.g. the external-
+            // player-fallback path, or a merged/secondary-provider channel) — repository lookups
+            // by streamId would resolve against the wrong (primary) server's credentials in that
+            // case, so fall back to the already-resolved streamUrl instead.
+            val directUrl = if (!isVod && streamId != -1) repository.getLiveStreamUrlForCast(streamId) else streamUrl
 
             // Start local CORS proxy — Chromecast Default Media Receiver runs in a browser
             // context and enforces CORS; most IPTV servers don't send CORS headers.

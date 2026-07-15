@@ -30,6 +30,7 @@ import com.iptvapp.ui.recordings.TvRecordingActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
+import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.tv.TvHomeChannelPublisher
 import com.iptvapp.ui.onboarding.FeatureTourDialog
@@ -52,9 +53,11 @@ class TvHomeActivity : AppCompatActivity() {
     private val viewModel: HomeViewModel by viewModels()
 
     @javax.inject.Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @javax.inject.Inject lateinit var okHttpClient: okhttp3.OkHttpClient
 
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
+    private lateinit var mergedChannelAdapter: MergedChannelAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var epgGuideAdapter: TvEpgGuideAdapter
@@ -116,7 +119,7 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
-    private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE }
+    private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE, PROVIDERS }
     private var currentSection = Section.FAVORITES
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -254,7 +257,14 @@ class TvHomeActivity : AppCompatActivity() {
     // ── Mini player ──────────────────────────────────────────────────────────
 
     private fun setupMiniPlayer() {
-        miniPlayer = ExoPlayer.Builder(this).build().also { player ->
+        // See HomeActivity.initMiniPlayer's kdoc — ExoPlayer's default User-Agent gets
+        // blocked by some Cloudflare-fronted IPTV CDNs on the stream endpoint specifically;
+        // mirror fullscreen playback's custom OkHttpDataSource.Factory here too.
+        val upstreamDataSourceFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${android.os.Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(upstreamDataSourceFactory)
+        miniPlayer = ExoPlayer.Builder(this).setMediaSourceFactory(mediaSourceFactory).build().also { player ->
             binding.tvMiniPlayerView.player = player
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
@@ -366,6 +376,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun setupAdapters() {
         categoryAdapter = CategoryAdapter(
             onCategoryClick = { cat ->
+                var showChannels = true
                 when (currentSection) {
                     Section.LIVE -> {
                         binding.tvRvContent.adapter = channelAdapter
@@ -379,9 +390,30 @@ class TvHomeActivity : AppCompatActivity() {
                         binding.tvRvContent.adapter = vodAdapter
                         viewModel.selectVodCategory(cat.categoryId)
                     }
+                    Section.PROVIDERS -> {
+                        // 3-level drill (server -> category -> channels): the first tap picks
+                        // a server and should show ITS categories next, not channels yet.
+                        if (viewModel.selectedMergedServerIndex == null) {
+                            viewModel.selectMergedServer(cat.categoryId.toInt())
+                            categoryAdapter.submitList(emptyList())
+                            lifecycleScope.launch {
+                                viewModel.mergedCategories.collect { cats ->
+                                    if (viewModel.selectedMergedServerIndex != null) {
+                                        categoryAdapter.submitList(mergedCategoriesToSynthetic(cats))
+                                    }
+                                }
+                            }
+                            showCategoryPanel("PROVIDERS")
+                            showChannels = false
+                        } else {
+                            val categoryId = if (cat.categoryId == NO_CATEGORY_ID) null else cat.categoryId
+                            viewModel.selectMergedCategory(categoryId)
+                            binding.tvRvContent.adapter = mergedChannelAdapter
+                        }
+                    }
                     else -> {}
                 }
-                showChannelPanel(cat.categoryName)
+                if (showChannels) showChannelPanel(cat.categoryName)
             },
             onCategoryLongClick = { cat ->
                 if (currentSection == Section.LIVE) {
@@ -429,6 +461,10 @@ class TvHomeActivity : AppCompatActivity() {
             }
             if (preWarmEnabled) preWarmChannel(channel)
         }
+
+        mergedChannelAdapter = MergedChannelAdapter(
+            onChannelClick = { channel -> playMergedChannel(channel) }
+        )
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
@@ -596,6 +632,7 @@ class TvHomeActivity : AppCompatActivity() {
         pendingContentFocus = true
         binding.tvBtnChanSort.visibility = if (title == "LIVE") View.VISIBLE else View.GONE
         if (title == "LIVE") updateTvSortButtonLabel()
+        binding.tvBtnChanRefresh.visibility = if (title == "PROVIDERS") View.VISIBLE else View.GONE
     }
 
     private fun updateTvSortButtonLabel() {
@@ -635,6 +672,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvMovies,
             binding.btnTvSeries,
             binding.btnTvGuide,
+            binding.btnTvProviders,
             binding.btnTvRecordings,
             binding.btnTvSettings
         ).filter { it.visibility == View.VISIBLE }
@@ -652,7 +690,8 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvCategories,
         binding.btnTvMovies,
         binding.btnTvSeries,
-        binding.btnTvGuide
+        binding.btnTvGuide,
+        binding.btnTvProviders
     )
 
     private fun setupSidebar() {
@@ -662,6 +701,11 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
         binding.btnTvGuide.setOnClickListener { selectSection(Section.GUIDE) }
+        binding.btnTvProviders.setOnClickListener { selectSection(Section.PROVIDERS) }
+        binding.tvBtnChanRefresh.setOnClickListener {
+            viewModel.refreshMergedChannels()
+            Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+        }
         binding.btnTvRecordings.setOnClickListener {
             startActivity(Intent(this, TvRecordingActivity::class.java))
         }
@@ -699,6 +743,7 @@ class TvHomeActivity : AppCompatActivity() {
             }
             Section.FAVORITES -> openFavoritesOnCurrentChannel()
             Section.GUIDE -> showGuidePanel()
+            Section.PROVIDERS -> showMergedChannelsPanel()
         }
     }
 
@@ -709,6 +754,67 @@ class TvHomeActivity : AppCompatActivity() {
         Section.SERIES     -> binding.btnTvSeries
         Section.FAVORITES  -> binding.btnTvFavorites
         Section.GUIDE      -> binding.btnTvGuide
+        Section.PROVIDERS  -> binding.btnTvProviders
+    }
+
+    // Browse-and-play-only merged view across every configured server (Settings > Servers) —
+    // deliberately no favorite/record support, see MergedChannelEntity kdoc for why.
+    // 3-level drill-down (server -> category -> channels), same shape as Live, since a single
+    // provider can itself have tens of thousands of channels.
+    private fun showMergedChannelsPanel() {
+        viewModel.resetMergedSelection()
+        binding.tvRvContent.adapter = categoryAdapter
+        categoryAdapter.submitList(mergedServersToSynthetic(viewModel.mergedServers.value))
+        showCategoryPanel("PROVIDERS")
+    }
+
+    private val NO_CATEGORY_ID = "__uncategorized__"
+
+    private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> =
+        list.map {
+            CategoryEntity(
+                categoryId = it.serverIndex.toString(),
+                categoryName = "${it.serverNickname} (${it.channelCount})",
+                parentId = 0,
+                type = "merged_server"
+            )
+        }
+
+    private fun mergedCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedCategorySummary>): List<CategoryEntity> =
+        list.map {
+            CategoryEntity(
+                categoryId = it.categoryId ?: NO_CATEGORY_ID,
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.channelCount})",
+                parentId = 0,
+                type = "merged_category"
+            )
+        }
+
+    // Tapping a merged channel now behaves like every other channel list: starts in the mini
+    // player first, and only goes fullscreen if the mini preview itself is pressed next —
+    // currentMiniUrl/Title/StreamId/IsVod are plain generic fields already read by
+    // tvMiniPlayerContainer's click listener, so setting them here is all that's needed.
+    private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        lifecycleScope.launch {
+            try {
+                val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
+                val title = "${channel.name} · ${channel.serverNickname}"
+                // streamId = -1: no DB-backed identity for this channel (it lives only in the
+                // merged_channels cache, not the primary server's channels table).
+                currentMiniUrl = url
+                currentMiniTitle = title
+                currentMiniStreamId = -1
+                currentMiniIsVod = false
+                binding.tvTvChannelName.text = title
+                miniPlayer?.let {
+                    it.setMediaItem(MediaItem.fromUri(url))
+                    it.prepare()
+                    it.playWhenReady = true
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@TvHomeActivity, "Couldn't load this channel — tap Refresh and try again", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -1122,6 +1228,15 @@ class TvHomeActivity : AppCompatActivity() {
     private fun dispatchSearch(query: String) {
         when (currentSection) {
             Section.MOVIES -> viewModel.searchVod(query)
+            Section.PROVIDERS -> {
+                if (query.isBlank()) {
+                    showMergedChannelsPanel()
+                } else {
+                    viewModel.searchMergedChannels(query)
+                    binding.tvRvContent.adapter = mergedChannelAdapter
+                    showChannelPanel("SEARCH RESULTS")
+                }
+            }
             else -> viewModel.searchChannels(query)
         }
     }
@@ -1223,6 +1338,11 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedChannels.collect {
+                if (currentSection == Section.PROVIDERS) mergedChannelAdapter.submitList(it)
+            }
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
