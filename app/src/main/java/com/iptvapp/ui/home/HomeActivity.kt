@@ -303,6 +303,13 @@ class HomeActivity : AppCompatActivity() {
                 button.setTextColor(currentAccent)
             }
         }
+        // Landscape has no top-bar refresh icon at all (unlike portrait's btnRefreshProviders)
+        // — long-press the sidebar entry itself as the only way to trigger a manual refresh.
+        binding.root.findViewById<android.widget.Button?>(R.id.landBtnProviders)?.setOnLongClickListener {
+            viewModel.refreshMergedChannels()
+            Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+            true
+        }
         binding.tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
                 val idx = tab?.position ?: return

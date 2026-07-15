@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.43 - 2026-07-15
+- **Fixed**: landscape mode (used by car-dock/head-unit devices) had no way to refresh
+  channels at all for any tab, including the new All Providers view — long-press the "ALL
+  PROVIDERS" sidebar entry in landscape to trigger a refresh.
+
 ## v4.42 - 2026-07-15
 - **Added**: "ALL PROVIDERS" — browse and watch channels from every configured server
   (Settings > Servers) together, not just your primary one. Drill down by server, then by

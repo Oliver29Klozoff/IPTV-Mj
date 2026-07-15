@@ -1,7 +1,7 @@
 {
-  "versionCode": 280,
-  "versionName": "4.42",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.42/MKTV.apk",
-  "apkSha256": "0e33f8f891fdab8f73abee746c621cc657d2e9880c306b0250ed3cd72ebbbade",
-  "changelog": "Added All Providers - browse and watch channels from every configured server together, with server/category drilldown, search, and USA-only filtering. Fixed a real playback bug where the mini player and Mosaic used a default User-Agent some CDNs silently reject. Fixed USA-only filtering to recognize spaced category naming. Added an Edit option for saved servers."
+  "versionCode": 281,
+  "versionName": "4.43",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.43/MKTV.apk",
+  "apkSha256": "75cfb255c699068828ac5956ff7e7322c2d0745c2a4e753d3055f88d79aaae2d",
+  "changelog": "Fixed landscape mode having no refresh option for any tab, including All Providers - long-press the ALL PROVIDERS sidebar entry to refresh."
 }
