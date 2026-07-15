@@ -97,8 +97,8 @@ class SettingsActivity : AppCompatActivity() {
             + "re-downloaded from your provider in the background.\n\n"
             + "Refresh only channels missing guide data: skips channels that already have "
             + "EPG data, making refreshes faster.\n\n"
-            + "Server Speed Test: measures how fast your current server responds, to help "
-            + "compare multiple servers if you have them.\n\n"
+            + "Provider Speed Test: measures how fast your current provider responds, to help "
+            + "compare multiple providers if you have them.\n\n"
             + "DNS over HTTPS (DoH): encrypts DNS lookups so your ISP can't see (or throttle "
             + "based on) which streaming domains you're connecting to.\n\n"
             + "Global Extra Buffering: builds up a bigger buffer before playback starts, "
@@ -107,7 +107,7 @@ class SettingsActivity : AppCompatActivity() {
             + "Show USA Channels Only / English Movies & Series Only: filters live channels "
             + "or VOD/series to just those tagged for that country/language by your "
             + "provider — depends entirely on your provider's own naming, so may not work "
-            + "for every server.",
+            + "for every provider.",
         // 1: Display
         "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
             + "screen — the content itself isn't deleted, just the tab.\n\n"
@@ -125,14 +125,14 @@ class SettingsActivity : AppCompatActivity() {
             + "it bypasses a normal Android security prompt — only turn this on if you're "
             + "comfortable with that.",
         // 3: Backup & Restore
-        "Backup / Restore: saves your server login, favorites, and settings to a file you "
+        "Backup / Restore: saves your provider login, favorites, and settings to a file you "
             + "choose (Downloads, Drive, USB, etc.), or loads them back in — useful before "
             + "a factory reset or when moving to a new device. Nothing is uploaded "
             + "anywhere automatically; you pick the exact file location yourself.\n\n"
             + "Auto backup (weekly): does the same backup automatically once a week to that "
             + "same chosen location, without you having to remember to do it manually.",
-        // 4: Servers
-        "Add, edit, or switch between multiple Xtream server logins if you have more than "
+        // 4: Providers
+        "Add, edit, or switch between multiple Xtream provider logins if you have more than "
             + "one IPTV subscription — only one is active for playback at a time, but you "
             + "can switch instantly without re-entering credentials.",
         // 5: Sync
@@ -1322,7 +1322,7 @@ class SettingsActivity : AppCompatActivity() {
                 ).also { it.bottomMargin = 12 }
             }
             android.widget.TextView(this@SettingsActivity).apply {
-                text = "PRIMARY"
+                text = "PRIMARY PROVIDER"
                 setTextColor(Color.parseColor("#777777"))
                 textSize = 10f
                 primaryRow.addView(this)
@@ -1354,7 +1354,7 @@ class SettingsActivity : AppCompatActivity() {
                     ).also { it.bottomMargin = 12 }
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
-                    text = "SERVER ${i + 2}"
+                    text = "PROVIDER ${i + 2}"
                     setTextColor(Color.parseColor("#777777"))
                     textSize = 10f
                     row.addView(this)
@@ -1480,7 +1480,7 @@ class SettingsActivity : AppCompatActivity() {
             hint = "Nickname (optional)"; setText(server.getOrElse(3) { "" }); disableAutofill()
         }
         val etUrl = android.widget.EditText(this).apply {
-            hint = "Server URL (http://...)"; setText(server.getOrElse(0) { "" }); disableAutofill()
+            hint = "Provider URL (http://...)"; setText(server.getOrElse(0) { "" }); disableAutofill()
         }
         val etUser = android.widget.EditText(this).apply {
             hint = "Username"; setText(server.getOrElse(1) { "" }); disableAutofill()
@@ -1499,7 +1499,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
-            .setTitle("Edit Server")
+            .setTitle("Edit Provider")
             .setView(layout)
             .setPositiveButton("Save") { _, _ ->
                 // A URL should never legitimately contain whitespace — strip it all, not just
@@ -1514,7 +1514,7 @@ class SettingsActivity : AppCompatActivity() {
                         extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
-                        Toast.makeText(this@SettingsActivity, "Server updated", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, "Provider updated", Toast.LENGTH_SHORT).show()
                         updateServerList()
                     }
                 }
@@ -1540,7 +1540,7 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         val etNick = android.widget.EditText(this).apply { hint = "Nickname (optional)"; disableAutofill() }
-        val etUrl  = android.widget.EditText(this).apply { hint = "Server URL (http://...)"; disableAutofill() }
+        val etUrl  = android.widget.EditText(this).apply { hint = "Provider URL (http://...)"; disableAutofill() }
         val etUser = android.widget.EditText(this).apply { hint = "Username"; disableAutofill() }
         val etPass = android.widget.EditText(this).apply {
             hint = "Password"
@@ -1554,7 +1554,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
-            .setTitle("Add Server")
+            .setTitle("Add Provider")
             .setView(layout)
             .setPositiveButton("Add") { _, _ ->
                 val url  = etUrl.text.toString().replace(" ", "").trim()
@@ -1568,7 +1568,7 @@ class SettingsActivity : AppCompatActivity() {
                         extraServers.clear()
                         extraServers.addAll(fresh)
                         prefs.saveExtraServersWithNick(extraServers)
-                        Toast.makeText(this@SettingsActivity, "Server added", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, "Provider added", Toast.LENGTH_SHORT).show()
                         updateServerList()
                     }
                 }

@@ -147,7 +147,7 @@ class TvSettingsActivity : AppCompatActivity() {
         "EPG" -> "📺"
         "Updates" -> "⬇️"
         "Backup & Restore" -> "💾"
-        "Servers" -> "🖥️"
+        "Providers" -> "🖥️"
         "Account" -> "👤"
         "Sync" -> "☁️"
         "Trakt" -> "🎬"
@@ -260,7 +260,7 @@ class TvSettingsActivity : AppCompatActivity() {
             subtitle = "Maps Dolby Vision Profile 7 content to standard HEVC for devices without proper DV7 hardware support",
             checked = prefs.dv7FallbackEnabled.first()) { c -> lifecycleScope.launch { prefs.setDv7FallbackEnabled(c) } }
         settingsItems += TvSettingItem.Toggle("stream_extra_buffering", "Global Extra Buffering",
-            subtitle = "Enable extra buffering for all servers by default — trades a slower start/seek for fewer mid-playback stalls. On by default.",
+            subtitle = "Enable extra buffering for all providers by default — trades a slower start/seek for fewer mid-playback stalls. On by default.",
             checked = prefs.extraBufferingEnabled.first()) { c -> lifecycleScope.launch { prefs.setExtraBufferingEnabled(c) } }
 
         // ── DISPLAY ──
@@ -414,18 +414,18 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
 
         // ── SERVERS ──
-        settingsItems += TvSettingItem.Header("Servers")
+        settingsItems += TvSettingItem.Header("Providers")
         val primaryActive = activeIdx == -1
         settingsItems += TvSettingItem.Info("server_primary",
             "${if (primaryActive) "●  " else ""}$primaryNick  •  ${creds.serverUrl.take(50).ifBlank { "Not set" }}")
         extraServers.forEachIndexed { i, server ->
-            val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Server ${i + 2}" } }
+            val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Provider ${i + 2}" } }
             val isActive = activeIdx == i
             settingsItems += TvSettingItem.Action("server_$i",
                 "${if (isActive) "●  " else ""}$nick",
                 value = server.getOrElse(0) { "" }.take(45)) { showServerOptions(i) }
         }
-        settingsItems += TvSettingItem.Action("server_add", "Add Server") { showAddServerDialog() }
+        settingsItems += TvSettingItem.Action("server_add", "Add Provider") { showAddServerDialog() }
 
         // ── ACCOUNT ──
         settingsItems += TvSettingItem.Header("Account")
@@ -1085,7 +1085,7 @@ class TvSettingsActivity : AppCompatActivity() {
     private fun showServerOptions(index: Int) {
         val server = extraServers.getOrNull(index) ?: return
         AlertDialog.Builder(this)
-            .setTitle(server.getOrElse(3) { "" }.ifBlank { "Server ${index + 2}" })
+            .setTitle(server.getOrElse(3) { "" }.ifBlank { "Provider ${index + 2}" })
             .setMessage(server.getOrElse(0) { "" })
             .setPositiveButton("Switch") { _, _ -> switchToServer(index) }
             .setNeutralButton("Edit") { _, _ -> showEditServerDialog(index) }
@@ -1098,7 +1098,7 @@ class TvSettingsActivity : AppCompatActivity() {
                     // until the next manual refresh — just clear the cache.
                     db.mergedChannelDao().clearAll()
                     rebuildList("server_add")
-                    toast("Server removed")
+                    toast("Provider removed")
                 }
             }
             .show()
@@ -1110,7 +1110,7 @@ class TvSettingsActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 0)
         }
         val etNick = EditText(this).apply { hint = "Nickname (optional)"; setText(server.getOrElse(3) { "" }) }
-        val etUrl  = EditText(this).apply { hint = "Server URL (http://...)"; setText(server.getOrElse(0) { "" }) }
+        val etUrl  = EditText(this).apply { hint = "Provider URL (http://...)"; setText(server.getOrElse(0) { "" }) }
         val etUser = EditText(this).apply { hint = "Username"; setText(server.getOrElse(1) { "" }) }
         val etPass = EditText(this).apply {
             hint = "Password"
@@ -1124,7 +1124,7 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
-            .setTitle("Edit Server")
+            .setTitle("Edit Provider")
             .setView(layout)
             .setPositiveButton("Save") { _, _ ->
                 // A URL should never legitimately contain whitespace — strip it all, not just
@@ -1140,7 +1140,7 @@ class TvSettingsActivity : AppCompatActivity() {
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
                         rebuildList("server_add")
-                        toast("Server updated")
+                        toast("Provider updated")
                     }
                 }
             }
@@ -1150,8 +1150,8 @@ class TvSettingsActivity : AppCompatActivity() {
 
     private fun switchToServer(i: Int) {
         AlertDialog.Builder(this)
-            .setTitle("Switch Server")
-            .setMessage("Switch to this server? Local data will be cleared and the app will restart.")
+            .setTitle("Switch Provider")
+            .setMessage("Switch to this provider? Local data will be cleared and the app will restart.")
             .setPositiveButton("Switch") { _, _ ->
                 lifecycleScope.launch {
                     val server  = extraServers[i]
@@ -1185,7 +1185,7 @@ class TvSettingsActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 0)
         }
         val etNick = EditText(this).apply { hint = "Nickname (optional)" }
-        val etUrl  = EditText(this).apply { hint = "Server URL (http://...)" }
+        val etUrl  = EditText(this).apply { hint = "Provider URL (http://...)" }
         val etUser = EditText(this).apply { hint = "Username" }
         val etPass = EditText(this).apply {
             hint = "Password"
@@ -1197,7 +1197,7 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
-            .setTitle("Add Server")
+            .setTitle("Add Provider")
             .setView(layout)
             .setPositiveButton("Add") { _, _ ->
                 val url  = etUrl.text.toString().replace(" ", "").trim()
@@ -1211,7 +1211,7 @@ class TvSettingsActivity : AppCompatActivity() {
                         fresh.add(listOf(url, user, pass, nick, epgUrl))
                         extraServers.clear(); extraServers.addAll(fresh)
                         prefs.saveExtraServersWithNick(extraServers)
-                        toast("Server added")
+                        toast("Provider added")
                         rebuildList("server_add")
                     }
                 }

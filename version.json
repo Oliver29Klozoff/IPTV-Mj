@@ -1,7 +1,7 @@
 {
-  "versionCode": 287,
-  "versionName": "4.49",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.49/MKTV.apk",
-  "apkSha256": "0b8b6705c1c6aa841c49f8f11eb27c0e76c822b75eb7a73f60f29fa6c068feed",
-  "changelog": "Cloud sync now carries over favorite folders (matched/created by name) and drag-reordered favorite order, not just which channels are favorited."
+  "versionCode": 288,
+  "versionName": "4.50",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.50/MKTV.apk",
+  "apkSha256": "57034e6deae0acbd06d95e27aa2924d344a80d87e683e0c51904cf44daf3d7cd",
+  "changelog": "Renamed Servers to Providers throughout Settings."
 }
