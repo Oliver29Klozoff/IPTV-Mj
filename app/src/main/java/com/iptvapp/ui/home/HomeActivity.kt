@@ -1851,6 +1851,7 @@ class HomeActivity : AppCompatActivity() {
         if (channel.isFavorite) options.add("Move to Folder")
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
+            options.add(1, "Move ${bulkSelectedIds.size} selected to folder")
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
@@ -1872,11 +1873,16 @@ class HomeActivity : AppCompatActivity() {
                     }
                     "Channels Like This" -> showSimilarChannelsSheet(channel)
                     "Move to Folder" -> showMoveToFolderDialog(channel)
-                    else -> if (options[i].startsWith("✓ Add")) {
-                        viewModel.bulkAddFavorites(bulkSelectedIds.toList())
-                        Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
-                        bulkSelectedIds.clear()
-                        bulkSelectMode = false
+                    else -> when {
+                        options[i].startsWith("✓ Add") -> {
+                            viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+                            Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                            bulkSelectedIds.clear()
+                            bulkSelectMode = false
+                        }
+                        options[i].startsWith("Move") && options[i].endsWith("to folder") -> {
+                            showMoveToFolderDialog(bulkSelectedIds.toList())
+                        }
                     }
                 }
             }
@@ -1885,13 +1891,28 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showMoveToFolderDialog(channel: ChannelEntity) {
+        showMoveToFolderDialog("Move \"${channel.name}\" to") { folderId ->
+            viewModel.setChannelFavoriteFolder(channel.streamId, folderId)
+        }
+    }
+
+    private fun showMoveToFolderDialog(streamIds: List<Int>) {
+        showMoveToFolderDialog("Move ${streamIds.size} channels to") { folderId ->
+            viewModel.setChannelsFavoriteFolder(streamIds, folderId)
+            bulkSelectedIds.clear()
+            bulkSelectMode = false
+            Toast.makeText(this, "Moved ${streamIds.size} channels", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showMoveToFolderDialog(title: String, onPicked: (Int?) -> Unit) {
         val folders = viewModel.favoriteFolders.value
         val labels = mutableListOf("Unsorted") + folders.map { it.name } + "+ New Folder"
         AlertDialog.Builder(this)
-            .setTitle("Move \"${channel.name}\" to")
+            .setTitle(title)
             .setItems(labels.toTypedArray()) { _, i ->
                 when (i) {
-                    0 -> viewModel.setChannelFavoriteFolder(channel.streamId, null)
+                    0 -> onPicked(null)
                     labels.size - 1 -> {
                         val et = android.widget.EditText(this).apply { hint = "Folder name" }
                         AlertDialog.Builder(this)
@@ -1902,14 +1923,14 @@ class HomeActivity : AppCompatActivity() {
                                 if (name.isNotEmpty()) {
                                     lifecycleScope.launch {
                                         val newId = viewModel.createFavoriteFolderAndGetId(name)
-                                        viewModel.setChannelFavoriteFolder(channel.streamId, newId)
+                                        onPicked(newId)
                                     }
                                 }
                             }
                             .setNegativeButton("Cancel", null)
                             .show()
                     }
-                    else -> viewModel.setChannelFavoriteFolder(channel.streamId, folders[i - 1].id)
+                    else -> onPicked(folders[i - 1].id)
                 }
             }
             .setNegativeButton("Cancel", null)

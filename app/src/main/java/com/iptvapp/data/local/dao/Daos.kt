@@ -87,7 +87,11 @@ interface ChannelDao {
     fun getUnfiledFavorites(): Flow<List<ChannelEntity>>
     @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM channels WHERE isFavorite = 1 AND isHidden = 0 GROUP BY favoriteFolderId")
     fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
-    @Query("UPDATE channels SET favoriteFolderId = :folderId WHERE streamId = :streamId")
+    // Assigning a folder (Unsorted counts as one) always favorites the channel too — folder
+    // queries require isFavorite = 1, so a channel moved via bulk-select (which can select
+    // non-favorited channels from Live/Categories, not just existing favorites) would
+    // otherwise silently vanish from every folder view despite having a folder assignment.
+    @Query("UPDATE channels SET favoriteFolderId = :folderId, isFavorite = 1 WHERE streamId = :streamId")
     suspend fun setFavoriteFolder(streamId: Int, folderId: Int?)
     @Query("UPDATE channels SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
     suspend fun clearFolderFromChannels(folderId: Int)

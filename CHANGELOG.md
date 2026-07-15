@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.47 - 2026-07-15
+- **Added**: multi-select when moving channels into a favorite folder — long-press to select
+  multiple channels (same "bulk select" used for adding to favorites), then "Move N selected
+  to folder" to assign them all at once. Moving a channel into a folder now also favorites it
+  automatically if it wasn't already, so bulk-selected channels from Live/Categories work too.
+
 ## v4.46 - 2026-07-15
 - **Fixed**: long-pressing a favorite channel to move it into a folder wasn't showing the menu
   at all — the drag-to-reorder gesture (which defaults to starting on a long-press anywhere on

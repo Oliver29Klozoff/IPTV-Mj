@@ -119,6 +119,10 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { repository.setChannelFavoriteFolder(streamId, folderId) }
     }
 
+    fun setChannelsFavoriteFolder(streamIds: List<Int>, folderId: Int?) {
+        viewModelScope.launch { streamIds.forEach { repository.setChannelFavoriteFolder(it, folderId) } }
+    }
+
     // "All Providers" is a 3-level drill-down (server -> category -> channels), same shape as
     // Live's category drilldown — a single provider can itself have tens of thousands of
     // channels, so neither a cross-server nor a per-server flat list is usable.

@@ -1,7 +1,7 @@
 {
-  "versionCode": 284,
-  "versionName": "4.46",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.46/MKTV.apk",
-  "apkSha256": "1de5637f82fba97314a117fdfe481acded2437a25f6507a8d59dd5558e2ee08d",
-  "changelog": "Fixed long-press on a favorite channel not showing the Move to Folder menu - drag-to-reorder was intercepting the long-press first. Dragging now only starts from its handle icon."
+  "versionCode": 285,
+  "versionName": "4.47",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.47/MKTV.apk",
+  "apkSha256": "9bcf01f5205737b71d2e3400bfe269ee6ce42c136b7f661ddd9178b82bac5b9f",
+  "changelog": "Added multi-select when moving channels into a favorite folder - bulk-select several channels, then Move N selected to folder to assign them all at once."
 }
