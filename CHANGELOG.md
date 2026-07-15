@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.48 - 2026-07-15
+- **Fixed**: switching to another saved server (Settings > Servers > Switch) wasn't carrying
+  over that server's nickname — it kept showing whatever nickname the previous primary server
+  had, making a freshly-edited nickname look like it had reverted/vanished after switching away
+  and back.
+- **Changed**: bulk-selecting channels to move into a favorite folder no longer requires
+  long-pressing every single one — long-press once to start, then just tap additional channels
+  to add/remove them from the selection. Stop tapping for 3 seconds and the "Move to Folder"
+  picker opens automatically.
+
 ## v4.47 - 2026-07-15
 - **Added**: multi-select when moving channels into a favorite folder — long-press to select
   multiple channels (same "bulk select" used for adding to favorites), then "Move N selected

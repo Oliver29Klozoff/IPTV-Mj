@@ -1415,11 +1415,18 @@ class SettingsActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             val primary = prefs.credentials.first()
                             val newPass = extraServers[i][2]
+                            // The nickname you gave this extra server was never carried over
+                            // to prefs.serverNickname (the single global "current primary's
+                            // nickname" field) — switching kept showing whatever nickname the
+                            // OLD primary had, making a freshly-edited nickname look like it
+                            // had vanished.
+                            val newNick = extraServers[i].getOrElse(3) { "" }
                             val updated = extraServers.toMutableList()
                             updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
                             prefs.saveExtraServersWithNick(updated)
                             withContext(Dispatchers.IO) { db.clearAllTables() }
                             prefs.saveCredentials(url, user, newPass)
+                            prefs.setServerNickname(newNick)
                             prefs.setActiveServerIndex(-1)
                             val intent = Intent(this@SettingsActivity, com.iptvapp.ui.home.HomeActivity::class.java)
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

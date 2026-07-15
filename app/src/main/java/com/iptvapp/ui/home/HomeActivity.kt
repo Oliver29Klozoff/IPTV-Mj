@@ -75,6 +75,16 @@ class HomeActivity : AppCompatActivity() {
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
     private var bulkSelectMode = false
+    // Once bulk-select is on (long-press one channel to start), a plain tap on any other
+    // channel just adds/removes it from the selection instead of playing it — no more
+    // long-pressing every single one. 3s of no further taps auto-opens "Move to Folder"
+    // instead of requiring a long-press + menu tap to confirm.
+    private val bulkSelectHandler = Handler(Looper.getMainLooper())
+    private val bulkSelectIdleRunnable = Runnable {
+        if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
+            showMoveToFolderDialog(bulkSelectedIds.toList())
+        }
+    }
 
     private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
@@ -876,12 +886,20 @@ class HomeActivity : AppCompatActivity() {
 
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                lifecycleScope.launch {
-                    playInMiniPlayer(channel)
-                    viewModel.markChannelWatched(channel.streamId)
-                    viewModel.setCurrentlyPlaying(channel.streamId)
+                if (bulkSelectMode) {
+                    if (!bulkSelectedIds.add(channel.streamId)) bulkSelectedIds.remove(channel.streamId)
+                    Toast.makeText(this, "${bulkSelectedIds.size} selected", Toast.LENGTH_SHORT).show()
+                    bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                    if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
+                    else bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+                } else {
+                    lifecycleScope.launch {
+                        playInMiniPlayer(channel)
+                        viewModel.markChannelWatched(channel.streamId)
+                        viewModel.setCurrentlyPlaying(channel.streamId)
+                    }
+                    scheduleContentAutoCollapse()
                 }
-                scheduleContentAutoCollapse()
             },
             onChannelDoubleClick = { channel ->
                 val currentIds = viewModel.channels.value.map { it.streamId }.toIntArray()
@@ -1861,11 +1879,16 @@ class HomeActivity : AppCompatActivity() {
                     "Select (bulk add to favorites)" -> {
                         bulkSelectMode = true
                         bulkSelectedIds.add(channel.streamId)
-                        Toast.makeText(this, "${bulkSelectedIds.size} selected — long-press another or tap '✓ Add' to confirm", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "${bulkSelectedIds.size} selected — tap more channels, or wait to move/add them", Toast.LENGTH_SHORT).show()
+                        bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                        bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
                     }
                     "Deselect (bulk)" -> {
                         bulkSelectedIds.remove(channel.streamId)
-                        if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
+                        if (bulkSelectedIds.isEmpty()) {
+                            bulkSelectMode = false
+                            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                        }
                     }
                     "Hide Channel" -> {
                         viewModel.hideChannel(channel.streamId)
@@ -1875,12 +1898,14 @@ class HomeActivity : AppCompatActivity() {
                     "Move to Folder" -> showMoveToFolderDialog(channel)
                     else -> when {
                         options[i].startsWith("✓ Add") -> {
+                            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                             viewModel.bulkAddFavorites(bulkSelectedIds.toList())
                             Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
                             bulkSelectedIds.clear()
                             bulkSelectMode = false
                         }
                         options[i].startsWith("Move") && options[i].endsWith("to folder") -> {
+                            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                             showMoveToFolderDialog(bulkSelectedIds.toList())
                         }
                     }

@@ -1,7 +1,7 @@
 {
-  "versionCode": 285,
-  "versionName": "4.47",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.47/MKTV.apk",
-  "apkSha256": "9bcf01f5205737b71d2e3400bfe269ee6ce42c136b7f661ddd9178b82bac5b9f",
-  "changelog": "Added multi-select when moving channels into a favorite folder - bulk-select several channels, then Move N selected to folder to assign them all at once."
+  "versionCode": 286,
+  "versionName": "4.48",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.48/MKTV.apk",
+  "apkSha256": "a4adaac124f5b280970e46074c08eedf247153f717c882014d340cc0417dbaf1",
+  "changelog": "Fixed server nickname not carrying over when switching servers. Bulk-selecting channels for a favorite folder now only needs one long-press to start, then tap more channels to add them - auto-opens the folder picker after 3s of no more taps."
 }

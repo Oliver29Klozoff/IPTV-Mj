@@ -1156,6 +1156,10 @@ class TvSettingsActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val server  = extraServers[i]
                     val url     = server[0]; val user = server[1]; val pass = server[2]
+                    // Same nickname-loss bug fixed on phone: the target server's nickname was
+                    // never carried over to prefs.serverNickname, so switching kept showing
+                    // whatever nickname the OLD primary had.
+                    val newNick = server.getOrElse(3) { "" }
                     val primary = prefs.credentials.first()
                     val updated = extraServers.toMutableList()
                     updated[i]  = listOf(primary.serverUrl, primary.username, primary.password,
@@ -1163,6 +1167,7 @@ class TvSettingsActivity : AppCompatActivity() {
                     prefs.saveExtraServersWithNick(updated)
                     withContext(Dispatchers.IO) { db.clearAllTables() }
                     prefs.saveCredentials(url, user, pass)
+                    prefs.setServerNickname(newNick)
                     prefs.setActiveServerIndex(-1)
                     startActivity(
                         Intent(this@TvSettingsActivity,
