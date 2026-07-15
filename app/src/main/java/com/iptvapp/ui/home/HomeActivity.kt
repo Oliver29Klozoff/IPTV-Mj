@@ -1458,6 +1458,14 @@ class HomeActivity : AppCompatActivity() {
         ) {
             private val dragList = mutableListOf<ChannelEntity>()
 
+            // Defaults to true, which starts a drag on a long-press ANYWHERE on the row —
+            // that was swallowing the long-press before ChannelAdapter's own
+            // setOnLongClickListener (which opens "Move to Folder" etc.) ever got a chance to
+            // fire. Dragging already has its own dedicated trigger — touching ivDragHandle
+            // (see ChannelAdapter's ivDragHandle touch listener) — so long-press-to-drag
+            // anywhere on the row isn't needed and was actively breaking the folder menu.
+            override fun isLongPressDragEnabled(): Boolean = false
+
             override fun onMove(rv: RecyclerView, from: RecyclerView.ViewHolder, to: RecyclerView.ViewHolder): Boolean {
                 val fromPos = from.bindingAdapterPosition
                 val toPos = to.bindingAdapterPosition

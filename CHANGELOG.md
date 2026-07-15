@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.46 - 2026-07-15
+- **Fixed**: long-pressing a favorite channel to move it into a folder wasn't showing the menu
+  at all — the drag-to-reorder gesture (which defaults to starting on a long-press anywhere on
+  the row) was swallowing it first. Dragging now only starts from its dedicated handle icon,
+  so long-press reliably opens the "Move to Folder" menu.
+
 ## v4.45 - 2026-07-15
 - **Fixed**: a real bug found while extending EPG — any manually-added EPG source (Settings >
   EPG "Add EPG Source", or the "Default US Guide" toggle) was saved but never actually

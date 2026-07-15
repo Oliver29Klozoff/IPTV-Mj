@@ -1,7 +1,7 @@
 {
-  "versionCode": 283,
-  "versionName": "4.45",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.45/MKTV.apk",
-  "apkSha256": "ce7c0358d0f19088e37917a46cc8519bdad733055bbfcf01e0511d7792ac1261",
-  "changelog": "Fixed a real bug: manually-added or Default EPG sources were saved but never actually fetched from - now they're properly fetched and merged. Added an EPG URL field to the Add/Edit Server dialog."
+  "versionCode": 284,
+  "versionName": "4.46",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.46/MKTV.apk",
+  "apkSha256": "1de5637f82fba97314a117fdfe481acded2437a25f6507a8d59dd5558e2ee08d",
+  "changelog": "Fixed long-press on a favorite channel not showing the Move to Folder menu - drag-to-reorder was intercepting the long-press first. Dragging now only starts from its handle icon."
 }
