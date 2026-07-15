@@ -43,13 +43,30 @@ class SyncManager @Inject constructor(
             val recentIds      = db.channelDao().getRecentChannels().first().take(50).map { it.streamId }
             val favCategoryIds = prefs.favoriteLiveCategoryIds.first().toList()
 
+            // Folder ids are local autoincrement values (not portable across devices), so
+            // folders are synced by NAME — push the folder name list plus a streamId->name
+            // map for every favorite that's actually in a folder (Unsorted favorites are
+            // omitted, same as before this feature existed).
+            val folders = db.favoriteFolderDao().getAll().first()
+            val folderNameById = folders.associate { it.id to it.name }
+            val allFavorites = db.channelDao().getFavoriteChannelsBlocking()
+            val channelFolders = allFavorites
+                .mapNotNull { ch -> ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> ch.streamId.toString() to name } } }
+                .toMap()
+
             val data = hashMapOf(
                 "version"            to 1,
                 "syncedAt"           to System.currentTimeMillis(),
                 "device"             to android.os.Build.MODEL,
                 "favoriteChannelIds" to favChannelIds,
                 "favoriteCategoryIds" to favCategoryIds,
-                "recentlyWatchedIds" to recentIds
+                "recentlyWatchedIds" to recentIds,
+                "favoriteFolders"    to folders.map { it.name },
+                "channelFolders"     to channelFolders,
+                // Already in favOrder sequence (getFavoriteChannelsBlocking orders by it) —
+                // pushed as-is so drag-reordering carries over too, not just which channels
+                // are favorited/foldered.
+                "favoriteOrder"      to allFavorites.map { it.streamId }
             )
 
             firestore.collection("users").document(user.uid).set(data, SetOptions.merge()).await()
@@ -98,6 +115,49 @@ class SyncManager @Inject constructor(
 
             val localCatIds = prefs.favoriteLiveCategoryIds.first()
             prefs.setFavoriteLiveCategoryIds(localCatIds + remoteCatIds.toSet())
+
+            // Folders are matched/created by NAME (ids are local-only autoincrement values,
+            // not portable across devices) — any remote folder name this device doesn't
+            // already have gets created, then every synced channel->folder assignment is
+            // applied by resolving the name to this device's local folder id.
+            @Suppress("UNCHECKED_CAST")
+            val remoteFolderNames = (doc.get("favoriteFolders") as? List<*>)
+                ?.mapNotNull { it as? String } ?: emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val remoteChannelFolders = (doc.get("channelFolders") as? Map<*, *>)
+                ?.entries?.mapNotNull { (k, v) -> (k as? String)?.toIntOrNull()?.let { it to (v as? String) } }
+                ?.filter { it.second != null } ?: emptyList()
+
+            if (remoteFolderNames.isNotEmpty() || remoteChannelFolders.isNotEmpty()) {
+                val existingFolders = db.favoriteFolderDao().getAll().first()
+                val idByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+                var nextOrder = existingFolders.size
+                for (name in remoteFolderNames) {
+                    if (name !in idByName) {
+                        val newId = db.favoriteFolderDao().insert(
+                            com.iptvapp.data.local.entities.FavoriteFolderEntity(name = name, sortOrder = nextOrder++)
+                        ).toInt()
+                        idByName[name] = newId
+                    }
+                }
+                remoteChannelFolders.forEach { (streamId, folderName) ->
+                    idByName[folderName]?.let { folderId ->
+                        db.channelDao().setFavoriteFolder(streamId, folderId)
+                    }
+                }
+            }
+
+            // Drag-reorder position — only applied for channels that exist locally (favorited
+            // either already or just merged above); anything remote-only that failed to merge
+            // for some reason is simply skipped rather than crashing on a bad index.
+            @Suppress("UNCHECKED_CAST")
+            val remoteOrder = (doc.get("favoriteOrder") as? List<*>)
+                ?.mapNotNull { (it as? Long)?.toInt() } ?: emptyList()
+            if (remoteOrder.isNotEmpty()) {
+                val localFavoriteSet = db.channelDao().getFavoriteChannelIds().toSet()
+                remoteOrder.filter { it in localFavoriteSet }
+                    .forEachIndexed { index, streamId -> db.channelDao().updateFavOrder(streamId, index) }
+            }
 
             val syncedAt   = doc.getLong("syncedAt") ?: 0L
             val syncDevice = doc.getString("device") ?: "Unknown"

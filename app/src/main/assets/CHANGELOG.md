@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.49 - 2026-07-15
+- **Added**: cloud sync (Settings > Sync > Push/Pull to Cloud) now carries over favorite
+  folders and their contents (matched by folder name, created if missing on the other device),
+  and your drag-reordered favorite order — previously only which channels were favorited and
+  favorite categories synced, silently dropping folders and manual reordering.
+
 ## v4.48 - 2026-07-15
 - **Fixed**: switching to another saved server (Settings > Servers > Switch) wasn't carrying
   over that server's nickname — it kept showing whatever nickname the previous primary server

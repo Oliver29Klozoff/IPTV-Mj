@@ -1,7 +1,7 @@
 {
-  "versionCode": 286,
-  "versionName": "4.48",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.48/MKTV.apk",
-  "apkSha256": "a4adaac124f5b280970e46074c08eedf247153f717c882014d340cc0417dbaf1",
-  "changelog": "Fixed server nickname not carrying over when switching servers. Bulk-selecting channels for a favorite folder now only needs one long-press to start, then tap more channels to add them - auto-opens the folder picker after 3s of no more taps."
+  "versionCode": 287,
+  "versionName": "4.49",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.49/MKTV.apk",
+  "apkSha256": "0b8b6705c1c6aa841c49f8f11eb27c0e76c822b75eb7a73f60f29fa6c068feed",
+  "changelog": "Cloud sync now carries over favorite folders (matched/created by name) and drag-reordered favorite order, not just which channels are favorited."
 }
