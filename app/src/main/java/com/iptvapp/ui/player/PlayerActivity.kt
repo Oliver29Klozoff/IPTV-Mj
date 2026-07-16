@@ -122,13 +122,15 @@ class PlayerActivity : AppCompatActivity() {
     // two steps add a plain view scale transform on top of Fit, which crops those out
     // regardless of what the codec reports.
     private data class ResizeStep(val mode: Int, val scale: Float, val label: String)
+    // After the three aspect modes, zoom continues in +10% increments per press (up to +100%)
+    // instead of the old fixed 15%/30% jumps, then wraps back around to Best Fit.
     private val resizeSteps = listOf(
         ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.0f, "Best Fit"),
         ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, 1.0f, "Zoom (aspect)"),
-        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FILL, 1.0f, "Stretch"),
-        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.15f, "Zoom In 15%"),
-        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.3f, "Zoom In 30%")
-    )
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FILL, 1.0f, "Stretch")
+    ) + (1..10).map { i ->
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1f + i * 0.1f, "Zoom In ${i * 10}%")
+    }
     private var resizeModeIndex = 0
 
     @Inject lateinit var repository: XtreamRepository

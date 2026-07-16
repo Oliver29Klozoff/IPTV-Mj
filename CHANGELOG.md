@@ -13,6 +13,8 @@
   immediately instead of waiting for the next re-entry.
 - **Fixed**: the Settings toggles for hiding the Movies/Series/History tabs had drifted after
   an old tab reorder and were hiding the wrong tabs (hiding "Movies" actually hid Guide).
+- **Changed**: the player's zoom button now steps +10% per press after the three aspect modes
+  (Best Fit / Zoom / Stretch), from 110% up to 200%, instead of the old fixed 15%/30% jumps.
 
 ## v4.62 - 2026-07-16
 - **Changed**: app updates no longer leave APK files on the device. Both update paths (the
