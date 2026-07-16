@@ -896,6 +896,10 @@ class TvHomeActivity : AppCompatActivity() {
                     moveSidebarFocus(up = true); return true
                 } else if (binding.tvRvContent.hasFocus()) {
                     if (moveChannelListFocus(up = true)) return true
+                    // Reached the top row — explicitly hand focus to the header instead of
+                    // trusting default focus search to climb out of the RecyclerView, which
+                    // was unreliable and could leave Up simply doing nothing.
+                    focusTopOfPanel(); return true
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
@@ -906,7 +910,10 @@ class TvHomeActivity : AppCompatActivity() {
                 // mini player itself and pressing OK does what that button did instead) from
                 // wherever the cursor currently is: sidebar, a category/channel list, or the
                 // guide list.
-                KeyEvent.KEYCODE_DPAD_RIGHT -> when (navState) {
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (binding.tvGenreChipContainer.hasFocus()) {
+                    // Let default focus search move between sibling genre chips instead of
+                    // jumping straight to the mini player.
+                } else when (navState) {
                     NavState.SIDEBAR -> {
                         navState = NavState.CHANNELS
                         binding.tvMiniPlayerContainer.requestFocus()
@@ -930,6 +937,13 @@ class TvHomeActivity : AppCompatActivity() {
                             else -> showSidebar()
                         }
                         return true
+                    } else if (binding.tvRvContent.hasFocus() || binding.tvRvCategories.hasFocus()) {
+                        // Deep in a long list, climbing back up to search/refresh/Back one Up
+                        // press at a time was slow and unreliable — Left jumps straight there.
+                        focusTopOfPanel(); return true
+                    } else if (binding.tvGenreChipContainer.hasFocus()) {
+                        // Let default focus search move between sibling genre chips instead of
+                        // being swallowed by the CATEGORIES/CHANNELS catch-all below.
                     } else if (navState == NavState.CATEGORIES || navState == NavState.CHANNELS) {
                         return true
                     }
@@ -1460,6 +1474,26 @@ class TvHomeActivity : AppCompatActivity() {
             rv.post { rv.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
         }
         return true
+    }
+
+    /** Explicit escape hatch to the header row above whichever panel is open (genre chips if
+     * visible, else the search box, else that panel's own Back button) — deep in a long
+     * channel list, relying on Android's default focus search to climb all the way back up
+     * there via Up presses was unreliable, and there was no faster way to reach search/refresh/
+     * Back than repeatedly pressing Up. Bound to D-pad Left as a direct shortcut, and also used
+     * to make Up reliably escape the list instead of just being swallowed at the top row. */
+    private fun focusTopOfPanel() {
+        when {
+            binding.tvGuidePanel.visibility == View.VISIBLE -> binding.tvBtnGuideBack.requestFocus()
+            binding.tvChanPanel.visibility == View.VISIBLE -> {
+                if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
+                    binding.tvGenreChipContainer.getChildAt(0).requestFocus()
+                } else {
+                    binding.tvEtSearch.requestFocus()
+                }
+            }
+            binding.tvCatPanel.visibility == View.VISIBLE -> binding.tvBtnCatBack.requestFocus()
+        }
     }
 
     private fun hasRealEpg(epgText: Map<Int, String>, streamId: Int): Boolean {

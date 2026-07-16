@@ -1,7 +1,7 @@
 {
-  "versionCode": 295,
-  "versionName": "4.57",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.57/MKTV.apk",
-  "apkSha256": "bfa1ab72dac395c38d182f300ae9d623f06291ae3a44597494891b39fd5cd3bc",
-  "changelog": "Fixed TV D-pad not reaching the Back button from the top of a channel list, and auto-collapse still firing while typing via an on-screen keyboard. Fixed phone Live tab getting stuck on an old genre filter and briefly showing stale channels from a Favorites folder. Active provider no longer listed in All Providers."
+  "versionCode": 296,
+  "versionName": "4.58",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.58/MKTV.apk",
+  "apkSha256": "76ee53a77945c5d73aa37cc5ee740daa2fb2b519c2c2617a39df5be944709fcc",
+  "changelog": "Added a D-pad Left shortcut to jump from deep in a TV list straight to the header (genre chips/search/Back). Fixed D-pad Up not reliably escaping the top of a channel list, and genre chip Left/Right navigation being hijacked instead of moving between chips."
 }

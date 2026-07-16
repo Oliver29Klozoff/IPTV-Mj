@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.58 - 2026-07-16
+- **Added**: D-pad Left now jumps straight from deep in a channel/category list to the header
+  above it (genre chips if shown, else search, else Back) — no more repeatedly pressing Up to
+  climb all the way back.
+- **Fixed**: D-pad Up at the top of a channel list now reliably lands on that header instead of
+  sometimes doing nothing, by explicitly handing off focus instead of relying on default
+  Android focus search.
+- **Fixed**: on Movies/Series, D-pad Left/Right while a genre chip (All/Drama/etc.) was focused
+  jumped straight to the mini player or was swallowed instead of moving between chips.
+
 ## v4.57 - 2026-07-15
 - **Fixed**: TV D-pad Up couldn't escape the top row of a channel list to reach the Back
   button, search box, or genre chips above it — it silently swallowed the key press instead.
