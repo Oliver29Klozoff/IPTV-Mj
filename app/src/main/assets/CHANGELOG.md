@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.60 - 2026-07-16
+- **Fixed**: All Providers channels endlessly spinning instead of playing — confirmed against
+  a real provider that some Xtream panels ignore the requested stream extension and always
+  serve raw MPEG-TS regardless. Requesting the URL as ".m3u8" made ExoPlayer try to parse
+  binary video as a text playlist and fail forever; merged channels now request ".ts" instead.
+- **Added**: subtitle styling (size, vertical offset, bold, text/background/outline color) is
+  now available in phone Settings > Display, matching what TV Settings already had.
+
 ## v4.59 - 2026-07-16
 - **Changed**: on TV, tapping Live or Categories in the sidebar now always shows the category
   list first, instead of jumping straight into whatever category the currently-playing channel

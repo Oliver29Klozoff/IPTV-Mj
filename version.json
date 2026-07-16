@@ -1,7 +1,7 @@
 {
-  "versionCode": 297,
-  "versionName": "4.59",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.59/MKTV.apk",
-  "apkSha256": "40c0ef28acf46f8b042a181e1c0db2af243091bdaaf65cf3f5c7158b1f7f2057",
-  "changelog": "TV: tapping Live or Categories in the sidebar now always shows the category list first, instead of jumping straight into whatever category the currently-playing channel belonged to."
+  "versionCode": 298,
+  "versionName": "4.60",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.60/MKTV.apk",
+  "apkSha256": "bf4d1d14a03a216e868db5e2737b297e3d9f4dba80f7162115b98784c012c9ac",
+  "changelog": "Fixed All Providers channels endlessly spinning instead of playing (some providers ignore the requested stream extension and always serve raw TS; merged channels now request .ts instead of .m3u8). Added subtitle styling to phone Settings > Display, matching TV."
 }

@@ -491,6 +491,107 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    // Subtitle styling (size/offset/bold/colors/outline) previously only existed on TV
+    // Settings — the phone had no way to customize subtitle appearance at all, even though
+    // playback already reads/applies these same PreferencesManager fields.
+    private fun setupSubtitleSettings() {
+        lifecycleScope.launch {
+            val style = prefs.subtitleStyle.first()
+            refreshSubtitleRows(style)
+            binding.cbSubBold.isChecked = style.bold
+            binding.cbSubOutline.isChecked = style.outlineEnabled
+        }
+        binding.rowSubSize.setOnClickListener {
+            lifecycleScope.launch { showSubtitleSizeDialog(prefs.subtitleStyle.first().sizeScale) }
+        }
+        binding.rowSubOffset.setOnClickListener {
+            lifecycleScope.launch { showSubtitleOffsetDialog(prefs.subtitleStyle.first().verticalOffsetDp) }
+        }
+        binding.cbSubBold.setOnCheckedChangeListener { _, checked ->
+            lifecycleScope.launch { prefs.setSubtitleBold(checked) }
+        }
+        binding.rowSubTextColor.setOnClickListener {
+            lifecycleScope.launch {
+                showSubtitleColorDialog("Text Color", prefs.subtitleStyle.first().textColor) { prefs.setSubtitleTextColor(it) }
+            }
+        }
+        binding.rowSubBgColor.setOnClickListener {
+            lifecycleScope.launch {
+                showSubtitleColorDialog("Background Color", prefs.subtitleStyle.first().backgroundColor) { prefs.setSubtitleBackgroundColor(it) }
+            }
+        }
+        binding.cbSubOutline.setOnCheckedChangeListener { _, checked ->
+            lifecycleScope.launch { prefs.setSubtitleOutlineEnabled(checked) }
+        }
+        binding.rowSubOutlineColor.setOnClickListener {
+            lifecycleScope.launch {
+                showSubtitleColorDialog("Outline Color", prefs.subtitleStyle.first().outlineColor) { prefs.setSubtitleOutlineColor(it) }
+            }
+        }
+    }
+
+    private fun refreshSubtitleRows(style: PreferencesManager.SubtitleStyle) {
+        binding.tvSubSizeValue.text = "${(style.sizeScale * 100).toInt()}%"
+        binding.tvSubOffsetValue.text = if (style.verticalOffsetDp == 0) "Default" else "${style.verticalOffsetDp}dp"
+        binding.tvSubTextColorValue.text = "#%08X".format(style.textColor)
+        binding.tvSubBgColorValue.text = "#%08X".format(style.backgroundColor)
+        binding.tvSubOutlineColorValue.text = "#%08X".format(style.outlineColor)
+    }
+
+    private fun showSubtitleSizeDialog(current: Float) {
+        val options = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+        val labels = options.map { "${(it * 100).toInt()}%" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Subtitle Size")
+            .setSingleChoiceItems(labels, options.indexOf(current).coerceAtLeast(0)) { dialog, which ->
+                lifecycleScope.launch {
+                    prefs.setSubtitleSizeScale(options[which])
+                    refreshSubtitleRows(prefs.subtitleStyle.first())
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSubtitleOffsetDialog(current: Int) {
+        val options = listOf(-60, -40, -20, 0, 20, 40, 60)
+        val labels = options.map { if (it == 0) "Default" else "${it}dp" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Vertical Offset")
+            .setSingleChoiceItems(labels, options.indexOf(current).coerceAtLeast(options.indexOf(0))) { dialog, which ->
+                lifecycleScope.launch {
+                    prefs.setSubtitleVerticalOffsetDp(options[which])
+                    refreshSubtitleRows(prefs.subtitleStyle.first())
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSubtitleColorDialog(title: String, current: Int, onPicked: suspend (Int) -> Unit) {
+        val presets = linkedMapOf(
+            "White" to 0xFFFFFFFF.toInt(),
+            "Yellow" to 0xFFFFFF00.toInt(),
+            "Black" to 0xFF000000.toInt(),
+            "Transparent" to 0x00000000
+        )
+        val labels = presets.keys.toTypedArray()
+        val values = presets.values.toList()
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
+                lifecycleScope.launch {
+                    onPicked(values[which])
+                    refreshSubtitleRows(prefs.subtitleStyle.first())
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun wireCollapsible(headerId: Int, bodyId: Int, chevronId: Int) {
         val header  = findViewById<View>(headerId)   ?: return
         val body    = findViewById<View>(bodyId)     ?: return
@@ -1201,6 +1302,7 @@ class SettingsActivity : AppCompatActivity() {
                 currentAccentColor = prefs.accentColor.first()
                 setupAccentPicker()
                 applyAccentToSettings(Color.parseColor(currentAccentColor))
+                setupSubtitleSettings()
                 updateLastRefreshText()
                 updateCacheAgeText()
                 binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"

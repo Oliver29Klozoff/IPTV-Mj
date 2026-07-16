@@ -680,11 +680,17 @@ class XtreamRepository @Inject constructor(
         db.mergedChannelDao().search(query)
 
     /** Builds a playback URL using the specific server a merged channel came from, not
-     * whatever's currently the primary/active server. Always m3u8 (matches the app's default
-     * preferred format) so the same URL works for both direct playback and Chromecast. */
+     * whatever's currently the primary/active server. Uses "ts" rather than "m3u8" — confirmed
+     * against a real provider that some Xtream panels ignore the requested extension entirely
+     * and always serve raw MPEG-TS bytes regardless (curl against a ".m3u8" URL here returned
+     * HTTP 200 with Content-Type video/mp2t, i.e. actual TS video data, not an HLS playlist).
+     * ExoPlayer picks its parser from the URL's extension, so requesting ".m3u8" against a
+     * server that responds with raw TS makes it try to parse binary video as a text playlist —
+     * ERROR_CODE_PARSING_MANIFEST_MALFORMED, endless retries, channel never plays. ".ts" makes
+     * ExoPlayer use the TS extractor directly, matching what these servers actually send. */
     suspend fun getMergedLiveStreamUrl(serverIndex: Int, streamId: Int): String {
         val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
             ?: throw Exception("Server no longer configured")
-        return XtreamUrlBuilder(server.serverUrl, server.username, server.password).liveStreamUrl(streamId, "m3u8")
+        return XtreamUrlBuilder(server.serverUrl, server.username, server.password).liveStreamUrl(streamId, "ts")
     }
 }
