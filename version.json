@@ -1,7 +1,7 @@
 {
-  "versionCode": 301,
-  "versionName": "4.63",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.63/MKTV.apk",
-  "apkSha256": "592d6b87eebcdf800c51ae9e9382649d393dd1428e43b02a801c7f3500fbdbdf",
-  "changelog": "Providers channels now show a now/next guide line, health dots on favorites, double-tap fullscreen, and a long-press action menu — matching the primary channel list. Providers tab moved next to Favorites. Folder moves show instantly. Player zoom now steps +10% per press (up to 200%). Fixed the hide-Movies/Series/History settings toggling the wrong tabs."
+  "versionCode": 302,
+  "versionName": "4.64",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.64/MKTV.apk",
+  "apkSha256": "23eb59791a449f931f3e5611e48ab0ac236e2a04311902ed6cbc676a8c6e54dd",
+  "changelog": "Player zoom now steps +10% per press after Best Fit / Zoom / Stretch, from 110% up to 200%, then wraps back to Best Fit — replacing the old fixed 15%/30% jumps."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.64 - 2026-07-16
+- **Changed**: the player's zoom button now steps +10% per press after the three aspect modes
+  (Best Fit / Zoom / Stretch), from 110% up to 200%, then wraps back to Best Fit — replacing
+  the old fixed 15%/30% jumps.
+
 ## v4.63 - 2026-07-16
 - **Added**: Providers channels now show the same extras as the primary channel list — a
   now/next guide line (fetched from each channel's own provider), a health dot on favorited
