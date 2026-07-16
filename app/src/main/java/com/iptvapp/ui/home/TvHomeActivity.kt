@@ -788,7 +788,10 @@ class TvHomeActivity : AppCompatActivity() {
     private val NO_CATEGORY_ID = "__uncategorized__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> =
-        list.map {
+        // serverIndex == -1 is always whichever provider is currently primary/active — its
+        // channels are already fully browsable via the normal Live section, so listing it
+        // again here was redundant and confusing next to the actually-"extra" providers.
+        list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -892,12 +895,12 @@ class TvHomeActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_DPAD_UP -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = true); return true
                 } else if (binding.tvRvContent.hasFocus()) {
-                    moveChannelListFocus(up = true); return true
+                    if (moveChannelListFocus(up = true)) return true
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
                 } else if (binding.tvRvContent.hasFocus()) {
-                    moveChannelListFocus(up = false); return true
+                    if (moveChannelListFocus(up = false)) return true
                 }
                 // Right reaches the mini player (FULL SCREEN button removed — focusing the
                 // mini player itself and pressing OK does what that button did instead) from
@@ -1226,6 +1229,12 @@ class TvHomeActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
+                // Many TV soft keyboards commit typed characters straight through the
+                // InputConnection without ever generating a KeyEvent, so dispatchKeyEvent's
+                // idle-timer reset (which only sees real key events) never fires while typing
+                // that way — the panel could still collapse mid-search. TextWatcher fires
+                // regardless of how the text got there, so reset the timer here too.
+                if (navState != NavState.SIDEBAR) scheduleTvAutoCollapse()
                 val q = s.toString()
                 binding.tvBtnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
                 if (q.length >= 2 || q.isEmpty()) {
@@ -1422,9 +1431,13 @@ class TvHomeActivity : AppCompatActivity() {
      * list to recover — repeating every time the same layout race reoccurs. Moving focus by
      * adapter position explicitly, the same fix used for the guide, sidesteps the race
      * entirely instead of depending on whichever views happen to be attached at that instant. */
-    private fun moveChannelListFocus(up: Boolean) {
+    /** Returns true if it moved focus within the list — false means the caller should let the
+     * key event fall through to default focus search instead of swallowing it. Previously this
+     * always consumed the key even at the top row, which meant Up could never escape the list
+     * to reach the genre chips, search box, or Back button above it. */
+    private fun moveChannelListFocus(up: Boolean): Boolean {
         val rv = binding.tvRvContent
-        val focusedDescendant = rv.findFocus() ?: return
+        val focusedDescendant = rv.findFocus() ?: return false
         // getChildAdapterPosition requires a direct child of the RecyclerView — findFocus()
         // can return a nested view inside the row (e.g. a favorite-star button), which throws
         // IllegalArgumentException instead of just failing gracefully. Walk up to the actual
@@ -1433,12 +1446,12 @@ class TvHomeActivity : AppCompatActivity() {
         while (itemView != null && itemView.parent !== rv) {
             itemView = itemView.parent as? View
         }
-        val focused = itemView ?: return
+        val focused = itemView ?: return false
         val pos = rv.getChildAdapterPosition(focused)
-        if (pos == RecyclerView.NO_POSITION) return
+        if (pos == RecyclerView.NO_POSITION) return false
         val itemCount = rv.adapter?.itemCount ?: 0
         val target = if (up) pos - 1 else pos + 1
-        if (target < 0 || target >= itemCount) return
+        if (target < 0 || target >= itemCount) return false
         val holder = rv.findViewHolderForAdapterPosition(target)
         if (holder != null) {
             holder.itemView.requestFocus()
@@ -1446,6 +1459,7 @@ class TvHomeActivity : AppCompatActivity() {
             rv.scrollToPosition(target)
             rv.post { rv.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
         }
+        return true
     }
 
     private fun hasRealEpg(epgText: Map<Int, String>, streamId: Int): Boolean {

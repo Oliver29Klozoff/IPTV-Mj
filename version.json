@@ -1,7 +1,7 @@
 {
-  "versionCode": 294,
-  "versionName": "4.56",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.56/MKTV.apk",
-  "apkSha256": "71705fdee5411f755801e5caacd6742b88119c1125a67e757678baf3b26c69a7",
-  "changelog": "Added a per-provider Update Channels action in TV Settings. The merged All Providers channel cache now auto-refreshes on cold app start when extra providers are configured, instead of staying empty until a manual refresh."
+  "versionCode": 295,
+  "versionName": "4.57",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.57/MKTV.apk",
+  "apkSha256": "bfa1ab72dac395c38d182f300ae9d623f06291ae3a44597494891b39fd5cd3bc",
+  "changelog": "Fixed TV D-pad not reaching the Back button from the top of a channel list, and auto-collapse still firing while typing via an on-screen keyboard. Fixed phone Live tab getting stuck on an old genre filter and briefly showing stale channels from a Favorites folder. Active provider no longer listed in All Providers."
 }

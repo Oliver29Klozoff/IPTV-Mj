@@ -1095,10 +1095,21 @@ class HomeActivity : AppCompatActivity() {
         }
     }
         private fun showLive() {
+        // activeGenre used to stay set forever once you tapped a genre chip (e.g. "Movies"),
+        // since nothing ever cleared it — leaving Live and coming back later (even a whole app
+        // session later) kept silently re-applying that old filter, showing only that genre's
+        // categories instead of the full list, with no visible indication why. Genre filtering
+        // is meant to be a within-session shortcut, not a sticky setting.
+        activeGenre = null
         landscapeShowCategoriesMode()
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
+        // In portrait, categories and channels are two always-visible side-by-side panes (not
+        // toggled like in landscape) — without this, switching here from Favorites left the
+        // right-hand pane showing that folder's channels until the new category's load
+        // happened to land, making it look like a category/folder was already selected.
+        channelAdapter.submitList(emptyList())
         val cats = viewModel.liveCategories.value
         updateGenreChips(cats)
         val filtered = genreFilter(cats)
@@ -1201,6 +1212,7 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
+        channelAdapter.submitList(emptyList())
         val favCats = viewModel.favoriteLiveCategories.value
         submitCategories(favCats)
         if (favCats.isNotEmpty()) {
@@ -1360,7 +1372,10 @@ class HomeActivity : AppCompatActivity() {
     private val NO_CATEGORY_ID = "__uncategorized__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> =
-        list.map {
+        // serverIndex == -1 is always whichever provider is currently primary/active — its
+        // channels are already fully browsable via the normal Live tab, so listing it again
+        // here was redundant and confusing next to the other, actually-"extra" providers.
+        list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -1451,6 +1466,7 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = channelAdapter
+        channelAdapter.submitList(emptyList())
         submitCategories(favoriteFoldersToSynthetic())
     }
 

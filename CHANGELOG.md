@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v4.57 - 2026-07-15
+- **Fixed**: TV D-pad Up couldn't escape the top row of a channel list to reach the Back
+  button, search box, or genre chips above it — it silently swallowed the key press instead.
+- **Fixed**: TV's auto-collapse-to-sidebar timer still fired while typing via an on-screen
+  keyboard — many TV keyboards commit characters without generating key events, which the
+  previous fix relied on. The search box's own text-change events now also reset the timer.
+- **Fixed**: switching to the phone's Live or Categories tab could briefly show a stale
+  channel list left over from a previously-viewed Favorites folder.
+- **Fixed**: the phone's Live tab could get stuck applying an old genre-chip filter (e.g.
+  "Movies") indefinitely — once tapped, it silently kept filtering the category list down
+  to just that genre on every future visit instead of resetting to the full list.
+- **Removed**: the active/primary provider no longer appears in the All Providers list — its
+  channels are already fully browsable via the normal Live tab.
+
 ## v4.56 - 2026-07-15
 - **Added**: TV Settings > Providers now has an "Update Channels" action per provider (and an
   "Update All Provider Channels" action) to manually refresh the merged All Providers cache.
