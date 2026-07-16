@@ -1,7 +1,7 @@
 {
-  "versionCode": 296,
-  "versionName": "4.58",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.58/MKTV.apk",
-  "apkSha256": "76ee53a77945c5d73aa37cc5ee740daa2fb2b519c2c2617a39df5be944709fcc",
-  "changelog": "Added a D-pad Left shortcut to jump from deep in a TV list straight to the header (genre chips/search/Back). Fixed D-pad Up not reliably escaping the top of a channel list, and genre chip Left/Right navigation being hijacked instead of moving between chips."
+  "versionCode": 297,
+  "versionName": "4.59",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.59/MKTV.apk",
+  "apkSha256": "40c0ef28acf46f8b042a181e1c0db2af243091bdaaf65cf3f5c7158b1f7f2057",
+  "changelog": "TV: tapping Live or Categories in the sidebar now always shows the category list first, instead of jumping straight into whatever category the currently-playing channel belonged to."
 }

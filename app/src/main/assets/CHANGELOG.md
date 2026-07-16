@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.59 - 2026-07-16
+- **Changed**: on TV, tapping Live or Categories in the sidebar now always shows the category
+  list first, instead of jumping straight into whatever category the currently-playing channel
+  belonged to. Picking a category still opens its channel list the same as before.
+
 ## v4.58 - 2026-07-16
 - **Added**: D-pad Left now jumps straight from deep in a channel/category list to the header
   above it (genre chips if shown, else search, else Back) — no more repeatedly pressing Up to

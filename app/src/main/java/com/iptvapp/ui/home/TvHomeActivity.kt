@@ -748,8 +748,14 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvGenreChipScroll.visibility = View.GONE
 
         when (section) {
-            Section.LIVE -> openLiveOnCurrentChannel()
-            Section.CATEGORIES -> openFavCategoriesOnCurrentChannel()
+            // Used to jump straight into whatever category the currently-playing channel
+            // belonged to (openLiveOnCurrentChannel/openFavCategoriesOnCurrentChannel) — handy
+            // in theory, but in practice it meant tapping Live/Categories from the sidebar
+            // rarely showed the actual category list, since something was almost always
+            // already playing. Always show the category list first now; picking a category
+            // still lands you in that category's channel list same as before.
+            Section.LIVE -> { showLive(); showCategoryPanel("LIVE") }
+            Section.CATEGORIES -> { showFavCategories(); showCategoryPanel("CATEGORIES") }
             Section.MOVIES -> {
                 showMovies()
                 showCategoryPanel("MOVIES")
@@ -1000,48 +1006,6 @@ class TvHomeActivity : AppCompatActivity() {
         else viewModel.reloadCurrentLiveCategory()
     }
 
-    /** Selecting LIVE from the sidebar used to always land on the category list — but if a
-     * channel is already playing, jumping straight to its channel list (scrolled/focused to
-     * it) is far more useful than making the user re-pick a category they were just on. */
-    private fun openLiveOnCurrentChannel() {
-        if (currentMiniIsVod || currentMiniStreamId < 0) {
-            showLive()
-            showCategoryPanel("LIVE")
-            return
-        }
-        lifecycleScope.launch {
-            val channel = viewModel.getChannelById(currentMiniStreamId)
-            val categoryId = channel?.categoryId
-            if (categoryId == null) {
-                showLive()
-                showCategoryPanel("LIVE")
-                return@launch
-            }
-            binding.tvRvCategories.adapter = categoryAdapter
-            binding.tvRvContent.adapter = channelAdapter
-            categoryAdapter.resetSelection()
-            categoryAdapter.submitList(viewModel.liveCategories.value)
-            viewModel.selectLiveCategory(categoryId)
-            // Skipping showCategoryPanel("LIVE") to jump straight to the channel list means
-            // navHasCategoryStep/tvCatTitle never got set by it — without this, Back would use
-            // whatever stale category-step state was left over from unrelated prior browsing.
-            navHasCategoryStep = true
-            binding.tvCatTitle.text = "LIVE"
-            showChannelPanel("LIVE")
-            // showChannelPanel sets this true expecting the normal viewModel.channels
-            // collector to focus position 0 — this flow focuses a specific channel itself
-            // instead, so suppress that collector's own (conflicting) focus attempt.
-            pendingContentFocus = false
-            // Read the category's channels directly instead of waiting on the shared
-            // `channels` StateFlow to notify — it conflates equal consecutive values, so if
-            // this category's list happens to be unchanged from last time, selectLiveCategory
-            // above would never redeliver it and the scroll-to-current below would silently
-            // no-op (same class of bug fixed earlier for the phone's Favorites tab).
-            val snapshot = viewModel.getChannelsByCategorySnapshot(categoryId)
-            scrollAndFocusChannel(snapshot, currentMiniStreamId)
-        }
-    }
-
     // submitList's DiffUtil calculation runs off-thread, and even the commit callback + a
     // couple of post{} frames aren't reliably enough time for a large list's layout pass to
     // actually bind the target position's ViewHolder — findViewHolderForAdapterPosition kept
@@ -1071,37 +1035,6 @@ class TvHomeActivity : AppCompatActivity() {
             } else {
                 binding.tvRvContent.requestFocus()
             }
-        }
-    }
-
-    /** Same "jump straight to what's playing" treatment as [openLiveOnCurrentChannel], applied
-     * to the CATEGORIES (favorite-categories) sidebar tab. */
-    private fun openFavCategoriesOnCurrentChannel() {
-        if (currentMiniIsVod || currentMiniStreamId < 0) {
-            showFavCategories()
-            showCategoryPanel("CATEGORIES")
-            return
-        }
-        lifecycleScope.launch {
-            val channel = viewModel.getChannelById(currentMiniStreamId)
-            val categoryId = channel?.categoryId
-            val favCats = viewModel.favoriteLiveCategories.value
-            if (categoryId == null || favCats.none { it.categoryId == categoryId }) {
-                showFavCategories()
-                showCategoryPanel("CATEGORIES")
-                return@launch
-            }
-            binding.tvRvCategories.adapter = categoryAdapter
-            binding.tvRvContent.adapter = channelAdapter
-            categoryAdapter.resetSelection()
-            categoryAdapter.submitList(favCats)
-            viewModel.selectFavCategory(categoryId)
-            navHasCategoryStep = true
-            binding.tvCatTitle.text = "CATEGORIES"
-            showChannelPanel("CATEGORIES")
-            pendingContentFocus = false
-            val snapshot = viewModel.getChannelsByCategorySnapshot(categoryId)
-            scrollAndFocusChannel(snapshot, currentMiniStreamId)
         }
     }
 
