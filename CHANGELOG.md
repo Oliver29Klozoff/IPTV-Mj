@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.51 - 2026-07-15
+- **Fixed**: the EPG URL field on Add/Edit Provider was being silently dropped on save — the
+  underlying storage function never actually wrote or read that field, so it always came back
+  empty when reopening Edit, no matter what you typed.
+
 ## v4.49 - 2026-07-15
 - **Added**: cloud sync (Settings > Sync > Push/Pull to Cloud) now carries over favorite
   folders and their contents (matched by folder name, created if missing on the other device),

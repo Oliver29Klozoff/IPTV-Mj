@@ -1,7 +1,7 @@
 {
-  "versionCode": 288,
-  "versionName": "4.50",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.50/MKTV.apk",
-  "apkSha256": "57034e6deae0acbd06d95e27aa2924d344a80d87e683e0c51904cf44daf3d7cd",
-  "changelog": "Renamed Servers to Providers throughout Settings."
+  "versionCode": 289,
+  "versionName": "4.51",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.51/MKTV.apk",
+  "apkSha256": "09182f3ffd6b71e8e2d872c35b6a834c723734251d119322dcac9fdc0834d1e7",
+  "changelog": "Fixed the EPG URL field on Add/Edit Provider being silently dropped on save - it now actually persists."
 }

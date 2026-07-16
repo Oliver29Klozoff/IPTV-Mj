@@ -371,7 +371,13 @@ class PreferencesManager @Inject constructor(
         val arr = org.json.JSONArray(json)
         return (0 until arr.length()).map { i ->
             val obj = arr.getJSONObject(i)
-            listOf(obj.getString("url"), obj.getString("user"), obj.getString("pass"), obj.optString("nick", ""))
+            // "epg" (index 4) used to be silently dropped here even though the Add/Edit
+            // Provider dialog always sent it — the per-provider EPG URL field looked like it
+            // never saved, when really it was being read back as if it didn't exist.
+            listOf(
+                obj.getString("url"), obj.getString("user"), obj.getString("pass"),
+                obj.optString("nick", ""), obj.optString("epg", "")
+            )
         }
     }
 
@@ -379,7 +385,8 @@ class PreferencesManager @Inject constructor(
         val arr = org.json.JSONArray()
         servers.forEach { s ->
             arr.put(org.json.JSONObject().apply {
-                put("url", s[0]); put("user", s[1]); put("pass", s[2]); put("nick", s.getOrElse(3) { "" })
+                put("url", s[0]); put("user", s[1]); put("pass", s[2])
+                put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
             })
         }
         context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
