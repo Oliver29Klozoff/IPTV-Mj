@@ -888,6 +888,7 @@ class HomeActivity : AppCompatActivity() {
             onChannelClick = { channel ->
                 if (bulkSelectMode) {
                     if (!bulkSelectedIds.add(channel.streamId)) bulkSelectedIds.remove(channel.streamId)
+                    channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
                     Toast.makeText(this, "${bulkSelectedIds.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                     if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
@@ -1916,21 +1917,27 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showMoveToFolderDialog(channel: ChannelEntity) {
-        showMoveToFolderDialog("Move \"${channel.name}\" to") { folderId ->
+        showMoveToFolderDialog("Move \"${channel.name}\" to", onCancel = {}) { folderId ->
             viewModel.setChannelFavoriteFolder(channel.streamId, folderId)
         }
     }
 
+    private fun clearBulkSelection() {
+        bulkSelectedIds.clear()
+        bulkSelectMode = false
+        bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+        channelAdapter.submitBulkSelection(emptySet())
+    }
+
     private fun showMoveToFolderDialog(streamIds: List<Int>) {
-        showMoveToFolderDialog("Move ${streamIds.size} channels to") { folderId ->
+        showMoveToFolderDialog("Move ${streamIds.size} channels to", onCancel = { clearBulkSelection() }) { folderId ->
             viewModel.setChannelsFavoriteFolder(streamIds, folderId)
-            bulkSelectedIds.clear()
-            bulkSelectMode = false
             Toast.makeText(this, "Moved ${streamIds.size} channels", Toast.LENGTH_SHORT).show()
+            clearBulkSelection()
         }
     }
 
-    private fun showMoveToFolderDialog(title: String, onPicked: (Int?) -> Unit) {
+    private fun showMoveToFolderDialog(title: String, onCancel: () -> Unit, onPicked: (Int?) -> Unit) {
         val folders = viewModel.favoriteFolders.value
         val labels = mutableListOf("Unsorted") + folders.map { it.name } + "+ New Folder"
         AlertDialog.Builder(this)
@@ -1958,7 +1965,11 @@ class HomeActivity : AppCompatActivity() {
                     else -> onPicked(folders[i - 1].id)
                 }
             }
-            .setNegativeButton("Cancel", null)
+            // Only the explicit Cancel button clears the selection — tapping outside just
+            // dismisses this dialog so you can keep tapping more channels to add to it (the
+            // AlertDialog default of cancelable-by-tap-outside is left alone; onCancel is
+            // deliberately NOT wired to setOnCancelListener, which fires for that case too).
+            .setNegativeButton("Cancel") { _, _ -> onCancel() }
             .show()
     }
 

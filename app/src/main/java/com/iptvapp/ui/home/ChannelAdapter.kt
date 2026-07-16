@@ -82,6 +82,17 @@ class ChannelAdapter(
         notifyChangedRows { old[it] != healthMap[it] }
     }
 
+    // Bulk-select (phone only, for moving channels into a favorite folder) previously had no
+    // visual indication at all of which rows were selected — cancelling the resulting dialog
+    // then looked identical to selection having silently reset, even though it hadn't.
+    private var bulkSelectedIds: Set<Int> = emptySet()
+
+    fun submitBulkSelection(ids: Set<Int>) {
+        val old = bulkSelectedIds
+        bulkSelectedIds = ids
+        notifyChangedRows { old.contains(it) != ids.contains(it) }
+    }
+
     inner class ViewHolder(val binding: ItemChannelBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -134,6 +145,23 @@ class ChannelAdapter(
             )
 
             binding.root.isSelected = item.streamId == currentlyPlayingStreamId
+            // Visible checkmark + tinted background so bulk-selected rows are unmistakable —
+            // otherwise there was zero feedback that a tap had registered as a selection at all.
+            if (bulkSelectedIds.contains(item.streamId)) {
+                binding.root.setBackgroundColor(0x33008CFF)
+                binding.ivFavorite.setImageResource(android.R.drawable.checkbox_on_background)
+                binding.ivFavorite.setColorFilter(android.graphics.Color.parseColor("#008CFF"))
+            } else {
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+                binding.ivFavorite.setImageResource(
+                    if (item.isFavorite) android.R.drawable.btn_star_big_on
+                    else android.R.drawable.btn_star_big_off
+                )
+                binding.ivFavorite.setColorFilter(
+                    if (item.isFavorite) android.graphics.Color.parseColor("#008CFF")
+                    else android.graphics.Color.parseColor("#444444")
+                )
+            }
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()
                 if (now - lastClickTime < 400) {

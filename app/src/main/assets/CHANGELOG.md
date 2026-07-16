@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.52 - 2026-07-15
+- **Added**: bulk-selected channels (for moving into a favorite folder) now show a visible
+  highlight and checkmark — previously there was no indication a tap had registered at all.
+- **Changed**: in the "Move to Folder" picker, only the explicit Cancel button clears your
+  selection — tapping outside the dialog just dismisses it so you can keep selecting more
+  channels.
+- **Added**: the Primary Provider row in Settings > Providers now shows its actual URL
+  underneath the nickname, matching the other provider rows, so you can verify what's really
+  configured as primary.
+
 ## v4.51 - 2026-07-15
 - **Fixed**: the EPG URL field on Add/Edit Provider was being silently dropped on save — the
   underlying storage function never actually wrote or read that field, so it always came back

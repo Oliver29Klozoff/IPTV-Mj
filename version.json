@@ -1,7 +1,7 @@
 {
-  "versionCode": 289,
-  "versionName": "4.51",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.51/MKTV.apk",
-  "apkSha256": "09182f3ffd6b71e8e2d872c35b6a834c723734251d119322dcac9fdc0834d1e7",
-  "changelog": "Fixed the EPG URL field on Add/Edit Provider being silently dropped on save - it now actually persists."
+  "versionCode": 290,
+  "versionName": "4.52",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.52/MKTV.apk",
+  "apkSha256": "e9d9d9962bf735ffc4dda5be8bbc8ccb0a523a3243aac35749f953ef05ea6ae8",
+  "changelog": "Bulk-selected channels now show a visible highlight. Move to Folder dialog only clears selection on explicit Cancel. Primary Provider row now shows its URL for verification."
 }

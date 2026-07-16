@@ -1339,6 +1339,17 @@ class SettingsActivity : AppCompatActivity() {
                 textSize = 12f
                 primaryRow.addView(this)
             }
+            // Extra providers already show their URL directly (added earlier so a stray
+            // space/typo could be spotted) — the primary row never did, making it impossible
+            // to verify the nickname you see actually matches the credentials really in use.
+            android.widget.TextView(this@SettingsActivity).apply {
+                text = creds.serverUrl
+                setTextColor(Color.parseColor("#777777"))
+                textSize = 11f
+                setSingleLine(true)
+                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                primaryRow.addView(this)
+            }
             ll.addView(primaryRow)
 
             extraServers.forEachIndexed { i, server ->
