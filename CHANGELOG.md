@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v4.63 - 2026-07-16
+- **Added**: Providers channels now show the same extras as the primary channel list — a
+  now/next guide line (fetched from each channel's own provider), a health dot on favorited
+  Providers channels (grey while checking, then green/red, refreshed when opening the
+  ★ Favorites view), double-tap to go straight to fullscreen, and a long-press action menu
+  (Play Fullscreen / Add-Remove Favorite / Move to Folder). On TV, long-press (holding OK)
+  is how you favorite a Providers channel, since the star icon isn't reachable by D-pad.
+- **Changed**: the Providers tab/sidebar entry now sits directly next to Favorites on phone
+  (portrait + landscape) and TV.
+- **Changed**: moving a Providers favorite into a folder now updates the visible list
+  immediately instead of waiting for the next re-entry.
+- **Fixed**: the Settings toggles for hiding the Movies/Series/History tabs had drifted after
+  an old tab reorder and were hiding the wrong tabs (hiding "Movies" actually hid Guide).
+
 ## v4.62 - 2026-07-16
 - **Changed**: app updates no longer leave APK files on the device. Both update paths (the
   automatic popup and Settings > Check for Updates) now use the same flow: download to the

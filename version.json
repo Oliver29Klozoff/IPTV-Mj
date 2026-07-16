@@ -1,7 +1,7 @@
 {
-  "versionCode": 300,
-  "versionName": "4.62",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.62/MKTV.apk",
-  "apkSha256": "c80e4268ce4aea9b0fd6349ab7670aac2b22e40a72f944633c2c348e0e8ec826",
-  "changelog": "Updates no longer leave APK files on the device — both update paths now download to cache with a progress bar, verify the checksum, install, and delete the file (old leftover update APKs are cleaned up too). Fixed Download failed from Settings > Check for Updates."
+  "versionCode": 301,
+  "versionName": "4.63",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.63/MKTV.apk",
+  "apkSha256": "0e3ad3c58d786198511f5c8535e90a2ab4f1baeb875af1eacc4af92c1ce8ab34",
+  "changelog": "Providers channels now show a now/next guide line, health dots on favorites, double-tap fullscreen, and a long-press action menu — matching the primary channel list. Providers tab moved next to Favorites. Folder moves show instantly. Fixed the hide-Movies/Series/History settings toggling the wrong tabs."
 }

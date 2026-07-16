@@ -105,6 +105,20 @@
                 android:focusableInTouchMode="false" />
 
             <Button
+                android:id="@+id/btnTvProviders"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="PROVIDERS"
+                android:textColor="#008CFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:gravity="start|center_vertical"
+                android:paddingStart="35dp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+
+            <Button
                 android:id="@+id/btnTvLive"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
@@ -165,20 +179,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:text="GUIDE"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
-                android:textAllCaps="false"
-                android:gravity="start|center_vertical"
-                android:paddingStart="48dp"
-                android:background="@drawable/tv_sidebar_focus"
-                android:focusable="true"
-                android:focusableInTouchMode="false" />
-
-            <Button
-                android:id="@+id/btnTvProviders"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="PROVIDERS"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"

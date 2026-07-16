@@ -690,6 +690,31 @@ class XtreamRepository @Inject constructor(
     // Merged-channel favorites/folders — separate from the primary provider's Favorites tab
     // (see MergedChannelEntity kdoc), but reusing the same FavoriteFolderEntity rows so folder
     // names are one shared list rather than two parallel systems.
+    /** Now/next guide line for a merged channel, fetched from that channel's OWN server via
+     * get_short_epg — kept out of the epg_entries table entirely (it's keyed by the primary
+     * server's streamIds, which merged channels would collide with) and returned as ready-made
+     * display text instead, matching the "NOW: X (12m)  •  NEXT: Y" format the primary channel
+     * list builds in HomeViewModel.publishEpgDisplay. Null when the server has no guide data. */
+    suspend fun fetchMergedShortEpgText(serverIndex: Int, streamId: Int): String? {
+        return try {
+            val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return null
+            val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+            val response = api.getShortEpg(b.apiUrl(), server.username, server.password, streamId = streamId)
+            if (!response.isSuccessful) return null
+            val listings = response.body()?.epgListings ?: return null
+            val now = listings.firstOrNull() ?: return null
+            val next = listings.drop(1).firstOrNull()
+            val nowSecs = System.currentTimeMillis() / 1000
+            val minutesLeft = ((now.stopTimestamp - nowSecs) / 60).coerceAtLeast(0)
+            val timeStr = if (minutesLeft > 0) " (${minutesLeft}m)" else ""
+            val nowTitle = decodeBase64(now.title)
+            if (next != null) "NOW: $nowTitle$timeStr  •  NEXT: ${decodeBase64(next.title)}"
+            else "NOW: $nowTitle$timeStr"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun getMergedAllFavorites(): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().getAllFavorites()
     fun getMergedFavoritesInFolder(folderId: Int): Flow<List<MergedChannelEntity>> =

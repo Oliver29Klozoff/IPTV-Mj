@@ -36,6 +36,17 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
+        <!-- Now/next guide line, same style as item_channel's tvEpgNow -->
+        <TextView
+            android:id="@+id/tvEpgNow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#999999"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
         <!-- Same gray-uppercase-label style as the server tags in Settings > Servers -->
         <TextView
             android:id="@+id/tvServerNickname"
@@ -47,6 +58,14 @@
             android:textColor="#777777"
             android:textSize="10sp" />
     </LinearLayout>
+
+    <View
+        android:id="@+id/viewHealthDot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/health_dot"
+        android:visibility="gone" />
 
     <ImageView
         android:id="@+id/ivFavorite"

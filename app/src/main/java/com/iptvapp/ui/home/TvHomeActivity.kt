@@ -416,6 +416,7 @@ class TvHomeActivity : AppCompatActivity() {
                         // same flat shape rather than the phone's folder picker.
                         if (cat.categoryId == MERGED_FAV_ROOT_ID) {
                             viewModel.selectMergedFavoriteFolderView(null)
+                            viewModel.checkMergedFavoritesHealth()
                             binding.tvRvContent.adapter = mergedChannelAdapter
                         } else if (viewModel.selectedMergedServerIndex == null) {
                             viewModel.selectMergedServer(cat.categoryId.toInt())
@@ -491,6 +492,33 @@ class TvHomeActivity : AppCompatActivity() {
             onFavoriteClick = { channel ->
                 viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                 Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            // The star icon isn't reachable by D-pad — long-press (OK held) is how TV
+            // favorites/unfavorites a merged channel, mirroring the primary list's menu.
+            onChannelLongClick = { channel ->
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("${channel.name} · ${channel.serverNickname}")
+                    .setItems(arrayOf(
+                        "Play Fullscreen",
+                        if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
+                    )) { _: android.content.DialogInterface, which: Int ->
+                        when (which) {
+                            0 -> lifecycleScope.launch {
+                                try {
+                                    val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
+                                    openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1)
+                                } catch (_: Exception) {
+                                    Toast.makeText(this@TvHomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            1 -> {
+                                viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
+                                Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
         )
 
@@ -693,14 +721,16 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun moveSidebarFocus(up: Boolean) {
+        // Order must match the visual top-to-bottom order in activity_tv_home.xml —
+        // Providers sits directly under Favorites now.
         val buttons = listOf(
             binding.btnTvFavorites,
+            binding.btnTvProviders,
             binding.btnTvLive,
             binding.btnTvCategories,
             binding.btnTvMovies,
             binding.btnTvSeries,
             binding.btnTvGuide,
-            binding.btnTvProviders,
             binding.btnTvRecordings,
             binding.btnTvSettings
         ).filter { it.visibility == View.VISIBLE }
@@ -714,12 +744,12 @@ class TvHomeActivity : AppCompatActivity() {
 
     private val sectionButtons get() = listOf(
         binding.btnTvFavorites,
+        binding.btnTvProviders,
         binding.btnTvLive,
         binding.btnTvCategories,
         binding.btnTvMovies,
         binding.btnTvSeries,
-        binding.btnTvGuide,
-        binding.btnTvProviders
+        binding.btnTvGuide
     )
 
     private fun setupSidebar() {
@@ -1332,8 +1362,17 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.mergedChannels.collect {
-                if (currentSection == Section.PROVIDERS) mergedChannelAdapter.submitList(it)
+                if (currentSection == Section.PROVIDERS) {
+                    mergedChannelAdapter.submitList(it)
+                    viewModel.loadEpgForMergedChannels(it)
+                }
             }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedEpgText.collect { mergedChannelAdapter.submitEpgText(it) }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedHealth.collect { mergedChannelAdapter.submitHealth(it) }
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {

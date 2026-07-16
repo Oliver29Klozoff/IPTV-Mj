@@ -216,7 +216,58 @@ class HomeViewModel @Inject constructor(
     }
 
     fun setMergedChannelFolder(channel: com.iptvapp.data.local.entities.MergedChannelEntity, folderId: Int?) {
-        viewModelScope.launch { repository.setMergedChannelFolder(channel.serverIndex, channel.streamId, folderId) }
+        viewModelScope.launch {
+            repository.setMergedChannelFolder(channel.serverIndex, channel.streamId, folderId)
+            // If a favorites folder view is open, re-select it AFTER the write lands so the
+            // moved channel visibly leaves/joins the list immediately — the Room flow does
+            // re-emit on its own, but re-selecting guarantees it even when the flow conflates
+            // an unchanged-list emission, and makes the movement feel instant.
+            selectedMergedFavoriteFolder?.let { if (mergedChannelsJob?.isActive == true) selectMergedFavoriteFolderView(it) }
+        }
+    }
+
+    // ── Merged-channel EPG + health (Providers tab parity with the primary channel list) ──
+    // Keyed by "serverIndex:streamId" since bare streamIds collide across servers.
+    private val _mergedEpgText = MutableStateFlow<Map<String, String>>(emptyMap())
+    val mergedEpgText: StateFlow<Map<String, String>> = _mergedEpgText
+
+    private val _mergedHealth = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+    val mergedHealth: StateFlow<Map<String, Boolean?>> = _mergedHealth
+
+    private var mergedEpgJob: Job? = null
+
+    /** Now/next text per merged channel, fetched from each channel's own server. Same bounded
+     * window + pacing as the primary list's loadEpgForChannels — one get_short_epg call per
+     * channel with a small delay so a big category can't trip a provider's rate limiting. */
+    fun loadEpgForMergedChannels(channels: List<com.iptvapp.data.local.entities.MergedChannelEntity>) {
+        mergedEpgJob?.cancel()
+        if (channels.isEmpty()) return
+        mergedEpgJob = viewModelScope.launch {
+            channels.take(50).forEach { ch ->
+                val key = "${ch.serverIndex}:${ch.streamId}"
+                if (!_mergedEpgText.value.containsKey(key)) {
+                    val text = repository.fetchMergedShortEpgText(ch.serverIndex, ch.streamId)
+                    if (text != null) _mergedEpgText.value = _mergedEpgText.value + (key to text)
+                    kotlinx.coroutines.delay(150)
+                }
+            }
+        }
+    }
+
+    /** Live HEAD-check of every favorited merged channel, mirroring checkFavoritesHealth() —
+     * grey dot while checking, then green/red. Runs when the merged ★ Favorites view opens. */
+    fun checkMergedFavoritesHealth() {
+        viewModelScope.launch {
+            val favorites = repository.getMergedAllFavorites().first()
+            _mergedHealth.value = favorites.associate { "${it.serverIndex}:${it.streamId}" to null }
+            favorites.forEach { ch ->
+                launch {
+                    val url = repository.getMergedLiveStreamUrl(ch.serverIndex, ch.streamId)
+                    val alive = repository.checkStreamHealth(url)
+                    _mergedHealth.value = _mergedHealth.value + ("${ch.serverIndex}:${ch.streamId}" to alive)
+                }
+            }
+        }
     }
 
     private val _channelEpgText = MutableStateFlow<Map<Int, String>>(emptyMap())
