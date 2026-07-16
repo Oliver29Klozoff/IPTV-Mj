@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.54 - 2026-07-15
+- **Fixed**: TV Series search wasn't wired up at all — searching while in the Series section
+  searched the live channel list instead, showing nothing relevant.
+- **Fixed**: TV's 10-second auto-collapse-to-sidebar timer only reset on D-pad navigation
+  keys — typing into a search box (letter/number keys) never reset it, so the panel could
+  collapse mid-search 10 seconds after your last D-pad press even while you were still typing.
+  Now any key activity resets the idle timer.
+
 ## v4.53 - 2026-07-15
 - **Added**: sync pairing codes are now remembered (up to 10, most recent first) — a "Saved
   Codes" option in Settings > Sync (phone and TV) lets you quickly re-pair with a device

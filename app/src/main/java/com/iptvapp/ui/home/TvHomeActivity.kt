@@ -819,11 +819,12 @@ class TvHomeActivity : AppCompatActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            // Any D-pad navigation while a panel is open resets the auto-collapse idle timer —
-            // previously it was armed once when the panel opened and never touched again, so
-            // actively scrolling through a long channel/category/guide list for more than 10s
-            // would still get yanked back to the sidebar mid-browse.
-            if (navState != NavState.SIDEBAR && event.keyCode in DPAD_KEYS) {
+            // Any key activity while a panel is open resets the auto-collapse idle timer — this
+            // used to only reset on D-pad navigation keys specifically, so typing into a search
+            // box (letter/number keys, none of which are D-pad keys) never reset it at all,
+            // collapsing back to the sidebar 10s after the last D-pad press even while actively
+            // still typing a query.
+            if (navState != NavState.SIDEBAR) {
                 scheduleTvAutoCollapse()
             }
             // Numeric channel jump (only in channel panel showing live/fav channels)
@@ -1228,6 +1229,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun dispatchSearch(query: String) {
         when (currentSection) {
             Section.MOVIES -> viewModel.searchVod(query)
+            Section.SERIES -> viewModel.searchSeries(query)
             Section.PROVIDERS -> {
                 if (query.isBlank()) {
                     showMergedChannelsPanel()
