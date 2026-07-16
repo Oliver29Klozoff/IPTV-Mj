@@ -1,7 +1,7 @@
 {
-  "versionCode": 299,
-  "versionName": "4.61",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.61/MKTV.apk",
-  "apkSha256": "836549bfffc5765017988c1661e415412d884de943e09c5398a07a5d0bb25e93",
-  "changelog": "Fixed favorite folders resetting to Unsorted after an update. Added favorites for Providers channels (folder-picker on phone, flat list on TV, shared folders with your primary Favorites). Renamed All Providers to Providers."
+  "versionCode": 300,
+  "versionName": "4.62",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.62/MKTV.apk",
+  "apkSha256": "c80e4268ce4aea9b0fd6349ab7670aac2b22e40a72f944633c2c348e0e8ec826",
+  "changelog": "Updates no longer leave APK files on the device — both update paths now download to cache with a progress bar, verify the checksum, install, and delete the file (old leftover update APKs are cleaned up too). Fixed Download failed from Settings > Check for Updates."
 }

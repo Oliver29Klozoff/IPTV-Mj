@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v4.62 - 2026-07-16
+- **Changed**: app updates no longer leave APK files on the device. Both update paths (the
+  automatic popup and Settings > Check for Updates) now use the same flow: download to the
+  app's private cache with a progress dialog, verify the checksum, install, and delete the
+  file — plus a launch-time sweep that also removes the old per-version APKs the previous
+  Settings flow had been leaving behind forever.
+- **Fixed**: "Download failed" from Settings > Check for Updates — the old flow used Android's
+  DownloadManager, which choked on GitHub's redirect chains and put a download notification in
+  the system tray. Manual updates now use the same reliable downloader as the automatic popup.
+- **Added**: the automatic update popup now verifies the download's SHA-256 checksum before
+  installing (previously only the manual Settings flow did).
+
 ## v4.61 - 2026-07-16
 - **Fixed**: favorite folders could get reset to "Unsorted" after an app update — the channel
   refresh that runs on every launch never preserved which folder a favorite was filed under

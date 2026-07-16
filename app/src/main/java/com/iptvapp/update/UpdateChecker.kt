@@ -32,6 +32,7 @@ class UpdateChecker(
 
     fun check(scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) {
+            cleanupStaleApks()
             try {
                 val request = Request.Builder()
                     .url(versionJsonUrl)
@@ -46,6 +47,7 @@ class UpdateChecker(
                 val latestCode = json.getLong("versionCode")
                 val latestName = json.optString("versionName", "")
                 val apkUrl = json.getString("apkUrl")
+                val apkSha256 = json.optString("apkSha256", "").takeIf { it.isNotBlank() }
                 val notes = buildChangelog(json)
 
                 val installedCode = getInstalledVersionCode()
@@ -54,7 +56,7 @@ class UpdateChecker(
 
                 when {
                     latestCode > installedCode -> withContext(Dispatchers.Main) {
-                        showUpdateDialog(latestName, notes, apkUrl)
+                        showUpdateDialog(latestName, notes, apkUrl, apkSha256)
                     }
                     latestCode == installedCode && installedCode > lastSeenCode -> {
                         prefs.edit().putLong("last_seen_version_code", installedCode).apply()
@@ -67,6 +69,25 @@ class UpdateChecker(
                 // Silent fail on launch check.
             }
         }
+    }
+
+    /** Update APKs are transient by design — download, install, gone. The intent-based install
+     * path can't delete its APK immediately (the system installer reads the file after we hand
+     * it off), so every launch sweeps whatever's left instead: the current cache-dir file plus
+     * the per-version MKTV-update-*.apk files the old DownloadManager-based Settings flow used
+     * to leave accumulating forever in the app's external Downloads dir. */
+    private fun cleanupStaleApks() {
+        try {
+            // Age-gated so a launch-time sweep can't yank the file out from under a download
+            // that resumeCheck() kicked off seconds earlier in the same session.
+            val cacheApk = File(context.externalCacheDir ?: context.cacheDir, "IPTV-update.apk")
+            if (cacheApk.exists() && System.currentTimeMillis() - cacheApk.lastModified() > 60 * 60 * 1000L) {
+                cacheApk.delete()
+            }
+            context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+                ?.listFiles { f -> f.name.endsWith(".apk") }
+                ?.forEach { it.delete() }
+        } catch (_: Exception) {}
     }
 
     // version.json's "changelog" has always been published as a single string, never a JSON
@@ -96,7 +117,7 @@ class UpdateChecker(
         }
     }
 
-    private fun showUpdateDialog(versionName: String, notes: String, apkUrl: String) {
+    private fun showUpdateDialog(versionName: String, notes: String, apkUrl: String, apkSha256: String?) {
         AlertDialog.Builder(context)
             .setTitle("MKTV $versionName available")
             .setMessage(buildString {
@@ -106,7 +127,7 @@ class UpdateChecker(
                     append(notes)
                 }
             })
-            .setPositiveButton("Update now") { _, _ -> downloadAndInstall(apkUrl) }
+            .setPositiveButton("Update now") { _, _ -> downloadAndInstall(apkUrl, apkSha256) }
             .setNegativeButton("Later", null)
             .show()
     }
@@ -137,7 +158,13 @@ class UpdateChecker(
         downloadAndInstall(pendingUrl)
     }
 
-    private fun downloadAndInstall(apkUrl: String) {
+    // Public: SettingsActivity's manual "Check for Updates" flow calls this too, instead of
+    // its old DownloadManager-based path — DownloadManager saved a per-version APK into the
+    // app's external Downloads dir that nothing ever deleted, put a download notification in
+    // the system tray, and choked on GitHub's S3 redirect chains ("Download failed"). This
+    // path downloads to cache with a progress dialog, verifies the sha, installs, and the
+    // launch-time sweep in check() removes the file afterwards.
+    fun downloadAndInstall(apkUrl: String, expectedSha256: String? = null) {
         if (!canInstallUnknownSources()) {
             val prefs = context.getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
             prefs.edit().putString("pending_apk_url", apkUrl).apply()
@@ -190,6 +217,15 @@ class UpdateChecker(
                     }
                 }
 
+                if (expectedSha256 != null) {
+                    withContext(Dispatchers.Main) { progress.setLabel("Verifying download…") }
+                    val actual = sha256Of(apkFile)
+                    if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                        apkFile.delete()
+                        throw Exception("checksum mismatch — download discarded")
+                    }
+                }
+
                 withContext(Dispatchers.Main) {
                     progress.dismiss()
                     installApk(apkFile)
@@ -201,6 +237,16 @@ class UpdateChecker(
                 }
             }
         }
+    }
+
+    private fun sha256Of(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) digest.update(buffer, 0, read)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /** Thin wrapper so the download loop can report progress without caring whether the
@@ -238,6 +284,10 @@ class UpdateChecker(
             } catch (_: Exception) {
                 // Non-Activity context or window gone — download still proceeds, just silently.
             }
+        }
+
+        fun setLabel(text: String) {
+            label?.text = text
         }
 
         fun update(downloaded: Long, total: Long) {
@@ -318,6 +368,10 @@ class UpdateChecker(
                     when (val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
                         android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
                             com.iptvapp.IptvApplication.logPlaybackEvent(context, "SILENT UPDATE (auto-popup path): STATUS_SUCCESS")
+                            // The session copied the APK's bytes into the installer; the source
+                            // file is dead weight now — delete immediately rather than waiting
+                            // for the next launch's stale-APK sweep.
+                            try { apkFile.delete() } catch (_: Exception) {}
                             Toast.makeText(context, "MKTV updated", Toast.LENGTH_LONG).show()
                         }
                         android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
