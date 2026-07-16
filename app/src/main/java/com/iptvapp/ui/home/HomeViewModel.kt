@@ -147,6 +147,7 @@ class HomeViewModel @Inject constructor(
 
     fun resetMergedSelection() {
         selectedMergedServerIndex = null
+        selectedMergedFavoriteFolder = null
         mergedCategoriesJob?.cancel()
         mergedChannelsJob?.cancel()
         _mergedCategories.value = emptyList()
@@ -189,6 +190,34 @@ class HomeViewModel @Inject constructor(
 
     suspend fun getMergedLiveStreamUrl(serverIndex: Int, streamId: Int): String =
         repository.getMergedLiveStreamUrl(serverIndex, streamId)
+
+    // Merged-channel favorites — a separate browse view from the primary Favorites tab (see
+    // MergedChannelEntity kdoc), but sharing the same FavoriteFolderEntity rows/counts already
+    // exposed above (favoriteFolders). null = "All Favorites", -1 = "Unsorted", >=0 = a folder.
+    private val _mergedFavoriteFolderCounts = MutableStateFlow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>>(emptyList())
+    val mergedFavoriteFolderCounts: StateFlow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> = _mergedFavoriteFolderCounts
+    var selectedMergedFavoriteFolder: Int? = null; private set
+
+    fun selectMergedFavoriteFolderView(folderId: Int?) {
+        selectedMergedFavoriteFolder = folderId
+        mergedChannelsJob?.cancel()
+        val flow = when (folderId) {
+            null -> repository.getMergedAllFavorites()
+            -1 -> repository.getMergedUnfiledFavorites()
+            else -> repository.getMergedFavoritesInFolder(folderId)
+        }
+        mergedChannelsJob = viewModelScope.launch {
+            flow.collectLatest { _mergedChannels.value = it }
+        }
+    }
+
+    fun setMergedChannelFavorite(channel: com.iptvapp.data.local.entities.MergedChannelEntity, favorite: Boolean) {
+        viewModelScope.launch { repository.setMergedChannelFavorite(channel.serverIndex, channel.streamId, favorite) }
+    }
+
+    fun setMergedChannelFolder(channel: com.iptvapp.data.local.entities.MergedChannelEntity, folderId: Int?) {
+        viewModelScope.launch { repository.setMergedChannelFolder(channel.serverIndex, channel.streamId, folderId) }
+    }
 
     private val _channelEpgText = MutableStateFlow<Map<Int, String>>(emptyMap())
     val channelEpgText: StateFlow<Map<Int, String>> = _channelEpgText
@@ -370,6 +399,9 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getFavoriteCountsByFolder().collectLatest { _favoriteFolderCounts.value = it }
+            }
+            launch {
+                repository.getMergedFavoriteCountsByFolder().collectLatest { _mergedFavoriteFolderCounts.value = it }
             }
         }
 

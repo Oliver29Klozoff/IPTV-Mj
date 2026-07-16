@@ -10,7 +10,8 @@ data class ChannelUserData(
     val lastWatched: Long?,
     val viewCount: Int,
     val favOrder: Int,
-    val isHidden: Boolean
+    val isHidden: Boolean,
+    val favoriteFolderId: Int?
 )
 
 data class WatchHistoryEntry(
@@ -72,7 +73,7 @@ interface ChannelDao {
     suspend fun bulkClearFavorite(streamIds: List<Int>)
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND streamId != :excludeStreamId AND isHidden = 0 ORDER BY viewCount DESC, name ASC LIMIT 20")
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
-    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden FROM channels")
+    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden, favoriteFolderId FROM channels")
     suspend fun getUserData(): List<ChannelUserData>
     @Query("SELECT streamId, lastWatched, viewCount FROM channels WHERE lastWatched IS NOT NULL")
     suspend fun getWatchHistoryForBackup(): List<WatchHistoryEntry>
@@ -259,4 +260,26 @@ interface MergedChannelDao {
     // category) — matches how search already works on every other tab in this app.
     @Query("SELECT * FROM merged_channels WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, num")
     fun search(query: String): Flow<List<MergedChannelEntity>>
+
+    // Favorites/folders for merged channels, same shape as ChannelDao's — reuses the same
+    // FavoriteFolderEntity rows (shared folder names) so "the way favorites work for the
+    // primary provider" applies here too, just scoped to this table.
+    @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId FROM merged_channels")
+    suspend fun getUserData(): List<MergedChannelUserData>
+    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 ORDER BY name ASC")
+    fun getAllFavorites(): Flow<List<MergedChannelEntity>>
+    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND favoriteFolderId = :folderId ORDER BY name ASC")
+    fun getFavoritesInFolder(folderId: Int): Flow<List<MergedChannelEntity>>
+    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND favoriteFolderId IS NULL ORDER BY name ASC")
+    fun getUnfiledFavorites(): Flow<List<MergedChannelEntity>>
+    @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM merged_channels WHERE isFavorite = 1 GROUP BY favoriteFolderId")
+    fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
+    @Query("UPDATE merged_channels SET isFavorite = :favorite WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun setFavorite(serverIndex: Int, streamId: Int, favorite: Boolean)
+    @Query("UPDATE merged_channels SET favoriteFolderId = :folderId, isFavorite = 1 WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun setFavoriteFolder(serverIndex: Int, streamId: Int, folderId: Int?)
+    @Query("UPDATE merged_channels SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
+    suspend fun clearFolderFromChannels(folderId: Int)
 }
+
+data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)

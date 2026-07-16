@@ -92,7 +92,8 @@ class XtreamRepository @Inject constructor(
                     lastWatched = prev?.lastWatched,
                     viewCount = prev?.viewCount ?: 0,
                     favOrder = prev?.favOrder ?: 0,
-                    isHidden = prev?.isHidden ?: false
+                    isHidden = prev?.isHidden ?: false,
+                    favoriteFolderId = prev?.favoriteFolderId
                 )
             })
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
@@ -486,6 +487,7 @@ class XtreamRepository @Inject constructor(
 
     suspend fun deleteFavoriteFolder(id: Int) {
         db.channelDao().clearFolderFromChannels(id)
+        db.mergedChannelDao().clearFolderFromChannels(id)
         db.favoriteFolderDao().delete(id)
     }
 
@@ -623,6 +625,9 @@ class XtreamRepository @Inject constructor(
         val servers = allConfiguredServers()
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedChannelEntity>()
+        // Wholesale re-fetch must not silently un-favorite/un-folder every merged channel —
+        // same class of bug just fixed for the primary provider's ChannelEntity table.
+        val mergedUserData = db.mergedChannelDao().getUserData().associateBy { it.serverIndex to it.streamId }
         coroutineScope {
             servers.map { server ->
                 async {
@@ -643,6 +648,7 @@ class XtreamRepository @Inject constructor(
                         android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} sample category names: ${categoryNames.values.take(30)}")
                         synchronized(results) {
                             results.addAll(list.map {
+                                val prev = mergedUserData[server.serverIndex to it.streamId]
                                 MergedChannelEntity(
                                     serverIndex = server.serverIndex,
                                     streamId = it.streamId,
@@ -651,7 +657,9 @@ class XtreamRepository @Inject constructor(
                                     num = it.num,
                                     serverNickname = server.nickname,
                                     categoryId = it.categoryId,
-                                    categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized"
+                                    categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized",
+                                    isFavorite = prev?.isFavorite ?: false,
+                                    favoriteFolderId = prev?.favoriteFolderId
                                 )
                             })
                         }
@@ -678,6 +686,22 @@ class XtreamRepository @Inject constructor(
 
     fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().search(query)
+
+    // Merged-channel favorites/folders — separate from the primary provider's Favorites tab
+    // (see MergedChannelEntity kdoc), but reusing the same FavoriteFolderEntity rows so folder
+    // names are one shared list rather than two parallel systems.
+    fun getMergedAllFavorites(): Flow<List<MergedChannelEntity>> =
+        db.mergedChannelDao().getAllFavorites()
+    fun getMergedFavoritesInFolder(folderId: Int): Flow<List<MergedChannelEntity>> =
+        db.mergedChannelDao().getFavoritesInFolder(folderId)
+    fun getMergedUnfiledFavorites(): Flow<List<MergedChannelEntity>> =
+        db.mergedChannelDao().getUnfiledFavorites()
+    fun getMergedFavoriteCountsByFolder(): Flow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> =
+        db.mergedChannelDao().getFavoriteCountsByFolder()
+    suspend fun setMergedChannelFavorite(serverIndex: Int, streamId: Int, favorite: Boolean) =
+        db.mergedChannelDao().setFavorite(serverIndex, streamId, favorite)
+    suspend fun setMergedChannelFolder(serverIndex: Int, streamId: Int, folderId: Int?) =
+        db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
 
     /** Builds a playback URL using the specific server a merged channel came from, not
      * whatever's currently the primary/active server. Uses "ts" rather than "m3u8" — confirmed

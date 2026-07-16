@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v4.61 - 2026-07-16
+- **Fixed**: favorite folders could get reset to "Unsorted" after an app update — the channel
+  refresh that runs on every launch never preserved which folder a favorite was filed under
+  (only isFavorite/watch-history/etc. were preserved), silently un-filing every folder on the
+  next refresh.
+- **Added**: favorites for Providers (formerly "All Providers") channels — a ★ Favorites entry
+  now sits alongside your other providers. On phone, it opens the same folder-picker style
+  browsing as your primary Favorites (shared folder list — a folder you create in one place
+  shows up in both). On TV, it's a flat favorited-channels list, matching how TV's primary
+  Favorites already works. Tap the star on any Providers channel to favorite it; survives
+  every provider channel refresh the same way primary favorites do.
+- **Changed**: renamed the "All Providers" tab/section to "Providers" (shorter, same meaning).
+
 ## v4.60 - 2026-07-16
 - **Fixed**: All Providers channels endlessly spinning instead of playing — confirmed against
   a real provider that some Xtream panels ignore the requested stream extension and always

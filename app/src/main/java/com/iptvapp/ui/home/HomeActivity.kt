@@ -848,7 +848,27 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == 7) {
                     // 3-level drill (server -> category -> channels): the first tap picks a
                     // server and should show ITS categories next, not jump to channels yet.
-                    if (viewModel.selectedMergedServerIndex == null) {
+                    // A synthetic "★ Favorites" entry sits alongside the real servers and drills
+                    // into a folder picker (shared FavoriteFolderEntity rows) instead.
+                    if (category.categoryId == MERGED_FAV_ROOT_ID) {
+                        mergedFavoritesShowingFolderPicker = true
+                        categoryAdapter.submitList(mergedFavoriteFoldersToSynthetic())
+                    } else if (mergedFavoritesShowingFolderPicker) {
+                        when (category.categoryId) {
+                            MERGED_FAV_NEW_FOLDER_ID -> showCreateMergedFavoriteFolderDialog()
+                            else -> {
+                                val folderId = when (category.categoryId) {
+                                    MERGED_FAV_ALL_ID -> null
+                                    MERGED_FAV_UNSORTED_ID -> -1
+                                    else -> category.categoryId.toInt()
+                                }
+                                mergedFavoritesShowingFolderPicker = false
+                                viewModel.selectMergedFavoriteFolderView(folderId)
+                                landscapeShowChannelsMode()
+                                binding.rvChannels.adapter = mergedChannelAdapter
+                            }
+                        }
+                    } else if (viewModel.selectedMergedServerIndex == null) {
                         viewModel.selectMergedServer(category.categoryId.toInt())
                         categoryAdapter.submitList(emptyList())
                         lifecycleScope.launch {
@@ -886,6 +906,10 @@ class HomeActivity : AppCompatActivity() {
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
                 } else if (binding.tabLayout.selectedTabPosition == 0 &&
                     category.categoryId !in listOf(FAV_ALL_ID, FAV_UNSORTED_ID, FAV_NEW_FOLDER_ID)
+                ) {
+                    showFolderOptionsDialog(category.categoryId.toInt())
+                } else if (binding.tabLayout.selectedTabPosition == 7 && mergedFavoritesShowingFolderPicker &&
+                    category.categoryId !in listOf(MERGED_FAV_ALL_ID, MERGED_FAV_UNSORTED_ID, MERGED_FAV_NEW_FOLDER_ID)
                 ) {
                     showFolderOptionsDialog(category.categoryId.toInt())
                 }
@@ -926,7 +950,12 @@ class HomeActivity : AppCompatActivity() {
         )
 
         mergedChannelAdapter = MergedChannelAdapter(
-            onChannelClick = { channel -> playMergedChannel(channel) }
+            onChannelClick = { channel -> playMergedChannel(channel) },
+            onFavoriteClick = { channel ->
+                viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
+                Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onChannelLongClick = { channel -> showMoveToFolderDialog(channel) }
         )
 
         vodAdapter = VodAdapter(
@@ -1355,12 +1384,16 @@ class HomeActivity : AppCompatActivity() {
         channelAdapter.submitList(viewModel.recentChannels.value.toList())
     }
 
-    // Browse-and-play-only merged view across every configured server (Settings > Servers) —
-    // deliberately no favorite/record support here, see MergedChannelEntity kdoc for why.
+    // Browse-and-play merged view across every configured server (Settings > Providers).
     // 3-level drill-down (server -> category -> channels), same shape as Live, since a single
-    // provider can itself have tens of thousands of channels.
+    // provider can itself have tens of thousands of channels. A synthetic "★ Favorites" entry
+    // alongside the real servers drills into its own folder picker instead (see
+    // MergedChannelEntity kdoc — favorites/folders are supported here, sharing the same
+    // FavoriteFolderEntity rows as the primary provider's Favorites tab, just browsed
+    // separately rather than mixed into that tab).
     private fun showAllProviders() {
         viewModel.resetMergedSelection()
+        mergedFavoritesShowingFolderPicker = false
         landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
@@ -1370,12 +1403,55 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
+    private val MERGED_FAV_ROOT_ID = "__merged_fav_root__"
+    private val MERGED_FAV_ALL_ID = "__merged_fav_all__"
+    private val MERGED_FAV_UNSORTED_ID = "__merged_fav_unsorted__"
+    private val MERGED_FAV_NEW_FOLDER_ID = "__merged_fav_new_folder__"
+    private var mergedFavoritesShowingFolderPicker = false
 
-    private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> =
+    private fun mergedFavoriteFoldersToSynthetic(): List<CategoryEntity> {
+        val counts = viewModel.mergedFavoriteFolderCounts.value.associate { it.favoriteFolderId to it.channelCount }
+        val totalCount = counts.values.sum()
+        val unsortedCount = counts[null] ?: 0
+        val list = mutableListOf(
+            CategoryEntity(MERGED_FAV_ALL_ID, "All Favorites ($totalCount)", 0, "merged_fav_folder")
+        )
+        if (unsortedCount > 0) {
+            list.add(CategoryEntity(MERGED_FAV_UNSORTED_ID, "Unsorted ($unsortedCount)", 0, "merged_fav_folder"))
+        }
+        viewModel.favoriteFolders.value.forEach { folder ->
+            val count = counts[folder.id] ?: 0
+            list.add(CategoryEntity(folder.id.toString(), "${folder.name} ($count)", 0, "merged_fav_folder"))
+        }
+        list.add(CategoryEntity(MERGED_FAV_NEW_FOLDER_ID, "+ New Folder", 0, "merged_fav_folder"))
+        return list
+    }
+
+    private fun showCreateMergedFavoriteFolderDialog() {
+        val et = android.widget.EditText(this).apply { hint = "Folder name" }
+        AlertDialog.Builder(this)
+            .setTitle("New Folder")
+            .setView(et)
+            .setPositiveButton("Create") { _, _ ->
+                val name = et.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    viewModel.createFavoriteFolder(name)
+                    lifecycleScope.launch {
+                        kotlinx.coroutines.delay(150)
+                        categoryAdapter.submitList(mergedFavoriteFoldersToSynthetic())
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
+        val favEntry = CategoryEntity(MERGED_FAV_ROOT_ID, "★ Favorites", 0, "merged_fav_root")
         // serverIndex == -1 is always whichever provider is currently primary/active — its
         // channels are already fully browsable via the normal Live tab, so listing it again
         // here was redundant and confusing next to the other, actually-"extra" providers.
-        list.filter { it.serverIndex != -1 }.map {
+        return listOf(favEntry) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -1383,6 +1459,7 @@ class HomeActivity : AppCompatActivity() {
                 type = "merged_server"
             )
         }
+    }
 
     private fun mergedCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedCategorySummary>): List<CategoryEntity> =
         list.map {
@@ -1769,12 +1846,22 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == 0 && favoritesShowingFolderPicker) {
                     submitCategories(favoriteFoldersToSynthetic())
                 }
+                if (binding.tabLayout.selectedTabPosition == 7 && mergedFavoritesShowingFolderPicker) {
+                    submitCategories(mergedFavoriteFoldersToSynthetic())
+                }
             }
         }
         lifecycleScope.launch {
             viewModel.favoriteFolderCounts.collect {
                 if (binding.tabLayout.selectedTabPosition == 0 && favoritesShowingFolderPicker) {
                     submitCategories(favoriteFoldersToSynthetic())
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedFavoriteFolderCounts.collect {
+                if (binding.tabLayout.selectedTabPosition == 7 && mergedFavoritesShowingFolderPicker) {
+                    submitCategories(mergedFavoriteFoldersToSynthetic())
                 }
             }
         }
@@ -1975,6 +2062,12 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
         channelAdapter.submitBulkSelection(emptySet())
+    }
+
+    private fun showMoveToFolderDialog(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        showMoveToFolderDialog("Move \"${channel.name}\" to", onCancel = {}) { folderId ->
+            viewModel.setMergedChannelFolder(channel, folderId)
+        }
     }
 
     private fun showMoveToFolderDialog(streamIds: List<Int>) {

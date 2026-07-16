@@ -409,8 +409,15 @@ class TvHomeActivity : AppCompatActivity() {
                     }
                     Section.PROVIDERS -> {
                         // 3-level drill (server -> category -> channels): the first tap picks
-                        // a server and should show ITS categories next, not channels yet.
-                        if (viewModel.selectedMergedServerIndex == null) {
+                        // a server and should show ITS categories next, not channels yet. A
+                        // synthetic "★ Favorites" entry alongside the real servers instead shows
+                        // a flat list of every favorited merged channel directly — TV's primary
+                        // Favorites has no folder picker either, so merged favorites match that
+                        // same flat shape rather than the phone's folder picker.
+                        if (cat.categoryId == MERGED_FAV_ROOT_ID) {
+                            viewModel.selectMergedFavoriteFolderView(null)
+                            binding.tvRvContent.adapter = mergedChannelAdapter
+                        } else if (viewModel.selectedMergedServerIndex == null) {
                             viewModel.selectMergedServer(cat.categoryId.toInt())
                             categoryAdapter.submitList(emptyList())
                             lifecycleScope.launch {
@@ -480,7 +487,11 @@ class TvHomeActivity : AppCompatActivity() {
         }
 
         mergedChannelAdapter = MergedChannelAdapter(
-            onChannelClick = { channel -> playMergedChannel(channel) }
+            onChannelClick = { channel -> playMergedChannel(channel) },
+            onFavoriteClick = { channel ->
+                viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
+                Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            }
         )
 
         vodAdapter = VodAdapter(
@@ -780,10 +791,12 @@ class TvHomeActivity : AppCompatActivity() {
         Section.PROVIDERS  -> binding.btnTvProviders
     }
 
-    // Browse-and-play-only merged view across every configured server (Settings > Servers) —
-    // deliberately no favorite/record support, see MergedChannelEntity kdoc for why.
+    // Browse-and-play merged view across every configured server (Settings > Providers).
     // 3-level drill-down (server -> category -> channels), same shape as Live, since a single
-    // provider can itself have tens of thousands of channels.
+    // provider can itself have tens of thousands of channels. A synthetic "★ Favorites" entry
+    // alongside the real servers shows a flat favorited-channels list instead (see
+    // MergedChannelEntity kdoc — no folder picker here, matching TV's primary Favorites,
+    // which is also a flat list with no folders).
     private fun showMergedChannelsPanel() {
         viewModel.resetMergedSelection()
         binding.tvRvContent.adapter = categoryAdapter
@@ -792,12 +805,14 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
+    private val MERGED_FAV_ROOT_ID = "__merged_fav_root__"
 
-    private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> =
+    private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
+        val favEntry = CategoryEntity(MERGED_FAV_ROOT_ID, "★ Favorites", 0, "merged_fav_root")
         // serverIndex == -1 is always whichever provider is currently primary/active — its
         // channels are already fully browsable via the normal Live section, so listing it
         // again here was redundant and confusing next to the actually-"extra" providers.
-        list.filter { it.serverIndex != -1 }.map {
+        return listOf(favEntry) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -805,6 +820,7 @@ class TvHomeActivity : AppCompatActivity() {
                 type = "merged_server"
             )
         }
+    }
 
     private fun mergedCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedCategorySummary>): List<CategoryEntity> =
         list.map {

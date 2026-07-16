@@ -9,11 +9,13 @@ import com.bumptech.glide.Glide
 import com.iptvapp.data.local.entities.MergedChannelEntity
 import com.iptvapp.databinding.ItemMergedChannelBinding
 
-// Deliberately separate from ChannelAdapter — browse-and-play only (no favorite star, no
-// long-press menu, no drag handles), since merged/secondary-provider channels don't have a
-// globally-unique streamId to safely favorite/record against. See MergedChannelEntity kdoc.
+// Favorites/folders now supported for merged channels too (see MergedChannelEntity kdoc) —
+// identity for that purpose is the (serverIndex, streamId) pair, not a bare streamId, so it's
+// safe even though two different servers can reuse the same numeric stream id.
 class MergedChannelAdapter(
-    private val onChannelClick: (MergedChannelEntity) -> Unit
+    private val onChannelClick: (MergedChannelEntity) -> Unit,
+    private val onFavoriteClick: (MergedChannelEntity) -> Unit = {},
+    private val onChannelLongClick: (MergedChannelEntity) -> Unit = {}
 ) : ListAdapter<MergedChannelEntity, MergedChannelAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(val binding: ItemMergedChannelBinding) :
@@ -26,7 +28,15 @@ class MergedChannelAdapter(
                 .placeholder(android.R.drawable.ic_media_play)
                 .error(android.R.drawable.ic_media_play)
                 .into(binding.ivChannelLogo)
+            binding.ivFavorite.setImageResource(
+                if (item.isFavorite) android.R.drawable.btn_star_big_on else android.R.drawable.btn_star_big_off
+            )
+            binding.ivFavorite.setColorFilter(
+                if (item.isFavorite) android.graphics.Color.parseColor("#FFC107") else android.graphics.Color.parseColor("#555555")
+            )
+            binding.ivFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener { onChannelClick(item) }
+            binding.root.setOnLongClickListener { onChannelLongClick(item); true }
         }
     }
 

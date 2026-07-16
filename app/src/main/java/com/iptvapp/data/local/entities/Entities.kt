@@ -121,8 +121,12 @@ data class ChannelReliabilityEntity(
 // Browse-and-play-only cache for the merged "All Providers" view — deliberately separate from
 // ChannelEntity (whose bare streamId PK assumes global uniqueness) since two different Xtream
 // servers can reuse the same numeric stream id. serverIndex -1 = primary server, 0..N-1 =
-// extraServers[i]. Refetched wholesale on manual refresh; never touched by favorites/recording/
-// Trakt, which remain scoped to the primary server's ChannelEntity table only.
+// extraServers[i]. Refetched wholesale on manual refresh — recording and Trakt remain scoped
+// to the primary server's ChannelEntity table only, but favorites/folders ARE supported here
+// now (isFavorite/favoriteFolderId), reusing the same FavoriteFolderEntity rows as the primary
+// provider's favorites so folder names stay one shared list. Preserved across every refresh the
+// same way ChannelEntity's isFavorite/favoriteFolderId are (see XtreamRepository.fetchLiveStreams
+// and refreshMergedChannels) — a wholesale re-fetch must not silently un-favorite everything.
 @Entity(tableName = "merged_channels", primaryKeys = ["serverIndex", "streamId"])
 data class MergedChannelEntity(
     val serverIndex: Int,
@@ -138,6 +142,8 @@ data class MergedChannelEntity(
     // anyway (no incremental-update case to optimize for).
     val categoryId: String?,
     val categoryName: String?,
+    val isFavorite: Boolean = false,
+    val favoriteFolderId: Int? = null,
     val cachedAt: Long = System.currentTimeMillis()
 )
 

@@ -1,7 +1,7 @@
 {
-  "versionCode": 298,
-  "versionName": "4.60",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.60/MKTV.apk",
-  "apkSha256": "bf4d1d14a03a216e868db5e2737b297e3d9f4dba80f7162115b98784c012c9ac",
-  "changelog": "Fixed All Providers channels endlessly spinning instead of playing (some providers ignore the requested stream extension and always serve raw TS; merged channels now request .ts instead of .m3u8). Added subtitle styling to phone Settings > Display, matching TV."
+  "versionCode": 299,
+  "versionName": "4.61",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.61/MKTV.apk",
+  "apkSha256": "836549bfffc5765017988c1661e415412d884de943e09c5398a07a5d0bb25e93",
+  "changelog": "Fixed favorite folders resetting to Unsorted after an update. Added favorites for Providers channels (folder-picker on phone, flat list on TV, shared folders with your primary Favorites). Renamed All Providers to Providers."
 }

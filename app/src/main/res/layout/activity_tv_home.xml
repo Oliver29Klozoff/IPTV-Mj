@@ -178,7 +178,7 @@
                 android:id="@+id/btnTvProviders"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="ALL PROVIDERS"
+                android:text="PROVIDERS"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
