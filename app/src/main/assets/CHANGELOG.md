@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.66 - 2026-07-16
+- **Changed**: the fullscreen player's Record button is now a small red dot next to the
+  buffer-health dot (top right), instead of a large camera-icon button in the bottom
+  transport row — tap it the same way to start a recording. It blinks while a recording of
+  the current channel is actually in progress, and sits dim when idle.
+
 ## v4.65 - 2026-07-16
 - **Fixed**: no way to refresh Providers channels in landscape on phone — the only mechanism
   was an undiscoverable long-press on the sidebar entry, with no visible button at all (unlike

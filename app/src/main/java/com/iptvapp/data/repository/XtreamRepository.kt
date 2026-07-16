@@ -535,6 +535,8 @@ class XtreamRepository @Inject constructor(
         return "$successes/${outcomes.length} succeeded recently"
     }
 
+    fun observeActiveRecording(streamId: Int) = db.recordingDao().observeActiveByStreamId(streamId)
+
     /** streamId -> success percent, for channels with at least one recorded outcome — backs
      * the "Most Reliable" sort option. */
     suspend fun getAllReliabilityPercents(): Map<Int, Int> =

@@ -77,7 +77,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.bottomControls.visibility = View.GONE
         binding.btnDvrRewind.visibility = View.GONE
         binding.btnDvrLive.visibility = View.GONE
-        binding.btnRecord.visibility = View.GONE
+        binding.btnRecordDot.visibility = View.GONE
         binding.btnCast.visibility = View.GONE
         binding.bufferHealthBadge.visibility = View.GONE
     }
@@ -202,6 +202,7 @@ class PlayerActivity : AppCompatActivity() {
         setupFavoritesGuide()
         setupResizeButton()
         setupActionButtons()
+        observeRecordingState()
         setupCast()
 
         streamUrl = intent.getStringExtra("stream_url") ?: ""
@@ -318,7 +319,38 @@ class PlayerActivity : AppCompatActivity() {
             }
             resetHideTimer()
         }
-        binding.btnRecord.setOnClickListener { showRecordDialog() }
+        binding.btnRecordDot.setOnClickListener { showRecordDialog() }
+    }
+
+    private var recordBlinkAnimator: android.animation.ObjectAnimator? = null
+
+    /** Blinks the small record dot while this channel has an in-progress recording, and
+     * dims it to a static low-alpha "idle button" look otherwise — same dot, no separate
+     * always-red icon that would make every channel look like it's recording. */
+    private fun observeRecordingState() {
+        if (isVod || streamId == -1) return
+        lifecycleScope.launch {
+            repository.observeActiveRecording(streamId).collect { recording ->
+                if (recording != null) startRecordDotBlink() else stopRecordDotBlink()
+            }
+        }
+    }
+
+    private fun startRecordDotBlink() {
+        if (recordBlinkAnimator != null) return
+        binding.viewRecordDot.alpha = 1f
+        recordBlinkAnimator = android.animation.ObjectAnimator.ofFloat(binding.viewRecordDot, "alpha", 1f, 0.15f).apply {
+            duration = 600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            start()
+        }
+    }
+
+    private fun stopRecordDotBlink() {
+        recordBlinkAnimator?.cancel()
+        recordBlinkAnimator = null
+        binding.viewRecordDot.alpha = 0.4f
     }
 
     private fun showRecordDialog() {
@@ -1211,7 +1243,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnDvrRewind.visibility = View.VISIBLE
             binding.btnDvrLive.visibility = View.VISIBLE
             updateDvrLiveButton()
-            if (streamId != -1) binding.btnRecord.visibility = View.VISIBLE
+            if (streamId != -1) binding.btnRecordDot.visibility = View.VISIBLE
         }
         if (castAvailable) binding.btnCast.visibility = View.VISIBLE
         if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE
@@ -1495,6 +1527,7 @@ class PlayerActivity : AppCompatActivity() {
         osdHandler.removeCallbacks(hideOsdRunnable)
         indicatorHandler.removeCallbacks(hideBrightnessRunnable)
         indicatorHandler.removeCallbacks(hideVolumeRunnable)
+        recordBlinkAnimator?.cancel()
     }
 
     private fun getLocalIpAddress(): String? {

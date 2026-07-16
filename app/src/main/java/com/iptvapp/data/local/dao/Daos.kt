@@ -216,6 +216,10 @@ interface RecordingDao {
     suspend fun delete(recording: RecordingEntity)
     @Query("SELECT * FROM recordings WHERE id = :id")
     suspend fun getById(id: Int): RecordingEntity?
+    // Backs the player's small recording-indicator dot — observes whether the channel
+    // currently on screen has an in-progress ad-hoc/scheduled recording.
+    @Query("SELECT * FROM recordings WHERE streamId = :streamId AND status = 'RECORDING' LIMIT 1")
+    fun observeActiveByStreamId(streamId: Int): Flow<RecordingEntity?>
 }
 
 @Dao

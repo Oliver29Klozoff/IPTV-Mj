@@ -1,7 +1,7 @@
 {
-  "versionCode": 303,
-  "versionName": "4.65",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.65/MKTV.apk",
-  "apkSha256": "26ebb4282cf81ad4bc35989241bbec0c8c17a1d51ba14090889a3df6f0b7abbd",
-  "changelog": "Landscape phone now has a visible refresh icon for Providers channels next to the sidebar entry, matching portrait — previously the only way to refresh was an undiscoverable long-press."
+  "versionCode": 304,
+  "versionName": "4.66",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.66/MKTV.apk",
+  "apkSha256": "2fb741ac172e879c9a0dc697d4918a78dc4d6f2d6969fe6d66ea375b19902636",
+  "changelog": "The player's Record button is now a small red dot next to the buffer-health dot instead of a large bottom-row button — it blinks while a recording of the current channel is actually in progress."
 }

@@ -178,6 +178,30 @@
         app:layout_constraintEnd_toStartOf="@id/btnCast"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- Small record indicator/button — replaces the old full-size camera-icon
+             transport button. Tap opens the same record-duration dialog btnRecord used to;
+             blinks (see startRecordDotBlink() in PlayerActivity) while a recording of this
+             channel is actually in progress, otherwise shows solid+dim as a plain button. -->
+        <FrameLayout
+            android:id="@+id/btnRecordDot"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/tv_sidebar_focus"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/viewRecordDot"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_gravity="center"
+                android:alpha="0.4"
+                android:background="@drawable/record_dot" />
+
+        </FrameLayout>
+
         <View
             android:id="@+id/viewHealthDotPlayer"
             android:layout_width="8dp"
@@ -243,20 +267,6 @@
             android:padding="14dp"
             android:visibility="gone"
             app:tint="#FFFFFF" />
-
-        <!-- Record — live channels only, starts an immediate ad-hoc recording. Placed right
-             next to Play/Pause so it sits with the other transport controls. -->
-        <ImageButton
-            android:id="@+id/btnRecord"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:src="@android:drawable/ic_menu_camera"
-            android:nextFocusUp="@id/btnGuide"
-            android:scaleType="fitCenter"
-            android:padding="18dp"
-            android:visibility="gone"
-            app:tint="#FF4444" />
 
         <ImageButton
             android:id="@+id/btnPlayPause"
