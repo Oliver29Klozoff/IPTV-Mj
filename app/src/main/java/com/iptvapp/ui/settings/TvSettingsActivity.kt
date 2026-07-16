@@ -416,8 +416,9 @@ class TvSettingsActivity : AppCompatActivity() {
         // ── SERVERS ──
         settingsItems += TvSettingItem.Header("Providers")
         val primaryActive = activeIdx == -1
-        settingsItems += TvSettingItem.Info("server_primary",
-            "${if (primaryActive) "●  " else ""}$primaryNick  •  ${creds.serverUrl.take(50).ifBlank { "Not set" }}")
+        settingsItems += TvSettingItem.Action("server_primary",
+            "${if (primaryActive) "●  " else ""}$primaryNick",
+            value = creds.serverUrl.take(50).ifBlank { "Not set" }) { showEditPrimaryDialog(creds, primaryNick) }
         extraServers.forEachIndexed { i, server ->
             val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Provider ${i + 2}" } }
             val isActive = activeIdx == i
@@ -1105,6 +1106,50 @@ class TvSettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showEditPrimaryDialog(creds: com.iptvapp.data.local.ServerCredentials, currentNick: String) {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 0)
+        }
+        val etNick = EditText(this).apply { hint = "Nickname (optional)"; setText(currentNick) }
+        val etUrl  = EditText(this).apply { hint = "Provider URL (http://...)"; setText(creds.serverUrl) }
+        val etUser = EditText(this).apply { hint = "Username"; setText(creds.username) }
+        val etPass = EditText(this).apply {
+            hint = "Password"
+            setText(creds.password)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val cbShowPass = android.widget.CheckBox(this).apply {
+            text = "Show password"
+            setOnCheckedChangeListener { _, checked ->
+                etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.setSelection(etPass.text.length)
+            }
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass)
+        AlertDialog.Builder(this)
+            .setTitle("Edit Primary Provider")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                val nick = etNick.text.toString().trim()
+                if (url.isNotEmpty() && user.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        prefs.saveCredentials(url, user, pass)
+                        prefs.setServerNickname(nick)
+                        db.mergedChannelDao().clearAll()
+                        toast("Primary provider updated")
+                        rebuildList("server_primary")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showEditServerDialog(index: Int) {
         val server = extraServers.getOrNull(index) ?: return
         val layout = LinearLayout(this).apply {
@@ -1118,12 +1163,21 @@ class TvSettingsActivity : AppCompatActivity() {
             setText(server.getOrElse(2) { "" })
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
+        val cbShowPass = android.widget.CheckBox(this).apply {
+            text = "Show password"
+            setOnCheckedChangeListener { _, checked ->
+                etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.setSelection(etPass.text.length)
+            }
+        }
         val etEpg = EditText(this).apply {
             hint = "EPG URL (optional, http://...)"
             setText(server.getOrElse(4) { "" })
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Edit Provider")
             .setView(layout)
@@ -1192,11 +1246,20 @@ class TvSettingsActivity : AppCompatActivity() {
             hint = "Password"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
+        val cbShowPass = android.widget.CheckBox(this).apply {
+            text = "Show password"
+            setOnCheckedChangeListener { _, checked ->
+                etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.setSelection(etPass.text.length)
+            }
+        }
         val etEpg = EditText(this).apply {
             hint = "EPG URL (optional, http://...)"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Add Provider")
             .setView(layout)

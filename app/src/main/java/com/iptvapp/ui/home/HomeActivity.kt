@@ -1425,10 +1425,19 @@ class HomeActivity : AppCompatActivity() {
     private val FAV_UNSORTED_ID = "__unsorted__"
     private val FAV_NEW_FOLDER_ID = "__new_folder__"
 
+    // showFavorites() reads favoriteFolders/favoriteFolderCounts as a one-shot snapshot — at
+    // cold app launch (the very first tab shown) those StateFlows haven't finished their first
+    // DB read yet, so the folder picker rendered "All Favorites (0)" forever with no way to
+    // refresh itself until some unrelated navigation happened to call showFavorites() again
+    // later, by which point the data had already arrived. This flag lets the reactive
+    // collectors below know it's safe to re-render the picker as that data trickles in.
+    private var favoritesShowingFolderPicker = false
+
     // Favorites now drills down the same way Movies/Live do: pick "All Favorites", "Unsorted",
     // or a named folder first, then see that group's channels. Folders are user-created (long-
     // press a favorite -> "Move to Folder"), not provider-supplied.
     private fun showFavorites() {
+        favoritesShowingFolderPicker = true
         landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
@@ -1456,6 +1465,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showFavoriteFolderChannels(folderId: Int?) {
+        favoritesShowingFolderPicker = false
         landscapeShowChannelsMode()
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
@@ -1727,6 +1737,20 @@ class HomeActivity : AppCompatActivity() {
                     if (filtered.isNotEmpty() && !viewModel.hasSelectedCategory()) {
                         viewModel.selectLiveCategory(filtered.first().categoryId)
                     }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.favoriteFolders.collect {
+                if (binding.tabLayout.selectedTabPosition == 0 && favoritesShowingFolderPicker) {
+                    submitCategories(favoriteFoldersToSynthetic())
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.favoriteFolderCounts.collect {
+                if (binding.tabLayout.selectedTabPosition == 0 && favoritesShowingFolderPicker) {
+                    submitCategories(favoriteFoldersToSynthetic())
                 }
             }
         }

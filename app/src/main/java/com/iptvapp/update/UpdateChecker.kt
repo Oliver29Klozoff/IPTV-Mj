@@ -152,6 +152,12 @@ class UpdateChecker(
             return
         }
 
+        // A ~20MB APK over a slow connection can take a while with zero feedback otherwise —
+        // this was previously just a "Downloading update…" toast with no indication of
+        // progress or whether it was still moving at all.
+        val progress = ProgressDialogHolder(context)
+        progress.show()
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val request = Request.Builder().url(apkUrl).build()
@@ -159,21 +165,96 @@ class UpdateChecker(
 
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) throw Exception("HTTP ${response.code} for $apkUrl")
-                    response.body?.byteStream()?.use { input ->
+                    val body = response.body ?: throw Exception("Empty APK response")
+                    val totalBytes = body.contentLength()
+                    body.byteStream().use { input ->
                         apkFile.outputStream().use { output ->
-                            input.copyTo(output)
+                            val buffer = ByteArray(8 * 1024)
+                            var downloaded = 0L
+                            var lastUpdateMs = 0L
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read == -1) break
+                                output.write(buffer, 0, read)
+                                downloaded += read
+                                // Throttle UI updates — one Handler post per byte chunk would
+                                // spam the main thread with hundreds of updates per second.
+                                val now = System.currentTimeMillis()
+                                if (now - lastUpdateMs > 100) {
+                                    lastUpdateMs = now
+                                    withContext(Dispatchers.Main) { progress.update(downloaded, totalBytes) }
+                                }
+                            }
+                            withContext(Dispatchers.Main) { progress.update(downloaded, totalBytes) }
                         }
-                    } ?: throw Exception("Empty APK response")
+                    }
                 }
 
                 withContext(Dispatchers.Main) {
+                    progress.dismiss()
                     installApk(apkFile)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    progress.dismiss()
                     Toast.makeText(context, "Update failed: " + e.message, Toast.LENGTH_LONG).show()
                 }
             }
+        }
+    }
+
+    /** Thin wrapper so the download loop can report progress without caring whether the
+     * context can actually show a dialog (e.g. a non-Activity context) — falls back to
+     * silently doing nothing rather than crashing on BadTokenException. */
+    private class ProgressDialogHolder(private val context: Context) {
+        private var dialog: AlertDialog? = null
+        private var progressBar: android.widget.ProgressBar? = null
+        private var label: android.widget.TextView? = null
+
+        fun show() {
+            try {
+                val layout = android.widget.LinearLayout(context).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    val pad = (24 * context.resources.displayMetrics.density).toInt()
+                    setPadding(pad, pad, pad, pad)
+                }
+                label = android.widget.TextView(context).apply { text = "Downloading update…" }
+                progressBar = android.widget.ProgressBar(
+                    context, null, android.R.attr.progressBarStyleHorizontal
+                ).apply {
+                    isIndeterminate = true
+                    max = 100
+                }
+                layout.addView(label)
+                layout.addView(progressBar, android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = (16 * context.resources.displayMetrics.density).toInt() })
+                dialog = AlertDialog.Builder(context)
+                    .setTitle("Updating MKTV")
+                    .setView(layout)
+                    .setCancelable(false)
+                    .show()
+            } catch (_: Exception) {
+                // Non-Activity context or window gone — download still proceeds, just silently.
+            }
+        }
+
+        fun update(downloaded: Long, total: Long) {
+            val pb = progressBar ?: return
+            if (total > 0) {
+                pb.isIndeterminate = false
+                pb.progress = ((downloaded * 100) / total).toInt().coerceIn(0, 100)
+                val mb = { b: Long -> "%.1f".format(b / 1_000_000.0) }
+                label?.text = "Downloading update… ${mb(downloaded)} / ${mb(total)} MB"
+            } else {
+                // Server didn't send Content-Length — show bytes downloaded instead of a percent.
+                label?.text = "Downloading update… %.1f MB".format(downloaded / 1_000_000.0)
+            }
+        }
+
+        fun dismiss() {
+            try { dialog?.dismiss() } catch (_: Exception) {}
         }
     }
 

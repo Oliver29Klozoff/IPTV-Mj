@@ -14,7 +14,11 @@
         android:layout_width="280dp"
         android:layout_height="match_parent">
 
-        <!-- LEVEL 0: Sidebar nav -->
+        <!-- LEVEL 0: Sidebar nav. With Favorites/Live/Categories/Movies/Series/Guide/Providers/
+             Recordings/Settings all present, the fixed-height button stack no longer fits on
+             shorter TV panel heights and was running off the bottom of the screen — the button
+             list below is now wrapped in its own ScrollView (weight=1) so it scrolls instead of
+             overflowing, while Settings stays pinned at a fixed spot at the very bottom. -->
         <LinearLayout
             android:id="@+id/tvSidebar"
             android:layout_width="match_parent"
@@ -75,6 +79,16 @@
                 android:layout_height="1dp"
                 android:layout_marginVertical="8dp"
                 android:background="#1E2A3A" />
+
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:scrollbars="none">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
             <Button
                 android:id="@+id/btnTvFavorites"
@@ -196,10 +210,8 @@
                 android:focusable="false"
                 android:visibility="gone" />
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
+            </LinearLayout>
+            </androidx.core.widget.NestedScrollView>
 
             <Button
                 android:id="@+id/btnTvSettings"
@@ -361,7 +373,6 @@
                     android:hint="Search…"
                     android:imeOptions="actionSearch"
                     android:inputType="text"
-                    android:nextFocusDown="@id/tvRvContent"
                     android:paddingHorizontal="10dp"
                     android:textColor="#FFFFFF"
                     android:textColorHint="#555555"

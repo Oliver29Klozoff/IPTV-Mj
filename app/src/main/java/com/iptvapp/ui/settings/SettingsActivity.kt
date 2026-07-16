@@ -1350,6 +1350,19 @@ class SettingsActivity : AppCompatActivity() {
                 ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
                 primaryRow.addView(this)
             }
+            android.widget.Button(this@SettingsActivity).apply {
+                text = "Edit"
+                isAllCaps = false
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
+                val heightPx = (40 * resources.displayMetrics.density).toInt()
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, heightPx
+                ).also { it.topMargin = 12 }
+                setOnClickListener { showEditPrimaryDialog(creds, primaryNick) }
+                primaryRow.addView(this)
+            }
             ll.addView(primaryRow)
 
             extraServers.forEachIndexed { i, server ->
@@ -1475,6 +1488,64 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun showEditPrimaryDialog(creds: com.iptvapp.data.local.ServerCredentials, currentNick: String) {
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        fun android.widget.EditText.disableAutofill() {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                setAutofillHints(null)
+            }
+        }
+        val etNick = android.widget.EditText(this).apply {
+            hint = "Nickname (optional)"; setText(currentNick); disableAutofill()
+        }
+        val etUrl = android.widget.EditText(this).apply {
+            hint = "Provider URL (http://...)"; setText(creds.serverUrl); disableAutofill()
+        }
+        val etUser = android.widget.EditText(this).apply {
+            hint = "Username"; setText(creds.username); disableAutofill()
+        }
+        val etPass = android.widget.EditText(this).apply {
+            hint = "Password"
+            setText(creds.password)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            disableAutofill()
+        }
+        val cbShowPass = android.widget.CheckBox(this).apply {
+            text = "Show password"
+            setOnCheckedChangeListener { _, checked ->
+                etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.setSelection(etPass.text.length)
+            }
+        }
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass)
+        AlertDialog.Builder(this)
+            .setTitle("Edit Primary Provider")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                val nick = etNick.text.toString().trim()
+                if (url.isNotEmpty() && user.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        prefs.saveCredentials(url, user, pass)
+                        prefs.setServerNickname(nick)
+                        db.mergedChannelDao().clearAll()
+                        Toast.makeText(this@SettingsActivity, "Primary provider updated", Toast.LENGTH_SHORT).show()
+                        updateServerList()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showEditServerDialog(index: Int) {
         val server = extraServers.getOrNull(index) ?: return
         val layout = android.widget.LinearLayout(this).apply {
@@ -1502,13 +1573,22 @@ class SettingsActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             disableAutofill()
         }
+        val cbShowPass = android.widget.CheckBox(this).apply {
+            text = "Show password"
+            setOnCheckedChangeListener { _, checked ->
+                etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.setSelection(etPass.text.length)
+            }
+        }
         val etEpg = android.widget.EditText(this).apply {
             hint = "EPG URL (optional, http://...)"
             setText(server.getOrElse(4) { "" })
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
             disableAutofill()
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Edit Provider")
             .setView(layout)
@@ -1558,12 +1638,21 @@ class SettingsActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             disableAutofill()
         }
+        val cbShowPass = android.widget.CheckBox(this).apply {
+            text = "Show password"
+            setOnCheckedChangeListener { _, checked ->
+                etPass.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.setSelection(etPass.text.length)
+            }
+        }
         val etEpg = android.widget.EditText(this).apply {
             hint = "EPG URL (optional, http://...)"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
             disableAutofill()
         }
-        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(etEpg)
+        layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
         AlertDialog.Builder(this)
             .setTitle("Add Provider")
             .setView(layout)

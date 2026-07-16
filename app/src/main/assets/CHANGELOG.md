@@ -1,5 +1,23 @@
 # IPTV App - Changelog
 
+## v4.55 - 2026-07-15
+- **Added**: app update downloads now show a real progress dialog (MB downloaded / total, with
+  a progress bar) instead of a single static "Downloading update…" toast with no feedback.
+- **Added**: Edit button on the Settings > Providers primary provider row — previously only
+  extra providers could be edited after being added.
+- **Added**: "Show password" checkbox in the Add/Edit Provider dialogs (phone and TV).
+- **Fixed**: TV sidebar (Favorites/Live/Categories/Movies/Series/Guide/All Providers/
+  Recordings/Settings) could run off the bottom of the screen on shorter TV panel heights —
+  it now scrolls instead of overflowing, with Settings pinned at the bottom.
+- **Fixed**: TV sidebar's accent color reverted to the default blue as soon as you selected a
+  section — it only stuck at launch. The chosen accent now stays applied through navigation.
+- **Fixed**: on the phone, Favorites could show stale/empty folder counts if opened before the
+  initial channel sync finished, with no way to refresh short of switching tabs and back. The
+  folder picker now updates live as sync data arrives.
+- **Fixed**: on TV, D-pad Down from the search box in Movies/Series was hardcoded to jump
+  straight into the channel list, skipping the "All/Drama/…" genre filter chips entirely —
+  they were effectively unreachable by D-pad.
+
 ## v4.54 - 2026-07-15
 - **Fixed**: TV Series search wasn't wired up at all — searching while in the Series section
   searched the live channel list instead, showing nothing relevant.

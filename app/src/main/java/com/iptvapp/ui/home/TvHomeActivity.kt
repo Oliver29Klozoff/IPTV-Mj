@@ -164,13 +164,24 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    // Selecting a sidebar section re-colors the active button (selectSection() below) using
+    // this field rather than a hardcoded blue, so the accent survives navigation instead of
+    // only showing briefly at launch before the first tap reverts it to the default color.
+    private var currentAccent: Int = 0xFF008CFF.toInt()
+
     /** Recolors the sidebar, header buttons, and progress bars to the accent chosen in
      * Settings → Display, including a matching focus-ring color (not just the hardcoded blue). */
     private fun applyAccent(accent: Int) {
+        currentAccent = accent
         listOf(
             binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories,
-            binding.btnTvMovies, binding.btnTvSeries, binding.btnTvGuide
+            binding.btnTvMovies, binding.btnTvSeries, binding.btnTvGuide,
+            binding.btnTvProviders
         ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
+        // The currently active section's button should stay accent-colored, not fall back
+        // to the dim grey applyToButton would otherwise leave every button in.
+        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
+        activeSidebarButton().setTextColor(accent)
 
         binding.tvMktvWordmark.setTextColor(accent)
         binding.tvEpgProgress.progressTintList = android.content.res.ColorStateList.valueOf(accent)
@@ -727,7 +738,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun selectSection(section: Section) {
         currentSection = section
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
-        activeSidebarButton().setTextColor(0xFF008CFF.toInt())
+        activeSidebarButton().setTextColor(currentAccent)
         binding.tvGenreChipScroll.visibility = View.GONE
 
         when (section) {

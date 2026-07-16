@@ -1,7 +1,7 @@
 {
-  "versionCode": 292,
-  "versionName": "4.54",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.54/MKTV.apk",
-  "apkSha256": "4113f55b3a76f1f6430ec13e0c65b86a85cca2ac3695650359b79d23fd15969b",
-  "changelog": "Fixed TV Series search not being wired up (searched channels instead). Fixed TV's 10s auto-collapse timer only resetting on D-pad keys, not while typing a search query."
+  "versionCode": 293,
+  "versionName": "4.55",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.55/MKTV.apk",
+  "apkSha256": "96485517b2c6c57a74c34bfaf7cd83dcb312280d143d90bfccd7ca9457dbc629",
+  "changelog": "Added a real progress bar for app update downloads. Added Edit button for the primary provider and a show-password toggle in provider dialogs. Fixed TV sidebar overflowing off-screen, accent color reverting after navigation, and D-pad not reaching the genre filter chips. Fixed phone Favorites showing stale/empty folder counts on cold start."
 }
