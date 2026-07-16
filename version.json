@@ -1,7 +1,7 @@
 {
-  "versionCode": 293,
-  "versionName": "4.55",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.55/MKTV.apk",
-  "apkSha256": "96485517b2c6c57a74c34bfaf7cd83dcb312280d143d90bfccd7ca9457dbc629",
-  "changelog": "Added a real progress bar for app update downloads. Added Edit button for the primary provider and a show-password toggle in provider dialogs. Fixed TV sidebar overflowing off-screen, accent color reverting after navigation, and D-pad not reaching the genre filter chips. Fixed phone Favorites showing stale/empty folder counts on cold start."
+  "versionCode": 294,
+  "versionName": "4.56",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.56/MKTV.apk",
+  "apkSha256": "71705fdee5411f755801e5caacd6742b88119c1125a67e757678baf3b26c69a7",
+  "changelog": "Added a per-provider Update Channels action in TV Settings. The merged All Providers channel cache now auto-refreshes on cold app start when extra providers are configured, instead of staying empty until a manual refresh."
 }

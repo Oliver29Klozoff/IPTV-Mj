@@ -135,6 +135,12 @@ class TvHomeActivity : AppCompatActivity() {
         observeEpgGuide()
         observeSidebarVisibility()
         viewModel.loadAll()
+        // Same cold-start auto-refresh as the phone: the merged "All Providers" cache used to
+        // sit empty until the user manually hit Refresh, even on a device with providers
+        // already configured.
+        lifecycleScope.launch {
+            if (prefs.getExtraServersWithNick().isNotEmpty()) viewModel.refreshMergedChannels()
+        }
         showSidebar()
         handleDeepLink(intent)
         FeatureTourDialog.showIfNeeded(this)

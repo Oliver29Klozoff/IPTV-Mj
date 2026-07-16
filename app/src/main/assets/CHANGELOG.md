@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.56 - 2026-07-15
+- **Added**: TV Settings > Providers now has an "Update Channels" action per provider (and an
+  "Update All Provider Channels" action) to manually refresh the merged All Providers cache.
+- **Added**: the merged All Providers channel cache now auto-refreshes once on cold app start
+  (phone and TV) when at least one extra provider is configured — previously it stayed empty
+  until you manually tapped Refresh, even after adding providers.
+
 ## v4.55 - 2026-07-15
 - **Added**: app update downloads now show a real progress dialog (MB downloaded / total, with
   a progress bar) instead of a single static "Downloading update…" toast with no feedback.

@@ -70,6 +70,7 @@ class TvSettingsActivity : AppCompatActivity() {
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var syncManager: SyncManager
     @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
+    @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     private var traktAuthJob: kotlinx.coroutines.Job? = null
     private var lastTraktSyncResult: com.iptvapp.trakt.TraktManager.SyncBackResult? = null
 
@@ -427,6 +428,10 @@ class TvSettingsActivity : AppCompatActivity() {
                 value = server.getOrElse(0) { "" }.take(45)) { showServerOptions(i) }
         }
         settingsItems += TvSettingItem.Action("server_add", "Add Provider") { showAddServerDialog() }
+        settingsItems += TvSettingItem.Action("server_update_channels", "Update All Provider Channels") {
+            toast("Updating provider channels…")
+            lifecycleScope.launch { repository.refreshMergedChannels() }
+        }
 
         // ── ACCOUNT ──
         settingsItems += TvSettingItem.Header("Account")
@@ -1086,21 +1091,29 @@ class TvSettingsActivity : AppCompatActivity() {
 
     private fun showServerOptions(index: Int) {
         val server = extraServers.getOrNull(index) ?: return
+        val actions = arrayOf("Switch", "Edit", "Update Channels", "Remove")
         AlertDialog.Builder(this)
             .setTitle(server.getOrElse(3) { "" }.ifBlank { "Provider ${index + 2}" })
-            .setMessage(server.getOrElse(0) { "" })
-            .setPositiveButton("Switch") { _, _ -> switchToServer(index) }
-            .setNeutralButton("Edit") { _, _ -> showEditServerDialog(index) }
-            .setNegativeButton("Remove") { _, _ ->
-                extraServers.removeAt(index)
-                lifecycleScope.launch {
-                    prefs.saveExtraServersWithNick(extraServers)
-                    // Removing a server shifts every later server's index, which could
-                    // silently re-attribute stale merged-channel rows to the wrong server
-                    // until the next manual refresh — just clear the cache.
-                    db.mergedChannelDao().clearAll()
-                    rebuildList("server_add")
-                    toast("Provider removed")
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> switchToServer(index)
+                    1 -> showEditServerDialog(index)
+                    2 -> {
+                        toast("Updating channels for this provider…")
+                        lifecycleScope.launch { repository.refreshMergedChannels() }
+                    }
+                    3 -> {
+                        extraServers.removeAt(index)
+                        lifecycleScope.launch {
+                            prefs.saveExtraServersWithNick(extraServers)
+                            // Removing a server shifts every later server's index, which could
+                            // silently re-attribute stale merged-channel rows to the wrong
+                            // server until the next manual refresh — just clear the cache.
+                            db.mergedChannelDao().clearAll()
+                            rebuildList("server_add")
+                            toast("Provider removed")
+                        }
+                    }
                 }
             }
             .show()

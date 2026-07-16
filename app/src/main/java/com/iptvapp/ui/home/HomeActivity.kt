@@ -245,6 +245,14 @@ class HomeActivity : AppCompatActivity() {
         setupMenu()
         observeViewModel()
         viewModel.loadAll()
+        // The "All Providers" merged channel cache previously only ever refreshed when the
+        // user manually tapped Refresh — meaning a freshly-installed app (or one that hasn't
+        // opened that tab yet) showed nothing at all until a manual action. Auto-refresh it
+        // once per cold start when at least one extra provider is actually configured, so
+        // it's already populated by the time the user checks that tab.
+        lifecycleScope.launch {
+            if (prefs.getExtraServersWithNick().isNotEmpty()) viewModel.refreshMergedChannels()
+        }
         observeTabVisibility()
         // Always start on FAVORITES. Call showFavorites() explicitly because onTabSelected
         // may not fire if TabLayout restores to tab 2 from its own saved instance state,
