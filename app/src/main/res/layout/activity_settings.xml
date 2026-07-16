@@ -1668,6 +1668,16 @@
                                     android:textSize="13sp" />
                             </LinearLayout>
 
+                            <Button
+                                android:id="@+id/btnSavedPairingCodes"
+                                android:layout_width="match_parent"
+                                android:layout_height="40dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="Saved Codes"
+                                android:textColor="#008CFF"
+                                android:textSize="12sp" />
+
                             <TextView
                                 android:id="@+id/tvSyncStatus"
                                 android:layout_width="match_parent"

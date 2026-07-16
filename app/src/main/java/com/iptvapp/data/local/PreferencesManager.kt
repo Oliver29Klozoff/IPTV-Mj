@@ -49,6 +49,7 @@ class PreferencesManager @Inject constructor(
         val ACTIVE_SERVER_INDEX = intPreferencesKey("active_server_index")
         val SYNC_ENABLED = booleanPreferencesKey("sync_enabled")
         val SYNC_GIST_ID = stringPreferencesKey("sync_gist_id")
+        val SAVED_PAIRING_CODES = stringPreferencesKey("saved_pairing_codes")
         val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         val EXTERNAL_PLAYER = stringPreferencesKey("external_player")
         val DOH_ENABLED = booleanPreferencesKey("doh_enabled")
@@ -437,6 +438,30 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setSyncGistId(id: String) {
         context.dataStore.edit { it[Keys.SYNC_GIST_ID] = id }
+    }
+
+    // Every code the user successfully pairs with is remembered here (most-recent first, capped
+    // at 10) so re-pairing with a device they've already used doesn't mean re-typing the code.
+    suspend fun getSavedPairingCodes(): List<String> {
+        val json = context.dataStore.data.first()[Keys.SAVED_PAIRING_CODES] ?: "[]"
+        val arr = org.json.JSONArray(json)
+        return (0 until arr.length()).map { arr.getString(it) }
+    }
+
+    suspend fun addSavedPairingCode(code: String) {
+        if (code.isBlank()) return
+        val existing = getSavedPairingCodes().filter { it != code }
+        val updated = (listOf(code) + existing).take(10)
+        val arr = org.json.JSONArray()
+        updated.forEach { arr.put(it) }
+        context.dataStore.edit { it[Keys.SAVED_PAIRING_CODES] = arr.toString() }
+    }
+
+    suspend fun removeSavedPairingCode(code: String) {
+        val updated = getSavedPairingCodes().filter { it != code }
+        val arr = org.json.JSONArray()
+        updated.forEach { arr.put(it) }
+        context.dataStore.edit { it[Keys.SAVED_PAIRING_CODES] = arr.toString() }
     }
 
     suspend fun setLastSyncTime(timeMillis: Long) {

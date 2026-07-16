@@ -1,7 +1,7 @@
 {
-  "versionCode": 290,
-  "versionName": "4.52",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.52/MKTV.apk",
-  "apkSha256": "e9d9d9962bf735ffc4dda5be8bbc8ccb0a523a3243aac35749f953ef05ea6ae8",
-  "changelog": "Bulk-selected channels now show a visible highlight. Move to Folder dialog only clears selection on explicit Cancel. Primary Provider row now shows its URL for verification."
+  "versionCode": 291,
+  "versionName": "4.53",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.53/MKTV.apk",
+  "apkSha256": "ae936d28b5b7bb6d48fd896e5cdb4c81c90c5160073ac67a4025f405113d1da9",
+  "changelog": "Sync pairing codes are now remembered - use Saved Codes in Settings > Sync to quickly re-pair with a device instead of retyping its code."
 }

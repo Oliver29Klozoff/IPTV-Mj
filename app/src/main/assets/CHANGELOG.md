@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.53 - 2026-07-15
+- **Added**: sync pairing codes are now remembered (up to 10, most recent first) — a "Saved
+  Codes" option in Settings > Sync (phone and TV) lets you quickly re-pair with a device
+  you've used before instead of re-typing its code every time.
+
 ## v4.52 - 2026-07-15
 - **Added**: bulk-selected channels (for moving into a favorite folder) now show a visible
   highlight and checkmark — previously there was no indication a tap had registered at all.

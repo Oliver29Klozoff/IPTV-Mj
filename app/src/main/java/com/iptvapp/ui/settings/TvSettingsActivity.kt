@@ -446,6 +446,7 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.SubHeader("sync_sub_pairing", "Pairing") { toggleSubHeader("Sync", "sync_sub_pairing") }
         settingsItems += TvSettingItem.Action("sync_pair", "Enter Pairing Code",
             value = "Set to pull another device's favorites") { showPairingCodeDialog() }
+        settingsItems += TvSettingItem.Action("sync_saved_codes", "Saved Pairing Codes") { showSavedPairingCodesDialog() }
         settingsItems += TvSettingItem.SubHeader("sync_sub_actions", "Actions") { toggleSubHeader("Sync", "sync_sub_actions") }
         settingsItems += TvSettingItem.Toggle("sync_auto", "Auto Sync to Cloud (daily)",
             checked = syncEnabled) { enabled ->
@@ -1359,11 +1360,34 @@ class TvSettingsActivity : AppCompatActivity() {
                 val code = input.text.toString().trim()
                 lifecycleScope.launch {
                     syncManager.setPairingCode(code)
+                    if (code.isNotBlank()) prefs.addSavedPairingCode(code.uppercase())
                     toast(if (code.isBlank()) "Pairing code cleared" else "Paired ✓ — tap Pull from Cloud")
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun showSavedPairingCodesDialog() {
+        lifecycleScope.launch {
+            val codes = prefs.getSavedPairingCodes()
+            if (codes.isEmpty()) {
+                toast("No saved codes yet — pair with one first")
+                return@launch
+            }
+            AlertDialog.Builder(this@TvSettingsActivity)
+                .setTitle("Saved Pairing Codes")
+                .setItems(codes.toTypedArray()) { _, i ->
+                    val code = codes[i]
+                    lifecycleScope.launch {
+                        syncManager.setPairingCode(code)
+                        prefs.addSavedPairingCode(code)
+                        toast("Paired with $code ✓ — tap Pull from Cloud")
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
     }
 
     private fun scheduleAutoSync() {

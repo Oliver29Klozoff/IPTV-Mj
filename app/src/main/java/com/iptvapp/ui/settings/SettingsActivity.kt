@@ -1720,9 +1720,11 @@ class SettingsActivity : AppCompatActivity() {
             val code = binding.etGithubToken.text.toString().trim()
             lifecycleScope.launch {
                 syncManager.setPairingCode(code)
+                if (code.isNotBlank()) prefs.addSavedPairingCode(code.uppercase())
                 Toast.makeText(this@SettingsActivity, if (code.isBlank()) "Pairing code cleared" else "Paired ✓ — tap Pull from Cloud", Toast.LENGTH_SHORT).show()
             }
         }
+        binding.btnSavedPairingCodes.setOnClickListener { showSavedPairingCodesDialog() }
         binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
@@ -1760,6 +1762,46 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.makeText(this@SettingsActivity, result, Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun showSavedPairingCodesDialog() {
+        lifecycleScope.launch {
+            val codes = prefs.getSavedPairingCodes()
+            if (codes.isEmpty()) {
+                Toast.makeText(this@SettingsActivity, "No saved codes yet — pair with one first", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            // Long-press an entry to remove it — same convention as favorite folders' "hold to
+            // manage" pattern elsewhere in this screen, rather than a separate edit mode.
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Saved Pairing Codes")
+                .setItems(codes.toTypedArray()) { _, i ->
+                    val code = codes[i]
+                    binding.etGithubToken.setText(code)
+                    lifecycleScope.launch {
+                        syncManager.setPairingCode(code)
+                        prefs.addSavedPairingCode(code)
+                        Toast.makeText(this@SettingsActivity, "Paired with $code ✓ — tap Pull from Cloud", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Manage") { _, _ -> showManagePairingCodesDialog(codes) }
+                .show()
+        }
+    }
+
+    private fun showManagePairingCodesDialog(codes: List<String>) {
+        val checked = BooleanArray(codes.size)
+        AlertDialog.Builder(this)
+            .setTitle("Remove Saved Codes")
+            .setMultiChoiceItems(codes.toTypedArray(), checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Remove Selected") { _, _ ->
+                lifecycleScope.launch {
+                    codes.forEachIndexed { i, code -> if (checked[i]) prefs.removeSavedPairingCode(code) }
+                    Toast.makeText(this@SettingsActivity, "Removed", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private suspend fun runSpeedTest() {
