@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.65 - 2026-07-16
+- **Fixed**: no way to refresh Providers channels in landscape on phone — the only mechanism
+  was an undiscoverable long-press on the sidebar entry, with no visible button at all (unlike
+  portrait, which has a refresh icon next to search). Landscape now has the same visible
+  refresh icon next to the Providers sidebar entry; the long-press still works too.
+
 ## v4.64 - 2026-07-16
 - **Changed**: the player's zoom button now steps +10% per press after the three aspect modes
   (Best Fit / Zoom / Stretch), from 110% up to 200%, then wraps back to Best Fit — replacing
