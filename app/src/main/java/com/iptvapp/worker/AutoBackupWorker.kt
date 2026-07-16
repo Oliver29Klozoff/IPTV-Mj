@@ -54,6 +54,18 @@ class AutoBackupWorker @AssistedInject constructor(
                         put("viewCount", it.viewCount)
                     }
                 }))
+                // Folder ids are local autoincrement values (not portable across a restore
+                // onto a different/reset device), so folders are saved by NAME — same
+                // approach SyncManager already uses. Previously omitted entirely, so
+                // restoring a backup brought favorites back but dumped every one of them
+                // into Unsorted, silently losing folder organization.
+                val folders = db.favoriteFolderDao().getAll().first()
+                val folderNameById = folders.associate { it.id to it.name }
+                val channelFolders = db.channelDao().getFavoriteChannelsBlocking()
+                    .mapNotNull { ch -> ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> ch.streamId.toString() to name } } }
+                    .toMap()
+                put("favoriteFolders", JSONArray(folders.map { it.name }))
+                put("channelFolders", JSONObject(channelFolders))
             }
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())

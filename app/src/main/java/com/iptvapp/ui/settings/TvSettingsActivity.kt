@@ -855,6 +855,17 @@ class TvSettingsActivity : AppCompatActivity() {
                     put("viewCount", it.viewCount)
                 }
             }))
+            // Folder ids are local autoincrement values (not portable across a restore onto
+            // a different/reset device), so folders are saved by NAME — same approach
+            // SyncManager already uses. Previously omitted entirely, so restoring a backup
+            // brought favorites back but dumped every one into Unsorted.
+            val folders = db.favoriteFolderDao().getAll().first()
+            val folderNameById = folders.associate { it.id to it.name }
+            val channelFolders = db.channelDao().getFavoriteChannelsBlocking()
+                .mapNotNull { ch -> ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> ch.streamId.toString() to name } } }
+                .toMap()
+            put("favoriteFolders", JSONArray(folders.map { it.name }))
+            put("channelFolders", JSONObject(channelFolders))
         }
     }
 
@@ -975,6 +986,33 @@ class TvSettingsActivity : AppCompatActivity() {
                 ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
                 val missingIds = ids.filter { it !in existingIds }.toSet()
                 if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
+            }
+
+            // Folders matched/created by NAME, same approach syncDown() uses — ids are local
+            // autoincrement values, not portable across a restore onto a different/reset device.
+            val remoteFolderNames = json.optJSONArray("favoriteFolders")
+                ?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList()
+            val remoteChannelFolders = json.optJSONObject("channelFolders")
+                ?.let { obj -> obj.keys().asSequence().mapNotNull { key -> key.toIntOrNull()?.let { it to obj.getString(key) } }.toList() }
+                ?: emptyList()
+            if (remoteFolderNames.isNotEmpty() || remoteChannelFolders.isNotEmpty()) {
+                val existingFolders = db.favoriteFolderDao().getAll().first()
+                val idByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+                var nextOrder = existingFolders.size
+                for (name in remoteFolderNames) {
+                    if (name !in idByName) {
+                        val newId = db.favoriteFolderDao().insert(
+                            com.iptvapp.data.local.entities.FavoriteFolderEntity(name = name, sortOrder = nextOrder++)
+                        ).toInt()
+                        idByName[name] = newId
+                    }
+                }
+                val existingChannelIds = db.channelDao().getAllChannelIds().toSet()
+                remoteChannelFolders.forEach { (streamId, folderName) ->
+                    if (streamId in existingChannelIds) {
+                        idByName[folderName]?.let { folderId -> db.channelDao().setFavoriteFolder(streamId, folderId) }
+                    }
+                }
             }
 
             val watchHistoryArray = json.optJSONArray("watchHistory")

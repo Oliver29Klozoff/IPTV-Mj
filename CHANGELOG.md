@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.67 - 2026-07-16
+- **Fixed**: the player's Record dot is a brighter red.
+- **Added**: favorite folders (and which channels are in them) are now included in backups
+  (manual JSON export, QR backup, and auto-backup) — previously only Sync carried folder
+  organization across devices, so restoring from a backup brought favorites back but dumped
+  every one of them into Unsorted.
+
 ## v4.66 - 2026-07-16
 - **Changed**: the fullscreen player's Record button is now a small red dot next to the
   buffer-health dot (top right), instead of a large camera-icon button in the bottom

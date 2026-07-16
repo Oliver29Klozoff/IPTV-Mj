@@ -1,7 +1,7 @@
 {
-  "versionCode": 304,
-  "versionName": "4.66",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.66/MKTV.apk",
-  "apkSha256": "2fb741ac172e879c9a0dc697d4918a78dc4d6f2d6969fe6d66ea375b19902636",
-  "changelog": "The player's Record button is now a small red dot next to the buffer-health dot instead of a large bottom-row button — it blinks while a recording of the current channel is actually in progress."
+  "versionCode": 305,
+  "versionName": "4.67",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.67/MKTV.apk",
+  "apkSha256": "f6aa557ffce7b4c4e9c0b5382f5092f0bf3ed879e8f40a53c15a0432242bc162",
+  "changelog": "Record dot is a brighter red. Favorite folders are now included in backups (manual, QR, and auto-backup) — previously only Sync carried folder organization across devices."
 }
