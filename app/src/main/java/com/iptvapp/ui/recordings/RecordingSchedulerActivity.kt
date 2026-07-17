@@ -65,8 +65,25 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 database.recordingDao().delete(rec)
             }
         },
-        onRename = { rec -> showRenameDialog(rec) }
+        onRename = { rec -> showRenameDialog(rec) },
+        onRetry = { rec -> retryRecording(rec) }
     )
+
+    // The failed attempt's own scheduled time has already passed by the time anyone notices
+    // it failed — re-recording that exact original window would be pointless. Retry instead
+    // starts a fresh recording right now, for the same duration, on the same channel.
+    private fun retryRecording(rec: RecordingEntity) {
+        lifecycleScope.launch {
+            val channel = database.channelDao().getAllChannels().first()
+                .firstOrNull { it.streamId == rec.streamId }
+            if (channel == null) {
+                Toast.makeText(this@RecordingSchedulerActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            database.recordingDao().delete(rec)
+            scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
+        }
+    }
 
     private fun showRenameDialog(rec: RecordingEntity) {
         val input = EditText(this).apply {
@@ -495,7 +512,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
     inner class RecordingAdapter(
         private val onDelete: (RecordingEntity) -> Unit,
-        private val onRename: (RecordingEntity) -> Unit = {}
+        private val onRename: (RecordingEntity) -> Unit = {},
+        private val onRetry: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -543,6 +561,13 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 } else {
                     b.btnPlay.visibility = View.GONE
                     b.btnShare.visibility = View.GONE
+                }
+
+                if (rec.status == "FAILED") {
+                    b.btnRetry.visibility = View.VISIBLE
+                    b.btnRetry.setOnClickListener { onRetry(rec) }
+                } else {
+                    b.btnRetry.visibility = View.GONE
                 }
             }
         }

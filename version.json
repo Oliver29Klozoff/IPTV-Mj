@@ -1,7 +1,7 @@
 {
-  "versionCode": 309,
-  "versionName": "4.71",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.71/MKTV.apk",
-  "apkSha256": "d9b6eaa8a637a5816f13e12387856b4095eba49c8099ccff42ed52d2be3edab3",
-  "changelog": "Added a clear message when a recording is blocking playback (single-connection plans), a warning for overlapping scheduled recordings, and a new movie detail screen (long-press a movie) with plot/cast/resume. Also tightened up TV D-pad focus reliability across several lists."
+  "versionCode": 310,
+  "versionName": "4.72",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.72/MKTV.apk",
+  "apkSha256": "3d09581f9f153f8cb14d1a35e4eebb8608cb69c50c9234b09650248d4aeac9b0",
+  "changelog": "Added a one-tap Retry button on failed recordings (phone and TV) instead of having to reschedule from scratch."
 }

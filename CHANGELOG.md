@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.72 - 2026-07-17
+- **Added**: a one-tap Retry button on failed recordings (phone and TV) — previously the only
+  way to try again was rescheduling from scratch. Retry starts a fresh recording right away
+  for the same duration on the same channel, since the original scheduled time has already
+  passed by the time a failure is noticed.
+
 ## v4.71 - 2026-07-17
 - **Added**: a clear "can't connect — a recording is using your only connection" message when
   playback fails in a way that looks like your provider rejected a second simultaneous

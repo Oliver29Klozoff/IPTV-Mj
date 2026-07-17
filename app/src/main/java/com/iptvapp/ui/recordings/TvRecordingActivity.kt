@@ -183,13 +183,30 @@ class TvRecordingActivity : AppCompatActivity() {
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
-            }
+            },
+            onRetry = { rec -> retryRecording(rec) }
         )
     }
 
     private fun playFile(path: String) = com.iptvapp.util.RecordingFileUtils.playFile(this, path)
 
     private fun shareFile(path: String) = com.iptvapp.util.RecordingFileUtils.shareFile(this, path)
+
+    // The failed attempt's own scheduled time has already passed by the time anyone notices
+    // it failed — re-recording that exact original window would be pointless. Retry instead
+    // starts a fresh recording right now, for the same duration, on the same channel.
+    private fun retryRecording(rec: RecordingEntity) {
+        lifecycleScope.launch {
+            val channel = database.channelDao().getAllChannels().first()
+                .firstOrNull { it.streamId == rec.streamId }
+            if (channel == null) {
+                Toast.makeText(this@TvRecordingActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            database.recordingDao().delete(rec)
+            scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
+        }
+    }
 
     private fun setupButtons() {
         binding.btnAddNew.setOnClickListener { showStep(Step.CATEGORY) }
@@ -461,7 +478,8 @@ class TvRecordingActivity : AppCompatActivity() {
         private val onPlay: (RecordingEntity) -> Unit,
         private val onShare: (RecordingEntity) -> Unit,
         private val onDelete: (RecordingEntity) -> Unit,
-        private val onRename: (RecordingEntity) -> Unit = {}
+        private val onRename: (RecordingEntity) -> Unit = {},
+        private val onRetry: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingListAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -491,6 +509,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 b.rowRecordingMain.setOnClickListener { onPlay(items[bindingAdapterPosition]) }
                 b.rowRecordingMain.setOnLongClickListener { onRename(items[bindingAdapterPosition]); true }
                 b.btnTvRecShare.setOnClickListener { onShare(items[bindingAdapterPosition]) }
+                b.btnTvRecRetry.setOnClickListener { onRetry(items[bindingAdapterPosition]) }
                 b.btnTvRecDelete.setOnClickListener { onDelete(items[bindingAdapterPosition]) }
             }
 
@@ -513,6 +532,7 @@ class TvRecordingActivity : AppCompatActivity() {
 
                 val isDone = rec.status == "DONE"
                 b.btnTvRecShare.visibility = if (isDone) View.VISIBLE else View.GONE
+                b.btnTvRecRetry.visibility = if (rec.status == "FAILED") View.VISIBLE else View.GONE
                 b.rowRecordingMain.isFocusable = true
                 b.rowRecordingMain.isFocusableInTouchMode = false
             }
