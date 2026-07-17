@@ -555,7 +555,16 @@ class TvHomeActivity : AppCompatActivity() {
                     }
                 }
             },
-            onFavoriteClick = {}
+            onFavoriteClick = {},
+            onVodLongClick = { vod ->
+                startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                })
+            }
         )
 
         seriesAdapter = SeriesAdapter(
@@ -686,10 +695,7 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.GONE
         binding.tvCatTitle.text = title
-        binding.tvRvCategories.post {
-            binding.tvRvCategories.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
-                ?: binding.tvRvCategories.requestFocus()
-        }
+        focusAdapterPositionRetrying(binding.tvRvCategories, 0)
         resetMiniPreviewToNowPlaying()
     }
 
@@ -730,10 +736,7 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.VISIBLE
-        binding.tvRvEpgGuide.post {
-            binding.tvRvEpgGuide.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
-                ?: binding.tvRvEpgGuide.requestFocus()
-        }
+        focusAdapterPositionRetrying(binding.tvRvEpgGuide, 0)
         resetMiniPreviewToNowPlaying()
     }
 
@@ -1196,19 +1199,25 @@ class TvHomeActivity : AppCompatActivity() {
                 return@submitList
             }
             (binding.tvRvContent.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(pos, 0)
-            retryFocusAdapterPosition(pos, attemptsLeft = 15)
+            focusAdapterPositionRetrying(binding.tvRvContent, pos)
         }
     }
 
-    private fun retryFocusAdapterPosition(pos: Int, attemptsLeft: Int) {
-        binding.tvRvContent.post {
-            val holder = binding.tvRvContent.findViewHolderForAdapterPosition(pos)
+    // Generalizes the fix above to every list on this screen — several other spots
+    // (category/EPG-guide panel entry, VOD/series first-item focus) used a single-shot
+    // findViewHolderForAdapterPosition()?.requestFocus() ?: rv.requestFocus() that was
+    // susceptible to the exact same "ViewHolder isn't laid out yet" race this was built to
+    // fix for the channel list specifically; consolidating means the next list added to this
+    // screen gets the robust version by default instead of needing its own one-off patch.
+    private fun focusAdapterPositionRetrying(rv: RecyclerView, pos: Int, attemptsLeft: Int = 15) {
+        rv.post {
+            val holder = rv.findViewHolderForAdapterPosition(pos)
             if (holder != null) {
                 holder.itemView.requestFocus()
             } else if (attemptsLeft > 0) {
-                retryFocusAdapterPosition(pos, attemptsLeft - 1)
+                focusAdapterPositionRetrying(rv, pos, attemptsLeft - 1)
             } else {
-                binding.tvRvContent.requestFocus()
+                rv.requestFocus()
             }
         }
     }
@@ -1413,17 +1422,8 @@ class TvHomeActivity : AppCompatActivity() {
                 if (wantFocus) pendingContentFocus = false
 
                 channelAdapter.submitList(channels) {
-                    binding.tvRvContent.post {
-                        when {
-                            focusedPos >= 0 ->
-                                binding.tvRvContent.findViewHolderForAdapterPosition(focusedPos)
-                                    ?.itemView?.requestFocus()
-                            wantFocus ->
-                                binding.tvRvContent.findViewHolderForAdapterPosition(0)
-                                    ?.itemView?.requestFocus()
-                                    ?: binding.tvRvContent.requestFocus()
-                        }
-                    }
+                    if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
+                    else if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                 }
                 viewModel.loadEpgForChannels(channels)
             }
@@ -1434,10 +1434,7 @@ class TvHomeActivity : AppCompatActivity() {
                     val wantFocus = pendingContentFocus
                     if (wantFocus) pendingContentFocus = false
                     vodAdapter.submitList(it) {
-                        if (wantFocus) binding.tvRvContent.post {
-                            binding.tvRvContent.findViewHolderForAdapterPosition(0)
-                                ?.itemView?.requestFocus() ?: binding.tvRvContent.requestFocus()
-                        }
+                        if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                     }
                 }
             }
@@ -1452,10 +1449,7 @@ class TvHomeActivity : AppCompatActivity() {
                     val filtered = if (genre == null) it
                         else it.filter { s -> genre in com.iptvapp.util.GenreBuckets.bucketsFor(s.genre?.split(",").orEmpty()) }
                     seriesAdapter.submitList(filtered) {
-                        if (wantFocus) binding.tvRvContent.post {
-                            binding.tvRvContent.findViewHolderForAdapterPosition(0)
-                                ?.itemView?.requestFocus() ?: binding.tvRvContent.requestFocus()
-                        }
+                        if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                     }
                 }
             }

@@ -11,7 +11,8 @@ import com.iptvapp.databinding.ItemVodBinding
 
 class VodAdapter(
     private val onVodClick: (VodEntity) -> Unit,
-    private val onFavoriteClick: (VodEntity) -> Unit
+    private val onFavoriteClick: (VodEntity) -> Unit,
+    private val onVodLongClick: (VodEntity) -> Unit = {}
 ) : ListAdapter<VodEntity, VodAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(val binding: ItemVodBinding) :
@@ -36,6 +37,7 @@ class VodAdapter(
                 binding.progressVod.visibility = android.view.View.GONE
             }
             binding.root.setOnClickListener { onVodClick(item) }
+            binding.root.setOnLongClickListener { onVodLongClick(item); true }
             binding.ivVodFavorite.setOnClickListener { onFavoriteClick(item) }
         }
     }

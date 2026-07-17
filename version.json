@@ -1,7 +1,7 @@
 {
-  "versionCode": 308,
-  "versionName": "4.70",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.70/MKTV.apk",
-  "apkSha256": "605e08e4d07a97e512beb6dac7c063f3050bf2261d7a209ecc360d2a88bccd99",
-  "changelog": "Fixed TV's Favorites picker only showing All Favorites/+New Folder and never your actual named folders — it now updates live as folder data loads instead of relying on a one-time snapshot."
+  "versionCode": 309,
+  "versionName": "4.71",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.71/MKTV.apk",
+  "apkSha256": "d9b6eaa8a637a5816f13e12387856b4095eba49c8099ccff42ed52d2be3edab3",
+  "changelog": "Added a clear message when a recording is blocking playback (single-connection plans), a warning for overlapping scheduled recordings, and a new movie detail screen (long-press a movie) with plot/cast/resume. Also tightened up TV D-pad focus reliability across several lists."
 }

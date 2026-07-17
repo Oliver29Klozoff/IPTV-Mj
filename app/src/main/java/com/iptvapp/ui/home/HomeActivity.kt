@@ -1013,7 +1013,16 @@ class HomeActivity : AppCompatActivity() {
         }
                 }
             },
-            onFavoriteClick = {}
+            onFavoriteClick = {},
+            onVodLongClick = { vod ->
+                startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                })
+            }
         )
 
         seriesAdapter = SeriesAdapter(

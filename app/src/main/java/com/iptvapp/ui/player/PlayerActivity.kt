@@ -888,7 +888,7 @@ class PlayerActivity : AppCompatActivity() {
                         // (see below) — this used to dead-end VOD here instead of using it,
                         // so a transient network blip on a movie meant manually backing out
                         // and reopening it instead of recovering on its own like live TV does.
-                        scheduleRetry()
+                        scheduleRetry(looksLikeConnectionLimitRejection(error))
                     }
                 })
             }
@@ -1009,7 +1009,19 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun scheduleRetry() {
+    /** Media3's HttpDataSource surfaces a rejected/kicked connection as a plain bad-HTTP-status
+     * (commonly 403, sometimes 429) with no distinguishing text of its own — indistinguishable
+     * from a dead link at the error-code level. Most Xtream plans allow only one simultaneous
+     * stream, so "some other channel/recording is already using the account's one connection"
+     * is the single most common real-world cause of this specific error shape, and it's worth
+     * checking for before assuming the stream itself is just broken. */
+    private fun looksLikeConnectionLimitRejection(error: PlaybackException): Boolean {
+        if (error.errorCode != PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) return false
+        val cause = error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException ?: return false
+        return cause.responseCode == 403 || cause.responseCode == 429
+    }
+
+    private fun scheduleRetry(suspectConnectionLimit: Boolean = false) {
         noteStallEvent()
         if (isVod && retryCount >= maxRetries) {
             binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
@@ -1034,11 +1046,22 @@ class PlayerActivity : AppCompatActivity() {
             val attempt = retryCount + 1
             val delaySec = backoffMs / 1000
             val suffix = if (isVod) " (attempt $attempt of $maxRetries)" else ""
-            binding.tvRetryStatus.text = "● Reconnecting in ${delaySec}s$suffix…"
+            // Checked on every retry (not just once) since the blocking recording could
+            // start or finish while this stream keeps failing — the message should track
+            // reality, not freeze on whatever was true the first time.
+            val activeRecording = if (suspectConnectionLimit) {
+                try { repository.getAnyActiveRecording() } catch (_: Exception) { null }
+            } else null
+            binding.tvRetryStatus.text = if (activeRecording != null) {
+                "⏺ Can't connect — \"${activeRecording.channelName}\" is recording and your provider allows only one stream at a time"
+            } else {
+                "● Reconnecting in ${delaySec}s$suffix…"
+            }
             binding.tvRetryStatus.visibility = View.VISIBLE
             com.iptvapp.IptvApplication.logPlaybackEvent(
                 applicationContext,
-                "RETRY SCHEDULED: isVod=$isVod streamId=$streamId url=$streamUrl attempt=$attempt delayMs=$backoffMs playerState=${player?.playbackState}"
+                "RETRY SCHEDULED: isVod=$isVod streamId=$streamId url=$streamUrl attempt=$attempt delayMs=$backoffMs " +
+                    "playerState=${player?.playbackState} suspectConnectionLimit=$suspectConnectionLimit activeRecording=${activeRecording?.channelName}"
             )
             delay(backoffMs)
             retryCount++

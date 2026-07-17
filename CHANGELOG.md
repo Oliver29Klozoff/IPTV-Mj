@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v4.71 - 2026-07-17
+- **Added**: a clear "can't connect — a recording is using your only connection" message when
+  playback fails in a way that looks like your provider rejected a second simultaneous
+  stream, instead of an unexplained endless "Reconnecting…" loop.
+- **Added**: scheduling a recording that overlaps another already-scheduled one now warns you
+  first, since most single-connection provider plans would silently fail one of them.
+- **Added**: long-press a movie to see a new detail screen — plot, cast, director, rating,
+  and resume progress — matching what Series already had. Tapping a movie still plays it
+  immediately, same as before.
+- **Changed**: consolidated several places on TV that focused the first item in a list after
+  it loaded, using the same reliable retry-based approach already proven for the channel
+  list, instead of a fragile one-shot attempt that could occasionally leave focus stuck on
+  the wrong control.
+
 ## v4.70 - 2026-07-17
 - **Fixed**: on TV, the Favorites picker only ever showed "All Favorites" and "+ New Folder"
   — the folders you'd actually created (Movies, Sports, etc.) never appeared. The picker was

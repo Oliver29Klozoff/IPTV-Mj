@@ -481,6 +481,15 @@ class XtreamRepository @Inject constructor(
     suspend fun getSeriesEpisodeUrl(episodeId: String, containerExtension: String): String =
         urlBuilder().seriesStreamUrl(episodeId, containerExtension)
 
+    suspend fun fetchVodInfo(vodId: Int): Resource<VodInfo> {
+        val b = urlBuilder(); val c = creds()
+        return safeApiCall {
+            val response = api.getVodInfo(b.apiUrl(), c.username, c.password, vodId = vodId)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+            response.body() ?: throw Exception("Empty response")
+        }
+    }
+
     suspend fun getTimeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
         urlBuilder().timeshiftUrl(streamId, startTimestampSec, durationMinutes)
 
@@ -553,6 +562,11 @@ class XtreamRepository @Inject constructor(
     }
 
     fun observeActiveRecording(streamId: Int) = db.recordingDao().observeActiveByStreamId(streamId)
+
+    suspend fun getAnyActiveRecording() = db.recordingDao().getAnyActive()
+
+    suspend fun getOverlappingRecordings(startMs: Long, durationMs: Long) =
+        db.recordingDao().getOverlapping(startMs, startMs + durationMs)
 
     /** streamId -> success percent, for channels with at least one recorded outcome — backs
      * the "Most Reliable" sort option. */

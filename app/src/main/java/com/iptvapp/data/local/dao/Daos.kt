@@ -232,6 +232,13 @@ interface RecordingDao {
     // currently on screen has an in-progress ad-hoc/scheduled recording.
     @Query("SELECT * FROM recordings WHERE streamId = :streamId AND status = 'RECORDING' LIMIT 1")
     fun observeActiveByStreamId(streamId: Int): Flow<RecordingEntity?>
+    // Backs the player's single-connection-conflict message — most Xtream plans allow only
+    // one simultaneous stream, so a recording in progress on ANY channel (not just this one)
+    // is the most common real-world cause of "every other channel just spins reconnecting."
+    @Query("SELECT * FROM recordings WHERE status = 'RECORDING' LIMIT 1")
+    suspend fun getAnyActive(): RecordingEntity?
+    @Query("SELECT * FROM recordings WHERE status = 'SCHEDULED' AND scheduledStartMs < :endMs AND (scheduledStartMs + durationMs) > :startMs")
+    suspend fun getOverlapping(startMs: Long, endMs: Long): List<RecordingEntity>
 }
 
 @Dao

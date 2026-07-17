@@ -116,6 +116,11 @@
             android:screenOrientation="unspecified" />
 
         <activity
+            android:name=".ui.vod.VodDetailActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".ui.mosaic.MosaicActivity"
             android:exported="false"
             android:screenOrientation="landscape"

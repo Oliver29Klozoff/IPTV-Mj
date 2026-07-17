@@ -335,6 +335,28 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
     private fun scheduleRecording(channel: ChannelEntity, startMs: Long, durationMs: Long) {
         lifecycleScope.launch {
+            val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
+            if (overlapping.isNotEmpty()) {
+                // Most Xtream plans allow only one simultaneous stream, so two recordings
+                // scheduled at overlapping times will very likely just fail each other
+                // silently — worth a heads-up before committing rather than discovering it
+                // after the fact via two empty/failed recordings.
+                val names = overlapping.joinToString(", ") { it.channelName }
+                val proceed = kotlinx.coroutines.suspendCancellableCoroutine<Boolean> { cont ->
+                    AlertDialog.Builder(this@RecordingSchedulerActivity)
+                        .setTitle("Overlapping Recording")
+                        .setMessage(
+                            "This overlaps with a recording already scheduled for $names. " +
+                                "If your provider only allows one stream at a time, one of these " +
+                                "recordings will likely fail. Schedule anyway?"
+                        )
+                        .setPositiveButton("Schedule Anyway") { _, _ -> cont.resume(true) {} }
+                        .setNegativeButton("Cancel") { _, _ -> cont.resume(false) {} }
+                        .setOnCancelListener { cont.resume(false) {} }
+                        .show()
+                }
+                if (!proceed) return@launch
+            }
             try {
                 val streamUrl = repository.getLiveStreamUrlForRecording(channel.streamId)
                 val outputTarget = createOutputTarget(channel, startMs)
