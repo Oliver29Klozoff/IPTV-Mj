@@ -1,7 +1,7 @@
 {
-  "versionCode": 312,
-  "versionName": "4.74",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.74/MKTV.apk",
-  "apkSha256": "078e38fdb429c2db55d6790ed8545dc28791945685260cccba4e89159a0f70cf",
-  "changelog": "Fixed backups dropping extra providers and subtitle style. Added a search box to Mosaic's channel picker."
+  "versionCode": 313,
+  "versionName": "4.75",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.75/MKTV.apk",
+  "apkSha256": "9b03fdc0761440e5d560a7952fa4c17d76506abf96e904427317e0a5a726255f",
+  "changelog": "Favorites now auto-sort into genre tabs (Sports, News, Movies, Kids, Entertainment, All) instead of manual folders — every favorite gets a home automatically."
 }

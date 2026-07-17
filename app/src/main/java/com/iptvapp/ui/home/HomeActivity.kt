@@ -77,12 +77,15 @@ class HomeActivity : AppCompatActivity() {
     private var bulkSelectMode = false
     // Once bulk-select is on (long-press one channel to start), a plain tap on any other
     // channel just adds/removes it from the selection instead of playing it — no more
-    // long-pressing every single one. 3s of no further taps auto-opens "Move to Folder"
-    // instead of requiring a long-press + menu tap to confirm.
+    // long-pressing every single one. 3s of no further taps auto-adds the selection to
+    // favorites instead of requiring a long-press + menu tap to confirm (this used to open
+    // "Move to Folder", which no longer exists now that Favorites auto-sorts by genre).
     private val bulkSelectHandler = Handler(Looper.getMainLooper())
     private val bulkSelectIdleRunnable = Runnable {
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
-            showMoveToFolderDialog(bulkSelectedIds.toList())
+            viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+            Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+            clearBulkSelection()
         }
     }
 
@@ -201,6 +204,9 @@ class HomeActivity : AppCompatActivity() {
     @javax.inject.Inject lateinit var prefs: PreferencesManager
 
     private var activeGenre: String? = null
+    // Favorites' own genre filter — kept separate from Live's activeGenre so switching tabs
+    // doesn't cross-contaminate the two (same sticky-filter bug already fixed once for Live).
+    private var activeFavoriteGenre: String? = null
     private val GENRE_KEYWORDS = linkedMapOf(
         "All"           to emptyList<String>(),
         "Sports"        to listOf("sport", "espn", "nfl", "nba", "mlb", "nhl", "nascar", "tennis", "golf", "soccer", "football"),
@@ -905,13 +911,6 @@ class HomeActivity : AppCompatActivity() {
                         landscapeShowChannelsMode()
                         binding.rvChannels.adapter = mergedChannelAdapter
                     }
-                } else if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) {
-                    when (category.categoryId) {
-                        FAV_NEW_FOLDER_ID -> showCreateFavoriteFolderDialog()
-                        FAV_ALL_ID -> showFavoriteFolderChannels(null)
-                        FAV_UNSORTED_ID -> showFavoriteFolderChannels(-1)
-                        else -> showFavoriteFolderChannels(category.categoryId.toInt())
-                    }
                 } else {
                     when (binding.tabLayout.selectedTabPosition) {
                         TAB_LIVE -> viewModel.selectLiveCategory(category.categoryId)
@@ -925,10 +924,6 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == TAB_LIVE) {
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
-                } else if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES &&
-                    category.categoryId !in listOf(FAV_ALL_ID, FAV_UNSORTED_ID, FAV_NEW_FOLDER_ID)
-                ) {
-                    showFolderOptionsDialog(category.categoryId.toInt())
                 } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && mergedFavoritesShowingFolderPicker &&
                     category.categoryId !in listOf(MERGED_FAV_ALL_ID, MERGED_FAV_UNSORTED_ID, MERGED_FAV_NEW_FOLDER_ID)
                 ) {
@@ -1138,7 +1133,7 @@ class HomeActivity : AppCompatActivity() {
             TAB_SERIES -> viewModel.searchSeries(query)
             TAB_FAVORITES -> {
                 if (query.isBlank()) {
-                    // Back to the folder picker, not a dead end.
+                    // Back to the genre-filtered view, not a dead end.
                     showFavorites()
                 } else {
                     viewModel.searchFavorites(query)
@@ -1561,68 +1556,92 @@ class HomeActivity : AppCompatActivity() {
 
     private var favItemTouchHelper: ItemTouchHelper? = null
 
-    private val FAV_ALL_ID = "__all__"
-    private val FAV_UNSORTED_ID = "__unsorted__"
-    private val FAV_NEW_FOLDER_ID = "__new_folder__"
-
-    // showFavorites() reads favoriteFolders/favoriteFolderCounts as a one-shot snapshot — at
-    // cold app launch (the very first tab shown) those StateFlows haven't finished their first
-    // DB read yet, so the folder picker rendered "All Favorites (0)" forever with no way to
-    // refresh itself until some unrelated navigation happened to call showFavorites() again
-    // later, by which point the data had already arrived. This flag lets the reactive
-    // collectors below know it's safe to re-render the picker as that data trickles in.
-    private var favoritesShowingFolderPicker = false
-
-    // Favorites now drills down the same way Movies/Live do: pick "All Favorites", "Unsorted",
-    // or a named folder first, then see that group's channels. Folders are user-created (long-
-    // press a favorite -> "Move to Folder"), not provider-supplied.
+    // Favorites used to require picking "All Favorites"/"Unsorted"/a named folder first
+    // (folders assigned manually via long-press "Move to Folder") before seeing any channels
+    // — every favorite not manually filed landed in "Unsorted". Replaced with the same genre
+    // chip row Live already uses: each favorite is auto-classified by its OWN provider
+    // category name (GENRE_KEYWORDS keyword match), so every favorite already has a home with
+    // zero manual sorting, and there's no "Unsorted" bucket left to need one.
     private fun showFavorites() {
-        favoritesShowingFolderPicker = true
-        landscapeShowCategoriesMode()
-        setGenreFilterVisible(false)
-        binding.rvCategories.visibility = View.VISIBLE
-        binding.rvCategories.adapter = categoryAdapter
-        binding.rvChannels.adapter = channelAdapter
-        channelAdapter.submitList(emptyList())
-        submitCategories(favoriteFoldersToSynthetic())
-    }
-
-    private fun favoriteFoldersToSynthetic(): List<CategoryEntity> {
-        val counts = viewModel.favoriteFolderCounts.value.associate { it.favoriteFolderId to it.channelCount }
-        val totalCount = counts.values.sum()
-        val unsortedCount = counts[null] ?: 0
-        val list = mutableListOf(
-            CategoryEntity(FAV_ALL_ID, "All Favorites ($totalCount)", 0, "fav_folder"),
-        )
-        if (unsortedCount > 0) {
-            list.add(CategoryEntity(FAV_UNSORTED_ID, "Unsorted ($unsortedCount)", 0, "fav_folder"))
-        }
-        viewModel.favoriteFolders.value.forEach { folder ->
-            val count = counts[folder.id] ?: 0
-            list.add(CategoryEntity(folder.id.toString(), "${folder.name} ($count)", 0, "fav_folder"))
-        }
-        list.add(CategoryEntity(FAV_NEW_FOLDER_ID, "+ New Folder", 0, "fav_folder"))
-        return list
-    }
-
-    private fun showFavoriteFolderChannels(folderId: Int?) {
-        favoritesShowingFolderPicker = false
+        activeFavoriteGenre = null
         landscapeShowChannelsMode()
+        setGenreFilterVisible(true)
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = channelAdapter
-        viewModel.selectFavoriteFolderView(folderId)
+        viewModel.selectFavoriteFolderView(null)
         pendingScrollToCurrent = true
         lifecycleScope.launch {
             val favorites = viewModel.getFavoriteChannelsSnapshot()
             if (!pendingScrollToCurrent) return@launch
+            updateFavoriteGenreChips(favorites)
+            applyFavoriteGenreFilterAndSubmit(favorites)
             pendingScrollToCurrent = false
             if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@launch
-            channelAdapter.submitList(favorites)
             val streamId = viewModel.currentlyPlayingStreamId.value
             if (streamId >= 0) scrollFavoritesToStreamId(streamId)
         }
+        setupFavoritesDragReorder()
+    }
 
-        channelAdapter.showDragHandles = true
+    // channelId -> categoryName lookup, resolved from whichever category list is currently
+    // loaded (populated the same way Live's own category filter already is) — a favorite
+    // channel's categoryId doesn't carry its name, so this is needed to classify it by genre.
+    private fun favoriteCategoryNameById(): Map<String, String> =
+        viewModel.liveCategories.value.associate { it.categoryId to it.categoryName }
+
+    private fun genreFilterFavorites(channels: List<ChannelEntity>): List<ChannelEntity> {
+        val genre = activeFavoriteGenre ?: return channels
+        val keywords = GENRE_KEYWORDS[genre] ?: return channels
+        val namesById = favoriteCategoryNameById()
+        return channels.filter { ch ->
+            val categoryName = namesById[ch.categoryId] ?: return@filter false
+            keywords.any { kw -> categoryName.contains(kw, ignoreCase = true) }
+        }
+    }
+
+    private fun updateFavoriteGenreChips(favorites: List<ChannelEntity>) {
+        val namesById = favoriteCategoryNameById()
+        val favCategoryNames = favorites.mapNotNull { namesById[it.categoryId] }
+        val detected = GENRE_KEYWORDS.keys.filter { genre ->
+            val keywords = GENRE_KEYWORDS[genre]!!
+            keywords.isEmpty() || favCategoryNames.any { name -> keywords.any { kw -> name.contains(kw, ignoreCase = true) } }
+        }
+        val horizontalContainer = binding.genreChipContainer
+        val verticalContainer = binding.root.findViewById<android.widget.LinearLayout?>(R.id.genreChipContainerVertical)
+        horizontalContainer?.removeAllViews()
+        verticalContainer?.removeAllViews()
+        if (detected.size <= 1) {
+            setGenreFilterVisible(false)
+            return
+        }
+        setGenreFilterVisible(true)
+        val selectedGenre = activeFavoriteGenre ?: "All"
+        for (genre in detected) {
+            val selected = (genre == selectedGenre)
+            horizontalContainer?.addView(buildFavoriteGenreChip(genre, selected))
+            verticalContainer?.addView(buildFavoriteGenreChip(genre, selected, vertical = true))
+        }
+    }
+
+    private fun buildFavoriteGenreChip(genre: String, selected: Boolean, vertical: Boolean = false): View =
+        buildGenreChipView(genre, selected, vertical) {
+            activeFavoriteGenre = if (genre == "All") null else genre
+            lifecycleScope.launch {
+                val favorites = viewModel.getFavoriteChannelsSnapshot()
+                updateFavoriteGenreChips(favorites)
+                applyFavoriteGenreFilterAndSubmit(favorites)
+            }
+        }
+
+    private fun applyFavoriteGenreFilterAndSubmit(favorites: List<ChannelEntity>) {
+        channelAdapter.submitList(genreFilterFavorites(favorites))
+        // Reordering only makes sense over the true, unfiltered order — dragging within a
+        // genre-filtered subset would silently corrupt favOrder for channels currently hidden
+        // by the filter. Only allow it while viewing "All".
+        channelAdapter.showDragHandles = activeFavoriteGenre == null
+    }
+
+    private fun setupFavoritesDragReorder() {
         val callback = object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
         ) {
@@ -1630,13 +1649,13 @@ class HomeActivity : AppCompatActivity() {
 
             // Defaults to true, which starts a drag on a long-press ANYWHERE on the row —
             // that was swallowing the long-press before ChannelAdapter's own
-            // setOnLongClickListener (which opens "Move to Folder" etc.) ever got a chance to
-            // fire. Dragging already has its own dedicated trigger — touching ivDragHandle
-            // (see ChannelAdapter's ivDragHandle touch listener) — so long-press-to-drag
-            // anywhere on the row isn't needed and was actively breaking the folder menu.
+            // setOnLongClickListener (channel actions menu) ever got a chance to fire.
+            // Dragging already has its own dedicated trigger — touching ivDragHandle (see
+            // ChannelAdapter's ivDragHandle touch listener).
             override fun isLongPressDragEnabled(): Boolean = false
 
             override fun onMove(rv: RecyclerView, from: RecyclerView.ViewHolder, to: RecyclerView.ViewHolder): Boolean {
+                if (activeFavoriteGenre != null) return false
                 val fromPos = from.bindingAdapterPosition
                 val toPos = to.bindingAdapterPosition
                 if (dragList.isEmpty()) dragList.addAll(channelAdapter.currentList)
@@ -1663,28 +1682,6 @@ class HomeActivity : AppCompatActivity() {
             channelAdapter.itemTouchHelper = it
             it.attachToRecyclerView(binding.rvChannels)
         }
-    }
-
-    private fun showCreateFavoriteFolderDialog() {
-        val et = android.widget.EditText(this).apply { hint = "Folder name" }
-        AlertDialog.Builder(this)
-            .setTitle("New Folder")
-            .setView(et)
-            .setPositiveButton("Create") { _, _ ->
-                val name = et.text.toString().trim()
-                if (name.isNotEmpty()) {
-                    viewModel.createFavoriteFolder(name)
-                    lifecycleScope.launch {
-                        // Give the DB write + StateFlow re-emission a beat before re-reading
-                        // the list, otherwise the new folder wouldn't show until the next
-                        // unrelated recomposition of this screen.
-                        kotlinx.coroutines.delay(150)
-                        submitCategories(favoriteFoldersToSynthetic())
-                    }
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
     }
 
     private fun showFolderOptionsDialog(folderId: Int) {
@@ -1886,18 +1883,8 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.favoriteFolders.collect {
-                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES && favoritesShowingFolderPicker) {
-                    submitCategories(favoriteFoldersToSynthetic())
-                }
                 if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && mergedFavoritesShowingFolderPicker) {
                     submitCategories(mergedFavoriteFoldersToSynthetic())
-                }
-            }
-        }
-        lifecycleScope.launch {
-            viewModel.favoriteFolderCounts.collect {
-                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES && favoritesShowingFolderPicker) {
-                    submitCategories(favoriteFoldersToSynthetic())
                 }
             }
         }
@@ -2054,10 +2041,8 @@ class HomeActivity : AppCompatActivity() {
             "Hide Channel",
             "Channels Like This"
         )
-        if (channel.isFavorite) options.add("Move to Folder")
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
-            options.add(1, "Move ${bulkSelectedIds.size} selected to folder")
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
@@ -2083,30 +2068,17 @@ class HomeActivity : AppCompatActivity() {
                         Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
                     }
                     "Channels Like This" -> showSimilarChannelsSheet(channel)
-                    "Move to Folder" -> showMoveToFolderDialog(channel)
-                    else -> when {
-                        options[i].startsWith("✓ Add") -> {
-                            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
-                            viewModel.bulkAddFavorites(bulkSelectedIds.toList())
-                            Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
-                            bulkSelectedIds.clear()
-                            bulkSelectMode = false
-                        }
-                        options[i].startsWith("Move") && options[i].endsWith("to folder") -> {
-                            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
-                            showMoveToFolderDialog(bulkSelectedIds.toList())
-                        }
+                    else -> if (options[i].startsWith("✓ Add")) {
+                        bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                        viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+                        Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                        bulkSelectedIds.clear()
+                        bulkSelectMode = false
                     }
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    private fun showMoveToFolderDialog(channel: ChannelEntity) {
-        showMoveToFolderDialog("Move \"${channel.name}\" to", onCancel = {}) { folderId ->
-            viewModel.setChannelFavoriteFolder(channel.streamId, folderId)
-        }
     }
 
     private fun clearBulkSelection() {
@@ -2149,14 +2121,6 @@ class HomeActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    private fun showMoveToFolderDialog(streamIds: List<Int>) {
-        showMoveToFolderDialog("Move ${streamIds.size} channels to", onCancel = { clearBulkSelection() }) { folderId ->
-            viewModel.setChannelsFavoriteFolder(streamIds, folderId)
-            Toast.makeText(this, "Moved ${streamIds.size} channels", Toast.LENGTH_SHORT).show()
-            clearBulkSelection()
-        }
     }
 
     private fun showMoveToFolderDialog(title: String, onCancel: () -> Unit, onPicked: (Int?) -> Unit) {

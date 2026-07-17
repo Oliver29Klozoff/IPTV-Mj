@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.75 - 2026-07-17
+- **Changed**: Favorites (phone and TV) no longer use manual folders — every favorite is now
+  automatically sorted into genre tabs (Sports, News, Movies, Kids, Entertainment, All) based
+  on its own provider category, the same keyword classification Live already uses. Nothing
+  lands in an "Unsorted" bucket anymore. Providers/merged favorites still use folders, unchanged.
+
 ## v4.74 - 2026-07-17
 - **Fixed**: backups (manual JSON, QR, auto-backup) never included extra providers (the
   "Providers" merged-browse feature) or subtitle style customization — restoring a backup
