@@ -1,7 +1,7 @@
 {
-  "versionCode": 306,
-  "versionName": "4.68",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.68/MKTV.apk",
-  "apkSha256": "cb859116d65a8bcfe8b941bd863cca464e1954e91a5445ac7e00b52b67c61091",
-  "changelog": "Fixed VOD/Series refresh silently un-favoriting everything and resetting watch progress. Added favorite folders to TV. Fixed credentials leaking into Logcat in a few places. Providers refresh no longer stalls on one slow server."
+  "versionCode": 307,
+  "versionName": "4.69",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.69/MKTV.apk",
+  "apkSha256": "b467a879cfaa16c623623ba69ce46d783090459703b9e62df16b5c4e5f951722",
+  "changelog": "On TV, returning to a favorite folder now scrolls/focuses to the channel you're actually watching instead of jumping back to the top of the list."
 }

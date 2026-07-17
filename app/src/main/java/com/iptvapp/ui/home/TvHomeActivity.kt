@@ -891,6 +891,23 @@ class TvHomeActivity : AppCompatActivity() {
         viewModel.selectFavoriteFolderView(folderId)
         viewModel.checkFavoritesHealth()
         showChannelPanel(title)
+        // showChannelPanel() just set this true, expecting the shared viewModel.channels
+        // collector to focus position 0 — that's what made re-entering a favorite folder
+        // always land back at the top instead of wherever you were watching. If the current
+        // channel is actually in this folder, scroll/focus straight to it instead.
+        if (currentMiniStreamId >= 0 && !currentMiniIsVod) {
+            pendingContentFocus = false
+            lifecycleScope.launch {
+                val favorites = viewModel.getFavoriteChannelsSnapshot()
+                if (favorites.any { it.streamId == currentMiniStreamId }) {
+                    scrollAndFocusChannel(favorites, currentMiniStreamId)
+                } else if (favorites.isNotEmpty()) {
+                    // Not one of this folder's channels — fall back to the same
+                    // focus-position-0 behavior pendingContentFocus would have done.
+                    scrollAndFocusChannel(favorites, favorites.first().streamId)
+                }
+            }
+        }
     }
 
     private fun showFolderOptionsDialog(folderId: Int) {

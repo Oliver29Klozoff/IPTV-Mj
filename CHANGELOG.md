@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.69 - 2026-07-17
+- **Fixed**: on TV, returning to a favorite folder (after the panel auto-collapsed, or just
+  navigating back to it) always jumped back to the top of the list instead of scrolling to
+  whatever channel you were actually watching. It now scrolls/focuses straight to the current
+  channel if it's in that folder, matching how the phone's Favorites tab already behaved.
+
 ## v4.68 - 2026-07-16
 - **Fixed**: VOD and Series refresh (auto-refresh, pull-to-refresh, stale-cache reload) was
   silently un-favoriting every movie/show and resetting all watch progress back to zero on
