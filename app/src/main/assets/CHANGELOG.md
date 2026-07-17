@@ -1,5 +1,26 @@
 # IPTV App - Changelog
 
+## v4.68 - 2026-07-16
+- **Fixed**: VOD and Series refresh (auto-refresh, pull-to-refresh, stale-cache reload) was
+  silently un-favoriting every movie/show and resetting all watch progress back to zero on
+  every refresh — same bug class already fixed for live and Providers channels, just missed
+  in these two spots. Favorites and watch progress now survive a refresh.
+- **Added**: TV now has favorite folders — a folder picker (All Favorites / Unsorted / named
+  folders / + New Folder) when you open Favorites from the sidebar, with the same
+  create/rename/delete options as phone. Previously TV had no folder support at all and
+  showed every favorite flattened together, even if you'd organized them into folders on
+  another device via Sync.
+- **Fixed**: several places (a merged-channel play log, the Cast proxy's request/response
+  logging including m3u8 playlist previews) were logging full stream URLs — and therefore
+  plaintext account credentials, which Xtream embeds directly in stream URLs — to Logcat
+  unredacted, bypassing the credential redaction already used for crash logs.
+- **Changed**: refreshing Providers channels no longer lets one slow or dead extra provider
+  stall the whole refresh for up to 2 minutes — each server now gets a 15s budget.
+- **Fixed**: a rare edge case where the update installer's broadcast receiver could leak for
+  the rest of the app's process if the OS ever dropped its callback silently.
+- Removed several always-on diagnostic log lines from VOD/live-category/Providers refreshes
+  that were left in from recent debugging (now debug-build-only).
+
 ## v4.67 - 2026-07-16
 - **Fixed**: the player's Record dot is a brighter red.
 - **Added**: favorite folders (and which channels are in them) are now included in backups

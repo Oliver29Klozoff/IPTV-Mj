@@ -106,7 +106,7 @@ class IptvCastProxy(
                 }
 
                 val targetUrl = URLDecoder.decode(encodedUrl, "UTF-8")
-                Log.d("CastProxy", "→ $targetUrl")
+                Log.d("CastProxy", "→ ${com.iptvapp.util.LogSanitizer.redactCredentials(targetUrl)}")
                 proxyRequest(socket, targetUrl, incomingUserAgent)
             }
         } catch (e: Exception) {
@@ -140,7 +140,7 @@ class IptvCastProxy(
                 .map { it.code }.toList()
 
             val body = resp.body ?: run {
-                Log.e("CastProxy", "No body for $url status=$status")
+                Log.e("CastProxy", "No body for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} status=$status")
                 writeResponse(socket, "502 Bad Gateway", "text/plain", "No body".toByteArray())
                 return
             }
@@ -155,9 +155,12 @@ class IptvCastProxy(
 
             // Use the final URL after redirects as the base for resolving relative segment paths
             val finalUrl = resp.request.url.toString()
-            val redirectInfo = if (redirectChain.isEmpty()) "" else " redirects=$redirectChain finalUrl=${finalUrl.takeLast(80)}"
-            Log.d("CastProxy", "← status=$status url=${url.takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}$redirectInfo")
-            if (isPlaylist) Log.d("CastProxy", "m3u8 preview: ${bodyStr.take(300)}")
+            val redirectInfo = if (redirectChain.isEmpty()) "" else
+                " redirects=$redirectChain finalUrl=${com.iptvapp.util.LogSanitizer.redactCredentials(finalUrl).takeLast(80)}"
+            Log.d("CastProxy", "← status=$status url=${com.iptvapp.util.LogSanitizer.redactCredentials(url).takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}$redirectInfo")
+            // The playlist body itself embeds per-segment URLs carrying the same
+            // credentials as the request URL — redact it too, not just the top-level url.
+            if (isPlaylist) Log.d("CastProxy", "m3u8 preview: ${com.iptvapp.util.LogSanitizer.redactCredentials(bodyStr.take(300))}")
 
             if (isPlaylist) {
                 val rewritten = rewritePlaylist(bodyStr, finalUrl).toByteArray()
@@ -166,7 +169,7 @@ class IptvCastProxy(
                 writeResponse(socket, "200 OK", serverCt.ifBlank { guessContentType(url) }, bodyBytes)
             }
         } catch (e: Exception) {
-            Log.e("CastProxy", "Upstream error for $url", e)
+            Log.e("CastProxy", "Upstream error for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)}", e)
             writeResponse(socket, "502 Bad Gateway", "text/plain",
                 "Upstream: ${e.message}".toByteArray())
         }

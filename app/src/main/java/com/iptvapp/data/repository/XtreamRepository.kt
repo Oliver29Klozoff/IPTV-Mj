@@ -59,7 +59,7 @@ class XtreamRepository @Inject constructor(
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             val unnamed = list.count { it.categoryName.isNullOrBlank() }
-            android.util.Log.d("VodDiag", "Live category count: ${list.size}, unnamed: $unnamed")
+            if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "Live category count: ${list.size}, unnamed: $unnamed")
             db.categoryDao().deleteCategoriesByType("live")
             db.categoryDao().upsertCategories(list.map {
                 CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
@@ -197,7 +197,13 @@ class XtreamRepository @Inject constructor(
             val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
-            android.util.Log.d("VodDiag", "VOD stream count from provider: ${list.size}")
+            // Without this, every VOD refresh (auto-refresh, pull-to-refresh, stale-cache
+            // reload) silently un-favorited every movie and reset all watch progress back to
+            // zero — @Upsert replaces the whole row, and a freshly-built VodEntity defaults
+            // isFavorite/watchedMs/durationMs to their zero values. Same bug class already
+            // fixed today for live channels (fetchLiveStreams) and merged channels
+            // (refreshMergedChannels); VOD/series were the two remaining spots.
+            val userData = db.vodDao().getUserData().associateBy { it.streamId }
             // Some providers have 100k+ item catalogs — mapping the whole list to a second
             // full-size List<VodEntity> before upserting doubles peak memory right when the
             // raw deserialized response is already at its largest. Chunk map+upsert together
@@ -205,6 +211,7 @@ class XtreamRepository @Inject constructor(
             var saved = 0
             list.chunked(2000).forEach { chunk ->
                 db.vodDao().upsertVod(chunk.map {
+                    val prev = userData[it.streamId]
                     VodEntity(
                         streamId = it.streamId,
                         name = it.name,
@@ -212,7 +219,10 @@ class XtreamRepository @Inject constructor(
                         categoryId = it.categoryId,
                         rating = it.rating,
                         containerExtension = it.containerExtension,
-                        added = it.added
+                        added = it.added,
+                        isFavorite = prev?.isFavorite ?: false,
+                        watchedMs = prev?.watchedMs ?: 0L,
+                        durationMs = prev?.durationMs ?: 0L
                     )
                 })
                 saved += chunk.size
@@ -229,7 +239,7 @@ class XtreamRepository @Inject constructor(
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             val unnamed = list.count { it.categoryName.isNullOrBlank() }
-            android.util.Log.d("VodDiag", "VOD category count: ${list.size}, unnamed: $unnamed")
+            if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "VOD category count: ${list.size}, unnamed: $unnamed")
             db.categoryDao().deleteCategoriesByType("vod")
             db.categoryDao().upsertCategories(list.map {
                 CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod")
@@ -257,9 +267,13 @@ class XtreamRepository @Inject constructor(
             val response = api.getSeries(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
+            // Same preserve-across-refresh fix as fetchVodStreams above — without it, every
+            // series refresh silently un-favorited every show and reset watch progress.
+            val userData = db.seriesDao().getUserData().associateBy { it.seriesId }
             var saved = 0
             list.chunked(2000).forEach { chunk ->
                 db.seriesDao().upsertSeries(chunk.map {
+                    val prev = userData[it.seriesId]
                     SeriesEntity(
                         seriesId = it.seriesId,
                         name = it.name,
@@ -272,7 +286,10 @@ class XtreamRepository @Inject constructor(
                         plot = it.plot?.take(4000),
                         genre = it.genre,
                         rating = it.rating,
-                        categoryId = it.categoryId
+                        categoryId = it.categoryId,
+                        isFavorite = prev?.isFavorite ?: false,
+                        watchedMs = prev?.watchedMs ?: 0L,
+                        durationMs = prev?.durationMs ?: 0L
                     )
                 })
                 saved += chunk.size
@@ -634,6 +651,13 @@ class XtreamRepository @Inject constructor(
             servers.map { server ->
                 async {
                     try {
+                        // The shared OkHttp client's read timeout is 120s (fine for a normal
+                        // single-provider request) — with several extra providers configured,
+                        // one slow/dead one used to stall the ENTIRE "All Providers" refresh
+                        // for up to that long before the batch's error map was even populated.
+                        // A short per-server budget here means one bad provider can't hold the
+                        // other, healthy ones hostage.
+                        kotlinx.coroutines.withTimeout(15_000) {
                         val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
                         // Categories are fetched too — a single provider can itself have tens
                         // of thousands of channels, so a flat per-server list is just as
@@ -646,8 +670,8 @@ class XtreamRepository @Inject constructor(
                         val response = api.getLiveStreams(builder.apiUrl(), server.username, server.password)
                         if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
                         val list = response.body() ?: emptyList()
-                        android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) fetched ${list.size} channels, ${categoryNames.size} categories")
-                        android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} sample category names: ${categoryNames.values.take(30)}")
+                        if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) fetched ${list.size} channels, ${categoryNames.size} categories")
+                        if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} sample category names: ${categoryNames.values.take(30)}")
                         synchronized(results) {
                             results.addAll(list.map {
                                 val prev = mergedUserData[server.serverIndex to it.streamId]
@@ -665,14 +689,16 @@ class XtreamRepository @Inject constructor(
                                 )
                             })
                         }
+                        } // withTimeout
                     } catch (e: Exception) {
-                        android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: ${e.message}", e)
-                        errors[server.serverIndex] = e.message ?: "Unknown error"
+                        val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
+                        android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
+                        errors[server.serverIndex] = msg ?: "Unknown error"
                     }
                 }
             }.forEach { it.await() }
         }
-        android.util.Log.d("MergedChannels", "refresh done: ${results.size} total channels, errors=$errors")
+        if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "refresh done: ${results.size} total channels, errors=$errors")
         db.mergedChannelDao().clearAll()
         db.mergedChannelDao().upsertAll(results)
         return errors

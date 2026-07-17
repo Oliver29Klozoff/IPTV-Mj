@@ -362,9 +362,18 @@ class UpdateChecker(
                 it.fsync(out)
             }
             val action = "com.iptvapp.UPDATECHECKER_INSTALL_RESULT"
+            // If PackageInstaller's callback intent is ever silently dropped by the OS (no
+            // observed case, but nothing guarantees it can't happen), this receiver would
+            // otherwise stay registered for the rest of the process's life. A timeout-based
+            // unregister bounds that — safe to call twice since unregisterReceiver on an
+            // already-unregistered receiver just throws, which this catches.
+            var unregistered = false
+            val safetyHandler = android.os.Handler(android.os.Looper.getMainLooper())
             val receiver = object : android.content.BroadcastReceiver() {
                 override fun onReceive(ctx: Context, intent: Intent) {
-                    context.unregisterReceiver(this)
+                    if (unregistered) return
+                    unregistered = true
+                    try { context.unregisterReceiver(this) } catch (_: Exception) {}
                     when (val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
                         android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
                             com.iptvapp.IptvApplication.logPlaybackEvent(context, "SILENT UPDATE (auto-popup path): STATUS_SUCCESS")
@@ -406,6 +415,12 @@ class UpdateChecker(
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
             )
             it.commit(pendingIntent.intentSender)
+            safetyHandler.postDelayed({
+                if (!unregistered) {
+                    unregistered = true
+                    try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
+                }
+            }, 60_000L)
         }
     }
 }

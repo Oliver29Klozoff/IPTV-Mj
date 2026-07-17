@@ -395,6 +395,17 @@ class TvHomeActivity : AppCompatActivity() {
             onCategoryClick = { cat ->
                 var showChannels = true
                 when (currentSection) {
+                    Section.FAVORITES -> {
+                        when (cat.categoryId) {
+                            FAV_NEW_FOLDER_ID -> showCreateFavoriteFolderDialog()
+                            FAV_ALL_ID -> showFavoriteFolderChannels(null, "FAVORITES")
+                            FAV_UNSORTED_ID -> showFavoriteFolderChannels(-1, "FAVORITES")
+                            else -> showFavoriteFolderChannels(cat.categoryId.toInt(), "FAVORITES")
+                        }
+                        // showFavoriteFolderChannels (or the create-folder dialog) already
+                        // handles panel/list state itself.
+                        showChannels = false
+                    }
                     Section.LIVE -> {
                         binding.tvRvContent.adapter = channelAdapter
                         viewModel.selectLiveCategory(cat.categoryId)
@@ -411,9 +422,11 @@ class TvHomeActivity : AppCompatActivity() {
                         // 3-level drill (server -> category -> channels): the first tap picks
                         // a server and should show ITS categories next, not channels yet. A
                         // synthetic "★ Favorites" entry alongside the real servers instead shows
-                        // a flat list of every favorited merged channel directly — TV's primary
-                        // Favorites has no folder picker either, so merged favorites match that
-                        // same flat shape rather than the phone's folder picker.
+                        // a flat list of every favorited merged channel directly. TV's primary
+                        // Favorites now has a folder picker too (added after this comment was
+                        // written) — kept merged favorites flat here since a provider-scoped
+                        // favorites list is a smaller, more occasional use case than the
+                        // primary one; revisit if that turns out wrong.
                         if (cat.categoryId == MERGED_FAV_ROOT_ID) {
                             viewModel.selectMergedFavoriteFolderView(null)
                             viewModel.checkMergedFavoritesHealth()
@@ -444,6 +457,10 @@ class TvHomeActivity : AppCompatActivity() {
                 if (currentSection == Section.LIVE) {
                     viewModel.toggleLiveCategoryFavorite(cat.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
+                } else if (currentSection == Section.FAVORITES &&
+                    cat.categoryId !in listOf(FAV_ALL_ID, FAV_UNSORTED_ID, FAV_NEW_FOLDER_ID)
+                ) {
+                    showFolderOptionsDialog(cat.categoryId.toInt())
                 }
             }
         )
@@ -805,7 +822,10 @@ class TvHomeActivity : AppCompatActivity() {
                 showSeries()
                 showChannelPanel("SERIES")
             }
-            Section.FAVORITES -> openFavoritesOnCurrentChannel()
+            // Same reasoning as Live/Categories above: always show the folder picker first
+            // instead of jumping into a flat "currently playing" list — otherwise the newly
+            // added folder picker itself would be almost unreachable from the sidebar.
+            Section.FAVORITES -> { showFavoriteFolderPicker(); showCategoryPanel("FAVORITES") }
             Section.GUIDE -> showGuidePanel()
             Section.PROVIDERS -> showMergedChannelsPanel()
         }
@@ -836,6 +856,87 @@ class TvHomeActivity : AppCompatActivity() {
 
     private val NO_CATEGORY_ID = "__uncategorized__"
     private val MERGED_FAV_ROOT_ID = "__merged_fav_root__"
+
+    // Favorite folder picker — TV previously had no folder support at all (a real parity gap:
+    // folders sync/back up cross-device, so a phone user who organized favorites saw them all
+    // flattened here with no way to even see the grouping, let alone manage it). Same sentinel
+    // IDs and picker shape as the phone's favoriteFoldersToSynthetic().
+    private val FAV_ALL_ID = "__fav_all__"
+    private val FAV_UNSORTED_ID = "__fav_unsorted__"
+    private val FAV_NEW_FOLDER_ID = "__fav_new_folder__"
+
+    private fun favoriteFoldersToSynthetic(): List<CategoryEntity> {
+        val counts = viewModel.favoriteFolderCounts.value.associate { it.favoriteFolderId to it.channelCount }
+        val totalCount = counts.values.sum()
+        val unsortedCount = counts[null] ?: 0
+        val list = mutableListOf(
+            CategoryEntity(FAV_ALL_ID, "All Favorites ($totalCount)", 0, "fav_folder")
+        )
+        if (unsortedCount > 0) list.add(CategoryEntity(FAV_UNSORTED_ID, "Unsorted ($unsortedCount)", 0, "fav_folder"))
+        viewModel.favoriteFolders.value.forEach { folder ->
+            val count = counts[folder.id] ?: 0
+            list.add(CategoryEntity(folder.id.toString(), "${folder.name} ($count)", 0, "fav_folder"))
+        }
+        list.add(CategoryEntity(FAV_NEW_FOLDER_ID, "+ New Folder", 0, "fav_folder"))
+        return list
+    }
+
+    private fun showFavoriteFolderPicker() {
+        binding.tvRvContent.adapter = categoryAdapter
+        categoryAdapter.submitList(favoriteFoldersToSynthetic())
+    }
+
+    private fun showFavoriteFolderChannels(folderId: Int?, title: String) {
+        binding.tvRvContent.adapter = channelAdapter
+        viewModel.selectFavoriteFolderView(folderId)
+        viewModel.checkFavoritesHealth()
+        showChannelPanel(title)
+    }
+
+    private fun showFolderOptionsDialog(folderId: Int) {
+        val folder = viewModel.favoriteFolders.value.firstOrNull { it.id == folderId } ?: return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(folder.name)
+            .setPositiveButton("Rename") { _, _ ->
+                val et = android.widget.EditText(this).apply { setText(folder.name) }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Rename Folder")
+                    .setView(et)
+                    .setPositiveButton("Save") { _, _ ->
+                        val name = et.text.toString().trim()
+                        if (name.isNotEmpty()) viewModel.renameFavoriteFolder(folderId, name)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            .setNegativeButton("Delete") { _, _ ->
+                viewModel.deleteFavoriteFolder(folderId)
+                Toast.makeText(this, "Folder deleted — its channels moved to Unsorted", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Cancel", null)
+            .show()
+    }
+
+    private fun showCreateFavoriteFolderDialog() {
+        val et = android.widget.EditText(this).apply { hint = "Folder name" }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("New Folder")
+            .setView(et)
+            .setPositiveButton("Create") { _, _ ->
+                val name = et.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    lifecycleScope.launch {
+                        viewModel.createFavoriteFolder(name)
+                        // Give the DB write + StateFlow re-emission a beat before re-reading,
+                        // same as the phone's equivalent dialog.
+                        delay(150)
+                        categoryAdapter.submitList(favoriteFoldersToSynthetic())
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
         val favEntry = CategoryEntity(MERGED_FAV_ROOT_ID, "★ Favorites", 0, "merged_fav_root")
@@ -1084,28 +1185,6 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
-    /** Same treatment for the FAVORITES sidebar tab — flat channel list, no category to resolve. */
-    private fun openFavoritesOnCurrentChannel() {
-        if (currentMiniIsVod || currentMiniStreamId < 0) {
-            showFavorites()
-            showChannelPanel("FAVORITES")
-            return
-        }
-        lifecycleScope.launch {
-            val favorites = viewModel.getFavoriteChannelsSnapshot()
-            if (favorites.none { it.streamId == currentMiniStreamId }) {
-                showFavorites()
-                showChannelPanel("FAVORITES")
-                return@launch
-            }
-            binding.tvRvContent.adapter = channelAdapter
-            viewModel.showFavoriteChannels()
-            showChannelPanel("FAVORITES")
-            pendingContentFocus = false
-            scrollAndFocusChannel(favorites, currentMiniStreamId)
-        }
-    }
-
     private fun showFavCategories() {
         binding.tvRvCategories.adapter = categoryAdapter
         binding.tvRvContent.adapter = channelAdapter
@@ -1204,12 +1283,6 @@ class TvHomeActivity : AppCompatActivity() {
             ).also { it.marginEnd = (8 * resources.displayMetrics.density).toInt() }
             setOnClickListener { onClick() }
         }
-    }
-
-    private fun showFavorites() {
-        binding.tvRvContent.adapter = channelAdapter
-        viewModel.showFavoriteChannels()
-        viewModel.checkFavoritesHealth()
     }
 
     // ── Search ───────────────────────────────────────────────────────────────

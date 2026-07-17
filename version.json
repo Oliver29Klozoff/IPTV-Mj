@@ -1,7 +1,7 @@
 {
-  "versionCode": 305,
-  "versionName": "4.67",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.67/MKTV.apk",
-  "apkSha256": "f6aa557ffce7b4c4e9c0b5382f5092f0bf3ed879e8f40a53c15a0432242bc162",
-  "changelog": "Record dot is a brighter red. Favorite folders are now included in backups (manual, QR, and auto-backup) — previously only Sync carried folder organization across devices."
+  "versionCode": 306,
+  "versionName": "4.68",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.68/MKTV.apk",
+  "apkSha256": "cb859116d65a8bcfe8b941bd863cca464e1954e91a5445ac7e00b52b67c61091",
+  "changelog": "Fixed VOD/Series refresh silently un-favoriting everything and resetting watch progress. Added favorite folders to TV. Fixed credentials leaking into Logcat in a few places. Providers refresh no longer stalls on one slow server."
 }

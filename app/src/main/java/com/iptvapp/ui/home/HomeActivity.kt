@@ -1514,7 +1514,7 @@ class HomeActivity : AppCompatActivity() {
         miniPlayJob = lifecycleScope.launch {
             try {
                 val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
-                android.util.Log.d("MergedChannels", "playMergedChannel: serverIndex=${channel.serverIndex} streamId=${channel.streamId} resolvedUrl=$url")
+                android.util.Log.d("MergedChannels", "playMergedChannel: serverIndex=${channel.serverIndex} streamId=${channel.streamId} resolvedUrl=${com.iptvapp.util.LogSanitizer.redactCredentials(url)}")
                 val title = "${channel.name} · ${channel.serverNickname}"
                 // streamId = -1: no DB-backed identity for this channel (it lives only in the
                 // merged_channels cache, not the primary server's channels table) — same

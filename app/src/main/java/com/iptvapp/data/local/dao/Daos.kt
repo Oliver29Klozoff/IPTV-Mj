@@ -148,7 +148,13 @@ interface VodDao {
     suspend fun getDurationMs(streamId: Int): Long?
     @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 ORDER BY watchedMs DESC LIMIT 20")
     fun getInProgressVod(): Flow<List<VodEntity>>
+    // Backs fetchVodStreams' preserve-across-refresh merge — same pattern
+    // ChannelDao.getUserData() already uses for live channels.
+    @Query("SELECT streamId, isFavorite, watchedMs, durationMs FROM vod_streams")
+    suspend fun getUserData(): List<VodUserData>
 }
+
+data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long)
 
 @Dao
 interface SeriesDao {
@@ -172,7 +178,13 @@ interface SeriesDao {
     suspend fun getWatchedMs(streamId: Int): Long
     @Query("SELECT durationMs FROM series WHERE seriesId = :streamId")
     suspend fun getDurationMs(streamId: Int): Long
+    // Backs fetchSeries' preserve-across-refresh merge — same pattern
+    // ChannelDao.getUserData() already uses for live channels.
+    @Query("SELECT seriesId, isFavorite, watchedMs, durationMs FROM series")
+    suspend fun getUserData(): List<SeriesUserData>
 }
+
+data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long)
 
 @Dao
 interface EpgDao {
