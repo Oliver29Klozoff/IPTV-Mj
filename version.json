@@ -1,7 +1,7 @@
 {
-  "versionCode": 307,
-  "versionName": "4.69",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.69/MKTV.apk",
-  "apkSha256": "b467a879cfaa16c623623ba69ce46d783090459703b9e62df16b5c4e5f951722",
-  "changelog": "On TV, returning to a favorite folder now scrolls/focuses to the channel you're actually watching instead of jumping back to the top of the list."
+  "versionCode": 308,
+  "versionName": "4.70",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.70/MKTV.apk",
+  "apkSha256": "605e08e4d07a97e512beb6dac7c063f3050bf2261d7a209ecc360d2a88bccd99",
+  "changelog": "Fixed TV's Favorites picker only showing All Favorites/+New Folder and never your actual named folders — it now updates live as folder data loads instead of relying on a one-time snapshot."
 }

@@ -881,12 +881,23 @@ class TvHomeActivity : AppCompatActivity() {
         return list
     }
 
+    // showFavoriteFolderPicker() used to submit favoriteFoldersToSynthetic() as a one-shot
+    // snapshot — if viewModel.favoriteFolders/favoriteFolderCounts hadn't finished their first
+    // DB read yet at that exact instant (routine on a fresh app launch straight into
+    // Favorites), the picker only ever showed "All Favorites"/"+ New Folder" with no named
+    // folders, and nothing ever re-rendered it once the real data arrived. Same bug already
+    // fixed on the phone earlier — this flag lets the reactive collectors below know it's
+    // safe to re-render while the picker (not a specific folder's channel list) is showing.
+    private var favoritesShowingFolderPicker = false
+
     private fun showFavoriteFolderPicker() {
+        favoritesShowingFolderPicker = true
         binding.tvRvContent.adapter = categoryAdapter
         categoryAdapter.submitList(favoriteFoldersToSynthetic())
     }
 
     private fun showFavoriteFolderChannels(folderId: Int?, title: String) {
+        favoritesShowingFolderPicker = false
         binding.tvRvContent.adapter = channelAdapter
         viewModel.selectFavoriteFolderView(folderId)
         viewModel.checkFavoritesHealth()
@@ -1364,6 +1375,20 @@ class TvHomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.liveCategories.collect {
                 if (currentSection == Section.LIVE) categoryAdapter.submitList(it)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.favoriteFolders.collect {
+                if (currentSection == Section.FAVORITES && favoritesShowingFolderPicker) {
+                    categoryAdapter.submitList(favoriteFoldersToSynthetic())
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.favoriteFolderCounts.collect {
+                if (currentSection == Section.FAVORITES && favoritesShowingFolderPicker) {
+                    categoryAdapter.submitList(favoriteFoldersToSynthetic())
+                }
             }
         }
         lifecycleScope.launch {

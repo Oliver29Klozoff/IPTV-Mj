@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v4.70 - 2026-07-17
+- **Fixed**: on TV, the Favorites picker only ever showed "All Favorites" and "+ New Folder"
+  — the folders you'd actually created (Movies, Sports, etc.) never appeared. The picker was
+  built once from a snapshot taken before your folders had finished loading from the
+  database, and nothing ever re-rendered it once they arrived. It now updates live.
+
 ## v4.69 - 2026-07-17
 - **Fixed**: on TV, returning to a favorite folder (after the panel auto-collapsed, or just
   navigating back to it) always jumped back to the top of the list instead of scrolling to
