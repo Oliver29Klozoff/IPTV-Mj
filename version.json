@@ -1,7 +1,7 @@
 {
-  "versionCode": 313,
-  "versionName": "4.75",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.75/MKTV.apk",
-  "apkSha256": "9b03fdc0761440e5d560a7952fa4c17d76506abf96e904427317e0a5a726255f",
-  "changelog": "Favorites now auto-sort into genre tabs (Sports, News, Movies, Kids, Entertainment, All) instead of manual folders — every favorite gets a home automatically."
+  "versionCode": 314,
+  "versionName": "4.76",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.76/MKTV.apk",
+  "apkSha256": "abaed7db6efe4904ba960eea3638840c30c59fd880e51bb395c73c3fd3a86760",
+  "changelog": "Fixed Favorites genre chips not showing/filtering on cold launch. Merged Providers favorites into the main Favorites tab. TV: D-pad right now moves to the star to favorite directly."
 }

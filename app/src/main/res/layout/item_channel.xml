@@ -60,6 +60,20 @@
                 android:textColor="#666666"
                 android:textSize="11sp"
                 android:visibility="gone" />
+
+            <!-- Combined Favorites tab only: which provider this channel came from, when it
+                 isn't the primary server. Same gray-uppercase-label style as item_merged_channel's
+                 tvServerNickname / the server tags in Settings > Servers. -->
+            <TextView
+                android:id="@+id/tvServerNickname"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAllCaps="true"
+                android:textColor="#777777"
+                android:textSize="10sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <View
@@ -72,9 +86,11 @@
 
         <ImageView
             android:id="@+id/ivFavorite"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:layout_marginStart="8dp"
+            android:padding="4dp"
+            android:background="@drawable/focus_selector"
             android:src="@android:drawable/btn_star_big_off" />
 
         <ImageView

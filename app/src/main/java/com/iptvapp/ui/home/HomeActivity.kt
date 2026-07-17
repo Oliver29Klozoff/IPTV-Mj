@@ -179,6 +179,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
+    private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var guideAdapter: GuideAdapter
@@ -207,14 +208,7 @@ class HomeActivity : AppCompatActivity() {
     // Favorites' own genre filter — kept separate from Live's activeGenre so switching tabs
     // doesn't cross-contaminate the two (same sticky-filter bug already fixed once for Live).
     private var activeFavoriteGenre: String? = null
-    private val GENRE_KEYWORDS = linkedMapOf(
-        "All"           to emptyList<String>(),
-        "Sports"        to listOf("sport", "espn", "nfl", "nba", "mlb", "nhl", "nascar", "tennis", "golf", "soccer", "football"),
-        "News"          to listOf("news", "cnn", "cnbc", "msnbc", "bbc", "fox news", "abc news", "nbc news"),
-        "Movies"        to listOf("movie", "film", "cinema", "hbo", "showtime", "starz", "amc", "fx movie"),
-        "Kids"          to listOf("kid", "children", "child", "disney", "nickelodeon", "nick", "cartoon", "toon"),
-        "Entertainment" to listOf("entertainment", "comedy", "drama", "tnt", "tbs", "bravo", "mtv", "vh1")
-    )
+    private val GENRE_KEYWORDS = GenreClassifier.GENRE_KEYWORDS
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -874,28 +868,11 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
                     // 3-level drill (server -> category -> channels): the first tap picks a
                     // server and should show ITS categories next, not jump to channels yet.
-                    // A synthetic "★ Favorites" entry sits alongside the real servers and drills
-                    // into a folder picker (shared FavoriteFolderEntity rows) instead.
-                    if (category.categoryId == MERGED_FAV_ROOT_ID) {
-                        mergedFavoritesShowingFolderPicker = true
-                        categoryAdapter.submitList(mergedFavoriteFoldersToSynthetic())
-                    } else if (mergedFavoritesShowingFolderPicker) {
-                        when (category.categoryId) {
-                            MERGED_FAV_NEW_FOLDER_ID -> showCreateMergedFavoriteFolderDialog()
-                            else -> {
-                                val folderId = when (category.categoryId) {
-                                    MERGED_FAV_ALL_ID -> null
-                                    MERGED_FAV_UNSORTED_ID -> -1
-                                    else -> category.categoryId.toInt()
-                                }
-                                mergedFavoritesShowingFolderPicker = false
-                                viewModel.selectMergedFavoriteFolderView(folderId)
-                                viewModel.checkMergedFavoritesHealth()
-                                landscapeShowChannelsMode()
-                                binding.rvChannels.adapter = mergedChannelAdapter
-                            }
-                        }
-                    } else if (viewModel.selectedMergedServerIndex == null) {
+                    // Merged favorites are now viewed from the main Favorites tab (combined
+                    // with primary favorites, auto genre-classified) instead of a dedicated
+                    // "★ Favorites" folder-picker here — favoriting/folder-assignment per
+                    // channel still works via the row's star and long-press menu.
+                    if (viewModel.selectedMergedServerIndex == null) {
                         viewModel.selectMergedServer(category.categoryId.toInt())
                         categoryAdapter.submitList(emptyList())
                         lifecycleScope.launch {
@@ -924,10 +901,6 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == TAB_LIVE) {
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
-                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && mergedFavoritesShowingFolderPicker &&
-                    category.categoryId !in listOf(MERGED_FAV_ALL_ID, MERGED_FAV_UNSORTED_ID, MERGED_FAV_NEW_FOLDER_ID)
-                ) {
-                    showFolderOptionsDialog(category.categoryId.toInt())
                 }
             }
         )
@@ -980,6 +953,57 @@ class HomeActivity : AppCompatActivity() {
                     } catch (_: Exception) {
                         Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                     }
+                }
+            }
+        )
+
+        combinedFavoriteAdapter = CombinedFavoriteAdapter(
+            onChannelClick = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> {
+                        lifecycleScope.launch {
+                            playInMiniPlayer(item.channel)
+                            viewModel.markChannelWatched(item.channel.streamId)
+                            viewModel.setCurrentlyPlaying(item.channel.streamId)
+                        }
+                        scheduleContentAutoCollapse()
+                    }
+                    is CombinedFavorite.Merged -> playMergedChannel(item.channel)
+                }
+            },
+            onChannelDoubleClick = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> {
+                        val currentIds = viewModel.combinedFavorites.value.mapNotNull { (it as? CombinedFavorite.Primary)?.channel?.streamId }.toIntArray()
+                        lifecycleScope.launch {
+                            val url = viewModel.getLiveStreamUrl(item.channel.streamId)
+                            openPlayer(url, item.channel.name, item.channel.streamId, currentIds)
+                        }
+                    }
+                    is CombinedFavorite.Merged -> {
+                        lifecycleScope.launch {
+                            try {
+                                val url = viewModel.getMergedLiveStreamUrl(item.channel.serverIndex, item.channel.streamId)
+                                openPlayer(url, "${item.channel.name} · ${item.channel.serverNickname}", -1)
+                            } catch (_: Exception) {
+                                Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            },
+            onFavoriteClick = { item ->
+                viewModel.toggleCombinedFavorite(item)
+                val wasFavorite = when (item) {
+                    is CombinedFavorite.Primary -> item.channel.isFavorite
+                    is CombinedFavorite.Merged -> item.channel.isFavorite
+                }
+                Toast.makeText(this, if (wasFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onChannelLongClick = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> showChannelActionsMenu(item.channel)
+                    is CombinedFavorite.Merged -> showMergedChannelActionsMenu(item.channel)
                 }
             }
         )
@@ -1094,7 +1118,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
-                if (tab?.position == TAB_FAVORITES) detachFavDrag()
                 if (tab?.position == TAB_GUIDE) binding.btnTimelineView?.visibility = View.GONE
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
@@ -1421,14 +1444,12 @@ class HomeActivity : AppCompatActivity() {
 
     // Browse-and-play merged view across every configured server (Settings > Providers).
     // 3-level drill-down (server -> category -> channels), same shape as Live, since a single
-    // provider can itself have tens of thousands of channels. A synthetic "★ Favorites" entry
-    // alongside the real servers drills into its own folder picker instead (see
-    // MergedChannelEntity kdoc — favorites/folders are supported here, sharing the same
-    // FavoriteFolderEntity rows as the primary provider's Favorites tab, just browsed
-    // separately rather than mixed into that tab).
+    // provider can itself have tens of thousands of channels. Merged favorites are viewed from
+    // the main Favorites tab now (combined with primary favorites, auto genre-classified) —
+    // this tab is purely a server/category browser; favoriting/folder-assignment per channel
+    // still works via each row's star and long-press menu.
     private fun showAllProviders() {
         viewModel.resetMergedSelection()
-        mergedFavoritesShowingFolderPicker = false
         landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
@@ -1438,55 +1459,12 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
-    private val MERGED_FAV_ROOT_ID = "__merged_fav_root__"
-    private val MERGED_FAV_ALL_ID = "__merged_fav_all__"
-    private val MERGED_FAV_UNSORTED_ID = "__merged_fav_unsorted__"
-    private val MERGED_FAV_NEW_FOLDER_ID = "__merged_fav_new_folder__"
-    private var mergedFavoritesShowingFolderPicker = false
-
-    private fun mergedFavoriteFoldersToSynthetic(): List<CategoryEntity> {
-        val counts = viewModel.mergedFavoriteFolderCounts.value.associate { it.favoriteFolderId to it.channelCount }
-        val totalCount = counts.values.sum()
-        val unsortedCount = counts[null] ?: 0
-        val list = mutableListOf(
-            CategoryEntity(MERGED_FAV_ALL_ID, "All Favorites ($totalCount)", 0, "merged_fav_folder")
-        )
-        if (unsortedCount > 0) {
-            list.add(CategoryEntity(MERGED_FAV_UNSORTED_ID, "Unsorted ($unsortedCount)", 0, "merged_fav_folder"))
-        }
-        viewModel.favoriteFolders.value.forEach { folder ->
-            val count = counts[folder.id] ?: 0
-            list.add(CategoryEntity(folder.id.toString(), "${folder.name} ($count)", 0, "merged_fav_folder"))
-        }
-        list.add(CategoryEntity(MERGED_FAV_NEW_FOLDER_ID, "+ New Folder", 0, "merged_fav_folder"))
-        return list
-    }
-
-    private fun showCreateMergedFavoriteFolderDialog() {
-        val et = android.widget.EditText(this).apply { hint = "Folder name" }
-        AlertDialog.Builder(this)
-            .setTitle("New Folder")
-            .setView(et)
-            .setPositiveButton("Create") { _, _ ->
-                val name = et.text.toString().trim()
-                if (name.isNotEmpty()) {
-                    viewModel.createFavoriteFolder(name)
-                    lifecycleScope.launch {
-                        kotlinx.coroutines.delay(150)
-                        categoryAdapter.submitList(mergedFavoriteFoldersToSynthetic())
-                    }
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
-        val favEntry = CategoryEntity(MERGED_FAV_ROOT_ID, "★ Favorites", 0, "merged_fav_root")
         // serverIndex == -1 is always whichever provider is currently primary/active — its
         // channels are already fully browsable via the normal Live tab, so listing it again
         // here was redundant and confusing next to the other, actually-"extra" providers.
-        return listOf(favEntry) + list.filter { it.serverIndex != -1 }.map {
+        return list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -1554,58 +1532,42 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private var favItemTouchHelper: ItemTouchHelper? = null
-
     // Favorites used to require picking "All Favorites"/"Unsorted"/a named folder first
     // (folders assigned manually via long-press "Move to Folder") before seeing any channels
-    // — every favorite not manually filed landed in "Unsorted". Replaced with the same genre
-    // chip row Live already uses: each favorite is auto-classified by its OWN provider
-    // category name (GENRE_KEYWORDS keyword match), so every favorite already has a home with
-    // zero manual sorting, and there's no "Unsorted" bucket left to need one.
+    // — every favorite not manually filed landed in "Unsorted". Replaced with genre chips
+    // (GenreClassifier keyword match): every favorite — primary-server or any other configured
+    // provider (Providers tab) — is auto-classified by its OWN category name and shown together
+    // here, tagged with its server name when it isn't the primary. Combining the two sources
+    // means favOrder-based drag-reorder no longer applies (meaningless across servers) — this
+    // tab is browse/play only now, same as the Providers tab always was for merged channels.
     private fun showFavorites() {
         activeFavoriteGenre = null
         landscapeShowChannelsMode()
         setGenreFilterVisible(true)
         binding.rvCategories.visibility = View.GONE
-        binding.rvChannels.adapter = channelAdapter
+        binding.rvChannels.adapter = combinedFavoriteAdapter
         viewModel.selectFavoriteFolderView(null)
         pendingScrollToCurrent = true
         lifecycleScope.launch {
-            val favorites = viewModel.getFavoriteChannelsSnapshot()
+            val favorites = viewModel.getCombinedFavoritesSnapshot()
             if (!pendingScrollToCurrent) return@launch
             updateFavoriteGenreChips(favorites)
-            applyFavoriteGenreFilterAndSubmit(favorites)
+            combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
             pendingScrollToCurrent = false
             if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@launch
             val streamId = viewModel.currentlyPlayingStreamId.value
             if (streamId >= 0) scrollFavoritesToStreamId(streamId)
         }
-        setupFavoritesDragReorder()
     }
 
-    // channelId -> categoryName lookup, resolved from whichever category list is currently
-    // loaded (populated the same way Live's own category filter already is) — a favorite
-    // channel's categoryId doesn't carry its name, so this is needed to classify it by genre.
-    private fun favoriteCategoryNameById(): Map<String, String> =
-        viewModel.liveCategories.value.associate { it.categoryId to it.categoryName }
-
-    private fun genreFilterFavorites(channels: List<ChannelEntity>): List<ChannelEntity> {
-        val genre = activeFavoriteGenre ?: return channels
-        val keywords = GENRE_KEYWORDS[genre] ?: return channels
-        val namesById = favoriteCategoryNameById()
-        return channels.filter { ch ->
-            val categoryName = namesById[ch.categoryId] ?: return@filter false
-            keywords.any { kw -> categoryName.contains(kw, ignoreCase = true) }
-        }
+    private fun genreFilterFavorites(favorites: List<CombinedFavorite>): List<CombinedFavorite> {
+        val genre = activeFavoriteGenre ?: return favorites
+        return favorites.filter { GenreClassifier.matches(genre, it.categoryName) }
     }
 
-    private fun updateFavoriteGenreChips(favorites: List<ChannelEntity>) {
-        val namesById = favoriteCategoryNameById()
-        val favCategoryNames = favorites.mapNotNull { namesById[it.categoryId] }
-        val detected = GENRE_KEYWORDS.keys.filter { genre ->
-            val keywords = GENRE_KEYWORDS[genre]!!
-            keywords.isEmpty() || favCategoryNames.any { name -> keywords.any { kw -> name.contains(kw, ignoreCase = true) } }
-        }
+    private fun updateFavoriteGenreChips(favorites: List<CombinedFavorite>) {
+        val favCategoryNames = favorites.mapNotNull { it.categoryName }
+        val detected = GenreClassifier.detectGenres(favCategoryNames)
         val horizontalContainer = binding.genreChipContainer
         val verticalContainer = binding.root.findViewById<android.widget.LinearLayout?>(R.id.genreChipContainerVertical)
         horizontalContainer?.removeAllViews()
@@ -1627,90 +1589,15 @@ class HomeActivity : AppCompatActivity() {
         buildGenreChipView(genre, selected, vertical) {
             activeFavoriteGenre = if (genre == "All") null else genre
             lifecycleScope.launch {
-                val favorites = viewModel.getFavoriteChannelsSnapshot()
+                val favorites = viewModel.getCombinedFavoritesSnapshot()
                 updateFavoriteGenreChips(favorites)
-                applyFavoriteGenreFilterAndSubmit(favorites)
+                combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
             }
         }
-
-    private fun applyFavoriteGenreFilterAndSubmit(favorites: List<ChannelEntity>) {
-        channelAdapter.submitList(genreFilterFavorites(favorites))
-        // Reordering only makes sense over the true, unfiltered order — dragging within a
-        // genre-filtered subset would silently corrupt favOrder for channels currently hidden
-        // by the filter. Only allow it while viewing "All".
-        channelAdapter.showDragHandles = activeFavoriteGenre == null
-    }
-
-    private fun setupFavoritesDragReorder() {
-        val callback = object : ItemTouchHelper.SimpleCallback(
-            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
-        ) {
-            private val dragList = mutableListOf<ChannelEntity>()
-
-            // Defaults to true, which starts a drag on a long-press ANYWHERE on the row —
-            // that was swallowing the long-press before ChannelAdapter's own
-            // setOnLongClickListener (channel actions menu) ever got a chance to fire.
-            // Dragging already has its own dedicated trigger — touching ivDragHandle (see
-            // ChannelAdapter's ivDragHandle touch listener).
-            override fun isLongPressDragEnabled(): Boolean = false
-
-            override fun onMove(rv: RecyclerView, from: RecyclerView.ViewHolder, to: RecyclerView.ViewHolder): Boolean {
-                if (activeFavoriteGenre != null) return false
-                val fromPos = from.bindingAdapterPosition
-                val toPos = to.bindingAdapterPosition
-                if (dragList.isEmpty()) dragList.addAll(channelAdapter.currentList)
-                // channelAdapter is shared across tabs (Live/Favorites/History) — if a
-                // background update swaps in a differently-sized list mid-drag, these
-                // positions can point outside dragList's bounds. Reject rather than crash.
-                if (fromPos !in dragList.indices || toPos !in dragList.indices) return false
-                dragList.add(toPos, dragList.removeAt(fromPos))
-                channelAdapter.submitList(dragList.toList())
-                return true
-            }
-
-            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
-
-            override fun clearView(rv: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
-                super.clearView(rv, viewHolder)
-                if (dragList.isNotEmpty()) {
-                    viewModel.saveFavOrder(dragList.map { it.streamId })
-                    dragList.clear()
-                }
-            }
-        }
-        favItemTouchHelper = ItemTouchHelper(callback).also {
-            channelAdapter.itemTouchHelper = it
-            it.attachToRecyclerView(binding.rvChannels)
-        }
-    }
-
-    private fun showFolderOptionsDialog(folderId: Int) {
-        val folder = viewModel.favoriteFolders.value.firstOrNull { it.id == folderId } ?: return
-        AlertDialog.Builder(this)
-            .setTitle(folder.name)
-            .setPositiveButton("Rename") { _, _ ->
-                val et = android.widget.EditText(this).apply { setText(folder.name) }
-                AlertDialog.Builder(this)
-                    .setTitle("Rename Folder")
-                    .setView(et)
-                    .setPositiveButton("Save") { _, _ ->
-                        val name = et.text.toString().trim()
-                        if (name.isNotEmpty()) viewModel.renameFavoriteFolder(folderId, name)
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            .setNegativeButton("Delete") { _, _ ->
-                viewModel.deleteFavoriteFolder(folderId)
-                Toast.makeText(this, "Folder deleted — its channels moved to Unsorted", Toast.LENGTH_SHORT).show()
-            }
-            .setNeutralButton("Cancel", null)
-            .show()
-    }
 
     private fun scrollFavoritesToStreamId(streamId: Int) {
         binding.rvChannels.post {
-            val pos = channelAdapter.currentList.indexOfFirst { it.streamId == streamId }
+            val pos = combinedFavoriteAdapter.currentList.indexOfFirst { it.id == "primary:$streamId" }
             if (pos >= 0) {
                 (binding.rvChannels.layoutManager as? LinearLayoutManager)
                     ?.scrollToPositionWithOffset(pos, 0)
@@ -1746,13 +1633,6 @@ class HomeActivity : AppCompatActivity() {
             params.weight = 0f
             col.layoutParams = params
         }
-    }
-
-    private fun detachFavDrag() {
-        channelAdapter.showDragHandles = false
-        channelAdapter.itemTouchHelper = null
-        favItemTouchHelper?.attachToRecyclerView(null)
-        favItemTouchHelper = null
     }
 
     private fun showGuide() {
@@ -1882,20 +1762,6 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.favoriteFolders.collect {
-                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && mergedFavoritesShowingFolderPicker) {
-                    submitCategories(mergedFavoriteFoldersToSynthetic())
-                }
-            }
-        }
-        lifecycleScope.launch {
-            viewModel.mergedFavoriteFolderCounts.collect {
-                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && mergedFavoritesShowingFolderPicker) {
-                    submitCategories(mergedFavoriteFoldersToSynthetic())
-                }
-            }
-        }
-        lifecycleScope.launch {
             viewModel.favoriteLiveCategories.collect { favs ->
                 categoryAdapter.submitFavoriteCategoryIds(favs.map { it.categoryId }.toSet())
                 if (binding.tabLayout.selectedTabPosition == TAB_CATEGORIES) {
@@ -1907,13 +1773,20 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.channels.collect { list ->
-                // Guard: never let live-category channels bleed onto the Favorites tab.
-                // inFavoritesMode is false whenever selectLiveCategory was the last call;
-                // if that happens to race with showFavorites(), we drop the stale update.
-                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES && !viewModel.inFavoritesMode) return@collect
+                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) return@collect
                 channelAdapter.submitList(list)
                 viewModel.loadEpgForChannels(list)
-                if (pendingScrollToCurrent && list.isNotEmpty()) {
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.combinedFavorites.collect { favorites ->
+                updateFavoriteGenreChips(favorites)
+                if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@collect
+                val filtered = genreFilterFavorites(favorites)
+                combinedFavoriteAdapter.submitList(filtered)
+                viewModel.loadEpgForChannels(filtered.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })
+                viewModel.loadEpgForMergedChannels(filtered.mapNotNull { (it as? CombinedFavorite.Merged)?.channel })
+                if (pendingScrollToCurrent && filtered.isNotEmpty()) {
                     // The currently-playing channel is only known once the mini player's
                     // async cold-start resume (loadLastWatchedChannel) sets it — which can
                     // land after this list first emits. Don't consume the flag on a miss;
@@ -1961,22 +1834,45 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.currentlyPlayingStreamId.collect { streamId ->
                 channelAdapter.setCurrentlyPlayingStreamId(streamId)
-                if (pendingScrollToCurrent && streamId >= 0 && channelAdapter.currentList.isNotEmpty() &&
+                combinedFavoriteAdapter.setCurrentlyPlayingId(if (streamId >= 0) "primary:$streamId" else null)
+                if (pendingScrollToCurrent && streamId >= 0 && combinedFavoriteAdapter.currentList.isNotEmpty() &&
                     binding.tabLayout.selectedTabPosition == TAB_FAVORITES) {
                     pendingScrollToCurrent = false
                     scrollFavoritesToStreamId(streamId)
                 }
             }
         }
+        // combinedFavoriteAdapter's EPG/health maps are string-keyed ("primary:<id>" or
+        // "<serverIndex>:<id>") to cover both sources at once — each collector below only owns
+        // its half of the key space, so re-derive the union from both StateFlows' latest values
+        // rather than trying to patch just the changed half in isolation.
+        fun republishCombinedEpgText() {
+            val merged = viewModel.channelEpgText.value.mapKeys { (id, _) -> "primary:$id" } +
+                viewModel.mergedEpgText.value
+            combinedFavoriteAdapter.submitEpgText(merged)
+        }
+        fun republishCombinedEpgNextText() {
+            val merged = viewModel.channelEpgNextText.value.mapKeys { (id, _) -> "primary:$id" }
+            combinedFavoriteAdapter.submitEpgNextText(merged)
+        }
+        fun republishCombinedHealth() {
+            val merged = viewModel.channelHealth.value.mapKeys { (id, _) -> "primary:$id" } +
+                viewModel.mergedHealth.value
+            combinedFavoriteAdapter.submitHealth(merged)
+        }
         lifecycleScope.launch {
             viewModel.channelEpgText.collect {
                 channelAdapter.submitEpgText(it)
+                republishCombinedEpgText()
             }
         }
         lifecycleScope.launch {
             viewModel.channelEpgProgress.collect {
                 channelAdapter.submitEpgProgress(it)
             }
+        }
+        lifecycleScope.launch {
+            viewModel.channelEpgNextText.collect { republishCombinedEpgNextText() }
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
@@ -2003,13 +1899,22 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.mergedEpgText.collect { mergedChannelAdapter.submitEpgText(it) }
+            viewModel.mergedEpgText.collect {
+                mergedChannelAdapter.submitEpgText(it)
+                republishCombinedEpgText()
+            }
         }
         lifecycleScope.launch {
-            viewModel.mergedHealth.collect { mergedChannelAdapter.submitHealth(it) }
+            viewModel.mergedHealth.collect {
+                mergedChannelAdapter.submitHealth(it)
+                republishCombinedHealth()
+            }
         }
         lifecycleScope.launch {
-            viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }
+            viewModel.channelHealth.collect {
+                channelAdapter.submitHealth(it)
+                republishCombinedHealth()
+            }
         }
         lifecycleScope.launch {
             viewModel.externalPlayer.collect { externalPlayerChoice = it }

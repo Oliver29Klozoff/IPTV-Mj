@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v4.76 - 2026-07-17
+- **Fixed**: Favorites' genre tabs could fail to show up on a cold app launch (fixed by
+  themselves after switching tabs and back), and tapping a genre chip could silently fail to
+  filter the list — both were the same underlying race between the genre-classification data
+  and a stale unfiltered re-render.
+- **Changed**: favorites from other configured providers (Settings → Providers) now show up
+  in the main Favorites tab too, combined with your primary favorites and sorted into the same
+  genre tabs, tagged with their provider's name. The Providers tab no longer has its own
+  separate "★ Favorites" screen — favoriting and folder assignment per channel still work from
+  there, just viewed from the main tab now. Drag-to-reorder in Favorites is gone, since channel
+  order isn't meaningful across different providers.
+
 ## v4.75 - 2026-07-17
 - **Changed**: Favorites (phone and TV) no longer use manual folders — every favorite is now
   automatically sorted into genre tabs (Sports, News, Movies, Kids, Entertainment, All) based

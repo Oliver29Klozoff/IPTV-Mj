@@ -121,8 +121,16 @@ class ChannelAdapter(
                         binding.tvEpgNext?.visibility = View.GONE
                     }
                 }
+                // D-pad right from the row moves focus onto the star so OK favorites directly,
+                // instead of requiring a held-OK long-press to reach the actions menu. Left (or
+                // Back) from the star returns focus to the row for normal up/down navigation.
+                binding.root.isFocusable = true
+                binding.ivFavorite.isFocusable = true
+                binding.root.nextFocusRightId = binding.ivFavorite.id
+                binding.ivFavorite.nextFocusLeftId = binding.root.id
             } else {
                 binding.root.onFocusChangeListener = null
+                binding.ivFavorite.isFocusable = false
             }
 
             val progress = epgProgressByStreamId[item.streamId] ?: 0

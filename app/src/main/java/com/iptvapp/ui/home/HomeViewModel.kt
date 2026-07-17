@@ -57,6 +57,14 @@ class HomeViewModel @Inject constructor(
     private val _favoriteLiveCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val favoriteLiveCategories: StateFlow<List<CategoryEntity>> = _favoriteLiveCategories
 
+    // Combined Favorites tab: primary-server favorites plus any other configured provider's
+    // (Providers/merged-channel) favorites, shown together and auto-classified by genre. Kept as
+    // an always-live StateFlow (populated in loadAll(), like liveCategories) rather than a Flow
+    // built per-call, so both platforms just collect one ready value instead of each re-deriving
+    // the same cold-start timing race that the primary-only genre chips hit before this existed.
+    private val _combinedFavorites = MutableStateFlow<List<CombinedFavorite>>(emptyList())
+    val combinedFavorites: StateFlow<List<CombinedFavorite>> = _combinedFavorites
+
     private val _vodCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val vodCategories: StateFlow<List<CategoryEntity>> = _vodCategories
 
@@ -409,6 +417,17 @@ class HomeViewModel @Inject constructor(
                     }
             }
             launch {
+                combine(
+                    repository.getFavoriteChannels(),
+                    repository.getMergedAllFavorites(),
+                    _liveCategories
+                ) { primary, merged, cats ->
+                    val namesById = cats.associate { it.categoryId to it.categoryName }
+                    primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId]) } +
+                        merged.map { CombinedFavorite.Merged(it) }
+                }.collectLatest { _combinedFavorites.value = it }
+            }
+            launch {
                 // "USA Channels Only" is a live-TV concept (categories tagged "US|..." by the
                 // provider) — movie/series categories aren't tagged that way at all, so
                 // applying the same filter here was wiping out the entire VOD category list
@@ -733,6 +752,19 @@ class HomeViewModel @Inject constructor(
      * collectors — this always re-queries so the Activity can reliably scroll to what's
      * playing on every return to the tab, not just the first time. */
     suspend fun getFavoriteChannelsSnapshot(): List<ChannelEntity> = favoriteFlowForSelection().first()
+
+    /** Same one-shot-read reasoning as [getFavoriteChannelsSnapshot], but for the combined
+     * (primary + Providers) favorites list shown in the genre-classified Favorites tab. */
+    suspend fun getCombinedFavoritesSnapshot(): List<CombinedFavorite> = combinedFavorites.first()
+
+    /** Un-favoriting from the combined list needs to route to whichever underlying table the
+     * item actually came from — primary channels vs. a specific server's merged_channels row. */
+    fun toggleCombinedFavorite(item: CombinedFavorite) {
+        when (item) {
+            is CombinedFavorite.Primary -> toggleChannelFavorite(item.channel.streamId)
+            is CombinedFavorite.Merged -> setMergedChannelFavorite(item.channel, !item.channel.isFavorite)
+        }
+    }
 
     /** Same one-shot-read reasoning as [getFavoriteChannelsSnapshot] but for a specific live
      * category — lets a caller scroll to a channel right after selecting its category without

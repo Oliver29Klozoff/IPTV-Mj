@@ -58,6 +58,7 @@ class TvHomeActivity : AppCompatActivity() {
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
+    private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var epgGuideAdapter: TvEpgGuideAdapter
@@ -414,18 +415,12 @@ class TvHomeActivity : AppCompatActivity() {
                     }
                     Section.PROVIDERS -> {
                         // 3-level drill (server -> category -> channels): the first tap picks
-                        // a server and should show ITS categories next, not channels yet. A
-                        // synthetic "★ Favorites" entry alongside the real servers instead shows
-                        // a flat list of every favorited merged channel directly. TV's primary
-                        // Favorites uses auto genre-classified tiles instead — kept merged
-                        // favorites flat here since a provider-scoped favorites list is a
-                        // smaller, more occasional use case than the primary one; revisit if
-                        // that turns out wrong.
-                        if (cat.categoryId == MERGED_FAV_ROOT_ID) {
-                            viewModel.selectMergedFavoriteFolderView(null)
-                            viewModel.checkMergedFavoritesHealth()
-                            binding.tvRvContent.adapter = mergedChannelAdapter
-                        } else if (viewModel.selectedMergedServerIndex == null) {
+                        // a server and should show ITS categories next, not channels yet.
+                        // Merged favorites are now viewed from the main Favorites tab (combined
+                        // with primary favorites, auto genre-classified) instead of a dedicated
+                        // "★ Favorites" tile here — favoriting/folder-assignment per channel
+                        // still works via each row's star and long-press menu.
+                        if (viewModel.selectedMergedServerIndex == null) {
                             viewModel.selectMergedServer(cat.categoryId.toInt())
                             categoryAdapter.submitList(emptyList())
                             lifecycleScope.launch {
@@ -529,6 +524,64 @@ class TvHomeActivity : AppCompatActivity() {
                     .show()
             }
         )
+
+        combinedFavoriteAdapter = CombinedFavoriteAdapter(
+            onChannelClick = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> {
+                        lifecycleScope.launch {
+                            playInMiniPlayer(item.channel)
+                            viewModel.markChannelWatched(item.channel.streamId)
+                            viewModel.setCurrentlyPlaying(item.channel.streamId)
+                        }
+                        scheduleTvAutoCollapse()
+                    }
+                    is CombinedFavorite.Merged -> playMergedChannel(item.channel)
+                }
+            },
+            onFavoriteClick = { item ->
+                viewModel.toggleCombinedFavorite(item)
+                val wasFavorite = when (item) {
+                    is CombinedFavorite.Primary -> item.channel.isFavorite
+                    is CombinedFavorite.Merged -> item.channel.isFavorite
+                }
+                Toast.makeText(this, if (wasFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onChannelLongClick = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> showTvReminderDialog(item.channel)
+                    is CombinedFavorite.Merged -> {
+                        val channel = item.channel
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("${channel.name} · ${channel.serverNickname}")
+                            .setItems(arrayOf(
+                                "Play Fullscreen",
+                                if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
+                            )) { _: android.content.DialogInterface, which: Int ->
+                                when (which) {
+                                    0 -> lifecycleScope.launch {
+                                        try {
+                                            val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
+                                            openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1)
+                                        } catch (_: Exception) {
+                                            Toast.makeText(this@TvHomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    1 -> viewModel.toggleCombinedFavorite(item)
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                }
+            }
+        )
+        combinedFavoriteAdapter.isTvMode = true
+        combinedFavoriteAdapter.onChannelFocused = { item ->
+            if (item is CombinedFavorite.Primary) {
+                if (preWarmEnabled) preWarmChannel(item.channel)
+            }
+        }
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
@@ -839,10 +892,10 @@ class TvHomeActivity : AppCompatActivity() {
 
     // Browse-and-play merged view across every configured server (Settings > Providers).
     // 3-level drill-down (server -> category -> channels), same shape as Live, since a single
-    // provider can itself have tens of thousands of channels. A synthetic "★ Favorites" entry
-    // alongside the real servers shows a flat favorited-channels list instead (kept simpler
-    // than TV's primary Favorites, which auto-classifies into genre tiles — a provider-scoped
-    // favorites list is a smaller, more occasional use case).
+    // provider can itself have tens of thousands of channels. Merged favorites are viewed from
+    // the main Favorites section now (combined with primary favorites, auto genre-classified)
+    // instead of a dedicated "★ Favorites" tile here — favoriting/folder-assignment per channel
+    // still works via each row's star and long-press menu.
     private fun showMergedChannelsPanel() {
         viewModel.resetMergedSelection()
         binding.tvRvContent.adapter = categoryAdapter
@@ -851,45 +904,16 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
-    private val MERGED_FAV_ROOT_ID = "__merged_fav_root__"
-
-    // Favorites used to require picking "All Favorites"/"Unsorted"/a named folder first
-    // (folders assigned manually via long-press) before seeing any channels — every favorite
-    // not manually filed landed in "Unsorted". Replaced with the same genre-keyword
-    // classification the phone's Favorites now uses: each favorite is auto-classified by its
-    // OWN provider category name, so every favorite already has a home. TV's category-tile ->
-    // channel-list drill is already the right shape for this — genre names just take the
-    // place of folder names as the tiles.
-    private val GENRE_KEYWORDS = linkedMapOf(
-        "All"           to emptyList<String>(),
-        "Sports"        to listOf("sport", "espn", "nfl", "nba", "mlb", "nhl", "nascar", "tennis", "golf", "soccer", "football"),
-        "News"          to listOf("news", "cnn", "cnbc", "msnbc", "bbc", "fox news", "abc news", "nbc news"),
-        "Movies"        to listOf("movie", "film", "cinema", "hbo", "showtime", "starz", "amc", "fx movie"),
-        "Kids"          to listOf("kid", "children", "child", "disney", "nickelodeon", "nick", "cartoon", "toon"),
-        "Entertainment" to listOf("entertainment", "comedy", "drama", "tnt", "tbs", "bravo", "mtv", "vh1")
-    )
     private val FAV_GENRE_ALL_ID = "All"
 
-    private fun favoriteCategoryNameById(): Map<String, String> =
-        viewModel.liveCategories.value.associate { it.categoryId to it.categoryName }
-
-    private fun genreFilterFavorites(genre: String, channels: List<ChannelEntity>): List<ChannelEntity> {
-        if (genre == FAV_GENRE_ALL_ID) return channels
-        val keywords = GENRE_KEYWORDS[genre] ?: return channels
-        val namesById = favoriteCategoryNameById()
-        return channels.filter { ch ->
-            val categoryName = namesById[ch.categoryId] ?: return@filter false
-            keywords.any { kw -> categoryName.contains(kw, ignoreCase = true) }
-        }
+    private fun genreFilterFavorites(genre: String, favorites: List<CombinedFavorite>): List<CombinedFavorite> {
+        if (genre == FAV_GENRE_ALL_ID) return favorites
+        return favorites.filter { GenreClassifier.matches(genre, it.categoryName) }
     }
 
-    private fun favoriteGenresToSynthetic(favorites: List<ChannelEntity>): List<CategoryEntity> {
-        val namesById = favoriteCategoryNameById()
-        val favCategoryNames = favorites.mapNotNull { namesById[it.categoryId] }
-        val detected = GENRE_KEYWORDS.keys.filter { genre ->
-            val keywords = GENRE_KEYWORDS[genre]!!
-            keywords.isEmpty() || favCategoryNames.any { name -> keywords.any { kw -> name.contains(kw, ignoreCase = true) } }
-        }
+    private fun favoriteGenresToSynthetic(favorites: List<CombinedFavorite>): List<CategoryEntity> {
+        val favCategoryNames = favorites.mapNotNull { it.categoryName }
+        val detected = GenreClassifier.detectGenres(favCategoryNames)
         // Fewer than 2 detected genres means "All" is the only real option — just skip
         // straight to the flat list instead of a picker with a single meaningless tile.
         return if (detected.size <= 1) emptyList() else detected.map { genre ->
@@ -899,14 +923,14 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private var favoritesShowingGenrePicker = false
-    // Read by the shared viewModel.channels collector too, so a later re-emission of the
-    // underlying favorites Flow (e.g. a background sync) keeps applying the same filter
+    // Read by the shared viewModel.combinedFavorites collector too, so a later re-emission of
+    // the underlying favorites Flow (e.g. a background sync) keeps applying the same filter
     // instead of the collector's normal unfiltered submission silently overwriting it.
     private var activeFavoriteGenre = FAV_GENRE_ALL_ID
 
     private fun showFavoriteGenrePicker() {
         lifecycleScope.launch {
-            val favorites = viewModel.getFavoriteChannelsSnapshot()
+            val favorites = viewModel.getCombinedFavoritesSnapshot()
             val tiles = favoriteGenresToSynthetic(favorites)
             if (tiles.isEmpty()) {
                 // No real genre variety among current favorites — skip the picker entirely.
@@ -923,35 +947,49 @@ class TvHomeActivity : AppCompatActivity() {
     private fun showFavoriteGenreChannels(genre: String, title: String) {
         favoritesShowingGenrePicker = false
         activeFavoriteGenre = genre
-        binding.tvRvContent.adapter = channelAdapter
+        binding.tvRvContent.adapter = combinedFavoriteAdapter
         viewModel.selectFavoriteFolderView(null)
         viewModel.checkFavoritesHealth()
+        viewModel.checkMergedFavoritesHealth()
         showChannelPanel(title)
         // showChannelPanel() just set pendingContentFocus true, expecting the shared
-        // viewModel.channels collector to focus position 0 on an unfiltered list — that
-        // collector now applies activeFavoriteGenre itself (see observeViewModel), but its
+        // viewModel.combinedFavorites collector to focus position 0 on an unfiltered list —
+        // that collector now applies activeFavoriteGenre itself (see observeViewModel), but its
         // focus-position-0 default still isn't what we want here: if the current channel is
         // actually in this genre, scroll/focus straight to it instead of always landing at
         // the top after a background re-emission or first entry.
         pendingContentFocus = false
         lifecycleScope.launch {
-            val favorites = genreFilterFavorites(genre, viewModel.getFavoriteChannelsSnapshot())
-            if (currentMiniStreamId >= 0 && !currentMiniIsVod && favorites.any { it.streamId == currentMiniStreamId }) {
-                scrollAndFocusChannel(favorites, currentMiniStreamId)
+            val favorites = genreFilterFavorites(genre, viewModel.getCombinedFavoritesSnapshot())
+            val currentId = if (currentMiniStreamId >= 0) "primary:$currentMiniStreamId" else null
+            val match = favorites.firstOrNull { it.id == currentId }
+            if (!currentMiniIsVod && match != null) {
+                scrollAndFocusCombinedFavorite(favorites, match.id)
             } else if (favorites.isNotEmpty()) {
-                scrollAndFocusChannel(favorites, favorites.first().streamId)
+                scrollAndFocusCombinedFavorite(favorites, favorites.first().id)
             } else {
-                channelAdapter.submitList(favorites)
+                combinedFavoriteAdapter.submitList(favorites)
             }
         }
     }
 
+    private fun scrollAndFocusCombinedFavorite(favorites: List<CombinedFavorite>, id: String) {
+        combinedFavoriteAdapter.submitList(favorites) {
+            val pos = favorites.indexOfFirst { it.id == id }
+            if (pos < 0) {
+                binding.tvRvContent.requestFocus()
+                return@submitList
+            }
+            (binding.tvRvContent.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(pos, 0)
+            focusAdapterPositionRetrying(binding.tvRvContent, pos)
+        }
+    }
+
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
-        val favEntry = CategoryEntity(MERGED_FAV_ROOT_ID, "★ Favorites", 0, "merged_fav_root")
         // serverIndex == -1 is always whichever provider is currently primary/active — its
         // channels are already fully browsable via the normal Live section, so listing it
         // again here was redundant and confusing next to the actually-"extra" providers.
-        return listOf(favEntry) + list.filter { it.serverIndex != -1 }.map {
+        return list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -1359,8 +1397,8 @@ class TvHomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.liveCategories.collect {
-                if (currentSection == Section.LIVE) categoryAdapter.submitList(it)
+            viewModel.liveCategories.collect { cats ->
+                if (currentSection == Section.LIVE) categoryAdapter.submitList(cats)
             }
         }
         lifecycleScope.launch {
@@ -1374,14 +1412,9 @@ class TvHomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.channels.collect { channelsRaw ->
+            viewModel.channels.collect { channels ->
                 if (currentSection == Section.MOVIES || currentSection == Section.SERIES) return@collect
                 if (binding.tvRvContent.adapter !== channelAdapter) return@collect
-                // Favorites' underlying Flow always emits every favorite unfiltered; apply the
-                // active genre filter here too so a later re-emission (e.g. a background sync)
-                // doesn't silently overwrite showFavoriteGenreChannels()'s filtered submission.
-                val channels = if (currentSection == Section.FAVORITES)
-                    genreFilterFavorites(activeFavoriteGenre, channels = channelsRaw) else channelsRaw
 
                 val focusedChild = binding.tvRvContent.focusedChild
                 val focusedPos = if (focusedChild != null)
@@ -1394,6 +1427,29 @@ class TvHomeActivity : AppCompatActivity() {
                     else if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                 }
                 viewModel.loadEpgForChannels(channels)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.combinedFavorites.collect { favoritesRaw ->
+                if (currentSection != Section.FAVORITES) return@collect
+                if (binding.tvRvContent.adapter !== combinedFavoriteAdapter) return@collect
+                // Underlying Flow always emits every favorite unfiltered; apply the active
+                // genre filter here too so a later re-emission (background sync, health check)
+                // doesn't silently overwrite showFavoriteGenreChannels()'s filtered submission.
+                val favorites = genreFilterFavorites(activeFavoriteGenre, favoritesRaw)
+
+                val focusedChild = binding.tvRvContent.focusedChild
+                val focusedPos = if (focusedChild != null)
+                    binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
+                val wantFocus = pendingContentFocus
+                if (wantFocus) pendingContentFocus = false
+
+                combinedFavoriteAdapter.submitList(favorites) {
+                    if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
+                    else if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
+                }
+                viewModel.loadEpgForChannels(favorites.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })
+                viewModel.loadEpgForMergedChannels(favorites.mapNotNull { (it as? CombinedFavorite.Merged)?.channel })
             }
         }
         lifecycleScope.launch {
@@ -1422,20 +1478,40 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             }
         }
-        lifecycleScope.launch {
-            viewModel.currentlyPlayingStreamId.collect { channelAdapter.setCurrentlyPlayingStreamId(it) }
+        // combinedFavoriteAdapter's EPG/health maps are string-keyed ("primary:<id>" or
+        // "<serverIndex>:<id>") to cover both sources at once — each collector below only owns
+        // its half of the key space, so re-derive the union from both StateFlows' latest values
+        // rather than trying to patch just the changed half in isolation.
+        fun republishCombinedEpgText() {
+            combinedFavoriteAdapter.submitEpgText(
+                viewModel.channelEpgText.value.mapKeys { (id, _) -> "primary:$id" } + viewModel.mergedEpgText.value
+            )
+        }
+        fun republishCombinedEpgNextText() {
+            combinedFavoriteAdapter.submitEpgNextText(viewModel.channelEpgNextText.value.mapKeys { (id, _) -> "primary:$id" })
+        }
+        fun republishCombinedHealth() {
+            combinedFavoriteAdapter.submitHealth(
+                viewModel.channelHealth.value.mapKeys { (id, _) -> "primary:$id" } + viewModel.mergedHealth.value
+            )
         }
         lifecycleScope.launch {
-            viewModel.channelEpgText.collect { channelAdapter.submitEpgText(it) }
+            viewModel.currentlyPlayingStreamId.collect {
+                channelAdapter.setCurrentlyPlayingStreamId(it)
+                combinedFavoriteAdapter.setCurrentlyPlayingId(if (it >= 0) "primary:$it" else null)
+            }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgNextText.collect { channelAdapter.submitEpgNextText(it) }
+            viewModel.channelEpgText.collect { channelAdapter.submitEpgText(it); republishCombinedEpgText() }
+        }
+        lifecycleScope.launch {
+            viewModel.channelEpgNextText.collect { channelAdapter.submitEpgNextText(it); republishCombinedEpgNextText() }
         }
         lifecycleScope.launch {
             viewModel.channelEpgProgress.collect { channelAdapter.submitEpgProgress(it) }
         }
         lifecycleScope.launch {
-            viewModel.channelHealth.collect { channelAdapter.submitHealth(it) }
+            viewModel.channelHealth.collect { channelAdapter.submitHealth(it); republishCombinedHealth() }
         }
         lifecycleScope.launch {
             viewModel.mergedChannels.collect {
@@ -1446,10 +1522,10 @@ class TvHomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.mergedEpgText.collect { mergedChannelAdapter.submitEpgText(it) }
+            viewModel.mergedEpgText.collect { mergedChannelAdapter.submitEpgText(it); republishCombinedEpgText() }
         }
         lifecycleScope.launch {
-            viewModel.mergedHealth.collect { mergedChannelAdapter.submitHealth(it) }
+            viewModel.mergedHealth.collect { mergedChannelAdapter.submitHealth(it); republishCombinedHealth() }
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {
