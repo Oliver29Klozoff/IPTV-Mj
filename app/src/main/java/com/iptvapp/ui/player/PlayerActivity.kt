@@ -822,6 +822,15 @@ class PlayerActivity : AppCompatActivity() {
                 }
 
                 exoPlayer.addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        // Keeps the PiP window's Play/Pause action icon in sync even when
+                        // playback state changes for a reason other than tapping that action
+                        // itself (buffering pausing/resuming playback, etc).
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+                            setPictureInPictureParams(buildPipParams())
+                        }
+                    }
+
                     override fun onPlaybackStateChanged(state: Int) {
                         when (state) {
                             Player.STATE_READY -> {
@@ -1021,9 +1030,47 @@ class PlayerActivity : AppCompatActivity() {
         return cause.responseCode == 403 || cause.responseCode == 429
     }
 
+    private var vodFormatFallbackTried = false
+
+    /** Movies/episodes are served under their catalog-reported container extension
+     * (mp4/mkv/avi/etc.), but that metadata is provider-supplied and occasionally wrong or
+     * stale for a given title — while most Xtream panels also serve every VOD item over the
+     * same .m3u8 HLS wrapper regardless of the "real" container, as a fallback path. If the
+     * originally-requested extension is exhausted and never worked, trying .m3u8 once before
+     * giving up entirely can recover a movie that would otherwise just be reported dead. */
+    private fun vodFormatFallbackUrl(): String? {
+        if (vodFormatFallbackTried) return null
+        if (streamUrl.substringAfterLast('.', "").equals("m3u8", ignoreCase = true)) return null
+        val withoutExt = streamUrl.substringBeforeLast('.')
+        if (withoutExt == streamUrl) return null
+        return "$withoutExt.m3u8"
+    }
+
     private fun scheduleRetry(suspectConnectionLimit: Boolean = false) {
         noteStallEvent()
         if (isVod && retryCount >= maxRetries) {
+            val fallbackUrl = vodFormatFallbackUrl()
+            if (fallbackUrl != null) {
+                vodFormatFallbackTried = true
+                streamUrl = fallbackUrl
+                retryCount = 0
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "RETRY FORMAT FALLBACK: streamId=$streamId trying $streamUrl after $maxRetries failed attempts on the original extension"
+                )
+                binding.tvRetryStatus.text = "Trying an alternate stream format…"
+                binding.tvRetryStatus.visibility = View.VISIBLE
+                retryJob?.cancel()
+                retryJob = lifecycleScope.launch {
+                    delay(1000L)
+                    player?.let {
+                        it.setMediaItem(MediaItem.fromUri(streamUrl), it.currentPosition.takeIf { pos -> pos > 0L } ?: 0L)
+                        it.prepare()
+                        it.playWhenReady = true
+                    }
+                }
+                return
+            }
             binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
             binding.tvRetryStatus.visibility = View.VISIBLE
             com.iptvapp.IptvApplication.logPlaybackEvent(
@@ -1196,6 +1243,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun loadStream(url: String) {
         retryCount = 0
+        vodFormatFallbackTried = false
         retryJob?.cancel()
         streamUrl = url
         val activeSession = castSession
@@ -1398,10 +1446,58 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    // PiP's floating window has no overlay controls of its own — until now the only way to
+    // pause/resume while in PiP was to exit it first. RemoteAction + a broadcast receiver is
+    // the standard way to add actions to the PiP chrome itself.
+    private var pipActionReceiver: android.content.BroadcastReceiver? = null
+    private val pipPlayPauseAction = "com.iptvapp.PIP_PLAY_PAUSE"
+
+    private fun buildPipParams(): PictureInPictureParams {
+        val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val isPlaying = player?.isPlaying ?: false
+            val icon = android.graphics.drawable.Icon.createWithResource(
+                this, if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+            )
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                this, 0, Intent(pipPlayPauseAction).setPackage(packageName),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val action = android.app.RemoteAction(
+                icon, if (isPlaying) "Pause" else "Play", if (isPlaying) "Pause" else "Play", pendingIntent
+            )
+            builder.setActions(listOf(action))
+        }
+        return builder.build()
+    }
+
+    private fun registerPipActionReceiver() {
+        if (pipActionReceiver != null) return
+        pipActionReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                if (intent.action != pipPlayPauseAction) return
+                player?.let { if (it.isPlaying) it.pause() else it.play() }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) setPictureInPictureParams(buildPipParams())
+            }
+        }
+        val filter = android.content.IntentFilter(pipPlayPauseAction)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pipActionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(pipActionReceiver, filter)
+        }
+    }
+
+    private fun unregisterPipActionReceiver() {
+        pipActionReceiver?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
+        pipActionReceiver = null
+    }
+
     private fun enterPip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
-            enterPictureInPictureMode(params)
+            registerPipActionReceiver()
+            enterPictureInPictureMode(buildPipParams())
         }
     }
 
@@ -1422,6 +1518,8 @@ class PlayerActivity : AppCompatActivity() {
             binding.bottomControls.visibility = View.GONE
             binding.btnCast.visibility = View.GONE
             binding.bufferHealthBadge.visibility = View.GONE
+        } else {
+            unregisterPipActionReceiver()
         }
     }
 
@@ -1551,6 +1649,7 @@ class PlayerActivity : AppCompatActivity() {
         indicatorHandler.removeCallbacks(hideBrightnessRunnable)
         indicatorHandler.removeCallbacks(hideVolumeRunnable)
         recordBlinkAnimator?.cancel()
+        unregisterPipActionReceiver()
     }
 
     private fun getLocalIpAddress(): String? {

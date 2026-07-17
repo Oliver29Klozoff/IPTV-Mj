@@ -27,16 +27,53 @@
             android:textColor="#008CFF"
             android:textSize="14sp" />
 
+        <Button
+            android:id="@+id/btnTimelinePrevDay"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="8dp"
+            android:background="@android:color/transparent"
+            android:text="◀"
+            android:textColor="#888888"
+            android:textSize="14sp" />
+
         <TextView
-            android:layout_width="0dp"
+            android:id="@+id/tvTimelineDay"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:gravity="center"
-            android:letterSpacing="0.1"
-            android:text="EPG TIMELINE"
+            android:minWidth="72dp"
             android:textColor="#ffffff"
-            android:textSize="15sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnTimelineNextDay"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="8dp"
+            android:background="@android:color/transparent"
+            android:text="▶"
+            android:textColor="#888888"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/etTimelineSearch"
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="10dp"
+            android:background="@drawable/search_bg"
+            android:hint="Search channels…"
+            android:inputType="text"
+            android:paddingHorizontal="10dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555555"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:imeOptions="actionSearch" />
 
         <Button
             android:id="@+id/btnTimelineNow"

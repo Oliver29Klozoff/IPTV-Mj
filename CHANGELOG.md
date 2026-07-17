@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v4.73 - 2026-07-17
+- **Added**: Picture-in-Picture now has a Play/Pause button in its floating window chrome —
+  previously the only way to control playback in PiP was to exit it first.
+- **Added**: the EPG guide can now page to other days (◀/▶ next to the day label) and has a
+  search box to filter channels, instead of being stuck on a fixed 12-hour window with no
+  way to find a channel by name. Whether another day actually has program data depends on
+  your configured EPG sources, same as any guide.
+- **Added**: when a movie/episode fails to play after exhausting retries, the player now
+  tries one alternate stream format (the .m3u8 wrapper most providers also support) before
+  giving up, since a provider's catalog-reported container extension can be wrong or stale.
+
 ## v4.72 - 2026-07-17
 - **Added**: a one-tap Retry button on failed recordings (phone and TV) — previously the only
   way to try again was rescheduling from scratch. Retry starts a fresh recording right away

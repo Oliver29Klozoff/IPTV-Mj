@@ -44,9 +44,20 @@ class EpgTimelineActivity : AppCompatActivity() {
     private val hoursBack = 3
     private val hoursAhead = 9
 
+    // 0 = today, +1 = tomorrow, -1 = yesterday, etc. The window itself always starts
+    // hoursBack before "now" ON that day, same shape as before — paging days just shifts
+    // which day "now" is computed relative to, rather than changing the window's length.
+    // Whether tomorrow/yesterday actually has any programs depends entirely on how far out
+    // this device's configured EPG sources reach — get_short_epg typically only covers a few
+    // hours ahead, so most users will only see real data for today+part of tomorrow unless
+    // they have an XMLTV source configured with a longer guide. Paging still works either
+    // way; a day with no cached data just renders an empty grid, same as a live EPG app would.
+    private var dayOffset = 0
+
     private val nowMs get() = System.currentTimeMillis()
     private val startMs get() = run {
         val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_MONTH, dayOffset)
         cal.add(java.util.Calendar.HOUR_OF_DAY, -hoursBack)
         cal.set(java.util.Calendar.MINUTE, 0)
         cal.set(java.util.Calendar.SECOND, 0)
@@ -73,10 +84,55 @@ class EpgTimelineActivity : AppCompatActivity() {
         binding.rvTimeline.adapter = adapter
 
         binding.btnTimelineBack.setOnClickListener { finish() }
-        binding.btnTimelineNow.setOnClickListener { scrollToNow() }
+        binding.btnTimelineNow.setOnClickListener {
+            if (dayOffset != 0) changeDay(-dayOffset) else scrollToNow()
+        }
+        binding.btnTimelinePrevDay.setOnClickListener { changeDay(-1) }
+        binding.btnTimelineNextDay.setOnClickListener { changeDay(1) }
+        binding.etTimelineSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { applySearchFilter(s.toString()) }
+        })
 
+        updateDayLabel()
         buildTimeHeader()
         observeGuide()
+    }
+
+    private fun updateDayLabel() {
+        binding.tvTimelineDay.text = when (dayOffset) {
+            0 -> "Today"
+            1 -> "Tomorrow"
+            -1 -> "Yesterday"
+            else -> SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date(startMs))
+        }
+    }
+
+    // Rebuilding both the time header (its labels are computed from startMs) and the
+    // adapter's own copy of startMs (each program block's position depends on it) keeps
+    // everything in sync — changing just one and not the other would silently misalign the
+    // program blocks with the header's time labels.
+    private fun changeDay(delta: Int) {
+        dayOffset += delta
+        updateDayLabel()
+        buildTimeHeader()
+        adapter.updateStartMs(startMs)
+        applySearchFilter(binding.etTimelineSearch.text?.toString() ?: "")
+        binding.rvTimeline.post {
+            if (dayOffset == 0) {
+                scrollToNow()
+            } else {
+                binding.timeHeaderScroll.scrollTo(0, 0)
+                adapter.scrollAllTo(0)
+            }
+        }
+    }
+
+    private fun applySearchFilter(query: String) {
+        val q = query.trim()
+        val filtered = if (q.isBlank()) rows() else rows().filter { it.channel.name.contains(q, ignoreCase = true) }
+        adapter.submitList(filtered)
     }
 
     private fun observeGuide() {
@@ -86,8 +142,8 @@ class EpgTimelineActivity : AppCompatActivity() {
             viewModel.guideRows.collect { rows ->
                 if (rows.isNotEmpty()) {
                     binding.timelineProgress.visibility = View.GONE
-                    adapter.submitList(rows)
-                    binding.rvTimeline.post { scrollToNow() }
+                    applySearchFilter(binding.etTimelineSearch.text?.toString() ?: "")
+                    if (dayOffset == 0) binding.rvTimeline.post { scrollToNow() }
                 }
             }
         }
@@ -233,12 +289,17 @@ class EpgTimelineActivity : AppCompatActivity() {
 
 class TimelineAdapter(
     private val dpPerMin: Float,
-    private val startMs: Long,
+    startMs: Long,
     private val onScrollChanged: (Int) -> Unit,
     private val onChannelClick: (GuideRow) -> Unit,
     private val onProgramClick: (GuideRow, EpgEntity) -> Unit,
     private val onProgramLongPress: (GuideRow, EpgEntity) -> Unit
 ) : RecyclerView.Adapter<TimelineAdapter.ViewHolder>() {
+
+    // Mutable so day-paging can shift the whole grid's time window without recreating the
+    // adapter (and losing its RecyclerView scroll-sync state) — each ViewHolder reads the
+    // current value at bind time via the enclosing instance, not a constructor-captured copy.
+    private var startMs: Long = startMs
 
     private var rows: List<GuideRow> = emptyList()
     private var sharedScrollX = 0
@@ -247,6 +308,11 @@ class TimelineAdapter(
 
     fun submitList(list: List<GuideRow>) {
         rows = list
+        notifyDataSetChanged()
+    }
+
+    fun updateStartMs(newStartMs: Long) {
+        startMs = newStartMs
         notifyDataSetChanged()
     }
 
