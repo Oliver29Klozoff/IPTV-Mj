@@ -266,19 +266,59 @@ class MosaicActivity : AppCompatActivity() {
         }
     }
 
+    // A plain AlertDialog.setItems() list of every favorite's name was fine for a handful of
+    // channels, but unusable once someone has 50+ favorites with no way to filter — mirrors
+    // the search-over-a-ListView pattern RecordingSchedulerActivity's channel picker already
+    // uses elsewhere in the app.
     private fun showChannelPicker(cellIndex: Int) {
         lifecycleScope.launch {
             val channels = viewModel.channels.value.ifEmpty {
                 viewModel.showFavoriteChannels()
                 viewModel.channels.first { it.isNotEmpty() }
             }
-            val names = channels.map { it.name }.toTypedArray()
-            AlertDialog.Builder(this@MosaicActivity)
+            var filtered = channels
+
+            val layout = android.widget.LinearLayout(this@MosaicActivity).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(32, 16, 32, 0)
+            }
+            val etSearch = android.widget.EditText(this@MosaicActivity).apply {
+                hint = "Search channels…"
+                setSingleLine()
+            }
+            layout.addView(etSearch)
+            val listView = android.widget.ListView(this@MosaicActivity).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    (resources.displayMetrics.heightPixels * 0.5f).toInt()
+                )
+            }
+            layout.addView(listView)
+
+            val dialog = AlertDialog.Builder(this@MosaicActivity)
                 .setTitle("Select Channel")
-                .setItems(names) { _, which ->
-                    loadChannel(cellIndex, channels[which])
-                }
-                .show()
+                .setView(layout)
+                .setNegativeButton("Cancel", null)
+                .create()
+
+            fun rebuildList() {
+                val q = etSearch.text.toString().trim()
+                filtered = if (q.isBlank()) channels else channels.filter { it.name.contains(q, ignoreCase = true) }
+                listView.adapter = android.widget.ArrayAdapter(
+                    this@MosaicActivity, android.R.layout.simple_list_item_1, filtered.map { it.name }
+                )
+            }
+            listView.setOnItemClickListener { _, _, pos, _ ->
+                filtered.getOrNull(pos)?.let { loadChannel(cellIndex, it) }
+                dialog.dismiss()
+            }
+            etSearch.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) { rebuildList() }
+            })
+            rebuildList()
+            dialog.show()
         }
     }
 

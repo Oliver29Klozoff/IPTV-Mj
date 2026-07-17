@@ -1,7 +1,7 @@
 {
-  "versionCode": 311,
-  "versionName": "4.73",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.73/MKTV.apk",
-  "apkSha256": "f73260d38eb99223c96a6b804c02c57b02a82af7f6f4a3d60041777a3cc0ca81",
-  "changelog": "Added Play/Pause controls in PiP, day-paging + search in the EPG guide, and an alternate-format fallback for movies/episodes that fail to play after exhausting retries."
+  "versionCode": 312,
+  "versionName": "4.74",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.74/MKTV.apk",
+  "apkSha256": "078e38fdb429c2db55d6790ed8545dc28791945685260cccba4e89159a0f70cf",
+  "changelog": "Fixed backups dropping extra providers and subtitle style. Added a search box to Mosaic's channel picker."
 }

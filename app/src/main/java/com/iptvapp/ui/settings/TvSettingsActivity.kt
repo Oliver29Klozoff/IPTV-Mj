@@ -866,6 +866,29 @@ class TvSettingsActivity : AppCompatActivity() {
                 .toMap()
             put("favoriteFolders", JSONArray(folders.map { it.name }))
             put("channelFolders", JSONObject(channelFolders))
+
+            // Extra providers (the "Providers" merged-browse feature) were never included in
+            // any backup — restoring one silently dropped every non-primary provider. Trakt's
+            // OAuth tokens are deliberately NOT included: unlike the rest of this file, that's
+            // a live credential, and this JSON can end up shared/exported (QR backup, emailed
+            // file) — reconnecting Trakt after a restore is a small one-time action, copying a
+            // bearer token into a plaintext file users might hand to someone else is not.
+            put("extraServers", JSONArray(prefs.getExtraServersWithNick().map { s ->
+                JSONObject().apply {
+                    put("url", s[0]); put("user", s[1]); put("pass", s[2])
+                    put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
+                }
+            }))
+            val style = prefs.subtitleStyle.first()
+            put("subtitleStyle", JSONObject().apply {
+                put("sizeScale", style.sizeScale)
+                put("verticalOffsetDp", style.verticalOffsetDp)
+                put("bold", style.bold)
+                put("textColor", style.textColor)
+                put("backgroundColor", style.backgroundColor)
+                put("outlineEnabled", style.outlineEnabled)
+                put("outlineColor", style.outlineColor)
+            })
         }
     }
 
@@ -1029,6 +1052,30 @@ class TvSettingsActivity : AppCompatActivity() {
                         )
                     }
                 }
+            }
+
+            val extraServersArray = json.optJSONArray("extraServers")
+            if (extraServersArray != null) {
+                val restored = (0 until extraServersArray.length()).map { i ->
+                    val obj = extraServersArray.getJSONObject(i)
+                    listOf(
+                        obj.optString("url", ""), obj.optString("user", ""), obj.optString("pass", ""),
+                        obj.optString("nick", ""), obj.optString("epg", "")
+                    )
+                }
+                prefs.saveExtraServersWithNick(restored)
+                extraServers.clear(); extraServers.addAll(restored)
+                db.mergedChannelDao().clearAll()
+            }
+
+            json.optJSONObject("subtitleStyle")?.let { s ->
+                prefs.setSubtitleSizeScale(s.optDouble("sizeScale", 1.0).toFloat())
+                prefs.setSubtitleVerticalOffsetDp(s.optInt("verticalOffsetDp", 0))
+                prefs.setSubtitleBold(s.optBoolean("bold", false))
+                prefs.setSubtitleTextColor(s.optInt("textColor", 0xFFFFFFFF.toInt()))
+                prefs.setSubtitleBackgroundColor(s.optInt("backgroundColor", 0x00000000))
+                prefs.setSubtitleOutlineEnabled(s.optBoolean("outlineEnabled", true))
+                prefs.setSubtitleOutlineColor(s.optInt("outlineColor", 0xFF000000.toInt()))
             }
 
             buildSettingsList()

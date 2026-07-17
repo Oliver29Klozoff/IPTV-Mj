@@ -66,6 +66,29 @@ class AutoBackupWorker @AssistedInject constructor(
                     .toMap()
                 put("favoriteFolders", JSONArray(folders.map { it.name }))
                 put("channelFolders", JSONObject(channelFolders))
+
+                // Extra providers (the "Providers" merged-browse feature) were never included
+                // here — restoring an auto-backup silently dropped every non-primary provider.
+                // Trakt's OAuth tokens are deliberately NOT included: this file is written to
+                // app-private storage but is still a plaintext export a user could later share
+                // manually; reconnecting Trakt after a restore is a small one-time action,
+                // copying a bearer token into an exportable file is not.
+                put("extraServers", JSONArray(prefs.getExtraServersWithNick().map { s ->
+                    JSONObject().apply {
+                        put("url", s[0]); put("user", s[1]); put("pass", s[2])
+                        put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
+                    }
+                }))
+                val style = prefs.subtitleStyle.first()
+                put("subtitleStyle", JSONObject().apply {
+                    put("sizeScale", style.sizeScale)
+                    put("verticalOffsetDp", style.verticalOffsetDp)
+                    put("bold", style.bold)
+                    put("textColor", style.textColor)
+                    put("backgroundColor", style.backgroundColor)
+                    put("outlineEnabled", style.outlineEnabled)
+                    put("outlineColor", style.outlineColor)
+                })
             }
 
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())

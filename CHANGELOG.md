@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v4.74 - 2026-07-17
+- **Fixed**: backups (manual JSON, QR, auto-backup) never included extra providers (the
+  "Providers" merged-browse feature) or subtitle style customization — restoring a backup
+  silently dropped every non-primary provider and reset subtitle appearance to defaults.
+  Trakt connection is deliberately still excluded from backups since it's a live credential,
+  not user data — reconnect Trakt manually after a restore as before.
+- **Added**: a search box in Mosaic's channel picker — selecting a channel for a tile was a
+  single unfiltered list, unusable with a large favorites list.
+
 ## v4.73 - 2026-07-17
 - **Added**: Picture-in-Picture now has a Play/Pause button in its floating window chrome —
   previously the only way to control playback in PiP was to exit it first.
