@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.77 - 2026-07-17
+- **Fixed**: clicking a favorited channel from another provider in the combined Favorites tab
+  didn't highlight/focus it in the list — the "now playing" tracking only ever recognized
+  primary-server channels.
+- **Added**: favorite stars in the combined Favorites tab are now color-coded by provider —
+  primary stays blue, each other configured provider gets its own color (yellow, red, green,
+  purple, orange, cyan), so you can tell at a glance where a favorite came from.
+
 ## v4.76 - 2026-07-17
 - **Fixed**: Favorites' genre tabs could fail to show up on a cold app launch (fixed by
   themselves after switching tabs and back), and tapping a genre chip could silently fail to

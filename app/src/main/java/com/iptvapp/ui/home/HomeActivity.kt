@@ -186,6 +186,11 @@ class HomeActivity : AppCompatActivity() {
 
     private var miniPlayer: ExoPlayer? = null
     private var currentMiniStreamId: Int = -1
+    // Merged (Providers) channels always play with currentMiniStreamId == -1 (no DB-backed
+    // identity), so that alone can't drive the combined Favorites list's "now playing"
+    // highlight — this tracks the actual CombinedFavorite.id ("primary:<id>" or
+    // "<serverIndex>:<id>") of whichever item in that list was last clicked, primary or merged.
+    private var currentMiniCombinedFavoriteId: String? = null
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
     // Explicitly tracked instead of regexing currentMiniUrl for "movie|vod" — that regex
@@ -959,6 +964,8 @@ class HomeActivity : AppCompatActivity() {
 
         combinedFavoriteAdapter = CombinedFavoriteAdapter(
             onChannelClick = { item ->
+                currentMiniCombinedFavoriteId = item.id
+                combinedFavoriteAdapter.setCurrentlyPlayingId(item.id)
                 when (item) {
                     is CombinedFavorite.Primary -> {
                         lifecycleScope.launch {
@@ -1555,8 +1562,7 @@ class HomeActivity : AppCompatActivity() {
             combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
             pendingScrollToCurrent = false
             if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@launch
-            val streamId = viewModel.currentlyPlayingStreamId.value
-            if (streamId >= 0) scrollFavoritesToStreamId(streamId)
+            currentMiniCombinedFavoriteId?.let { scrollFavoritesToCombinedId(it) }
         }
     }
 
@@ -1595,9 +1601,11 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-    private fun scrollFavoritesToStreamId(streamId: Int) {
+    private fun scrollFavoritesToStreamId(streamId: Int) = scrollFavoritesToCombinedId("primary:$streamId")
+
+    private fun scrollFavoritesToCombinedId(id: String) {
         binding.rvChannels.post {
-            val pos = combinedFavoriteAdapter.currentList.indexOfFirst { it.id == "primary:$streamId" }
+            val pos = combinedFavoriteAdapter.currentList.indexOfFirst { it.id == id }
             if (pos >= 0) {
                 (binding.rvChannels.layoutManager as? LinearLayoutManager)
                     ?.scrollToPositionWithOffset(pos, 0)
@@ -1834,7 +1842,14 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.currentlyPlayingStreamId.collect { streamId ->
                 channelAdapter.setCurrentlyPlayingStreamId(streamId)
-                combinedFavoriteAdapter.setCurrentlyPlayingId(if (streamId >= 0) "primary:$streamId" else null)
+                // A live primary channel takes over the combined highlight; streamId == -1 just
+                // means "not a primary channel right now" (could be VOD, or nothing playing yet)
+                // — don't clobber a merged channel's highlight in that case, since playing a
+                // merged channel is exactly how currentMiniCombinedFavoriteId last got set.
+                if (streamId >= 0) {
+                    currentMiniCombinedFavoriteId = "primary:$streamId"
+                    combinedFavoriteAdapter.setCurrentlyPlayingId(currentMiniCombinedFavoriteId)
+                }
                 if (pendingScrollToCurrent && streamId >= 0 && combinedFavoriteAdapter.currentList.isNotEmpty() &&
                     binding.tabLayout.selectedTabPosition == TAB_FAVORITES) {
                     pendingScrollToCurrent = false

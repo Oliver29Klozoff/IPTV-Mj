@@ -1,7 +1,7 @@
 {
-  "versionCode": 314,
-  "versionName": "4.76",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.76/MKTV.apk",
-  "apkSha256": "abaed7db6efe4904ba960eea3638840c30c59fd880e51bb395c73c3fd3a86760",
-  "changelog": "Fixed Favorites genre chips not showing/filtering on cold launch. Merged Providers favorites into the main Favorites tab. TV: D-pad right now moves to the star to favorite directly."
+  "versionCode": 315,
+  "versionName": "4.77",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.77/MKTV.apk",
+  "apkSha256": "ddf56dc98b0046ca3c793b3450bcdda3617477f8f6f03ca606bb81ea555312f8",
+  "changelog": "Fixed combined Favorites not highlighting clicked channels from other providers. Favorite stars are now color-coded by provider."
 }

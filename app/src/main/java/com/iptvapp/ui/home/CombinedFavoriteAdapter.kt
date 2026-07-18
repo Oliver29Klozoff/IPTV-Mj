@@ -11,6 +11,19 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.iptvapp.databinding.ItemChannelBinding
 
+// Distinct favorite-star color per provider, so a mixed Favorites list reads at a glance which
+// channels came from where without needing to read the small server-nickname tag. Primary stays
+// the existing app-wide favorite blue; each other configured server gets a color from this list,
+// assigned deterministically by serverIndex (cycling if there are ever more providers than
+// colors — an edge case, not worth a dynamic-palette system for).
+object FavoriteStarColors {
+    const val PRIMARY = "#008CFF"
+    private val OTHER_PROVIDERS = listOf("#FFC107", "#FF4444", "#4CAF50", "#AB47BC", "#FF8A00", "#26C6DA")
+
+    fun forServerIndex(serverIndex: Int): String =
+        if (serverIndex == -1) PRIMARY else OTHER_PROVIDERS[serverIndex.mod(OTHER_PROVIDERS.size)]
+}
+
 // Favorites-tab-only adapter over the display union CombinedFavorite (primary + Providers-tab
 // favorites shown together). Ported from ChannelAdapter's Glide/health-dot/double-click/
 // pressed-row-guard logic rather than sharing a base class, since several ChannelAdapter
@@ -120,12 +133,16 @@ class CombinedFavoriteAdapter(
                 is CombinedFavorite.Primary -> item.channel.isFavorite
                 is CombinedFavorite.Merged -> item.channel.isFavorite
             }
+            val serverIndex = when (item) {
+                is CombinedFavorite.Primary -> -1
+                is CombinedFavorite.Merged -> item.channel.serverIndex
+            }
             binding.ivFavorite.setImageResource(
                 if (isFavorite) android.R.drawable.btn_star_big_on
                 else android.R.drawable.btn_star_big_off
             )
             binding.ivFavorite.setColorFilter(
-                if (isFavorite) android.graphics.Color.parseColor("#008CFF")
+                if (isFavorite) android.graphics.Color.parseColor(FavoriteStarColors.forServerIndex(serverIndex))
                 else android.graphics.Color.parseColor("#444444")
             )
 

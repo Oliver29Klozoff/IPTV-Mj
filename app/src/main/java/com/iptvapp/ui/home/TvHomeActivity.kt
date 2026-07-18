@@ -72,6 +72,11 @@ class TvHomeActivity : AppCompatActivity() {
     private var currentMiniUrl: String = ""
     private var currentMiniTitle: String = ""
     private var currentMiniStreamId: Int = -1
+    // Merged (Providers) channels always play with currentMiniStreamId == -1 (no DB-backed
+    // identity), so that alone can't drive the combined Favorites list's "now playing"
+    // highlight — this tracks the actual CombinedFavorite.id ("primary:<id>" or
+    // "<serverIndex>:<id>") of whichever item in that list was last clicked, primary or merged.
+    private var currentMiniCombinedFavoriteId: String? = null
     // Explicitly tracked instead of regexing currentMiniUrl for "movie|vod" — that regex
     // missed series episode URLs (which contain "series", not "movie"/"vod"), causing the
     // fullscreen button to treat VOD as live and open with no seek bar/resume (same bug
@@ -527,6 +532,8 @@ class TvHomeActivity : AppCompatActivity() {
 
         combinedFavoriteAdapter = CombinedFavoriteAdapter(
             onChannelClick = { item ->
+                currentMiniCombinedFavoriteId = item.id
+                combinedFavoriteAdapter.setCurrentlyPlayingId(item.id)
                 when (item) {
                     is CombinedFavorite.Primary -> {
                         lifecycleScope.launch {
@@ -961,8 +968,7 @@ class TvHomeActivity : AppCompatActivity() {
         pendingContentFocus = false
         lifecycleScope.launch {
             val favorites = genreFilterFavorites(genre, viewModel.getCombinedFavoritesSnapshot())
-            val currentId = if (currentMiniStreamId >= 0) "primary:$currentMiniStreamId" else null
-            val match = favorites.firstOrNull { it.id == currentId }
+            val match = favorites.firstOrNull { it.id == currentMiniCombinedFavoriteId }
             if (!currentMiniIsVod && match != null) {
                 scrollAndFocusCombinedFavorite(favorites, match.id)
             } else if (favorites.isNotEmpty()) {
@@ -1498,7 +1504,13 @@ class TvHomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.currentlyPlayingStreamId.collect {
                 channelAdapter.setCurrentlyPlayingStreamId(it)
-                combinedFavoriteAdapter.setCurrentlyPlayingId(if (it >= 0) "primary:$it" else null)
+                // A live primary channel takes over the combined highlight; streamId == -1 just
+                // means "not a primary channel right now" — don't clobber a merged channel's
+                // highlight in that case (see currentMiniCombinedFavoriteId kdoc).
+                if (it >= 0) {
+                    currentMiniCombinedFavoriteId = "primary:$it"
+                    combinedFavoriteAdapter.setCurrentlyPlayingId(currentMiniCombinedFavoriteId)
+                }
             }
         }
         lifecycleScope.launch {
