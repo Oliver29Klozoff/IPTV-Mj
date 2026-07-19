@@ -229,9 +229,11 @@ interface RecordingDao {
     @Query("SELECT * FROM recordings WHERE id = :id")
     suspend fun getById(id: Int): RecordingEntity?
     // Backs the player's small recording-indicator dot — observes whether the channel
-    // currently on screen has an in-progress ad-hoc/scheduled recording.
-    @Query("SELECT * FROM recordings WHERE streamId = :streamId AND status = 'RECORDING' LIMIT 1")
-    fun observeActiveByStreamId(streamId: Int): Flow<RecordingEntity?>
+    // currently on screen has an in-progress ad-hoc/scheduled recording. streamId alone isn't
+    // globally unique once merged-provider recordings exist (two servers can reuse the same
+    // numeric id), so serverIndex disambiguates which server this streamId belongs to.
+    @Query("SELECT * FROM recordings WHERE streamId = :streamId AND serverIndex = :serverIndex AND status = 'RECORDING' LIMIT 1")
+    fun observeActive(serverIndex: Int, streamId: Int): Flow<RecordingEntity?>
     // Backs the player's single-connection-conflict message — most Xtream plans allow only
     // one simultaneous stream, so a recording in progress on ANY channel (not just this one)
     // is the most common real-world cause of "every other channel just spins reconnecting."
@@ -278,6 +280,11 @@ interface MergedChannelDao {
 
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY num")
     fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>>
+
+    // Single-row lookup by composite key — used by recording retry to re-resolve a merged
+    // channel's current URL/name without pulling the whole table.
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
+    suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedChannelEntity?
 
     // Searches across every configured server at once (not scoped to a selected server/
     // category) — matches how search already works on every other tab in this app.

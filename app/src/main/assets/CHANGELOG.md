@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v4.78 - 2026-07-19
+- **Added**: recording now works for channels from other configured providers, not just the
+  primary server — schedule from a favorited channel, or hit Record while watching live.
+- **Fixed**: recordings from providers whose CDN redirects the stream URL used to hang and fail
+  silently; a dropped connection mid-recording could also corrupt the file, making it play back
+  much shorter than the actual recorded length. Both are now handled correctly.
+- **Added**: every recording now includes a 20-second buffer before and after the requested time,
+  in case a show starts a little early or runs a little late.
+- **Added**: a custom duration option when starting a recording from the fullscreen Record button.
+- **Added**: a calendar-style Schedule view for recordings — a day grid with hour lines showing
+  when each recording is scheduled, with day-paging and a "now" indicator. Toggle it from the
+  recordings screen (phone: icon in the top bar; TV: "SCHEDULE VIEW" button).
+- **Added**: deleting a recording now asks whether to also remove the file from device storage,
+  or just remove it from the list.
+
 ## v4.77 - 2026-07-17
 - **Fixed**: clicking a favorited channel from another provider in the combined Favorites tab
   didn't highlight/focus it in the list — the "now playing" tracking only ever recognized

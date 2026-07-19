@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
+import com.iptvapp.util.isLargeScreenDevice
 import android.util.Rational
 import android.view.GestureDetector
 import android.view.KeyEvent
@@ -93,6 +94,9 @@ class PlayerActivity : AppCompatActivity() {
     private var streamUrl: String = ""
     private var streamTitle: String = ""
     private var streamId: Int = -1
+    // See onCreate's intent-extra reads for the full explanation of these two fields.
+    private var serverIndex: Int = -1
+    private var mergedStreamId: Int = -1
     private var isVod: Boolean = false
     private var resumePositionMs: Long = 0L
 
@@ -208,6 +212,12 @@ class PlayerActivity : AppCompatActivity() {
         streamUrl = intent.getStringExtra("stream_url") ?: ""
         streamTitle = intent.getStringExtra("stream_title") ?: ""
         streamId = intent.getIntExtra("stream_id", -1)
+        // -1 = primary server (the default everywhere else this sentinel is used). Only ever
+        // non-(-1) for a merged/Providers channel, which always has streamId == -1 above (no
+        // DB-backed identity) — mergedStreamId carries that channel's real per-server stream id
+        // instead, since streamId can't do double duty as both "primary DB key" and "merged API id".
+        serverIndex = intent.getIntExtra("server_index", -1)
+        mergedStreamId = intent.getIntExtra("merged_stream_id", -1)
         isVod = intent.getBooleanExtra("is_vod", false)
         resumePositionMs = intent.getLongExtra("resume_ms", 0L)
         epIds    = intent.getStringArrayListExtra("ep_ids")    ?: emptyList()
@@ -328,9 +338,10 @@ class PlayerActivity : AppCompatActivity() {
      * dims it to a static low-alpha "idle button" look otherwise — same dot, no separate
      * always-red icon that would make every channel look like it's recording. */
     private fun observeRecordingState() {
-        if (isVod || streamId == -1) return
+        if (isVod || (streamId == -1 && serverIndex == -1)) return
+        val effectiveStreamId = if (serverIndex == -1) streamId else mergedStreamId
         lifecycleScope.launch {
-            repository.observeActiveRecording(streamId).collect { recording ->
+            repository.observeActiveRecording(serverIndex, effectiveStreamId).collect { recording ->
                 if (recording != null) startRecordDotBlink() else stopRecordDotBlink()
             }
         }
@@ -354,21 +365,56 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showRecordDialog() {
-        if (isVod || streamId == -1) return
-        val options = arrayOf("30 minutes", "1 hour", "2 hours", "4 hours")
+        if (isVod || (streamId == -1 && serverIndex == -1)) return
+        val options = arrayOf("30 minutes", "1 hour", "2 hours", "4 hours", "Custom...")
         val durationsMs = longArrayOf(30 * 60_000L, 60 * 60_000L, 120 * 60_000L, 240 * 60_000L)
         android.app.AlertDialog.Builder(this)
             .setTitle("Record \"$streamTitle\"")
             .setItems(options) { _, which ->
-                startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
-                    putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, streamId)
-                    putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, System.currentTimeMillis())
-                    putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationsMs[which])
-                })
-                Toast.makeText(this, "Recording started: ${options[which]}", Toast.LENGTH_SHORT).show()
+                if (which == options.lastIndex) {
+                    showCustomRecordDurationDialog()
+                } else {
+                    startRecordingWithDuration(durationsMs[which], options[which])
+                }
             }
             .show()
         resetHideTimer()
+    }
+
+    private fun showCustomRecordDurationDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = "Minutes"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText("60")
+            setPadding(48, 32, 48, 32)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Duration (minutes)")
+            .setView(input)
+            .setPositiveButton("Record") { _, _ ->
+                val mins = input.text.toString().toLongOrNull()?.coerceAtLeast(1L) ?: 60L
+                startRecordingWithDuration(mins * 60_000L, "$mins min")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun startRecordingWithDuration(durationMs: Long, label: String) {
+        val targetClass = if (isLargeScreenDevice())
+            com.iptvapp.ui.recordings.TvRecordingActivity::class.java
+        else
+            com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java
+        startActivity(Intent(this, targetClass).apply {
+            // "prefill_*" extra names are identical across both recording Activities'
+            // companion objects (kept in sync deliberately), so one set of putExtra
+            // calls works for either target.
+            putExtra("prefill_stream_id", streamId)
+            putExtra("prefill_start_ms", System.currentTimeMillis())
+            putExtra("prefill_duration_ms", durationMs)
+            putExtra("prefill_server_index", serverIndex)
+            putExtra("prefill_merged_stream_id", mergedStreamId)
+        })
+        Toast.makeText(this, "Recording started: $label", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateStats() {
@@ -1184,7 +1230,7 @@ class PlayerActivity : AppCompatActivity() {
             val streamType = if (isVod) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_LIVE
 
             // Fetch current EPG program to show as subtitle on Chromecast screen
-            var nowProgram: com.iptvapp.data.local.entities.EpgEntity? = null
+            var nowProgramTitle: String? = null
             if (!isVod && streamId != -1) {
                 try {
                     repository.fetchEpg(streamId)
@@ -1192,13 +1238,17 @@ class PlayerActivity : AppCompatActivity() {
                     val nowMs = System.currentTimeMillis()
                     fun startMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.startTimestamp < 100_000_000_000L) e.startTimestamp * 1000L else e.startTimestamp
                     fun stopMs(e: com.iptvapp.data.local.entities.EpgEntity) = if (e.stopTimestamp < 100_000_000_000L) e.stopTimestamp * 1000L else e.stopTimestamp
-                    nowProgram = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs }
+                    nowProgramTitle = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs }?.title
+                } catch (_: Exception) {}
+            } else if (!isVod && serverIndex != -1) {
+                try {
+                    nowProgramTitle = repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId)?.nowTitle
                 } catch (_: Exception) {}
             }
 
             val metadata = MediaMetadata(if (isVod) MediaMetadata.MEDIA_TYPE_MOVIE else MediaMetadata.MEDIA_TYPE_TV_SHOW).apply {
                 putString(MediaMetadata.KEY_TITLE, streamTitle)
-                nowProgram?.title?.takeIf { it.isNotBlank() }?.let { putString(MediaMetadata.KEY_SUBTITLE, it) }
+                nowProgramTitle?.takeIf { it.isNotBlank() }?.let { putString(MediaMetadata.KEY_SUBTITLE, it) }
             }
             // contentId must be the URL (not the title) — some receiver versions use it as the fallback src
             val mediaInfo = MediaInfo.Builder(castUrl)
@@ -1314,7 +1364,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnDvrRewind.visibility = View.VISIBLE
             binding.btnDvrLive.visibility = View.VISIBLE
             updateDvrLiveButton()
-            if (streamId != -1) binding.btnRecordDot.visibility = View.VISIBLE
+            if (streamId != -1 || serverIndex != -1) binding.btnRecordDot.visibility = View.VISIBLE
         }
         if (castAvailable) binding.btnCast.visibility = View.VISIBLE
         if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE
@@ -1332,6 +1382,12 @@ class PlayerActivity : AppCompatActivity() {
                 val next = epg.firstOrNull { now != null && startMs(it) > stopMs(now) }
                 binding.tvEpgNow.text = if (now != null) "NOW: " + now.title else ""
                 binding.tvEpgNext.text = if (next != null) "NEXT: " + next.title else ""
+            }
+        } else if (!isVod && serverIndex != -1) {
+            lifecycleScope.launch {
+                val nowNext = try { repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId) } catch (_: Exception) { null }
+                binding.tvEpgNow.text = if (nowNext != null) "NOW: " + nowNext.nowTitle else ""
+                binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "NEXT: " + nowNext.nextTitle else ""
             }
         }
     }
@@ -1353,6 +1409,16 @@ class PlayerActivity : AppCompatActivity() {
                 binding.tvOsdEpg.text = now.title
                 val start = startMs(now); val stop = stopMs(now)
                 val progress = if (stop > start) ((nowMs - start) * 100 / (stop - start)).toInt().coerceIn(0, 100) else 0
+                binding.osdEpgProgress.progress = progress
+            }
+        } else if (!isVod && serverIndex != -1) {
+            lifecycleScope.launch {
+                val nowNext = try { repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId) } catch (_: Exception) { null } ?: return@launch
+                binding.tvOsdEpg.text = nowNext.nowTitle
+                val nowMs = System.currentTimeMillis()
+                val progress = if (nowNext.nowStopMs > nowNext.nowStartMs)
+                    ((nowMs - nowNext.nowStartMs) * 100 / (nowNext.nowStopMs - nowNext.nowStartMs)).toInt().coerceIn(0, 100)
+                else 0
                 binding.osdEpgProgress.progress = progress
             }
         }

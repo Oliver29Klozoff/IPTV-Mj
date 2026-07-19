@@ -20,7 +20,7 @@ import com.iptvapp.data.local.entities.*
         MergedChannelEntity::class,
         FavoriteFolderEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -186,6 +186,12 @@ abstract class IptvDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE merged_channels ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE merged_channels ADD COLUMN favoriteFolderId INTEGER")
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recordings ADD COLUMN serverIndex INTEGER NOT NULL DEFAULT -1")
             }
         }
     }

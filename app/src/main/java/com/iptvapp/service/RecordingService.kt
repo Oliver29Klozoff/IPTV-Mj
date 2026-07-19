@@ -51,6 +51,7 @@ class RecordingService : Service() {
         const val EXTRA_CHANNEL_NAME = "channel_name"
         const val EXTRA_DURATION_MS = "duration_ms"
         const val EXTRA_OUTPUT_PATH = "output_path"
+        private const val TS_PACKET_SIZE = 188
     }
 
     override fun onCreate() {
@@ -224,37 +225,85 @@ class RecordingService : Service() {
         val started = System.currentTimeMillis()
         var written = 0L
         val buffer = ByteArray(128 * 1024)
+        val safeUrl = com.iptvapp.util.LogSanitizer.redactCredentials(streamUrl)
+        // Bytes left over from an incomplete trailing TS packet, carried into the next read
+        // call (and across reconnects) so every write stays packet-aligned — see the comment
+        // at the write site below for why this matters.
+        var tsCarry = 0
 
         while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
             val remaining = if (durationMs > 0L) durationMs - (System.currentTimeMillis() - started) else 0L
             if (remaining < 0L) break
 
-            val conn = URL(streamUrl).openConnection() as HttpURLConnection
+            // HttpURLConnection's instanceFollowRedirects only auto-follows same-protocol,
+            // same-host redirects (and not reliably even then for streaming responses) — some
+            // providers 301 a .ts URL to a different host/CDN, which this codebase's ExoPlayer
+            // live-playback path follows transparently but raw HttpURLConnection just keeps
+            // re-hitting the original URL, getting the same 301, forever, until this whole
+            // recording eventually gets killed by the foreground-service timeout with zero
+            // bytes written. Resolve redirects manually, up to a small hop cap.
+            var resolvedUrl = streamUrl
+            var conn: HttpURLConnection? = null
             try {
-                conn.instanceFollowRedirects = true
-                conn.connectTimeout = 15_000
-                conn.readTimeout = 30_000
-                conn.connect()
+                var hops = 0
+                while (hops < 5) {
+                    val c = URL(resolvedUrl).openConnection() as HttpURLConnection
+                    c.instanceFollowRedirects = false
+                    c.connectTimeout = 15_000
+                    c.readTimeout = 30_000
+                    android.util.Log.d("RecordingService", "recordDirectStream: connecting to ${com.iptvapp.util.LogSanitizer.redactCredentials(resolvedUrl)}")
+                    c.connect()
+                    android.util.Log.d("RecordingService", "recordDirectStream: connected, HTTP ${c.responseCode}")
 
-                if (conn.responseCode !in 200..299) {
-                    throw IOException("HTTP ${conn.responseCode}")
+                    if (c.responseCode in 300..399) {
+                        val location = c.getHeaderField("Location")
+                        c.disconnect()
+                        if (location.isNullOrBlank()) throw IOException("HTTP ${c.responseCode} with no Location header")
+                        resolvedUrl = URL(URL(resolvedUrl), location).toString()
+                        hops++
+                        continue
+                    }
+                    if (c.responseCode !in 200..299) {
+                        val code = c.responseCode
+                        c.disconnect()
+                        throw IOException("HTTP $code")
+                    }
+                    conn = c
+                    break
                 }
+                val activeConn = conn ?: throw IOException("Too many redirects")
 
-                conn.inputStream.use { input ->
+                activeConn.inputStream.use { input ->
                     while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
-                        val n = input.read(buffer)
+                        val n = input.read(buffer, tsCarry, buffer.size - tsCarry)
                         if (n == -1) break
-                        output.write(buffer, 0, n)
-                        written += n
+                        val available = tsCarry + n
+                        // MPEG-TS is packetized (188 bytes/packet). A reconnect that lands
+                        // mid-packet — very likely here, since the previous connection can drop
+                        // at any arbitrary byte offset — desyncs every packet boundary for the
+                        // rest of the file for any demuxer parsing by fixed packet stride, which
+                        // is exactly what was corrupting playback duration despite the full byte
+                        // count landing on disk. Only ever write whole packets; carry any
+                        // leftover partial packet over to the next read (across reconnects too).
+                        val wholePackets = available - (available % TS_PACKET_SIZE)
+                        if (wholePackets > 0) {
+                            output.write(buffer, 0, wholePackets)
+                            written += wholePackets
+                        }
+                        val leftover = available - wholePackets
+                        if (leftover > 0) System.arraycopy(buffer, wholePackets, buffer, 0, leftover)
+                        tsCarry = leftover
                     }
                 }
+                android.util.Log.d("RecordingService", "recordDirectStream: read loop ended, written=$written bytes")
             } catch (e: IOException) {
+                android.util.Log.e("RecordingService", "recordDirectStream: IOException, written=$written bytes", e)
                 // Brief pause before reconnect attempt — avoids hammering a broken server
                 if (durationMs > 0L && System.currentTimeMillis() - started < durationMs) {
                     Thread.sleep(2000L)
                 }
             } finally {
-                conn.disconnect()
+                conn?.disconnect()
             }
         }
 

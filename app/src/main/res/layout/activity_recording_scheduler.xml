@@ -36,7 +36,75 @@
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnToggleScheduleView"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_month"
+            android:contentDescription="Schedule view"
+            android:tint="#FFFFFF" />
     </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/dayPagingHeader"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:background="#111111"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/recTopBar">
+
+        <ImageButton
+            android:id="@+id/btnDayPrev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_previous"
+            android:contentDescription="Previous day"
+            android:tint="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/tvDayLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnDayNext"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_next"
+            android:contentDescription="Next day"
+            android:tint="#FFFFFF" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/scheduleScroll"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/dayPagingHeader">
+
+        <com.iptvapp.ui.recordings.DayScheduleView
+            android:id="@+id/dayScheduleView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="24dp" />
+    </ScrollView>
 
     <TextView
         android:id="@+id/tvEmpty"

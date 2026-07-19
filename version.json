@@ -1,7 +1,7 @@
 {
-  "versionCode": 315,
-  "versionName": "4.77",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.77/MKTV.apk",
-  "apkSha256": "ddf56dc98b0046ca3c793b3450bcdda3617477f8f6f03ca606bb81ea555312f8",
-  "changelog": "Fixed combined Favorites not highlighting clicked channels from other providers. Favorite stars are now color-coded by provider."
+  "versionCode": 316,
+  "versionName": "4.78",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.78/MKTV.apk",
+  "apkSha256": "80d706205fb83eafa0662ae1fee78dfff63f282e04a0df2b7b0a1d724a342380",
+  "changelog": "Recording now works for other providers, with fixes for redirect handling and mid-recording corruption. Added a 20s pre/post buffer, custom durations, a calendar Schedule view, and a delete-file confirmation."
 }

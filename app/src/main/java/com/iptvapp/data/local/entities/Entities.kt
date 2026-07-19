@@ -91,7 +91,11 @@ data class RecordingEntity(
     val scheduledStartMs: Long,
     val durationMs: Long,
     val outputPath: String,
-    val status: String = "SCHEDULED"
+    val status: String = "SCHEDULED",
+    // -1 = primary server (same sentinel MergedChannelEntity uses). streamId alone isn't
+    // globally unique once merged-provider recordings exist — two different servers can reuse
+    // the same numeric id — so this disambiguates which server streamId is scoped to.
+    val serverIndex: Int = -1
 )
 
 // Per-episode watched state, keyed by (seriesId, season, episode) — deliberately independent

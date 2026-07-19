@@ -191,6 +191,13 @@ class XtreamRepository @Inject constructor(
         return urlBuilder().liveStreamUrl(streamId, "ts")
     }
 
+    /** No per-channel cached streamUrl override to check here, unlike the primary path above —
+     * MergedChannelEntity has no streamUrl column — so this is just getMergedLiveStreamUrl
+     * (already .ts-forced, already per-server-credentialed) under a recording-specific name for
+     * symmetry with getLiveStreamUrlForRecording. */
+    suspend fun getMergedLiveStreamUrlForRecording(serverIndex: Int, streamId: Int): String =
+        getMergedLiveStreamUrl(serverIndex, streamId)
+
     suspend fun fetchVodStreams(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<VodStream>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
@@ -561,7 +568,7 @@ class XtreamRepository @Inject constructor(
         return "$successes/${outcomes.length} succeeded recently"
     }
 
-    fun observeActiveRecording(streamId: Int) = db.recordingDao().observeActiveByStreamId(streamId)
+    fun observeActiveRecording(serverIndex: Int, streamId: Int) = db.recordingDao().observeActive(serverIndex, streamId)
 
     suspend fun getAnyActiveRecording() = db.recordingDao().getAnyActive()
 
@@ -726,6 +733,9 @@ class XtreamRepository @Inject constructor(
     fun getMergedChannelsByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().getByServerAndCategory(serverIndex, categoryId)
 
+    suspend fun getMergedChannelByIndexAndId(serverIndex: Int, streamId: Int): MergedChannelEntity? =
+        db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)
+
     fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().search(query)
 
@@ -752,6 +762,39 @@ class XtreamRepository @Inject constructor(
             val nowTitle = decodeBase64(now.title)
             if (next != null) "NOW: $nowTitle$timeStr  •  NEXT: ${decodeBase64(next.title)}"
             else "NOW: $nowTitle$timeStr"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    data class MergedEpgNowNext(
+        val nowTitle: String,
+        val nowStartMs: Long,
+        val nowStopMs: Long,
+        val nextTitle: String?
+    )
+
+    /** Same server lookup + get_short_epg call as fetchMergedShortEpgText, but returns the raw
+     * now/next timing instead of a pre-formatted string — needed so PlayerActivity's live OSD
+     * can compute a real progress bar for a merged channel the same way it already does for
+     * primary channels, instead of only ever showing static list-row text. Also kept out of the
+     * epg_entries table for the same reason as fetchMergedShortEpgText (bare-streamId collision
+     * risk across servers). */
+    suspend fun fetchMergedEpgNowNext(serverIndex: Int, streamId: Int): MergedEpgNowNext? {
+        return try {
+            val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return null
+            val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+            val response = api.getShortEpg(b.apiUrl(), server.username, server.password, streamId = streamId)
+            if (!response.isSuccessful) return null
+            val listings = response.body()?.epgListings ?: return null
+            val now = listings.firstOrNull() ?: return null
+            val next = listings.drop(1).firstOrNull()
+            MergedEpgNowNext(
+                nowTitle = decodeBase64(now.title),
+                nowStartMs = now.startTimestamp * 1000L,
+                nowStopMs = now.stopTimestamp * 1000L,
+                nextTitle = next?.let { decodeBase64(it.title) }
+            )
         } catch (_: Exception) {
             null
         }

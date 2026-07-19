@@ -47,6 +47,14 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         const val EXTRA_PREFILL_STREAM_ID = "prefill_stream_id"
         const val EXTRA_PREFILL_START_MS = "prefill_start_ms"
         const val EXTRA_PREFILL_DURATION_MS = "prefill_duration_ms"
+        // -1/unset when prefilling a primary channel (EXTRA_PREFILL_STREAM_ID is used instead).
+        const val EXTRA_PREFILL_SERVER_INDEX = "prefill_server_index"
+        const val EXTRA_PREFILL_MERGED_STREAM_ID = "prefill_merged_stream_id"
+        // Every scheduled recording starts a bit early and runs a bit late — the requested
+        // start time isn't always exactly when a show actually begins/ends on the provider's
+        // end, so this padding catches a slightly-early or slightly-late program boundary.
+        private const val PRE_ROLL_MS = 20_000L
+        private const val POST_ROLL_MS = 20_000L
     }
 
     @Inject lateinit var database: IptvDatabase
@@ -55,16 +63,15 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRecordingSchedulerBinding
     private var allChannels: List<ChannelEntity> = emptyList()
     private var allCategories: List<CategoryEntity> = emptyList()
+    private var allRecordings: List<RecordingEntity> = emptyList()
+    private var showingScheduleView = false
+    private var dayOffset = 0
+    private val dayLabelFmt = SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
     private var epgNowMap: Map<Int, String> = emptyMap()
     private val dateFmt = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
 
     private val recordingAdapter = RecordingAdapter(
-        onDelete = { rec ->
-            lifecycleScope.launch {
-                cancelRecordingAlarm(rec.id)
-                database.recordingDao().delete(rec)
-            }
-        },
+        onDelete = { rec -> showDeleteRecordingDialog(rec) },
         onRename = { rec -> showRenameDialog(rec) },
         onRetry = { rec -> retryRecording(rec) }
     )
@@ -74,15 +81,61 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     // starts a fresh recording right now, for the same duration, on the same channel.
     private fun retryRecording(rec: RecordingEntity) {
         lifecycleScope.launch {
-            val channel = database.channelDao().getAllChannels().first()
-                .firstOrNull { it.streamId == rec.streamId }
-            if (channel == null) {
-                Toast.makeText(this@RecordingSchedulerActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
-                return@launch
+            if (rec.serverIndex == -1) {
+                val channel = database.channelDao().getAllChannels().first()
+                    .firstOrNull { it.streamId == rec.streamId }
+                if (channel == null) {
+                    Toast.makeText(this@RecordingSchedulerActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                database.recordingDao().delete(rec)
+                scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
+            } else {
+                val channel = repository.getMergedChannelByIndexAndId(rec.serverIndex, rec.streamId)
+                if (channel == null) {
+                    Toast.makeText(this@RecordingSchedulerActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                database.recordingDao().delete(rec)
+                scheduleMergedRecording(channel, System.currentTimeMillis(), rec.durationMs)
             }
-            database.recordingDao().delete(rec)
-            scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
         }
+    }
+
+    // "Remove from list" and "delete the actual file from device storage" are two different
+    // user intents — a completed recording's file can be large, so deleting it should be an
+    // explicit choice, not an automatic side effect of removing the row from this screen.
+    private fun showDeleteRecordingDialog(rec: RecordingEntity) {
+        val canDeleteFile = rec.status == "DONE" || rec.status == "FAILED"
+        AlertDialog.Builder(this)
+            .setTitle("Delete Recording?")
+            .setMessage(rec.channelName)
+            .also { builder ->
+                if (canDeleteFile) {
+                    builder.setPositiveButton("Delete + Remove File") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelRecordingAlarm(rec.id)
+                            RecordingFileUtils.deleteFile(this@RecordingSchedulerActivity, rec.outputPath)
+                            database.recordingDao().delete(rec)
+                        }
+                    }
+                    builder.setNeutralButton("Remove from List Only") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelRecordingAlarm(rec.id)
+                            database.recordingDao().delete(rec)
+                        }
+                    }
+                } else {
+                    builder.setPositiveButton("Delete") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelRecordingAlarm(rec.id)
+                            database.recordingDao().delete(rec)
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showRenameDialog(rec: RecordingEntity) {
@@ -104,6 +157,39 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun toggleScheduleView() {
+        showingScheduleView = !showingScheduleView
+        if (showingScheduleView) {
+            dayOffset = 0
+            binding.rvRecordings.visibility = View.GONE
+            binding.dayPagingHeader.visibility = View.VISIBLE
+            binding.scheduleScroll.visibility = View.VISIBLE
+            binding.tvEmpty.visibility = View.GONE
+            refreshScheduleView()
+        } else {
+            binding.rvRecordings.visibility = View.VISIBLE
+            binding.dayPagingHeader.visibility = View.GONE
+            binding.scheduleScroll.visibility = View.GONE
+            binding.tvEmpty.visibility = if (allRecordings.isEmpty()) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun refreshScheduleView() {
+        val dayStartMs = DayScheduleView.dayStartMsForOffset(dayOffset)
+        binding.tvDayLabel.text = dayLabelFmt.format(Date(dayStartMs))
+        binding.dayScheduleView.submitDay(dayStartMs, allRecordings, isToday = dayOffset == 0)
+    }
+
+    // Same actions the flat list's row already offers, just entered from a schedule block
+    // instead — no new business logic, only a new tap target for existing functionality.
+    private fun onScheduleBlockClick(rec: RecordingEntity) {
+        when (rec.status) {
+            "DONE" -> playFile(rec.outputPath)
+            "FAILED" -> retryRecording(rec)
+            else -> showDeleteRecordingDialog(rec)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRecordingSchedulerBinding.inflate(layoutInflater)
@@ -112,7 +198,13 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.rvRecordings.layoutManager = LinearLayoutManager(this)
         binding.rvRecordings.adapter = recordingAdapter
-        binding.fabAdd.setOnClickListener { showScheduleDialog() }
+        binding.fabAdd.setOnClickListener { showAddRecordingChooser() }
+
+        binding.dayScheduleView.onBlockClick = { rec -> onScheduleBlockClick(rec) }
+        binding.dayScheduleView.onBlockLongClick = { rec -> showRenameDialog(rec) }
+        binding.btnToggleScheduleView.setOnClickListener { toggleScheduleView() }
+        binding.btnDayPrev.setOnClickListener { dayOffset -= 1; refreshScheduleView() }
+        binding.btnDayNext.setOnClickListener { dayOffset += 1; refreshScheduleView() }
 
         lifecycleScope.launch {
             allCategories = database.categoryDao().getCategoriesByType("live").first()
@@ -132,13 +224,28 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->
+                allRecordings = list
                 recordingAdapter.submitList(list)
-                binding.tvEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+                binding.tvEmpty.visibility = if (list.isEmpty() && !showingScheduleView) View.VISIBLE else View.GONE
+                if (showingScheduleView) refreshScheduleView()
             }
         }
 
+        val prefillServerIndex = intent.getIntExtra(EXTRA_PREFILL_SERVER_INDEX, -1)
         val prefillStreamId = intent.getIntExtra(EXTRA_PREFILL_STREAM_ID, -1)
-        if (prefillStreamId != -1) {
+        val prefillMergedStreamId = intent.getIntExtra(EXTRA_PREFILL_MERGED_STREAM_ID, -1)
+        if (prefillServerIndex != -1 && prefillMergedStreamId != -1) {
+            val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
+            val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            lifecycleScope.launch {
+                val channel = repository.getMergedChannelByIndexAndId(prefillServerIndex, prefillMergedStreamId)
+                if (channel == null) {
+                    Toast.makeText(this@RecordingSchedulerActivity, "Channel not found", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                scheduleMergedRecording(channel, prefillStartMs, prefillDurationMs)
+            }
+        } else if (prefillStreamId != -1) {
             val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
             val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
             lifecycleScope.launch {
@@ -183,6 +290,57 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     database.recordingDao().updateStatus(rec.id, "DONE")
                 }
             }
+    }
+
+    // Kept as a separate first step rather than folding merged channels into
+    // showScheduleDialog()'s existing category-drill state machine — that dialog already closes
+    // over a lot of mutable filter/selection state built around ChannelEntity specifically, and
+    // recording is scoped (by design, confirmed with the user) to already-favorited channels
+    // from other providers rather than a full per-provider category browse, so a flat separate
+    // picker is both simpler and matches the actual use case.
+    private fun showAddRecordingChooser() {
+        AlertDialog.Builder(this)
+            .setTitle("Record a Channel")
+            .setItems(arrayOf("Primary Channels", "Favorited (Any Provider)")) { _, which ->
+                if (which == 0) showScheduleDialog() else showFavoritedRecordingPicker()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showFavoritedRecordingPicker() {
+        lifecycleScope.launch {
+            val favorites = repository.getFavoriteChannels().first().map {
+                com.iptvapp.ui.home.CombinedFavorite.Primary(it, null)
+            } + repository.getMergedAllFavorites().first().map {
+                com.iptvapp.ui.home.CombinedFavorite.Merged(it)
+            }
+            if (favorites.isEmpty()) {
+                Toast.makeText(this@RecordingSchedulerActivity, "No favorited channels yet", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            var selected: com.iptvapp.ui.home.CombinedFavorite? = favorites.firstOrNull()
+            val labels = favorites.map { fav ->
+                val tag = fav.serverNickname?.let { " · $it" } ?: ""
+                "${fav.name}$tag"
+            }.toTypedArray()
+            AlertDialog.Builder(this@RecordingSchedulerActivity)
+                .setTitle("Select Favorited Channel")
+                .setSingleChoiceItems(labels, 0) { _, pos -> selected = favorites.getOrNull(pos) }
+                .setPositiveButton("Next") { _, _ ->
+                    val fav = selected ?: return@setPositiveButton
+                    pickDateTime { startMs ->
+                        pickDuration { durationMs ->
+                            when (fav) {
+                                is com.iptvapp.ui.home.CombinedFavorite.Primary -> scheduleRecording(fav.channel, startMs, durationMs)
+                                is com.iptvapp.ui.home.CombinedFavorite.Merged -> scheduleMergedRecording(fav.channel, startMs, durationMs)
+                            }
+                        }
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
     }
 
     private fun showScheduleDialog() {
@@ -350,7 +508,9 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun scheduleRecording(channel: ChannelEntity, startMs: Long, durationMs: Long) {
+    private fun scheduleRecording(channel: ChannelEntity, requestedStartMs: Long, requestedDurationMs: Long) {
+        val startMs = requestedStartMs - PRE_ROLL_MS
+        val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
         lifecycleScope.launch {
             val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
             if (overlapping.isNotEmpty()) {
@@ -412,8 +572,76 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
     }
 
-    private fun createOutputTarget(channel: ChannelEntity, startMs: Long): String {
-        val safeName = channel.name.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
+    // Mirrors scheduleRecording(ChannelEntity, ...) above exactly, just sourcing the URL from
+    // the merged-channel repository call and recording serverIndex on the RecordingEntity so
+    // observeActive/retryRecording can disambiguate this streamId from a primary/other-server
+    // channel that happens to reuse the same numeric id.
+    private fun scheduleMergedRecording(channel: com.iptvapp.data.local.entities.MergedChannelEntity, requestedStartMs: Long, requestedDurationMs: Long) {
+        val startMs = requestedStartMs - PRE_ROLL_MS
+        val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
+        lifecycleScope.launch {
+            val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
+            if (overlapping.isNotEmpty()) {
+                val names = overlapping.joinToString(", ") { it.channelName }
+                val proceed = kotlinx.coroutines.suspendCancellableCoroutine<Boolean> { cont ->
+                    AlertDialog.Builder(this@RecordingSchedulerActivity)
+                        .setTitle("Overlapping Recording")
+                        .setMessage(
+                            "This overlaps with a recording already scheduled for $names. " +
+                                "If your provider only allows one stream at a time, one of these " +
+                                "recordings will likely fail. Schedule anyway?"
+                        )
+                        .setPositiveButton("Schedule Anyway") { _, _ -> cont.resume(true) {} }
+                        .setNegativeButton("Cancel") { _, _ -> cont.resume(false) {} }
+                        .setOnCancelListener { cont.resume(false) {} }
+                        .show()
+                }
+                if (!proceed) return@launch
+            }
+            try {
+                val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
+                val outputTarget = createOutputTarget(channel.name, startMs)
+
+                val recording = RecordingEntity(
+                    streamId = channel.streamId,
+                    serverIndex = channel.serverIndex,
+                    channelName = channel.name,
+                    scheduledStartMs = startMs,
+                    durationMs = durationMs,
+                    outputPath = outputTarget
+                )
+
+                val id = database.recordingDao().insert(recording).toInt()
+
+                scheduleRecordingAlarm(
+                    recordingId = id,
+                    channelName = channel.name,
+                    streamUrl = streamUrl,
+                    durationMs = durationMs,
+                    outputTarget = outputTarget,
+                    startMs = startMs
+                )
+
+                Toast.makeText(
+                    this@RecordingSchedulerActivity,
+                    "Scheduled: ${channel.name} at ${dateFmt.format(Date(startMs))}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@RecordingSchedulerActivity,
+                    "Could not schedule recording: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun createOutputTarget(channel: ChannelEntity, startMs: Long): String =
+        createOutputTarget(channel.name, startMs)
+
+    private fun createOutputTarget(channelName: String, startMs: Long): String {
+        val safeName = channelName.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
         val fileName = "${safeName}_${startMs}.ts"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

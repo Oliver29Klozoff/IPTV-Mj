@@ -46,6 +46,28 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class TvRecordingActivity : AppCompatActivity() {
 
+    companion object {
+        // Mirrors RecordingSchedulerActivity's prefill extras — lets PlayerActivity's Record
+        // button jump straight to date/duration for an already-known channel on TV too, instead
+        // of only ever supporting this one-tap flow on phone.
+        const val EXTRA_PREFILL_STREAM_ID = "prefill_stream_id"
+        const val EXTRA_PREFILL_START_MS = "prefill_start_ms"
+        const val EXTRA_PREFILL_DURATION_MS = "prefill_duration_ms"
+        const val EXTRA_PREFILL_SERVER_INDEX = "prefill_server_index"
+        const val EXTRA_PREFILL_MERGED_STREAM_ID = "prefill_merged_stream_id"
+        private const val FAVORITES_CATEGORY_ID = "__favorites__"
+        // A second synthetic category tile, alongside "★ FAVORITES", drilling into a flat list
+        // built from the combined (primary + every other provider) favorites list instead of
+        // primary-only ChannelEntity.isFavorite — recording for other providers is scoped to
+        // already-favorited channels (confirmed with the user), same reasoning as the phone picker.
+        private const val OTHER_PROVIDERS_CATEGORY_ID = "__other_provider_favorites__"
+        // Every scheduled recording starts a bit early and runs a bit late — the requested
+        // start time isn't always exactly when a show actually begins/ends on the provider's
+        // end, so this padding catches a slightly-early or slightly-late program boundary.
+        private const val PRE_ROLL_MS = 20_000L
+        private const val POST_ROLL_MS = 20_000L
+    }
+
     @Inject lateinit var database: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
 
@@ -63,9 +85,13 @@ class TvRecordingActivity : AppCompatActivity() {
 
     private val dateFmt = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
 
-    companion object {
-        private const val FAVORITES_CATEGORY_ID = "__favorites__"
-    }
+    private var currentFavorites: List<com.iptvapp.ui.home.CombinedFavorite> = emptyList()
+    private var selectedFavorite: com.iptvapp.ui.home.CombinedFavorite? = null
+
+    private var allRecordings: List<RecordingEntity> = emptyList()
+    private var showingScheduleView = false
+    private var dayOffset = 0
+    private val dayLabelFmt = SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +103,37 @@ class TvRecordingActivity : AppCompatActivity() {
         setupButtons()
         loadData()
         showStep(Step.LIST)
+        handlePrefill()
+    }
+
+    private fun handlePrefill() {
+        val prefillServerIndex = intent.getIntExtra(EXTRA_PREFILL_SERVER_INDEX, -1)
+        val prefillStreamId = intent.getIntExtra(EXTRA_PREFILL_STREAM_ID, -1)
+        val prefillMergedStreamId = intent.getIntExtra(EXTRA_PREFILL_MERGED_STREAM_ID, -1)
+        if (prefillServerIndex != -1 && prefillMergedStreamId != -1) {
+            val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
+            val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            lifecycleScope.launch {
+                val channel = repository.getMergedChannelByIndexAndId(prefillServerIndex, prefillMergedStreamId)
+                if (channel == null) {
+                    Toast.makeText(this@TvRecordingActivity, "Channel not found", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                scheduleMergedRecording(channel, prefillStartMs, prefillDurationMs)
+            }
+        } else if (prefillStreamId != -1) {
+            val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
+            val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            lifecycleScope.launch {
+                val channel = database.channelDao().getAllChannels().first()
+                    .firstOrNull { it.streamId == prefillStreamId }
+                if (channel == null) {
+                    Toast.makeText(this@TvRecordingActivity, "Channel not found", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                scheduleRecording(channel, prefillStartMs, prefillDurationMs)
+            }
+        }
     }
 
     private fun setupSearch() {
@@ -108,9 +165,44 @@ class TvRecordingActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->
+                allRecordings = list
                 (binding.rvRecordings.adapter as? RecordingListAdapter)?.submitList(list)
-                binding.tvEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+                binding.tvEmpty.visibility = if (list.isEmpty() && !showingScheduleView) View.VISIBLE else View.GONE
+                if (showingScheduleView) refreshScheduleView()
             }
+        }
+    }
+
+    private fun toggleScheduleView() {
+        showingScheduleView = !showingScheduleView
+        if (showingScheduleView) {
+            dayOffset = 0
+            binding.rvRecordings.visibility = View.GONE
+            binding.dayPagingHeader.visibility = View.VISIBLE
+            binding.scheduleScroll.visibility = View.VISIBLE
+            binding.tvEmpty.visibility = View.GONE
+            refreshScheduleView()
+        } else {
+            binding.rvRecordings.visibility = View.VISIBLE
+            binding.dayPagingHeader.visibility = View.GONE
+            binding.scheduleScroll.visibility = View.GONE
+            binding.tvEmpty.visibility = if (allRecordings.isEmpty()) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun refreshScheduleView() {
+        val dayStartMs = DayScheduleView.dayStartMsForOffset(dayOffset)
+        binding.tvDayLabel.text = dayLabelFmt.format(Date(dayStartMs))
+        binding.dayScheduleView.submitDay(dayStartMs, allRecordings, isToday = dayOffset == 0)
+    }
+
+    // Same actions the flat list's row already offers, just entered from a schedule block
+    // instead — no new business logic, only a new tap target for existing functionality.
+    private fun onScheduleBlockClick(rec: RecordingEntity) {
+        when (rec.status) {
+            "DONE" -> playFile(rec.outputPath)
+            "FAILED" -> retryRecording(rec)
+            else -> showDeleteRecordingDialog(rec)
         }
     }
 
@@ -154,19 +246,7 @@ class TvRecordingActivity : AppCompatActivity() {
         binding.rvRecordings.adapter = RecordingListAdapter(
             onPlay = { rec -> playFile(rec.outputPath) },
             onShare = { rec -> shareFile(rec.outputPath) },
-            onDelete = { rec ->
-                AlertDialog.Builder(this)
-                    .setTitle("Delete Recording?")
-                    .setMessage("${rec.channelName}\n${dateFmt.format(Date(rec.scheduledStartMs))}")
-                    .setPositiveButton("Delete") { _, _ ->
-                        lifecycleScope.launch {
-                            cancelAlarm(rec.id)
-                            database.recordingDao().delete(rec)
-                        }
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            },
+            onDelete = { rec -> showDeleteRecordingDialog(rec) },
             onRename = { rec ->
                 val input = android.widget.EditText(this).apply {
                     setText(rec.channelName)
@@ -192,19 +272,65 @@ class TvRecordingActivity : AppCompatActivity() {
 
     private fun shareFile(path: String) = com.iptvapp.util.RecordingFileUtils.shareFile(this, path)
 
+    // "Remove from list" and "delete the actual file from device storage" are two different
+    // user intents — a completed recording's file can be large, so deleting it should be an
+    // explicit choice, not an automatic side effect of removing the row from this screen.
+    private fun showDeleteRecordingDialog(rec: RecordingEntity) {
+        val canDeleteFile = rec.status == "DONE" || rec.status == "FAILED"
+        AlertDialog.Builder(this)
+            .setTitle("Delete Recording?")
+            .setMessage("${rec.channelName}\n${dateFmt.format(Date(rec.scheduledStartMs))}")
+            .also { builder ->
+                if (canDeleteFile) {
+                    builder.setPositiveButton("Delete + Remove File") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelAlarm(rec.id)
+                            com.iptvapp.util.RecordingFileUtils.deleteFile(this@TvRecordingActivity, rec.outputPath)
+                            database.recordingDao().delete(rec)
+                        }
+                    }
+                    builder.setNeutralButton("Remove from List Only") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelAlarm(rec.id)
+                            database.recordingDao().delete(rec)
+                        }
+                    }
+                } else {
+                    builder.setPositiveButton("Delete") { _, _ ->
+                        lifecycleScope.launch {
+                            cancelAlarm(rec.id)
+                            database.recordingDao().delete(rec)
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     // The failed attempt's own scheduled time has already passed by the time anyone notices
     // it failed — re-recording that exact original window would be pointless. Retry instead
     // starts a fresh recording right now, for the same duration, on the same channel.
     private fun retryRecording(rec: RecordingEntity) {
         lifecycleScope.launch {
-            val channel = database.channelDao().getAllChannels().first()
-                .firstOrNull { it.streamId == rec.streamId }
-            if (channel == null) {
-                Toast.makeText(this@TvRecordingActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
-                return@launch
+            if (rec.serverIndex == -1) {
+                val channel = database.channelDao().getAllChannels().first()
+                    .firstOrNull { it.streamId == rec.streamId }
+                if (channel == null) {
+                    Toast.makeText(this@TvRecordingActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                database.recordingDao().delete(rec)
+                scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
+            } else {
+                val channel = repository.getMergedChannelByIndexAndId(rec.serverIndex, rec.streamId)
+                if (channel == null) {
+                    Toast.makeText(this@TvRecordingActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                database.recordingDao().delete(rec)
+                scheduleMergedRecording(channel, System.currentTimeMillis(), rec.durationMs)
             }
-            database.recordingDao().delete(rec)
-            scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
         }
     }
 
@@ -212,6 +338,27 @@ class TvRecordingActivity : AppCompatActivity() {
         binding.btnAddNew.setOnClickListener { showStep(Step.CATEGORY) }
         binding.btnCatBack.setOnClickListener { showStep(Step.LIST) }
         binding.btnChanBack.setOnClickListener { showStep(Step.CATEGORY) }
+        binding.btnToggleScheduleView.setOnClickListener { toggleScheduleView() }
+        binding.btnDayPrev.setOnClickListener { dayOffset -= 1; refreshScheduleView() }
+        binding.btnDayNext.setOnClickListener { dayOffset += 1; refreshScheduleView() }
+        binding.dayScheduleView.onBlockClick = { rec -> onScheduleBlockClick(rec) }
+        binding.dayScheduleView.onBlockLongClick = { rec ->
+            val input = android.widget.EditText(this).apply {
+                setText(rec.channelName)
+                setSelection(text.length)
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Rename Recording")
+                .setView(input)
+                .setPositiveButton("Save") { _, _ ->
+                    val name = input.text.toString().trim()
+                    if (name.isNotEmpty()) {
+                        lifecycleScope.launch { database.recordingDao().rename(rec.id, name) }
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
     }
 
     private fun rebuildCategoryList(query: String) {
@@ -221,6 +368,9 @@ class TvRecordingActivity : AppCompatActivity() {
         val items = mutableListOf<PickerItem>()
         if (favoriteChannels.isNotEmpty() && (q.isEmpty() || "favorites".contains(q))) {
             items.add(PickerItem(FAVORITES_CATEGORY_ID, "★ FAVORITES", "${favoriteChannels.size} channels"))
+        }
+        if (q.isEmpty() || "other provider".contains(q) || "favorites".contains(q)) {
+            items.add(PickerItem(OTHER_PROVIDERS_CATEGORY_ID, "★ OTHER PROVIDERS", "Favorited elsewhere"))
         }
         items.addAll(
             allCategories
@@ -233,6 +383,17 @@ class TvRecordingActivity : AppCompatActivity() {
 
         binding.rvCategories.adapter = PickerAdapter(items) { item ->
             binding.tvChanCategoryName.text = item.name
+            if (item.id == OTHER_PROVIDERS_CATEGORY_ID) {
+                lifecycleScope.launch {
+                    currentFavorites = repository.getMergedAllFavorites().first().map {
+                        com.iptvapp.ui.home.CombinedFavorite.Merged(it)
+                    }
+                    binding.etSearchChannel.setText("")
+                    rebuildOtherProvidersChannelList("")
+                    showStep(Step.CHANNEL)
+                }
+                return@PickerAdapter
+            }
             currentChannels = if (item.id == FAVORITES_CATEGORY_ID) {
                 favoriteChannels
             } else {
@@ -253,6 +414,33 @@ class TvRecordingActivity : AppCompatActivity() {
             selectedChannel = filtered.first { it.streamId.toString() == chanItem.id }
             promptDateTimeAndSchedule()
         }
+    }
+
+    // "Other Providers" branch of the Favorites category — same shape as rebuildChannelList,
+    // just sourced from currentFavorites (CombinedFavorite.Merged only; primary favorites are
+    // already reachable via the normal ★ FAVORITES tile) instead of allChannels.
+    private fun rebuildOtherProvidersChannelList(query: String) {
+        val q = query.trim().lowercase()
+        val filtered = currentFavorites.filter { q.isEmpty() || it.name.lowercase().contains(q) }
+        binding.rvChannels.adapter = PickerAdapter(
+            items = filtered.map { PickerItem(it.id, "${it.name} · ${it.serverNickname}", null) }
+        ) { chanItem ->
+            selectedFavorite = filtered.first { it.id == chanItem.id }
+            promptDateTimeAndScheduleMerged()
+        }
+    }
+
+    private fun promptDateTimeAndScheduleMerged() {
+        val fav = selectedFavorite as? com.iptvapp.ui.home.CombinedFavorite.Merged ?: return
+        val now = Calendar.getInstance()
+        DatePickerDialog(this, { _, year, month, day ->
+            TimePickerDialog(this, { _, hour, minute ->
+                val cal = Calendar.getInstance()
+                cal.set(year, month, day, hour, minute, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                pickDuration { durationMs -> scheduleMergedRecording(fav.channel, cal.timeInMillis, durationMs) }
+            }, now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), false).show()
+        }, now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)).show()
     }
 
     private fun promptDateTimeAndSchedule() {
@@ -323,7 +511,9 @@ class TvRecordingActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    private fun scheduleRecording(channel: ChannelEntity, startMs: Long, durationMs: Long) {
+    private fun scheduleRecording(channel: ChannelEntity, requestedStartMs: Long, requestedDurationMs: Long) {
+        val startMs = requestedStartMs - PRE_ROLL_MS
+        val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
         lifecycleScope.launch {
             // Most Xtream plans allow only one simultaneous stream, so two recordings
             // scheduled at overlapping times will very likely just fail each other silently —
@@ -372,8 +562,64 @@ class TvRecordingActivity : AppCompatActivity() {
         }
     }
 
-    private fun createOutputTarget(channel: ChannelEntity, startMs: Long): String {
-        val safeName = channel.name.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
+    // Mirrors scheduleRecording(ChannelEntity, ...) above exactly, just sourcing the URL from
+    // the merged-channel repository call and recording serverIndex on the RecordingEntity so
+    // observeActive/retryRecording can disambiguate this streamId from a primary/other-server
+    // channel that happens to reuse the same numeric id.
+    private fun scheduleMergedRecording(channel: com.iptvapp.data.local.entities.MergedChannelEntity, requestedStartMs: Long, requestedDurationMs: Long) {
+        val startMs = requestedStartMs - PRE_ROLL_MS
+        val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
+        lifecycleScope.launch {
+            val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
+            if (overlapping.isNotEmpty()) {
+                val names = overlapping.joinToString(", ") { it.channelName }
+                val proceed = kotlinx.coroutines.suspendCancellableCoroutine<Boolean> { cont ->
+                    androidx.appcompat.app.AlertDialog.Builder(this@TvRecordingActivity)
+                        .setTitle("Overlapping Recording")
+                        .setMessage(
+                            "This overlaps with a recording already scheduled for $names. " +
+                                "If your provider only allows one stream at a time, one of these " +
+                                "recordings will likely fail. Schedule anyway?"
+                        )
+                        .setPositiveButton("Schedule Anyway") { _, _ -> cont.resume(true) {} }
+                        .setNegativeButton("Cancel") { _, _ -> cont.resume(false) {} }
+                        .setOnCancelListener { cont.resume(false) {} }
+                        .show()
+                }
+                if (!proceed) return@launch
+            }
+            try {
+                val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
+                val outputTarget = createOutputTarget(channel.name, startMs)
+
+                val recording = RecordingEntity(
+                    streamId = channel.streamId,
+                    serverIndex = channel.serverIndex,
+                    channelName = channel.name,
+                    scheduledStartMs = startMs,
+                    durationMs = durationMs,
+                    outputPath = outputTarget
+                )
+                val id = database.recordingDao().insert(recording).toInt()
+                scheduleAlarm(id, channel.name, streamUrl, durationMs, outputTarget, startMs)
+
+                Toast.makeText(
+                    this@TvRecordingActivity,
+                    "Scheduled: ${channel.name} at ${dateFmt.format(Date(startMs))}",
+                    Toast.LENGTH_LONG
+                ).show()
+                showStep(Step.LIST)
+            } catch (e: Exception) {
+                Toast.makeText(this@TvRecordingActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun createOutputTarget(channel: ChannelEntity, startMs: Long): String =
+        createOutputTarget(channel.name, startMs)
+
+    private fun createOutputTarget(channelName: String, startMs: Long): String {
+        val safeName = channelName.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
         val fileName = "${safeName}_${startMs}.ts"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {

@@ -114,6 +114,7 @@ class HomeActivity : AppCompatActivity() {
             if (returnedId != -1 && returnedUrl.isNotEmpty()) {
                 suppressMiniAutoResume = true
                 currentMiniStreamId = returnedId
+                currentMiniServerIndex = -1
                 currentMiniUrl = returnedUrl
                 currentMiniTitle = returnedTitle
                 currentMiniIsVod = false
@@ -160,6 +161,7 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniUrl = timeshiftUrl
                     currentMiniTitle = timeshiftTitle
                     currentMiniStreamId = streamId
+                    currentMiniServerIndex = -1
                     currentMiniIsVod = false
                     binding.tvMiniChannelName.text = timeshiftTitle
                     binding.tvPipChannelName?.text = timeshiftTitle
@@ -186,6 +188,14 @@ class HomeActivity : AppCompatActivity() {
 
     private var miniPlayer: ExoPlayer? = null
     private var currentMiniStreamId: Int = -1
+    // -1 = primary server. Set alongside currentMiniStreamId whenever a merged channel loads
+    // into the mini player, so the eventual "go fullscreen" openPlayer() call can pass the right
+    // server_index/merged_stream_id extras through to PlayerActivity for live EPG refresh.
+    private var currentMiniServerIndex: Int = -1
+    // The merged channel's real per-server stream id — currentMiniStreamId itself stays -1 for
+    // merged channels (see playMergedChannel), so this carries the id PlayerActivity actually
+    // needs for get_short_epg calls.
+    private var currentMiniMergedStreamId: Int = -1
     // Merged (Providers) channels always play with currentMiniStreamId == -1 (no DB-backed
     // identity), so that alone can't drive the combined Favorites list's "now playing"
     // highlight — this tracks the actual CombinedFavorite.id ("primary:<id>" or
@@ -611,13 +621,19 @@ class HomeActivity : AppCompatActivity() {
         binding.miniPlayerView.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+                openPlayer(
+                    currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
+                    serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+                )
             }
         }
         binding.btnFullscreen?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+                openPlayer(
+                    currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
+                    serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+                )
             }
         }
         restoredMiniState?.let { state ->
@@ -649,6 +665,7 @@ class HomeActivity : AppCompatActivity() {
             currentMiniUrl = url
             currentMiniTitle = channel.name
             currentMiniStreamId = channel.streamId
+            currentMiniServerIndex = -1
             currentMiniIsVod = false
             viewModel.setCurrentlyPlaying(channel.streamId)
             binding.tvMiniChannelName.text = channel.name
@@ -667,7 +684,10 @@ class HomeActivity : AppCompatActivity() {
 
             binding.btnHeroWatch?.setOnClickListener {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+                openPlayer(
+                    currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
+                    serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+                )
             }
 
             miniPlayer?.let {
@@ -954,7 +974,7 @@ class HomeActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     try {
                         val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
-                        openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1)
+                        openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1, serverIndex = channel.serverIndex, mergedStreamId = channel.streamId)
                     } catch (_: Exception) {
                         Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                     }
@@ -991,7 +1011,10 @@ class HomeActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             try {
                                 val url = viewModel.getMergedLiveStreamUrl(item.channel.serverIndex, item.channel.streamId)
-                                openPlayer(url, "${item.channel.name} · ${item.channel.serverNickname}", -1)
+                                openPlayer(
+                                    url, "${item.channel.name} · ${item.channel.serverNickname}", -1,
+                                    serverIndex = item.channel.serverIndex, mergedStreamId = item.channel.streamId
+                                )
                             } catch (_: Exception) {
                                 Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                             }
@@ -1023,6 +1046,7 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniUrl = url
                     currentMiniTitle = vod.name
                     currentMiniStreamId = vod.streamId
+                    currentMiniServerIndex = -1
                     currentMiniIsVod = true
                     binding.tvMiniChannelName.text = vod.name
                     miniPlayer?.let {
@@ -1034,7 +1058,10 @@ class HomeActivity : AppCompatActivity() {
                     binding.btnFullscreen?.setOnClickListener {
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
-                openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+                openPlayer(
+                    currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
+                    serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+                )
             }
         }
                 }
@@ -1511,6 +1538,8 @@ class HomeActivity : AppCompatActivity() {
                 currentMiniUrl = url
                 currentMiniTitle = title
                 currentMiniStreamId = -1
+                currentMiniServerIndex = channel.serverIndex
+                currentMiniMergedStreamId = channel.streamId
                 currentMiniIsVod = false
                 binding.tvMiniChannelName.text = title
                 binding.tvPipChannelName?.text = title
@@ -1526,7 +1555,10 @@ class HomeActivity : AppCompatActivity() {
                 }
                 binding.btnHeroWatch?.setOnClickListener {
                     val currentPos = miniPlayer?.currentPosition ?: 0L
-                    openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos)
+                    openPlayer(
+                        currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
+                        serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+                    )
                 }
                 miniPlayer?.let {
                     it.setMediaItem(MediaItem.fromUri(url))
@@ -1655,7 +1687,12 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun openPlayer(url: String, title: String, streamId: Int, streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(), isVod: Boolean = false, resumeMs: Long = 0L) {
+    private fun openPlayer(
+        url: String, title: String, streamId: Int,
+        streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(),
+        isVod: Boolean = false, resumeMs: Long = 0L,
+        serverIndex: Int = -1, mergedStreamId: Int = -1
+    ) {
         if (externalPlayerChoice != "internal") {
             launchExternalPlayer(url, title, externalPlayerChoice, isVod)
             return
@@ -1675,6 +1712,8 @@ class HomeActivity : AppCompatActivity() {
                 putExtra("stream_ids", streamIds)
                 putExtra("is_vod", isVod)
                 putExtra("resume_ms", resumeMs)
+                putExtra("server_index", serverIndex)
+                putExtra("merged_stream_id", mergedStreamId)
             })
         }
     }
@@ -2027,7 +2066,7 @@ class HomeActivity : AppCompatActivity() {
                     "Play Fullscreen" -> lifecycleScope.launch {
                         try {
                             val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
-                            openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1)
+                            openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1, serverIndex = channel.serverIndex, mergedStreamId = channel.streamId)
                         } catch (_: Exception) {
                             Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                         }

@@ -52,6 +52,19 @@ object RecordingFileUtils {
             .onFailure { Toast.makeText(context, "No video player installed", Toast.LENGTH_SHORT).show() }
     }
 
+    /** Deletes the actual recorded file/MediaStore entry — separate from removing the
+     * RecordingEntity DB row, since "remove from this list" and "delete from device storage"
+     * are two different user intents (see the delete-confirmation flow in both Activities). */
+    fun deleteFile(context: Context, path: String) {
+        runCatching {
+            if (path.startsWith("content://")) {
+                context.contentResolver.delete(Uri.parse(path), null, null)
+            } else {
+                File(path).delete()
+            }
+        }
+    }
+
     fun shareFile(context: Context, path: String) {
         val uri = resolveUri(context, path) ?: return
         val intent = Intent(Intent.ACTION_SEND).apply {

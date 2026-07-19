@@ -36,7 +36,15 @@ class ChannelWidgetFactory(private val context: Context) : RemoteViewsService.Re
                     IptvDatabase.MIGRATION_6_7,
                     IptvDatabase.MIGRATION_7_8,
                     IptvDatabase.MIGRATION_8_9,
-                    IptvDatabase.MIGRATION_9_10
+                    IptvDatabase.MIGRATION_9_10,
+                    IptvDatabase.MIGRATION_10_11,
+                    IptvDatabase.MIGRATION_11_12,
+                    IptvDatabase.MIGRATION_12_13,
+                    IptvDatabase.MIGRATION_13_14,
+                    IptvDatabase.MIGRATION_14_15,
+                    IptvDatabase.MIGRATION_15_16,
+                    IptvDatabase.MIGRATION_16_17,
+                    IptvDatabase.MIGRATION_17_18
                 )
                 .build()
             val channels = db.channelDao().getFavoriteChannelsBlocking()
