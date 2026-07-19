@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v4.79 - 2026-07-19
+- **Fixed**: favorite channel health dots could all turn red at once, even though the channels
+  played fine — the health check fired one request per favorite all at once with no pacing,
+  which could trip a provider's rate limit and get connections dropped/reset. Now paced the same
+  way the EPG-fetch code already was.
+- **Fixed**: a single failed refresh of a Providers-tab server (timeout, bad response) used to
+  permanently wipe that provider's cached channels and favorites from the merged favorites list.
+  Now only servers that actually succeeded get cleared/replaced, so a transient hiccup no longer
+  loses favorites for that provider.
+- **Fixed**: Favorites' health dots (both primary and other-provider) could stay permanently
+  unpopulated on a cold app launch or after returning from the player, since several entry points
+  into the tab never triggered the health check.
+
 ## v4.78 - 2026-07-19
 - **Added**: recording now works for channels from other configured providers, not just the
   primary server — schedule from a favorited channel, or hit Record while watching live.

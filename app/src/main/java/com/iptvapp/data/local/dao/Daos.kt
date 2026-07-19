@@ -271,6 +271,11 @@ interface MergedChannelDao {
     suspend fun upsertAll(channels: List<MergedChannelEntity>)
     @Query("DELETE FROM merged_channels")
     suspend fun clearAll()
+    // A per-server clear, used instead of clearAll() when refreshing — a server whose fetch
+    // failed contributes no new rows, so wiping the whole table would permanently delete that
+    // server's (still possibly correct) cached channels and favorites, not just staleness.
+    @Query("DELETE FROM merged_channels WHERE serverIndex = :serverIndex")
+    suspend fun clearForServer(serverIndex: Int)
 
     @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
     fun getServerSummaries(): Flow<List<MergedServerSummary>>

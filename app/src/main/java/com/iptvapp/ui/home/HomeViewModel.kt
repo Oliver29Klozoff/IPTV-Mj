@@ -268,12 +268,14 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val favorites = repository.getMergedAllFavorites().first()
             _mergedHealth.value = favorites.associate { "${it.serverIndex}:${it.streamId}" to null }
+            // Same rate-limit-avoidance pacing as checkFavoritesHealth — see its comment.
             favorites.forEach { ch ->
                 launch {
                     val url = repository.getMergedLiveStreamUrl(ch.serverIndex, ch.streamId)
                     val alive = repository.checkStreamHealth(url)
                     _mergedHealth.value = _mergedHealth.value + ("${ch.serverIndex}:${ch.streamId}" to alive)
                 }
+                kotlinx.coroutines.delay(150)
             }
         }
     }
@@ -343,6 +345,13 @@ class HomeViewModel @Inject constructor(
             val favorites = repository.getFavoriteChannels().first()
             // Reset to null (checking) for all favorites
             _channelHealth.value = favorites.associate { it.streamId to null }
+            // Firing one check per favorite all at once used to blow through some providers'
+            // per-window rate limit (observed: a Cloudflare-fronted provider returning
+            // x-ratelimit-remaining: 0 after a burst of requests), after which further requests
+            // on that connection got dropped/reset — read by checkStreamHealth as "unhealthy",
+            // turning every dot red even though the channels themselves play fine. Same small
+            // pacing delay already used for merged-channel EPG fetches (loadEpgForMergedChannels)
+            // avoids tripping the limit in the first place.
             favorites.forEach { channel ->
                 launch {
                     val url = repository.getLiveStreamUrl(channel.streamId)
@@ -350,6 +359,7 @@ class HomeViewModel @Inject constructor(
                     _channelHealth.value = _channelHealth.value + (channel.streamId to alive)
                     repository.recordChannelOutcome(channel.streamId, alive)
                 }
+                kotlinx.coroutines.delay(150)
             }
         }
     }

@@ -1141,7 +1141,7 @@ class HomeActivity : AppCompatActivity() {
                 binding.btnVodSort?.visibility = if (tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES) View.VISIBLE else View.GONE
                 binding.btnRefreshProviders?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
                 when (tab?.position) {
-                    TAB_FAVORITES -> { showFavorites(); viewModel.checkFavoritesHealth() }
+                    TAB_FAVORITES -> showFavorites()
                     TAB_PROVIDERS -> showAllProviders()
                     TAB_LIVE -> showLive()
                     TAB_CATEGORIES -> showFavCategories()
@@ -1586,6 +1586,12 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = combinedFavoriteAdapter
         viewModel.selectFavoriteFolderView(null)
+        // Moved in here (rather than left to each call site to remember) since several entry
+        // points into this tab — cold boot, returning from PlayerActivity — were calling
+        // showFavorites() directly without ever pairing it with a health check, leaving the
+        // health dots permanently unpopulated (GONE, not just gray) on those paths.
+        viewModel.checkFavoritesHealth()
+        viewModel.checkMergedFavoritesHealth()
         pendingScrollToCurrent = true
         lifecycleScope.launch {
             val favorites = viewModel.getCombinedFavoritesSnapshot()

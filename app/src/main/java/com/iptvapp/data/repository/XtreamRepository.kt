@@ -720,7 +720,14 @@ class XtreamRepository @Inject constructor(
             }.forEach { it.await() }
         }
         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "refresh done: ${results.size} total channels, errors=$errors")
-        db.mergedChannelDao().clearAll()
+        // Only clear rows for servers that actually succeeded this refresh — a server whose
+        // fetch failed (timeout, bad response) contributes nothing to `results`, so clearing
+        // its rows unconditionally (the old behavior) permanently deleted that server's cached
+        // channels AND favorites on a single transient hiccup, with nothing left for the next
+        // refresh's `prev` lookup to restore them from either.
+        results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+            db.mergedChannelDao().clearForServer(serverIndex)
+        }
         db.mergedChannelDao().upsertAll(results)
         return errors
     }

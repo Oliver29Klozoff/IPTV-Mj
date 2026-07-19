@@ -1,7 +1,7 @@
 {
-  "versionCode": 316,
-  "versionName": "4.78",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.78/MKTV.apk",
-  "apkSha256": "80d706205fb83eafa0662ae1fee78dfff63f282e04a0df2b7b0a1d724a342380",
-  "changelog": "Recording now works for other providers, with fixes for redirect handling and mid-recording corruption. Added a 20s pre/post buffer, custom durations, a calendar Schedule view, and a delete-file confirmation."
+  "versionCode": 317,
+  "versionName": "4.79",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.79/MKTV.apk",
+  "apkSha256": "37599215adcf143cdacac35e06a3309bca97ed129c77034f0d89ade4397a3875",
+  "changelog": "Fixed favorite health dots turning all-red from an unpaced rate-limit trip, a provider refresh failure wiping that provider's favorites, and health dots not populating on several tab-entry paths."
 }
