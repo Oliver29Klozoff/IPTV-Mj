@@ -62,6 +62,15 @@ object AppModule {
         // that. Without this, some providers 401 or instantly 429 even brand-new, valid
         // credentials, while any legitimate player (VLC, TiviMate, ...) connects fine with
         // the exact same login.
+        //
+        // Previously spoofed a Chrome browser UA here, which backfired on panels that do the
+        // OPPOSITE of the above: whitelist known IPTV-PLAYER user agents and reject generic
+        // browser strings as bot/scraper traffic (confirmed via two providers 401ing on the
+        // plain login check itself — one that used to work here, one confirmed working in
+        // other player apps with the same credentials). VLC's real UA is the most broadly
+        // whitelisted string across Xtream panels since it's the reference player most of
+        // them test against — matches what a real player app actually sends, both for panels
+        // wanting "not a bare HTTP client" and panels wanting "a known player specifically".
         val userAgentInterceptor = okhttp3.Interceptor { chain ->
             val original = chain.request()
             // Playback requests (OkHttpDataSource.Factory.setUserAgent in PlayerActivity)
@@ -72,11 +81,7 @@ object AppModule {
                 original
             } else {
                 original.newBuilder()
-                    .header(
-                        "User-Agent",
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                    )
+                    .header("User-Agent", "VLC/3.0.20 LibVLC/3.0.20")
                     .build()
             }
             chain.proceed(request)

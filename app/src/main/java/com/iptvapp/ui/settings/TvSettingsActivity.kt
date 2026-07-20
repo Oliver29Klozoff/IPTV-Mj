@@ -1242,11 +1242,28 @@ class TvSettingsActivity : AppCompatActivity() {
     }
 
     private fun showProviderHealthDialog() {
+        toast("Checking providers…")
         lifecycleScope.launch {
             val report = com.iptvapp.util.ProviderHealth.build(this@TvSettingsActivity, db, prefs)
+
+            // Live reachability check for EVERY configured provider — see phone SettingsActivity's
+            // identical comment: only the primary provider has real reliability-history tracking.
+            val allHealth = repository.checkAllProviderHealth()
+            val allHealthText = allHealth.joinToString("\n\n") { s ->
+                val statusLine = when {
+                    s.reachable -> "✓ Online (${s.responseMs}ms)"
+                    else -> "✗ Unreachable — ${s.error}"
+                }
+                val label = if (s.serverIndex == -1) "${s.nickname} (Primary)" else s.nickname
+                "$label\n$statusLine"
+            }
+
+            val message = com.iptvapp.util.ProviderHealth.formatReport(report) +
+                "\n\n— All Providers —\n\n" + allHealthText
+
             val builder = AlertDialog.Builder(this@TvSettingsActivity)
                 .setTitle("Provider Health")
-                .setMessage(com.iptvapp.util.ProviderHealth.formatReport(report))
+                .setMessage(message)
                 .setPositiveButton("Close", null)
             if (report.worstChannels.isNotEmpty()) {
                 builder.setNeutralButton("Least Reliable Channels") { _, _ ->
@@ -1431,7 +1448,38 @@ class TvSettingsActivity : AppCompatActivity() {
             setText(server.getOrElse(4) { "" })
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
+        val tvTestResult = android.widget.TextView(this).apply {
+            textSize = 12f
+            setPadding(0, 12, 0, 0)
+            visibility = android.view.View.GONE
+        }
+        // Nothing validated a provider's credentials before saving it — a typo'd URL or wrong
+        // password just got saved silently, matching what phone SettingsActivity fixes too.
+        val btnTest = android.widget.Button(this).apply {
+            text = "Test Connection"
+            isAllCaps = false
+            textSize = 13f
+            setOnClickListener {
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isBlank() || user.isBlank()) {
+                    toast("Enter a URL and username first")
+                    return@setOnClickListener
+                }
+                isEnabled = false
+                tvTestResult.visibility = android.view.View.VISIBLE
+                tvTestResult.text = "Testing…"
+                lifecycleScope.launch {
+                    val result = repository.testProviderConnection(url, user, pass)
+                    isEnabled = true
+                    tvTestResult.text = if (result.reachable) "✓ Connected (${result.responseMs}ms)"
+                        else "✗ Failed — ${result.error}"
+                }
+            }
+        }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
+        layout.addView(btnTest); layout.addView(tvTestResult)
         AlertDialog.Builder(this)
             .setTitle("Edit Provider")
             .setView(layout)
@@ -1513,7 +1561,36 @@ class TvSettingsActivity : AppCompatActivity() {
             hint = "EPG URL (optional, http://...)"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
+        val tvTestResult = android.widget.TextView(this).apply {
+            textSize = 12f
+            setPadding(0, 12, 0, 0)
+            visibility = android.view.View.GONE
+        }
+        val btnTest = android.widget.Button(this).apply {
+            text = "Test Connection"
+            isAllCaps = false
+            textSize = 13f
+            setOnClickListener {
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isBlank() || user.isBlank()) {
+                    toast("Enter a URL and username first")
+                    return@setOnClickListener
+                }
+                isEnabled = false
+                tvTestResult.visibility = android.view.View.VISIBLE
+                tvTestResult.text = "Testing…"
+                lifecycleScope.launch {
+                    val result = repository.testProviderConnection(url, user, pass)
+                    isEnabled = true
+                    tvTestResult.text = if (result.reachable) "✓ Connected (${result.responseMs}ms)"
+                        else "✗ Failed — ${result.error}"
+                }
+            }
+        }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
+        layout.addView(btnTest); layout.addView(tvTestResult)
         AlertDialog.Builder(this)
             .setTitle("Add Provider")
             .setView(layout)

@@ -1063,11 +1063,30 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun showProviderHealthDialog() {
+        Toast.makeText(this, "Checking providers…", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val report = com.iptvapp.util.ProviderHealth.build(this@SettingsActivity, db, prefs)
+
+            // Live reachability check for EVERY configured provider — the reliability-history
+            // numbers above only exist for the primary provider (ChannelReliabilityEntity has
+            // no serverIndex/merged-channel tracking at all), so "how's this other provider
+            // doing" can only be answered as "is it responding right now", not a history.
+            val allHealth = repository.checkAllProviderHealth()
+            val allHealthText = allHealth.joinToString("\n\n") { s ->
+                val statusLine = when {
+                    s.reachable -> "✓ Online (${s.responseMs}ms)"
+                    else -> "✗ Unreachable — ${s.error}"
+                }
+                val label = if (s.serverIndex == -1) "${s.nickname} (Primary)" else s.nickname
+                "$label\n$statusLine"
+            }
+
+            val message = com.iptvapp.util.ProviderHealth.formatReport(report) +
+                "\n\n— All Providers —\n\n" + allHealthText
+
             val builder = AlertDialog.Builder(this@SettingsActivity)
                 .setTitle("Provider Health")
-                .setMessage(com.iptvapp.util.ProviderHealth.formatReport(report))
+                .setMessage(message)
                 .setPositiveButton("Close", null)
             if (report.worstChannels.isNotEmpty()) {
                 builder.setNeutralButton("Least Reliable Channels") { _, _ ->
@@ -1752,7 +1771,44 @@ class SettingsActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
             disableAutofill()
         }
+        val tvTestResult = android.widget.TextView(this).apply {
+            textSize = 12f
+            setPadding(0, 12, 0, 0)
+            visibility = View.GONE
+        }
+        val btnTest = android.widget.Button(this).apply {
+            text = "Test Connection"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
+            setOnClickListener {
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isBlank() || user.isBlank()) {
+                    Toast.makeText(this@SettingsActivity, "Enter a URL and username first", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                isEnabled = false
+                tvTestResult.visibility = View.VISIBLE
+                tvTestResult.text = "Testing…"
+                tvTestResult.setTextColor(Color.parseColor("#888888"))
+                lifecycleScope.launch {
+                    val result = repository.testProviderConnection(url, user, pass)
+                    isEnabled = true
+                    if (result.reachable) {
+                        tvTestResult.text = "✓ Connected (${result.responseMs}ms)"
+                        tvTestResult.setTextColor(Color.parseColor("#4CD964"))
+                    } else {
+                        tvTestResult.text = "✗ Failed — ${result.error}"
+                        tvTestResult.setTextColor(Color.parseColor("#FF6B6B"))
+                    }
+                }
+            }
+        }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
+        layout.addView(btnTest); layout.addView(tvTestResult)
         AlertDialog.Builder(this)
             .setTitle("Edit Provider")
             .setView(layout)
@@ -1816,7 +1872,47 @@ class SettingsActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
             disableAutofill()
         }
+        val tvTestResult = android.widget.TextView(this).apply {
+            textSize = 12f
+            setPadding(0, 12, 0, 0)
+            visibility = View.GONE
+        }
+        // Nothing validated a provider's credentials before saving it — a typo'd URL or wrong
+        // password just got saved silently and only surfaced later (or never) as an unrelated
+        // failure elsewhere. This tests the actual connection right here, before Add is tapped.
+        val btnTest = android.widget.Button(this).apply {
+            text = "Test Connection"
+            isAllCaps = false
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
+            setOnClickListener {
+                val url = etUrl.text.toString().replace(" ", "").trim()
+                val user = etUser.text.toString().trim()
+                val pass = etPass.text.toString().trim()
+                if (url.isBlank() || user.isBlank()) {
+                    Toast.makeText(this@SettingsActivity, "Enter a URL and username first", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                isEnabled = false
+                tvTestResult.visibility = View.VISIBLE
+                tvTestResult.text = "Testing…"
+                tvTestResult.setTextColor(Color.parseColor("#888888"))
+                lifecycleScope.launch {
+                    val result = repository.testProviderConnection(url, user, pass)
+                    isEnabled = true
+                    if (result.reachable) {
+                        tvTestResult.text = "✓ Connected (${result.responseMs}ms)"
+                        tvTestResult.setTextColor(Color.parseColor("#4CD964"))
+                    } else {
+                        tvTestResult.text = "✗ Failed — ${result.error}"
+                        tvTestResult.setTextColor(Color.parseColor("#FF6B6B"))
+                    }
+                }
+            }
+        }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
+        layout.addView(btnTest); layout.addView(tvTestResult)
         AlertDialog.Builder(this)
             .setTitle("Add Provider")
             .setView(layout)

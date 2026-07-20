@@ -606,6 +606,10 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // Manual "↻ Refresh" on the Live tab — deliberately live-channels-only. Movies/Series have
+    // their own dedicated refresh buttons (Settings' btnRefreshMovies/btnRefreshSeries, and TV's
+    // equivalents); bundling a full VOD/series re-fetch into every live-channel refresh made
+    // this button silently do far more than its label/toast ("Refreshing channels…") implied.
     fun refreshNow() {
         viewModelScope.launch {
             _loading.value = true
@@ -613,16 +617,7 @@ class HomeViewModel @Inject constructor(
                 coroutineScope {
                     launch { repository.fetchLiveCategories() }
                     launch { repository.fetchLiveStreams() }
-                    launch { repository.fetchVodCategories() }
-                    launch { repository.fetchSeriesCategories() }
                 }
-                repository.fetchVodStreams { saved, total ->
-                    _syncProgress.value = "Loading movies… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))
-                }
-                repository.fetchSeries { saved, total ->
-                    _syncProgress.value = "Loading series… $saved/$total" to (saved * 100 / total.coerceAtLeast(1))
-                }
-                _syncProgress.value = null
             } finally {
                 _loading.value = false
             }

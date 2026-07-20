@@ -1,7 +1,7 @@
 {
-  "versionCode": 321,
-  "versionName": "4.83",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.83/MKTV.apk",
-  "apkSha256": "f7dd5e11b82bf437c1c87b54401206f55fe6ea1a20f87fe9fcd4fadbe19237c1",
-  "changelog": "Fixed Force TV Mode having no way to turn back off once enabled — the toggle is now also in TV Settings > Display."
+  "versionCode": 322,
+  "versionName": "4.84",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.84/MKTV.apk",
+  "apkSha256": "a538491acc19256d32afdab930258d2429626aca769109445a50142fd6f2d207",
+  "changelog": "Added Test Connection for providers, better connection failure diagnostics, fixed a User-Agent issue causing some providers to reject login, and fixed the Live refresh button silently also refreshing Movies/Series."
 }

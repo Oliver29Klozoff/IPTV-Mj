@@ -1,5 +1,23 @@
 # IPTV App - Changelog
 
+## v4.84 - 2026-07-20
+- **Added**: a "Test Connection" button in the Add/Edit Provider dialogs (phone and TV) —
+  checks the login right there before saving, instead of finding out later that a provider
+  silently never worked.
+- **Added**: an "All Providers" live reachability check in Settings > Diagnostics > Provider
+  Health, showing Online/Unreachable + response time for every configured provider.
+- **Improved**: connection test failures now explain the actual reason (account
+  expired/disabled, max connections reached, etc.) instead of just a bare HTTP status code.
+- **Fixed**: the app was sending a spoofed Chrome browser User-Agent on every provider request,
+  which some providers' firewalls reject as bot traffic (while accepting known player apps like
+  VLC) — switched to a VLC-style User-Agent, which is more broadly compatible.
+- **Fixed**: the Live tab's "↻ Refresh" button was silently also re-fetching all of Movies and
+  Series every time — it now only refreshes live channels, since those have their own dedicated
+  refresh buttons.
+- **Added**: a per-provider "↻ Refresh Channels" button in Settings > Providers, and a "Force TV
+  Mode" toggle in Settings > Display for devices like a car head unit that aren't automatically
+  detected as a TV.
+
 ## v4.83 - 2026-07-20
 - **Fixed**: turning on Force TV Mode had no way back — the toggle only existed in phone
   Settings, which becomes unreachable once the device is routed into the TV interface. Added

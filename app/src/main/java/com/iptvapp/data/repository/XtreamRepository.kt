@@ -12,10 +12,12 @@ import com.iptvapp.util.XmltvFetcher
 import com.iptvapp.util.safeApiCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import javax.inject.Inject
@@ -692,6 +694,77 @@ class XtreamRepository @Inject constructor(
             servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick))
         }
         return servers
+    }
+
+    data class ProviderHealthStatus(
+        val serverIndex: Int,
+        val nickname: String,
+        val serverUrl: String,
+        val reachable: Boolean,
+        val responseMs: Long?,
+        val error: String?
+    )
+
+    data class ConnectionTestResult(val reachable: Boolean, val responseMs: Long?, val error: String?)
+
+    /** Raw credentials in, reachability out — doesn't require the server to be saved/configured
+     * yet, unlike checkAllProviderHealth() below (which only knows about servers already in
+     * prefs.getExtraServersWithNick()). This is what the Add/Edit Provider dialogs' "Test
+     * Connection" button calls, so a bad URL/credential typo is caught before ever being saved
+     * — the actual root cause behind providers silently "not showing up" was that nothing
+     * validated the connection at all until some other, unrelated screen happened to fail.
+     *
+     * Uses the plain login endpoint (api.authenticate, same one the real login screen calls)
+     * rather than get_live_categories — Xtream panels almost never return HTTP 401 for bad
+     * credentials, they return HTTP 200 with a JSON body describing WHY (status=Expired/
+     * Disabled, active_cons >= max_connections, etc.), so reading that body gives a genuinely
+     * actionable reason instead of a bare status code. A real HTTP 401 here usually means
+     * something is rejecting the request before it even reaches the Xtream panel (a reverse
+     * proxy/CDN with its own auth, or the URL/path being wrong entirely). */
+    suspend fun testProviderConnection(serverUrl: String, username: String, password: String): ConnectionTestResult {
+        val start = System.currentTimeMillis()
+        return try {
+            withTimeout(8_000) {
+                val b = XtreamUrlBuilder(serverUrl, username, password)
+                val response = api.authenticate(b.apiUrl(), username, password)
+                val elapsed = System.currentTimeMillis() - start
+                if (!response.isSuccessful) {
+                    val hint = if (response.code() == 401)
+                        "HTTP 401 — this is unusual for Xtream and often means something in front of the panel (a proxy/CDN) is blocking the request before it even reaches the login check, or the URL is wrong"
+                    else "Server returned ${response.code()}"
+                    return@withTimeout ConnectionTestResult(false, elapsed, hint)
+                }
+                val info = response.body()?.userInfo
+                    ?: return@withTimeout ConnectionTestResult(false, elapsed, "Empty response from server")
+                when {
+                    info.status != "Active" -> ConnectionTestResult(false, elapsed, "Account status: ${info.status} — check with your provider (expired, disabled, or suspended)")
+                    info.maxConnections.toIntOrNull() != null && info.activeCons.toIntOrNull() != null &&
+                        info.activeCons.toInt() >= info.maxConnections.toInt() ->
+                        ConnectionTestResult(false, elapsed, "Max connections reached (${info.activeCons}/${info.maxConnections}) — another device is already using this account's connection limit")
+                    else -> ConnectionTestResult(true, elapsed, null)
+                }
+            }
+        } catch (e: Exception) {
+            val elapsed = System.currentTimeMillis() - start
+            val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else (e.message ?: "Unreachable")
+            ConnectionTestResult(false, elapsed, msg)
+        }
+    }
+
+    /** Live reachability probe for every ALREADY-CONFIGURED provider — a lightweight
+     * get_live_categories call (small payload, same endpoint the merged-channel refresh already
+     * uses) rather than a real reliability history, since only the primary provider has
+     * per-channel outcome tracking today (ChannelReliabilityEntity/checkStreamHealth). This
+     * answers "is this provider up right now", not "how has it performed over time" — good
+     * enough for a Settings diagnostics check without needing to build out full history
+     * tracking for merged providers too. */
+    suspend fun checkAllProviderHealth(): List<ProviderHealthStatus> = coroutineScope {
+        allConfiguredServers().map { server ->
+            async {
+                val result = testProviderConnection(server.serverUrl, server.username, server.password)
+                ProviderHealthStatus(server.serverIndex, server.nickname, server.serverUrl, result.reachable, result.responseMs, result.error)
+            }
+        }.awaitAll()
     }
 
     /** Fetches live channels from every configured server (primary + extras) in parallel for
