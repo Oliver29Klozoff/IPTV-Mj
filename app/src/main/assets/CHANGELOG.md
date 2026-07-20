@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v4.81 - 2026-07-20
+- **Added**: long-press a category folder on the Providers tab to pin it as a favorite, same as
+  Live — pinned categories show a star and sort to the top.
+- **Added**: favorites, folder assignments, and pinned categories from other providers now sync
+  across devices, matched by provider URL so it still works correctly even if your provider list
+  is configured in a different order on each device.
+- **Fixed**: the favorite star on Movies and Series rows rendered correctly but did nothing when
+  tapped — now actually toggles the favorite.
+- **Added**: the Guide tab (both the list and the Grid/Timeline view) now shows channels from
+  other configured providers alongside the primary one, color-coded by provider so you can tell
+  them apart at a glance.
+
 ## v4.80 - 2026-07-19
 - **Added**: watched/watching movies and series now automatically float to the top of the
   Movies and Series lists, most-recently-progressed first.

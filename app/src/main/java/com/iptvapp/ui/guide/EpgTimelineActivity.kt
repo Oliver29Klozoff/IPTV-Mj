@@ -131,7 +131,7 @@ class EpgTimelineActivity : AppCompatActivity() {
 
     private fun applySearchFilter(query: String) {
         val q = query.trim()
-        val filtered = if (q.isBlank()) rows() else rows().filter { it.channel!!.name.contains(q, ignoreCase = true) }
+        val filtered = if (q.isBlank()) rows() else rows().filter { it.name.contains(q, ignoreCase = true) }
         adapter.submitList(filtered)
     }
 
@@ -155,11 +155,10 @@ class EpgTimelineActivity : AppCompatActivity() {
         }
     }
 
-    // Grid/timeline view is primary-provider-only for now (recording, timeshift, and the
-    // stream_id result this activity returns to its caller all assume a DB-backed
-    // ChannelEntity) — merged/secondary-provider rows are filtered out here rather than
-    // threading null-channel handling through every site below.
-    private fun rows() = viewModel.guideRows.value.filter { it.channel != null }
+    // Merged/secondary-provider rows are included alongside primary now — recording/timeshift/
+    // "Remind Me" simply aren't offered for them (see showTimerDialog/handleProgramClick),
+    // matching the same primary-only gating the Guide list view already uses.
+    private fun rows() = viewModel.guideRows.value
 
     private fun buildTimeHeader() {
         val container = binding.timeHeaderContent
@@ -208,6 +207,10 @@ class EpgTimelineActivity : AppCompatActivity() {
     fun dpToPx(dp: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics)
 
+    // Record/Remind Me are primary-provider-only concepts (RecordingSchedulerActivity/
+    // ChannelTimerScheduler have no serverIndex support) — a merged row only ever gets the
+    // plain "OK" dialog with no actionable buttons, same spirit as the Guide list view gating
+    // onReplayClick off row.supportsReplay for merged rows.
     private fun showTimerDialog(row: GuideRow, program: EpgEntity) {
         val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp else program.startTimestamp / 1000L
         val startMs = startSec * 1000L
@@ -215,27 +218,38 @@ class EpgTimelineActivity : AppCompatActivity() {
         val stopMs = if (program.stopTimestamp < 100_000_000_000L) program.stopTimestamp * 1000L else program.stopTimestamp
         val durationMs = (stopMs - startMs).coerceAtLeast(60_000L)
         val timeStr = SimpleDateFormat("h:mm a", Locale.US).format(Date(startMs))
-        AlertDialog.Builder(this)
+        val ch = row.channel
+        val builder = AlertDialog.Builder(this)
             .setTitle("\"${program.title}\"")
-            .setMessage("${row.channel!!.name} · $timeStr")
-            .setPositiveButton("Record") { _, _ ->
+            .setMessage("${row.name} · $timeStr")
+            .setNegativeButton("Cancel", null)
+        if (ch != null) {
+            builder.setPositiveButton("Record") { _, _ ->
                 startActivity(
                     Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
-                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, row.channel!!.streamId)
+                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, ch.streamId)
                         .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
                         .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
                 )
             }
-            .setNeutralButton("Remind Me") { _, _ ->
-                ChannelTimerScheduler.schedule(this, row.channel!!.streamId, row.channel!!.name, program.title, startMs)
+            builder.setNeutralButton("Remind Me") { _, _ ->
+                ChannelTimerScheduler.schedule(this, ch.streamId, ch.name, program.title, startMs)
                 android.widget.Toast.makeText(this, "Reminder set for $timeStr", android.widget.Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
-            .show()
+        }
+        builder.show()
     }
 
     private fun playChannel(row: GuideRow) {
-        setResult(RESULT_OK, Intent().putExtra("stream_id", row.channel!!.streamId))
+        val mergedCh = row.mergedChannel
+        if (mergedCh != null) {
+            setResult(RESULT_OK, Intent()
+                .putExtra("stream_id", -1)
+                .putExtra("server_index", mergedCh.serverIndex)
+                .putExtra("merged_stream_id", mergedCh.streamId))
+        } else {
+            setResult(RESULT_OK, Intent().putExtra("stream_id", row.channel!!.streamId))
+        }
         finish()
     }
 
@@ -243,6 +257,7 @@ class EpgTimelineActivity : AppCompatActivity() {
         val nowMs = System.currentTimeMillis()
         val pStartMs = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp * 1000L else program.startTimestamp
         val pStopMs = if (program.stopTimestamp < 100_000_000_000L) program.stopTimestamp * 1000L else program.stopTimestamp
+        val ch = row.channel
 
         when {
             pStartMs <= nowMs && pStopMs > nowMs -> {
@@ -253,17 +268,19 @@ class EpgTimelineActivity : AppCompatActivity() {
                 // Upcoming — offer to set a reminder (stay in grid)
                 showTimerDialog(row, program)
             }
-            row.channel!!.tvArchive == 1 && program.hasArchive == 1 -> {
-                // Past with replay archive — return to home and play timeshift in mini player
+            ch != null && ch.tvArchive == 1 && program.hasArchive == 1 -> {
+                // Past with replay archive — return to home and play timeshift in mini player.
+                // Timeshift is primary-only (merged channels have no tvArchive), so this branch
+                // never applies to a merged row — ch is smart-cast non-null here.
                 lifecycleScope.launch {
                     val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp
                     else program.startTimestamp / 1000L
                     val durationMin = ((pStopMs - pStartMs) / 60_000L).toInt().coerceAtLeast(1)
-                    val url = viewModel.getTimeshiftUrl(row.channel!!.streamId, startSec, durationMin)
+                    val url = viewModel.getTimeshiftUrl(ch.streamId, startSec, durationMin)
                     setResult(RESULT_OK, Intent()
-                        .putExtra("stream_id", row.channel!!.streamId)
+                        .putExtra("stream_id", ch.streamId)
                         .putExtra("timeshift_url", url)
-                        .putExtra("timeshift_title", "${row.channel!!.name} — ${program.title}"))
+                        .putExtra("timeshift_title", "${ch.name} — ${program.title}"))
                     finish()
                 }
             }
@@ -358,12 +375,15 @@ class TimelineAdapter(
         val scrollView: HorizontalScrollView = view.findViewById(R.id.programRowScroll)
         private val container: LinearLayout = view.findViewById(R.id.programRowContainer)
 
+        private val providerStripe: View? = view.findViewById(R.id.viewTimelineProviderStripe)
+
         fun bind(row: GuideRow) {
-            tvName.text = row.channel!!.name
+            tvName.text = row.name
             tvName.setOnClickListener { onChannelClick(row) }
-            if (!row.channel!!.streamIcon.isNullOrBlank()) {
+            providerStripe?.setBackgroundColor(providerColorFor(row.serverIndex) ?: 0x00000000)
+            if (!row.streamIcon.isNullOrBlank()) {
                 ivLogo.visibility = View.VISIBLE
-                Glide.with(itemView.context).load(row.channel!!.streamIcon)
+                Glide.with(itemView.context).load(row.streamIcon)
                     .placeholder(android.R.drawable.ic_media_play)
                     .error(android.R.drawable.ic_media_play)
                     .into(ivLogo)
@@ -404,7 +424,7 @@ class TimelineAdapter(
                 val durationMin = ((pStopMs - pStartMs) / 60_000f).coerceAtLeast(5f)
                 val widthPx = (durationMin * dpPx).toInt()
                 val isNow = pStartMs <= nowMs && pStopMs > nowMs
-                val isReplay = row.channel!!.tvArchive == 1 && program.hasArchive == 1
+                val isReplay = row.supportsReplay && program.hasArchive == 1
 
                 val block = TextView(ctx).apply {
                     text = program.title

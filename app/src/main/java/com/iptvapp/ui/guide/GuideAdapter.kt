@@ -24,6 +24,7 @@ class GuideAdapter(
 
         fun bind(row: GuideRow) {
             binding.tvChannelName.text = row.name
+            binding.viewProviderStripe?.setBackgroundColor(providerColorFor(row.serverIndex) ?: 0x00000000)
             binding.programContainer.removeAllViews()
 
             val nowMs = System.currentTimeMillis()

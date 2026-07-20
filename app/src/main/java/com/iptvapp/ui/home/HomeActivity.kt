@@ -74,6 +74,11 @@ class HomeActivity : AppCompatActivity() {
     // this binding to point the spotlight tour at actual on-screen UI.
     lateinit var binding: ActivityHomeBinding
 
+    // Kept in sync by a dedicated collector below — mergedCategoriesToSynthetic() reads this
+    // synchronously (it's called from inside onCategoryClick's own collector, not a suspend
+    // context) to sort favorited merged categories to the top, same as Live categories.
+    private var mergedFavoriteCategoryKeys: Set<String> = emptySet()
+
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
     private var bulkSelectMode = false
@@ -152,9 +157,21 @@ class HomeActivity : AppCompatActivity() {
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@registerForActivityResult
             val streamId = data.getIntExtra("stream_id", -1)
-            if (streamId == -1) return@registerForActivityResult
+            val serverIndex = data.getIntExtra("server_index", -1)
+            val mergedStreamId = data.getIntExtra("merged_stream_id", -1)
+            // Merged/secondary-provider rows send stream_id=-1 alongside a real
+            // server_index/merged_stream_id pair (see EpgTimelineActivity.playChannel) — only
+            // bail if NEITHER identity is present at all.
+            if (streamId == -1 && (serverIndex == -1 || mergedStreamId == -1)) return@registerForActivityResult
             // Set synchronously — onResume fires after this callback and reads this flag
             suppressMiniAutoResume = true
+            if (streamId == -1) {
+                lifecycleScope.launch {
+                    val channel = viewModel.getMergedChannelByIndexAndId(serverIndex, mergedStreamId) ?: return@launch
+                    playMergedChannel(channel)
+                }
+                return@registerForActivityResult
+            }
             val timeshiftUrl = data.getStringExtra("timeshift_url")
             val timeshiftTitle = data.getStringExtra("timeshift_title")
             lifecycleScope.launch {
@@ -914,7 +931,12 @@ class HomeActivity : AppCompatActivity() {
                             }
                         }
                     } else {
-                        val categoryId = if (category.categoryId == NO_CATEGORY_ID) null else category.categoryId
+                        // category.categoryId here is the scoped "serverIndex:categoryId" key
+                        // mergedCategoriesToSynthetic builds (so the shared star-favorite check
+                        // works without collisions across servers) — strip the prefix back off
+                        // to get the real category id selectMergedCategory expects.
+                        val rawCategoryId = category.categoryId.substringAfter(':', category.categoryId)
+                        val categoryId = if (rawCategoryId == NO_CATEGORY_ID) null else rawCategoryId
                         viewModel.selectMergedCategory(categoryId)
                         landscapeShowChannelsMode()
                         binding.rvChannels.adapter = mergedChannelAdapter
@@ -931,6 +953,12 @@ class HomeActivity : AppCompatActivity() {
             onCategoryLongClick = { category ->
                 if (binding.tabLayout.selectedTabPosition == TAB_LIVE) {
                     viewModel.toggleLiveCategoryFavorite(category.categoryId)
+                    Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
+                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && viewModel.selectedMergedServerIndex != null) {
+                    // Only meaningful one level in (after a server is picked) — at the
+                    // server-picker level category.categoryId actually holds the serverIndex
+                    // string (see onCategoryClick above), not a real category id.
+                    viewModel.toggleMergedCategoryFavorite(category.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -1072,7 +1100,7 @@ class HomeActivity : AppCompatActivity() {
         }
                 }
             },
-            onFavoriteClick = {},
+            onFavoriteClick = { vod -> viewModel.toggleVodFavorite(vod) },
             onVodLongClick = { vod ->
                 startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
                     putExtra("vod_stream_id", vod.streamId)
@@ -1094,7 +1122,8 @@ class HomeActivity : AppCompatActivity() {
                     putExtra("series_rating", series.rating)
                     putExtra("series_plot", series.plot)
                 })
-            }
+            },
+            onFavoriteClick = { series -> viewModel.toggleSeriesFavorite(series) }
         )
 
         guideAdapter = GuideAdapter(
@@ -1544,15 +1573,24 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun mergedCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedCategorySummary>): List<CategoryEntity> =
-        list.map {
+    private fun mergedCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedCategorySummary>): List<CategoryEntity> {
+        val serverIndex = viewModel.selectedMergedServerIndex ?: -1
+        val entities = list.map {
             CategoryEntity(
-                categoryId = it.categoryId ?: NO_CATEGORY_ID,
+                // Scoped "$serverIndex:$categoryId" — plain categoryId can collide across
+                // servers, and this is also what makes CategoryAdapter's shared
+                // `categoryId in favoriteCategoryIds` star check collision-safe with zero
+                // adapter changes. onCategoryClick strips this prefix back off before calling
+                // selectMergedCategory.
+                categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
                 categoryName = "${it.categoryName ?: "Uncategorized"} (${it.channelCount})",
                 parentId = 0,
                 type = "merged_category"
             )
         }
+        val favoriteKeys = mergedFavoriteCategoryKeys
+        return entities.sortedByDescending { it.categoryId in favoriteKeys }
+    }
 
     // Tapping a merged channel now behaves like every other channel list: starts in the mini
     // player first, and only goes fullscreen if the mini player itself or its fullscreen
@@ -1853,11 +1891,27 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.favoriteLiveCategories.collect { favs ->
-                categoryAdapter.submitFavoriteCategoryIds(favs.map { it.categoryId }.toSet())
+                categoryAdapter.submitFavoriteCategoryIds(favs.map { it.categoryId }.toSet() + mergedFavoriteCategoryKeys)
                 if (binding.tabLayout.selectedTabPosition == TAB_CATEGORIES) {
                     submitCategories(favs)
                     if (favs.isNotEmpty()) viewModel.selectFavCategory(favs.first().categoryId)
                     else channelAdapter.submitList(emptyList())
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.favoriteMergedCategoryKeys.collect { keys ->
+                mergedFavoriteCategoryKeys = keys
+                // Re-derive the star set the same way the collector above does, since whichever
+                // one last ran otherwise clobbers the other's contribution to the union.
+                categoryAdapter.submitFavoriteCategoryIds(
+                    viewModel.favoriteLiveCategories.value.map { it.categoryId }.toSet() + keys
+                )
+                // If we're currently drilled into a merged server's category list, resort/
+                // re-render it now so a newly (un)favorited category moves immediately instead
+                // of waiting for the next unrelated recomposition.
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && viewModel.selectedMergedServerIndex != null) {
+                    categoryAdapter.submitList(mergedCategoriesToSynthetic(viewModel.mergedCategories.value))
                 }
             }
         }

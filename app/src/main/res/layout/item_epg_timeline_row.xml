@@ -13,6 +13,13 @@
         android:orientation="horizontal"
         android:paddingHorizontal="8dp">
 
+        <View
+            android:id="@+id/viewTimelineProviderStripe"
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="6dp"
+            android:background="#00000000" />
+
         <ImageView
             android:id="@+id/ivTimelineChannelLogo"
             android:layout_width="28dp"

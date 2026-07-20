@@ -375,6 +375,9 @@ class HomeViewModel @Inject constructor(
     suspend fun getSeriesEpisodeUrl(episodeId: String, containerExtension: String): String =
         repository.getSeriesEpisodeUrl(episodeId, containerExtension)
 
+    suspend fun getMergedChannelByIndexAndId(serverIndex: Int, streamId: Int) =
+        repository.getMergedChannelByIndexAndId(serverIndex, streamId)
+
     suspend fun getContinueSeriesTicker(): List<ContinueSeriesEntry> = coroutineScope {
         val seriesIds = repository.getSeriesIdsWithProgress().first()
         if (seriesIds.isEmpty()) return@coroutineScope emptyList()
@@ -1050,6 +1053,17 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // The star icon on Movies/Series rows rendered isFavorite correctly but had no click
+    // handler wired at all (VodAdapter's onFavoriteClick was a bare {} no-op, SeriesAdapter had
+    // no favorite click plumbing whatsoever) — these two make the star actually toggle.
+    fun toggleVodFavorite(vod: VodEntity) {
+        viewModelScope.launch { repository.setVodFavorite(vod.streamId, !vod.isFavorite) }
+    }
+
+    fun toggleSeriesFavorite(series: SeriesEntity) {
+        viewModelScope.launch { repository.setSeriesFavorite(series.seriesId, !series.isFavorite) }
+    }
+
     fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
         viewModelScope.launch { repository.setLiveCategoryFavorite(categoryId, isFavorite) }
     }
@@ -1061,6 +1075,18 @@ class HomeViewModel @Inject constructor(
             updateFavoriteCategories(_liveCategories.value)
         }
     }
+
+    // key is "$serverIndex:$categoryId" (see CategoryAdapter/mergedCategoriesToSynthetic in
+    // HomeActivity, which builds the synthetic CategoryEntity.categoryId as this same key so
+    // the shared star-rendering `categoryId in favoriteCategoryIds` check works unmodified).
+    fun toggleMergedCategoryFavorite(key: String) {
+        viewModelScope.launch {
+            val favoriteKeys = repository.getFavoriteMergedCategoryIds().first()
+            repository.setMergedCategoryFavorite(key, key !in favoriteKeys)
+        }
+    }
+
+    val favoriteMergedCategoryKeys: kotlinx.coroutines.flow.Flow<Set<String>> = repository.getFavoriteMergedCategoryIds()
 
     suspend fun getRecentChannel(): com.iptvapp.data.local.entities.ChannelEntity? {
         return repository.getRecentChannels().first().firstOrNull()

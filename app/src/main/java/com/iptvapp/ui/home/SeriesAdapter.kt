@@ -10,7 +10,8 @@ import com.iptvapp.data.local.entities.SeriesEntity
 import com.iptvapp.databinding.ItemSeriesBinding
 
 class SeriesAdapter(
-    private val onSeriesClick: (SeriesEntity) -> Unit
+    private val onSeriesClick: (SeriesEntity) -> Unit,
+    private val onFavoriteClick: (SeriesEntity) -> Unit = {}
 ) : ListAdapter<SeriesEntity, SeriesAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(val binding: ItemSeriesBinding) :
@@ -28,6 +29,7 @@ class SeriesAdapter(
                 else android.R.drawable.btn_star_big_off
             )
             binding.root.setOnClickListener { onSeriesClick(item) }
+            binding.ivSeriesFavorite.setOnClickListener { onFavoriteClick(item) }
         }
     }
 

@@ -172,6 +172,18 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    fun getFavoriteMergedCategoryIds(): Flow<Set<String>> = prefs.favoriteMergedCategoryIds
+
+    // key is "$serverIndex:$categoryId" — plain categoryId collides across servers, same
+    // reasoning as every other merged-provider composite key in this codebase.
+    suspend fun setMergedCategoryFavorite(key: String, isFavorite: Boolean) {
+        if (isFavorite) {
+            prefs.addFavoriteMergedCategoryId(key)
+        } else {
+            prefs.removeFavoriteMergedCategoryId(key)
+        }
+    }
+
     suspend fun getLiveStreamUrl(streamId: Int): String {
         val channel = db.channelDao().getChannelById(streamId)
         if (channel?.streamUrl != null) return channel.streamUrl
@@ -307,6 +319,10 @@ class XtreamRepository @Inject constructor(
     }
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
+
+    suspend fun setSeriesFavorite(seriesId: Int, isFavorite: Boolean) = db.seriesDao().setFavorite(seriesId, isFavorite)
+
+    suspend fun setVodFavorite(streamId: Int, isFavorite: Boolean) = db.vodDao().setFavorite(streamId, isFavorite)
 
     suspend fun fetchSeriesCategories(): Resource<List<Category>> {
         val b = urlBuilder(); val c = creds()

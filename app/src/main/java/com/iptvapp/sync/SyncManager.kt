@@ -71,6 +71,33 @@ class SyncManager @Inject constructor(
                     )
                 }
 
+            // Merged/secondary-provider favorites — keyed by the SERVER'S URL, not its local
+            // serverIndex, since serverIndex is just "position in this device's own extraServers
+            // list" and two devices can have the same providers configured in a different order
+            // (or not have a given provider configured at all). URL is the one thing that
+            // actually identifies "the same provider" across devices. Folder assignment is
+            // synced the same by-name way primary favorites already are.
+            val urlByServerIndex = allConfiguredServerUrls()
+            val mergedFavorites = db.mergedChannelDao().getAllFavorites().first()
+            val mergedFolderNameById = folderNameById
+            val mergedFavoritesPayload = mergedFavorites.mapNotNull { ch ->
+                val url = urlByServerIndex[ch.serverIndex] ?: return@mapNotNull null
+                mapOf(
+                    "serverUrl" to url,
+                    "streamId" to ch.streamId,
+                    "folderName" to ch.favoriteFolderId?.let { mergedFolderNameById[it] }
+                )
+            }
+            val favoriteMergedCategoryKeys = prefs.favoriteMergedCategoryIds.first()
+            // categoryKey is "$serverIndex:$categoryId" locally — re-key by URL for the same
+            // cross-device-identity reason as favorites above.
+            val favoriteMergedCategories = favoriteMergedCategoryKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = urlByServerIndex[serverIndex] ?: return@mapNotNull null
+                mapOf("serverUrl" to url, "categoryId" to categoryId)
+            }
+
             val data = hashMapOf(
                 "version"            to 1,
                 "syncedAt"           to System.currentTimeMillis(),
@@ -86,7 +113,9 @@ class SyncManager @Inject constructor(
                 "favoriteOrder"      to allFavorites.map { it.streamId },
                 "vodProgress"        to vodProgress,
                 "seriesProgress"     to seriesProgress,
-                "episodesWatched"    to episodesWatched
+                "episodesWatched"    to episodesWatched,
+                "mergedFavorites"    to mergedFavoritesPayload,
+                "mergedFavoriteCategories" to favoriteMergedCategories
             )
 
             firestore.collection("users").document(user.uid).set(data, SetOptions.merge()).await()
@@ -246,6 +275,48 @@ class SyncManager @Inject constructor(
                 }
             }
 
+            // Merged/secondary-provider favorites — matched to THIS device's local serverIndex
+            // by server URL (not the remote device's serverIndex, which is meaningless here —
+            // see syncUp's comment). A remote favorite for a provider this device doesn't have
+            // configured is simply skipped, not an error.
+            val serverIndexByUrl = allConfiguredServerUrls().entries.associate { (idx, url) -> url to idx }
+            @Suppress("UNCHECKED_CAST")
+            val remoteMergedFavorites = (doc.get("mergedFavorites") as? List<Map<*, *>>) ?: emptyList()
+            var mergedFavoritesMerged = 0
+            val remoteMergedFolderNames = remoteMergedFavorites.mapNotNull { it["folderName"] as? String }.distinct()
+            val existingFolders = db.favoriteFolderDao().getAll().first()
+            val mergedIdByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+            var mergedNextOrder = existingFolders.size
+            for (name in remoteMergedFolderNames) {
+                if (name !in mergedIdByName) {
+                    val newId = db.favoriteFolderDao().insert(
+                        com.iptvapp.data.local.entities.FavoriteFolderEntity(name = name, sortOrder = mergedNextOrder++)
+                    ).toInt()
+                    mergedIdByName[name] = newId
+                }
+            }
+            remoteMergedFavorites.forEach { entry ->
+                val url = entry["serverUrl"] as? String ?: return@forEach
+                val serverIndex = serverIndexByUrl[url] ?: return@forEach
+                val streamId = (entry["streamId"] as? Long)?.toInt() ?: return@forEach
+                db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
+                mergedFavoritesMerged++
+                (entry["folderName"] as? String)?.let { folderName ->
+                    mergedIdByName[folderName]?.let { folderId ->
+                        db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                    }
+                }
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val remoteMergedCategories = (doc.get("mergedFavoriteCategories") as? List<Map<*, *>>) ?: emptyList()
+            remoteMergedCategories.forEach { entry ->
+                val url = entry["serverUrl"] as? String ?: return@forEach
+                val serverIndex = serverIndexByUrl[url] ?: return@forEach
+                val categoryId = entry["categoryId"] as? String ?: return@forEach
+                prefs.addFavoriteMergedCategoryId("$serverIndex:$categoryId")
+            }
+
             val syncedAt   = doc.getLong("syncedAt") ?: 0L
             val syncDevice = doc.getString("device") ?: "Unknown"
             val dateStr    = if (syncedAt > 0)
@@ -254,11 +325,21 @@ class SyncManager @Inject constructor(
 
             prefs.setLastSyncTime(System.currentTimeMillis())
             val progressSuffix = if (vodProgressMerged > 0) " and $vodProgressMerged watch progress update${if (vodProgressMerged == 1) "" else "s"}" else ""
-            "Pulled ${merged.size} favorites$progressSuffix from $syncDevice ($dateStr)"
+            val mergedSuffix = if (mergedFavoritesMerged > 0) " and $mergedFavoritesMerged other-provider favorite${if (mergedFavoritesMerged == 1) "" else "s"}" else ""
+            "Pulled ${merged.size} favorites$progressSuffix$mergedSuffix from $syncDevice ($dateStr)"
         } catch (e: Exception) {
             "Sync failed: ${e.message}"
         }
     }
+
+    // Maps each configured extra server's local index (0..N-1, same convention as
+    // MergedChannelEntity.serverIndex) to its URL — the one stable identifier for "the same
+    // provider" across two devices, since serverIndex itself is just "position in this
+    // device's own extraServers list" and can differ device to device.
+    private suspend fun allConfiguredServerUrls(): Map<Int, String> =
+        prefs.getExtraServersWithNick().mapIndexedNotNull { i, s ->
+            s.getOrNull(0)?.takeIf { it.isNotBlank() }?.let { i to it }
+        }.toMap()
 
     suspend fun setPairingCode(code: String) {
         prefs.setSyncGistId(code.trim().lowercase())

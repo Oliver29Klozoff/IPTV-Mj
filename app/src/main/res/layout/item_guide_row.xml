@@ -8,9 +8,15 @@
     android:focusableInTouchMode="false"
     android:orientation="horizontal">
 
+    <View
+        android:id="@+id/viewProviderStripe"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:background="#00000000" />
+
     <TextView
         android:id="@+id/tvChannelName"
-        android:layout_width="220dp"
+        android:layout_width="216dp"
         android:layout_height="match_parent"
         android:gravity="center_vertical"
         android:paddingHorizontal="16dp"

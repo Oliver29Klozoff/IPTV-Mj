@@ -42,6 +42,9 @@ class PreferencesManager @Inject constructor(
         val SHOW_SERIES = booleanPreferencesKey("show_series")
         val SHOW_WATCHING = booleanPreferencesKey("show_watching")
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
+        // Keyed "$serverIndex:$categoryId" — plain categoryId isn't unique across servers,
+        // two different providers can reuse the same category id string.
+        val FAVORITE_MERGED_CATEGORY_IDS = stringSetPreferencesKey("favorite_merged_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
         val SERVER_NICKNAME = stringPreferencesKey("server_nickname")
@@ -221,6 +224,9 @@ class PreferencesManager @Inject constructor(
     val favoriteLiveCategoryIds: Flow<Set<String>> = context.dataStore.data
         .map { it[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet() }
 
+    val favoriteMergedCategoryIds: Flow<Set<String>> = context.dataStore.data
+        .map { it[Keys.FAVORITE_MERGED_CATEGORY_IDS] ?: emptySet() }
+
     suspend fun saveCredentials(serverUrl: String, username: String, password: String) {
         context.dataStore.edit { prefs ->
             prefs[Keys.SERVER_URL] = serverUrl
@@ -337,6 +343,20 @@ class PreferencesManager @Inject constructor(
         context.dataStore.edit { prefs ->
             val current = prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] ?: emptySet()
             prefs[Keys.FAVORITE_LIVE_CATEGORY_IDS] = current + categoryId
+        }
+    }
+
+    suspend fun addFavoriteMergedCategoryId(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.FAVORITE_MERGED_CATEGORY_IDS] ?: emptySet()
+            prefs[Keys.FAVORITE_MERGED_CATEGORY_IDS] = current + key
+        }
+    }
+
+    suspend fun removeFavoriteMergedCategoryId(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.FAVORITE_MERGED_CATEGORY_IDS] ?: emptySet()
+            prefs[Keys.FAVORITE_MERGED_CATEGORY_IDS] = current - key
         }
     }
 
