@@ -32,6 +32,8 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.iptvapp.AppConstants
 import com.iptvapp.IptvApplication
 import com.iptvapp.util.LogSanitizer
+import com.iptvapp.util.isForceTvModeEnabled
+import com.iptvapp.util.setForceTvModeEnabled
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
@@ -379,6 +381,18 @@ class TvSettingsActivity : AppCompatActivity() {
                 prefs.setAmoledBlack(c)
                 Toast.makeText(this@TvSettingsActivity, "Restart the app for AMOLED Black to fully apply", Toast.LENGTH_LONG).show()
             }
+        }
+        // Turning this OFF here is the only way back once a phone-formatted device (a car
+        // head unit/box) has been switched into the TV interface via this same toggle on the
+        // phone side — that phone Settings screen is unreachable once routing always resolves
+        // to TvSettingsActivity, so this toggle has to exist on both sides.
+        settingsItems += TvSettingItem.Toggle("display_force_tv", "Force TV Mode",
+            subtitle = "This device is using the TV interface because Force TV Mode is on. Turn off to return to the phone interface (restarts the app).",
+            checked = isForceTvModeEnabled()) { c ->
+            setForceTvModeEnabled(c)
+            val intent = Intent(this@TvSettingsActivity, com.iptvapp.ui.SplashActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
         }
         settingsItems += TvSettingItem.Toggle("display_usa", "USA Channels Only",
             checked = usaOnly) { c -> lifecycleScope.launch { prefs.setUsaOnlyChannels(c) } }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.83 - 2026-07-20
+- **Fixed**: turning on Force TV Mode had no way back — the toggle only existed in phone
+  Settings, which becomes unreachable once the device is routed into the TV interface. Added
+  the same toggle to TV Settings > Display so it can be turned back off.
+
 ## v4.82 - 2026-07-20
 - **Added**: a per-provider "↻ Refresh Channels" button in Settings > Providers — refreshes just
   that provider's live channels/categories, separate from the Movies/Series refresh and from
