@@ -166,8 +166,8 @@ class HomeViewModel @Inject constructor(
 
     /** Manual refresh only — fetches every configured server's live channels in parallel for
      * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
-    fun refreshMergedChannels() {
-        viewModelScope.launch { repository.refreshMergedChannels() }
+    fun refreshMergedChannels(targetServerIndex: Int? = null) {
+        viewModelScope.launch { repository.refreshMergedChannels(targetServerIndex) }
     }
 
     fun resetMergedSelection() {

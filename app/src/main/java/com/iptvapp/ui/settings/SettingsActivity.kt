@@ -37,6 +37,8 @@ import androidx.work.workDataOf
 import com.iptvapp.AppConstants
 import com.iptvapp.IptvApplication
 import com.iptvapp.util.LogSanitizer
+import com.iptvapp.util.isForceTvModeEnabled
+import com.iptvapp.util.setForceTvModeEnabled
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
@@ -445,6 +447,19 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setAmoledBlack(isChecked) }
             Toast.makeText(this, "Restart the app for AMOLED Black to fully apply", Toast.LENGTH_LONG).show()
+        }
+
+        // Every phone-vs-TV routing decision (Splash's home-screen pick, Settings' own class
+        // pick, PlayerActivity's fullscreen-return target, the Feature Tour) reads
+        // isLargeScreenDevice() fresh each time it's needed — restarting into SplashActivity is
+        // the simplest way to make every one of those decisions re-evaluate under the new
+        // override immediately, rather than patching each call site's already-cached state.
+        binding.switchForceTvMode.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            setForceTvModeEnabled(isChecked)
+            val intent = Intent(this, com.iptvapp.ui.SplashActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
         }
 
         binding.switchSilentSelfUpdate.setOnCheckedChangeListener { _, isChecked ->
@@ -1286,6 +1301,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
                 binding.cbEnglishOnlyMovies.isChecked = prefs.englishOnlyMovies.first()
                 binding.cbAmoledBlack.isChecked = prefs.amoledBlack.first()
+                binding.switchForceTvMode.isChecked = isForceTvModeEnabled()
                 binding.switchSilentSelfUpdate.isChecked = prefs.silentSelfUpdateEnabled.first()
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()
                 binding.cbShowSeries.isChecked = prefs.showSeries.first()
@@ -1603,6 +1619,34 @@ class SettingsActivity : AppCompatActivity() {
                     btnRow.addView(this)
                 }
                 row.addView(btnRow)
+                // Per-provider live-channel refresh — deliberately separate from the Movies/
+                // Series refresh buttons in the Display section, and from Home's "Refresh All
+                // Providers" (which touches every configured server at once). This only
+                // re-fetches THIS provider's live channels/categories.
+                android.widget.Button(this@SettingsActivity).apply {
+                    text = "↻ Refresh Channels"
+                    isAllCaps = false
+                    textSize = 13f
+                    setTextColor(Color.parseColor("#008CFF"))
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E1E1E"))
+                    val heightPx = (40 * resources.displayMetrics.density).toInt()
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, heightPx
+                    ).also { it.topMargin = 8 }
+                    setOnClickListener {
+                        isEnabled = false
+                        val originalText = text
+                        text = "Refreshing…"
+                        lifecycleScope.launch {
+                            val errors = repository.refreshMergedChannels(i)
+                            isEnabled = true
+                            text = originalText
+                            val msg = errors[i]?.let { err -> "Failed: $err" } ?: "Channels refreshed"
+                            Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    row.addView(this)
+                }
                 ll.addView(row)
             }
         }

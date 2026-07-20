@@ -700,8 +700,15 @@ class XtreamRepository @Inject constructor(
      * same numeric stream id. Only servers that fetch successfully are written, in one atomic
      * clear+upsert, so a network hiccup on one server doesn't wipe a previously-cached other
      * server's rows. Returns serverIndex -> error message for any servers that failed. */
-    suspend fun refreshMergedChannels(): Map<Int, String> {
-        val servers = allConfiguredServers()
+    // targetServerIndex: null = refresh every configured server (existing "Refresh All
+    // Providers" behavior on Home), a specific index = just that one server — used by the
+    // per-provider refresh button in Settings, which deliberately only touches live channels/
+    // categories, never VOD/series (that's the separate Movies/Series refresh already in the
+    // Display section).
+    suspend fun refreshMergedChannels(targetServerIndex: Int? = null): Map<Int, String> {
+        val servers = allConfiguredServers().let { all ->
+            if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
+        }
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedChannelEntity>()
         // Wholesale re-fetch must not silently un-favorite/un-folder every merged channel —

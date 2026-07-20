@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.82 - 2026-07-20
+- **Added**: a per-provider "↻ Refresh Channels" button in Settings > Providers — refreshes just
+  that provider's live channels/categories, separate from the Movies/Series refresh and from
+  Home's "Refresh All Providers".
+- **Added**: a "Force TV Mode" toggle in Settings > Display — switches this device to the TV
+  interface and D-pad navigation even if it isn't detected as one (for a car head unit/box or
+  other non-standard screen).
+
 ## v4.81 - 2026-07-20
 - **Added**: long-press a category folder on the Providers tab to pin it as a favorite, same as
   Live — pinned categories show a star and sort to the top.

@@ -1,7 +1,7 @@
 {
-  "versionCode": 319,
-  "versionName": "4.81",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.81/MKTV.apk",
-  "apkSha256": "b62035fea01cfd2b2479accc7fca2933a44e84cacd78cba66271692775dc2809",
-  "changelog": "Providers category favoriting + cross-device sync for other-provider favorites, fixed the Movies/Series favorite star not responding to taps, and Guide now shows/color-codes channels from other providers in both the list and Grid views."
+  "versionCode": 320,
+  "versionName": "4.82",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.82/MKTV.apk",
+  "apkSha256": "41eaf74be550aa2ec4b10e4309c0c96e05895212ff4ce0e1b13566bb12b9dfbe",
+  "changelog": "Added a per-provider Refresh Channels button in Settings, and a Force TV Mode toggle for devices like a car head unit that aren't detected as a TV automatically."
 }
