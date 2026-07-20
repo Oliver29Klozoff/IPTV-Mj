@@ -1,5 +1,27 @@
 # IPTV App - Changelog
 
+## v4.80 - 2026-07-19
+- **Added**: watched/watching movies and series now automatically float to the top of the
+  Movies and Series lists, most-recently-progressed first.
+- **Fixed**: resuming a series episode where you left off never actually worked — episode
+  progress was silently saving into the wrong table. Now saves and resumes correctly, including
+  across devices via Sync.
+- **Added**: a real interactive Feature Tour — replaces the old static text carousel with a
+  spotlight that highlights the actual tab/button being explained, on both phone and TV.
+- **Added**: "Find in Settings" search on both phone and TV — jump straight to any setting
+  instead of hunting through sections.
+- **Added**: inline "↻ Refresh" buttons next to Show Movies/Series Tab on TV Settings, instead
+  of separate rows.
+- **Added**: a real "What's On" button on the Guide tab (was previously non-functional) — shows
+  what's airing now across your favorites; long-press for a single upcoming-programs feed.
+- **Added**: favorited channels from other providers now appear in the Guide tab with full
+  program data, not just the primary provider.
+- **Fixed**: the Favorites tab's search box (and folder views) used to silently drop favorites
+  from other providers — now includes them everywhere primary favorites already do.
+- **Added**: a "Continue Watching" feed for series — long-press the Series tab to see the next
+  unwatched/in-progress episode across every show you've started, without opening each one.
+- **Removed**: an unused, unreachable recording code path left over from earlier work.
+
 ## v4.79 - 2026-07-19
 - **Fixed**: favorite channel health dots could all turn red at once, even though the channels
   played fine — the health check fired one request per favorite all at once with no pacing,

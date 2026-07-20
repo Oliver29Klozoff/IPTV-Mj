@@ -101,6 +101,14 @@ class SettingsActivity : AppCompatActivity() {
             + "compare multiple providers if you have them.\n\n"
             + "DNS over HTTPS (DoH): encrypts DNS lookups so your ISP can't see (or throttle "
             + "based on) which streaming domains you're connecting to.\n\n"
+            + "Tunneled Playback: lets the device handle audio/video sync in hardware instead "
+            + "of the app doing it in software — smoother on supported devices, but can cause "
+            + "glitches on some. Off by default.\n\n"
+            + "DV7 → HEVC Fallback: some devices can't properly decode Dolby Vision Profile 7 "
+            + "and show a black screen or fail outright — this redirects that content to a "
+            + "standard HEVC decoder instead (DV7 streams always include a valid HEVC base "
+            + "layer), trading the extra HDR enhancement layer for a picture that actually "
+            + "plays.\n\n"
             + "Global Extra Buffering: builds up a bigger buffer before playback starts, "
             + "trading a slower start for fewer stalls mid-stream on slow/unreliable "
             + "connections. On by default.\n\n"
@@ -153,6 +161,140 @@ class SettingsActivity : AppCompatActivity() {
             + "playback, not the mini player."
     )
 
+    // ─── Search ─────────────────────────────────────────────────────────────
+    // Hand-mapped rather than parsed from the layout — this XML mixes CardView sections and
+    // collapsible sub-cards with no consistent id-to-label convention to walk automatically.
+    // Each entry: (label, panel index into panelViews/navButtonViews, header id to expand if
+    // this setting lives inside a collapsible card (null if not collapsible), target view id
+    // to scroll to and highlight).
+    private data class SettingSearchEntry(val label: String, val panelIndex: Int, val headerId: Int?, val targetId: Int)
+
+    private val settingSearchIndex: List<SettingSearchEntry> by lazy {
+        listOf(
+            SettingSearchEntry("EPG URL", 0, R.id.hdrEpgUrl, R.id.hdrEpgUrl),
+            SettingSearchEntry("Stream Format", 0, R.id.hdrFormat, R.id.hdrFormat),
+            SettingSearchEntry("Video Player", 0, R.id.hdrPlayer, R.id.hdrPlayer),
+            SettingSearchEntry("EPG Refresh", 0, R.id.hdrEpgSection, R.id.hdrEpgSection),
+            SettingSearchEntry("Auto Refresh Schedule", 0, R.id.hdrEpgSection, R.id.hdrEpgSection),
+            SettingSearchEntry("Provider Speed Test", 0, R.id.hdrSpeedTest, R.id.hdrSpeedTest),
+            SettingSearchEntry("DNS over HTTPS", 0, R.id.hdrDoh, R.id.hdrDoh),
+            SettingSearchEntry("Tunneled Playback", 0, null, R.id.switchTunneledPlayback),
+            SettingSearchEntry("DV7 HEVC Fallback", 0, null, R.id.switchDv7Fallback),
+            SettingSearchEntry("Global Extra Buffering", 0, null, R.id.switchExtraBuffering),
+            SettingSearchEntry("Picture-in-Picture", 0, null, R.id.switchPipEnabled),
+            SettingSearchEntry("Show USA Channels Only", 0, null, R.id.cbUsaOnlyChannels),
+            SettingSearchEntry("Show English Movies & Series Only", 0, null, R.id.cbEnglishOnlyMovies),
+            SettingSearchEntry("Channels & Tabs", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
+            SettingSearchEntry("Show Movies Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
+            SettingSearchEntry("Show Series Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
+            SettingSearchEntry("Show Watching Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
+            SettingSearchEntry("Accent Color", 1, R.id.hdrAccentColor, R.id.hdrAccentColor),
+            SettingSearchEntry("AMOLED Black", 1, R.id.hdrAccentColor, R.id.hdrAccentColor),
+            SettingSearchEntry("Quick Actions", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
+            SettingSearchEntry("Sort Channels", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
+            SettingSearchEntry("Multi-view / Mosaic", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
+            SettingSearchEntry("Feature Tour", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
+            SettingSearchEntry("Subtitle Size", 1, null, R.id.sectionDisplay),
+            SettingSearchEntry("Subtitle Text Color", 1, null, R.id.sectionDisplay),
+            SettingSearchEntry("Subtitle Background Color", 1, null, R.id.sectionDisplay),
+            SettingSearchEntry("Subtitle Outline", 1, null, R.id.sectionDisplay),
+            SettingSearchEntry("Check for Updates", 2, R.id.hdrUpdates, R.id.hdrUpdates),
+            SettingSearchEntry("What's New / Changelog", 2, R.id.hdrUpdates, R.id.hdrUpdates),
+            SettingSearchEntry("Silent Self-Update", 2, R.id.hdrUpdates, R.id.hdrUpdates),
+            SettingSearchEntry("Backup", 3, null, R.id.sectionBackup),
+            SettingSearchEntry("Restore", 3, null, R.id.sectionBackup),
+            SettingSearchEntry("Auto backup", 3, null, R.id.sectionBackup),
+            SettingSearchEntry("Add Provider", 4, null, R.id.sectionServers),
+            SettingSearchEntry("Cross-Device Sync", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Push to Cloud", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Pull from Cloud", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Pairing Code", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Diagnostics", 5, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
+            SettingSearchEntry("Send Debug Report", 5, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
+            SettingSearchEntry("Provider Health", 5, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
+            SettingSearchEntry("Connect Trakt", 5, null, R.id.sectionSync),
+            SettingSearchEntry("Sync Watched History from Trakt", 5, null, R.id.sectionSync)
+        )
+    }
+
+    private fun showSettingsSearchDialog() {
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        val input = android.widget.EditText(this).apply {
+            hint = "Search settings…"
+            setPadding(32, 16, 32, 16)
+        }
+        val resultsList = android.widget.ListView(this)
+        container.addView(input)
+        container.addView(resultsList, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (400 * resources.displayMetrics.density).toInt()
+        ))
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Find in Settings")
+            .setView(container)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        var currentMatches: List<SettingSearchEntry> = emptyList()
+        fun renderMatches(query: String) {
+            currentMatches = if (query.isBlank()) emptyList()
+                else settingSearchIndex.filter { it.label.contains(query, ignoreCase = true) }
+            resultsList.adapter = android.widget.ArrayAdapter(
+                this, android.R.layout.simple_list_item_1, currentMatches.map { it.label }
+            )
+        }
+        resultsList.setOnItemClickListener { _, _, position, _ ->
+            val match = currentMatches.getOrNull(position) ?: return@setOnItemClickListener
+            dialog.dismiss()
+            jumpToSettingSearchResult(match)
+        }
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { renderMatches(s?.toString().orEmpty()) }
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+        })
+        dialog.show()
+    }
+
+    private fun jumpToSettingSearchResult(match: SettingSearchEntry) {
+        // Reuse the existing left-rail nav click to switch panels, keeping its highlight/focus
+        // side effects (backgroundTint, text color) consistent with a normal manual tap.
+        navButtonViews.getOrNull(match.panelIndex)?.performClick()
+        val panel = panelViews.getOrNull(match.panelIndex) as? android.widget.ScrollView ?: return
+        panel.post {
+            if (match.headerId != null) {
+                val header = findViewById<View>(match.headerId)
+                val bodyId = when (match.headerId) {
+                    R.id.hdrEpgUrl -> R.id.bodyEpgUrl
+                    R.id.hdrFormat -> R.id.bodyFormat
+                    R.id.hdrPlayer -> R.id.bodyPlayer
+                    R.id.hdrEpgSection -> R.id.bodyEpgSection
+                    R.id.hdrSpeedTest -> R.id.bodySpeedTest
+                    R.id.hdrDoh -> R.id.bodyDoh
+                    R.id.hdrChannelsTabs -> R.id.bodyChannelsTabs
+                    R.id.hdrAccentColor -> R.id.bodyAccentColor
+                    R.id.hdrQuickActions -> R.id.bodyQuickActions
+                    R.id.hdrUpdates -> R.id.bodyUpdates
+                    R.id.hdrCrossDeviceSync -> R.id.bodyCrossDeviceSync
+                    R.id.hdrDiagnostics -> R.id.bodyDiagnostics
+                    else -> null
+                }
+                val body = bodyId?.let { findViewById<View>(it) }
+                if (body != null && body.visibility == View.GONE) header?.performClick()
+            }
+            panel.post {
+                val target = findViewById<View>(match.targetId) ?: return@post
+                panel.smoothScrollTo(0, target.top)
+                val original = target.background
+                target.setBackgroundColor(Color.parseColor("#1A008CFF"))
+                target.postDelayed({ target.background = original }, 900)
+            }
+        }
+    }
+
     private fun showSettingsHelp() {
         val idx = currentPanelIndex.coerceIn(sectionHelp.indices)
         val sectionName = navButtonViews.getOrNull(idx)?.text?.toString() ?: "Settings"
@@ -199,6 +341,7 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSettingsHelp.setOnClickListener { showSettingsHelp() }
+        binding.btnSettingsSearch.setOnClickListener { showSettingsSearchDialog() }
 
         binding.btnLogout.setOnClickListener {
             AlertDialog.Builder(this)
@@ -232,7 +375,7 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
         }
         binding.btnFeatureTour.setOnClickListener {
-            FeatureTourDialog.show(this)
+            FeatureTourDialog.startFromSettings(this)
         }
 
         binding.btnSaveEpg.setOnClickListener {
@@ -438,21 +581,49 @@ class SettingsActivity : AppCompatActivity() {
         setupCollapsibleCards()
     }
 
+    // Tiles wrap into fixed-size sub-rows (rather than one long horizontal LinearLayout) since
+    // 8 tiles at 44dp+margins overflows narrower phone screens — accentColorRow is now a
+    // vertical container that this fills with as many horizontal sub-rows as needed.
+    private val ACCENT_TILES_PER_ROW = 5
+
     private fun setupAccentPicker() {
         val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density + 0.5f).toInt()
-        val row = binding.accentColorRow
-        row.removeAllViews()
-        accentPalette.forEachIndexed { i, hex ->
+        val container = binding.accentColorRow
+        container.removeAllViews()
+
+        fun newSubRow(): android.widget.LinearLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
+            ).apply { if (container.childCount > 0) topMargin = dp(8) }
+            container.addView(this)
+        }
+
+        fun buildTile(isFirstInRow: Boolean, hex: String?, isCustomTile: Boolean): android.widget.FrameLayout {
             val outer = android.widget.FrameLayout(this).apply {
                 layoutParams = android.widget.LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-                    if (i > 0) marginStart = dp(8)
+                    if (!isFirstInRow) marginStart = dp(8)
                 }
             }
+            val isSelected = if (isCustomTile) accentPalette.none { it == currentAccentColor } else hex == currentAccentColor
             val swatch = View(this).apply {
                 val gd = android.graphics.drawable.GradientDrawable()
                 gd.shape = android.graphics.drawable.GradientDrawable.OVAL
-                gd.setColor(Color.parseColor(hex))
+                if (isCustomTile) {
+                    if (isSelected) {
+                        gd.setColor(Color.parseColor(currentAccentColor))
+                    } else {
+                        // Conic hint that this tile opens a picker, not a single fixed color —
+                        // a plain solid circle here would look like just another preset.
+                        gd.colors = intArrayOf(Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.RED)
+                        gd.gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
+                        gd.orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
+                    }
+                } else {
+                    gd.setColor(Color.parseColor(hex))
+                }
                 background = gd
                 tag = hex
                 layoutParams = android.widget.FrameLayout.LayoutParams(dp(32), dp(32)).apply {
@@ -465,7 +636,7 @@ class SettingsActivity : AppCompatActivity() {
                 gd.setStroke(dp(2), Color.WHITE)
                 gd.setColor(Color.TRANSPARENT)
                 background = gd
-                visibility = if (hex == currentAccentColor) View.VISIBLE else View.GONE
+                visibility = if (isSelected) View.VISIBLE else View.GONE
                 layoutParams = android.widget.FrameLayout.LayoutParams(dp(40), dp(40)).apply {
                     gravity = android.view.Gravity.CENTER
                 }
@@ -473,16 +644,86 @@ class SettingsActivity : AppCompatActivity() {
             outer.addView(swatch)
             outer.addView(ring)
             outer.setOnClickListener {
-                currentAccentColor = hex
-                for (j in 0 until row.childCount) {
-                    val child = row.getChildAt(j) as? android.widget.FrameLayout ?: continue
-                    child.getChildAt(1)?.visibility = if (child.getChildAt(0)?.tag == hex) View.VISIBLE else View.GONE
+                if (isCustomTile) {
+                    showCustomColorPickerDialog()
+                } else if (hex != null) {
+                    currentAccentColor = hex
+                    lifecycleScope.launch { prefs.setAccentColor(hex) }
+                    applyAccentToSettings(Color.parseColor(hex))
+                    setupAccentPicker()
                 }
+            }
+            return outer
+        }
+
+        val allHexes = accentPalette + listOf<String?>(null) // null marker = the custom tile
+        var subRow: android.widget.LinearLayout? = null
+        allHexes.forEachIndexed { i, hex ->
+            val posInRow = i % ACCENT_TILES_PER_ROW
+            if (posInRow == 0) subRow = newSubRow()
+            subRow!!.addView(buildTile(isFirstInRow = posInRow == 0, hex = hex, isCustomTile = hex == null))
+        }
+    }
+
+    private fun showCustomColorPickerDialog() {
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density + 0.5f).toInt()
+        val startHsv = FloatArray(3)
+        Color.colorToHSV(Color.parseColor(currentAccentColor), startHsv)
+        // Custom colors are locked to full saturation/value (a clean, vivid hue) — this app's
+        // accent is used as a small highlight color (buttons, focus rings, chips), where a
+        // muddy/desaturated pick would look like a bug rather than a deliberate choice. Only
+        // hue is actually adjustable; that alone spans the full color wheel.
+        var hue = if (startHsv[1] > 0.3f) startHsv[0] else 210f
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(24), dp(24), dp(24), dp(8))
+        }
+        val preview = View(this).apply {
+            val gd = android.graphics.drawable.GradientDrawable()
+            gd.shape = android.graphics.drawable.GradientDrawable.OVAL
+            gd.setColor(Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
+            background = gd
+            layoutParams = android.widget.LinearLayout.LayoutParams(dp(56), dp(56)).apply {
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(20)
+            }
+        }
+        container.addView(preview)
+
+        val hueBar = android.widget.SeekBar(this).apply {
+            max = 360
+            progress = hue.toInt()
+            val hueColors = IntArray(37) { i -> Color.HSVToColor(floatArrayOf(i * 10f, 1f, 1f)) }
+            progressDrawable = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, hueColors
+            ).apply { cornerRadius = dp(4).toFloat() }
+        }
+        container.addView(hueBar)
+
+        hueBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                hue = progress.toFloat()
+                (preview.background as android.graphics.drawable.GradientDrawable)
+                    .setColor(Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar) {}
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar) {}
+        })
+
+        AlertDialog.Builder(this)
+            .setTitle("Custom Accent Color")
+            .setView(container)
+            .setPositiveButton("Apply") { _, _ ->
+                val hex = String.format("#%06X", 0xFFFFFF and Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
+                currentAccentColor = hex
                 lifecycleScope.launch { prefs.setAccentColor(hex) }
                 applyAccentToSettings(Color.parseColor(hex))
+                setupAccentPicker()
             }
-            row.addView(outer)
-        }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun applyAccentToSettings(colorInt: Int) {
@@ -1062,6 +1303,8 @@ class SettingsActivity : AppCompatActivity() {
                     else -> binding.rbAutoOff.isChecked = true
                 }
                 binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
+                binding.switchTunneledPlayback.isChecked = prefs.tunneledPlaybackEnabled.first()
+                binding.switchDv7Fallback.isChecked = prefs.dv7FallbackEnabled.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
@@ -1695,6 +1938,14 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
             if (enabled) scheduleAutoSync() else cancelAutoSync()
+        }
+        binding.switchTunneledPlayback.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setTunneledPlaybackEnabled(enabled) }
+        }
+        binding.switchDv7Fallback.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setDv7FallbackEnabled(enabled) }
         }
         binding.switchExtraBuffering.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener

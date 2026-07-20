@@ -59,6 +59,7 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
         private val tvTitle:    TextView = view.findViewById(R.id.tvToggleTitle)
         private val tvSubtitle: TextView = view.findViewById(R.id.tvToggleSubtitle)
         private val tvValue:    TextView = view.findViewById(R.id.tvToggleValue)
+        private val btnAction:  android.widget.Button = view.findViewById(R.id.btnToggleAction)
 
         fun bind(item: TvSettingItem.Toggle) {
             tvTitle.text = item.title
@@ -69,6 +70,18 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
                 item.checked = !item.checked
                 applyState(item)
                 item.onToggle(item.checked)
+            }
+            if (item.onAction != null) {
+                btnAction.visibility = View.VISIBLE
+                btnAction.text = item.actionLabel ?: "↻"
+                btnAction.isEnabled = item.actionEnabled
+                btnAction.alpha = if (item.actionEnabled) 1f else 0.45f
+                // Separate click target from the row itself — tapping this must trigger the
+                // refresh action, not toggle Show Movies/Series Tab on/off.
+                btnAction.setOnClickListener { if (item.actionEnabled) item.onAction.invoke() }
+            } else {
+                btnAction.visibility = View.GONE
+                btnAction.setOnClickListener(null)
             }
         }
 

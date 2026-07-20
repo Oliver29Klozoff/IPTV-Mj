@@ -471,8 +471,31 @@ class XtreamRepository @Inject constructor(
         return Pair(watched, duration)
     }
 
+    suspend fun saveEpisodeProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long) {
+        db.episodeWatchedDao().saveProgress(seriesId, season, episode, watchedMs, durationMs)
+    }
+
+    suspend fun getEpisodeProgress(seriesId: Int, season: Int, episode: Int): Pair<Long, Long> {
+        val watched = db.episodeWatchedDao().getWatchedMs(seriesId, season, episode) ?: 0L
+        val duration = db.episodeWatchedDao().getDurationMs(seriesId, season, episode) ?: 0L
+        return Pair(watched, duration)
+    }
+
+    fun getSeriesIdsWithProgress(): Flow<List<Int>> = db.episodeWatchedDao().getSeriesIdsWithProgress()
+
+    suspend fun getSeriesById(seriesId: Int): SeriesEntity? = db.seriesDao().getSeriesById(seriesId)
+
+    suspend fun getEpisodeWatchedForSeries(seriesId: Int): List<com.iptvapp.data.local.entities.EpisodeWatchedEntity> =
+        db.episodeWatchedDao().getForSeries(seriesId)
+
     fun getEpgForStreams(streamIds: List<Int>): Flow<List<EpgEntity>> =
         db.epgDao().getEpgForStreams(streamIds)
+
+    /** EPG across multiple servers at once, keyed by exact (serverIndex, streamId) pairs so two
+     * different servers reusing the same numeric streamId never collide — used by the Guide
+     * tab once merged/secondary-provider favorites are included alongside the primary provider. */
+    fun getEpgForServerStreams(pairs: List<Pair<Int, Int>>): Flow<List<EpgEntity>> =
+        db.epgDao().getEpgForServerStreamKeys(pairs.map { (serverIndex, streamId) -> "$serverIndex:$streamId" })
 
     fun getInProgressVod(): Flow<List<VodEntity>> = db.vodDao().getInProgressVod()
 
@@ -804,6 +827,96 @@ class XtreamRepository @Inject constructor(
             )
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /** Full-timeline EPG for one merged/secondary-provider channel — the multi-listing sibling
+     * of fetchMergedShortEpgText/fetchMergedEpgNowNext, which only ever kept the first 1-2
+     * listings and never persisted anything. This maps every listing get_short_epg returns
+     * (not just now/next) into real EpgEntity rows stamped with this server's serverIndex, so
+     * merged-provider channels can appear in the Guide tab's timeline the same way primary
+     * channels do. Still only a few hours to ~1 day deep (whatever the panel's short-epg page
+     * returns) — not the multi-day depth XMLTV gives, hence fetchXmltvEpgForMergedServer below
+     * as the primary/deeper mechanism, with this as a fallback for channels XMLTV didn't cover. */
+    suspend fun fetchMergedEpg(serverIndex: Int, streamId: Int): List<EpgEntity> {
+        return try {
+            val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return emptyList()
+            val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+            val response = api.getShortEpg(b.apiUrl(), server.username, server.password, streamId = streamId)
+            if (!response.isSuccessful) return emptyList()
+            val listings = response.body()?.epgListings ?: return emptyList()
+            val entities = listings.map {
+                EpgEntity(
+                    serverIndex = serverIndex,
+                    id = it.id,
+                    streamId = streamId,
+                    title = decodeBase64(it.title),
+                    description = decodeBase64(it.description),
+                    startTimestamp = it.startTimestamp,
+                    stopTimestamp = it.stopTimestamp,
+                    nowPlaying = it.nowPlaying,
+                    hasArchive = it.hasArchive
+                )
+            }
+            db.epgDao().upsertEpg(entities)
+            entities
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Bulk XMLTV fetch for one merged/secondary server — mirrors fetchXmltvEpg's body but
+     * resolves channels against that server's own merged_channels rows (not the primary
+     * provider's ChannelEntity table) and stamps every row with serverIndex. One HTTP request
+     * per server regardless of channel count, same as the primary path — this is why it's the
+     * low-rate-limit-risk way to get merged providers real timeline depth, rather than an
+     * unpaced per-channel loop. Never throws — returns 0 on any failure. */
+    suspend fun fetchXmltvEpgForMergedServer(serverIndex: Int): Int = withContext(Dispatchers.IO) {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return@withContext 0
+        if (server.serverUrl.isBlank()) return@withContext 0
+        val url = XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password)
+
+        val channels = db.mergedChannelDao().getAllForServer(serverIndex)
+        if (channels.isEmpty()) return@withContext 0
+        val byName = mutableMapOf<String, Int>()
+        channels.forEach { ch -> byName[normalizeForMatch(ch.name)] = ch.streamId }
+
+        try {
+            val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
+            if (xmlPrograms.isEmpty()) return@withContext 0
+
+            val xmlChannelToStreamId = mutableMapOf<String, Int>()
+            xmlChannels.forEach { xmlCh ->
+                val normXml = normalizeForMatch(xmlCh.displayName)
+                val resolved = byName[normXml]
+                    ?: if (normXml.isBlank()) null else {
+                        byName.entries.firstOrNull { (key, _) ->
+                            key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
+                        }?.value
+                    }
+                if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
+            }
+
+            val nowSec = System.currentTimeMillis() / 1000
+            val entities = mutableListOf<EpgEntity>()
+            xmlPrograms.forEach { prog ->
+                val streamId = xmlChannelToStreamId[prog.channelId] ?: return@forEach
+                entities.add(EpgEntity(
+                    serverIndex    = serverIndex,
+                    id             = "x_${prog.channelId}_${prog.startSec}",
+                    streamId       = streamId,
+                    title          = prog.title,
+                    description    = prog.description,
+                    startTimestamp = prog.startSec,
+                    stopTimestamp  = prog.stopSec,
+                    nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
+                    hasArchive     = 0
+                ))
+            }
+            entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
+            entities.size
+        } catch (_: Exception) {
+            0
         }
     }
 

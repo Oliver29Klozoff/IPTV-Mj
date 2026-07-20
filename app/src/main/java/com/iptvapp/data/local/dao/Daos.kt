@@ -164,6 +164,8 @@ interface SeriesDao {
     fun getSeriesByCategory(categoryId: String): Flow<List<SeriesEntity>>
     @Query("SELECT * FROM series WHERE isFavorite = 1 ORDER BY name ASC")
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
+    @Query("SELECT * FROM series WHERE seriesId = :seriesId LIMIT 1")
+    suspend fun getSeriesById(seriesId: Int): SeriesEntity?
     @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchSeries(query: String): Flow<List<SeriesEntity>>
     @Upsert
@@ -190,22 +192,29 @@ data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watche
 interface EpgDao {
     @Query("SELECT COUNT(*) FROM epg_entries")
     suspend fun getEpgCount(): Int
-    @Query("SELECT * FROM epg_entries WHERE streamId = :streamId ORDER BY startTimestamp ASC")
-    fun getEpgForStream(streamId: Int): Flow<List<EpgEntity>>
-    @Query("SELECT * FROM epg_entries WHERE streamId IN (:streamIds) ORDER BY streamId ASC, startTimestamp ASC")
-    fun getEpgForStreams(streamIds: List<Int>): Flow<List<EpgEntity>>
-    @Query("SELECT DISTINCT streamId FROM epg_entries")
-    suspend fun getStreamIdsWithEpg(): List<Int>
-    @Query("SELECT * FROM epg_entries WHERE startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
-    suspend fun getCurrentlyAiring(nowMs: Long): List<EpgEntity>
-    @Query("SELECT MIN(startTimestamp) FROM epg_entries")
-    suspend fun getOldestEpgStartTimestamp(): Long?
-    @Query("SELECT MAX(stopTimestamp) FROM epg_entries")
-    suspend fun getNewestEpgStopTimestamp(): Long?
-    @Query("SELECT * FROM epg_entries WHERE streamId = :streamId AND nowPlaying = 1 LIMIT 1")
-    suspend fun getNowPlaying(streamId: Int): EpgEntity?
-    @Query("SELECT * FROM epg_entries WHERE streamId = :streamId AND startTimestamp <= :nowSec AND stopTimestamp >= :nowSec LIMIT 1")
-    fun getCurrentProgramForWidget(streamId: Int, nowSec: Long): EpgEntity?
+    // serverIndex defaults to -1 (primary provider) so every existing call site keeps
+    // compiling/behaving unchanged — only new merged-provider code passes it explicitly.
+    @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId ORDER BY startTimestamp ASC")
+    fun getEpgForStream(streamId: Int, serverIndex: Int = -1): Flow<List<EpgEntity>>
+    @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId IN (:streamIds) ORDER BY streamId ASC, startTimestamp ASC")
+    fun getEpgForStreams(streamIds: List<Int>, serverIndex: Int = -1): Flow<List<EpgEntity>>
+    // Guide needs merged-provider programs for several servers at once — a plain IN() on
+    // streamId alone would collide across servers reusing the same numeric id, so this takes
+    // explicit (serverIndex, streamId) pairs instead of a single serverIndex + id list.
+    @Query("SELECT * FROM epg_entries WHERE (serverIndex || ':' || streamId) IN (:serverStreamKeys) ORDER BY serverIndex ASC, streamId ASC, startTimestamp ASC")
+    fun getEpgForServerStreamKeys(serverStreamKeys: List<String>): Flow<List<EpgEntity>>
+    @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex")
+    suspend fun getStreamIdsWithEpg(serverIndex: Int = -1): List<Int>
+    @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
+    suspend fun getCurrentlyAiring(nowMs: Long, serverIndex: Int = -1): List<EpgEntity>
+    @Query("SELECT MIN(startTimestamp) FROM epg_entries WHERE serverIndex = :serverIndex")
+    suspend fun getOldestEpgStartTimestamp(serverIndex: Int = -1): Long?
+    @Query("SELECT MAX(stopTimestamp) FROM epg_entries WHERE serverIndex = :serverIndex")
+    suspend fun getNewestEpgStopTimestamp(serverIndex: Int = -1): Long?
+    @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND nowPlaying = 1 LIMIT 1")
+    suspend fun getNowPlaying(streamId: Int, serverIndex: Int = -1): EpgEntity?
+    @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND startTimestamp <= :nowSec AND stopTimestamp >= :nowSec LIMIT 1")
+    fun getCurrentProgramForWidget(streamId: Int, nowSec: Long, serverIndex: Int = -1): EpgEntity?
     @Upsert
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")
@@ -261,6 +270,30 @@ interface EpisodeWatchedDao {
     suspend fun getForSeries(seriesId: Int): List<EpisodeWatchedEntity>
     @Query("SELECT EXISTS(SELECT 1 FROM episode_watched WHERE seriesId = :seriesId AND season = :season AND episode = :episode)")
     suspend fun isWatched(seriesId: Int, season: Int, episode: Int): Boolean
+    // Every watched episode across every series — needed for cross-device sync, which pushes a
+    // complete snapshot rather than looping per-seriesId (SyncManager doesn't otherwise know
+    // every seriesId with watched episodes ahead of time).
+    @Query("SELECT * FROM episode_watched")
+    suspend fun getAll(): List<EpisodeWatchedEntity>
+    // Ensures a row exists without touching watchedAt (which marks the episode as fully
+    // "watched" in SeriesDetailActivity's UI dot) — a plain progress save mid-episode must not
+    // create a false completed-watch marker for an episode never previously finished.
+    @Query("INSERT OR IGNORE INTO episode_watched (seriesId, season, episode, watchedAt, watchedMs, durationMs) VALUES (:seriesId, :season, :episode, 0, 0, 0)")
+    suspend fun ensureRow(seriesId: Int, season: Int, episode: Int)
+    @Query("UPDATE episode_watched SET watchedMs = :watchedMs, durationMs = :durationMs WHERE seriesId = :seriesId AND season = :season AND episode = :episode")
+    suspend fun updateProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long)
+    suspend fun saveProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long) {
+        ensureRow(seriesId, season, episode)
+        updateProgress(seriesId, season, episode, watchedMs, durationMs)
+    }
+    @Query("SELECT watchedMs FROM episode_watched WHERE seriesId = :seriesId AND season = :season AND episode = :episode")
+    suspend fun getWatchedMs(seriesId: Int, season: Int, episode: Int): Long?
+    @Query("SELECT durationMs FROM episode_watched WHERE seriesId = :seriesId AND season = :season AND episode = :episode")
+    suspend fun getDurationMs(seriesId: Int, season: Int, episode: Int): Long?
+    // Series with any episode progress (started or fully watched) — used to float
+    // "watching/watched" series to the top of the main Series list.
+    @Query("SELECT DISTINCT seriesId FROM episode_watched WHERE watchedAt > 0 OR watchedMs > 0")
+    fun getSeriesIdsWithProgress(): kotlinx.coroutines.flow.Flow<List<Int>>
 }
 
 @Dao
@@ -279,6 +312,13 @@ interface MergedChannelDao {
 
     @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
     fun getServerSummaries(): Flow<List<MergedServerSummary>>
+
+    // Every channel for one server regardless of category — needed to resolve XMLTV channels
+    // to merged-channel streamIds the same way fetchXmltvEpg resolves against the primary
+    // provider's full channel list (getByServerAndCategory requires a specific/null category,
+    // not "any category").
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex")
+    suspend fun getAllForServer(serverIndex: Int): List<MergedChannelEntity>
 
     @Query("SELECT categoryId, categoryName, COUNT(*) as channelCount FROM merged_channels WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>>

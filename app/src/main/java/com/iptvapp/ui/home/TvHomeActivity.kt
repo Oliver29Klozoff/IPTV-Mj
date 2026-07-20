@@ -49,7 +49,9 @@ import java.util.concurrent.TimeUnit
 @AndroidEntryPoint
 class TvHomeActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityTvHomeBinding
+    // Not private: FeatureTourDialog/SpotlightTourController reads real sidebar button views
+    // from this binding to point the spotlight tour at actual on-screen UI.
+    lateinit var binding: ActivityTvHomeBinding
     private val viewModel: HomeViewModel by viewModels()
 
     @javax.inject.Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
@@ -157,7 +159,11 @@ class TvHomeActivity : AppCompatActivity() {
         }
         showSidebar()
         handleDeepLink(intent)
-        FeatureTourDialog.showIfNeeded(this)
+        if (intent.getBooleanExtra(FeatureTourDialog.EXTRA_START_TOUR, false)) {
+            FeatureTourDialog.show(this)
+        } else {
+            FeatureTourDialog.showIfNeeded(this)
+        }
         UpdateChecker(this).check(lifecycleScope)
         lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
         rescheduleEpgRefreshIfNeeded()

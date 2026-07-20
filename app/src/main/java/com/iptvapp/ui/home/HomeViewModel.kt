@@ -12,6 +12,8 @@ import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.ui.guide.GuideRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,18 +96,33 @@ class HomeViewModel @Inject constructor(
 
     // Reuses the same channelJob every other Favorites/Live channel-list load already uses
     // (searchFavorites, showFavoriteChannels) so switching between them cancels correctly.
+    // Folder-scoped Favorites views (Unsorted / a named folder) used to only ever populate
+    // _channels (primary-provider only) — merged/secondary-provider favorites only showed up
+    // in the unfiltered "All Favorites" view (loadAll()'s separate combine block into
+    // _combinedFavorites). Rebuilt to populate _combinedFavorites here too, since merged
+    // channels already support favoriteFolderId the same way primary channels do.
     fun selectFavoriteFolderView(folderId: Int?) {
         inFavoritesMode = true
         selectedFavoriteFolder = folderId
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
-            val flow = when (folderId) {
+            val primaryFlow = when (folderId) {
                 null -> repository.getFavoriteChannels()
                 -1 -> repository.getUnfiledFavorites()
                 else -> repository.getFavoritesInFolder(folderId)
             }
-            flow.collectLatest { _channels.value = it }
+            val mergedFlow = when (folderId) {
+                null -> repository.getMergedAllFavorites()
+                -1 -> repository.getMergedUnfiledFavorites()
+                else -> repository.getMergedFavoritesInFolder(folderId)
+            }
+            combine(primaryFlow, mergedFlow, _liveCategories) { primary, merged, cats ->
+                val namesById = cats.associate { it.categoryId to it.categoryName }
+                _channels.value = primary
+                primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId]) } +
+                    merged.map { CombinedFavorite.Merged(it) }
+            }.collectLatest { _combinedFavorites.value = it }
         }
     }
 
@@ -340,6 +357,68 @@ class HomeViewModel @Inject constructor(
             .sortedBy { it.startTimestamp }
     }
 
+    data class ContinueSeriesEntry(
+        val series: SeriesEntity,
+        val nextSeason: Int,
+        val nextEpisode: Int,
+        val nextEpisodeTitle: String,
+        val episodeId: String,
+        val containerExtension: String,
+        val resumeMs: Long
+    )
+
+    // Companion to getUpNextTicker (live channels) but for series — "what unwatched/in-progress
+    // episode should I pick up next" across every series with any watch history, instead of
+    // opening each show individually to check. Needs a live per-series episode-list fetch (not
+    // just local watch-progress data) to know season/episode ordering, so this is a separate,
+    // on-demand entry point rather than folded into the always-available live-channel ticker.
+    suspend fun getSeriesEpisodeUrl(episodeId: String, containerExtension: String): String =
+        repository.getSeriesEpisodeUrl(episodeId, containerExtension)
+
+    suspend fun getContinueSeriesTicker(): List<ContinueSeriesEntry> = coroutineScope {
+        val seriesIds = repository.getSeriesIdsWithProgress().first()
+        if (seriesIds.isEmpty()) return@coroutineScope emptyList()
+
+        seriesIds.map { seriesId ->
+            async {
+                val series = repository.getSeriesById(seriesId) ?: return@async null
+                val progress = repository.getEpisodeWatchedForSeries(seriesId)
+                if (progress.isEmpty()) return@async null
+                // Furthest point reached so far — highest (season, episode) with either a
+                // completed-watch marker or any resume position, whichever is further along.
+                val furthest = progress
+                    .filter { it.watchedAt > 0 || it.watchedMs > 0 }
+                    .maxWithOrNull(compareBy({ it.season }, { it.episode }))
+                    ?: return@async null
+
+                val info = repository.fetchSeriesInfo(seriesId)
+                val episodesBySeason = (info as? com.iptvapp.util.Resource.Success)?.data?.episodes ?: return@async null
+                val allEpisodes = episodesBySeason.values.flatten()
+                    .sortedWith(compareBy({ it.season }, { it.episodeNum }))
+                if (allEpisodes.isEmpty()) return@async null
+
+                val furthestIdx = allEpisodes.indexOfFirst { it.season == furthest.season && it.episodeNum == furthest.episode }
+                if (furthestIdx < 0) return@async null
+                val furthestIsFinished = furthest.watchedAt > 0
+                // Finished the furthest episode reached — pick up at the next one in the
+                // series; otherwise resume that same episode where it left off.
+                val target = (if (furthestIsFinished) allEpisodes.getOrNull(furthestIdx + 1) else allEpisodes[furthestIdx])
+                    ?: return@async null
+                val resumeMs = if (furthestIsFinished) 0L else furthest.watchedMs
+
+                ContinueSeriesEntry(
+                    series = series,
+                    nextSeason = target.season,
+                    nextEpisode = target.episodeNum,
+                    nextEpisodeTitle = target.title,
+                    episodeId = target.id,
+                    containerExtension = target.containerExtension,
+                    resumeMs = resumeMs
+                )
+            }
+        }.awaitAll().filterNotNull()
+    }
+
     fun checkFavoritesHealth() {
         viewModelScope.launch {
             val favorites = repository.getFavoriteChannels().first()
@@ -467,6 +546,9 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getInProgressVod().collectLatest { _continueWatching.value = it }
+            }
+            launch {
+                repository.getSeriesIdsWithProgress().collectLatest { seriesIdsWithProgress = it.toSet() }
             }
             launch {
                 repository.getRecentChannels().collectLatest { _recentChannels.value = it }
@@ -611,12 +693,21 @@ class HomeViewModel @Inject constructor(
     fun yearFromTitle(name: String): Int? =
         Regex("""\((\d{4})\)\s*$""").find(name.trim())?.groupValues?.get(1)?.toIntOrNull()
 
-    fun applyVodSort(list: List<VodEntity>): List<VodEntity> = when (_vodSort.value) {
-        VodSort.DEFAULT -> list
-        VodSort.RATING_DESC -> list.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
-        VodSort.YEAR_NEWEST -> list.sortedByDescending { yearFromTitle(it.name) ?: -1 }
-        VodSort.YEAR_OLDEST -> list.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
-        VodSort.RECENTLY_ADDED -> list.sortedByDescending { it.added?.toLongOrNull() ?: 0L }
+    // Movies with any watch progress (started or finished) always float above untouched ones,
+    // regardless of the chosen sort — the chosen sort only orders within each bucket. Most
+    // recently watched comes first within the "in progress" bucket so a movie picked up again
+    // stays near the top instead of jumping around.
+    fun applyVodSort(list: List<VodEntity>): List<VodEntity> {
+        val (started, untouched) = list.partition { it.watchedMs > 0 }
+        val sortedStarted = started.sortedByDescending { it.watchedMs }
+        val sortedRest = when (_vodSort.value) {
+            VodSort.DEFAULT -> untouched
+            VodSort.RATING_DESC -> untouched.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
+            VodSort.YEAR_NEWEST -> untouched.sortedByDescending { yearFromTitle(it.name) ?: -1 }
+            VodSort.YEAR_OLDEST -> untouched.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
+            VodSort.RECENTLY_ADDED -> untouched.sortedByDescending { it.added?.toLongOrNull() ?: 0L }
+        }
+        return sortedStarted + sortedRest
     }
 
     enum class SeriesSort { DEFAULT, RATING_DESC, YEAR_NEWEST, YEAR_OLDEST, RECENTLY_ADDED }
@@ -626,14 +717,23 @@ class HomeViewModel @Inject constructor(
 
     fun setSeriesSort(mode: SeriesSort) { _seriesSort.value = mode }
 
+    // Populated from EpisodeWatchedDao.getSeriesIdsWithProgress() — series-level watch progress
+    // now lives per-episode (episode_watched), not on SeriesEntity itself, so this cache is
+    // what applySeriesSort uses to float watching/watched shows to the top.
+    private var seriesIdsWithProgress: Set<Int> = emptySet()
+
     // Series has no "added" timestamp field from the provider (unlike VOD) — cachedAt (when
     // this app synced the row) is the closest available proxy for "recently added".
-    fun applySeriesSort(list: List<SeriesEntity>): List<SeriesEntity> = when (_seriesSort.value) {
-        SeriesSort.DEFAULT -> list
-        SeriesSort.RATING_DESC -> list.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
-        SeriesSort.YEAR_NEWEST -> list.sortedByDescending { yearFromTitle(it.name) ?: -1 }
-        SeriesSort.YEAR_OLDEST -> list.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
-        SeriesSort.RECENTLY_ADDED -> list.sortedByDescending { it.cachedAt }
+    fun applySeriesSort(list: List<SeriesEntity>): List<SeriesEntity> {
+        val (started, untouched) = list.partition { it.seriesId in seriesIdsWithProgress }
+        val sortedRest = when (_seriesSort.value) {
+            SeriesSort.DEFAULT -> untouched
+            SeriesSort.RATING_DESC -> untouched.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
+            SeriesSort.YEAR_NEWEST -> untouched.sortedByDescending { yearFromTitle(it.name) ?: -1 }
+            SeriesSort.YEAR_OLDEST -> untouched.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
+            SeriesSort.RECENTLY_ADDED -> untouched.sortedByDescending { it.cachedAt }
+        }
+        return started + sortedRest
     }
 
     fun hasSelectedCategory(): Boolean = selectedLiveCategoryId != null
@@ -790,9 +890,16 @@ class HomeViewModel @Inject constructor(
         else -> repository.getFavoritesInFolder(selectedFavoriteFolder!!)
     }
 
+    private fun mergedFavoriteFlowForSelection() = when (selectedFavoriteFolder) {
+        null -> repository.getMergedAllFavorites()
+        -1 -> repository.getMergedUnfiledFavorites()
+        else -> repository.getMergedFavoritesInFolder(selectedFavoriteFolder!!)
+    }
+
     /** Filters within whichever favorites view (All/Unsorted/folder) is currently selected,
-     * rather than searching the whole favorites list — so the Favorites tab's search box
-     * stays scoped to what's actually shown there. */
+     * across BOTH primary and merged/secondary-provider favorites — matches
+     * selectFavoriteFolderView's combined source so search never drops channels that were
+     * visible a moment before typing. */
     fun searchFavorites(query: String) {
         inFavoritesMode = true
         searchJob?.cancel()
@@ -802,12 +909,17 @@ class HomeViewModel @Inject constructor(
             return
         }
         searchJob = viewModelScope.launch {
-            favoriteFlowForSelection().collectLatest { favorites ->
-                _channels.value = favorites.filter {
-                    it.name.contains(query, ignoreCase = true) ||
-                        it.streamId.toString().contains(query)
+            combine(favoriteFlowForSelection(), mergedFavoriteFlowForSelection(), _liveCategories) { primary, merged, cats ->
+                val namesById = cats.associate { it.categoryId to it.categoryName }
+                val q = query
+                _channels.value = primary.filter {
+                    it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q)
                 }
-            }
+                primary.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
+                    .map { CombinedFavorite.Primary(it, namesById[it.categoryId]) } +
+                    merged.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
+                        .map { CombinedFavorite.Merged(it) }
+            }.collectLatest { _combinedFavorites.value = it }
         }
     }
 
@@ -822,14 +934,33 @@ class HomeViewModel @Inject constructor(
             val allChannels = (favChannels + catChannels).distinctBy { it.streamId }
             val ids = allChannels.map { it.streamId }
 
-            fun buildRows(epgEntries: List<com.iptvapp.data.local.entities.EpgEntity>) =
-                allChannels
+            // Merged/secondary-provider favorites — categories aren't a concept there yet, so
+            // just favorited channels, same as the merged "★ Favorites" view elsewhere.
+            val mergedFavorites = repository.getMergedAllFavorites().first()
+            val serverPairs = mergedFavorites.map { it.serverIndex to it.streamId }
+
+            fun buildRows(
+                epgEntries: List<com.iptvapp.data.local.entities.EpgEntity>,
+                mergedEpgEntries: List<com.iptvapp.data.local.entities.EpgEntity>
+            ): List<GuideRow> {
+                val primaryRows = allChannels
                     .map { ch -> GuideRow(channel = ch, programs = epgEntries.filter { it.streamId == ch.streamId }) }
                     .filter { it.programs.isNotEmpty() }
+                val mergedRows = mergedFavorites
+                    .map { ch ->
+                        GuideRow(
+                            mergedChannel = ch,
+                            programs = mergedEpgEntries.filter { it.serverIndex == ch.serverIndex && it.streamId == ch.streamId }
+                        )
+                    }
+                    .filter { it.programs.isNotEmpty() }
+                return primaryRows + mergedRows
+            }
 
             // Show whatever is cached in the DB immediately — no spinner
             val cached = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
-            if (cached.isNotEmpty()) _guideRows.value = buildRows(cached)
+            val mergedCached = if (serverPairs.isEmpty()) emptyList() else repository.getEpgForServerStreams(serverPairs).first()
+            if (cached.isNotEmpty() || mergedCached.isNotEmpty()) _guideRows.value = buildRows(cached, mergedCached)
 
             // Check DB freshness: newest EPG stop timestamp (already in seconds or ms)
             val newestStop = repository.getNewestEpgStop()
@@ -838,17 +969,33 @@ class HomeViewModel @Inject constructor(
             val stale = newestStopMs < System.currentTimeMillis() + 30 * 60 * 1000L
 
             if (stale) {
-                if (cached.isEmpty()) _loading.value = true
+                if (cached.isEmpty() && mergedCached.isEmpty()) _loading.value = true
                 try {
                     coroutineScope {
-                        allChannels.forEach { ch -> launch { repository.fetchEpg(ch.streamId) } }
+                        // Paced (150ms between launches), matching loadEpgForMergedChannels/
+                        // checkFavoritesHealth elsewhere — an unpaced parallel burst here
+                        // previously caused provider rate-limiting incidents (see HomeViewModel
+                        // history), so both the primary and merged-provider fetch loops below
+                        // deliberately space requests out instead of firing all at once.
+                        allChannels.forEach { ch ->
+                            launch { repository.fetchEpg(ch.streamId) }
+                            kotlinx.coroutines.delay(150)
+                        }
+                        mergedFavorites.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                            launch { repository.fetchXmltvEpgForMergedServer(serverIndex) }
+                        }
+                        mergedFavorites.forEach { ch ->
+                            launch { repository.fetchMergedEpg(ch.serverIndex, ch.streamId) }
+                            kotlinx.coroutines.delay(150)
+                        }
                     }
                 } finally {
                     _loading.value = false
                 }
                 // Reload from DB after network fetch and update rows
                 val fresh = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
-                if (fresh.isNotEmpty()) _guideRows.value = buildRows(fresh)
+                val mergedFresh = if (serverPairs.isEmpty()) emptyList() else repository.getEpgForServerStreams(serverPairs).first()
+                if (fresh.isNotEmpty() || mergedFresh.isNotEmpty()) _guideRows.value = buildRows(fresh, mergedFresh)
             }
         }
     }

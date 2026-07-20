@@ -20,7 +20,7 @@ import com.iptvapp.data.local.entities.*
         MergedChannelEntity::class,
         FavoriteFolderEntity::class
     ],
-    version = 18,
+    version = 20,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -192,6 +192,37 @@ abstract class IptvDatabase : RoomDatabase() {
         val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE recordings ADD COLUMN serverIndex INTEGER NOT NULL DEFAULT -1")
+            }
+        }
+
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE episode_watched ADD COLUMN watchedMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE episode_watched ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // epg_entries is a pure cache table (fully repopulated by the next EPG refresh, no
+        // user-authored data), so a drop+recreate is safe here — needed because the primary
+        // key changes from a bare `id` to composite (serverIndex, id) to support merged/
+        // secondary-provider EPG without id/streamId collisions across servers.
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS epg_entries")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS epg_entries (
+                        serverIndex INTEGER NOT NULL DEFAULT -1,
+                        id TEXT NOT NULL,
+                        streamId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        startTimestamp INTEGER NOT NULL,
+                        stopTimestamp INTEGER NOT NULL,
+                        nowPlaying INTEGER NOT NULL,
+                        hasArchive INTEGER NOT NULL,
+                        PRIMARY KEY(serverIndex, id)
+                    )
+                """.trimIndent())
             }
         }
     }

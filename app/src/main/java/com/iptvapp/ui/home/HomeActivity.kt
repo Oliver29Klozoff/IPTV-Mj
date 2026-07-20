@@ -70,7 +70,9 @@ class HomeActivity : AppCompatActivity() {
 
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private var openPlayerJob: kotlinx.coroutines.Job? = null
-    private lateinit var binding: ActivityHomeBinding
+    // Not private: FeatureTourDialog/SpotlightTourController reads real tab/button views from
+    // this binding to point the spotlight tour at actual on-screen UI.
+    lateinit var binding: ActivityHomeBinding
 
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
@@ -282,7 +284,11 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
         }
-        FeatureTourDialog.showIfNeeded(this)
+        if (intent.getBooleanExtra(FeatureTourDialog.EXTRA_START_TOUR, false)) {
+            FeatureTourDialog.show(this)
+        } else {
+            FeatureTourDialog.showIfNeeded(this)
+        }
         handleJumpToChannelExtra()
     }
 
@@ -1093,26 +1099,43 @@ class HomeActivity : AppCompatActivity() {
 
         guideAdapter = GuideAdapter(
             onChannelClick = { row ->
-                lifecycleScope.launch {
-                    playInMiniPlayer(row.channel)
-                    val url = viewModel.getLiveStreamUrl(row.channel.streamId)
-                    openPlayer(url, row.channel.name, row.channel.streamId)
+                val mergedCh = row.mergedChannel
+                if (mergedCh != null) {
+                    // Merged/secondary-provider row — no DB-backed ChannelEntity to open a
+                    // fullscreen player against directly, so this mirrors exactly what tapping
+                    // a merged channel does everywhere else in the app (mini player first,
+                    // fullscreen via the hero "Watch" button using playMergedChannel's own
+                    // openPlayer wiring with serverIndex/mergedStreamId).
+                    playMergedChannel(mergedCh)
+                } else {
+                    row.channel?.let { ch ->
+                        lifecycleScope.launch {
+                            playInMiniPlayer(ch)
+                            val url = viewModel.getLiveStreamUrl(ch.streamId)
+                            openPlayer(url, ch.name, ch.streamId)
+                        }
+                    }
                 }
             },
             onReplayClick = { row, program ->
-                lifecycleScope.launch {
-                    val startSec = if (program.startTimestamp < 100000000000L)
-                        program.startTimestamp
-                    else
-                        program.startTimestamp / 1000L
-                    val stopSec = if (program.stopTimestamp < 100000000000L)
-                        program.stopTimestamp
-                    else
-                        program.stopTimestamp / 1000L
-                    val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
-                    val url = viewModel.getTimeshiftUrl(row.channel.streamId, startSec, durationMin)
-                    val title = "${row.channel.name} — ${program.title}"
-                    openPlayer(url, title, row.channel.streamId)
+                // Timeshift/replay is a primary-provider-only feature (row.supportsReplay is
+                // false for merged rows, so onReplayClick is never reachable for them — see
+                // GuideAdapter's isReplay check), so row.channel is always non-null here.
+                row.channel?.let { ch ->
+                    lifecycleScope.launch {
+                        val startSec = if (program.startTimestamp < 100000000000L)
+                            program.startTimestamp
+                        else
+                            program.startTimestamp / 1000L
+                        val stopSec = if (program.stopTimestamp < 100000000000L)
+                            program.stopTimestamp
+                        else
+                            program.stopTimestamp / 1000L
+                        val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
+                        val url = viewModel.getTimeshiftUrl(ch.streamId, startSec, durationMin)
+                        val title = "${ch.name} — ${program.title}"
+                        openPlayer(url, title, ch.streamId)
+                    }
                 }
             }
         )
@@ -1152,10 +1175,20 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
-                if (tab?.position == TAB_GUIDE) binding.btnTimelineView?.visibility = View.GONE
+                if (tab?.position == TAB_GUIDE) {
+                    binding.btnTimelineView?.visibility = View.GONE
+                    binding.btnWhatsOn?.visibility = View.GONE
+                }
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
+        // Long-press the Series tab for a "Continue Watching" ticker — same discoverability
+        // pattern as long-pressing "What's On" for the live-channel up-next ticker, rather than
+        // adding a new always-visible button.
+        binding.tabLayout.getTabAt(TAB_SERIES)?.view?.setOnLongClickListener {
+            showContinueSeriesTicker()
+            true
+        }
     }
 
     private fun setupSearch() {
@@ -1193,11 +1226,14 @@ class HomeActivity : AppCompatActivity() {
                     // Back to the genre-filtered view, not a dead end.
                     showFavorites()
                 } else {
+                    // searchFavorites() writes into combinedFavorites (primary + merged), same
+                    // source the existing combinedFavorites collector renders via
+                    // combinedFavoriteAdapter — no adapter swap needed here, unlike before when
+                    // search wrote into the primary-only _channels and needed channelAdapter.
                     viewModel.searchFavorites(query)
                     landscapeShowChannelsMode()
                     binding.rvCategories.visibility = View.GONE
-                    binding.rvChannels.adapter = channelAdapter
-                    channelAdapter.showDragHandles = false
+                    binding.rvChannels.adapter = combinedFavoriteAdapter
                 }
             }
             TAB_PROVIDERS -> {
@@ -1691,6 +1727,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnTimelineView?.setOnClickListener {
             timelineLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
         }
+        binding.btnWhatsOn?.visibility = View.VISIBLE
     }
 
     private fun openPlayer(
@@ -2320,6 +2357,72 @@ class HomeActivity : AppCompatActivity() {
                             playInMiniPlayer(entry.channel)
                             viewModel.markChannelWatched(entry.channel.streamId)
                             viewModel.setCurrentlyPlaying(entry.channel.streamId)
+                        }
+                    }
+                }
+            }
+            rv.adapter = adapter
+            dialog.show()
+            dialog.window?.setLayout(
+                (resources.displayMetrics.widthPixels * 0.92).toInt(),
+                (resources.displayMetrics.heightPixels * 0.75).toInt()
+            )
+        }
+    }
+
+    // Long-press "Series" tab — the series equivalent of showUpNextTicker(): a single feed of
+    // the next unwatched/in-progress episode across every series with any watch history,
+    // instead of opening each show individually to check where you left off.
+    private fun showContinueSeriesTicker() {
+        lifecycleScope.launch {
+            val entries = viewModel.getContinueSeriesTicker()
+            if (entries.isEmpty()) {
+                Toast.makeText(this@HomeActivity, "No in-progress series yet", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val inflater = layoutInflater
+            val rv = androidx.recyclerview.widget.RecyclerView(this@HomeActivity).apply {
+                layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity)
+                setPadding(0, 8, 0, 8)
+            }
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
+                .setTitle("Continue Watching")
+                .setView(rv)
+                .setNegativeButton("Close", null)
+                .create()
+            val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+                inner class VH(val v: android.view.View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(v)
+                override fun getItemCount() = entries.size
+                override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): VH {
+                    val view = inflater.inflate(com.iptvapp.R.layout.item_whats_on, parent, false)
+                    return VH(view)
+                }
+                override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
+                    val entry = entries[position]
+                    val v = holder.itemView
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonChannel).text = entry.series.name
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonProgram).text =
+                        "S${entry.nextSeason}E${entry.nextEpisode} — ${entry.nextEpisodeTitle}"
+                    v.findViewById<android.widget.ProgressBar>(com.iptvapp.R.id.pbWonProgress).visibility = View.INVISIBLE
+                    com.bumptech.glide.Glide.with(v)
+                        .load(entry.series.cover)
+                        .placeholder(android.R.drawable.ic_media_play)
+                        .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
+                    v.setOnClickListener {
+                        dialog.dismiss()
+                        lifecycleScope.launch {
+                            val url = viewModel.getSeriesEpisodeUrl(entry.episodeId, entry.containerExtension)
+                            startActivity(Intent(this@HomeActivity, PlayerActivity::class.java).apply {
+                                putExtra("stream_url", url)
+                                putExtra("stream_title", "S${entry.nextSeason}E${entry.nextEpisode} ${entry.nextEpisodeTitle}")
+                                putExtra("stream_id", entry.episodeId.hashCode())
+                                putExtra("is_vod", true)
+                                putExtra("series_id", entry.series.seriesId)
+                                putExtra("series_name", entry.series.name)
+                                putExtra("season_num", entry.nextSeason)
+                                putExtra("episode_num", entry.nextEpisode)
+                                putExtra("resume_ms", entry.resumeMs)
+                            })
                         }
                     }
                 }

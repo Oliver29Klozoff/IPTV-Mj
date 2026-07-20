@@ -99,6 +99,10 @@ class PlayerActivity : AppCompatActivity() {
     private var mergedStreamId: Int = -1
     private var isVod: Boolean = false
     private var resumePositionMs: Long = 0L
+    // Set only when playing a series episode (from series_id extra) — progress for episodes
+    // saves into episode_watched (keyed by seriesId/season/episode), never vod_streams, since
+    // streamId here is episode.id.hashCode(), not a real vod_streams row.
+    private var episodeSeriesId: Int = -1
 
     // Trakt scrobbling (VOD only — live channels have no stable Trakt-identifiable content)
     @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
@@ -227,6 +231,7 @@ class PlayerActivity : AppCompatActivity() {
         traktSeriesName = intent.getStringExtra("series_name") ?: ""
         traktSeason  = intent.getIntExtra("season_num", -1)
         traktEpisode = intent.getIntExtra("episode_num", -1)
+        episodeSeriesId = intent.getIntExtra("series_id", -1)
 
         setupChannelZones()
         setupGestureDetector()
@@ -282,17 +287,23 @@ class PlayerActivity : AppCompatActivity() {
         binding.upNextCard.visibility = View.GONE
         lifecycleScope.launch {
             val url = repository.getSeriesEpisodeUrl(epIds[nextIndex], epExts[nextIndex])
+            val nextSeasonEpisode = traktManager.parseSeasonEpisode(epTitles[nextIndex])
+            val resumeMs = if (episodeSeriesId != -1 && nextSeasonEpisode != null)
+                repository.getEpisodeProgress(episodeSeriesId, nextSeasonEpisode.first, nextSeasonEpisode.second).first
+            else 0L
             val intent = Intent(this@PlayerActivity, PlayerActivity::class.java).apply {
                 putExtra("stream_url", url)
                 putExtra("stream_title", epTitles[nextIndex])
                 putExtra("stream_id", epIds[nextIndex].hashCode())
                 putExtra("is_vod", true)
+                putExtra("series_id", episodeSeriesId)
                 putExtra("ep_index", nextIndex)
+                putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids",    ArrayList(epIds))
                 putStringArrayListExtra("ep_titles", ArrayList(epTitles))
                 putStringArrayListExtra("ep_exts",   ArrayList(epExts))
                 putExtra("series_name", traktSeriesName)
-                traktManager.parseSeasonEpisode(epTitles[nextIndex])?.let { (s, e) ->
+                nextSeasonEpisode?.let { (s, e) ->
                     putExtra("season_num", s)
                     putExtra("episode_num", e)
                 }
@@ -1309,11 +1320,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun saveVodProgress() {
-        if (!isVod || streamId < 0) return
+        if (!isVod) return
         val watched = player?.currentPosition ?: return
         val duration = player?.duration ?: return
         if (duration <= 0) return
-        lifecycleScope.launch { repository.saveVodProgress(streamId, watched, duration) }
+        // Episodes use episode.id.hashCode() as streamId, which isn't a real vod_streams row —
+        // route episode progress into episode_watched instead, keyed by seriesId/season/episode.
+        if (episodeSeriesId != -1 && traktSeason >= 0 && traktEpisode >= 0) {
+            lifecycleScope.launch {
+                repository.saveEpisodeProgress(episodeSeriesId, traktSeason, traktEpisode, watched, duration)
+            }
+        } else {
+            if (streamId < 0) return
+            lifecycleScope.launch { repository.saveVodProgress(streamId, watched, duration) }
+        }
     }
 
     private fun formatDuration(ms: Long): String {

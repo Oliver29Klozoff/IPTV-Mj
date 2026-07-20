@@ -23,7 +23,7 @@ class GuideAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: GuideRow) {
-            binding.tvChannelName.text = row.channel.name
+            binding.tvChannelName.text = row.name
             binding.programContainer.removeAllViews()
 
             val nowMs = System.currentTimeMillis()
@@ -43,7 +43,7 @@ class GuideAdapter(
                     val isNow = startMs <= nowMs
                     val start = if (isNow) "▶ NOW" else formatTime(program.startTimestamp)
                     val stop = formatTime(program.stopTimestamp)
-                    val isReplay = !isNow && row.channel.tvArchive == 1 && program.hasArchive == 1
+                    val isReplay = !isNow && row.supportsReplay && program.hasArchive == 1
                     val label = when {
                         isNow    -> "$start  ${program.title}  (until $stop)"
                         isReplay -> "$start - $stop  ${program.title}  ▶ Replay"
@@ -86,6 +86,9 @@ class GuideAdapter(
             }
         }
 
+        // Reminders/recording scheduling only exist for primary-provider channels today
+        // (ChannelTimerScheduler/RecordingSchedulerActivity have no serverIndex concept) — a
+        // merged/secondary-provider row just gets the Remind Me option, not Record This.
         private fun showTimerDialog(row: GuideRow, program: EpgEntity) {
             val nowMs = System.currentTimeMillis()
             val startMs = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp * 1000L else program.startTimestamp
@@ -94,17 +97,19 @@ class GuideAdapter(
             val durationMs = (stopMs - startMs).takeIf { it > 0 } ?: 60 * 60_000L
             val timeStr = SimpleDateFormat("h:mm a", Locale.US).format(Date(startMs))
             val context = binding.root.context
+            val isPrimary = row.channel != null
+            val options = if (isPrimary) arrayOf("Remind Me", "Record This") else arrayOf("Remind Me")
             AlertDialog.Builder(context)
                 .setTitle(program.title)
-                .setItems(arrayOf("Remind Me", "Record This")) { _, which ->
+                .setItems(options) { _, which ->
                     when (which) {
                         0 -> {
-                            ChannelTimerScheduler.schedule(context, row.channel.streamId, row.channel.name, program.title, startMs)
+                            ChannelTimerScheduler.schedule(context, row.streamId, row.name, program.title, startMs)
                             Toast.makeText(context, "Reminder set for $timeStr", Toast.LENGTH_SHORT).show()
                         }
                         1 -> context.startActivity(
                             android.content.Intent(context, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
-                                putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, row.channel.streamId)
+                                putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, row.streamId)
                                 putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
                                 putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
                             }
@@ -135,7 +140,7 @@ class GuideAdapter(
 
     class DiffCallback : DiffUtil.ItemCallback<GuideRow>() {
         override fun areItemsTheSame(a: GuideRow, b: GuideRow): Boolean =
-            a.channel.streamId == b.channel.streamId
+            a.serverIndex == b.serverIndex && a.streamId == b.streamId
 
         override fun areContentsTheSame(a: GuideRow, b: GuideRow): Boolean =
             a == b

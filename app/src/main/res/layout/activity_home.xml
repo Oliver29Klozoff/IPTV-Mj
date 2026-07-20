@@ -23,8 +23,12 @@
 
         <Button
             android:id="@+id/btnWhatsOn"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:text="📋 What's On"
+            android:textColor="#008CFF"
+            android:textSize="12sp"
             android:visibility="gone" />
 
         <Button

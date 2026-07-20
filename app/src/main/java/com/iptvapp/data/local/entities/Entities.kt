@@ -71,9 +71,15 @@ data class SeriesEntity(
     val cachedAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "epg_entries")
+// serverIndex disambiguates which server this program listing belongs to — -1 = primary
+// provider, 0..N-1 = extraServers[i]. Two different servers can reuse the same numeric
+// streamId (and even coincidentally the same raw EPG listing id), so id alone can't be the
+// primary key once merged/secondary providers have EPG data too — same sentinel/composite-key
+// pattern as RecordingEntity.serverIndex and MergedChannelEntity's (serverIndex, streamId) key.
+@Entity(tableName = "epg_entries", primaryKeys = ["serverIndex", "id"])
 data class EpgEntity(
-    @PrimaryKey val id: String,
+    val serverIndex: Int = -1,
+    val id: String,
     val streamId: Int,
     val title: String,
     val description: String,
@@ -108,7 +114,12 @@ data class EpisodeWatchedEntity(
     val seriesId: Int,
     val season: Int,
     val episode: Int,
-    val watchedAt: Long = System.currentTimeMillis()
+    val watchedAt: Long = System.currentTimeMillis(),
+    // Resume position for this specific episode. Series-level resume can't work per-episode —
+    // a series has many episodes, each with its own progress — so this lives here rather than
+    // on SeriesEntity (which only tracks the last-opened series' own position for VOD-style use).
+    val watchedMs: Long = 0L,
+    val durationMs: Long = 0L
 )
 
 // Rolling reliability history per channel — outcomes is a string of '1'/'0' characters,

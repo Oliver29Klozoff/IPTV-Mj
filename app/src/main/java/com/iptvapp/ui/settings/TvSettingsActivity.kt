@@ -113,6 +113,7 @@ class TvSettingsActivity : AppCompatActivity() {
             showSectionMenu()
         }
         observeEpgWork()
+        binding.btnSettingsSearch.setOnClickListener { showSearchDialog() }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -203,6 +204,102 @@ class TvSettingsActivity : AppCompatActivity() {
         showSection(sectionTitle, focusFirst = false)
     }
 
+    // ─── Search ─────────────────────────────────────────────────────────────
+    // One row per searchable setting (Toggle/Action/Info titles+subtitles), tagged with which
+    // section it lives in and which SubHeader (if any) needs expanding to reveal it — built
+    // fresh from sectionItems each time the dialog opens so it always reflects current state
+    // (e.g. newly-added provider servers, current toggle values shown as subtitle context).
+    private data class SearchEntry(val sectionTitle: String, val itemId: String, val label: String, val subHeaderId: String?)
+
+    private fun buildSearchIndex(): List<SearchEntry> {
+        val entries = mutableListOf<SearchEntry>()
+        sectionItems.forEach { (sectionTitle, items) ->
+            var currentSubHeader: String? = null
+            items.forEach { item ->
+                when (item) {
+                    is TvSettingItem.SubHeader -> currentSubHeader = item.id
+                    is TvSettingItem.Toggle -> entries += SearchEntry(sectionTitle, item.id, item.title, currentSubHeader)
+                    is TvSettingItem.Action -> entries += SearchEntry(sectionTitle, item.id, item.title, currentSubHeader)
+                    is TvSettingItem.Info -> if (item.text.isNotBlank()) entries += SearchEntry(sectionTitle, item.id, item.text, currentSubHeader)
+                    else -> {}
+                }
+            }
+        }
+        return entries
+    }
+
+    private fun showSearchDialog() {
+        if (sectionItems.isEmpty()) groupIntoSections()
+        val index = buildSearchIndex()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        val input = EditText(this).apply {
+            hint = "Search settings…"
+            setPadding(32, 16, 32, 16)
+        }
+        val resultsList = android.widget.ListView(this)
+        container.addView(input)
+        container.addView(resultsList, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, (400 * resources.displayMetrics.density).toInt()
+        ))
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Find in Settings")
+            .setView(container)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        var currentMatches: List<SearchEntry> = emptyList()
+        fun renderMatches(query: String) {
+            currentMatches = if (query.isBlank()) emptyList()
+                else index.filter { it.label.contains(query, ignoreCase = true) }.take(30)
+            resultsList.adapter = android.widget.ArrayAdapter(
+                this, android.R.layout.simple_list_item_1,
+                currentMatches.map { "${it.label}  —  ${it.sectionTitle}" }
+            )
+        }
+        resultsList.setOnItemClickListener { _, _, position, _ ->
+            val match = currentMatches.getOrNull(position) ?: return@setOnItemClickListener
+            dialog.dismiss()
+            jumpToSearchResult(match)
+        }
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { renderMatches(s?.toString().orEmpty()) }
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+        })
+        dialog.show()
+    }
+
+    /** Navigates to the section containing a search result, expanding its SubHeader if
+     * collapsed, then scrolls to and briefly highlights the matching row. */
+    private fun jumpToSearchResult(match: SearchEntry) {
+        if (match.subHeaderId != null) {
+            val sub = sectionItems[match.sectionTitle].orEmpty()
+                .filterIsInstance<TvSettingItem.SubHeader>()
+                .firstOrNull { it.id == match.subHeaderId }
+            if (sub != null && !sub.expanded) sub.expanded = true
+        }
+        showSection(match.sectionTitle, focusFirst = false)
+        binding.rvTvSettings.post {
+            val idx = indexOfItem(match.itemId)
+            if (idx < 0) return@post
+            binding.rvTvSettings.scrollToPosition(idx)
+            binding.rvTvSettings.post {
+                val vh = binding.rvTvSettings.findViewHolderForAdapterPosition(idx)
+                vh?.itemView?.let { view ->
+                    view.requestFocus()
+                    val original = view.background
+                    view.setBackgroundColor(Color.parseColor("#1A008CFF"))
+                    view.postDelayed({ view.background = original }, 900)
+                }
+            }
+        }
+    }
+
     private fun focusFirstItem() {
         binding.rvTvSettings.scrollToPosition(0)
         binding.rvTvSettings.post {
@@ -288,10 +385,43 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Toggle("display_english_only", "English Movies & Series Only",
             subtitle = "Experimental — only works if your provider labels movie/series categories with an EN/ENG/ENGLISH/US/USA tag.",
             checked = prefs.englishOnlyMovies.first()) { c -> lifecycleScope.launch { prefs.setEnglishOnlyMovies(c) } }
+        // Phone Settings already had dedicated refresh buttons (btnRefreshMovies/
+        // btnRefreshSeries) — TV had no way to re-fetch the VOD/series catalog at all, only EPG
+        // program-guide data below, so a newly-added title on the provider's end could go
+        // permanently missing on TV until the next full app data refresh. Attached directly to
+        // the relevant toggle row (rather than a separate row) per request, as a small
+        // independently-clickable button next to the ON/OFF value.
         settingsItems += TvSettingItem.Toggle("display_movies", "Show Movies Tab",
-            checked = showMovies) { c -> lifecycleScope.launch { prefs.setShowMovies(c) } }
+            checked = showMovies,
+            actionLabel = "↻ Refresh",
+            onAction = {
+                setItemAction("display_movies", "Loading…", enabled = false)
+                lifecycleScope.launch {
+                    repository.fetchVodCategories()
+                    val result = repository.fetchVodStreams()
+                    setItemAction("display_movies", "↻ Refresh", enabled = true)
+                    val msg = if (result is com.iptvapp.util.Resource.Success)
+                        "Movies refreshed (${result.data?.size ?: 0} titles)"
+                    else "Failed — server timeout or no content"
+                    toast(msg)
+                }
+            }
+        ) { c -> lifecycleScope.launch { prefs.setShowMovies(c) } }
         settingsItems += TvSettingItem.Toggle("display_series", "Show Series Tab",
-            checked = showSeries) { c -> lifecycleScope.launch { prefs.setShowSeries(c) } }
+            checked = showSeries,
+            actionLabel = "↻ Refresh",
+            onAction = {
+                setItemAction("display_series", "Loading…", enabled = false)
+                lifecycleScope.launch {
+                    val result = repository.fetchSeries()
+                    setItemAction("display_series", "↻ Refresh", enabled = true)
+                    val msg = if (result is com.iptvapp.util.Resource.Success)
+                        "Series refreshed (${result.data?.size ?: 0} titles)"
+                    else "Failed — server timeout or no content"
+                    toast(msg)
+                }
+            }
+        ) { c -> lifecycleScope.launch { prefs.setShowSeries(c) } }
 
         // ── EPG ──
         settingsItems += TvSettingItem.Header("EPG")
@@ -501,6 +631,18 @@ class TvSettingsActivity : AppCompatActivity() {
         if (idx < 0) return
         val item = settingsItems[idx] as? TvSettingItem.Action ?: return
         item.enabled = enabled
+        adapter.notifyItemChanged(idx)
+    }
+
+    // Updates a Toggle row's secondary action button label/enabled state (e.g. the Refresh
+    // button attached to Show Movies/Series Tab) — separate from setItemEnabled/setItemTitle
+    // since those only handle plain Action rows, not a Toggle's optional inline action.
+    private fun setItemAction(id: String, label: String, enabled: Boolean) {
+        val idx = indexOfItem(id)
+        if (idx < 0) return
+        val item = settingsItems[idx] as? TvSettingItem.Toggle ?: return
+        item.actionLabel = label
+        item.actionEnabled = enabled
         adapter.notifyItemChanged(idx)
     }
 

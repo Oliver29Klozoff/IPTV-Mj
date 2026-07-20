@@ -1,7 +1,7 @@
 {
-  "versionCode": 317,
-  "versionName": "4.79",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.79/MKTV.apk",
-  "apkSha256": "37599215adcf143cdacac35e06a3309bca97ed129c77034f0d89ade4397a3875",
-  "changelog": "Fixed favorite health dots turning all-red from an unpaced rate-limit trip, a provider refresh failure wiping that provider's favorites, and health dots not populating on several tab-entry paths."
+  "versionCode": 318,
+  "versionName": "4.80",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.80/MKTV.apk",
+  "apkSha256": "a2c39a133114a70c2429f32e583035bdf9c68b0ea6c243f1d3914304ee588792",
+  "changelog": "Watched titles now float to the top of Movies/Series, fixed series episode resume, added a real interactive Feature Tour, Find in Settings search, a working What's On button, Guide/search/recording support for other providers, and a Continue Watching series feed."
 }

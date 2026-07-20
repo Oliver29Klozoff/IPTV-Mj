@@ -39,6 +39,7 @@ class SeriesDetailActivity : AppCompatActivity() {
     private var allEpisodes: Map<String, List<Episode>> = emptyMap()
     private var currentSeasonEpisodes: List<Episode> = emptyList()
     private var seriesNameField: String = ""
+    private var seriesIdField: Int = -1
     // (season, episode) pairs marked watched — currently only ever populated by a Trakt
     // history sync-back, since the app has no other way yet to know about episodes watched
     // outside itself (or before this device's own play history began).
@@ -66,6 +67,7 @@ class SeriesDetailActivity : AppCompatActivity() {
         }
 
         val seriesId = intent.getIntExtra("series_id", -1)
+        seriesIdField = seriesId
         val seriesName = intent.getStringExtra("series_name") ?: ""
         seriesNameField = seriesName
         val seriesCover = intent.getStringExtra("series_cover")
@@ -95,8 +97,12 @@ class SeriesDetailActivity : AppCompatActivity() {
     private fun loadSeriesInfo(seriesId: Int) {
         binding.progressBar.visibility = View.VISIBLE
         lifecycleScope.launch {
-            watchedEpisodes = db.episodeWatchedDao().getForSeries(seriesId)
-                .map { it.season to it.episode }.toSet()
+            // watchedAt == 0 is a progress-only sentinel (saved by the player mid-episode,
+            // via ensureRow) — it must not count as "watched" for the completed-episode dot,
+            // only a real completion (Trakt import, cross-device sync) sets watchedAt.
+            val episodeProgress = db.episodeWatchedDao().getForSeries(seriesId)
+                .associateBy { it.season to it.episode }
+            watchedEpisodes = episodeProgress.filterValues { it.watchedAt > 0 }.keys
             when (val result = repository.fetchSeriesInfo(seriesId)) {
                 is Resource.Success -> {
                     binding.progressBar.visibility = View.GONE
@@ -156,15 +162,20 @@ class SeriesDetailActivity : AppCompatActivity() {
         val index = episodes.indexOfFirst { it.id == episode.id }.takeIf { it >= 0 } ?: return
         lifecycleScope.launch {
             val url = repository.getSeriesEpisodeUrl(episode.id, episode.containerExtension)
+            val resumeMs = if (seriesIdField != -1)
+                db.episodeWatchedDao().getWatchedMs(seriesIdField, episode.season, episode.episodeNum) ?: 0L
+            else 0L
             startActivity(Intent(this@SeriesDetailActivity, PlayerActivity::class.java).apply {
                 putExtra("stream_url", url)
                 putExtra("stream_title", "S${episode.season}E${episode.episodeNum} ${episode.title}")
                 putExtra("stream_id", episode.id.hashCode())
                 putExtra("is_vod", true)
+                putExtra("series_id", seriesIdField)
                 putExtra("series_name", seriesNameField)
                 putExtra("season_num", episode.season)
                 putExtra("episode_num", episode.episodeNum)
                 putExtra("ep_index", index)
+                putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids",      ArrayList(episodes.map { it.id }))
                 putStringArrayListExtra("ep_titles",   ArrayList(episodes.map { "S${it.season}E${it.episodeNum} ${it.title}" }))
                 putStringArrayListExtra("ep_exts",     ArrayList(episodes.map { it.containerExtension }))

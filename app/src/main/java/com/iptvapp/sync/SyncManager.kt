@@ -54,6 +54,23 @@ class SyncManager @Inject constructor(
                 .mapNotNull { ch -> ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> ch.streamId.toString() to name } } }
                 .toMap()
 
+            // Only push rows with real progress — most cached VOD/series/episodes were never
+            // started, and including every one would balloon the payload for no benefit (same
+            // reasoning as favoriteChannelIds only including actual favorites, not every channel).
+            val vodProgress = db.vodDao().getUserData()
+                .filter { it.watchedMs > 0 }
+                .associate { it.streamId.toString() to mapOf("watchedMs" to it.watchedMs, "durationMs" to it.durationMs) }
+            val seriesProgress = db.seriesDao().getUserData()
+                .filter { it.watchedMs > 0 }
+                .associate { it.seriesId.toString() to mapOf("watchedMs" to it.watchedMs, "durationMs" to it.durationMs) }
+            val episodesWatched = db.episodeWatchedDao().getAll()
+                .map {
+                    mapOf(
+                        "seriesId" to it.seriesId, "season" to it.season, "episode" to it.episode,
+                        "watchedAt" to it.watchedAt, "watchedMs" to it.watchedMs, "durationMs" to it.durationMs
+                    )
+                }
+
             val data = hashMapOf(
                 "version"            to 1,
                 "syncedAt"           to System.currentTimeMillis(),
@@ -66,7 +83,10 @@ class SyncManager @Inject constructor(
                 // Already in favOrder sequence (getFavoriteChannelsBlocking orders by it) —
                 // pushed as-is so drag-reordering carries over too, not just which channels
                 // are favorited/foldered.
-                "favoriteOrder"      to allFavorites.map { it.streamId }
+                "favoriteOrder"      to allFavorites.map { it.streamId },
+                "vodProgress"        to vodProgress,
+                "seriesProgress"     to seriesProgress,
+                "episodesWatched"    to episodesWatched
             )
 
             firestore.collection("users").document(user.uid).set(data, SetOptions.merge()).await()
@@ -79,7 +99,7 @@ class SyncManager @Inject constructor(
             // Save own UID as target so pulling from same device works
             if (prefs.getSyncGistId().isEmpty()) prefs.setSyncGistId(user.uid)
             prefs.setLastSyncTime(System.currentTimeMillis())
-            "Synced ${favChannelIds.size} favorites ✓\nSync code: ${shortCode.uppercase()}"
+            "Synced ${favChannelIds.size} favorites and watch progress ✓\nSync code: ${shortCode.uppercase()}"
         } catch (e: Exception) {
             "Sync failed: ${e.message}"
         }
@@ -159,6 +179,73 @@ class SyncManager @Inject constructor(
                     .forEachIndexed { index, streamId -> db.channelDao().updateFavOrder(streamId, index) }
             }
 
+            // Watch progress merges by keeping whichever position is FURTHER ALONG, never the
+            // remote value unconditionally — a stale, less-progressed row (e.g. this device
+            // hasn't synced in a while but you kept watching locally) must not rewind playback
+            // on either device.
+            fun Any?.asLong(): Long? = when (this) {
+                is Long -> this
+                is Number -> this.toLong()
+                else -> null
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val remoteVodProgress = (doc.get("vodProgress") as? Map<String, Map<*, *>>) ?: emptyMap()
+            var vodProgressMerged = 0
+            remoteVodProgress.forEach { (streamIdStr, progress) ->
+                val streamId = streamIdStr.toIntOrNull() ?: return@forEach
+                val remoteWatched = progress["watchedMs"].asLong() ?: return@forEach
+                val remoteDuration = progress["durationMs"].asLong() ?: return@forEach
+                val localWatched = db.vodDao().getWatchedMs(streamId) ?: 0L
+                if (remoteWatched > localWatched) {
+                    db.vodDao().updateWatchProgress(streamId, remoteWatched, remoteDuration)
+                    vodProgressMerged++
+                }
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val remoteSeriesProgress = (doc.get("seriesProgress") as? Map<String, Map<*, *>>) ?: emptyMap()
+            remoteSeriesProgress.forEach { (seriesIdStr, progress) ->
+                val seriesId = seriesIdStr.toIntOrNull() ?: return@forEach
+                val remoteWatched = progress["watchedMs"].asLong() ?: return@forEach
+                val remoteDuration = progress["durationMs"].asLong() ?: return@forEach
+                val localWatched = db.seriesDao().getWatchedMs(seriesId)
+                if (remoteWatched > localWatched) {
+                    db.seriesDao().updateWatchProgress(seriesId, remoteWatched, remoteDuration)
+                    vodProgressMerged++
+                }
+            }
+
+            // Episode rows carry both a completed-watch flag (watchedAt > 0, boolean — only
+            // ever applied if not already true locally, never removed) and a resume position
+            // (watchedMs/durationMs, merged by keeping whichever is further along, same rule
+            // as VOD/series progress above).
+            @Suppress("UNCHECKED_CAST")
+            val remoteEpisodesWatched = (doc.get("episodesWatched") as? List<Map<*, *>>) ?: emptyList()
+            remoteEpisodesWatched.forEach { entry ->
+                val seriesId = entry["seriesId"].asLong()?.toInt() ?: return@forEach
+                val season = entry["season"].asLong()?.toInt() ?: return@forEach
+                val episode = entry["episode"].asLong()?.toInt() ?: return@forEach
+                val remoteWatchedAt = entry["watchedAt"].asLong() ?: 0L
+                val remoteWatched = entry["watchedMs"].asLong() ?: 0L
+                val remoteDuration = entry["durationMs"].asLong() ?: 0L
+
+                if (remoteWatchedAt > 0 && !db.episodeWatchedDao().isWatched(seriesId, season, episode)) {
+                    db.episodeWatchedDao().upsert(
+                        com.iptvapp.data.local.entities.EpisodeWatchedEntity(
+                            seriesId = seriesId, season = season, episode = episode,
+                            watchedAt = remoteWatchedAt, watchedMs = remoteWatched, durationMs = remoteDuration
+                        )
+                    )
+                } else if (remoteDuration > 0) {
+                    val localWatched = db.episodeWatchedDao().getWatchedMs(seriesId, season, episode) ?: 0L
+                    if (remoteWatched > localWatched) {
+                        db.episodeWatchedDao().saveProgress(seriesId, season, episode, remoteWatched, remoteDuration)
+                        vodProgressMerged++
+                    }
+                }
+            }
+
             val syncedAt   = doc.getLong("syncedAt") ?: 0L
             val syncDevice = doc.getString("device") ?: "Unknown"
             val dateStr    = if (syncedAt > 0)
@@ -166,7 +253,8 @@ class SyncManager @Inject constructor(
             else "Unknown time"
 
             prefs.setLastSyncTime(System.currentTimeMillis())
-            "Pulled ${merged.size} favorites from $syncDevice ($dateStr)"
+            val progressSuffix = if (vodProgressMerged > 0) " and $vodProgressMerged watch progress update${if (vodProgressMerged == 1) "" else "s"}" else ""
+            "Pulled ${merged.size} favorites$progressSuffix from $syncDevice ($dateStr)"
         } catch (e: Exception) {
             "Sync failed: ${e.message}"
         }
