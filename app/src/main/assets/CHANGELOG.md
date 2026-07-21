@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.87 - 2026-07-21
+- **Fixed**: "Backup to file" could silently write a 0-byte file on some Downloads/file-manager
+  storage providers, with no error shown — any backup restored later from that file would fail
+  with "End of input". The write now happens in explicit truncate mode and is verified by
+  reading the file back before saying "Backup saved"; a bad write now shows "Backup failed"
+  immediately instead of only surfacing on a later restore.
+
 ## v4.86 - 2026-07-21
 - **Added**: the Live tab now merges the primary provider with every configured secondary
   provider into one combined, color-coded list — tapping a category shows that provider's

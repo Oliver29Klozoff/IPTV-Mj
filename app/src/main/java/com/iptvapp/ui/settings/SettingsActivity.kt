@@ -1052,8 +1052,16 @@ class SettingsActivity : AppCompatActivity() {
         val body = buildBackupJson().toString(2)
         try {
             withContext(Dispatchers.IO) {
-                contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
+                contentResolver.openOutputStream(uri, "wt")?.use { it.write(body.toByteArray()) }
                     ?: throw IllegalStateException("Could not open output stream")
+                // Some DocumentsProvider implementations (certain file managers/Downloads
+                // providers) have silently left behind a 0-byte file on write failure in the
+                // past with no exception thrown — read it back so "Backup saved" is never shown
+                // for a file that would fail to restore.
+                val written = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (written == null || written.isEmpty()) {
+                    throw IllegalStateException("file wrote empty, try a different save location")
+                }
             }
             binding.tvBackupStatus.text = "✓ Backup saved"
             Toast.makeText(this, "Backup saved", Toast.LENGTH_LONG).show()

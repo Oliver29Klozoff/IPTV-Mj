@@ -1,7 +1,7 @@
 {
-  "versionCode": 324,
-  "versionName": "4.86",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.86/MKTV.apk",
-  "apkSha256": "905fbf5cf461ac5783cd401b8fd87b098923a1a279edecfcc44156f3ec38dd19",
-  "changelog": "Live tab now merges all providers into one color-coded list, Categories tab shows favorite categories from every provider, and fixed a crash when restoring a backup from a file."
+  "versionCode": 325,
+  "versionName": "4.87",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.87/MKTV.apk",
+  "apkSha256": "c9dbc3632e03894161cd959af33747a43eb80373f03166835f8fdfe45b1d47b4",
+  "changelog": "Fixed \"Backup to file\" silently writing an empty (0-byte) backup on some storage providers with no error shown, which caused later restores to fail."
 }
