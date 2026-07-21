@@ -365,6 +365,152 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // Movies-tab equivalent of the merged-channel browse state above — same server -> category
+    // -> items drill-down shape, but a separate "mode" within the Providers tab (see
+    // HomeActivity's Live/Movies toggle) rather than merged into the primary Movies tab, since
+    // VOD catalogs are large enough that combining them the way Live already does would risk
+    // real perf/complexity cost for comparatively little benefit at this stage.
+    private val _mergedVodServers = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedVodServerSummary>>(emptyList())
+    val mergedVodServers: StateFlow<List<com.iptvapp.data.local.entities.MergedVodServerSummary>> = _mergedVodServers
+
+    private val _mergedVodCategories = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedVodCategorySummary>>(emptyList())
+    val mergedVodCategories: StateFlow<List<com.iptvapp.data.local.entities.MergedVodCategorySummary>> = _mergedVodCategories
+
+    private val _mergedVod = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedVodEntity>>(emptyList())
+    val mergedVod: StateFlow<List<com.iptvapp.data.local.entities.MergedVodEntity>> = _mergedVod
+
+    private var mergedVodCategoriesJob: Job? = null
+    private var mergedVodItemsJob: Job? = null
+    var selectedMergedVodServerIndex: Int? = null; private set
+    var selectedMergedVodCategoryId: String? = null; private set
+    private var mergedVodServersJob: Job? = null
+
+    fun startObservingMergedVodServers() {
+        if (mergedVodServersJob != null) return
+        mergedVodServersJob = viewModelScope.launch {
+            repository.getMergedVodServerSummaries().collectLatest { _mergedVodServers.value = it }
+        }
+    }
+
+    fun resetMergedVodSelection() {
+        selectedMergedVodServerIndex = null
+        selectedMergedVodCategoryId = null
+        mergedVodCategoriesJob?.cancel()
+        mergedVodItemsJob?.cancel()
+        _mergedVodCategories.value = emptyList()
+        _mergedVod.value = emptyList()
+    }
+
+    fun selectMergedVodServer(serverIndex: Int) {
+        selectedMergedVodServerIndex = serverIndex
+        selectedMergedVodCategoryId = null
+        mergedVodCategoriesJob?.cancel()
+        mergedVodCategoriesJob = viewModelScope.launch {
+            repository.getMergedVodCategorySummaries(serverIndex).collectLatest { _mergedVodCategories.value = it }
+        }
+    }
+
+    fun selectMergedVodCategory(categoryId: String?) {
+        val serverIndex = selectedMergedVodServerIndex ?: return
+        selectedMergedVodCategoryId = categoryId
+        mergedVodItemsJob?.cancel()
+        mergedVodItemsJob = viewModelScope.launch {
+            repository.getMergedVodByCategory(serverIndex, categoryId).collectLatest { _mergedVod.value = it }
+        }
+    }
+
+    fun searchMergedVod(query: String) {
+        mergedVodItemsJob?.cancel()
+        mergedVodItemsJob = viewModelScope.launch {
+            repository.searchMergedVod(query).collectLatest { _mergedVod.value = it }
+        }
+    }
+
+    fun setMergedVodFavorite(vod: com.iptvapp.data.local.entities.MergedVodEntity, favorite: Boolean) {
+        viewModelScope.launch { repository.setMergedVodFavorite(vod, favorite) }
+    }
+
+    suspend fun getMergedVodStreamUrl(serverIndex: Int, streamId: Int, containerExtension: String): String =
+        repository.getMergedVodStreamUrl(serverIndex, streamId, containerExtension)
+
+    fun refreshMergedVod(serverIndex: Int? = null, onDone: (errors: Map<Int, String>) -> Unit = {}) {
+        viewModelScope.launch {
+            val errors = repository.refreshMergedVod(serverIndex)
+            onDone(errors)
+        }
+    }
+
+    // Series-mode equivalent of the merged-VOD browse state above — same shape, see
+    // MergedSeriesEntity kdoc. Episode browsing itself (season/episode list, playback) happens
+    // in SeriesDetailActivity, not here — this ViewModel only owns the server/category/series
+    // list drill-down, same division of responsibility as the primary Series tab.
+    private val _mergedSeriesServers = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedSeriesServerSummary>>(emptyList())
+    val mergedSeriesServers: StateFlow<List<com.iptvapp.data.local.entities.MergedSeriesServerSummary>> = _mergedSeriesServers
+
+    private val _mergedSeriesCategories = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedSeriesCategorySummary>>(emptyList())
+    val mergedSeriesCategories: StateFlow<List<com.iptvapp.data.local.entities.MergedSeriesCategorySummary>> = _mergedSeriesCategories
+
+    private val _mergedSeries = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedSeriesEntity>>(emptyList())
+    val mergedSeries: StateFlow<List<com.iptvapp.data.local.entities.MergedSeriesEntity>> = _mergedSeries
+
+    private var mergedSeriesCategoriesJob: Job? = null
+    private var mergedSeriesItemsJob: Job? = null
+    var selectedMergedSeriesServerIndex: Int? = null; private set
+    var selectedMergedSeriesCategoryId: String? = null; private set
+    private var mergedSeriesServersJob: Job? = null
+
+    fun startObservingMergedSeriesServers() {
+        if (mergedSeriesServersJob != null) return
+        mergedSeriesServersJob = viewModelScope.launch {
+            repository.getMergedSeriesServerSummaries().collectLatest { _mergedSeriesServers.value = it }
+        }
+    }
+
+    fun resetMergedSeriesSelection() {
+        selectedMergedSeriesServerIndex = null
+        selectedMergedSeriesCategoryId = null
+        mergedSeriesCategoriesJob?.cancel()
+        mergedSeriesItemsJob?.cancel()
+        _mergedSeriesCategories.value = emptyList()
+        _mergedSeries.value = emptyList()
+    }
+
+    fun selectMergedSeriesServer(serverIndex: Int) {
+        selectedMergedSeriesServerIndex = serverIndex
+        selectedMergedSeriesCategoryId = null
+        mergedSeriesCategoriesJob?.cancel()
+        mergedSeriesCategoriesJob = viewModelScope.launch {
+            repository.getMergedSeriesCategorySummaries(serverIndex).collectLatest { _mergedSeriesCategories.value = it }
+        }
+    }
+
+    fun selectMergedSeriesCategory(categoryId: String?) {
+        val serverIndex = selectedMergedSeriesServerIndex ?: return
+        selectedMergedSeriesCategoryId = categoryId
+        mergedSeriesItemsJob?.cancel()
+        mergedSeriesItemsJob = viewModelScope.launch {
+            repository.getMergedSeriesByCategory(serverIndex, categoryId).collectLatest { _mergedSeries.value = it }
+        }
+    }
+
+    fun searchMergedSeries(query: String) {
+        mergedSeriesItemsJob?.cancel()
+        mergedSeriesItemsJob = viewModelScope.launch {
+            repository.searchMergedSeries(query).collectLatest { _mergedSeries.value = it }
+        }
+    }
+
+    fun setMergedSeriesFavorite(series: com.iptvapp.data.local.entities.MergedSeriesEntity, favorite: Boolean) {
+        viewModelScope.launch { repository.setMergedSeriesFavorite(series, favorite) }
+    }
+
+    fun refreshMergedSeries(serverIndex: Int? = null, onDone: (errors: Map<Int, String>) -> Unit = {}) {
+        viewModelScope.launch {
+            val errors = repository.refreshMergedSeries(serverIndex)
+            onDone(errors)
+        }
+    }
+
     fun setMergedChannelFavorite(channel: com.iptvapp.data.local.entities.MergedChannelEntity, favorite: Boolean) {
         viewModelScope.launch { repository.setMergedChannelFavorite(channel.serverIndex, channel.streamId, favorite) }
     }

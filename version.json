@@ -1,7 +1,7 @@
 {
-  "versionCode": 327,
-  "versionName": "4.89",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.89/MKTV.apk",
-  "apkSha256": "a99469aa22e1fcc61fbd416ca638925b90d9804cbc2d2631386944b2961c683b",
-  "changelog": "Backup to file now includes VOD/series watch progress and per-episode watched state, matching what cross-device Sync already carries over."
+  "versionCode": 328,
+  "versionName": "4.90",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.90/MKTV.apk",
+  "apkSha256": "27a899f3fee34f02e692f672316a93d421d1be77aa4a53c7bba6c28337d11ecc",
+  "changelog": "Providers tab now browses Movies and Series from every secondary provider, and TV catches up to phone on bulk-select favorites, Hide Channel, Channels Like This, Move to Folder, Movies/Series sort, and What's On/Continue Watching tickers."
 }

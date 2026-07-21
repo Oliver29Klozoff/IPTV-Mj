@@ -138,6 +138,22 @@ class TvHomeActivity : AppCompatActivity() {
     private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE, PROVIDERS }
     private var currentSection = Section.FAVORITES
 
+    // Bulk-select-to-favorites, Hide Channel, and Channels Like This were phone-only
+    // (HomeActivity's showChannelActionsMenuDialog) — the D-pad long-press here only ever
+    // opened the reminder flow. Same fields/Handler-based idle-commit pattern as phone.
+    private val bulkSelectedIds = mutableSetOf<Int>()
+    private var bulkSelectMode = false
+    private val bulkSelectHandler = Handler(Looper.getMainLooper())
+    private val bulkSelectIdleRunnable = Runnable {
+        if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
+            viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+            Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+            bulkSelectedIds.clear()
+            bulkSelectMode = false
+            channelAdapter.submitBulkSelection(emptySet())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityTvHomeBinding.inflate(layoutInflater)
@@ -476,6 +492,15 @@ class TvHomeActivity : AppCompatActivity() {
 
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
+                if (bulkSelectMode) {
+                    if (!bulkSelectedIds.add(channel.streamId)) bulkSelectedIds.remove(channel.streamId)
+                    channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                    Toast.makeText(this, "${bulkSelectedIds.size} selected", Toast.LENGTH_SHORT).show()
+                    bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                    if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
+                    else bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+                    return@ChannelAdapter
+                }
                 lifecycleScope.launch {
                     playInMiniPlayer(channel)
                     viewModel.markChannelWatched(channel.streamId)
@@ -496,7 +521,7 @@ class TvHomeActivity : AppCompatActivity() {
                 val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             },
-            onChannelLongClick = { channel -> showTvReminderDialog(channel) }
+            onChannelLongClick = { channel -> showTvChannelActionsMenu(channel) }
         )
         channelAdapter.isTvMode = true
         channelAdapter.onChannelFocused = { channel ->
@@ -522,14 +547,16 @@ class TvHomeActivity : AppCompatActivity() {
             // The star icon isn't reachable by D-pad — long-press (OK held) is how TV
             // favorites/unfavorites a merged channel, mirroring the primary list's menu.
             onChannelLongClick = { channel ->
+                val options = mutableListOf(
+                    "Play Fullscreen",
+                    if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
+                )
+                if (channel.isFavorite) options.add("Move to Folder")
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("${channel.name} · ${channel.serverNickname}")
-                    .setItems(arrayOf(
-                        "Play Fullscreen",
-                        if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
-                    )) { _: android.content.DialogInterface, which: Int ->
-                        when (which) {
-                            0 -> lifecycleScope.launch {
+                    .setItems(options.toTypedArray()) { _, which ->
+                        when (options[which]) {
+                            "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
                                     openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1, serverIndex = channel.serverIndex, mergedStreamId = channel.streamId)
@@ -537,10 +564,11 @@ class TvHomeActivity : AppCompatActivity() {
                                     Toast.makeText(this@TvHomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                                 }
                             }
-                            1 -> {
+                            "Add to Favorites", "Remove from Favorites" -> {
                                 viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                                 Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
                             }
+                            "Move to Folder" -> showMoveToFolderDialog(channel)
                         }
                     }
                     .setNegativeButton("Cancel", null)
@@ -574,17 +602,19 @@ class TvHomeActivity : AppCompatActivity() {
             },
             onChannelLongClick = { item ->
                 when (item) {
-                    is CombinedFavorite.Primary -> showTvReminderDialog(item.channel)
+                    is CombinedFavorite.Primary -> showTvChannelActionsMenu(item.channel)
                     is CombinedFavorite.Merged -> {
                         val channel = item.channel
+                        val options = mutableListOf(
+                            "Play Fullscreen",
+                            if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
+                        )
+                        if (channel.isFavorite) options.add("Move to Folder")
                         androidx.appcompat.app.AlertDialog.Builder(this)
                             .setTitle("${channel.name} · ${channel.serverNickname}")
-                            .setItems(arrayOf(
-                                "Play Fullscreen",
-                                if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
-                            )) { _: android.content.DialogInterface, which: Int ->
-                                when (which) {
-                                    0 -> lifecycleScope.launch {
+                            .setItems(options.toTypedArray()) { _, which ->
+                                when (options[which]) {
+                                    "Play Fullscreen" -> lifecycleScope.launch {
                                         try {
                                             val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
                                             openPlayer(url, "${channel.name} · ${channel.serverNickname}", -1, serverIndex = channel.serverIndex, mergedStreamId = channel.streamId)
@@ -592,7 +622,8 @@ class TvHomeActivity : AppCompatActivity() {
                                             Toast.makeText(this@TvHomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                                         }
                                     }
-                                    1 -> viewModel.toggleCombinedFavorite(item)
+                                    "Add to Favorites", "Remove from Favorites" -> viewModel.toggleCombinedFavorite(item)
+                                    "Move to Folder" -> showMoveToFolderDialog(channel)
                                 }
                             }
                             .setNegativeButton("Cancel", null)
@@ -779,8 +810,15 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvGuidePanel.visibility = View.GONE
         binding.tvChanTitle.text = title
         pendingContentFocus = true
-        binding.tvBtnChanSort.visibility = if (title == "LIVE") View.VISIBLE else View.GONE
-        if (title == "LIVE") updateTvSortButtonLabel()
+        // Movies' channel-list title is the picked CATEGORY's name (e.g. "Action"), not
+        // "MOVIES" — currentSection is the only reliable signal for which content type is
+        // actually showing, same reasoning the search-dispatch when(currentSection) block uses.
+        binding.tvBtnChanSort.visibility =
+            if (title == "LIVE" || currentSection == Section.MOVIES || currentSection == Section.SERIES) View.VISIBLE else View.GONE
+        when {
+            title == "LIVE" -> updateTvSortButtonLabel()
+            currentSection == Section.MOVIES || currentSection == Section.SERIES -> binding.tvBtnChanSort.text = "⇅ Sort"
+        }
         binding.tvBtnChanRefresh.visibility = if (title == "PROVIDERS") View.VISIBLE else View.GONE
     }
 
@@ -792,6 +830,50 @@ class TvHomeActivity : AppCompatActivity() {
             HomeViewModel.ChannelSort.RECENTLY_WATCHED -> "⇅ Recent"
             HomeViewModel.ChannelSort.MOST_RELIABLE -> "⇅ Reliable"
         }
+    }
+
+    // Phone's Movies/Series tabs have a dedicated sort button (HomeActivity.showVodSortDialog/
+    // showSeriesSortDialog) with no TV equivalent — tvBtnChanSort only ever drove Live's
+    // cycleSort(). Reusing the same two dialogs here (they're plain AlertDialogs over
+    // viewModel state, portable as-is) rather than duplicating the option lists.
+    private fun showTvVodSortDialog() {
+        val options = listOf(
+            HomeViewModel.VodSort.DEFAULT to "Default",
+            HomeViewModel.VodSort.RATING_DESC to "Rating (High to Low)",
+            HomeViewModel.VodSort.YEAR_NEWEST to "Year (Newest First)",
+            HomeViewModel.VodSort.YEAR_OLDEST to "Year (Oldest First)",
+            HomeViewModel.VodSort.RECENTLY_ADDED to "Recently Added"
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        val current = options.indexOfFirst { it.first == viewModel.vodSort.value }.coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort Movies")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                viewModel.setVodSort(options[which].first)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showTvSeriesSortDialog() {
+        val options = listOf(
+            HomeViewModel.SeriesSort.DEFAULT to "Default",
+            HomeViewModel.SeriesSort.RATING_DESC to "Rating (High to Low)",
+            HomeViewModel.SeriesSort.YEAR_NEWEST to "Year (Newest First)",
+            HomeViewModel.SeriesSort.YEAR_OLDEST to "Year (Oldest First)",
+            HomeViewModel.SeriesSort.RECENTLY_ADDED to "Recently Added"
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        val current = options.indexOfFirst { it.first == viewModel.seriesSort.value }.coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort Series")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                viewModel.setSeriesSort(options[which].first)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // The EPG guide used to live permanently under the mini player, always reachable via
@@ -850,6 +932,18 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
         binding.btnTvGuide.setOnClickListener { selectSection(Section.GUIDE) }
         binding.btnTvProviders.setOnClickListener { selectSection(Section.PROVIDERS) }
+        // Phone reaches these via a dedicated What's On button's click/long-click — TV has no
+        // such button (Guide is a sidebar entry, not a tab), so both live behind one long-press
+        // here instead, picked via a chooser rather than trying to split them across gestures.
+        binding.btnTvGuide.setOnLongClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setItems(arrayOf("What's On Now", "Up Next — Favorites")) { _, which ->
+                    if (which == 0) showTvWhatsOnNow() else showTvUpNextTicker()
+                }
+                .show()
+            true
+        }
+        binding.btnTvSeries.setOnLongClickListener { showTvContinueSeriesTicker(); true }
         binding.tvBtnChanRefresh.setOnClickListener {
             viewModel.refreshMergedChannels()
             Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
@@ -867,8 +961,14 @@ class TvHomeActivity : AppCompatActivity() {
         }
         binding.tvBtnGuideBack.setOnClickListener { showSidebar() }
         binding.tvBtnChanSort.setOnClickListener {
-            viewModel.cycleSort()
-            updateTvSortButtonLabel()
+            when (currentSection) {
+                Section.MOVIES -> showTvVodSortDialog()
+                Section.SERIES -> showTvSeriesSortDialog()
+                else -> {
+                    viewModel.cycleSort()
+                    updateTvSortButtonLabel()
+                }
+            }
         }
     }
 
@@ -1738,6 +1838,295 @@ class TvHomeActivity : AppCompatActivity() {
                 putExtra("server_index", serverIndex)
                 putExtra("merged_stream_id", mergedStreamId)
             })
+        }
+    }
+
+    // TV equivalent of HomeActivity.showMoveToFolderDialog — TV's merged-channel long-press
+    // dialog never offered this, unlike phone's showMergedChannelActionsMenu.
+    private fun showMoveToFolderDialog(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        showMoveToFolderDialog("Move \"${channel.name}\" to", onCancel = {}) { folderId ->
+            viewModel.setMergedChannelFolder(channel, folderId)
+            Toast.makeText(this, "Moved", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showMoveToFolderDialog(title: String, onCancel: () -> Unit, onPicked: (Int?) -> Unit) {
+        val folders = viewModel.favoriteFolders.value
+        val labels = mutableListOf("Unsorted") + folders.map { it.name } + "+ New Folder"
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(labels.toTypedArray()) { _, i ->
+                when (i) {
+                    0 -> onPicked(null)
+                    labels.size - 1 -> {
+                        val et = android.widget.EditText(this).apply { hint = "Folder name" }
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("New Folder")
+                            .setView(et)
+                            .setPositiveButton("Create") { _, _ ->
+                                val name = et.text.toString().trim()
+                                if (name.isNotEmpty()) {
+                                    lifecycleScope.launch {
+                                        val newId = viewModel.createFavoriteFolderAndGetId(name)
+                                        onPicked(newId)
+                                    }
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    else -> onPicked(folders[i - 1].id)
+                }
+            }
+            .setNegativeButton("Cancel") { _, _ -> onCancel() }
+            .show()
+    }
+
+    // TV equivalent of HomeActivity.showChannelActionsMenuDialog — the long-press menu used to
+    // jump straight to the reminder flow (showTvReminderDialog), with no way to bulk-select
+    // favorites, hide a channel, or see similar channels on TV at all.
+    private fun showTvChannelActionsMenu(channel: ChannelEntity) {
+        val options = mutableListOf(
+            "Set Reminder",
+            if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
+            "Hide Channel",
+            "Channels Like This"
+        )
+        if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
+            options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(channel.name)
+            .setItems(options.toTypedArray()) { _, i ->
+                when (options[i]) {
+                    "Set Reminder" -> showTvReminderDialog(channel)
+                    "Select (bulk add to favorites)" -> {
+                        bulkSelectMode = true
+                        bulkSelectedIds.add(channel.streamId)
+                        channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                        Toast.makeText(this, "${bulkSelectedIds.size} selected — select more, or wait to add them", Toast.LENGTH_SHORT).show()
+                        bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                        bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+                    }
+                    "Deselect (bulk)" -> {
+                        bulkSelectedIds.remove(channel.streamId)
+                        channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                        if (bulkSelectedIds.isEmpty()) {
+                            bulkSelectMode = false
+                            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                        }
+                    }
+                    "Hide Channel" -> {
+                        viewModel.hideChannel(channel.streamId)
+                        Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
+                    }
+                    "Channels Like This" -> showTvSimilarChannelsSheet(channel)
+                    else -> if (options[i].startsWith("✓ Add")) {
+                        bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                        viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+                        Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                        bulkSelectedIds.clear()
+                        bulkSelectMode = false
+                        channelAdapter.submitBulkSelection(emptySet())
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showTvSimilarChannelsSheet(channel: ChannelEntity) {
+        viewModel.loadSimilarChannels(channel)
+        val rv = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@TvHomeActivity)
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Channels like ${channel.name}")
+            .setView(rv)
+            .setNegativeButton("Close") { _, _ -> viewModel.clearSimilarChannels() }
+            .create()
+        val similarAdapter = ChannelAdapter(
+            onChannelClick = { similar ->
+                dialog.dismiss()
+                viewModel.clearSimilarChannels()
+                lifecycleScope.launch { playInMiniPlayer(similar) }
+            },
+            onFavoriteClick = { similar -> viewModel.toggleChannelFavorite(similar.streamId) }
+        )
+        rv.adapter = similarAdapter
+        lifecycleScope.launch {
+            viewModel.similarChannels.collect { list ->
+                similarAdapter.submitList(list)
+            }
+        }
+        dialog.show()
+    }
+
+    // TV equivalents of HomeActivity's showWhatsOnNow/showUpNextTicker/showContinueSeriesTicker —
+    // phone-only long-press tickers with no TV trigger at all. Triggered by long-pressing the
+    // Guide/Series sidebar buttons instead of a tab (TV has no tabs) — see setupSidebar.
+    private fun showTvWhatsOnNow() {
+        val channels = viewModel.channels.value.ifEmpty { return }
+        val epgTextMap = viewModel.channelEpgText.value
+        val epgProgressMap = viewModel.channelEpgProgress.value
+        val withProgram = channels.filter { epgTextMap[it.streamId]?.isNotBlank() == true }.ifEmpty { channels }
+        val inflater = layoutInflater
+        val rv = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@TvHomeActivity)
+            setPadding(0, 8, 0, 8)
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("What's On Now")
+            .setView(rv)
+            .setNegativeButton("Close", null)
+            .create()
+        val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            inner class VH(val v: View) : RecyclerView.ViewHolder(v)
+            override fun getItemCount() = withProgram.size
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
+                VH(inflater.inflate(com.iptvapp.R.layout.item_whats_on, parent, false))
+            override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                val ch = withProgram[position]
+                val v = holder.itemView
+                v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonChannel).text = ch.name
+                v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonProgram).text = epgTextMap[ch.streamId] ?: ""
+                val progress = epgProgressMap[ch.streamId] ?: 0
+                val pb = v.findViewById<android.widget.ProgressBar>(com.iptvapp.R.id.pbWonProgress)
+                pb.progress = progress
+                pb.visibility = if (progress > 0) View.VISIBLE else View.INVISIBLE
+                com.bumptech.glide.Glide.with(v)
+                    .load(ch.streamIcon)
+                    .placeholder(android.R.drawable.ic_media_play)
+                    .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
+                v.setOnClickListener {
+                    dialog.dismiss()
+                    lifecycleScope.launch {
+                        playInMiniPlayer(ch)
+                        viewModel.markChannelWatched(ch.streamId)
+                        viewModel.setCurrentlyPlaying(ch.streamId)
+                    }
+                }
+            }
+        }
+        rv.adapter = adapter
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            (resources.displayMetrics.heightPixels * 0.75).toInt()
+        )
+    }
+
+    private fun showTvUpNextTicker() {
+        lifecycleScope.launch {
+            val entries = viewModel.getUpNextTicker()
+            if (entries.isEmpty()) {
+                Toast.makeText(this@TvHomeActivity, "No upcoming EPG data for your favorites", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+            val inflater = layoutInflater
+            val rv = RecyclerView(this@TvHomeActivity).apply {
+                layoutManager = LinearLayoutManager(this@TvHomeActivity)
+                setPadding(0, 8, 0, 8)
+            }
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this@TvHomeActivity)
+                .setTitle("Up Next — Favorites")
+                .setView(rv)
+                .setNegativeButton("Close", null)
+                .create()
+            val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                inner class VH(val v: View) : RecyclerView.ViewHolder(v)
+                override fun getItemCount() = entries.size
+                override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
+                    VH(inflater.inflate(com.iptvapp.R.layout.item_whats_on, parent, false))
+                override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                    val entry = entries[position]
+                    val v = holder.itemView
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonChannel).text = entry.channel.name
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonProgram).text =
+                        "${timeFmt.format(Date(entry.startTimestamp))} · ${entry.title}"
+                    v.findViewById<android.widget.ProgressBar>(com.iptvapp.R.id.pbWonProgress).visibility = View.INVISIBLE
+                    com.bumptech.glide.Glide.with(v)
+                        .load(entry.channel.streamIcon)
+                        .placeholder(android.R.drawable.ic_media_play)
+                        .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
+                    v.setOnClickListener {
+                        dialog.dismiss()
+                        lifecycleScope.launch {
+                            playInMiniPlayer(entry.channel)
+                            viewModel.markChannelWatched(entry.channel.streamId)
+                            viewModel.setCurrentlyPlaying(entry.channel.streamId)
+                        }
+                    }
+                }
+            }
+            rv.adapter = adapter
+            dialog.show()
+            dialog.window?.setLayout(
+                (resources.displayMetrics.widthPixels * 0.92).toInt(),
+                (resources.displayMetrics.heightPixels * 0.75).toInt()
+            )
+        }
+    }
+
+    private fun showTvContinueSeriesTicker() {
+        lifecycleScope.launch {
+            val entries = viewModel.getContinueSeriesTicker()
+            if (entries.isEmpty()) {
+                Toast.makeText(this@TvHomeActivity, "No in-progress series yet", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val inflater = layoutInflater
+            val rv = RecyclerView(this@TvHomeActivity).apply {
+                layoutManager = LinearLayoutManager(this@TvHomeActivity)
+                setPadding(0, 8, 0, 8)
+            }
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this@TvHomeActivity)
+                .setTitle("Continue Watching")
+                .setView(rv)
+                .setNegativeButton("Close", null)
+                .create()
+            val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                inner class VH(val v: View) : RecyclerView.ViewHolder(v)
+                override fun getItemCount() = entries.size
+                override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
+                    VH(inflater.inflate(com.iptvapp.R.layout.item_whats_on, parent, false))
+                override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                    val entry = entries[position]
+                    val v = holder.itemView
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonChannel).text = entry.series.name
+                    v.findViewById<android.widget.TextView>(com.iptvapp.R.id.tvWonProgram).text =
+                        "S${entry.nextSeason}E${entry.nextEpisode} — ${entry.nextEpisodeTitle}"
+                    v.findViewById<android.widget.ProgressBar>(com.iptvapp.R.id.pbWonProgress).visibility = View.INVISIBLE
+                    com.bumptech.glide.Glide.with(v)
+                        .load(entry.series.cover)
+                        .placeholder(android.R.drawable.ic_media_play)
+                        .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
+                    v.setOnClickListener {
+                        dialog.dismiss()
+                        lifecycleScope.launch {
+                            val url = viewModel.getSeriesEpisodeUrl(entry.episodeId, entry.containerExtension)
+                            startActivity(Intent(this@TvHomeActivity, PlayerActivity::class.java).apply {
+                                putExtra("stream_url", url)
+                                putExtra("stream_title", "S${entry.nextSeason}E${entry.nextEpisode} ${entry.nextEpisodeTitle}")
+                                putExtra("stream_id", entry.episodeId.hashCode())
+                                putExtra("is_vod", true)
+                                putExtra("series_id", entry.series.seriesId)
+                                putExtra("series_name", entry.series.name)
+                                putExtra("season_num", entry.nextSeason)
+                                putExtra("episode_num", entry.nextEpisode)
+                                putExtra("resume_ms", entry.resumeMs)
+                            })
+                        }
+                    }
+                }
+            }
+            rv.adapter = adapter
+            dialog.show()
+            dialog.window?.setLayout(
+                (resources.displayMetrics.widthPixels * 0.92).toInt(),
+                (resources.displayMetrics.heightPixels * 0.75).toInt()
+            )
         }
     }
 

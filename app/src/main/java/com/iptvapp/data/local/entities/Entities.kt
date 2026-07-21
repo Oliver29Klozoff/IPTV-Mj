@@ -167,3 +167,54 @@ data class MergedChannelEntity(
 // or diff a server/provider's full multi-tens-of-thousands channel list just to show counts.
 data class MergedServerSummary(val serverIndex: Int, val serverNickname: String, val channelCount: Int)
 data class MergedCategorySummary(val categoryId: String?, val categoryName: String?, val channelCount: Int)
+
+// Movies-tab equivalent of MergedChannelEntity — same serverIndex convention, same
+// wholesale-refetch-preserving-favorites approach (see XtreamRepository.refreshMergedVod).
+// No watchedMs/durationMs in v1 (resume for merged VOD is a later stretch goal) and no
+// per-item plot/cast detail fetch — merged VOD plays directly rather than going through a
+// detail screen, unlike primary VOD's VodDetailActivity.
+@Entity(tableName = "merged_vod", primaryKeys = ["serverIndex", "streamId"])
+data class MergedVodEntity(
+    val serverIndex: Int,
+    val streamId: Int,
+    val name: String,
+    val streamIcon: String?,
+    val serverNickname: String,
+    val categoryId: String?,
+    val categoryName: String?,
+    val rating: String?,
+    val containerExtension: String,
+    val added: String?,
+    val isFavorite: Boolean = false,
+    val favoriteFolderId: Int? = null,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+data class MergedVodServerSummary(val serverIndex: Int, val serverNickname: String, val vodCount: Int)
+data class MergedVodCategorySummary(val categoryId: String?, val categoryName: String?, val vodCount: Int)
+
+// Series-tab equivalent of MergedVodEntity — same serverIndex convention, same
+// wholesale-refetch-preserving-favorites approach. Unlike MergedVodEntity, this table stores
+// ONLY series metadata (name/cover/plot/genre/rating) — season/episode data is fetched
+// on-demand each time the detail screen opens (see XtreamRepository.fetchMergedSeriesInfo) and
+// is never cached, since primary-provider SeriesEntity doesn't cache episodes either and
+// caching them here would need a second new table plus invalidation for little real benefit.
+@Entity(tableName = "merged_series", primaryKeys = ["serverIndex", "seriesId"])
+data class MergedSeriesEntity(
+    val serverIndex: Int,
+    val seriesId: Int,
+    val name: String,
+    val cover: String?,
+    val plot: String?,
+    val genre: String?,
+    val rating: String?,
+    val serverNickname: String,
+    val categoryId: String?,
+    val categoryName: String?,
+    val isFavorite: Boolean = false,
+    val favoriteFolderId: Int? = null,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+data class MergedSeriesServerSummary(val serverIndex: Int, val serverNickname: String, val seriesCount: Int)
+data class MergedSeriesCategorySummary(val categoryId: String?, val categoryName: String?, val seriesCount: Int)

@@ -90,6 +90,20 @@
             android:tint="#888888"
             android:visibility="gone" />
 
+        <TextView
+            android:id="@+id/btnProvidersMode"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:background="@drawable/focus_selector"
+            android:text="Movies"
+            android:textAllCaps="true"
+            android:textColor="#008CFF"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
         <ImageButton
             android:id="@+id/btnRefreshProviders"
             android:layout_width="36dp"

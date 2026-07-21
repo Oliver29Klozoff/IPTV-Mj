@@ -40,6 +40,13 @@ class SeriesDetailActivity : AppCompatActivity() {
     private var currentSeasonEpisodes: List<Episode> = emptyList()
     private var seriesNameField: String = ""
     private var seriesIdField: Int = -1
+    // Set only when opened from the Providers tab's Series-mode browse (a merged/secondary
+    // provider's series, see MergedSeriesEntity) — null means "primary provider", matching the
+    // same sentinel convention MergedChannelEntity/MergedVodEntity call sites use elsewhere.
+    // Episode data is fetched from THIS server instead of the primary one when set, and watched/
+    // resume tracking is skipped entirely (episode_watched has no serverIndex column — same
+    // scope decision already made for merged VOD's resume progress).
+    private var serverIndexField: Int? = null
     // (season, episode) pairs marked watched — currently only ever populated by a Trakt
     // history sync-back, since the app has no other way yet to know about episodes watched
     // outside itself (or before this device's own play history began).
@@ -68,6 +75,7 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         val seriesId = intent.getIntExtra("series_id", -1)
         seriesIdField = seriesId
+        serverIndexField = intent.getIntExtra("server_index", -1).takeIf { it != -1 }
         val seriesName = intent.getStringExtra("series_name") ?: ""
         seriesNameField = seriesName
         val seriesCover = intent.getStringExtra("series_cover")
@@ -99,11 +107,18 @@ class SeriesDetailActivity : AppCompatActivity() {
         lifecycleScope.launch {
             // watchedAt == 0 is a progress-only sentinel (saved by the player mid-episode,
             // via ensureRow) — it must not count as "watched" for the completed-episode dot,
-            // only a real completion (Trakt import, cross-device sync) sets watchedAt.
-            val episodeProgress = db.episodeWatchedDao().getForSeries(seriesId)
-                .associateBy { it.season to it.episode }
-            watchedEpisodes = episodeProgress.filterValues { it.watchedAt > 0 }.keys
-            when (val result = repository.fetchSeriesInfo(seriesId)) {
+            // only a real completion (Trakt import, cross-device sync) sets watchedAt. Skipped
+            // entirely for merged series — episode_watched has no serverIndex column, see
+            // serverIndexField kdoc.
+            val serverIndex = serverIndexField
+            if (serverIndex == null) {
+                val episodeProgress = db.episodeWatchedDao().getForSeries(seriesId)
+                    .associateBy { it.season to it.episode }
+                watchedEpisodes = episodeProgress.filterValues { it.watchedAt > 0 }.keys
+            }
+            val result = if (serverIndex == null) repository.fetchSeriesInfo(seriesId)
+                else repository.fetchMergedSeriesInfo(serverIndex, seriesId)
+            when (result) {
                 is Resource.Success -> {
                     binding.progressBar.visibility = View.GONE
                     val info = result.data
@@ -161,8 +176,11 @@ class SeriesDetailActivity : AppCompatActivity() {
         val episodes = currentSeasonEpisodes.ifEmpty { return }
         val index = episodes.indexOfFirst { it.id == episode.id }.takeIf { it >= 0 } ?: return
         lifecycleScope.launch {
-            val url = repository.getSeriesEpisodeUrl(episode.id, episode.containerExtension)
-            val resumeMs = if (seriesIdField != -1)
+            val serverIndex = serverIndexField
+            val url = if (serverIndex == null) repository.getSeriesEpisodeUrl(episode.id, episode.containerExtension)
+                else repository.getMergedSeriesEpisodeUrl(serverIndex, episode.id, episode.containerExtension)
+            // No resume tracking for merged series episodes — see serverIndexField kdoc.
+            val resumeMs = if (serverIndex == null && seriesIdField != -1)
                 db.episodeWatchedDao().getWatchedMs(seriesIdField, episode.season, episode.episodeNum) ?: 0L
             else 0L
             startActivity(Intent(this@SeriesDetailActivity, PlayerActivity::class.java).apply {
@@ -170,7 +188,11 @@ class SeriesDetailActivity : AppCompatActivity() {
                 putExtra("stream_title", "S${episode.season}E${episode.episodeNum} ${episode.title}")
                 putExtra("stream_id", episode.id.hashCode())
                 putExtra("is_vod", true)
-                putExtra("series_id", seriesIdField)
+                // series_id/season_num/episode_num drive the player's watched/resume writes
+                // (see PlayerActivity) — left as serverIndexField == null only, otherwise a
+                // merged series episode's progress would silently write into the primary
+                // provider's episode_watched rows under a colliding seriesId.
+                putExtra("series_id", if (serverIndex == null) seriesIdField else -1)
                 putExtra("series_name", seriesNameField)
                 putExtra("season_num", episode.season)
                 putExtra("episode_num", episode.episodeNum)

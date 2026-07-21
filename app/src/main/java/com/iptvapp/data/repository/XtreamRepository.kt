@@ -1020,6 +1020,198 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    /** Movies-tab equivalent of refreshMergedChannels — same per-server fetch/timeout/
+     * clear-only-successful-servers/preserve-favorites shape, sourced from get_vod_categories
+     * and get_vod_streams instead of the live-channel endpoints. Deliberately a separate
+     * refresh action from refreshMergedChannels (not folded into "Refresh All Providers"),
+     * since VOD catalogs are typically much larger than live channel lists and would make an
+     * already-slow multi-provider refresh noticeably slower for users who only care about live
+     * channels — matches the existing precedent of Live/Movies/Series having independent
+     * refresh buttons for the primary provider too. */
+    suspend fun refreshMergedVod(targetServerIndex: Int? = null): Map<Int, String> {
+        val servers = allConfiguredServers().let { all ->
+            if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
+        }
+        val errors = mutableMapOf<Int, String>()
+        val results = mutableListOf<MergedVodEntity>()
+        val mergedUserData = db.mergedVodDao().getUserData().associateBy { it.serverIndex to it.streamId }
+        coroutineScope {
+            servers.map { server ->
+                async {
+                    try {
+                        kotlinx.coroutines.withTimeout(15_000) {
+                            val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+                            val catResponse = api.getVodCategories(builder.apiUrl(), server.username, server.password)
+                            val categoryNames = if (catResponse.isSuccessful) {
+                                (catResponse.body() ?: emptyList()).associate { it.categoryId to it.categoryName }
+                            } else emptyMap()
+                            val response = api.getVodStreams(builder.apiUrl(), server.username, server.password)
+                            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                            val list = response.body() ?: emptyList()
+                            synchronized(results) {
+                                results.addAll(list.map {
+                                    val prev = mergedUserData[server.serverIndex to it.streamId]
+                                    MergedVodEntity(
+                                        serverIndex = server.serverIndex,
+                                        streamId = it.streamId,
+                                        name = it.name,
+                                        streamIcon = it.streamIcon,
+                                        serverNickname = server.nickname,
+                                        categoryId = it.categoryId,
+                                        categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized",
+                                        rating = it.rating,
+                                        containerExtension = it.containerExtension,
+                                        added = it.added,
+                                        isFavorite = prev?.isFavorite ?: false,
+                                        favoriteFolderId = prev?.favoriteFolderId
+                                    )
+                                })
+                            }
+                        }
+                    } catch (e: Exception) {
+                        val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
+                        android.util.Log.e("MergedVod", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
+                        errors[server.serverIndex] = msg ?: "Unknown error"
+                    }
+                }
+            }.forEach { it.await() }
+        }
+        results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+            db.mergedVodDao().clearForServer(serverIndex)
+        }
+        db.mergedVodDao().upsertAll(results)
+        return errors
+    }
+
+    fun getMergedVodServerSummaries(): Flow<List<MergedVodServerSummary>> = db.mergedVodDao().getServerSummaries()
+
+    fun getMergedVodCategorySummaries(serverIndex: Int): Flow<List<MergedVodCategorySummary>> =
+        db.mergedVodDao().getCategorySummaries(serverIndex)
+
+    fun getMergedVodByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>> =
+        db.mergedVodDao().getByServerAndCategory(serverIndex, categoryId)
+
+    suspend fun getMergedVodByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity? =
+        db.mergedVodDao().getByIndexAndId(serverIndex, streamId)
+
+    fun searchMergedVod(query: String): Flow<List<MergedVodEntity>> = db.mergedVodDao().search(query)
+
+    suspend fun setMergedVodFavorite(vod: MergedVodEntity, isFavorite: Boolean) {
+        db.mergedVodDao().setFavorite(vod.serverIndex, vod.streamId, isFavorite)
+    }
+
+    suspend fun setMergedVodFolder(vod: MergedVodEntity, folderId: Int?) {
+        db.mergedVodDao().setFavoriteFolder(vod.serverIndex, vod.streamId, folderId)
+    }
+
+    /** Same per-server-credentialed URL-building precedent as getMergedLiveStreamUrl. */
+    suspend fun getMergedVodStreamUrl(serverIndex: Int, streamId: Int, containerExtension: String): String {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+            ?: throw Exception("Server no longer configured")
+        return XtreamUrlBuilder(server.serverUrl, server.username, server.password).vodStreamUrl(streamId, containerExtension)
+    }
+
+    /** Series-tab equivalent of refreshMergedVod — same shape, sourced from get_series_categories
+     * and get_series instead of the VOD endpoints. Only series METADATA is cached here; season/
+     * episode data is fetched on demand per-open via fetchMergedSeriesInfo below and never
+     * cached, matching how the primary provider's SeriesDetailActivity already works. */
+    suspend fun refreshMergedSeries(targetServerIndex: Int? = null): Map<Int, String> {
+        val servers = allConfiguredServers().let { all ->
+            if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
+        }
+        val errors = mutableMapOf<Int, String>()
+        val results = mutableListOf<MergedSeriesEntity>()
+        val mergedUserData = db.mergedSeriesDao().getUserData().associateBy { it.serverIndex to it.seriesId }
+        coroutineScope {
+            servers.map { server ->
+                async {
+                    try {
+                        kotlinx.coroutines.withTimeout(15_000) {
+                            val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+                            val catResponse = api.getSeriesCategories(builder.apiUrl(), server.username, server.password)
+                            val categoryNames = if (catResponse.isSuccessful) {
+                                (catResponse.body() ?: emptyList()).associate { it.categoryId to it.categoryName }
+                            } else emptyMap()
+                            val response = api.getSeries(builder.apiUrl(), server.username, server.password)
+                            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                            val list = response.body() ?: emptyList()
+                            synchronized(results) {
+                                results.addAll(list.map {
+                                    val prev = mergedUserData[server.serverIndex to it.seriesId]
+                                    MergedSeriesEntity(
+                                        serverIndex = server.serverIndex,
+                                        seriesId = it.seriesId,
+                                        name = it.name,
+                                        cover = it.cover,
+                                        // Same corrupted-oversized-plot guard as fetchSeries.
+                                        plot = it.plot?.take(4000),
+                                        genre = it.genre,
+                                        rating = it.rating,
+                                        serverNickname = server.nickname,
+                                        categoryId = it.categoryId,
+                                        categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized",
+                                        isFavorite = prev?.isFavorite ?: false,
+                                        favoriteFolderId = prev?.favoriteFolderId
+                                    )
+                                })
+                            }
+                        }
+                    } catch (e: Exception) {
+                        val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
+                        android.util.Log.e("MergedSeries", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
+                        errors[server.serverIndex] = msg ?: "Unknown error"
+                    }
+                }
+            }.forEach { it.await() }
+        }
+        results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+            db.mergedSeriesDao().clearForServer(serverIndex)
+        }
+        db.mergedSeriesDao().upsertAll(results)
+        return errors
+    }
+
+    fun getMergedSeriesServerSummaries(): Flow<List<MergedSeriesServerSummary>> = db.mergedSeriesDao().getServerSummaries()
+
+    fun getMergedSeriesCategorySummaries(serverIndex: Int): Flow<List<MergedSeriesCategorySummary>> =
+        db.mergedSeriesDao().getCategorySummaries(serverIndex)
+
+    fun getMergedSeriesByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>> =
+        db.mergedSeriesDao().getByServerAndCategory(serverIndex, categoryId)
+
+    suspend fun getMergedSeriesByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity? =
+        db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)
+
+    fun searchMergedSeries(query: String): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().search(query)
+
+    suspend fun setMergedSeriesFavorite(series: MergedSeriesEntity, isFavorite: Boolean) {
+        db.mergedSeriesDao().setFavorite(series.serverIndex, series.seriesId, isFavorite)
+    }
+
+    suspend fun setMergedSeriesFolder(series: MergedSeriesEntity, folderId: Int?) {
+        db.mergedSeriesDao().setFavoriteFolder(series.serverIndex, series.seriesId, folderId)
+    }
+
+    /** Merged-series equivalent of fetchSeriesInfo — fetches season/episode data from the
+     * SPECIFIC server this series belongs to, never cached (see MergedSeriesEntity kdoc). */
+    suspend fun fetchMergedSeriesInfo(serverIndex: Int, seriesId: Int): Resource<SeriesInfo> {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+            ?: return Resource.Error("Server no longer configured")
+        val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+        return safeApiCall {
+            val response = api.getSeriesInfo(b.apiUrl(), server.username, server.password, seriesId = seriesId)
+            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+            response.body() ?: throw Exception("Empty response")
+        }
+    }
+
+    /** Same per-server-credentialed URL-building precedent as getMergedVodStreamUrl. */
+    suspend fun getMergedSeriesEpisodeUrl(serverIndex: Int, episodeId: String, containerExtension: String): String {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+            ?: throw Exception("Server no longer configured")
+        return XtreamUrlBuilder(server.serverUrl, server.username, server.password).seriesStreamUrl(episodeId, containerExtension)
+    }
+
     fun getMergedServerSummaries(): Flow<List<MergedServerSummary>> = db.mergedChannelDao().getServerSummaries()
 
     fun getMergedCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>> =

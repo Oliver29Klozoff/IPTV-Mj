@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v4.90 - 2026-07-21
+- **Added**: the Providers tab can now browse Movies and Series from every secondary provider,
+  not just Live channels — a new Live/Movies/Series toggle switches the whole browse tree.
+  Merged movies play directly; merged series open the same season/episode picker as your
+  primary provider's shows, fetched from that show's own server.
+- **Added (TV)**: bulk-select-to-favorites, Hide Channel, and Channels Like This — previously
+  phone-only, now reachable via the same D-pad long-press menu on TV.
+- **Added (TV)**: "Move to Folder" for merged/Providers channels — previously TV's long-press
+  menu was missing this option that phone already had.
+- **Added (TV)**: sort options for Movies and Series (long-press-free — same sort button Live
+  already had), and long-press "Guide" for What's On Now/Up Next, long-press "Series" for
+  Continue Watching — all previously phone-only.
+
 ## v4.89 - 2026-07-21
 - **Added**: "Backup to file" now includes VOD/series watch progress and per-episode watched
   state — previously only cross-device Sync carried this over, so restoring a backup file

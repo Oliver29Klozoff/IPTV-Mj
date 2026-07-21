@@ -150,6 +150,13 @@ class HomeActivity : AppCompatActivity() {
     // tab was selected — the "jump straight to the playing channel" behavior only applies once
     // per visit to this tab; every tap after that steps back one level instead of re-jumping.
     private var providersTabVisitedSinceTabSwitch = false
+    // Providers tab now has three independent browse modes — Live (the original behavior),
+    // Movies (merged VOD, see MergedVodEntity), and Series (merged series, see
+    // MergedSeriesEntity) — cycled via btnProvidersMode. Resets to LIVE whenever a different
+    // tab is selected, matching providersTabVisitedSinceTabSwitch's own "fresh visit" reset
+    // just above.
+    private enum class ProvidersMode { LIVE, MOVIES, SERIES }
+    private var providersMode = ProvidersMode.LIVE
     // Populated in onCreate from the ViewModel (which survives activity recreation) when
     // this instance is being recreated for a rotation — consumed once by initMiniPlayer()
     // to resume exactly what was playing instead of initMiniPlayer()'s normal fallback of
@@ -204,6 +211,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
+    private lateinit var mergedVodAdapter: MergedVodAdapter
+    private lateinit var mergedSeriesAdapter: MergedSeriesAdapter
     private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
     // Live tab now merges the primary provider with every configured secondary provider, same
     // shape as the Favorites tab's combinedFavoriteAdapter. categoryAdapter/channelAdapter stay
@@ -811,8 +820,46 @@ class HomeActivity : AppCompatActivity() {
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
         binding.btnRefreshProviders?.setOnClickListener {
-            viewModel.refreshMergedChannels()
-            Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+            when (providersMode) {
+                ProvidersMode.MOVIES -> {
+                    viewModel.refreshMergedVod()
+                    Toast.makeText(this, "Refreshing all providers' movies…", Toast.LENGTH_SHORT).show()
+                }
+                ProvidersMode.SERIES -> {
+                    viewModel.refreshMergedSeries()
+                    Toast.makeText(this, "Refreshing all providers' series…", Toast.LENGTH_SHORT).show()
+                }
+                ProvidersMode.LIVE -> {
+                    viewModel.refreshMergedChannels()
+                    Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        // Providers tab has three independent browse modes (see ProvidersMode kdoc) — cycling
+        // switches the browse tree wholesale and always resets to that mode's top level, same
+        // as re-entering the tab fresh.
+        binding.btnProvidersMode?.setOnClickListener {
+            providersMode = when (providersMode) {
+                ProvidersMode.LIVE -> ProvidersMode.MOVIES
+                ProvidersMode.MOVIES -> ProvidersMode.SERIES
+                ProvidersMode.SERIES -> ProvidersMode.LIVE
+            }
+            binding.btnProvidersMode?.text = when (providersMode) {
+                ProvidersMode.LIVE -> "Movies"
+                ProvidersMode.MOVIES -> "Series"
+                ProvidersMode.SERIES -> "Live"
+            }
+            when (providersMode) {
+                ProvidersMode.MOVIES -> {
+                    viewModel.startObservingMergedVodServers()
+                    showAllProvidersMoviesFromTop()
+                }
+                ProvidersMode.SERIES -> {
+                    viewModel.startObservingMergedSeriesServers()
+                    showAllProvidersSeriesFromTop()
+                }
+                ProvidersMode.LIVE -> showAllProvidersFromTop()
+            }
         }
         binding.btnVodSort?.setOnClickListener {
             if (binding.tabLayout.selectedTabPosition == TAB_SERIES) showSeriesSortDialog() else showVodSortDialog()
@@ -923,7 +970,49 @@ class HomeActivity : AppCompatActivity() {
     private fun setupRecyclerViews() {
         categoryAdapter = CategoryAdapter(
             onCategoryClick = { category ->
-                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.MOVIES) {
+                    // Movies-mode equivalent of the Live-mode 3-level drill just below —
+                    // same server -> category -> items shape, mergedVodAdapter as the leaf list.
+                    if (viewModel.selectedMergedVodServerIndex == null) {
+                        viewModel.selectMergedVodServer(category.categoryId.toInt())
+                        categoryAdapter.submitList(emptyList())
+                        lifecycleScope.launch {
+                            viewModel.mergedVodCategories.collect { cats ->
+                                if (viewModel.selectedMergedVodServerIndex != null) {
+                                    categoryAdapter.submitList(mergedVodCategoriesToSynthetic(cats))
+                                }
+                            }
+                        }
+                    } else {
+                        val rawCategoryId = category.categoryId.substringAfter(':', category.categoryId)
+                        val categoryId = if (rawCategoryId == NO_CATEGORY_ID) null else rawCategoryId
+                        viewModel.selectMergedVodCategory(categoryId)
+                        landscapeShowChannelsMode()
+                        binding.rvChannels.adapter = mergedVodAdapter
+                    }
+                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.SERIES) {
+                    // Series-mode equivalent — same server -> category -> items drill, but the
+                    // leaf list opens SeriesDetailActivity per tap instead of playing directly
+                    // (see mergedSeriesAdapter's onItemClick wiring), since a series item isn't
+                    // itself a single playable stream.
+                    if (viewModel.selectedMergedSeriesServerIndex == null) {
+                        viewModel.selectMergedSeriesServer(category.categoryId.toInt())
+                        categoryAdapter.submitList(emptyList())
+                        lifecycleScope.launch {
+                            viewModel.mergedSeriesCategories.collect { cats ->
+                                if (viewModel.selectedMergedSeriesServerIndex != null) {
+                                    categoryAdapter.submitList(mergedSeriesCategoriesToSynthetic(cats))
+                                }
+                            }
+                        }
+                    } else {
+                        val rawCategoryId = category.categoryId.substringAfter(':', category.categoryId)
+                        val categoryId = if (rawCategoryId == NO_CATEGORY_ID) null else rawCategoryId
+                        viewModel.selectMergedSeriesCategory(categoryId)
+                        landscapeShowChannelsMode()
+                        binding.rvChannels.adapter = mergedSeriesAdapter
+                    }
+                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
                     // 3-level drill (server -> category -> channels): the first tap picks a
                     // server and should show ITS categories next, not jump to channels yet.
                     // Merged favorites are now viewed from the main Favorites tab (combined
@@ -1021,6 +1110,44 @@ class HomeActivity : AppCompatActivity() {
                         Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                     }
                 }
+            }
+        )
+
+        mergedVodAdapter = MergedVodAdapter(
+            onItemClick = { vod ->
+                lifecycleScope.launch {
+                    try {
+                        val url = viewModel.getMergedVodStreamUrl(vod.serverIndex, vod.streamId, vod.containerExtension)
+                        openPlayer(
+                            url, "${vod.name} · ${vod.serverNickname}", -1, isVod = true,
+                            serverIndex = vod.serverIndex, mergedStreamId = vod.streamId
+                        )
+                    } catch (_: Exception) {
+                        Toast.makeText(this@HomeActivity, "Couldn't load this movie", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onFavoriteClick = { vod ->
+                viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
+                Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            }
+        )
+
+        mergedSeriesAdapter = MergedSeriesAdapter(
+            onItemClick = { series ->
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                    putExtra("server_index", series.serverIndex)
+                })
+            },
+            onFavoriteClick = { series ->
+                viewModel.setMergedSeriesFavorite(series, !series.isFavorite)
+                Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             }
         )
 
@@ -1263,10 +1390,16 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.lastTabPosition = tab?.position ?: 0
                 binding.btnVodSort?.visibility = if (tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES) View.VISIBLE else View.GONE
                 binding.btnRefreshProviders?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
+                binding.btnProvidersMode?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
                 // Switching TO Providers from a different tab counts as a fresh visit — the
                 // "jump to the playing channel" behavior gets one shot; every tap after that
-                // (via onTabReselected below) just steps back one level instead.
-                if (tab?.position != TAB_PROVIDERS) providersTabVisitedSinceTabSwitch = false
+                // (via onTabReselected below) just steps back one level instead. Also always
+                // reset back to Live mode on a fresh visit, same reasoning.
+                if (tab?.position != TAB_PROVIDERS) {
+                    providersTabVisitedSinceTabSwitch = false
+                    providersMode = ProvidersMode.LIVE
+                    binding.btnProvidersMode?.text = "Movies"
+                }
                 when (tab?.position) {
                     TAB_FAVORITES -> showFavorites()
                     TAB_PROVIDERS -> showAllProviders()
@@ -1674,6 +1807,11 @@ class HomeActivity : AppCompatActivity() {
     // as every other tab's onTabReselected handler: channel list -> that server's category
     // list -> the top-level server picker. Never re-jumps to a playing channel.
     private fun stepBackProvidersOneLevel() {
+        when (providersMode) {
+            ProvidersMode.MOVIES -> { stepBackProvidersMoviesOneLevel(); return }
+            ProvidersMode.SERIES -> { stepBackProvidersSeriesOneLevel(); return }
+            ProvidersMode.LIVE -> {}
+        }
         when {
             viewModel.hasMergedCategorySelected -> {
                 val serverIndex = viewModel.selectedMergedServerIndex
@@ -1704,6 +1842,65 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = mergedChannelAdapter
         categoryAdapter.submitList(mergedServersToSynthetic(viewModel.mergedServers.value))
+    }
+
+    // Movies-mode equivalents of the three functions above — same drill-down shape (server ->
+    // category -> items), but no "jump to currently playing" (merged VOD has no mini-player
+    // resume state to jump back into in v1) and using mergedVodAdapter as the leaf list.
+    private fun stepBackProvidersMoviesOneLevel() {
+        when {
+            viewModel.selectedMergedVodCategoryId != null || viewModel.mergedVod.value.isNotEmpty() -> {
+                val serverIndex = viewModel.selectedMergedVodServerIndex
+                if (serverIndex != null) viewModel.selectMergedVodServer(serverIndex)
+                landscapeShowCategoriesMode()
+                setGenreFilterVisible(false)
+                binding.rvCategories.visibility = View.VISIBLE
+                binding.rvCategories.adapter = categoryAdapter
+                binding.rvChannels.adapter = mergedVodAdapter
+                categoryAdapter.submitList(mergedVodCategoriesToSynthetic(viewModel.mergedVodCategories.value))
+            }
+            viewModel.selectedMergedVodServerIndex != null -> showAllProvidersMoviesFromTop()
+            else -> showAllProvidersMoviesFromTop()
+        }
+    }
+
+    private fun showAllProvidersMoviesFromTop() {
+        viewModel.resetMergedVodSelection()
+        landscapeShowCategoriesMode()
+        setGenreFilterVisible(false)
+        binding.rvCategories.visibility = View.VISIBLE
+        binding.rvCategories.adapter = categoryAdapter
+        binding.rvChannels.adapter = mergedVodAdapter
+        categoryAdapter.submitList(mergedVodServersToSynthetic(viewModel.mergedVodServers.value))
+    }
+
+    // Series-mode equivalents of the Movies-mode functions above — same drill-down shape,
+    // mergedSeriesAdapter as the leaf list (opens SeriesDetailActivity per tap).
+    private fun stepBackProvidersSeriesOneLevel() {
+        when {
+            viewModel.selectedMergedSeriesCategoryId != null || viewModel.mergedSeries.value.isNotEmpty() -> {
+                val serverIndex = viewModel.selectedMergedSeriesServerIndex
+                if (serverIndex != null) viewModel.selectMergedSeriesServer(serverIndex)
+                landscapeShowCategoriesMode()
+                setGenreFilterVisible(false)
+                binding.rvCategories.visibility = View.VISIBLE
+                binding.rvCategories.adapter = categoryAdapter
+                binding.rvChannels.adapter = mergedSeriesAdapter
+                categoryAdapter.submitList(mergedSeriesCategoriesToSynthetic(viewModel.mergedSeriesCategories.value))
+            }
+            viewModel.selectedMergedSeriesServerIndex != null -> showAllProvidersSeriesFromTop()
+            else -> showAllProvidersSeriesFromTop()
+        }
+    }
+
+    private fun showAllProvidersSeriesFromTop() {
+        viewModel.resetMergedSeriesSelection()
+        landscapeShowCategoriesMode()
+        setGenreFilterVisible(false)
+        binding.rvCategories.visibility = View.VISIBLE
+        binding.rvCategories.adapter = categoryAdapter
+        binding.rvChannels.adapter = mergedSeriesAdapter
+        categoryAdapter.submitList(mergedSeriesServersToSynthetic(viewModel.mergedSeriesServers.value))
     }
 
     private fun jumpToPlayingMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
@@ -1760,6 +1957,59 @@ class HomeActivity : AppCompatActivity() {
         }
         val favoriteKeys = mergedFavoriteCategoryKeys
         return entities.sortedByDescending { it.categoryId in favoriteKeys }
+    }
+
+    // Movies-mode equivalents of the two synthetic-category converters above — same
+    // CategoryAdapter-reuse trick (categoryAdapter is generic over CategoryEntity, so the
+    // existing server-picker/category-picker UI works unchanged for VOD too), same
+    // "$serverIndex:$categoryId" scoping to avoid cross-server id collisions. No favorite-star
+    // sort here in v1 — merged VOD categories aren't pinnable the way merged channel categories
+    // are (no equivalent of favoriteMergedCategoryKeys for VOD yet).
+    private fun mergedVodServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedVodServerSummary>): List<CategoryEntity> {
+        return list.filter { it.serverIndex != -1 }.map {
+            CategoryEntity(
+                categoryId = it.serverIndex.toString(),
+                categoryName = "${it.serverNickname} (${it.vodCount})",
+                parentId = 0,
+                type = "merged_vod_server"
+            )
+        }
+    }
+
+    private fun mergedVodCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedVodCategorySummary>): List<CategoryEntity> {
+        val serverIndex = viewModel.selectedMergedVodServerIndex ?: -1
+        return list.map {
+            CategoryEntity(
+                categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.vodCount})",
+                parentId = 0,
+                type = "merged_vod_category"
+            )
+        }
+    }
+
+    // Series-mode equivalents of the two Movies-mode synthetic-category converters above.
+    private fun mergedSeriesServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedSeriesServerSummary>): List<CategoryEntity> {
+        return list.filter { it.serverIndex != -1 }.map {
+            CategoryEntity(
+                categoryId = it.serverIndex.toString(),
+                categoryName = "${it.serverNickname} (${it.seriesCount})",
+                parentId = 0,
+                type = "merged_series_server"
+            )
+        }
+    }
+
+    private fun mergedSeriesCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedSeriesCategorySummary>): List<CategoryEntity> {
+        val serverIndex = viewModel.selectedMergedSeriesServerIndex ?: -1
+        return list.map {
+            CategoryEntity(
+                categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.seriesCount})",
+                parentId = 0,
+                type = "merged_series_category"
+            )
+        }
     }
 
     // Tapping a merged channel now behaves like every other channel list: starts in the mini
@@ -2259,9 +2509,23 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.mergedChannels.collect { list ->
-                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.LIVE) {
                     mergedChannelAdapter.submitList(list)
                     viewModel.loadEpgForMergedChannels(list)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedVod.collect { list ->
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.MOVIES) {
+                    mergedVodAdapter.submitList(list)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedSeries.collect { list ->
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.SERIES) {
+                    mergedSeriesAdapter.submitList(list)
                 }
             }
         }

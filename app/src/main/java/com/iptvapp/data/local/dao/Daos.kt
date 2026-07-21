@@ -358,3 +358,104 @@ interface MergedChannelDao {
 }
 
 data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)
+
+// Movies-tab equivalent of MergedChannelDao — same shape throughout (per-server clear on
+// refresh, favorites/folders reusing FavoriteFolderEntity), see MergedVodEntity kdoc.
+@Dao
+interface MergedVodDao {
+    @Query("SELECT * FROM merged_vod ORDER BY serverIndex ASC, name ASC")
+    fun getAll(): Flow<List<MergedVodEntity>>
+    @Upsert
+    suspend fun upsertAll(vod: List<MergedVodEntity>)
+    @Query("DELETE FROM merged_vod")
+    suspend fun clearAll()
+    @Query("DELETE FROM merged_vod WHERE serverIndex = :serverIndex")
+    suspend fun clearForServer(serverIndex: Int)
+
+    @Query("SELECT serverIndex, serverNickname, COUNT(*) as vodCount FROM merged_vod GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
+    fun getServerSummaries(): Flow<List<MergedVodServerSummary>>
+
+    @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex")
+    suspend fun getAllForServer(serverIndex: Int): List<MergedVodEntity>
+
+    @Query("SELECT categoryId, categoryName, COUNT(*) as vodCount FROM merged_vod WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
+    fun getCategorySummaries(serverIndex: Int): Flow<List<MergedVodCategorySummary>>
+
+    @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY name")
+    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>>
+
+    @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
+    suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity?
+
+    @Query("SELECT * FROM merged_vod WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, name")
+    fun search(query: String): Flow<List<MergedVodEntity>>
+
+    @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId FROM merged_vod")
+    suspend fun getUserData(): List<MergedVodUserData>
+    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 ORDER BY name ASC")
+    fun getAllFavorites(): Flow<List<MergedVodEntity>>
+    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND favoriteFolderId = :folderId ORDER BY name ASC")
+    fun getFavoritesInFolder(folderId: Int): Flow<List<MergedVodEntity>>
+    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND favoriteFolderId IS NULL ORDER BY name ASC")
+    fun getUnfiledFavorites(): Flow<List<MergedVodEntity>>
+    @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM merged_vod WHERE isFavorite = 1 GROUP BY favoriteFolderId")
+    fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
+    @Query("UPDATE merged_vod SET isFavorite = :favorite WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun setFavorite(serverIndex: Int, streamId: Int, favorite: Boolean)
+    @Query("UPDATE merged_vod SET favoriteFolderId = :folderId, isFavorite = 1 WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun setFavoriteFolder(serverIndex: Int, streamId: Int, folderId: Int?)
+    @Query("UPDATE merged_vod SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
+    suspend fun clearFolderFromChannels(folderId: Int)
+}
+
+data class MergedVodUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)
+
+// Series-tab equivalent of MergedVodDao — same shape throughout, see MergedSeriesEntity kdoc.
+@Dao
+interface MergedSeriesDao {
+    @Query("SELECT * FROM merged_series ORDER BY serverIndex ASC, name ASC")
+    fun getAll(): Flow<List<MergedSeriesEntity>>
+    @Upsert
+    suspend fun upsertAll(series: List<MergedSeriesEntity>)
+    @Query("DELETE FROM merged_series")
+    suspend fun clearAll()
+    @Query("DELETE FROM merged_series WHERE serverIndex = :serverIndex")
+    suspend fun clearForServer(serverIndex: Int)
+
+    @Query("SELECT serverIndex, serverNickname, COUNT(*) as seriesCount FROM merged_series GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
+    fun getServerSummaries(): Flow<List<MergedSeriesServerSummary>>
+
+    @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex")
+    suspend fun getAllForServer(serverIndex: Int): List<MergedSeriesEntity>
+
+    @Query("SELECT categoryId, categoryName, COUNT(*) as seriesCount FROM merged_series WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
+    fun getCategorySummaries(serverIndex: Int): Flow<List<MergedSeriesCategorySummary>>
+
+    @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY name")
+    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>>
+
+    @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND seriesId = :seriesId LIMIT 1")
+    suspend fun getByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity?
+
+    @Query("SELECT * FROM merged_series WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, name")
+    fun search(query: String): Flow<List<MergedSeriesEntity>>
+
+    @Query("SELECT serverIndex, seriesId, isFavorite, favoriteFolderId FROM merged_series")
+    suspend fun getUserData(): List<MergedSeriesUserData>
+    @Query("SELECT * FROM merged_series WHERE isFavorite = 1 ORDER BY name ASC")
+    fun getAllFavorites(): Flow<List<MergedSeriesEntity>>
+    @Query("SELECT * FROM merged_series WHERE isFavorite = 1 AND favoriteFolderId = :folderId ORDER BY name ASC")
+    fun getFavoritesInFolder(folderId: Int): Flow<List<MergedSeriesEntity>>
+    @Query("SELECT * FROM merged_series WHERE isFavorite = 1 AND favoriteFolderId IS NULL ORDER BY name ASC")
+    fun getUnfiledFavorites(): Flow<List<MergedSeriesEntity>>
+    @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM merged_series WHERE isFavorite = 1 GROUP BY favoriteFolderId")
+    fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
+    @Query("UPDATE merged_series SET isFavorite = :favorite WHERE serverIndex = :serverIndex AND seriesId = :seriesId")
+    suspend fun setFavorite(serverIndex: Int, seriesId: Int, favorite: Boolean)
+    @Query("UPDATE merged_series SET favoriteFolderId = :folderId, isFavorite = 1 WHERE serverIndex = :serverIndex AND seriesId = :seriesId")
+    suspend fun setFavoriteFolder(serverIndex: Int, seriesId: Int, folderId: Int?)
+    @Query("UPDATE merged_series SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
+    suspend fun clearFolderFromChannels(folderId: Int)
+}
+
+data class MergedSeriesUserData(val serverIndex: Int, val seriesId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)

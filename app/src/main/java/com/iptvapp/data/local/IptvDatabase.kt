@@ -18,9 +18,11 @@ import com.iptvapp.data.local.entities.*
         ChannelReliabilityEntity::class,
         EpisodeWatchedEntity::class,
         MergedChannelEntity::class,
-        FavoriteFolderEntity::class
+        FavoriteFolderEntity::class,
+        MergedVodEntity::class,
+        MergedSeriesEntity::class
     ],
-    version = 20,
+    version = 22,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -34,6 +36,8 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun episodeWatchedDao(): EpisodeWatchedDao
     abstract fun mergedChannelDao(): MergedChannelDao
     abstract fun favoriteFolderDao(): FavoriteFolderDao
+    abstract fun mergedVodDao(): MergedVodDao
+    abstract fun mergedSeriesDao(): MergedSeriesDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -221,6 +225,56 @@ abstract class IptvDatabase : RoomDatabase() {
                         nowPlaying INTEGER NOT NULL,
                         hasArchive INTEGER NOT NULL,
                         PRIMARY KEY(serverIndex, id)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        // Movies-tab equivalent of MIGRATION_13_14 (merged_channels' initial creation) — see
+        // MergedVodEntity kdoc for why this exists as its own table.
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS merged_vod (
+                        serverIndex INTEGER NOT NULL,
+                        streamId INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        streamIcon TEXT,
+                        serverNickname TEXT NOT NULL,
+                        categoryId TEXT,
+                        categoryName TEXT,
+                        rating TEXT,
+                        containerExtension TEXT NOT NULL,
+                        added TEXT,
+                        isFavorite INTEGER NOT NULL DEFAULT 0,
+                        favoriteFolderId INTEGER,
+                        cachedAt INTEGER NOT NULL,
+                        PRIMARY KEY(serverIndex, streamId)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        // Series-tab equivalent of MIGRATION_20_21 (merged_vod's creation) — see
+        // MergedSeriesEntity kdoc.
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS merged_series (
+                        serverIndex INTEGER NOT NULL,
+                        seriesId INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        cover TEXT,
+                        plot TEXT,
+                        genre TEXT,
+                        rating TEXT,
+                        serverNickname TEXT NOT NULL,
+                        categoryId TEXT,
+                        categoryName TEXT,
+                        isFavorite INTEGER NOT NULL DEFAULT 0,
+                        favoriteFolderId INTEGER,
+                        cachedAt INTEGER NOT NULL,
+                        PRIMARY KEY(serverIndex, seriesId)
                     )
                 """.trimIndent())
             }
