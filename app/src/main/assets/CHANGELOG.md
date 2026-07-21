@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.86 - 2026-07-21
+- **Added**: the Live tab now merges the primary provider with every configured secondary
+  provider into one combined, color-coded list — tapping a category shows that provider's
+  channels, same as before but now covering all your providers at once.
+- **Added**: the Categories tab now shows pinned/favorite categories from every provider (not
+  just the primary), same color-coding as Live.
+- **Fixed**: restoring a backup via "Restore from file" could crash the app if the picked file
+  couldn't be read or parsed — it now shows a "Restore failed" message instead, matching the
+  other restore path's error handling.
+
 ## v4.85 - 2026-07-21
 - **Fixed**: switching your primary provider used to wipe every OTHER configured provider's
   favorites/folders too — now only clears the old primary's own data.

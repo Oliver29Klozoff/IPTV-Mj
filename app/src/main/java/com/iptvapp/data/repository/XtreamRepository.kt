@@ -54,6 +54,67 @@ class XtreamRepository @Inject constructor(
         withContext(Dispatchers.IO) { db.clearAllTables() }
     }
 
+    /** Called right before switching primary TO a server that was previously configured as a
+     * secondary/"other" provider — captures whatever favorites/folder assignments it already
+     * had under merged_channels (keyed by streamId, since that server's channel ids don't
+     * change just because its role did) so they can be re-applied as PRIMARY favorites once
+     * fetchLiveStreams() populates the channels table for it. Without this, a provider's
+     * favorites would silently reset to none the moment it became primary, even though it had
+     * favorites a moment earlier as a secondary provider. */
+    suspend fun capturePendingPrimaryFavoritesFrom(serverIndex: Int) {
+        val favorites = db.mergedChannelDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }
+        if (favorites.isEmpty()) return
+        prefs.setPendingFavoriteChannelIds(favorites.map { it.streamId }.toSet())
+
+        val folderRows = favorites.mapNotNull { it.favoriteFolderId }.distinct()
+        if (folderRows.isNotEmpty()) {
+            val folderNameById = db.favoriteFolderDao().getAll().first().associate { it.id to it.name }
+            val keys = favorites.mapNotNull { fav ->
+                fav.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> "${fav.streamId}|$name" } }
+            }.toSet()
+            if (keys.isNotEmpty()) prefs.setPendingPrimaryChannelFolders(keys)
+        }
+    }
+
+    /** Applies any pending primary-favorite carryover captured by
+     * capturePendingPrimaryFavoritesFrom, once this provider's channels actually exist in the
+     * channels table to apply them to. Called from fetchLiveStreams() right after upserting. */
+    private suspend fun applyPendingPrimaryFavorites() {
+        val pendingIds = prefs.pendingFavoriteChannelIds.first()
+        if (pendingIds.isNotEmpty()) {
+            val existingIds = db.channelDao().getAllChannelIds().toSet()
+            val ids = pendingIds.mapNotNull { it.toIntOrNull() }
+            val remaining = ids.filter { it !in existingIds }
+            ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
+            prefs.setPendingFavoriteChannelIds(remaining.toSet())
+        }
+
+        val pendingFolders = prefs.pendingPrimaryChannelFolders.first()
+        if (pendingFolders.isNotEmpty()) {
+            val existingIds = db.channelDao().getAllChannelIds().toSet()
+            val existingFolders = db.favoriteFolderDao().getAll().first()
+            val idByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+            var nextOrder = existingFolders.size
+            val remaining = pendingFolders.filter { key ->
+                val parts = key.split("|")
+                val streamId = parts.getOrNull(0)?.toIntOrNull()
+                val folderName = parts.getOrNull(1)
+                if (streamId != null && folderName != null && streamId in existingIds) {
+                    var folderId = idByName[folderName]
+                    if (folderId == null) {
+                        folderId = db.favoriteFolderDao().insert(
+                            com.iptvapp.data.local.entities.FavoriteFolderEntity(name = folderName, sortOrder = nextOrder++)
+                        ).toInt()
+                        idByName[folderName] = folderId
+                    }
+                    db.channelDao().setFavoriteFolder(streamId, folderId)
+                    false
+                } else true
+            }.toSet()
+            if (remaining != pendingFolders) prefs.setPendingPrimaryChannelFolders(remaining)
+        }
+    }
+
     /** Used when switching which configured server is the PRIMARY provider — clears only data
      * scoped to the old primary (its channels/categories/VOD/series/EPG/reliability/
      * recordings), never merged_channels or favorite_folders. Switching used to call
@@ -120,6 +181,7 @@ class XtreamRepository @Inject constructor(
                 )
             })
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
+            applyPendingPrimaryFavorites()
             list
         }
     }

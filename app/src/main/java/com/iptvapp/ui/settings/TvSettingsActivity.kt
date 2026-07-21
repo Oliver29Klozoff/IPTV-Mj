@@ -1521,6 +1521,10 @@ class TvSettingsActivity : AppCompatActivity() {
                     val updated = extraServers.toMutableList()
                     updated[i]  = listOf(primary.serverUrl, primary.username, primary.password,
                         prefs.serverNickname.first())
+                    // The provider becoming primary may already have favorites recorded from
+                    // when it was a secondary provider — carry them over so they reapply once
+                    // its channels are fetched as the new primary.
+                    repository.capturePendingPrimaryFavoritesFrom(i)
                     prefs.saveExtraServersWithNick(updated)
                     // Scoped to just the OLD primary's data — merged/other-provider favorites,
                     // folders, and pinned categories must survive a primary switch.

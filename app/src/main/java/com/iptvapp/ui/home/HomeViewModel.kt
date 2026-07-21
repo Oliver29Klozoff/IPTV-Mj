@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -175,6 +176,121 @@ class HomeViewModel @Inject constructor(
      * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
         viewModelScope.launch { repository.refreshMergedChannels(targetServerIndex) }
+    }
+
+    // ─── Combined Live tab (primary + every configured secondary provider) ──────────────────
+    // Merges the primary provider's categories with every OTHER configured provider's
+    // categories into one flat list (each category stays its own row, tagged by provider for
+    // color-coding — categories are never combined across providers even if same-named).
+    private val _combinedLiveCategories = MutableStateFlow<List<LiveCategoryRow>>(emptyList())
+    val combinedLiveCategories: StateFlow<List<LiveCategoryRow>> = _combinedLiveCategories
+
+    private val _combinedFavoriteLiveCategories = MutableStateFlow<List<LiveCategoryRow>>(emptyList())
+    val combinedFavoriteLiveCategories: StateFlow<List<LiveCategoryRow>> = _combinedFavoriteLiveCategories
+
+    private var combinedLiveCategoriesJob: Job? = null
+
+    /** Rebuilds the combined category list whenever the primary's categories, the set of
+     * configured servers, or any individual server's categories change. Re-launched (not just
+     * combine()'d once) each time the server list itself changes, since the number of merged
+     * category flows to combine is dynamic — simplest correct way to handle "combine N flows
+     * where N itself changes" without a custom Flow operator. */
+    private fun startCombinedLiveCategories() {
+        combinedLiveCategoriesJob?.cancel()
+        combinedLiveCategoriesJob = viewModelScope.launch {
+            repository.getMergedServerSummaries().collectLatest { servers ->
+                val mergedCategoryFlows = servers.map { server ->
+                    repository.getMergedCategorySummaries(server.serverIndex)
+                        .combine(prefs.usaOnlyChannels) { cats, usaOnly ->
+                            (if (usaOnly) cats.filter { isUsCategory(it.categoryName) } else cats)
+                                .map { LiveCategoryRow.fromMerged(server.serverIndex, it) }
+                        }
+                }
+                if (mergedCategoryFlows.isEmpty()) {
+                    _liveCategories.collectLatest { primary ->
+                        val rows = primary.map { LiveCategoryRow.fromPrimary(it) }
+                        _combinedLiveCategories.value = sortCombinedCategories(rows)
+                        _combinedFavoriteLiveCategories.value = filterFavoriteCombinedCategories(rows)
+                    }
+                } else {
+                    combine(mergedCategoryFlows) { arrays -> arrays.toList().flatten() }
+                        .combine(_liveCategories) { mergedRows, primaryCats ->
+                            primaryCats.map { LiveCategoryRow.fromPrimary(it) } + mergedRows
+                        }
+                        .collectLatest { rows ->
+                            _combinedLiveCategories.value = sortCombinedCategories(rows)
+                            _combinedFavoriteLiveCategories.value = filterFavoriteCombinedCategories(rows)
+                        }
+                }
+            }
+        }
+    }
+
+    private suspend fun sortCombinedCategories(rows: List<LiveCategoryRow>): List<LiveCategoryRow> {
+        val favPrimary = repository.getFavoriteLiveCategoryIds().first()
+        val favMerged = repository.getFavoriteMergedCategoryIds().first()
+        return rows.sortedByDescending { it.favoriteKey in favPrimary || it.favoriteKey in favMerged }
+    }
+
+    private suspend fun filterFavoriteCombinedCategories(rows: List<LiveCategoryRow>): List<LiveCategoryRow> {
+        val favPrimary = repository.getFavoriteLiveCategoryIds().first()
+        val favMerged = repository.getFavoriteMergedCategoryIds().first()
+        return rows.filter { it.favoriteKey in favPrimary || it.favoriteKey in favMerged }
+    }
+
+    private var selectedCombinedCategory: LiveCategoryRow? = null
+    private val _combinedLiveChannels = MutableStateFlow<List<LiveChannelRow>>(emptyList())
+    val combinedLiveChannels: StateFlow<List<LiveChannelRow>> = _combinedLiveChannels
+    private var combinedLiveChannelsJob: Job? = null
+
+    fun hasSelectedCombinedCategory(): Boolean = selectedCombinedCategory != null
+    fun selectedCombinedCategoryRow(): LiveCategoryRow? = selectedCombinedCategory
+
+    /** Selecting a combined-list category row resolves to that ONE provider's channels —
+     * categories are never merged across providers (see LiveCategoryRow kdoc), so this is just
+     * a dispatch to the right existing per-provider channel query, not new fetch logic. */
+    fun selectCombinedCategory(row: LiveCategoryRow) {
+        selectedCombinedCategory = row
+        // Keep the plain primary-only _channels/selectedLiveCategoryId in sync too — a handful
+        // of other call sites (fullscreen multi-channel streamIds, showWhatsOnNow's live-guide
+        // dialog) still read viewModel.channels.value directly and are out of scope for this
+        // merge; this keeps them working exactly as before without duplicating their logic here.
+        if (row.category != null) selectedLiveCategoryId = row.category.categoryId
+        combinedLiveChannelsJob?.cancel()
+        combinedLiveChannelsJob = viewModelScope.launch {
+            val flow = if (row.category != null) {
+                repository.getChannelsByCategory(row.category.categoryId)
+                    .map { list -> list.map { LiveChannelRow(channel = it) } }
+            } else {
+                repository.getMergedChannelsByCategory(row.serverIndex, row.mergedCategoryId)
+                    .map { list -> list.map { LiveChannelRow(mergedChannel = it) } }
+            }
+            flow.collectLatest { rows ->
+                _combinedLiveChannels.value = applySortToLiveRows(rows)
+                if (row.category != null) _channels.value = applySortToChannels(rows.mapNotNull { it.channel })
+            }
+        }
+    }
+
+    private fun applySortToLiveRows(rows: List<LiveChannelRow>): List<LiveChannelRow> {
+        // Only meaningful for primary rows today (viewCount/lastWatched/reliability are all
+        // primary-only tracked data) — merged rows just keep provider order within the list,
+        // same as the old Providers tab did.
+        return when (_channelSort.value) {
+            ChannelSort.DEFAULT -> rows
+            ChannelSort.NAME_AZ -> rows.sortedBy { it.name.lowercase() }
+            ChannelSort.MOST_WATCHED -> rows.sortedByDescending { it.channel?.viewCount ?: -1 }
+            ChannelSort.RECENTLY_WATCHED -> rows.sortedByDescending { it.channel?.lastWatched ?: 0L }
+            ChannelSort.MOST_RELIABLE -> rows.sortedByDescending { r -> r.channel?.let { reliabilityCache[it.streamId] } ?: 100 }
+        }
+    }
+
+    fun toggleCombinedCategoryFavorite(row: LiveCategoryRow) {
+        if (row.category != null) {
+            toggleLiveCategoryFavorite(row.category.categoryId)
+        } else {
+            toggleMergedCategoryFavorite(row.favoriteKey)
+        }
     }
 
     fun resetMergedSelection() {
@@ -503,6 +619,7 @@ class HomeViewModel @Inject constructor(
     fun loadAll() {
         // Start DB observers immediately so cached data shows at once
         observerJob?.cancel()
+        startCombinedLiveCategories()
         observerJob = viewModelScope.launch {
             launch {
                 repository.getLiveCategories()
@@ -885,6 +1002,13 @@ class HomeViewModel @Inject constructor(
             is CombinedFavorite.Primary -> toggleChannelFavorite(item.channel.streamId)
             is CombinedFavorite.Merged -> setMergedChannelFavorite(item.channel, !item.channel.isFavorite)
         }
+    }
+
+    fun toggleLiveRowFavorite(row: LiveChannelRow) {
+        val ch = row.channel
+        val merged = row.mergedChannel
+        if (ch != null) toggleChannelFavorite(ch.streamId)
+        else if (merged != null) setMergedChannelFavorite(merged, !merged.isFavorite)
     }
 
     /** Same one-shot-read reasoning as [getFavoriteChannelsSnapshot] but for a specific live

@@ -56,6 +56,14 @@ class PreferencesManager @Inject constructor(
         val PENDING_MERGED_FAVORITE_CATEGORIES = stringSetPreferencesKey("pending_merged_favorite_categories")
         // Keyed "$serverUrl|$streamId|$folderName"
         val PENDING_MERGED_CHANNEL_FOLDERS = stringSetPreferencesKey("pending_merged_channel_folders")
+        // Applied once the new PRIMARY provider's channels are fetched, when switching TO a
+        // provider that already had secondary-provider favorites recorded (see
+        // XtreamRepository's Switch handling in SettingsActivity/TvSettingsActivity) — those
+        // don't automatically become primary favorites just because the provider's role
+        // changed, so this carries the folder name across the same way restore does.
+        // Keyed "$streamId|$folderName" (no server URL prefix needed — this only ever applies
+        // to the CURRENT primary once switched).
+        val PENDING_PRIMARY_CHANNEL_FOLDERS = stringSetPreferencesKey("pending_primary_channel_folders")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
         val SERVER_NICKNAME = stringPreferencesKey("server_nickname")
     
@@ -438,6 +446,11 @@ class PreferencesManager @Inject constructor(
 
     suspend fun clearPendingFavoriteChannelIds() {
         context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = emptySet() }
+    }
+
+    val pendingPrimaryChannelFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_PRIMARY_CHANNEL_FOLDERS] ?: emptySet() }
+    suspend fun setPendingPrimaryChannelFolders(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_PRIMARY_CHANNEL_FOLDERS] = keys }
     }
 
     val pendingMergedFavorites: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_FAVORITES] ?: emptySet() }

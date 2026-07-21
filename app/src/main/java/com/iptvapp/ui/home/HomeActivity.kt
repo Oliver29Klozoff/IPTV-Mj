@@ -205,6 +205,12 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
     private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
+    // Live tab now merges the primary provider with every configured secondary provider, same
+    // shape as the Favorites tab's combinedFavoriteAdapter. categoryAdapter/channelAdapter stay
+    // in use elsewhere (Categories/Movies reuse categoryAdapter; channelAdapter still backs the
+    // Providers tab's per-server drill-down), just no longer for the Live tab itself.
+    private lateinit var liveCategoryAdapter: LiveCategoryAdapter
+    private lateinit var liveChannelAdapter: LiveChannelAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var guideAdapter: GuideAdapter
@@ -946,19 +952,17 @@ class HomeActivity : AppCompatActivity() {
                         binding.rvChannels.adapter = mergedChannelAdapter
                     }
                 } else {
+                    // Live and Categories now use liveCategoryAdapter/LiveCategoryRow (see
+                    // setupRecyclerViews' construction of that adapter) — only Movies still
+                    // routes a plain CategoryEntity click through here.
                     when (binding.tabLayout.selectedTabPosition) {
-                        TAB_LIVE -> viewModel.selectLiveCategory(category.categoryId)
-                        TAB_CATEGORIES -> viewModel.selectFavCategory(category.categoryId)
                         TAB_MOVIES -> viewModel.selectVodCategory(category.categoryId)
                     }
                     landscapeShowChannelsMode()
                 }
             },
             onCategoryLongClick = { category ->
-                if (binding.tabLayout.selectedTabPosition == TAB_LIVE) {
-                    viewModel.toggleLiveCategoryFavorite(category.categoryId)
-                    Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
-                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && viewModel.selectedMergedServerIndex != null) {
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && viewModel.selectedMergedServerIndex != null) {
                     // Only meaningful one level in (after a server is picked) — at the
                     // server-picker level category.categoryId actually holds the serverIndex
                     // string (see onCategoryClick above), not a real category id.
@@ -1073,6 +1077,69 @@ class HomeActivity : AppCompatActivity() {
                     is CombinedFavorite.Primary -> showChannelActionsMenu(item.channel)
                     is CombinedFavorite.Merged -> showMergedChannelActionsMenu(item.channel)
                 }
+            }
+        )
+
+        liveCategoryAdapter = LiveCategoryAdapter(
+            onCategoryClick = { row ->
+                viewModel.selectCombinedCategory(row)
+                liveCategoryAdapter.setSelectedId(row.id)
+                landscapeShowChannelsMode()
+            },
+            onCategoryLongClick = { row ->
+                viewModel.toggleCombinedCategoryFavorite(row)
+                Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
+            }
+        )
+
+        liveChannelAdapter = LiveChannelAdapter(
+            onChannelClick = { row ->
+                val ch = row.channel
+                val merged = row.mergedChannel
+                if (ch != null) {
+                    currentMiniCombinedFavoriteId = row.id
+                    lifecycleScope.launch {
+                        playInMiniPlayer(ch)
+                        viewModel.markChannelWatched(ch.streamId)
+                        viewModel.setCurrentlyPlaying(ch.streamId)
+                    }
+                    scheduleContentAutoCollapse()
+                } else if (merged != null) {
+                    playMergedChannel(merged)
+                }
+            },
+            onChannelDoubleClick = { row ->
+                val ch = row.channel
+                val merged = row.mergedChannel
+                if (ch != null) {
+                    val currentIds = viewModel.combinedLiveChannels.value.mapNotNull { it.channel?.streamId }.toIntArray()
+                    lifecycleScope.launch {
+                        val url = viewModel.getLiveStreamUrl(ch.streamId)
+                        openPlayer(url, ch.name, ch.streamId, currentIds)
+                    }
+                } else if (merged != null) {
+                    lifecycleScope.launch {
+                        try {
+                            val url = viewModel.getMergedLiveStreamUrl(merged.serverIndex, merged.streamId)
+                            openPlayer(
+                                url, "${merged.name} · ${merged.serverNickname}", -1,
+                                serverIndex = merged.serverIndex, mergedStreamId = merged.streamId
+                            )
+                        } catch (_: Exception) {
+                            Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            },
+            onFavoriteClick = { row ->
+                viewModel.toggleLiveRowFavorite(row)
+                Toast.makeText(this, if (row.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onChannelLongClick = { row ->
+                val ch = row.channel
+                val merged = row.mergedChannel
+                if (ch != null) showChannelActionsMenu(ch)
+                else if (merged != null) showMergedChannelActionsMenu(merged)
             }
         )
 
@@ -1297,21 +1364,33 @@ class HomeActivity : AppCompatActivity() {
         activeGenre = null
         landscapeShowCategoriesMode()
         binding.rvCategories.visibility = View.VISIBLE
-        binding.rvCategories.adapter = categoryAdapter
-        binding.rvChannels.adapter = channelAdapter
+        binding.rvCategories.adapter = liveCategoryAdapter
+        binding.rvChannels.adapter = liveChannelAdapter
         // In portrait, categories and channels are two always-visible side-by-side panes (not
         // toggled like in landscape) — without this, switching here from Favorites left the
         // right-hand pane showing that folder's channels until the new category's load
         // happened to land, making it look like a category/folder was already selected.
-        channelAdapter.submitList(emptyList())
-        val cats = viewModel.liveCategories.value
-        updateGenreChips(cats)
-        val filtered = genreFilter(cats)
-        categoryAdapter.resetSelection()
-        submitCategories(filtered)
+        liveChannelAdapter.submitList(emptyList())
+        val rows = viewModel.combinedLiveCategories.value
+        // updateGenreChips only ever reads categoryName for keyword-matching (see
+        // GENRE_KEYWORDS detection below) — synthesizing bare CategoryEntity stand-ins for
+        // merged rows lets it stay unchanged rather than genericizing it for one caller.
+        updateGenreChips(rows.map { row ->
+            row.category ?: com.iptvapp.data.local.entities.CategoryEntity(
+                categoryId = row.id, categoryName = row.mergedCategoryName ?: "", parentId = 0, type = "merged_category"
+            )
+        })
+        val filtered = genreFilterLiveRows(rows)
+        liveCategoryAdapter.submitList(filtered)
         if (filtered.isNotEmpty()) {
-            if (viewModel.hasSelectedCategory()) viewModel.reloadCurrentLiveCategory()
-            else viewModel.selectLiveCategory(filtered.first().categoryId)
+            val current = viewModel.selectedCombinedCategoryRow()
+            if (viewModel.hasSelectedCombinedCategory() && current != null) {
+                viewModel.selectCombinedCategory(current)
+                liveCategoryAdapter.setSelectedId(current.id)
+            } else {
+                viewModel.selectCombinedCategory(filtered.first())
+                liveCategoryAdapter.setSelectedId(filtered.first().id)
+            }
         }
     }
 
@@ -1319,6 +1398,17 @@ class HomeActivity : AppCompatActivity() {
         val genre = activeGenre ?: return cats
         val keywords = GENRE_KEYWORDS[genre] ?: return cats
         return cats.filter { cat -> keywords.any { kw -> cat.categoryName.contains(kw, ignoreCase = true) } }
+    }
+
+    // Genre chips only ever came from provider-supplied category NAMES (see GENRE_KEYWORDS) —
+    // applies identically to merged-provider category rows, matching by the same name text.
+    private fun genreFilterLiveRows(rows: List<LiveCategoryRow>): List<LiveCategoryRow> {
+        val genre = activeGenre ?: return rows
+        val keywords = GENRE_KEYWORDS[genre] ?: return rows
+        return rows.filter { row ->
+            val name = row.category?.categoryName ?: row.mergedCategoryName ?: return@filter false
+            keywords.any { kw -> name.contains(kw, ignoreCase = true) }
+        }
     }
 
     // Portrait shows these in a horizontal scrolling row above the category list; landscape
@@ -1400,19 +1490,20 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    // Now shows pinned/favorite categories from EVERY configured provider (primary + merged),
+    // color-coded the same way the Live tab is, instead of only the primary provider's.
     private fun showFavCategories() {
         landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.VISIBLE
-        binding.rvCategories.adapter = categoryAdapter
-        binding.rvChannels.adapter = channelAdapter
-        channelAdapter.submitList(emptyList())
-        val favCats = viewModel.favoriteLiveCategories.value
-        submitCategories(favCats)
-        if (favCats.isNotEmpty()) {
-            viewModel.selectFavCategory(favCats.first().categoryId)
-        } else {
-            channelAdapter.submitList(emptyList())
+        binding.rvCategories.adapter = liveCategoryAdapter
+        binding.rvChannels.adapter = liveChannelAdapter
+        liveChannelAdapter.submitList(emptyList())
+        val favRows = viewModel.combinedFavoriteLiveCategories.value
+        liveCategoryAdapter.submitList(favRows)
+        if (favRows.isNotEmpty()) {
+            viewModel.selectCombinedCategory(favRows.first())
+            liveCategoryAdapter.setSelectedId(favRows.first().id)
         }
     }
 
@@ -1964,35 +2055,44 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.liveCategories.collect { cats ->
+            viewModel.combinedLiveCategories.collect { rows ->
                 if (binding.tabLayout.selectedTabPosition == TAB_LIVE) {
-                    updateGenreChips(cats)
-                    val filtered = genreFilter(cats)
-                    submitCategories(filtered)
-                    if (filtered.isNotEmpty() && !viewModel.hasSelectedCategory()) {
-                        viewModel.selectLiveCategory(filtered.first().categoryId)
+                    updateGenreChips(rows.map { row ->
+                        row.category ?: com.iptvapp.data.local.entities.CategoryEntity(
+                            categoryId = row.id, categoryName = row.mergedCategoryName ?: "", parentId = 0, type = "merged_category"
+                        )
+                    })
+                    val filtered = genreFilterLiveRows(rows)
+                    liveCategoryAdapter.submitList(filtered)
+                    if (filtered.isNotEmpty() && !viewModel.hasSelectedCombinedCategory()) {
+                        viewModel.selectCombinedCategory(filtered.first())
+                        liveCategoryAdapter.setSelectedId(filtered.first().id)
                     }
                 }
             }
         }
         lifecycleScope.launch {
-            viewModel.favoriteLiveCategories.collect { favs ->
-                categoryAdapter.submitFavoriteCategoryIds(favs.map { it.categoryId }.toSet() + mergedFavoriteCategoryKeys)
+            viewModel.combinedFavoriteLiveCategories.collect { favRows ->
+                liveCategoryAdapter.submitFavoriteKeys(favRows.map { it.favoriteKey }.toSet())
                 if (binding.tabLayout.selectedTabPosition == TAB_CATEGORIES) {
-                    submitCategories(favs)
-                    if (favs.isNotEmpty()) viewModel.selectFavCategory(favs.first().categoryId)
-                    else channelAdapter.submitList(emptyList())
+                    liveCategoryAdapter.submitList(favRows)
+                    if (favRows.isNotEmpty()) {
+                        viewModel.selectCombinedCategory(favRows.first())
+                        liveCategoryAdapter.setSelectedId(favRows.first().id)
+                    } else {
+                        liveChannelAdapter.submitList(emptyList())
+                    }
                 }
             }
         }
         lifecycleScope.launch {
             viewModel.favoriteMergedCategoryKeys.collect { keys ->
                 mergedFavoriteCategoryKeys = keys
-                // Re-derive the star set the same way the collector above does, since whichever
-                // one last ran otherwise clobbers the other's contribution to the union.
-                categoryAdapter.submitFavoriteCategoryIds(
-                    viewModel.favoriteLiveCategories.value.map { it.categoryId }.toSet() + keys
-                )
+                // categoryAdapter's own star rendering reads its internal favoriteCategoryIds
+                // set (CategoryAdapter.submitFavoriteCategoryIds), separate from the sort-order
+                // read of mergedFavoriteCategoryKeys just above — both need feeding or the
+                // Providers tab's category stars go dark.
+                categoryAdapter.submitFavoriteCategoryIds(keys)
                 // If we're currently drilled into a merged server's category list, resort/
                 // re-render it now so a newly (un)favorited category moves immediately instead
                 // of waiting for the next unrelated recomposition.
@@ -2002,10 +2102,19 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            // Live/Categories no longer feed channelAdapter (they use liveChannelAdapter/
+            // combinedLiveChannels now) — this only still exists to keep EPG text loading for
+            // whatever primary channels are in the currently-selected category.
             viewModel.channels.collect { list ->
                 if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) return@collect
-                channelAdapter.submitList(list)
                 viewModel.loadEpgForChannels(list)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.combinedLiveChannels.collect { rows ->
+                if (binding.tabLayout.selectedTabPosition != TAB_LIVE && binding.tabLayout.selectedTabPosition != TAB_CATEGORIES) return@collect
+                liveChannelAdapter.submitList(rows)
+                viewModel.loadEpgForMergedChannels(rows.mapNotNull { it.mergedChannel })
             }
         }
         lifecycleScope.launch {
@@ -2098,10 +2207,27 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.mergedHealth.value
             combinedFavoriteAdapter.submitHealth(merged)
         }
+        // Same "primary:<id>" / "<serverIndex>:<id>" key-union pattern as combinedFavoriteAdapter
+        // above, for the Live tab's own combined list.
+        fun republishLiveEpgText() {
+            val merged = viewModel.channelEpgText.value.mapKeys { (id, _) -> "primary:$id" } +
+                viewModel.mergedEpgText.value
+            liveChannelAdapter.submitEpgText(merged)
+        }
+        fun republishLiveEpgNextText() {
+            val merged = viewModel.channelEpgNextText.value.mapKeys { (id, _) -> "primary:$id" }
+            liveChannelAdapter.submitEpgNextText(merged)
+        }
+        fun republishLiveHealth() {
+            val merged = viewModel.channelHealth.value.mapKeys { (id, _) -> "primary:$id" } +
+                viewModel.mergedHealth.value
+            liveChannelAdapter.submitHealth(merged)
+        }
         lifecycleScope.launch {
             viewModel.channelEpgText.collect {
                 channelAdapter.submitEpgText(it)
                 republishCombinedEpgText()
+                republishLiveEpgText()
             }
         }
         lifecycleScope.launch {
@@ -2110,7 +2236,10 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            viewModel.channelEpgNextText.collect { republishCombinedEpgNextText() }
+            viewModel.channelEpgNextText.collect {
+                republishCombinedEpgNextText()
+                republishLiveEpgNextText()
+            }
         }
         lifecycleScope.launch {
             viewModel.vodCategories.collect {

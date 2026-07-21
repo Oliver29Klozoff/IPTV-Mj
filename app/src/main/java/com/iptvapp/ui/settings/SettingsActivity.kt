@@ -1602,6 +1602,12 @@ class SettingsActivity : AppCompatActivity() {
                             val newNick = extraServers[i].getOrElse(3) { "" }
                             val updated = extraServers.toMutableList()
                             updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
+                            // The provider becoming primary may already have favorites recorded
+                            // from when it was a secondary provider — those don't automatically
+                            // carry over just because its role changed, so capture them now
+                            // (before its old merged-provider identity/index is repurposed) and
+                            // they'll reapply once its channels are fetched as the new primary.
+                            repository.capturePendingPrimaryFavoritesFrom(i)
                             prefs.saveExtraServersWithNick(updated)
                             // Scoped to just the OLD primary's data — merged/other-provider
                             // favorites, folders, and pinned categories must survive a primary
@@ -2312,9 +2318,14 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private suspend fun restoreBackupFromUri(uri: Uri) {
-        val jsonText = contentResolver.openInputStream(uri)
-            ?.bufferedReader()?.use { it.readText() } ?: return
-        applyBackupJson(JSONObject(jsonText))
+        try {
+            val jsonText = withContext(Dispatchers.IO) {
+                contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            } ?: return
+            applyBackupJson(JSONObject(jsonText))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Restore failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private suspend fun restoreBackupFromFile(file: File) {
