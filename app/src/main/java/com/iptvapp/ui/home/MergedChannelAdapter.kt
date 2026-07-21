@@ -24,6 +24,16 @@ class MergedChannelAdapter(
 
     private var epgTextByKey: Map<String, String> = emptyMap()
     private var healthByKey: Map<String, Boolean?> = emptyMap()
+    // Highlights whichever row is currently loaded in the mini player — ChannelAdapter (Live
+    // tab) and CombinedFavoriteAdapter (Favorites tab) already do this via isSelected; this was
+    // the one channel list missing it.
+    private var currentlyPlayingKey: String? = null
+
+    fun setCurrentlyPlayingKey(key: String?) {
+        val old = currentlyPlayingKey
+        currentlyPlayingKey = key
+        notifyChangedRows { it == old || it == key }
+    }
 
     private fun keyOf(item: MergedChannelEntity) = "${item.serverIndex}:${item.streamId}"
 
@@ -85,6 +95,7 @@ class MergedChannelAdapter(
             } else {
                 binding.viewHealthDot.visibility = View.GONE
             }
+            binding.root.isSelected = key == currentlyPlayingKey
             binding.ivFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()

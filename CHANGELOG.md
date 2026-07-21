@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v4.85 - 2026-07-21
+- **Fixed**: switching your primary provider used to wipe every OTHER configured provider's
+  favorites/folders too — now only clears the old primary's own data.
+- **Added**: favorites, folder assignments, and pinned categories for other providers are now
+  included in Backup/Restore (previously the backup kept your provider list but dropped all
+  their favorites).
+- **Fixed**: the Providers tab always reset to the top-level provider picker every time you
+  tapped it, even mid-browse in a category. It now steps back one level per tap (channel list →
+  category list → provider picker), and jumps straight to whatever's currently playing the
+  first time you switch into the tab.
+- **Fixed**: the currently-playing channel wasn't highlighted in the Providers tab's channel
+  list, unlike Live and Favorites which already did this.
+
 ## v4.84 - 2026-07-20
 - **Added**: a "Test Connection" button in the Add/Edit Provider dialogs (phone and TV) —
   checks the login right there before saving, instead of finding out later that a provider

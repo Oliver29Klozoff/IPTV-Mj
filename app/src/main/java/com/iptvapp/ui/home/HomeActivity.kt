@@ -146,6 +146,10 @@ class HomeActivity : AppCompatActivity() {
     private var suppressMiniAutoResume = false
     private var tabPositionBeforePlayer: Int = -1
     private var pendingScrollToCurrent = false
+    // True once the Providers tab has jumped-to/been browsed since the last time a DIFFERENT
+    // tab was selected — the "jump straight to the playing channel" behavior only applies once
+    // per visit to this tab; every tap after that steps back one level instead of re-jumping.
+    private var providersTabVisitedSinceTabSwitch = false
     // Populated in onCreate from the ViewModel (which survives activity recreation) when
     // this instance is being recreated for a rotation — consumed once by initMiniPlayer()
     // to resume exactly what was playing instead of initMiniPlayer()'s normal fallback of
@@ -404,7 +408,7 @@ class HomeActivity : AppCompatActivity() {
                     // History/Guide) have nothing to go back to.
                     tab?.position in listOf(TAB_LIVE, TAB_CATEGORIES, TAB_MOVIES) -> landscapeShowCategoriesMode()
                     tab?.position == TAB_FAVORITES -> showFavorites()
-                    tab?.position == TAB_PROVIDERS -> showAllProviders()
+                    tab?.position == TAB_PROVIDERS -> stepBackProvidersOneLevel()
                 }
             }
         })
@@ -1192,6 +1196,10 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.lastTabPosition = tab?.position ?: 0
                 binding.btnVodSort?.visibility = if (tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES) View.VISIBLE else View.GONE
                 binding.btnRefreshProviders?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
+                // Switching TO Providers from a different tab counts as a fresh visit — the
+                // "jump to the playing channel" behavior gets one shot; every tap after that
+                // (via onTabReselected below) just steps back one level instead.
+                if (tab?.position != TAB_PROVIDERS) providersTabVisitedSinceTabSwitch = false
                 when (tab?.position) {
                     TAB_FAVORITES -> showFavorites()
                     TAB_PROVIDERS -> showAllProviders()
@@ -1547,7 +1555,57 @@ class HomeActivity : AppCompatActivity() {
     // the main Favorites tab now (combined with primary favorites, auto genre-classified) —
     // this tab is purely a server/category browser; favoriting/folder-assignment per channel
     // still works via each row's star and long-press menu.
+    // First switch INTO the Providers tab (onTabSelected, not a re-tap) — if a merged channel
+    // is currently playing, jump straight to its server+category+row, matching the same
+    // "go to where I'm actually watching" behavior Favorites already has for its own channels.
+    // Every re-tap after this (onTabReselected -> stepBackProvidersOneLevel) just steps back
+    // one level instead of re-jumping — this only fires once per visit to the tab.
     private fun showAllProviders() {
+        if (providersTabVisitedSinceTabSwitch) return
+        providersTabVisitedSinceTabSwitch = true
+        val playingServerIndex = currentMiniServerIndex
+        val playingStreamId = currentMiniMergedStreamId
+        if (playingServerIndex != -1 && playingStreamId != -1) {
+            lifecycleScope.launch {
+                val channel = viewModel.getMergedChannelByIndexAndId(playingServerIndex, playingStreamId)
+                if (channel != null) {
+                    jumpToPlayingMergedChannel(channel)
+                    return@launch
+                }
+                showAllProvidersFromTop()
+            }
+        } else {
+            showAllProvidersFromTop()
+        }
+    }
+
+    // Re-tapping Providers while already on it — plain one-level-back navigation, same shape
+    // as every other tab's onTabReselected handler: channel list -> that server's category
+    // list -> the top-level server picker. Never re-jumps to a playing channel.
+    private fun stepBackProvidersOneLevel() {
+        when {
+            viewModel.hasMergedCategorySelected -> {
+                val serverIndex = viewModel.selectedMergedServerIndex
+                if (serverIndex != null) viewModel.selectMergedServer(serverIndex) // re-selecting clears category, keeps server
+                landscapeShowCategoriesMode()
+                setGenreFilterVisible(false)
+                binding.rvCategories.visibility = View.VISIBLE
+                binding.rvCategories.adapter = categoryAdapter
+                binding.rvChannels.adapter = mergedChannelAdapter
+                categoryAdapter.submitList(mergedCategoriesToSynthetic(viewModel.mergedCategories.value))
+                lifecycleScope.launch {
+                    viewModel.mergedCategories.collect { cats ->
+                        if (viewModel.hasMergedCategorySelected) return@collect
+                        categoryAdapter.submitList(mergedCategoriesToSynthetic(cats))
+                    }
+                }
+            }
+            viewModel.selectedMergedServerIndex != null -> showAllProvidersFromTop()
+            else -> showAllProvidersFromTop()
+        }
+    }
+
+    private fun showAllProvidersFromTop() {
         viewModel.resetMergedSelection()
         landscapeShowCategoriesMode()
         setGenreFilterVisible(false)
@@ -1555,6 +1613,27 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = mergedChannelAdapter
         categoryAdapter.submitList(mergedServersToSynthetic(viewModel.mergedServers.value))
+    }
+
+    private fun jumpToPlayingMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        landscapeShowChannelsMode()
+        setGenreFilterVisible(false)
+        binding.rvCategories.visibility = View.GONE
+        binding.rvChannels.adapter = mergedChannelAdapter
+        viewModel.selectMergedServer(channel.serverIndex)
+        viewModel.selectMergedCategory(channel.categoryId)
+        var scrolled = false
+        lifecycleScope.launch {
+            viewModel.mergedChannels.collect { list ->
+                if (scrolled || viewModel.selectedMergedServerIndex != channel.serverIndex) return@collect
+                mergedChannelAdapter.submitList(list)
+                val pos = list.indexOfFirst { it.streamId == channel.streamId }
+                if (pos >= 0) {
+                    scrolled = true
+                    binding.rvChannels.post { binding.rvChannels.scrollToPosition(pos) }
+                }
+            }
+        }
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
@@ -1615,6 +1694,13 @@ class HomeActivity : AppCompatActivity() {
                 currentMiniServerIndex = channel.serverIndex
                 currentMiniMergedStreamId = channel.streamId
                 currentMiniIsVod = false
+                // Lets the Favorites tab's scroll-to-current-channel work for merged channels
+                // too, the same way it already does for primary ones — this was only ever set
+                // when playing FROM the Favorites list itself, so playing a merged channel from
+                // Providers/Guide/anywhere else left Favorites unable to find it afterward.
+                currentMiniCombinedFavoriteId = "${channel.serverIndex}:${channel.streamId}"
+                combinedFavoriteAdapter.setCurrentlyPlayingId(currentMiniCombinedFavoriteId)
+                mergedChannelAdapter.setCurrentlyPlayingKey("${channel.serverIndex}:${channel.streamId}")
                 binding.tvMiniChannelName.text = title
                 binding.tvPipChannelName?.text = title
                 if (!channel.streamIcon.isNullOrBlank()) {
@@ -1985,6 +2071,7 @@ class HomeActivity : AppCompatActivity() {
                 if (streamId >= 0) {
                     currentMiniCombinedFavoriteId = "primary:$streamId"
                     combinedFavoriteAdapter.setCurrentlyPlayingId(currentMiniCombinedFavoriteId)
+                    mergedChannelAdapter.setCurrentlyPlayingKey(null)
                 }
                 if (pendingScrollToCurrent && streamId >= 0 && combinedFavoriteAdapter.currentList.isNotEmpty() &&
                     binding.tabLayout.selectedTabPosition == TAB_FAVORITES) {

@@ -1603,7 +1603,10 @@ class SettingsActivity : AppCompatActivity() {
                             val updated = extraServers.toMutableList()
                             updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
                             prefs.saveExtraServersWithNick(updated)
-                            withContext(Dispatchers.IO) { db.clearAllTables() }
+                            // Scoped to just the OLD primary's data — merged/other-provider
+                            // favorites, folders, and pinned categories must survive a primary
+                            // switch (clearAllTables() used to wipe those too).
+                            repository.clearPrimaryProviderData()
                             prefs.saveCredentials(url, user, newPass)
                             prefs.setServerNickname(newNick)
                             prefs.setActiveServerIndex(-1)
@@ -2265,6 +2268,30 @@ class SettingsActivity : AppCompatActivity() {
                     put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
                 }
             }))
+
+            // Merged/other-provider favorites, folder assignments, and pinned categories —
+            // keyed by server URL (not serverIndex, which is meaningless across devices/
+            // restores) so this matches a restore onto a device with providers configured in
+            // a different order. Previously omitted entirely — restoring a backup brought the
+            // provider list back but dropped every other-provider favorite silently.
+            val mergedUrlByIndex = repository.getMergedServerUrls()
+            val mergedFavorites = db.mergedChannelDao().getAllFavorites().first()
+            val mergedFolderNameById = folderNameById
+            put("mergedFavorites", JSONArray(mergedFavorites.mapNotNull { ch ->
+                val url = mergedUrlByIndex[ch.serverIndex] ?: return@mapNotNull null
+                JSONObject().apply {
+                    put("serverUrl", url)
+                    put("streamId", ch.streamId)
+                    ch.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
+                }
+            }))
+            val favoriteMergedCategoryKeys = prefs.favoriteMergedCategoryIds.first()
+            put("mergedFavoriteCategories", JSONArray(favoriteMergedCategoryKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+            }))
             val style = prefs.subtitleStyle.first()
             put("subtitleStyle", JSONObject().apply {
                 put("sizeScale", style.sizeScale)
@@ -2386,6 +2413,33 @@ class SettingsActivity : AppCompatActivity() {
             prefs.saveExtraServersWithNick(restored)
             extraServers.clear(); extraServers.addAll(restored)
             db.mergedChannelDao().clearAll()
+        }
+
+        // Merged/other-provider favorites can't be applied yet — that provider's channels
+        // haven't been fetched into merged_channels at restore time (only channel IDs from the
+        // backup, no local rows to mark isFavorite=1 on exist). Stored as pending, keyed by
+        // server URL, and applied automatically the next time that server's channels are
+        // refreshed (see XtreamRepository.refreshMergedChannels).
+        json.optJSONArray("mergedFavorites")?.let { arr ->
+            val keys = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                "${obj.optString("serverUrl")}|${obj.optInt("streamId")}"
+            }.toSet()
+            lifecycleScope.launch { prefs.setPendingMergedFavorites(keys) }
+            val folderKeys = (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                val folderName = obj.optString("folderName", "")
+                if (folderName.isBlank()) null
+                else "${obj.optString("serverUrl")}|${obj.optInt("streamId")}|$folderName"
+            }.toSet()
+            if (folderKeys.isNotEmpty()) lifecycleScope.launch { prefs.setPendingMergedChannelFolders(folderKeys) }
+        }
+        json.optJSONArray("mergedFavoriteCategories")?.let { arr ->
+            val keys = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
+            }.toSet()
+            lifecycleScope.launch { prefs.setPendingMergedFavoriteCategories(keys) }
         }
 
         json.optJSONObject("subtitleStyle")?.let { s ->

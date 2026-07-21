@@ -46,6 +46,16 @@ class PreferencesManager @Inject constructor(
         // two different providers can reuse the same category id string.
         val FAVORITE_MERGED_CATEGORY_IDS = stringSetPreferencesKey("favorite_merged_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
+        // Restored from a backup before that provider's channels have ever been fetched, so
+        // there's nothing to mark favorite yet — applied opportunistically the next time that
+        // server's channels are refreshed. Keyed "$serverUrl|$streamId" (server URL, not
+        // serverIndex — a restore can land on a device where providers are configured in a
+        // different order, same reasoning as SyncManager's cross-device provider matching).
+        val PENDING_MERGED_FAVORITES = stringSetPreferencesKey("pending_merged_favorites")
+        // Keyed "$serverUrl|$categoryId"
+        val PENDING_MERGED_FAVORITE_CATEGORIES = stringSetPreferencesKey("pending_merged_favorite_categories")
+        // Keyed "$serverUrl|$streamId|$folderName"
+        val PENDING_MERGED_CHANNEL_FOLDERS = stringSetPreferencesKey("pending_merged_channel_folders")
         val EXTRA_SERVERS = stringPreferencesKey("extra_servers")
         val SERVER_NICKNAME = stringPreferencesKey("server_nickname")
     
@@ -428,6 +438,21 @@ class PreferencesManager @Inject constructor(
 
     suspend fun clearPendingFavoriteChannelIds() {
         context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = emptySet() }
+    }
+
+    val pendingMergedFavorites: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_FAVORITES] ?: emptySet() }
+    suspend fun setPendingMergedFavorites(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_FAVORITES] = keys }
+    }
+
+    val pendingMergedFavoriteCategories: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_FAVORITE_CATEGORIES] ?: emptySet() }
+    suspend fun setPendingMergedFavoriteCategories(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_FAVORITE_CATEGORIES] = keys }
+    }
+
+    val pendingMergedChannelFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_CHANNEL_FOLDERS] ?: emptySet() }
+    suspend fun setPendingMergedChannelFolders(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_CHANNEL_FOLDERS] = keys }
     }
 
     suspend fun setFavoriteLiveCategoryIds(ids: Set<String>) {

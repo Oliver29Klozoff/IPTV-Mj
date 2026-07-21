@@ -163,6 +163,13 @@ class HomeViewModel @Inject constructor(
     private var mergedCategoriesJob: Job? = null
     private var mergedChannelsJob: Job? = null
     var selectedMergedServerIndex: Int? = null; private set
+    // Tracks whether selectMergedCategory has actually been called (as opposed to just being
+    // on the category-list level for a selected server) — nullable String alone can't
+    // distinguish "no category chosen yet" from "chose the null/uncategorized category", so a
+    // separate flag is needed for the Providers tab to know whether to restore to the
+    // channel-list level or just the category-list level when re-selected.
+    var selectedMergedCategoryId: String? = null; private set
+    var hasMergedCategorySelected: Boolean = false; private set
 
     /** Manual refresh only — fetches every configured server's live channels in parallel for
      * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
@@ -172,6 +179,8 @@ class HomeViewModel @Inject constructor(
 
     fun resetMergedSelection() {
         selectedMergedServerIndex = null
+        selectedMergedCategoryId = null
+        hasMergedCategorySelected = false
         selectedMergedFavoriteFolder = null
         mergedCategoriesJob?.cancel()
         mergedChannelsJob?.cancel()
@@ -181,6 +190,8 @@ class HomeViewModel @Inject constructor(
 
     fun selectMergedServer(serverIndex: Int) {
         selectedMergedServerIndex = serverIndex
+        selectedMergedCategoryId = null
+        hasMergedCategorySelected = false
         mergedCategoriesJob?.cancel()
         mergedCategoriesJob = viewModelScope.launch {
             repository.getMergedCategorySummaries(serverIndex)
@@ -193,6 +204,8 @@ class HomeViewModel @Inject constructor(
 
     fun selectMergedCategory(categoryId: String?) {
         val serverIndex = selectedMergedServerIndex ?: return
+        selectedMergedCategoryId = categoryId
+        hasMergedCategorySelected = true
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
             repository.getMergedChannelsByCategory(serverIndex, categoryId).collectLatest { _mergedChannels.value = it }

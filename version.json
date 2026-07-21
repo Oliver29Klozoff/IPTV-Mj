@@ -1,7 +1,7 @@
 {
-  "versionCode": 322,
-  "versionName": "4.84",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.84/MKTV.apk",
-  "apkSha256": "a538491acc19256d32afdab930258d2429626aca769109445a50142fd6f2d207",
-  "changelog": "Added Test Connection for providers, better connection failure diagnostics, fixed a User-Agent issue causing some providers to reject login, and fixed the Live refresh button silently also refreshing Movies/Series."
+  "versionCode": 323,
+  "versionName": "4.85",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.85/MKTV.apk",
+  "apkSha256": "86248100a8366e89cf39408a91c757db247b063aa724e957059afb43c5d02f92",
+  "changelog": "Fixed provider switching wiping other providers' favorites, added other-provider favorites to Backup/Restore, fixed Providers tab navigation to step back one level per tap, and added the currently-playing highlight to the Providers channel list."
 }

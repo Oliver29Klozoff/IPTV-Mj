@@ -1522,7 +1522,9 @@ class TvSettingsActivity : AppCompatActivity() {
                     updated[i]  = listOf(primary.serverUrl, primary.username, primary.password,
                         prefs.serverNickname.first())
                     prefs.saveExtraServersWithNick(updated)
-                    withContext(Dispatchers.IO) { db.clearAllTables() }
+                    // Scoped to just the OLD primary's data — merged/other-provider favorites,
+                    // folders, and pinned categories must survive a primary switch.
+                    repository.clearPrimaryProviderData()
                     prefs.saveCredentials(url, user, pass)
                     prefs.setServerNickname(newNick)
                     prefs.setActiveServerIndex(-1)

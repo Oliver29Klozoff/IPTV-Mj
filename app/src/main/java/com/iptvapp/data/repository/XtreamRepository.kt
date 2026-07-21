@@ -54,6 +54,27 @@ class XtreamRepository @Inject constructor(
         withContext(Dispatchers.IO) { db.clearAllTables() }
     }
 
+    /** Used when switching which configured server is the PRIMARY provider — clears only data
+     * scoped to the old primary (its channels/categories/VOD/series/EPG/reliability/
+     * recordings), never merged_channels or favorite_folders. Switching used to call
+     * db.clearAllTables() unconditionally, silently wiping every OTHER provider's favorites/
+     * folder assignments/pinned categories too, even though those have nothing to do with
+     * which server is currently "primary" — merged-provider data is scoped by its own
+     * serverIndex and stays valid across a primary-provider switch. Series/VOD/reliability
+     * history for the OLD primary is still cleared here since those ids aren't portable to
+     * whatever the new primary provider is anyway. */
+    suspend fun clearPrimaryProviderData() = withContext(Dispatchers.IO) {
+        val sql = db.openHelper.writableDatabase
+        sql.execSQL("DELETE FROM channels")
+        sql.execSQL("DELETE FROM categories")
+        sql.execSQL("DELETE FROM vod_streams")
+        sql.execSQL("DELETE FROM series")
+        sql.execSQL("DELETE FROM epg_entries WHERE serverIndex = -1")
+        sql.execSQL("DELETE FROM channel_reliability")
+        sql.execSQL("DELETE FROM recordings WHERE serverIndex = -1")
+        sql.execSQL("DELETE FROM episode_watched")
+    }
+
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {
@@ -696,6 +717,14 @@ class XtreamRepository @Inject constructor(
         return servers
     }
 
+    /** URL for a given serverIndex among currently-configured servers (0..N-1, extra providers
+     * only — primary/-1 isn't relevant here since backup/sync scope merged-provider data by
+     * its own serverIndex, and the primary's identity is handled separately). Used by callers
+     * (Backup JSON, restore) that need the same URL-based cross-device identity SyncManager
+     * already established for merged favorites, without duplicating allConfiguredServers(). */
+    suspend fun getMergedServerUrls(): Map<Int, String> =
+        allConfiguredServers().filter { it.serverIndex != -1 }.associate { it.serverIndex to it.serverUrl }
+
     data class ProviderHealthStatus(
         val serverIndex: Int,
         val nickname: String,
@@ -848,7 +877,85 @@ class XtreamRepository @Inject constructor(
             db.mergedChannelDao().clearForServer(serverIndex)
         }
         db.mergedChannelDao().upsertAll(results)
+        applyPendingMergedRestoreData(servers)
         return errors
+    }
+
+    /** Applies any merged favorites/folders/pinned categories restored from a backup, once the
+     * relevant server's channels actually exist locally to apply them to — matched by server
+     * URL (see buildBackupJson/applyBackupJson in SettingsActivity). Each pending entry is only
+     * consumed (removed from the pending set) once its target channel/category was actually
+     * found this refresh; anything for a server not yet refreshed stays pending. */
+    private suspend fun applyPendingMergedRestoreData(refreshedServers: List<ConfiguredServer>) {
+        val urlByServerIndex = refreshedServers.associate { it.serverUrl to it.serverIndex }
+
+        val pendingFavorites = prefs.pendingMergedFavorites.first()
+        if (pendingFavorites.isNotEmpty()) {
+            val remaining = pendingFavorites.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val streamId = parts.getOrNull(1)?.toIntOrNull()
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && streamId != null) {
+                    val channel = db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)
+                    if (channel != null) {
+                        db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
+                        false // consumed, drop from pending
+                    } else true // server refreshed but this channel wasn't in it — keep waiting
+                } else true // not this server's URL — leave pending for its own refresh
+            }.toSet()
+            if (remaining != pendingFavorites) prefs.setPendingMergedFavorites(remaining)
+        }
+
+        val pendingCategories = prefs.pendingMergedFavoriteCategories.first()
+        if (pendingCategories.isNotEmpty()) {
+            val remaining = pendingCategories.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val categoryId = parts.getOrNull(1)
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                serverIndex == null // keep pending only if this server hasn't been refreshed yet
+            }.toSet()
+            // Categories are just a preference marker (no local row to check existence
+            // against), so apply as soon as we know this server was refreshed at all.
+            pendingCategories.minus(remaining).forEach { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val categoryId = parts.getOrNull(1) ?: return@forEach
+                val serverIndex = url?.let { urlByServerIndex[it] } ?: return@forEach
+                prefs.addFavoriteMergedCategoryId("$serverIndex:$categoryId")
+            }
+            if (remaining != pendingCategories) prefs.setPendingMergedFavoriteCategories(remaining)
+        }
+
+        val pendingFolders = prefs.pendingMergedChannelFolders.first()
+        if (pendingFolders.isNotEmpty()) {
+            val existingFolders = db.favoriteFolderDao().getAll().first()
+            val idByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+            var nextOrder = existingFolders.size
+            val remaining = pendingFolders.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val streamId = parts.getOrNull(1)?.toIntOrNull()
+                val folderName = parts.getOrNull(2)
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && streamId != null && folderName != null) {
+                    val channel = db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)
+                    if (channel != null) {
+                        var folderId = idByName[folderName]
+                        if (folderId == null) {
+                            folderId = db.favoriteFolderDao().insert(
+                                com.iptvapp.data.local.entities.FavoriteFolderEntity(name = folderName, sortOrder = nextOrder++)
+                            ).toInt()
+                            idByName[folderName] = folderId
+                        }
+                        db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                        false
+                    } else true
+                } else true
+            }.toSet()
+            if (remaining != pendingFolders) prefs.setPendingMergedChannelFolders(remaining)
+        }
     }
 
     fun getMergedServerSummaries(): Flow<List<MergedServerSummary>> = db.mergedChannelDao().getServerSummaries()
