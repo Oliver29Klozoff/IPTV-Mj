@@ -1,7 +1,7 @@
 {
-  "versionCode": 325,
-  "versionName": "4.87",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.87/MKTV.apk",
-  "apkSha256": "c9dbc3632e03894161cd959af33747a43eb80373f03166835f8fdfe45b1d47b4",
-  "changelog": "Fixed \"Backup to file\" silently writing an empty (0-byte) backup on some storage providers with no error shown, which caused later restores to fail."
+  "versionCode": 326,
+  "versionName": "4.88",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.88/MKTV.apk",
+  "apkSha256": "76731e496b90697165f7708df239c7da81618d974e2f03cec5722d652a9a4975",
+  "changelog": "Fixed the real cause of empty backup files: a database-on-main-thread crash before the file was written, which happened past v4.87's own safeguard."
 }

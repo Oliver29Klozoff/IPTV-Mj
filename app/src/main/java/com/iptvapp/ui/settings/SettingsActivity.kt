@@ -1049,8 +1049,8 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private suspend fun writeBackupToUri(uri: Uri) {
-        val body = buildBackupJson().toString(2)
         try {
+            val body = buildBackupJson().toString(2)
             withContext(Dispatchers.IO) {
                 contentResolver.openOutputStream(uri, "wt")?.use { it.write(body.toByteArray()) }
                     ?: throw IllegalStateException("Could not open output stream")
@@ -2235,9 +2235,9 @@ class SettingsActivity : AppCompatActivity() {
         private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
     }
 
-    private suspend fun buildBackupJson(): JSONObject {
+    private suspend fun buildBackupJson(): JSONObject = withContext(Dispatchers.IO) {
         val creds = prefs.credentials.first()
-        return JSONObject().apply {
+        JSONObject().apply {
             put("serverUrl", creds.serverUrl)
             put("username", creds.username)
             put("password", creds.password)

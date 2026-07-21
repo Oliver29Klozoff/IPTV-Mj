@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.88 - 2026-07-21
+- **Fixed**: "Backup to file" crashed with a database-on-main-thread error before the file was
+  ever written, since the system had already created an empty placeholder file at the chosen
+  location — leaving a 0-byte file behind with no error shown, and causing v4.87's own
+  "verify the write" safeguard to never actually run. The backup data is now built entirely off
+  the main thread, so this can no longer crash past the error handling.
+
 ## v4.87 - 2026-07-21
 - **Fixed**: "Backup to file" could silently write a 0-byte file on some Downloads/file-manager
   storage providers, with no error shown — any backup restored later from that file would fail
