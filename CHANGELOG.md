@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v4.89 - 2026-07-21
+- **Added**: "Backup to file" now includes VOD/series watch progress and per-episode watched
+  state — previously only cross-device Sync carried this over, so restoring a backup file
+  reset every movie/show back to the beginning even though favorites came back correctly.
+
 ## v4.88 - 2026-07-21
 - **Fixed**: "Backup to file" crashed with a database-on-main-thread error before the file was
   ever written, since the system had already created an empty placeholder file at the chosen

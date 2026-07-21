@@ -2316,6 +2316,27 @@ class SettingsActivity : AppCompatActivity() {
                 put("outlineEnabled", style.outlineEnabled)
                 put("outlineColor", style.outlineColor)
             })
+
+            // VOD/series watch progress and per-episode watched state — same fields/shape
+            // SyncManager already pushes to Firebase, so a restored backup resumes movies/shows
+            // from where they left off instead of starting over. Only rows with real progress
+            // are included, same reasoning as favoriteChannelIds only including actual favorites.
+            put("vodProgress", JSONObject(db.vodDao().getUserData()
+                .filter { it.watchedMs > 0 }
+                .associate { it.streamId.toString() to JSONObject().apply {
+                    put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                } }))
+            put("seriesProgress", JSONObject(db.seriesDao().getUserData()
+                .filter { it.watchedMs > 0 }
+                .associate { it.seriesId.toString() to JSONObject().apply {
+                    put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                } }))
+            put("episodesWatched", JSONArray(db.episodeWatchedDao().getAll().map {
+                JSONObject().apply {
+                    put("seriesId", it.seriesId); put("season", it.season); put("episode", it.episode)
+                    put("watchedAt", it.watchedAt); put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                }
+            }))
         }
     }
 
@@ -2459,6 +2480,45 @@ class SettingsActivity : AppCompatActivity() {
                 "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
             }.toSet()
             lifecycleScope.launch { prefs.setPendingMergedFavoriteCategories(keys) }
+        }
+
+        // VOD/series watch progress + per-episode watched state. Restore is a full overwrite
+        // (unlike SyncManager.syncDown, which merges by "keep the larger watchedMs" since two
+        // devices can both have made independent progress) — a restore is a deliberate "put me
+        // back to this exact state" action, so the backup's numbers just win outright. Rows for
+        // VOD/series not yet fetched locally are silently skipped (no pending-apply mechanism
+        // for this, unlike mergedFavorites — VOD/series lists are already populated in the
+        // overwhelmingly common restore-onto-an-already-set-up-device case).
+        json.optJSONObject("vodProgress")?.let { obj ->
+            obj.keys().forEach { key ->
+                val streamId = key.toIntOrNull() ?: return@forEach
+                val p = obj.getJSONObject(key)
+                db.vodDao().updateWatchProgress(streamId, p.optLong("watchedMs", 0L), p.optLong("durationMs", 0L))
+            }
+        }
+        json.optJSONObject("seriesProgress")?.let { obj ->
+            obj.keys().forEach { key ->
+                val seriesId = key.toIntOrNull() ?: return@forEach
+                val p = obj.getJSONObject(key)
+                db.seriesDao().updateWatchProgress(seriesId, p.optLong("watchedMs", 0L), p.optLong("durationMs", 0L))
+            }
+        }
+        json.optJSONArray("episodesWatched")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val e = arr.getJSONObject(i)
+                val seriesId = e.optInt("seriesId", -1)
+                val season = e.optInt("season", -1)
+                val episode = e.optInt("episode", -1)
+                if (seriesId < 0 || season < 0 || episode < 0) continue
+                db.episodeWatchedDao().upsert(
+                    com.iptvapp.data.local.entities.EpisodeWatchedEntity(
+                        seriesId = seriesId, season = season, episode = episode,
+                        watchedAt = e.optLong("watchedAt", 0L),
+                        watchedMs = e.optLong("watchedMs", 0L),
+                        durationMs = e.optLong("durationMs", 0L)
+                    )
+                )
+            }
         }
 
         json.optJSONObject("subtitleStyle")?.let { s ->

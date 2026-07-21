@@ -1,7 +1,7 @@
 {
-  "versionCode": 326,
-  "versionName": "4.88",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.88/MKTV.apk",
-  "apkSha256": "76731e496b90697165f7708df239c7da81618d974e2f03cec5722d652a9a4975",
-  "changelog": "Fixed the real cause of empty backup files: a database-on-main-thread crash before the file was written, which happened past v4.87's own safeguard."
+  "versionCode": 327,
+  "versionName": "4.89",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.89/MKTV.apk",
+  "apkSha256": "a99469aa22e1fcc61fbd416ca638925b90d9804cbc2d2631386944b2961c683b",
+  "changelog": "Backup to file now includes VOD/series watch progress and per-episode watched state, matching what cross-device Sync already carries over."
 }
