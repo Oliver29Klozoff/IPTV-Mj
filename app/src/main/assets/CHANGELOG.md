@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.93 - 2026-07-22
+- **Fixed**: in landscape (always the case on a car-box/head-unit device), the Providers tab's
+  Live/Movies/Series row and the Guide tab's What's On/Grid row were both entirely missing —
+  landscape uses its own layout file that never got these rows added when they shipped in
+  portrait, so Movies/Series browsing inside Providers was unreachable there. Also fixed
+  landscape's provider refresh button always refreshing Live channels regardless of which
+  Providers mode was active.
+
 ## v4.92 - 2026-07-22
 - **Fixed (TV)**: the provider enable/disable toggle added in v4.91 wasn't reachable by D-pad
   as its own row — it's now inline on the provider's own row (tap the row to enable/disable,

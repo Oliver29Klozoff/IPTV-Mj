@@ -194,8 +194,6 @@
 
         <!-- Hidden views required by HomeActivity binding -->
         <ImageButton android:id="@+id/btnClearSearch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        <Button android:id="@+id/btnWhatsOn" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        <Button android:id="@+id/btnTimelineView" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         <Button android:id="@+id/btnHeroWatch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         <ImageButton android:id="@+id/btnFullscreen" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         <ImageView android:id="@+id/ivHeroChannelLogo" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
@@ -228,6 +226,98 @@
             android:layout_height="match_parent"
             android:layout_weight="2"
             android:orientation="vertical">
+
+            <!-- PROVIDERS MODE ROW — landscape equivalent of the portrait row under tabLayout
+                 (activity_home.xml). Portrait's rows never existed here, so switching to
+                 landscape hid Movies/Series browsing entirely inside the Providers tab even
+                 though the underlying ProvidersMode state/click-handling was already shared —
+                 only the visual row was missing. Visibility driven by the same
+                 providersModeRow/guideModeRow ids in setupTabs()'s tab-selected listener. -->
+            <LinearLayout
+                android:id="@+id/providersModeRow"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:background="#1A1A1A"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/btnProvidersModeLive"
+                    android:layout_width="0dp"
+                    android:layout_height="28dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/focus_selector"
+                    android:gravity="center"
+                    android:text="Live"
+                    android:textAllCaps="true"
+                    android:textColor="#008CFF"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:id="@+id/btnProvidersModeMovies"
+                    android:layout_width="0dp"
+                    android:layout_height="28dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/focus_selector"
+                    android:gravity="center"
+                    android:text="Movies"
+                    android:textAllCaps="true"
+                    android:textColor="#888888"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:id="@+id/btnProvidersModeSeries"
+                    android:layout_width="0dp"
+                    android:layout_height="28dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/focus_selector"
+                    android:gravity="center"
+                    android:text="Series"
+                    android:textAllCaps="true"
+                    android:textColor="#888888"
+                    android:textSize="10sp" />
+
+            </LinearLayout>
+
+            <!-- GUIDE MODE ROW — landscape equivalent of the portrait row (What's On/Grid). -->
+            <LinearLayout
+                android:id="@+id/guideModeRow"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:background="#1A1A1A"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/btnWhatsOnRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="28dp"
+                    android:gravity="center"
+                    android:paddingHorizontal="8dp"
+                    android:background="@drawable/focus_selector"
+                    android:text="📋 What's On"
+                    android:textColor="#008CFF"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/btnTimelineViewRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="28dp"
+                    android:layout_marginStart="6dp"
+                    android:gravity="center"
+                    android:paddingHorizontal="8dp"
+                    android:background="@drawable/focus_selector"
+                    android:text="⏱ Grid"
+                    android:textColor="#008CFF"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvCategories"

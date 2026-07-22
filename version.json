@@ -1,7 +1,7 @@
 {
-  "versionCode": 330,
-  "versionName": "4.92",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.92/MKTV.apk",
-  "apkSha256": "3bf7f9d75f69b1c171e79e414cd15166ae9d040fdd38759fa037b39de33ec6d3",
-  "changelog": "Fixed TV's provider enable/disable toggle to be D-pad reachable inline on the provider's row, and moved Guide's What's On/Grid buttons under the main tabs."
+  "versionCode": 331,
+  "versionName": "4.93",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.93/MKTV.apk",
+  "apkSha256": "a0c5e2cbdc393eac1ecfe8e9615e301fd6dca6ef534d67dc86982c393bcd7180",
+  "changelog": "Fixed the Providers tab's Live/Movies/Series row and Guide's What's On/Grid row being entirely missing in landscape (the mode used on car-box/head-unit devices)."
 }

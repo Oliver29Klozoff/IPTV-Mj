@@ -419,9 +419,24 @@ class HomeActivity : AppCompatActivity() {
         // Landscape previously only had an undiscoverable long-press-the-sidebar-entry
         // gesture to refresh (no visible icon at all, unlike portrait's btnRefreshProviders)
         // — landBtnRefreshProviders is a real visible icon button now. Long-press is kept too.
+        // Mode-aware to match btnRefreshProviders' own handler — this used to always refresh
+        // Live channels even while landscape was showing Movies/Series (before the
+        // Live/Movies/Series mode row existed here at all).
         val refreshProviders = {
-            viewModel.refreshMergedChannels()
-            Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+            when (providersMode) {
+                ProvidersMode.MOVIES -> {
+                    viewModel.refreshMergedVod()
+                    Toast.makeText(this, "Refreshing all providers' movies…", Toast.LENGTH_SHORT).show()
+                }
+                ProvidersMode.SERIES -> {
+                    viewModel.refreshMergedSeries()
+                    Toast.makeText(this, "Refreshing all providers' series…", Toast.LENGTH_SHORT).show()
+                }
+                ProvidersMode.LIVE -> {
+                    viewModel.refreshMergedChannels()
+                    Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         binding.root.findViewById<android.widget.ImageButton?>(R.id.landBtnRefreshProviders)?.setOnClickListener {
             refreshProviders()
