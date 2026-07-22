@@ -28,6 +28,12 @@ class SeriesAdapter(
                 if (item.isFavorite) android.R.drawable.btn_star_big_on
                 else android.R.drawable.btn_star_big_off
             )
+            // Same fixed-tint bug as VodAdapter — item_series.xml previously had a static
+            // android:tint="#008CFF" that never reflected favorite state.
+            binding.ivSeriesFavorite.setColorFilter(
+                if (item.isFavorite) android.graphics.Color.parseColor("#FFC107")
+                else android.graphics.Color.parseColor("#555555")
+            )
             binding.root.setOnClickListener { onSeriesClick(item) }
             binding.ivSeriesFavorite.setOnClickListener { onFavoriteClick(item) }
         }

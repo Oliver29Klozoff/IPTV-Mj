@@ -567,9 +567,27 @@ class TvSettingsActivity : AppCompatActivity() {
         extraServers.forEachIndexed { i, server ->
             val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Provider ${i + 2}" } }
             val isActive = activeIdx == i
+            val isEnabled = server.getOrElse(5) { "true" }.toBoolean()
             settingsItems += TvSettingItem.Action("server_$i",
-                "${if (isActive) "●  " else ""}$nick",
+                "${if (isActive) "●  " else ""}$nick${if (!isEnabled) "  (disabled)" else ""}",
                 value = server.getOrElse(0) { "" }.take(45)) { showServerOptions(i) }
+            // Same enable/disable toggle phone's Settings has — disabling hides the provider
+            // from the Providers tab/refresh/health-check entirely but keeps its saved
+            // credentials, matching the "temporary remove" reasoning used for the cache clear.
+            settingsItems += TvSettingItem.Toggle("server_enabled_$i", "Enabled",
+                checked = isEnabled) { checked ->
+                val updated = extraServers[i].toMutableList()
+                while (updated.size < 6) updated.add("true")
+                updated[5] = checked.toString()
+                extraServers[i] = updated
+                lifecycleScope.launch {
+                    prefs.saveExtraServersWithNick(extraServers)
+                    db.mergedChannelDao().clearAll()
+                    db.mergedVodDao().clearAll()
+                    db.mergedSeriesDao().clearAll()
+                    rebuildList("server_add")
+                }
+            }
         }
         settingsItems += TvSettingItem.Action("server_add", "Add Provider") { showAddServerDialog() }
         settingsItems += TvSettingItem.Action("server_update_channels", "Update All Provider Channels") {
@@ -1035,6 +1053,49 @@ class TvSettingsActivity : AppCompatActivity() {
                     put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
                 }
             }))
+
+            // Merged/other-provider favorites, folder assignments, pinned categories, and
+            // merged VOD/Series favorites — keyed by server URL (not serverIndex, meaningless
+            // across devices/restores). Previously missing entirely from TV's backup (unlike
+            // phone's SettingsActivity, which already had the channel-favorites half of this) —
+            // restoring a backup on TV silently dropped every merged favorite, not just VOD/
+            // Series ones.
+            val mergedUrlByIndex = repository.getMergedServerUrls()
+            val mergedFavorites = db.mergedChannelDao().getAllFavorites().first()
+            put("mergedFavorites", JSONArray(mergedFavorites.mapNotNull { ch ->
+                val url = mergedUrlByIndex[ch.serverIndex] ?: return@mapNotNull null
+                JSONObject().apply {
+                    put("serverUrl", url)
+                    put("streamId", ch.streamId)
+                    ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { put("folderName", it) } }
+                }
+            }))
+            val favoriteMergedCategoryKeys = prefs.favoriteMergedCategoryIds.first()
+            put("mergedFavoriteCategories", JSONArray(favoriteMergedCategoryKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+            }))
+            val mergedVodFavorites = db.mergedVodDao().getAllFavorites().first()
+            put("mergedVodFavorites", JSONArray(mergedVodFavorites.mapNotNull { v ->
+                val url = mergedUrlByIndex[v.serverIndex] ?: return@mapNotNull null
+                JSONObject().apply {
+                    put("serverUrl", url)
+                    put("streamId", v.streamId)
+                    v.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { put("folderName", it) } }
+                }
+            }))
+            val mergedSeriesFavorites = db.mergedSeriesDao().getAllFavorites().first()
+            put("mergedSeriesFavorites", JSONArray(mergedSeriesFavorites.mapNotNull { s ->
+                val url = mergedUrlByIndex[s.serverIndex] ?: return@mapNotNull null
+                JSONObject().apply {
+                    put("serverUrl", url)
+                    put("seriesId", s.seriesId)
+                    s.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { put("folderName", it) } }
+                }
+            }))
+
             val style = prefs.subtitleStyle.first()
             put("subtitleStyle", JSONObject().apply {
                 put("sizeScale", style.sizeScale)
@@ -1222,6 +1283,64 @@ class TvSettingsActivity : AppCompatActivity() {
                 prefs.saveExtraServersWithNick(restored)
                 extraServers.clear(); extraServers.addAll(restored)
                 db.mergedChannelDao().clearAll()
+                db.mergedVodDao().clearAll()
+                db.mergedSeriesDao().clearAll()
+            }
+
+            // Merged/other-provider favorites, folders, pinned categories, and merged VOD/
+            // Series favorites can't be applied yet — that provider's catalog hasn't been
+            // fetched at restore time, so there's no local row to mark isFavorite=1 on yet.
+            // Stored as pending, keyed by server URL, and applied once that server is actually
+            // refreshed (see XtreamRepository.refreshMergedChannels/refreshMergedVod/
+            // refreshMergedSeries). Previously entirely missing from TV's restore.
+            json.optJSONArray("mergedFavorites")?.let { arr ->
+                val keys = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    "${obj.optString("serverUrl")}|${obj.optInt("streamId")}"
+                }.toSet()
+                prefs.setPendingMergedFavorites(keys)
+                val folderKeys = (0 until arr.length()).mapNotNull { i ->
+                    val obj = arr.getJSONObject(i)
+                    val folderName = obj.optString("folderName", "")
+                    if (folderName.isBlank()) null
+                    else "${obj.optString("serverUrl")}|${obj.optInt("streamId")}|$folderName"
+                }.toSet()
+                if (folderKeys.isNotEmpty()) prefs.setPendingMergedChannelFolders(folderKeys)
+            }
+            json.optJSONArray("mergedFavoriteCategories")?.let { arr ->
+                val keys = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
+                }.toSet()
+                prefs.setPendingMergedFavoriteCategories(keys)
+            }
+            json.optJSONArray("mergedVodFavorites")?.let { arr ->
+                val keys = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    "${obj.optString("serverUrl")}|${obj.optInt("streamId")}"
+                }.toSet()
+                prefs.setPendingMergedVodFavorites(keys)
+                val folderKeys = (0 until arr.length()).mapNotNull { i ->
+                    val obj = arr.getJSONObject(i)
+                    val folderName = obj.optString("folderName", "")
+                    if (folderName.isBlank()) null
+                    else "${obj.optString("serverUrl")}|${obj.optInt("streamId")}|$folderName"
+                }.toSet()
+                if (folderKeys.isNotEmpty()) prefs.setPendingMergedVodFolders(folderKeys)
+            }
+            json.optJSONArray("mergedSeriesFavorites")?.let { arr ->
+                val keys = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    "${obj.optString("serverUrl")}|${obj.optInt("seriesId")}"
+                }.toSet()
+                prefs.setPendingMergedSeriesFavorites(keys)
+                val folderKeys = (0 until arr.length()).mapNotNull { i ->
+                    val obj = arr.getJSONObject(i)
+                    val folderName = obj.optString("folderName", "")
+                    if (folderName.isBlank()) null
+                    else "${obj.optString("serverUrl")}|${obj.optInt("seriesId")}|$folderName"
+                }.toSet()
+                if (folderKeys.isNotEmpty()) prefs.setPendingMergedSeriesFolders(folderKeys)
             }
 
             json.optJSONObject("subtitleStyle")?.let { s ->
@@ -1365,9 +1484,11 @@ class TvSettingsActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             prefs.saveExtraServersWithNick(extraServers)
                             // Removing a server shifts every later server's index, which could
-                            // silently re-attribute stale merged-channel rows to the wrong
-                            // server until the next manual refresh — just clear the cache.
+                            // silently re-attribute stale merged-channel/VOD/series rows to the
+                            // wrong server until the next manual refresh — just clear the caches.
                             db.mergedChannelDao().clearAll()
+                            db.mergedVodDao().clearAll()
+                            db.mergedSeriesDao().clearAll()
                             rebuildList("server_add")
                             toast("Provider removed")
                         }
@@ -1412,6 +1533,8 @@ class TvSettingsActivity : AppCompatActivity() {
                         prefs.saveCredentials(url, user, pass)
                         prefs.setServerNickname(nick)
                         db.mergedChannelDao().clearAll()
+                        db.mergedVodDao().clearAll()
+                        db.mergedSeriesDao().clearAll()
                         toast("Primary provider updated")
                         rebuildList("server_primary")
                     }
@@ -1496,6 +1619,8 @@ class TvSettingsActivity : AppCompatActivity() {
                         extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
+                        db.mergedVodDao().clearAll()
+                        db.mergedSeriesDao().clearAll()
                         rebuildList("server_add")
                         toast("Provider updated")
                     }

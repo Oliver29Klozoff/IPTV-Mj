@@ -1531,6 +1531,7 @@ class SettingsActivity : AppCompatActivity() {
             extraServers.forEachIndexed { i, server ->
                 val url = server[0]; val user = server[1]
                 val nick = server.getOrElse(3) { "" }.ifEmpty { user }
+                val enabled = server.getOrElse(5) { "true" }.toBoolean()
                 val row = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
                     setBackgroundColor(Color.parseColor("#1A1A1A"))
@@ -1539,6 +1540,10 @@ class SettingsActivity : AppCompatActivity() {
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     ).also { it.bottomMargin = 12 }
+                    // Dimmed while disabled — same "muted" visual language the app already uses
+                    // (e.g. the #555555 INACTIVE label just below) rather than inventing a new
+                    // convention. Credentials/nickname/URL stay fully readable, just de-emphasized.
+                    alpha = if (enabled) 1f else 0.45f
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = "PROVIDER ${i + 2}"
@@ -1564,6 +1569,33 @@ class SettingsActivity : AppCompatActivity() {
                     textSize = 11f
                     setSingleLine(true)
                     ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                    row.addView(this)
+                }
+                android.widget.Switch(this@SettingsActivity).apply {
+                    text = if (enabled) "Enabled" else "Disabled"
+                    isChecked = enabled
+                    setTextColor(Color.WHITE)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.topMargin = 12 }
+                    setOnCheckedChangeListener { _, checked ->
+                        val updated = extraServers[i].toMutableList()
+                        while (updated.size < 6) updated.add("true")
+                        updated[5] = checked.toString()
+                        extraServers[i] = updated
+                        lifecycleScope.launch {
+                            prefs.saveExtraServersWithNick(extraServers)
+                            // Disabling is architecturally a temporary Remove — same cache-clear
+                            // as the Remove button, so a disabled provider's stale favorited
+                            // items don't linger in the aggregate Favorites views until the next
+                            // full app restart.
+                            db.mergedChannelDao().clearAll()
+                            db.mergedVodDao().clearAll()
+                            db.mergedSeriesDao().clearAll()
+                        }
+                        updateServerList()
+                    }
                     row.addView(this)
                 }
                 val btnRow = android.widget.LinearLayout(this@SettingsActivity).apply {
@@ -1646,9 +1678,13 @@ class SettingsActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             prefs.saveExtraServersWithNick(extraServers)
                             // Removing a server shifts every later server's index, which could
-                            // silently re-attribute stale merged-channel rows to the wrong
-                            // server until the next manual refresh — just clear the cache.
+                            // silently re-attribute stale merged-channel/VOD/series rows to the
+                            // wrong server until the next manual refresh — just clear the caches.
+                            // mergedVodDao/mergedSeriesDao were added after this clear was
+                            // originally written and had been missed until now.
                             db.mergedChannelDao().clearAll()
+                            db.mergedVodDao().clearAll()
+                            db.mergedSeriesDao().clearAll()
                         }
                         updateServerList()
                     }
@@ -1737,6 +1773,8 @@ class SettingsActivity : AppCompatActivity() {
                         prefs.saveCredentials(url, user, pass)
                         prefs.setServerNickname(nick)
                         db.mergedChannelDao().clearAll()
+                        db.mergedVodDao().clearAll()
+                        db.mergedSeriesDao().clearAll()
                         Toast.makeText(this@SettingsActivity, "Primary provider updated", Toast.LENGTH_SHORT).show()
                         updateServerList()
                     }
@@ -1842,6 +1880,8 @@ class SettingsActivity : AppCompatActivity() {
                         extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
+                        db.mergedVodDao().clearAll()
+                        db.mergedSeriesDao().clearAll()
                         Toast.makeText(this@SettingsActivity, "Provider updated", Toast.LENGTH_SHORT).show()
                         updateServerList()
                     }
@@ -2012,7 +2052,12 @@ class SettingsActivity : AppCompatActivity() {
             }
             val connected = traktManager.isConnected.first()
             if (connected) {
-                binding.tvTraktStatus.text = "✓ Connected — scrobbling your watch activity"
+                val lastError = traktManager.lastScrobbleError.value
+                binding.tvTraktStatus.text = if (lastError != null) {
+                    "✓ Connected — last scrobble failed: $lastError"
+                } else {
+                    "✓ Connected — scrobbling your watch activity"
+                }
                 binding.btnTraktConnect.visibility = View.GONE
                 binding.btnTraktDisconnect.visibility = View.VISIBLE
                 binding.btnTraktSyncHistory.visibility = View.VISIBLE
@@ -2306,6 +2351,30 @@ class SettingsActivity : AppCompatActivity() {
                 val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
                 JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
             }))
+
+            // Merged VOD/Series favorites — same URL-keyed shape as mergedFavorites above, no
+            // category equivalent (neither DAO has a per-category favorite concept). Previously
+            // omitted entirely — restoring a backup brought merged live-channel favorites back
+            // but silently dropped every merged movie/show favorite.
+            val mergedVodFavorites = db.mergedVodDao().getAllFavorites().first()
+            put("mergedVodFavorites", JSONArray(mergedVodFavorites.mapNotNull { v ->
+                val url = mergedUrlByIndex[v.serverIndex] ?: return@mapNotNull null
+                JSONObject().apply {
+                    put("serverUrl", url)
+                    put("streamId", v.streamId)
+                    v.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
+                }
+            }))
+            val mergedSeriesFavorites = db.mergedSeriesDao().getAllFavorites().first()
+            put("mergedSeriesFavorites", JSONArray(mergedSeriesFavorites.mapNotNull { s ->
+                val url = mergedUrlByIndex[s.serverIndex] ?: return@mapNotNull null
+                JSONObject().apply {
+                    put("serverUrl", url)
+                    put("seriesId", s.seriesId)
+                    s.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
+                }
+            }))
+
             val style = prefs.subtitleStyle.first()
             put("subtitleStyle", JSONObject().apply {
                 put("sizeScale", style.sizeScale)
@@ -2453,6 +2522,8 @@ class SettingsActivity : AppCompatActivity() {
             prefs.saveExtraServersWithNick(restored)
             extraServers.clear(); extraServers.addAll(restored)
             db.mergedChannelDao().clearAll()
+            db.mergedVodDao().clearAll()
+            db.mergedSeriesDao().clearAll()
         }
 
         // Merged/other-provider favorites can't be applied yet — that provider's channels
@@ -2480,6 +2551,37 @@ class SettingsActivity : AppCompatActivity() {
                 "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
             }.toSet()
             lifecycleScope.launch { prefs.setPendingMergedFavoriteCategories(keys) }
+        }
+        // Merged VOD/Series favorites — same pending-apply mechanism as mergedFavorites above,
+        // consumed by XtreamRepository.refreshMergedVod/refreshMergedSeries once that server's
+        // catalog is actually fetched.
+        json.optJSONArray("mergedVodFavorites")?.let { arr ->
+            val keys = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                "${obj.optString("serverUrl")}|${obj.optInt("streamId")}"
+            }.toSet()
+            lifecycleScope.launch { prefs.setPendingMergedVodFavorites(keys) }
+            val folderKeys = (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                val folderName = obj.optString("folderName", "")
+                if (folderName.isBlank()) null
+                else "${obj.optString("serverUrl")}|${obj.optInt("streamId")}|$folderName"
+            }.toSet()
+            if (folderKeys.isNotEmpty()) lifecycleScope.launch { prefs.setPendingMergedVodFolders(folderKeys) }
+        }
+        json.optJSONArray("mergedSeriesFavorites")?.let { arr ->
+            val keys = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                "${obj.optString("serverUrl")}|${obj.optInt("seriesId")}"
+            }.toSet()
+            lifecycleScope.launch { prefs.setPendingMergedSeriesFavorites(keys) }
+            val folderKeys = (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                val folderName = obj.optString("folderName", "")
+                if (folderName.isBlank()) null
+                else "${obj.optString("serverUrl")}|${obj.optInt("seriesId")}|$folderName"
+            }.toSet()
+            if (folderKeys.isNotEmpty()) lifecycleScope.launch { prefs.setPendingMergedSeriesFolders(folderKeys) }
         }
 
         // VOD/series watch progress + per-episode watched state. Restore is a full overwrite

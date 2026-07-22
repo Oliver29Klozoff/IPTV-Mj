@@ -17,6 +17,8 @@ import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.EpisodeWatchedEntity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,6 +49,16 @@ class TraktManager @Inject constructor(
     // the token exchange/refresh on the app's behalf.
     val isConfigured: Boolean get() = clientId.isNotBlank() && proxyUrl.isNotBlank()
     val isConnected: Flow<Boolean> get() = prefs.traktConnected
+
+    // Scrobbling is deliberately fire-and-forget (see traktScrobble in PlayerActivity —
+    // "never blocks playback"), so a failure was previously just a Log.e with no user-visible
+    // trace at all. Not surfaced as a toast (a scrobble fires many times per playback session,
+    // so per-failure toasts would be noisy and often wrong — e.g. transient network blips), but
+    // tracked here so Settings > Sync can show "last scrobble failed: <reason>" for the user to
+    // notice at their own pace. In-memory only (not persisted) since it's session-scoped
+    // diagnostic info, not data worth keeping across app restarts.
+    private val _lastScrobbleError = MutableStateFlow<String?>(null)
+    val lastScrobbleError: StateFlow<String?> = _lastScrobbleError
 
     fun parseTitle(raw: String): ParsedTitle {
         val m = Regex("""^(.*?)\s*\((\d{4})\)\s*$""").find(raw.trim())
@@ -139,8 +151,10 @@ class TraktManager @Inject constructor(
         val token = validAccessToken() ?: return
         try {
             call("Bearer $token", TraktScrobbleRequest(movie = movie, show = show, episode = episode, progress = progress))
+            _lastScrobbleError.value = null
         } catch (e: Exception) {
             Log.e("TraktManager", "Scrobble call failed: ${e.message}")
+            _lastScrobbleError.value = e.message ?: "Unknown error"
         }
     }
 

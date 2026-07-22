@@ -293,18 +293,42 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // True while the Providers tab (Live mode) is showing the aggregate "★ Favorites" view —
+    // every merged-favorited live channel across ALL configured secondary providers at once,
+    // reached by tapping the Favorites entry at the top of the server picker rather than
+    // picking a specific provider. See selectMergedAllFavoritesAcrossServers.
+    var isViewingMergedFavorites: Boolean = false; private set
+
     fun resetMergedSelection() {
         selectedMergedServerIndex = null
         selectedMergedCategoryId = null
         hasMergedCategorySelected = false
         selectedMergedFavoriteFolder = null
+        isViewingMergedFavorites = false
         mergedCategoriesJob?.cancel()
         mergedChannelsJob?.cancel()
         _mergedCategories.value = emptyList()
         _mergedChannels.value = emptyList()
     }
 
+    // Aggregate favorites across every configured secondary provider at once — no category
+    // level (there's nothing to drill into), straight to the flat item list. Reuses the same
+    // repository query the Favorites tab's "All Favorites" merged-channel view already uses.
+    fun selectMergedAllFavoritesAcrossServers() {
+        isViewingMergedFavorites = true
+        selectedMergedServerIndex = null
+        selectedMergedCategoryId = null
+        hasMergedCategorySelected = false
+        mergedCategoriesJob?.cancel()
+        mergedChannelsJob?.cancel()
+        _mergedCategories.value = emptyList()
+        mergedChannelsJob = viewModelScope.launch {
+            repository.getMergedAllFavorites().collectLatest { _mergedChannels.value = it }
+        }
+    }
+
     fun selectMergedServer(serverIndex: Int) {
+        isViewingMergedFavorites = false
         selectedMergedServerIndex = serverIndex
         selectedMergedCategoryId = null
         hasMergedCategorySelected = false
@@ -384,6 +408,8 @@ class HomeViewModel @Inject constructor(
     var selectedMergedVodServerIndex: Int? = null; private set
     var selectedMergedVodCategoryId: String? = null; private set
     private var mergedVodServersJob: Job? = null
+    // Same aggregate-favorites-view flag as isViewingMergedFavorites, for Movies mode.
+    var isViewingMergedVodFavorites: Boolean = false; private set
 
     fun startObservingMergedVodServers() {
         if (mergedVodServersJob != null) return
@@ -395,13 +421,27 @@ class HomeViewModel @Inject constructor(
     fun resetMergedVodSelection() {
         selectedMergedVodServerIndex = null
         selectedMergedVodCategoryId = null
+        isViewingMergedVodFavorites = false
         mergedVodCategoriesJob?.cancel()
         mergedVodItemsJob?.cancel()
         _mergedVodCategories.value = emptyList()
         _mergedVod.value = emptyList()
     }
 
+    fun selectMergedVodAllFavoritesAcrossServers() {
+        isViewingMergedVodFavorites = true
+        selectedMergedVodServerIndex = null
+        selectedMergedVodCategoryId = null
+        mergedVodCategoriesJob?.cancel()
+        mergedVodItemsJob?.cancel()
+        _mergedVodCategories.value = emptyList()
+        mergedVodItemsJob = viewModelScope.launch {
+            repository.getMergedVodAllFavorites().collectLatest { _mergedVod.value = it }
+        }
+    }
+
     fun selectMergedVodServer(serverIndex: Int) {
+        isViewingMergedVodFavorites = false
         selectedMergedVodServerIndex = serverIndex
         selectedMergedVodCategoryId = null
         mergedVodCategoriesJob?.cancel()
@@ -415,14 +455,18 @@ class HomeViewModel @Inject constructor(
         selectedMergedVodCategoryId = categoryId
         mergedVodItemsJob?.cancel()
         mergedVodItemsJob = viewModelScope.launch {
-            repository.getMergedVodByCategory(serverIndex, categoryId).collectLatest { _mergedVod.value = it }
+            repository.getMergedVodByCategory(serverIndex, categoryId).collectLatest {
+                _mergedVod.value = it.sortedByDescending { v -> v.isFavorite }
+            }
         }
     }
 
     fun searchMergedVod(query: String) {
         mergedVodItemsJob?.cancel()
         mergedVodItemsJob = viewModelScope.launch {
-            repository.searchMergedVod(query).collectLatest { _mergedVod.value = it }
+            repository.searchMergedVod(query).collectLatest {
+                _mergedVod.value = it.sortedByDescending { v -> v.isFavorite }
+            }
         }
     }
 
@@ -458,6 +502,8 @@ class HomeViewModel @Inject constructor(
     var selectedMergedSeriesServerIndex: Int? = null; private set
     var selectedMergedSeriesCategoryId: String? = null; private set
     private var mergedSeriesServersJob: Job? = null
+    // Same aggregate-favorites-view flag as isViewingMergedFavorites, for Series mode.
+    var isViewingMergedSeriesFavorites: Boolean = false; private set
 
     fun startObservingMergedSeriesServers() {
         if (mergedSeriesServersJob != null) return
@@ -469,13 +515,27 @@ class HomeViewModel @Inject constructor(
     fun resetMergedSeriesSelection() {
         selectedMergedSeriesServerIndex = null
         selectedMergedSeriesCategoryId = null
+        isViewingMergedSeriesFavorites = false
         mergedSeriesCategoriesJob?.cancel()
         mergedSeriesItemsJob?.cancel()
         _mergedSeriesCategories.value = emptyList()
         _mergedSeries.value = emptyList()
     }
 
+    fun selectMergedSeriesAllFavoritesAcrossServers() {
+        isViewingMergedSeriesFavorites = true
+        selectedMergedSeriesServerIndex = null
+        selectedMergedSeriesCategoryId = null
+        mergedSeriesCategoriesJob?.cancel()
+        mergedSeriesItemsJob?.cancel()
+        _mergedSeriesCategories.value = emptyList()
+        mergedSeriesItemsJob = viewModelScope.launch {
+            repository.getMergedSeriesAllFavorites().collectLatest { _mergedSeries.value = it }
+        }
+    }
+
     fun selectMergedSeriesServer(serverIndex: Int) {
+        isViewingMergedSeriesFavorites = false
         selectedMergedSeriesServerIndex = serverIndex
         selectedMergedSeriesCategoryId = null
         mergedSeriesCategoriesJob?.cancel()
@@ -489,14 +549,18 @@ class HomeViewModel @Inject constructor(
         selectedMergedSeriesCategoryId = categoryId
         mergedSeriesItemsJob?.cancel()
         mergedSeriesItemsJob = viewModelScope.launch {
-            repository.getMergedSeriesByCategory(serverIndex, categoryId).collectLatest { _mergedSeries.value = it }
+            repository.getMergedSeriesByCategory(serverIndex, categoryId).collectLatest {
+                _mergedSeries.value = it.sortedByDescending { s -> s.isFavorite }
+            }
         }
     }
 
     fun searchMergedSeries(query: String) {
         mergedSeriesItemsJob?.cancel()
         mergedSeriesItemsJob = viewModelScope.launch {
-            repository.searchMergedSeries(query).collectLatest { _mergedSeries.value = it }
+            repository.searchMergedSeries(query).collectLatest {
+                _mergedSeries.value = it.sortedByDescending { s -> s.isFavorite }
+            }
         }
     }
 
@@ -967,12 +1031,16 @@ class HomeViewModel @Inject constructor(
     fun yearFromTitle(name: String): Int? =
         Regex("""\((\d{4})\)\s*$""").find(name.trim())?.groupValues?.get(1)?.toIntOrNull()
 
-    // Movies with any watch progress (started or finished) always float above untouched ones,
-    // regardless of the chosen sort — the chosen sort only orders within each bucket. Most
-    // recently watched comes first within the "in progress" bucket so a movie picked up again
-    // stays near the top instead of jumping around.
+    // Favorited movies float to the very top (a favorite is a deliberate bookmark, so it
+    // outranks "you happened to start watching this"), then movies with any watch progress
+    // (started or finished), then everything else — the chosen sort only orders within each
+    // bucket. Most recently watched comes first within the "in progress" bucket so a movie
+    // picked up again stays near the top instead of jumping around. Favoriting previously did
+    // nothing visible anywhere in the list — this was the missing half of that feature.
     fun applyVodSort(list: List<VodEntity>): List<VodEntity> {
-        val (started, untouched) = list.partition { it.watchedMs > 0 }
+        val (favorited, rest) = list.partition { it.isFavorite }
+        val (started, untouched) = rest.partition { it.watchedMs > 0 }
+        val sortedFavorited = favorited.sortedByDescending { it.watchedMs }
         val sortedStarted = started.sortedByDescending { it.watchedMs }
         val sortedRest = when (_vodSort.value) {
             VodSort.DEFAULT -> untouched
@@ -981,7 +1049,7 @@ class HomeViewModel @Inject constructor(
             VodSort.YEAR_OLDEST -> untouched.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
             VodSort.RECENTLY_ADDED -> untouched.sortedByDescending { it.added?.toLongOrNull() ?: 0L }
         }
-        return sortedStarted + sortedRest
+        return sortedFavorited + sortedStarted + sortedRest
     }
 
     enum class SeriesSort { DEFAULT, RATING_DESC, YEAR_NEWEST, YEAR_OLDEST, RECENTLY_ADDED }
@@ -998,8 +1066,11 @@ class HomeViewModel @Inject constructor(
 
     // Series has no "added" timestamp field from the provider (unlike VOD) — cachedAt (when
     // this app synced the row) is the closest available proxy for "recently added".
+    // Same favorites-first priority as applyVodSort — favoriting previously did nothing visible
+    // here either.
     fun applySeriesSort(list: List<SeriesEntity>): List<SeriesEntity> {
-        val (started, untouched) = list.partition { it.seriesId in seriesIdsWithProgress }
+        val (favorited, rest) = list.partition { it.isFavorite }
+        val (started, untouched) = rest.partition { it.seriesId in seriesIdsWithProgress }
         val sortedRest = when (_seriesSort.value) {
             SeriesSort.DEFAULT -> untouched
             SeriesSort.RATING_DESC -> untouched.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
@@ -1007,7 +1078,7 @@ class HomeViewModel @Inject constructor(
             SeriesSort.YEAR_OLDEST -> untouched.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
             SeriesSort.RECENTLY_ADDED -> untouched.sortedByDescending { it.cachedAt }
         }
-        return started + sortedRest
+        return favorited + started + sortedRest
     }
 
     fun hasSelectedCategory(): Boolean = selectedLiveCategoryId != null

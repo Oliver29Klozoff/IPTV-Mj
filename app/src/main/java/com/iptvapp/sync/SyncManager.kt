@@ -98,6 +98,29 @@ class SyncManager @Inject constructor(
                 mapOf("serverUrl" to url, "categoryId" to categoryId)
             }
 
+            // Merged VOD/Series favorites — same URL-keyed shape as mergedFavorites above, no
+            // category equivalent (neither DAO has a per-category favorite concept). Previously
+            // omitted entirely — a synced device's merged movie/show favorites never carried
+            // over even though merged live-channel favorites did.
+            val mergedVodFavorites = db.mergedVodDao().getAllFavorites().first()
+            val mergedVodFavoritesPayload = mergedVodFavorites.mapNotNull { v ->
+                val url = urlByServerIndex[v.serverIndex] ?: return@mapNotNull null
+                mapOf(
+                    "serverUrl" to url,
+                    "streamId" to v.streamId,
+                    "folderName" to v.favoriteFolderId?.let { mergedFolderNameById[it] }
+                )
+            }
+            val mergedSeriesFavorites = db.mergedSeriesDao().getAllFavorites().first()
+            val mergedSeriesFavoritesPayload = mergedSeriesFavorites.mapNotNull { s ->
+                val url = urlByServerIndex[s.serverIndex] ?: return@mapNotNull null
+                mapOf(
+                    "serverUrl" to url,
+                    "seriesId" to s.seriesId,
+                    "folderName" to s.favoriteFolderId?.let { mergedFolderNameById[it] }
+                )
+            }
+
             val data = hashMapOf(
                 "version"            to 1,
                 "syncedAt"           to System.currentTimeMillis(),
@@ -115,7 +138,9 @@ class SyncManager @Inject constructor(
                 "seriesProgress"     to seriesProgress,
                 "episodesWatched"    to episodesWatched,
                 "mergedFavorites"    to mergedFavoritesPayload,
-                "mergedFavoriteCategories" to favoriteMergedCategories
+                "mergedFavoriteCategories" to favoriteMergedCategories,
+                "mergedVodFavorites" to mergedVodFavoritesPayload,
+                "mergedSeriesFavorites" to mergedSeriesFavoritesPayload
             )
 
             firestore.collection("users").document(user.uid).set(data, SetOptions.merge()).await()
@@ -317,6 +342,65 @@ class SyncManager @Inject constructor(
                 prefs.addFavoriteMergedCategoryId("$serverIndex:$categoryId")
             }
 
+            // Merged VOD/Series favorites — same URL-matched shape as merged channels above.
+            // Unconditionally applies setFavorite/setFavoriteFolder even if the local
+            // merged_vod/merged_series row doesn't exist yet (a no-op UPDATE in that case) —
+            // matches the existing merged-channel sync-down behavior exactly, no pending-apply
+            // fallback here (that's a Backup/Restore-only mechanism).
+            @Suppress("UNCHECKED_CAST")
+            val remoteMergedVodFavorites = (doc.get("mergedVodFavorites") as? List<Map<*, *>>) ?: emptyList()
+            var mergedVodFavoritesMerged = 0
+            val remoteMergedVodFolderNames = remoteMergedVodFavorites.mapNotNull { it["folderName"] as? String }.distinct()
+            val vodIdByName = mergedIdByName
+            var vodNextOrder = mergedNextOrder
+            for (name in remoteMergedVodFolderNames) {
+                if (name !in vodIdByName) {
+                    val newId = db.favoriteFolderDao().insert(
+                        com.iptvapp.data.local.entities.FavoriteFolderEntity(name = name, sortOrder = vodNextOrder++)
+                    ).toInt()
+                    vodIdByName[name] = newId
+                }
+            }
+            remoteMergedVodFavorites.forEach { entry ->
+                val url = entry["serverUrl"] as? String ?: return@forEach
+                val serverIndex = serverIndexByUrl[url] ?: return@forEach
+                val streamId = (entry["streamId"] as? Long)?.toInt() ?: return@forEach
+                db.mergedVodDao().setFavorite(serverIndex, streamId, true)
+                mergedVodFavoritesMerged++
+                (entry["folderName"] as? String)?.let { folderName ->
+                    vodIdByName[folderName]?.let { folderId ->
+                        db.mergedVodDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                    }
+                }
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val remoteMergedSeriesFavorites = (doc.get("mergedSeriesFavorites") as? List<Map<*, *>>) ?: emptyList()
+            var mergedSeriesFavoritesMerged = 0
+            val remoteMergedSeriesFolderNames = remoteMergedSeriesFavorites.mapNotNull { it["folderName"] as? String }.distinct()
+            val seriesIdByName = vodIdByName
+            var seriesNextOrder = vodNextOrder
+            for (name in remoteMergedSeriesFolderNames) {
+                if (name !in seriesIdByName) {
+                    val newId = db.favoriteFolderDao().insert(
+                        com.iptvapp.data.local.entities.FavoriteFolderEntity(name = name, sortOrder = seriesNextOrder++)
+                    ).toInt()
+                    seriesIdByName[name] = newId
+                }
+            }
+            remoteMergedSeriesFavorites.forEach { entry ->
+                val url = entry["serverUrl"] as? String ?: return@forEach
+                val serverIndex = serverIndexByUrl[url] ?: return@forEach
+                val seriesId = (entry["seriesId"] as? Long)?.toInt() ?: return@forEach
+                db.mergedSeriesDao().setFavorite(serverIndex, seriesId, true)
+                mergedSeriesFavoritesMerged++
+                (entry["folderName"] as? String)?.let { folderName ->
+                    seriesIdByName[folderName]?.let { folderId ->
+                        db.mergedSeriesDao().setFavoriteFolder(serverIndex, seriesId, folderId)
+                    }
+                }
+            }
+
             val syncedAt   = doc.getLong("syncedAt") ?: 0L
             val syncDevice = doc.getString("device") ?: "Unknown"
             val dateStr    = if (syncedAt > 0)
@@ -325,7 +409,8 @@ class SyncManager @Inject constructor(
 
             prefs.setLastSyncTime(System.currentTimeMillis())
             val progressSuffix = if (vodProgressMerged > 0) " and $vodProgressMerged watch progress update${if (vodProgressMerged == 1) "" else "s"}" else ""
-            val mergedSuffix = if (mergedFavoritesMerged > 0) " and $mergedFavoritesMerged other-provider favorite${if (mergedFavoritesMerged == 1) "" else "s"}" else ""
+            val totalMergedFavorites = mergedFavoritesMerged + mergedVodFavoritesMerged + mergedSeriesFavoritesMerged
+            val mergedSuffix = if (totalMergedFavorites > 0) " and $totalMergedFavorites other-provider favorite${if (totalMergedFavorites == 1) "" else "s"}" else ""
             "Pulled ${merged.size} favorites$progressSuffix$mergedSuffix from $syncDevice ($dateStr)"
         } catch (e: Exception) {
             "Sync failed: ${e.message}"

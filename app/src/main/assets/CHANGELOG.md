@@ -1,5 +1,23 @@
 # IPTV App - Changelog
 
+## v4.91 - 2026-07-22
+- **Fixed**: the Guide tab's list view could show two "▶ NOW" entries for the same channel
+  when a provider's EPG had overlapping or back-to-back program times — now only the program
+  whose time window actually contains the current moment is marked NOW.
+- **Fixed**: every movie/show star showed as favorited in Movies and Providers > Movies/Series,
+  even ones never favorited — a leftover fixed blue tint on the star icon made an unfavorited
+  star hard to tell apart from a favorited one against most poster art.
+- **Fixed**: long-pressing a category in Providers > Movies/Series incorrectly favorited/pinned
+  the whole category, a Live-only concept that Movies/Series were never meant to have.
+- **Added**: per-provider enable/disable toggle in Settings (phone and TV) — disabling a
+  provider hides it from the Providers tab and skips it in refreshes/health checks, but keeps
+  its saved login so you can turn it back on anytime with nothing to re-enter.
+- **Added**: a "★ Favorites" entry at the top of each Providers-tab mode's provider list (Live,
+  Movies, Series independently) — aggregates that mode's favorited items across every
+  configured secondary provider in one place.
+- **Changed**: the Providers tab's Live/Movies/Series control is now three separate buttons in
+  their own row under the main tabs, instead of one button that cycled through the three modes.
+
 ## v4.90 - 2026-07-21
 - **Added**: the Providers tab can now browse Movies and Series from every secondary provider,
   not just Live channels — a new Live/Movies/Series toggle switches the whole browse tree.

@@ -1393,7 +1393,7 @@ class TvHomeActivity : AppCompatActivity() {
         val genre = activeTvSeriesGenre
         val filtered = if (genre == null) list
             else list.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }
-        seriesAdapter.submitList(filtered)
+        seriesAdapter.submitList(viewModel.applySeriesSort(filtered))
     }
 
     // ── Genre folder chips (Series/Movies) — same bucketing GenreBuckets provides on phone ──
@@ -1587,7 +1587,10 @@ class TvHomeActivity : AppCompatActivity() {
                 if (currentSection == Section.MOVIES) {
                     val wantFocus = pendingContentFocus
                     if (wantFocus) pendingContentFocus = false
-                    vodAdapter.submitList(it) {
+                    // applyVodSort also floats favorited/in-progress movies to the top — TV
+                    // never called this at all, so favoriting/resuming had no visible effect
+                    // here (phone already applies it, see HomeActivity.kt:2437).
+                    vodAdapter.submitList(viewModel.applyVodSort(it)) {
                         if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                     }
                 }
@@ -1602,7 +1605,8 @@ class TvHomeActivity : AppCompatActivity() {
                     val genre = activeTvSeriesGenre
                     val filtered = if (genre == null) it
                         else it.filter { s -> genre in com.iptvapp.util.GenreBuckets.bucketsFor(s.genre?.split(",").orEmpty()) }
-                    seriesAdapter.submitList(filtered) {
+                    // Same favorites/in-progress-first sort phone already applies (HomeActivity.kt:1717).
+                    seriesAdapter.submitList(viewModel.applySeriesSort(filtered)) {
                         if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                     }
                 }

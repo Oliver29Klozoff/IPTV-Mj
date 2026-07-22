@@ -14,5 +14,5 @@
         <TextView android:id="@+id/tvVodRating" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textColor="#888888" android:textSize="12sp" />
         <ProgressBar android:id="@+id/progressVod" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="4dp" android:max="100" android:progress="0" android:progressTint="#008CFF" android:visibility="gone" />
     </LinearLayout>
-    <ImageView android:id="@+id/ivVodFavorite" android:layout_width="24dp" android:layout_height="24dp" android:src="@android:drawable/btn_star_big_off" android:tint="#008CFF" />
+    <ImageView android:id="@+id/ivVodFavorite" android:layout_width="24dp" android:layout_height="24dp" android:src="@android:drawable/btn_star_big_off" />
 </LinearLayout>

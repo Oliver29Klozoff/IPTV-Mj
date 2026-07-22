@@ -773,6 +773,13 @@ class XtreamRepository @Inject constructor(
             ConfiguredServer(-1, primary.serverUrl, primary.username, primary.password, primaryNick)
         )
         prefs.getExtraServersWithNick().forEachIndexed { i, s ->
+            // A disabled provider is treated as if it doesn't exist for every browsing/refresh/
+            // health-check purpose — this is the single choke point every one of those reads
+            // through, so a provider skipped here needs zero other code changes to disappear
+            // from all of them. Settings' own provider-list UI reads the raw, unfiltered list
+            // directly (not through this function), so a disabled provider still shows there —
+            // dimmed, with its saved credentials intact — for the user to re-enable later.
+            if (!s.getOrElse(5) { "true" }.toBoolean()) return@forEachIndexed
             val nick = s.getOrElse(3) { "" }.ifBlank { s[1] }
             servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick))
         }
@@ -1020,6 +1027,113 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    /** VOD equivalent of applyPendingMergedRestoreData — same matched-by-URL, consume-once-
+     * applied shape, minus the categories block (no per-category favorite concept exists for
+     * merged VOD). */
+    private suspend fun applyPendingMergedVodRestoreData(refreshedServers: List<ConfiguredServer>) {
+        val urlByServerIndex = refreshedServers.associate { it.serverUrl to it.serverIndex }
+
+        val pendingFavorites = prefs.pendingMergedVodFavorites.first()
+        if (pendingFavorites.isNotEmpty()) {
+            val remaining = pendingFavorites.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val streamId = parts.getOrNull(1)?.toIntOrNull()
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && streamId != null) {
+                    val vod = db.mergedVodDao().getByIndexAndId(serverIndex, streamId)
+                    if (vod != null) {
+                        db.mergedVodDao().setFavorite(serverIndex, streamId, true)
+                        false
+                    } else true
+                } else true
+            }.toSet()
+            if (remaining != pendingFavorites) prefs.setPendingMergedVodFavorites(remaining)
+        }
+
+        val pendingFolders = prefs.pendingMergedVodFolders.first()
+        if (pendingFolders.isNotEmpty()) {
+            val existingFolders = db.favoriteFolderDao().getAll().first()
+            val idByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+            var nextOrder = existingFolders.size
+            val remaining = pendingFolders.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val streamId = parts.getOrNull(1)?.toIntOrNull()
+                val folderName = parts.getOrNull(2)
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && streamId != null && folderName != null) {
+                    val vod = db.mergedVodDao().getByIndexAndId(serverIndex, streamId)
+                    if (vod != null) {
+                        var folderId = idByName[folderName]
+                        if (folderId == null) {
+                            folderId = db.favoriteFolderDao().insert(
+                                com.iptvapp.data.local.entities.FavoriteFolderEntity(name = folderName, sortOrder = nextOrder++)
+                            ).toInt()
+                            idByName[folderName] = folderId
+                        }
+                        db.mergedVodDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                        false
+                    } else true
+                } else true
+            }.toSet()
+            if (remaining != pendingFolders) prefs.setPendingMergedVodFolders(remaining)
+        }
+    }
+
+    /** Series equivalent of applyPendingMergedVodRestoreData — same shape, seriesId instead of
+     * streamId. */
+    private suspend fun applyPendingMergedSeriesRestoreData(refreshedServers: List<ConfiguredServer>) {
+        val urlByServerIndex = refreshedServers.associate { it.serverUrl to it.serverIndex }
+
+        val pendingFavorites = prefs.pendingMergedSeriesFavorites.first()
+        if (pendingFavorites.isNotEmpty()) {
+            val remaining = pendingFavorites.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val seriesId = parts.getOrNull(1)?.toIntOrNull()
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && seriesId != null) {
+                    val series = db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)
+                    if (series != null) {
+                        db.mergedSeriesDao().setFavorite(serverIndex, seriesId, true)
+                        false
+                    } else true
+                } else true
+            }.toSet()
+            if (remaining != pendingFavorites) prefs.setPendingMergedSeriesFavorites(remaining)
+        }
+
+        val pendingFolders = prefs.pendingMergedSeriesFolders.first()
+        if (pendingFolders.isNotEmpty()) {
+            val existingFolders = db.favoriteFolderDao().getAll().first()
+            val idByName = existingFolders.associate { it.name to it.id }.toMutableMap()
+            var nextOrder = existingFolders.size
+            val remaining = pendingFolders.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val seriesId = parts.getOrNull(1)?.toIntOrNull()
+                val folderName = parts.getOrNull(2)
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && seriesId != null && folderName != null) {
+                    val series = db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)
+                    if (series != null) {
+                        var folderId = idByName[folderName]
+                        if (folderId == null) {
+                            folderId = db.favoriteFolderDao().insert(
+                                com.iptvapp.data.local.entities.FavoriteFolderEntity(name = folderName, sortOrder = nextOrder++)
+                            ).toInt()
+                            idByName[folderName] = folderId
+                        }
+                        db.mergedSeriesDao().setFavoriteFolder(serverIndex, seriesId, folderId)
+                        false
+                    } else true
+                } else true
+            }.toSet()
+            if (remaining != pendingFolders) prefs.setPendingMergedSeriesFolders(remaining)
+        }
+    }
+
     /** Movies-tab equivalent of refreshMergedChannels — same per-server fetch/timeout/
      * clear-only-successful-servers/preserve-favorites shape, sourced from get_vod_categories
      * and get_vod_streams instead of the live-channel endpoints. Deliberately a separate
@@ -1080,6 +1194,7 @@ class XtreamRepository @Inject constructor(
             db.mergedVodDao().clearForServer(serverIndex)
         }
         db.mergedVodDao().upsertAll(results)
+        applyPendingMergedVodRestoreData(servers)
         return errors
     }
 
@@ -1168,6 +1283,7 @@ class XtreamRepository @Inject constructor(
             db.mergedSeriesDao().clearForServer(serverIndex)
         }
         db.mergedSeriesDao().upsertAll(results)
+        applyPendingMergedSeriesRestoreData(servers)
         return errors
     }
 
@@ -1379,6 +1495,12 @@ class XtreamRepository @Inject constructor(
 
     fun getMergedAllFavorites(): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().getAllFavorites()
+    // Movies/Series equivalents — aggregate favorites across EVERY configured secondary
+    // provider, backing the "★ Favorites" entry at the top of the Providers tab's server
+    // picker (see HomeViewModel.selectMergedVodAllFavoritesAcrossServers/
+    // selectMergedSeriesAllFavoritesAcrossServers).
+    fun getMergedVodAllFavorites(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getAllFavorites()
+    fun getMergedSeriesAllFavorites(): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().getAllFavorites()
     fun getMergedFavoritesInFolder(folderId: Int): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().getFavoritesInFolder(folderId)
     fun getMergedUnfiledFavorites(): Flow<List<MergedChannelEntity>> =

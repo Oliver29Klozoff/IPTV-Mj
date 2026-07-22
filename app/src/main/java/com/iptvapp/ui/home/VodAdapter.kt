@@ -29,6 +29,14 @@ class VodAdapter(
                 if (item.isFavorite) android.R.drawable.btn_star_big_on
                 else android.R.drawable.btn_star_big_off
             )
+            // item_vod.xml used to have a fixed android:tint="#008CFF" on this ImageView, which
+            // never changed regardless of favorite state — a blue-tinted "off" star was easy to
+            // mistake for an "on" one at a glance, especially against varied poster art, making
+            // every row look favorited. Explicit per-state tint here instead.
+            binding.ivVodFavorite.setColorFilter(
+                if (item.isFavorite) android.graphics.Color.parseColor("#FFC107")
+                else android.graphics.Color.parseColor("#555555")
+            )
             if (item.watchedMs > 0 && item.durationMs > 0) {
                 val pct = ((item.watchedMs * 100) / item.durationMs).coerceIn(0, 100).toInt()
                 binding.progressVod.progress = pct

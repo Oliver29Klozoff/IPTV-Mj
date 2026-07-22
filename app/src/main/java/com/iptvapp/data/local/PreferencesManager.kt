@@ -56,6 +56,16 @@ class PreferencesManager @Inject constructor(
         val PENDING_MERGED_FAVORITE_CATEGORIES = stringSetPreferencesKey("pending_merged_favorite_categories")
         // Keyed "$serverUrl|$streamId|$folderName"
         val PENDING_MERGED_CHANNEL_FOLDERS = stringSetPreferencesKey("pending_merged_channel_folders")
+        // VOD/Series equivalents of the two keys above — no category-equivalent exists for
+        // either (MergedVodDao/MergedSeriesDao have no per-category favorite concept).
+        // Keyed "$serverUrl|$streamId"
+        val PENDING_MERGED_VOD_FAVORITES = stringSetPreferencesKey("pending_merged_vod_favorites")
+        // Keyed "$serverUrl|$streamId|$folderName"
+        val PENDING_MERGED_VOD_FOLDERS = stringSetPreferencesKey("pending_merged_vod_folders")
+        // Keyed "$serverUrl|$seriesId"
+        val PENDING_MERGED_SERIES_FAVORITES = stringSetPreferencesKey("pending_merged_series_favorites")
+        // Keyed "$serverUrl|$seriesId|$folderName"
+        val PENDING_MERGED_SERIES_FOLDERS = stringSetPreferencesKey("pending_merged_series_folders")
         // Applied once the new PRIMARY provider's channels are fetched, when switching TO a
         // provider that already had secondary-provider favorites recorded (see
         // XtreamRepository's Switch handling in SettingsActivity/TvSettingsActivity) — those
@@ -415,7 +425,10 @@ class PreferencesManager @Inject constructor(
             // never saved, when really it was being read back as if it didn't exist.
             listOf(
                 obj.getString("url"), obj.getString("user"), obj.getString("pass"),
-                obj.optString("nick", ""), obj.optString("epg", "")
+                obj.optString("nick", ""), obj.optString("epg", ""),
+                // "enabled" (index 5) — optString default "true" means every existing install's
+                // already-saved providers stay enabled with zero migration needed.
+                obj.optString("enabled", "true")
             )
         }
     }
@@ -426,6 +439,7 @@ class PreferencesManager @Inject constructor(
             arr.put(org.json.JSONObject().apply {
                 put("url", s[0]); put("user", s[1]); put("pass", s[2])
                 put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
+                put("enabled", s.getOrElse(5) { "true" })
             })
         }
         context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
@@ -466,6 +480,26 @@ class PreferencesManager @Inject constructor(
     val pendingMergedChannelFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_CHANNEL_FOLDERS] ?: emptySet() }
     suspend fun setPendingMergedChannelFolders(keys: Set<String>) {
         context.dataStore.edit { it[Keys.PENDING_MERGED_CHANNEL_FOLDERS] = keys }
+    }
+
+    val pendingMergedVodFavorites: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_VOD_FAVORITES] ?: emptySet() }
+    suspend fun setPendingMergedVodFavorites(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_VOD_FAVORITES] = keys }
+    }
+
+    val pendingMergedVodFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_VOD_FOLDERS] ?: emptySet() }
+    suspend fun setPendingMergedVodFolders(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_VOD_FOLDERS] = keys }
+    }
+
+    val pendingMergedSeriesFavorites: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_SERIES_FAVORITES] ?: emptySet() }
+    suspend fun setPendingMergedSeriesFavorites(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_SERIES_FAVORITES] = keys }
+    }
+
+    val pendingMergedSeriesFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_MERGED_SERIES_FOLDERS] ?: emptySet() }
+    suspend fun setPendingMergedSeriesFolders(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_MERGED_SERIES_FOLDERS] = keys }
     }
 
     suspend fun setFavoriteLiveCategoryIds(ids: Set<String>) {

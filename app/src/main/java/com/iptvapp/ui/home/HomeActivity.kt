@@ -17,6 +17,7 @@ import android.os.Looper
 import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.view.ViewCompat
@@ -152,10 +153,17 @@ class HomeActivity : AppCompatActivity() {
     private var providersTabVisitedSinceTabSwitch = false
     // Providers tab now has three independent browse modes — Live (the original behavior),
     // Movies (merged VOD, see MergedVodEntity), and Series (merged series, see
-    // MergedSeriesEntity) — cycled via btnProvidersMode. Resets to LIVE whenever a different
-    // tab is selected, matching providersTabVisitedSinceTabSwitch's own "fresh visit" reset
-    // just above.
+    // MergedSeriesEntity) — picked directly via three side-by-side buttons (providersModeRow).
+    // Resets to LIVE whenever a different tab is selected, matching
+    // providersTabVisitedSinceTabSwitch's own "fresh visit" reset just above.
     private enum class ProvidersMode { LIVE, MOVIES, SERIES }
+
+    private fun setProvidersModeButtonHighlight() {
+        val active = "#008CFF"; val inactive = "#888888"
+        binding.btnProvidersModeLive?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.LIVE) active else inactive))
+        binding.btnProvidersModeMovies?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.MOVIES) active else inactive))
+        binding.btnProvidersModeSeries?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.SERIES) active else inactive))
+    }
     private var providersMode = ProvidersMode.LIVE
     // Populated in onCreate from the ViewModel (which survives activity recreation) when
     // this instance is being recreated for a rotation — consumed once by initMiniPlayer()
@@ -282,6 +290,22 @@ class HomeActivity : AppCompatActivity() {
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        // Hiding system bars above doesn't move a front-camera punch-hole/notch cutout — that's
+        // WindowInsets.Type.displayCutout, a separate inset present regardless of immersive
+        // mode. On this device the cutout is a narrow TOP-CENTER punch-hole (~x 462-545 of a
+        // 1008-wide screen), and topBar runs edge-to-edge starting at y=0 — its controls
+        // (Providers-tab toggle, search box) land in that same horizontal band. Rather than
+        // growing the whole 56dp bar taller (which left dead space across the rest of the row),
+        // reserve exactly the cutout's own width as a spacer inserted before the search box —
+        // everything after it (search, and anything the tab visibility logic shows further
+        // right) shifts right, clear of the camera, with zero vertical/height change anywhere.
+        ViewCompat.setOnApplyWindowInsetsListener(binding.topBar) { _, insets ->
+            val cutoutRect = insets.displayCutout?.boundingRects?.firstOrNull()
+            binding.cutoutSpacer?.updateLayoutParams<ViewGroup.LayoutParams> {
+                width = cutoutRect?.width() ?: 0
+            }
+            insets
         }
         if (isLargeScreenDevice()) {
             binding.root.enableTvFocusHighlight()
@@ -835,32 +859,28 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-        // Providers tab has three independent browse modes (see ProvidersMode kdoc) — cycling
-        // switches the browse tree wholesale and always resets to that mode's top level, same
-        // as re-entering the tab fresh.
-        binding.btnProvidersMode?.setOnClickListener {
-            providersMode = when (providersMode) {
-                ProvidersMode.LIVE -> ProvidersMode.MOVIES
-                ProvidersMode.MOVIES -> ProvidersMode.SERIES
-                ProvidersMode.SERIES -> ProvidersMode.LIVE
-            }
-            binding.btnProvidersMode?.text = when (providersMode) {
-                ProvidersMode.LIVE -> "Movies"
-                ProvidersMode.MOVIES -> "Series"
-                ProvidersMode.SERIES -> "Live"
-            }
-            when (providersMode) {
-                ProvidersMode.MOVIES -> {
-                    viewModel.startObservingMergedVodServers()
-                    showAllProvidersMoviesFromTop()
-                }
-                ProvidersMode.SERIES -> {
-                    viewModel.startObservingMergedSeriesServers()
-                    showAllProvidersSeriesFromTop()
-                }
-                ProvidersMode.LIVE -> showAllProvidersFromTop()
-            }
+        // Providers tab has three independent browse modes (see ProvidersMode kdoc), selected
+        // directly via three side-by-side buttons (providersModeRow) rather than one cycling
+        // toggle — switching always resets to that mode's top level, same as re-entering the
+        // tab fresh.
+        binding.btnProvidersModeLive?.setOnClickListener {
+            providersMode = ProvidersMode.LIVE
+            setProvidersModeButtonHighlight()
+            showAllProvidersFromTop()
         }
+        binding.btnProvidersModeMovies?.setOnClickListener {
+            providersMode = ProvidersMode.MOVIES
+            setProvidersModeButtonHighlight()
+            viewModel.startObservingMergedVodServers()
+            showAllProvidersMoviesFromTop()
+        }
+        binding.btnProvidersModeSeries?.setOnClickListener {
+            providersMode = ProvidersMode.SERIES
+            setProvidersModeButtonHighlight()
+            viewModel.startObservingMergedSeriesServers()
+            showAllProvidersSeriesFromTop()
+        }
+        setProvidersModeButtonHighlight()
         binding.btnVodSort?.setOnClickListener {
             if (binding.tabLayout.selectedTabPosition == TAB_SERIES) showSeriesSortDialog() else showVodSortDialog()
         }
@@ -973,7 +993,14 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.MOVIES) {
                     // Movies-mode equivalent of the Live-mode 3-level drill just below —
                     // same server -> category -> items shape, mergedVodAdapter as the leaf list.
-                    if (viewModel.selectedMergedVodServerIndex == null) {
+                    if (viewModel.selectedMergedVodServerIndex == null && category.categoryId == FAVORITES_SERVER_SENTINEL) {
+                        // Aggregate "★ Favorites" — no category level, straight to the flat
+                        // cross-provider favorites list.
+                        viewModel.selectMergedVodAllFavoritesAcrossServers()
+                        landscapeShowChannelsMode()
+                        binding.rvCategories.visibility = View.GONE
+                        binding.rvChannels.adapter = mergedVodAdapter
+                    } else if (viewModel.selectedMergedVodServerIndex == null) {
                         viewModel.selectMergedVodServer(category.categoryId.toInt())
                         categoryAdapter.submitList(emptyList())
                         lifecycleScope.launch {
@@ -995,7 +1022,12 @@ class HomeActivity : AppCompatActivity() {
                     // leaf list opens SeriesDetailActivity per tap instead of playing directly
                     // (see mergedSeriesAdapter's onItemClick wiring), since a series item isn't
                     // itself a single playable stream.
-                    if (viewModel.selectedMergedSeriesServerIndex == null) {
+                    if (viewModel.selectedMergedSeriesServerIndex == null && category.categoryId == FAVORITES_SERVER_SENTINEL) {
+                        viewModel.selectMergedSeriesAllFavoritesAcrossServers()
+                        landscapeShowChannelsMode()
+                        binding.rvCategories.visibility = View.GONE
+                        binding.rvChannels.adapter = mergedSeriesAdapter
+                    } else if (viewModel.selectedMergedSeriesServerIndex == null) {
                         viewModel.selectMergedSeriesServer(category.categoryId.toInt())
                         categoryAdapter.submitList(emptyList())
                         lifecycleScope.launch {
@@ -1015,11 +1047,15 @@ class HomeActivity : AppCompatActivity() {
                 } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
                     // 3-level drill (server -> category -> channels): the first tap picks a
                     // server and should show ITS categories next, not jump to channels yet.
-                    // Merged favorites are now viewed from the main Favorites tab (combined
-                    // with primary favorites, auto genre-classified) instead of a dedicated
-                    // "★ Favorites" folder-picker here — favoriting/folder-assignment per
-                    // channel still works via the row's star and long-press menu.
-                    if (viewModel.selectedMergedServerIndex == null) {
+                    // A "★ Favorites" entry above the real provider list aggregates that mode's
+                    // favorites across every configured secondary provider at once — no category
+                    // level, straight to the flat list, same shape as the other two modes above.
+                    if (viewModel.selectedMergedServerIndex == null && category.categoryId == FAVORITES_SERVER_SENTINEL) {
+                        viewModel.selectMergedAllFavoritesAcrossServers()
+                        landscapeShowChannelsMode()
+                        binding.rvCategories.visibility = View.GONE
+                        binding.rvChannels.adapter = mergedChannelAdapter
+                    } else if (viewModel.selectedMergedServerIndex == null) {
                         viewModel.selectMergedServer(category.categoryId.toInt())
                         categoryAdapter.submitList(emptyList())
                         lifecycleScope.launch {
@@ -1051,7 +1087,13 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             onCategoryLongClick = { category ->
-                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && viewModel.selectedMergedServerIndex != null) {
+                // Category-favoriting/pinning is a LIVE-only concept (matches primary Movies/
+                // Series, which have no category-level favorite at all) — this handler used to
+                // fire for Movies/Series categories too whenever a merged server was selected,
+                // incorrectly toggling a "category favorite" that Movies/Series don't have a
+                // concept of, against a Movies/Series category id string it wasn't meant to see.
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS &&
+                    providersMode == ProvidersMode.LIVE && viewModel.selectedMergedServerIndex != null) {
                     // Only meaningful one level in (after a server is picked) — at the
                     // server-picker level category.categoryId actually holds the serverIndex
                     // string (see onCategoryClick above), not a real category id.
@@ -1390,7 +1432,7 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.lastTabPosition = tab?.position ?: 0
                 binding.btnVodSort?.visibility = if (tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES) View.VISIBLE else View.GONE
                 binding.btnRefreshProviders?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
-                binding.btnProvidersMode?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
+                binding.providersModeRow?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
                 // Switching TO Providers from a different tab counts as a fresh visit — the
                 // "jump to the playing channel" behavior gets one shot; every tap after that
                 // (via onTabReselected below) just steps back one level instead. Also always
@@ -1398,7 +1440,7 @@ class HomeActivity : AppCompatActivity() {
                 if (tab?.position != TAB_PROVIDERS) {
                     providersTabVisitedSinceTabSwitch = false
                     providersMode = ProvidersMode.LIVE
-                    binding.btnProvidersMode?.text = "Movies"
+                    setProvidersModeButtonHighlight()
                 }
                 when (tab?.position) {
                     TAB_FAVORITES -> showFavorites()
@@ -1476,13 +1518,38 @@ class HomeActivity : AppCompatActivity() {
             TAB_PROVIDERS -> {
                 if (query.isBlank()) {
                     // Back to wherever the server/category drill-down was, not a dead end.
-                    showAllProviders()
+                    when (providersMode) {
+                        ProvidersMode.MOVIES -> showAllProvidersMoviesFromTop()
+                        ProvidersMode.SERIES -> showAllProvidersSeriesFromTop()
+                        ProvidersMode.LIVE -> showAllProviders()
+                    }
                 } else {
-                    viewModel.searchMergedChannels(query)
-                    landscapeShowChannelsMode()
-                    binding.rvCategories.visibility = View.GONE
-                    binding.rvChannels.adapter = mergedChannelAdapter
-                    mergedChannelAdapter.submitList(viewModel.mergedChannels.value)
+                    // searchMergedVod/searchMergedSeries existed in the ViewModel since those
+                    // features shipped but were never actually called from here — search only
+                    // ever worked for Live mode in the Providers tab.
+                    when (providersMode) {
+                        ProvidersMode.MOVIES -> {
+                            viewModel.searchMergedVod(query)
+                            landscapeShowChannelsMode()
+                            binding.rvCategories.visibility = View.GONE
+                            binding.rvChannels.adapter = mergedVodAdapter
+                            mergedVodAdapter.submitList(viewModel.mergedVod.value)
+                        }
+                        ProvidersMode.SERIES -> {
+                            viewModel.searchMergedSeries(query)
+                            landscapeShowChannelsMode()
+                            binding.rvCategories.visibility = View.GONE
+                            binding.rvChannels.adapter = mergedSeriesAdapter
+                            mergedSeriesAdapter.submitList(viewModel.mergedSeries.value)
+                        }
+                        ProvidersMode.LIVE -> {
+                            viewModel.searchMergedChannels(query)
+                            landscapeShowChannelsMode()
+                            binding.rvCategories.visibility = View.GONE
+                            binding.rvChannels.adapter = mergedChannelAdapter
+                            mergedChannelAdapter.submitList(viewModel.mergedChannels.value)
+                        }
+                    }
                 }
             }
             else -> viewModel.searchChannels(query)
@@ -1813,6 +1880,7 @@ class HomeActivity : AppCompatActivity() {
             ProvidersMode.LIVE -> {}
         }
         when {
+            viewModel.isViewingMergedFavorites -> showAllProvidersFromTop()
             viewModel.hasMergedCategorySelected -> {
                 val serverIndex = viewModel.selectedMergedServerIndex
                 if (serverIndex != null) viewModel.selectMergedServer(serverIndex) // re-selecting clears category, keeps server
@@ -1849,6 +1917,7 @@ class HomeActivity : AppCompatActivity() {
     // resume state to jump back into in v1) and using mergedVodAdapter as the leaf list.
     private fun stepBackProvidersMoviesOneLevel() {
         when {
+            viewModel.isViewingMergedVodFavorites -> showAllProvidersMoviesFromTop()
             viewModel.selectedMergedVodCategoryId != null || viewModel.mergedVod.value.isNotEmpty() -> {
                 val serverIndex = viewModel.selectedMergedVodServerIndex
                 if (serverIndex != null) viewModel.selectMergedVodServer(serverIndex)
@@ -1878,6 +1947,7 @@ class HomeActivity : AppCompatActivity() {
     // mergedSeriesAdapter as the leaf list (opens SeriesDetailActivity per tap).
     private fun stepBackProvidersSeriesOneLevel() {
         when {
+            viewModel.isViewingMergedSeriesFavorites -> showAllProvidersSeriesFromTop()
             viewModel.selectedMergedSeriesCategoryId != null || viewModel.mergedSeries.value.isNotEmpty() -> {
                 val serverIndex = viewModel.selectedMergedSeriesServerIndex
                 if (serverIndex != null) viewModel.selectMergedSeriesServer(serverIndex)
@@ -1925,12 +1995,24 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
+    // Sentinel categoryId for the "★ Favorites" row prepended to each mode's server picker —
+    // aggregates that mode's favorites across every configured secondary provider at once, see
+    // HomeViewModel.selectMergedAllFavoritesAcrossServers/selectMergedVodAllFavoritesAcrossServers/
+    // selectMergedSeriesAllFavoritesAcrossServers. Checked before the normal `.toInt()` parse in
+    // onCategoryClick's server-picker branch for all three modes.
+    private val FAVORITES_SERVER_SENTINEL = "__favorites__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
+        val favoritesRow = CategoryEntity(
+            categoryId = FAVORITES_SERVER_SENTINEL,
+            categoryName = "★ Favorites",
+            parentId = 0,
+            type = "merged_server"
+        )
         // serverIndex == -1 is always whichever provider is currently primary/active — its
         // channels are already fully browsable via the normal Live tab, so listing it again
         // here was redundant and confusing next to the other, actually-"extra" providers.
-        return list.filter { it.serverIndex != -1 }.map {
+        return listOf(favoritesRow) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.channelCount})",
@@ -1966,7 +2048,13 @@ class HomeActivity : AppCompatActivity() {
     // sort here in v1 — merged VOD categories aren't pinnable the way merged channel categories
     // are (no equivalent of favoriteMergedCategoryKeys for VOD yet).
     private fun mergedVodServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedVodServerSummary>): List<CategoryEntity> {
-        return list.filter { it.serverIndex != -1 }.map {
+        val favoritesRow = CategoryEntity(
+            categoryId = FAVORITES_SERVER_SENTINEL,
+            categoryName = "★ Favorites",
+            parentId = 0,
+            type = "merged_vod_server"
+        )
+        return listOf(favoritesRow) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.vodCount})",
@@ -1990,7 +2078,13 @@ class HomeActivity : AppCompatActivity() {
 
     // Series-mode equivalents of the two Movies-mode synthetic-category converters above.
     private fun mergedSeriesServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedSeriesServerSummary>): List<CategoryEntity> {
-        return list.filter { it.serverIndex != -1 }.map {
+        val favoritesRow = CategoryEntity(
+            categoryId = FAVORITES_SERVER_SENTINEL,
+            categoryName = "★ Favorites",
+            parentId = 0,
+            type = "merged_series_server"
+        )
+        return listOf(favoritesRow) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
                 categoryName = "${it.serverNickname} (${it.seriesCount})",

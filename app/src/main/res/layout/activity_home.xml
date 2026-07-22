@@ -90,20 +90,6 @@
             android:tint="#888888"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/btnProvidersMode"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:gravity="center"
-            android:paddingHorizontal="10dp"
-            android:background="@drawable/focus_selector"
-            android:text="Movies"
-            android:textAllCaps="true"
-            android:textColor="#008CFF"
-            android:textSize="11sp"
-            android:visibility="gone" />
-
         <ImageButton
             android:id="@+id/btnRefreshProviders"
             android:layout_width="36dp"
@@ -113,6 +99,15 @@
             android:src="@android:drawable/ic_popup_sync"
             android:tint="#888888"
             android:visibility="gone" />
+
+        <!-- Reserves exactly the front-camera cutout's width on devices with a top-center
+             punch-hole, so the search box (and Providers toggle right before it) shift clear
+             of it instead of drawing underneath — width set at runtime, see HomeActivity's
+             topBar inset listener. Zero-width (invisible) on devices with no cutout there. -->
+        <View
+            android:id="@+id/cutoutSpacer"
+            android:layout_width="0dp"
+            android:layout_height="1dp" />
 
         <EditText
             android:id="@+id/etSearch"
@@ -324,6 +319,62 @@
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HISTORY" />
     </com.google.android.material.tabs.TabLayout>
 
+    <!-- PROVIDERS MODE ROW — Live/Movies/Series direct-select buttons side by side, visible
+         only when the Providers tab is selected (see HomeActivity's setupTabs). Replaces the
+         old single cycling btnProvidersMode toggle that lived in topBar. -->
+    <LinearLayout
+        android:id="@+id/providersModeRow"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:background="#1A1A1A"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tabLayout">
+
+        <TextView
+            android:id="@+id/btnProvidersModeLive"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:text="Live"
+            android:textAllCaps="true"
+            android:textColor="#008CFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/btnProvidersModeMovies"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:text="Movies"
+            android:textAllCaps="true"
+            android:textColor="#888888"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/btnProvidersModeSeries"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:text="Series"
+            android:textAllCaps="true"
+            android:textColor="#888888"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+
     <!-- SYNC PROGRESS — shown while a large catalog (movies/series) is downloading -->
     <LinearLayout
         android:id="@+id/syncProgressContainer"
@@ -337,7 +388,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tabLayout">
+        app:layout_constraintTop_toBottomOf="@id/providersModeRow">
 
         <TextView
             android:id="@+id/tvSyncStatus"

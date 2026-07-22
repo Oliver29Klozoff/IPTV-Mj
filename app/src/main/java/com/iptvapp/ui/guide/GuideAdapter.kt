@@ -39,9 +39,17 @@ class GuideAdapter(
             if (visible.isEmpty()) {
                 binding.programContainer.addView(makeProgramText("No upcoming guide data", 0xFF555555.toInt(), null))
             } else {
+                // "NOW" must mean the single program whose window actually contains the current
+                // time (start <= now < stop), not just "already started" — that condition alone
+                // matched every program still in `visible` once the current one ran long or the
+                // provider's EPG had back-to-back/overlapping entries, showing two "▶ NOW" rows
+                // for the same channel. Only the first such match (by list order) gets it.
+                var nowAlreadyShown = false
                 visible.forEach { program ->
                     val startMs = toMs(program.startTimestamp)
-                    val isNow = startMs <= nowMs
+                    val stopMs = toMs(program.stopTimestamp)
+                    val isNow = !nowAlreadyShown && startMs <= nowMs && nowMs < stopMs
+                    if (isNow) nowAlreadyShown = true
                     val start = if (isNow) "▶ NOW" else formatTime(program.startTimestamp)
                     val stop = formatTime(program.stopTimestamp)
                     val isReplay = !isNow && row.supportsReplay && program.hasArchive == 1
