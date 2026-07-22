@@ -79,10 +79,26 @@ class HomeActivity : AppCompatActivity() {
     // synchronously (it's called from inside onCategoryClick's own collector, not a suspend
     // context) to sort favorited merged categories to the top, same as Live categories.
     private var mergedFavoriteCategoryKeys: Set<String> = emptySet()
+    // Hidden categories in Providers > Movies/Series — kept in sync by a collector the same
+    // way mergedFavoriteCategoryKeys is, for the two modes independently.
+    private var hiddenMergedVodCategoryKeys: Set<String> = emptySet()
+    private var hiddenMergedSeriesCategoryKeys: Set<String> = emptySet()
+    // Pure display state (which mode is currently revealing its hidden categories) — not in
+    // HomeViewModel since, unlike isViewingMergedVodFavorites, this changes zero data-fetching,
+    // only which already-fetched rows get rendered.
+    private var showingHiddenVodCategories = false
+    private var showingHiddenSeriesCategories = false
 
     // ─── Bulk-select state ───────────────────────────────────────────────────
     private val bulkSelectedIds = mutableSetOf<Int>()
     private var bulkSelectMode = false
+    // Category bulk-hide (Providers > Movies/Series) — same shape as channel bulk-select above,
+    // but scoped "$serverIndex:$categoryId" keys instead of streamIds, and with NO idle-timer
+    // auto-commit: hiding removes a category from the list entirely (channel-favoriting is
+    // additive/reversible-at-a-glance via a still-visible star), so an explicit "Hide N
+    // Selected" tap is required rather than risking an accidental auto-commit mid-browse.
+    private val bulkSelectedCategoryIds = mutableSetOf<String>()
+    private var categoryBulkSelectMode = false
     // Once bulk-select is on (long-press one channel to start), a plain tap on any other
     // channel just adds/removes it from the selection instead of playing it — no more
     // long-pressing every single one. 3s of no further taps auto-adds the selection to
@@ -1025,6 +1041,16 @@ class HomeActivity : AppCompatActivity() {
                                 }
                             }
                         }
+                    } else if (category.categoryId == SHOW_HIDDEN_CATEGORIES_SENTINEL) {
+                        // Toggle reveal — re-render the same (already-fetched) category list
+                        // with hidden rows included/excluded, no new fetch needed.
+                        showingHiddenVodCategories = !showingHiddenVodCategories
+                        categoryAdapter.submitList(mergedVodCategoriesToSynthetic(viewModel.mergedVodCategories.value))
+                    } else if (category.categoryId in hiddenMergedVodCategoryKeys) {
+                        // Tapping a revealed hidden row unhides it directly, rather than
+                        // drilling into it like a normal category tap would.
+                        viewModel.unhideMergedVodCategory(category.categoryId)
+                        Toast.makeText(this, "Category unhidden", Toast.LENGTH_SHORT).show()
                     } else {
                         val rawCategoryId = category.categoryId.substringAfter(':', category.categoryId)
                         val categoryId = if (rawCategoryId == NO_CATEGORY_ID) null else rawCategoryId
@@ -1052,6 +1078,12 @@ class HomeActivity : AppCompatActivity() {
                                 }
                             }
                         }
+                    } else if (category.categoryId == SHOW_HIDDEN_CATEGORIES_SENTINEL) {
+                        showingHiddenSeriesCategories = !showingHiddenSeriesCategories
+                        categoryAdapter.submitList(mergedSeriesCategoriesToSynthetic(viewModel.mergedSeriesCategories.value))
+                    } else if (category.categoryId in hiddenMergedSeriesCategoryKeys) {
+                        viewModel.unhideMergedSeriesCategory(category.categoryId)
+                        Toast.makeText(this, "Category unhidden", Toast.LENGTH_SHORT).show()
                     } else {
                         val rawCategoryId = category.categoryId.substringAfter(':', category.categoryId)
                         val categoryId = if (rawCategoryId == NO_CATEGORY_ID) null else rawCategoryId
@@ -1114,6 +1146,14 @@ class HomeActivity : AppCompatActivity() {
                     // string (see onCategoryClick above), not a real category id.
                     viewModel.toggleMergedCategoryFavorite(category.categoryId)
                     Toast.makeText(this, "Category favorite updated", Toast.LENGTH_SHORT).show()
+                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS &&
+                    providersMode == ProvidersMode.MOVIES && viewModel.selectedMergedVodServerIndex != null &&
+                    category.categoryId != SHOW_HIDDEN_CATEGORIES_SENTINEL) {
+                    showCategoryBulkHideDialog(category, isSeries = false)
+                } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS &&
+                    providersMode == ProvidersMode.SERIES && viewModel.selectedMergedSeriesServerIndex != null &&
+                    category.categoryId != SHOW_HIDDEN_CATEGORIES_SENTINEL) {
+                    showCategoryBulkHideDialog(category, isSeries = true)
                 }
             }
         )
@@ -2016,6 +2056,10 @@ class HomeActivity : AppCompatActivity() {
     // selectMergedSeriesAllFavoritesAcrossServers. Checked before the normal `.toInt()` parse in
     // onCategoryClick's server-picker branch for all three modes.
     private val FAVORITES_SERVER_SENTINEL = "__favorites__"
+    // Sentinel categoryId for the "Show/Hide Hidden Categories" toggle row prepended to a
+    // Movies/Series category list whenever that provider has at least one hidden category —
+    // tapping it flips showingHiddenVodCategories/showingHiddenSeriesCategories and re-renders.
+    private val SHOW_HIDDEN_CATEGORIES_SENTINEL = "__show_hidden_categories__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
         val favoritesRow = CategoryEntity(
@@ -2081,7 +2125,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun mergedVodCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedVodCategorySummary>): List<CategoryEntity> {
         val serverIndex = viewModel.selectedMergedVodServerIndex ?: -1
-        return list.map {
+        val hiddenKeys = hiddenMergedVodCategoryKeys
+        val (hidden, visible) = list.partition { "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}" in hiddenKeys }
+        val visibleRows = visible.map {
             CategoryEntity(
                 categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
                 categoryName = "${it.categoryName ?: "Uncategorized"} (${it.vodCount})",
@@ -2089,6 +2135,23 @@ class HomeActivity : AppCompatActivity() {
                 type = "merged_vod_category"
             )
         }
+        val hiddenRows = if (showingHiddenVodCategories) hidden.map {
+            CategoryEntity(
+                categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.vodCount})",
+                parentId = 0,
+                type = "merged_vod_category"
+            )
+        } else emptyList()
+        val toggleRow = if (hidden.isNotEmpty()) listOf(
+            CategoryEntity(
+                categoryId = SHOW_HIDDEN_CATEGORIES_SENTINEL,
+                categoryName = if (showingHiddenVodCategories) "▲ Hide Hidden Categories" else "👁 Show Hidden Categories (${hidden.size})",
+                parentId = 0,
+                type = "merged_vod_category"
+            )
+        ) else emptyList()
+        return toggleRow + visibleRows + hiddenRows
     }
 
     // Series-mode equivalents of the two Movies-mode synthetic-category converters above.
@@ -2111,7 +2174,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun mergedSeriesCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedSeriesCategorySummary>): List<CategoryEntity> {
         val serverIndex = viewModel.selectedMergedSeriesServerIndex ?: -1
-        return list.map {
+        val hiddenKeys = hiddenMergedSeriesCategoryKeys
+        val (hidden, visible) = list.partition { "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}" in hiddenKeys }
+        val visibleRows = visible.map {
             CategoryEntity(
                 categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
                 categoryName = "${it.categoryName ?: "Uncategorized"} (${it.seriesCount})",
@@ -2119,6 +2184,23 @@ class HomeActivity : AppCompatActivity() {
                 type = "merged_series_category"
             )
         }
+        val hiddenRows = if (showingHiddenSeriesCategories) hidden.map {
+            CategoryEntity(
+                categoryId = "$serverIndex:${it.categoryId ?: NO_CATEGORY_ID}",
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.seriesCount})",
+                parentId = 0,
+                type = "merged_series_category"
+            )
+        } else emptyList()
+        val toggleRow = if (hidden.isNotEmpty()) listOf(
+            CategoryEntity(
+                categoryId = SHOW_HIDDEN_CATEGORIES_SENTINEL,
+                categoryName = if (showingHiddenSeriesCategories) "▲ Hide Hidden Categories" else "👁 Show Hidden Categories (${hidden.size})",
+                parentId = 0,
+                type = "merged_series_category"
+            )
+        ) else emptyList()
+        return toggleRow + visibleRows + hiddenRows
     }
 
     // Tapping a merged channel now behaves like every other channel list: starts in the mini
@@ -2460,6 +2542,26 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            viewModel.hiddenMergedVodCategoryKeys.collect { keys ->
+                hiddenMergedVodCategoryKeys = keys
+                categoryAdapter.submitHiddenCategoryIds(keys)
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.MOVIES &&
+                    viewModel.selectedMergedVodServerIndex != null) {
+                    categoryAdapter.submitList(mergedVodCategoriesToSynthetic(viewModel.mergedVodCategories.value))
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.hiddenMergedSeriesCategoryKeys.collect { keys ->
+                hiddenMergedSeriesCategoryKeys = keys
+                categoryAdapter.submitHiddenCategoryIds(keys)
+                if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.SERIES &&
+                    viewModel.selectedMergedSeriesServerIndex != null) {
+                    categoryAdapter.submitList(mergedSeriesCategoriesToSynthetic(viewModel.mergedSeriesCategories.value))
+                }
+            }
+        }
+        lifecycleScope.launch {
             // Live/Categories no longer feed channelAdapter (they use liveChannelAdapter/
             // combinedLiveChannels now) — this only still exists to keep EPG text loading for
             // whatever primary channels are in the currently-selected category.
@@ -2730,6 +2832,50 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
         channelAdapter.submitBulkSelection(emptySet())
+    }
+
+    // Long-press menu for a Movies/Series category — same "Select (bulk)" shape as
+    // showChannelActionsMenuDialog's channel bulk-select, but with an explicit "Hide N
+    // Selected" confirm instead of an idle-timer auto-commit (see bulkSelectedCategoryIds kdoc
+    // for why: hiding removes categories from the list entirely, a more consequential action
+    // than favoriting, which stays visible via a star either way).
+    private fun showCategoryBulkHideDialog(category: CategoryEntity, isSeries: Boolean) {
+        val options = mutableListOf(
+            if (bulkSelectedCategoryIds.contains(category.categoryId)) "Deselect (bulk)" else "Select (bulk hide)"
+        )
+        if (categoryBulkSelectMode && bulkSelectedCategoryIds.isNotEmpty()) {
+            options.add(0, "Hide ${bulkSelectedCategoryIds.size} Selected")
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(category.categoryName)
+            .setItems(options.toTypedArray()) { _, i ->
+                when (options[i]) {
+                    "Select (bulk hide)" -> {
+                        categoryBulkSelectMode = true
+                        bulkSelectedCategoryIds.add(category.categoryId)
+                        Toast.makeText(this, "${bulkSelectedCategoryIds.size} selected — long-press more, then long-press again to hide", Toast.LENGTH_SHORT).show()
+                    }
+                    "Deselect (bulk)" -> {
+                        bulkSelectedCategoryIds.remove(category.categoryId)
+                        if (bulkSelectedCategoryIds.isEmpty()) categoryBulkSelectMode = false
+                    }
+                    else -> if (options[i].startsWith("Hide ")) {
+                        val keys = bulkSelectedCategoryIds.toSet()
+                        if (isSeries) viewModel.bulkHideMergedSeriesCategories(keys)
+                        else viewModel.bulkHideMergedVodCategories(keys)
+                        Toast.makeText(this, "${keys.size} categories hidden", Toast.LENGTH_SHORT).show()
+                        bulkSelectedCategoryIds.clear()
+                        categoryBulkSelectMode = false
+                        if (isSeries) {
+                            categoryAdapter.submitList(mergedSeriesCategoriesToSynthetic(viewModel.mergedSeriesCategories.value))
+                        } else {
+                            categoryAdapter.submitList(mergedVodCategoriesToSynthetic(viewModel.mergedVodCategories.value))
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showMoveToFolderDialog(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {

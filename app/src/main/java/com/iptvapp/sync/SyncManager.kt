@@ -121,6 +121,23 @@ class SyncManager @Inject constructor(
                 )
             }
 
+            // Hidden categories in Providers > Movies/Series — same URL-keyed shape as the
+            // favorites above, separate concept.
+            val hiddenVodKeys = prefs.hiddenMergedVodCategoryIds.first()
+            val hiddenMergedVodCategories = hiddenVodKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = urlByServerIndex[serverIndex] ?: return@mapNotNull null
+                mapOf("serverUrl" to url, "categoryId" to categoryId)
+            }
+            val hiddenSeriesKeys = prefs.hiddenMergedSeriesCategoryIds.first()
+            val hiddenMergedSeriesCategories = hiddenSeriesKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = urlByServerIndex[serverIndex] ?: return@mapNotNull null
+                mapOf("serverUrl" to url, "categoryId" to categoryId)
+            }
+
             val data = hashMapOf(
                 "version"            to 1,
                 "syncedAt"           to System.currentTimeMillis(),
@@ -140,7 +157,9 @@ class SyncManager @Inject constructor(
                 "mergedFavorites"    to mergedFavoritesPayload,
                 "mergedFavoriteCategories" to favoriteMergedCategories,
                 "mergedVodFavorites" to mergedVodFavoritesPayload,
-                "mergedSeriesFavorites" to mergedSeriesFavoritesPayload
+                "mergedSeriesFavorites" to mergedSeriesFavoritesPayload,
+                "hiddenMergedVodCategories" to hiddenMergedVodCategories,
+                "hiddenMergedSeriesCategories" to hiddenMergedSeriesCategories
             )
 
             firestore.collection("users").document(user.uid).set(data, SetOptions.merge()).await()
@@ -399,6 +418,27 @@ class SyncManager @Inject constructor(
                         db.mergedSeriesDao().setFavoriteFolder(serverIndex, seriesId, folderId)
                     }
                 }
+            }
+
+            // Hidden categories — no local-row dependency at all (a category id is just a
+            // string, unlike favorites which need a real merged_vod/merged_series row), so
+            // applies immediately as soon as the URL resolves to a local serverIndex, same as
+            // remoteMergedCategories (pinned favorites) does just above.
+            @Suppress("UNCHECKED_CAST")
+            val remoteHiddenMergedVodCategories = (doc.get("hiddenMergedVodCategories") as? List<Map<*, *>>) ?: emptyList()
+            remoteHiddenMergedVodCategories.forEach { entry ->
+                val url = entry["serverUrl"] as? String ?: return@forEach
+                val serverIndex = serverIndexByUrl[url] ?: return@forEach
+                val categoryId = entry["categoryId"] as? String ?: return@forEach
+                prefs.addHiddenMergedVodCategoryIds(setOf("$serverIndex:$categoryId"))
+            }
+            @Suppress("UNCHECKED_CAST")
+            val remoteHiddenMergedSeriesCategories = (doc.get("hiddenMergedSeriesCategories") as? List<Map<*, *>>) ?: emptyList()
+            remoteHiddenMergedSeriesCategories.forEach { entry ->
+                val url = entry["serverUrl"] as? String ?: return@forEach
+                val serverIndex = serverIndexByUrl[url] ?: return@forEach
+                val categoryId = entry["categoryId"] as? String ?: return@forEach
+                prefs.addHiddenMergedSeriesCategoryIds(setOf("$serverIndex:$categoryId"))
             }
 
             val syncedAt   = doc.getLong("syncedAt") ?: 0L

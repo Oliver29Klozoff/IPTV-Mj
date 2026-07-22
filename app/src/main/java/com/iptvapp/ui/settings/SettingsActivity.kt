@@ -2375,6 +2375,24 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }))
 
+            // Hidden categories in Providers > Movies/Series — same URL-keyed shape as the
+            // favorites above, separate concept (see PreferencesManager.HIDDEN_MERGED_VOD_
+            // CATEGORY_IDS kdoc).
+            val hiddenVodKeys = prefs.hiddenMergedVodCategoryIds.first()
+            put("hiddenMergedVodCategories", JSONArray(hiddenVodKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+            }))
+            val hiddenSeriesKeys = prefs.hiddenMergedSeriesCategoryIds.first()
+            put("hiddenMergedSeriesCategories", JSONArray(hiddenSeriesKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+            }))
+
             val style = prefs.subtitleStyle.first()
             put("subtitleStyle", JSONObject().apply {
                 put("sizeScale", style.sizeScale)
@@ -2582,6 +2600,20 @@ class SettingsActivity : AppCompatActivity() {
                 else "${obj.optString("serverUrl")}|${obj.optInt("seriesId")}|$folderName"
             }.toSet()
             if (folderKeys.isNotEmpty()) lifecycleScope.launch { prefs.setPendingMergedSeriesFolders(folderKeys) }
+        }
+        json.optJSONArray("hiddenMergedVodCategories")?.let { arr ->
+            val keys = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
+            }.toSet()
+            lifecycleScope.launch { prefs.setPendingHiddenMergedVodCategories(keys) }
+        }
+        json.optJSONArray("hiddenMergedSeriesCategories")?.let { arr ->
+            val keys = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
+            }.toSet()
+            lifecycleScope.launch { prefs.setPendingHiddenMergedSeriesCategories(keys) }
         }
 
         // VOD/series watch progress + per-episode watched state. Restore is a full overwrite

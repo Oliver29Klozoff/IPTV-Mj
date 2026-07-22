@@ -15,6 +15,12 @@ class CategoryAdapter(
 
     private var selectedPosition = 0
     private var favoriteCategoryIds: Set<String> = emptySet()
+    // Providers > Movies/Series hidden categories — a separate concept from favoriting (see
+    // HomeViewModel kdoc). Dimmed rather than removed here since this adapter only ever
+    // receives hidden rows at all when the "show hidden" toggle is on (HomeActivity filters
+    // them out of the list entirely otherwise) — reuses the exact same Set<String>-pushed-
+    // from-Activity mechanism submitFavoriteCategoryIds already established.
+    private var hiddenCategoryIds: Set<String> = emptySet()
 
     fun resetSelection() {
         selectedPosition = 0
@@ -26,6 +32,11 @@ class CategoryAdapter(
         notifyDataSetChanged()
     }
 
+    fun submitHiddenCategoryIds(ids: Set<String>) {
+        hiddenCategoryIds = ids
+        notifyDataSetChanged()
+    }
+
     inner class ViewHolder(val binding: ItemCategoryBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -34,6 +45,7 @@ class CategoryAdapter(
             binding.ivCategoryStar.visibility =
                 if (item.categoryId in favoriteCategoryIds) android.view.View.VISIBLE
                 else android.view.View.GONE
+            binding.root.alpha = if (item.categoryId in hiddenCategoryIds) 0.4f else 1f
 
             binding.root.isSelected = isSelected
 

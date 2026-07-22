@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v4.95 - 2026-07-22
+- **Added**: hide categories in Providers > Movies and Providers > Series — long-press a
+  category to select it (and more), then hide the selection with one tap. Hidden categories
+  disappear from the list entirely; a "Show Hidden Categories" link appears at the top
+  whenever a provider has any, letting you reveal (dimmed) and tap one to unhide it.
+  Independent per mode and per provider, and survives Backup/Restore and cross-device Sync
+  on both phone and TV.
+
 ## v4.94 - 2026-07-22
 - **Added**: the floating PiP corner box (drag to move, pinch to resize, tap to restore) now
   works in landscape — it was built portrait-only and was an invisible placeholder in

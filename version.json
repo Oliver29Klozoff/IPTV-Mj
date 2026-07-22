@@ -1,7 +1,7 @@
 {
-  "versionCode": 332,
-  "versionName": "4.94",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.94/MKTV.apk",
-  "apkSha256": "70300390271d921663a52cc81dea45efcf47865e736967f8a74f4d03b3070b8d",
-  "changelog": "PiP corner box and sync progress indicator now work in landscape. TV no longer auto-enters system PiP (no reliable way to exit it with a remote)."
+  "versionCode": 333,
+  "versionName": "4.95",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.95/MKTV.apk",
+  "apkSha256": "d1a2741d2008fde89d609cef14b3d557ee9a28d767be05a6a530df159b4185cf",
+  "changelog": "Added hide categories (with bulk-hide) to Providers > Movies/Series, surviving Backup/Restore and Sync."
 }

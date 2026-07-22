@@ -1437,6 +1437,28 @@ class HomeViewModel @Inject constructor(
 
     val favoriteMergedCategoryKeys: kotlinx.coroutines.flow.Flow<Set<String>> = repository.getFavoriteMergedCategoryIds()
 
+    // Hidden categories in Providers > Movies/Series — a separate concept from the favorite/pin
+    // one above (hiding removes from the list entirely; favoriting just reorders to the top).
+    // Independent per mode, same "$serverIndex:$categoryId" key shape.
+    val hiddenMergedVodCategoryKeys: kotlinx.coroutines.flow.Flow<Set<String>> = repository.getHiddenMergedVodCategoryIds()
+    val hiddenMergedSeriesCategoryKeys: kotlinx.coroutines.flow.Flow<Set<String>> = repository.getHiddenMergedSeriesCategoryIds()
+
+    fun bulkHideMergedVodCategories(keys: Set<String>) {
+        viewModelScope.launch { repository.addHiddenMergedVodCategoryIds(keys) }
+    }
+
+    fun unhideMergedVodCategory(key: String) {
+        viewModelScope.launch { repository.removeHiddenMergedVodCategoryId(key) }
+    }
+
+    fun bulkHideMergedSeriesCategories(keys: Set<String>) {
+        viewModelScope.launch { repository.addHiddenMergedSeriesCategoryIds(keys) }
+    }
+
+    fun unhideMergedSeriesCategory(key: String) {
+        viewModelScope.launch { repository.removeHiddenMergedSeriesCategoryId(key) }
+    }
+
     suspend fun getRecentChannel(): com.iptvapp.data.local.entities.ChannelEntity? {
         return repository.getRecentChannels().first().firstOrNull()
     }

@@ -269,6 +269,16 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // Hidden categories in Providers > Movies/Series — a separate concept from the above
+    // favorite/pin one, see PreferencesManager.HIDDEN_MERGED_VOD_CATEGORY_IDS kdoc.
+    fun getHiddenMergedVodCategoryIds(): Flow<Set<String>> = prefs.hiddenMergedVodCategoryIds
+    suspend fun addHiddenMergedVodCategoryIds(keys: Set<String>) = prefs.addHiddenMergedVodCategoryIds(keys)
+    suspend fun removeHiddenMergedVodCategoryId(key: String) = prefs.removeHiddenMergedVodCategoryId(key)
+
+    fun getHiddenMergedSeriesCategoryIds(): Flow<Set<String>> = prefs.hiddenMergedSeriesCategoryIds
+    suspend fun addHiddenMergedSeriesCategoryIds(keys: Set<String>) = prefs.addHiddenMergedSeriesCategoryIds(keys)
+    suspend fun removeHiddenMergedSeriesCategoryId(key: String) = prefs.removeHiddenMergedSeriesCategoryId(key)
+
     suspend fun getLiveStreamUrl(streamId: Int): String {
         val channel = db.channelDao().getChannelById(streamId)
         if (channel?.streamUrl != null) return channel.streamUrl
@@ -1079,6 +1089,24 @@ class XtreamRepository @Inject constructor(
             }.toSet()
             if (remaining != pendingFolders) prefs.setPendingMergedVodFolders(remaining)
         }
+
+        // Hidden categories — unlike favorites/folders above, no local-row dependency at all
+        // (a category id is just a string, not tied to a fetched item), so this only needs the
+        // URL to resolve to a serverIndex, not that server's categories to actually exist yet.
+        val pendingHidden = prefs.pendingHiddenMergedVodCategories.first()
+        if (pendingHidden.isNotEmpty()) {
+            val remaining = pendingHidden.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val categoryId = parts.getOrNull(1)
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && categoryId != null) {
+                    prefs.addHiddenMergedVodCategoryIds(setOf("$serverIndex:$categoryId"))
+                    false
+                } else true
+            }.toSet()
+            if (remaining != pendingHidden) prefs.setPendingHiddenMergedVodCategories(remaining)
+        }
     }
 
     /** Series equivalent of applyPendingMergedVodRestoreData — same shape, seriesId instead of
@@ -1131,6 +1159,21 @@ class XtreamRepository @Inject constructor(
                 } else true
             }.toSet()
             if (remaining != pendingFolders) prefs.setPendingMergedSeriesFolders(remaining)
+        }
+
+        val pendingHidden = prefs.pendingHiddenMergedSeriesCategories.first()
+        if (pendingHidden.isNotEmpty()) {
+            val remaining = pendingHidden.filter { key ->
+                val parts = key.split("|")
+                val url = parts.getOrNull(0)
+                val categoryId = parts.getOrNull(1)
+                val serverIndex = url?.let { urlByServerIndex[it] }
+                if (serverIndex != null && categoryId != null) {
+                    prefs.addHiddenMergedSeriesCategoryIds(setOf("$serverIndex:$categoryId"))
+                    false
+                } else true
+            }.toSet()
+            if (remaining != pendingHidden) prefs.setPendingHiddenMergedSeriesCategories(remaining)
         }
     }
 

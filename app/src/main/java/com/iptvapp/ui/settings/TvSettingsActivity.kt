@@ -1104,6 +1104,21 @@ class TvSettingsActivity : AppCompatActivity() {
                 }
             }))
 
+            val hiddenVodKeys = prefs.hiddenMergedVodCategoryIds.first()
+            put("hiddenMergedVodCategories", JSONArray(hiddenVodKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+            }))
+            val hiddenSeriesKeys = prefs.hiddenMergedSeriesCategoryIds.first()
+            put("hiddenMergedSeriesCategories", JSONArray(hiddenSeriesKeys.mapNotNull { key ->
+                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                val categoryId = key.substringAfter(':', "")
+                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+            }))
+
             val style = prefs.subtitleStyle.first()
             put("subtitleStyle", JSONObject().apply {
                 put("sizeScale", style.sizeScale)
@@ -1349,6 +1364,20 @@ class TvSettingsActivity : AppCompatActivity() {
                     else "${obj.optString("serverUrl")}|${obj.optInt("seriesId")}|$folderName"
                 }.toSet()
                 if (folderKeys.isNotEmpty()) prefs.setPendingMergedSeriesFolders(folderKeys)
+            }
+            json.optJSONArray("hiddenMergedVodCategories")?.let { arr ->
+                val keys = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
+                }.toSet()
+                prefs.setPendingHiddenMergedVodCategories(keys)
+            }
+            json.optJSONArray("hiddenMergedSeriesCategories")?.let { arr ->
+                val keys = (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    "${obj.optString("serverUrl")}|${obj.optString("categoryId")}"
+                }.toSet()
+                prefs.setPendingHiddenMergedSeriesCategories(keys)
             }
 
             json.optJSONObject("subtitleStyle")?.let { s ->

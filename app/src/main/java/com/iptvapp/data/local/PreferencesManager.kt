@@ -66,6 +66,18 @@ class PreferencesManager @Inject constructor(
         val PENDING_MERGED_SERIES_FAVORITES = stringSetPreferencesKey("pending_merged_series_favorites")
         // Keyed "$serverUrl|$seriesId|$folderName"
         val PENDING_MERGED_SERIES_FOLDERS = stringSetPreferencesKey("pending_merged_series_folders")
+        // Hidden categories in Providers > Movies/Series — a genuinely separate concept from
+        // FAVORITE_MERGED_CATEGORY_IDS (pinning reorders to the top; hiding removes from the
+        // list entirely). Independent per mode, keyed "$serverIndex:$categoryId" for local use
+        // exactly like FAVORITE_MERGED_CATEGORY_IDS.
+        val HIDDEN_MERGED_VOD_CATEGORY_IDS = stringSetPreferencesKey("hidden_merged_vod_category_ids")
+        val HIDDEN_MERGED_SERIES_CATEGORY_IDS = stringSetPreferencesKey("hidden_merged_series_category_ids")
+        // Restore/sync-down pending equivalents, keyed "$serverUrl|$categoryId" like
+        // PENDING_MERGED_FAVORITE_CATEGORIES — applied once the URL resolves to a local
+        // serverIndex (doesn't need that server's categories to actually be fetched yet, unlike
+        // the favorites pending keys which need a local row to mark isFavorite on).
+        val PENDING_HIDDEN_MERGED_VOD_CATEGORIES = stringSetPreferencesKey("pending_hidden_merged_vod_categories")
+        val PENDING_HIDDEN_MERGED_SERIES_CATEGORIES = stringSetPreferencesKey("pending_hidden_merged_series_categories")
         // Applied once the new PRIMARY provider's channels are fetched, when switching TO a
         // provider that already had secondary-provider favorites recorded (see
         // XtreamRepository's Switch handling in SettingsActivity/TvSettingsActivity) — those
@@ -386,6 +398,52 @@ class PreferencesManager @Inject constructor(
             val current = prefs[Keys.FAVORITE_MERGED_CATEGORY_IDS] ?: emptySet()
             prefs[Keys.FAVORITE_MERGED_CATEGORY_IDS] = current - key
         }
+    }
+
+    val hiddenMergedVodCategoryIds: Flow<Set<String>> = context.dataStore.data
+        .map { it[Keys.HIDDEN_MERGED_VOD_CATEGORY_IDS] ?: emptySet() }
+
+    suspend fun addHiddenMergedVodCategoryIds(keys: Set<String>) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.HIDDEN_MERGED_VOD_CATEGORY_IDS] ?: emptySet()
+            prefs[Keys.HIDDEN_MERGED_VOD_CATEGORY_IDS] = current + keys
+        }
+    }
+
+    suspend fun removeHiddenMergedVodCategoryId(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.HIDDEN_MERGED_VOD_CATEGORY_IDS] ?: emptySet()
+            prefs[Keys.HIDDEN_MERGED_VOD_CATEGORY_IDS] = current - key
+        }
+    }
+
+    val hiddenMergedSeriesCategoryIds: Flow<Set<String>> = context.dataStore.data
+        .map { it[Keys.HIDDEN_MERGED_SERIES_CATEGORY_IDS] ?: emptySet() }
+
+    suspend fun addHiddenMergedSeriesCategoryIds(keys: Set<String>) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.HIDDEN_MERGED_SERIES_CATEGORY_IDS] ?: emptySet()
+            prefs[Keys.HIDDEN_MERGED_SERIES_CATEGORY_IDS] = current + keys
+        }
+    }
+
+    suspend fun removeHiddenMergedSeriesCategoryId(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.HIDDEN_MERGED_SERIES_CATEGORY_IDS] ?: emptySet()
+            prefs[Keys.HIDDEN_MERGED_SERIES_CATEGORY_IDS] = current - key
+        }
+    }
+
+    val pendingHiddenMergedVodCategories: Flow<Set<String>> = context.dataStore.data
+        .map { it[Keys.PENDING_HIDDEN_MERGED_VOD_CATEGORIES] ?: emptySet() }
+    suspend fun setPendingHiddenMergedVodCategories(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_HIDDEN_MERGED_VOD_CATEGORIES] = keys }
+    }
+
+    val pendingHiddenMergedSeriesCategories: Flow<Set<String>> = context.dataStore.data
+        .map { it[Keys.PENDING_HIDDEN_MERGED_SERIES_CATEGORIES] ?: emptySet() }
+    suspend fun setPendingHiddenMergedSeriesCategories(keys: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_HIDDEN_MERGED_SERIES_CATEGORIES] = keys }
     }
 
     suspend fun getExtraServers(): List<Triple<String,String,String>> {
