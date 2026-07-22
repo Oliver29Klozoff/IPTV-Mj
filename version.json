@@ -1,7 +1,7 @@
 {
-  "versionCode": 331,
-  "versionName": "4.93",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.93/MKTV.apk",
-  "apkSha256": "a0c5e2cbdc393eac1ecfe8e9615e301fd6dca6ef534d67dc86982c393bcd7180",
-  "changelog": "Fixed the Providers tab's Live/Movies/Series row and Guide's What's On/Grid row being entirely missing in landscape (the mode used on car-box/head-unit devices)."
+  "versionCode": 332,
+  "versionName": "4.94",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.94/MKTV.apk",
+  "apkSha256": "70300390271d921663a52cc81dea45efcf47865e736967f8a74f4d03b3070b8d",
+  "changelog": "PiP corner box and sync progress indicator now work in landscape. TV no longer auto-enters system PiP (no reliable way to exit it with a remote)."
 }

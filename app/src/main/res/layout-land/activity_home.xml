@@ -319,6 +319,39 @@
 
             </LinearLayout>
 
+            <!-- SYNC PROGRESS — landscape equivalent of portrait's syncProgressContainer, shown
+                 while a large catalog (movies/series) is downloading. -->
+            <LinearLayout
+                android:id="@+id/syncProgressContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#1A1A1A"
+                android:orientation="vertical"
+                android:paddingHorizontal="8dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="4dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvSyncStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#AAAAAA"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="4dp" />
+
+                <ProgressBar
+                    android:id="@+id/syncProgressBar"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="4dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressBackgroundTint="#33FFFFFF"
+                    android:progressTint="#008CFF" />
+
+            </LinearLayout>
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvCategories"
                 android:layout_width="match_parent"
@@ -487,15 +520,57 @@
     <TextView android:id="@+id/tvHeroDescription" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
     <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- PiP corner overlay — real position/size now, matching portrait's shape (was previously
+         a hidden 0x0 stub here, so the drag/resize/tap-to-restore floating box built for
+         portrait was invisible/non-functional in landscape, the orientation the car-box/
+         head-unit is always in). Bottom-right of the FULL screen (not just the content area
+         right of the sidebar) — the sidebar is only ~150dp wide and left-anchored, so a
+         220dp-wide box anchored to the parent's end still clears it with room to spare. The
+         drag/resize logic in HomeActivity's setupPipCornerDragResize() already works against
+         any layout, since it only reads/writes this view's layoutParams/translation — no code
+         changes were needed, only this view's real bounds. -->
     <FrameLayout
         android:id="@+id/pipCorner"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="220dp"
+        android:layout_height="130dp"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="#000000"
+        android:elevation="8dp"
         android:visibility="gone"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-        <androidx.media3.ui.PlayerView android:id="@+id/pipCornerView" android:layout_width="match_parent" android:layout_height="match_parent" />
-        <TextView android:id="@+id/tvPipChannelName" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/pipCornerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:resize_mode="fit"
+            app:use_controller="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#88000000"
+            android:padding="4dp"
+            android:id="@+id/tvPipChannelName"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/btnPipRestore"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:background="#AA000000"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="3dp"
+            android:text="↩"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
     </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

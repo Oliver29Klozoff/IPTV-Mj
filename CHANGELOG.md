@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v4.94 - 2026-07-22
+- **Added**: the floating PiP corner box (drag to move, pinch to resize, tap to restore) now
+  works in landscape — it was built portrait-only and was an invisible placeholder in
+  landscape (the mode car-box/head-unit devices are always in). Also added landscape's sync
+  progress indicator (shown while a large Movies/Series catalog is downloading), which had
+  the same gap.
+- **Fixed**: on TV, system Picture-in-Picture (triggered by pressing Home while a live channel
+  plays) could leave you stuck with no way back, since TV remotes have no swipe/tap gesture to
+  exit it like phone does — TV no longer auto-enters PiP at all; phone is unaffected.
+
 ## v4.93 - 2026-07-22
 - **Fixed**: in landscape (always the case on a car-box/head-unit device), the Providers tab's
   Live/Movies/Series row and the Guide tab's What's On/Grid row were both entirely missing —

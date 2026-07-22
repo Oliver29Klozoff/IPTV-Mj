@@ -1589,8 +1589,12 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // TV remotes have no reliable gesture to exit system PiP (no swipe-up/tap-X like
+        // phone) — once entered there, the user could get stuck with no way back short of a
+        // guessed Back-button sequence. Skip auto-entering PiP entirely on TV/large-screen
+        // devices; phone keeps it since the standard Android PiP exit gestures work fine there.
         val pipAllowed = kotlinx.coroutines.runBlocking { prefs.pipEnabled.first() }
-        if (!isVod && pipAllowed) enterPip()
+        if (!isVod && pipAllowed && !isLargeScreenDevice()) enterPip()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
