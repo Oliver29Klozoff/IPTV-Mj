@@ -568,26 +568,34 @@ class TvSettingsActivity : AppCompatActivity() {
             val nick = server.getOrElse(3) { "" }.ifEmpty { server.getOrElse(1) { "Provider ${i + 2}" } }
             val isActive = activeIdx == i
             val isEnabled = server.getOrElse(5) { "true" }.toBoolean()
-            settingsItems += TvSettingItem.Action("server_$i",
-                "${if (isActive) "●  " else ""}$nick${if (!isEnabled) "  (disabled)" else ""}",
-                value = server.getOrElse(0) { "" }.take(45)) { showServerOptions(i) }
-            // Same enable/disable toggle phone's Settings has — disabling hides the provider
-            // from the Providers tab/refresh/health-check entirely but keeps its saved
-            // credentials, matching the "temporary remove" reasoning used for the cache clear.
-            settingsItems += TvSettingItem.Toggle("server_enabled_$i", "Enabled",
-                checked = isEnabled) { checked ->
-                val updated = extraServers[i].toMutableList()
-                while (updated.size < 6) updated.add("true")
-                updated[5] = checked.toString()
-                extraServers[i] = updated
-                lifecycleScope.launch {
-                    prefs.saveExtraServersWithNick(extraServers)
-                    db.mergedChannelDao().clearAll()
-                    db.mergedVodDao().clearAll()
-                    db.mergedSeriesDao().clearAll()
-                    rebuildList("server_add")
+            // Same enable/disable toggle phone's Settings has, as a Toggle row so the D-pad can
+            // reach it inline (to the right of the provider's own row) instead of a separate row
+            // underneath — actionLabel/onAction is this row's existing "secondary button on the
+            // same row, independently focusable" mechanism (already used for e.g. Show Movies
+            // Tab's refresh button), reused here for the Switch/Edit/Update/Remove dialog so
+            // tapping the row body toggles enabled/disabled and the action button opens options.
+            settingsItems += TvSettingItem.Toggle(
+                id = "server_$i",
+                title = "${if (isActive) "●  " else ""}$nick",
+                subtitle = server.getOrElse(0) { "" }.take(45),
+                checked = isEnabled,
+                valueOn = "Enabled", valueOff = "Disabled",
+                actionLabel = "Options",
+                onAction = { showServerOptions(i) },
+                onToggle = { checked ->
+                    val updated = extraServers[i].toMutableList()
+                    while (updated.size < 6) updated.add("true")
+                    updated[5] = checked.toString()
+                    extraServers[i] = updated
+                    lifecycleScope.launch {
+                        prefs.saveExtraServersWithNick(extraServers)
+                        db.mergedChannelDao().clearAll()
+                        db.mergedVodDao().clearAll()
+                        db.mergedSeriesDao().clearAll()
+                        rebuildList("server_add")
+                    }
                 }
-            }
+            )
         }
         settingsItems += TvSettingItem.Action("server_add", "Add Provider") { showAddServerDialog() }
         settingsItems += TvSettingItem.Action("server_update_channels", "Update All Provider Channels") {

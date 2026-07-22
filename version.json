@@ -1,7 +1,7 @@
 {
-  "versionCode": 329,
-  "versionName": "4.91",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.91/MKTV.apk",
-  "apkSha256": "56a42a07c8c94f2f1d50df54fcf26b56ca75128260362fcdc8399820a1d8d254",
-  "changelog": "Fixed Guide showing two NOW entries, fixed movie/show favorite stars all appearing checked, added per-provider enable/disable toggle, and added a Favorites view per Providers-tab mode."
+  "versionCode": 330,
+  "versionName": "4.92",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.92/MKTV.apk",
+  "apkSha256": "3bf7f9d75f69b1c171e79e414cd15166ae9d040fdd38759fa037b39de33ec6d3",
+  "changelog": "Fixed TV's provider enable/disable toggle to be D-pad reachable inline on the provider's row, and moved Guide's What's On/Grid buttons under the main tabs."
 }

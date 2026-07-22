@@ -539,7 +539,7 @@ class HomeActivity : AppCompatActivity() {
         binding.progressBar?.indeterminateTintList = csl
         binding.miniEpgProgress?.progressTintList = csl
         binding.tvMiniEpg?.setTextColor(colorInt)
-        binding.btnTimelineView?.setTextColor(colorInt)
+        binding.btnTimelineViewRow?.setTextColor(colorInt)
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
@@ -837,8 +837,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMenu() {
-        binding.btnWhatsOn?.setOnClickListener { showWhatsOnNow() }
-        binding.btnWhatsOn?.setOnLongClickListener { showUpNextTicker(); true }
+        binding.btnWhatsOnRow?.setOnClickListener { showWhatsOnNow() }
+        binding.btnWhatsOnRow?.setOnLongClickListener { showUpNextTicker(); true }
         binding.btnRefresh?.setOnClickListener {
             viewModel.refreshNow()
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
@@ -1433,6 +1433,7 @@ class HomeActivity : AppCompatActivity() {
                 binding.btnVodSort?.visibility = if (tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES) View.VISIBLE else View.GONE
                 binding.btnRefreshProviders?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
                 binding.providersModeRow?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
+                binding.guideModeRow?.visibility = if (tab?.position == TAB_GUIDE) View.VISIBLE else View.GONE
                 // Switching TO Providers from a different tab counts as a fresh visit — the
                 // "jump to the playing channel" behavior gets one shot; every tap after that
                 // (via onTabReselected below) just steps back one level instead. Also always
@@ -1455,8 +1456,7 @@ class HomeActivity : AppCompatActivity() {
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {
                 if (tab?.position == TAB_GUIDE) {
-                    binding.btnTimelineView?.visibility = View.GONE
-                    binding.btnWhatsOn?.visibility = View.GONE
+                    binding.guideModeRow?.visibility = View.GONE
                 }
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
@@ -2282,11 +2282,10 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = guideAdapter
         viewModel.loadGuide()
-        binding.btnTimelineView?.visibility = View.VISIBLE
-        binding.btnTimelineView?.setOnClickListener {
+        binding.guideModeRow?.visibility = View.VISIBLE
+        binding.btnTimelineViewRow?.setOnClickListener {
             timelineLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
         }
-        binding.btnWhatsOn?.visibility = View.VISIBLE
     }
 
     private fun openPlayer(

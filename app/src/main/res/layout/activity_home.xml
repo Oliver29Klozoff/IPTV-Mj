@@ -22,16 +22,6 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <Button
-            android:id="@+id/btnWhatsOn"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:text="📋 What's On"
-            android:textColor="#008CFF"
-            android:textSize="12sp"
-            android:visibility="gone" />
-
-        <Button
             android:id="@+id/btnSort"
             android:layout_width="0dp"
             android:layout_height="0dp"
@@ -45,17 +35,6 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             android:tint="#888888"
-            android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnTimelineView"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:layout_marginStart="4dp"
-            android:background="@android:color/transparent"
-            android:text="⏱ Grid"
-            android:textColor="#008CFF"
-            android:textSize="12sp"
             android:visibility="gone" />
 
         <ImageButton
@@ -375,6 +354,48 @@
 
     </LinearLayout>
 
+    <!-- GUIDE MODE ROW — What's On / Grid buttons, moved out of topBar and down here to match
+         providersModeRow's placement, visible only when the Guide tab is selected. Stacked
+         directly below providersModeRow (both collapse to zero height when gone, so only one
+         is ever actually visible at a time — only one tab can be selected). -->
+    <LinearLayout
+        android:id="@+id/guideModeRow"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:background="#1A1A1A"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/providersModeRow">
+
+        <TextView
+            android:id="@+id/btnWhatsOnRow"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:background="@drawable/focus_selector"
+            android:text="📋 What's On"
+            android:textColor="#008CFF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnTimelineViewRow"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:background="@drawable/focus_selector"
+            android:text="⏱ Grid"
+            android:textColor="#008CFF"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
     <!-- SYNC PROGRESS — shown while a large catalog (movies/series) is downloading -->
     <LinearLayout
         android:id="@+id/syncProgressContainer"
@@ -388,7 +409,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/providersModeRow">
+        app:layout_constraintTop_toBottomOf="@id/guideModeRow">
 
         <TextView
             android:id="@+id/tvSyncStatus"

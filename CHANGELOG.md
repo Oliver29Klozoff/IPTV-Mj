@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v4.92 - 2026-07-22
+- **Fixed (TV)**: the provider enable/disable toggle added in v4.91 wasn't reachable by D-pad
+  as its own row — it's now inline on the provider's own row (tap the row to enable/disable,
+  a separate "Options" button on the same row opens Switch/Edit/Update/Remove), with both
+  independently focusable.
+- **Changed**: Guide's "What's On" and "Grid" buttons moved out of the top search bar into
+  their own row under the main tabs (matching the Providers tab's Live/Movies/Series row),
+  visible only while the Guide tab is active.
+
 ## v4.91 - 2026-07-22
 - **Fixed**: the Guide tab's list view could show two "▶ NOW" entries for the same channel
   when a provider's EPG had overlapping or back-to-back program times — now only the program
