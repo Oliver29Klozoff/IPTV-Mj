@@ -50,27 +50,36 @@
             android:layout_width="match_parent"
             android:layout_height="44dp">
 
+            <!-- landBtnProviders no longer spans the full width — it used to overlap
+                 landBtnRefreshProviders's small 32dp touch target underneath (both real
+                 clickable Buttons stacked in the same FrameLayout), which on a car-box
+                 touchscreen (less precise digitizer, often used with gloves/while driving)
+                 could easily register a tap meant for refresh as a no-op tab reselect
+                 instead, making refresh look like it does nothing. Explicit end margin keeps
+                 its clickable bounds clear of the refresh button's real space. -->
             <Button
                 android:id="@+id/landBtnProviders"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:layout_marginEnd="48dp"
                 android:background="@android:color/transparent"
                 android:text="PROVIDERS"
                 android:textColor="#AAAAAA"
                 android:textSize="12sp"
                 android:gravity="start|center_vertical"
-                android:paddingStart="14dp"
-                android:paddingEnd="36dp" />
+                android:paddingStart="14dp" />
 
             <!-- The long-press-to-refresh gesture on landBtnProviders itself wasn't
                  discoverable at all — this gives landscape the same visible refresh icon
-                 portrait already has next to search (btnRefreshProviders). -->
+                 portrait already has next to search (btnRefreshProviders). Larger 44dp touch
+                 target (was 32dp) for the same car-box-touchscreen-precision reason above —
+                 the icon itself stays visually 32dp via padding. -->
             <ImageButton
                 android:id="@+id/landBtnRefreshProviders"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:layout_gravity="end|center_vertical"
-                android:layout_marginEnd="4dp"
+                android:padding="6dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_popup_sync"
                 android:tint="#888888"

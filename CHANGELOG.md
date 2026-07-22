@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v4.96 - 2026-07-22
+- **Fixed**: on the car-box/head-unit (landscape), the Providers tab's refresh icon shared its
+  touch area with the "PROVIDERS" tab button underneath it — on a less-precise touchscreen, a
+  tap meant for refresh could easily land on the tab instead (a no-op if already on that tab),
+  making refresh look like it did nothing. Both buttons now have clearly separated touch areas,
+  and the refresh icon's tappable area is larger.
+
 ## v4.95 - 2026-07-22
 - **Added**: hide categories in Providers > Movies and Providers > Series — long-press a
   category to select it (and more), then hide the selection with one tap. Hidden categories

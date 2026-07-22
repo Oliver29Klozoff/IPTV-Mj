@@ -1,7 +1,7 @@
 {
-  "versionCode": 333,
-  "versionName": "4.95",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.95/MKTV.apk",
-  "apkSha256": "d1a2741d2008fde89d609cef14b3d557ee9a28d767be05a6a530df159b4185cf",
-  "changelog": "Added hide categories (with bulk-hide) to Providers > Movies/Series, surviving Backup/Restore and Sync."
+  "versionCode": 334,
+  "versionName": "4.96",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.96/MKTV.apk",
+  "apkSha256": "457bb730a6cf9f3ba05a709552356118caa642c793e19031ba3565a36442102b",
+  "changelog": "Fixed the Providers tab's refresh button on the car-box/head-unit overlapping the tab button underneath it, making refresh seem unresponsive."
 }
