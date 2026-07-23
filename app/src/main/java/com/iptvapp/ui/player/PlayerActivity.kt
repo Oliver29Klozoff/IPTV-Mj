@@ -50,10 +50,12 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import okhttp3.OkHttpClient
 import javax.inject.Inject
@@ -1218,12 +1220,25 @@ class PlayerActivity : AppCompatActivity() {
             // context and enforces CORS; most IPTV servers don't send CORS headers.
             castProxy?.stop()
             val localIp = getLocalIpAddress()
+            // A raw .ts live channel (no HLS manifest at all — common on IPTV panels) can't be
+            // handed to the receiver as-is: its video pipeline expects segmented media (HLS/
+            // DASH/progressive MP4), not an infinite raw transport-stream socket — it connects
+            // then silently disconnects a few seconds in with nothing ever rendered. Repackage
+            // it into a live HLS presentation instead (see IptvCastProxy.proxyLiveUrl/
+            // LiveHlsSession) so the receiver gets a normal-looking live stream. VOD is
+            // unaffected — a VOD .ts/.mp4 file has a real, finite length the receiver can seek
+            // within, so it isn't subject to the same "infinite socket" problem.
+            val isRawTsLive = !isVod && directUrl.contains(".ts", ignoreCase = true) && !directUrl.contains(".m3u8", ignoreCase = true)
             val castUrl = if (localIp != null) {
                 val proxy = com.iptvapp.cast.IptvCastProxy(localIp).also {
                     it.start()
                     castProxy = it
                 }
-                proxy.proxyUrl(directUrl)
+                if (isRawTsLive) {
+                    proxy.proxyLiveUrl(directUrl, "ExoPlayerLib/1.4.1 (Linux; Android)")
+                } else {
+                    proxy.proxyUrl(directUrl)
+                }
             } else {
                 directUrl
             }
@@ -1273,6 +1288,23 @@ class PlayerActivity : AppCompatActivity() {
                 .setAutoplay(true)
                 .apply { if (isVod && localPositionMs > 0) setCurrentTime(localPositionMs) }
                 .build()
+
+            // The Cast Default Media Receiver only polls a live manifest a handful of times
+            // in the first several seconds right after load() and gives up permanently if it
+            // never saw real segments in that window — calling load() immediately (as this
+            // used to) raced the LiveHlsSession's own repackaging pipeline and consistently
+            // lost, since the CDN's initial burst delivery means the first few genuinely
+            // representative segments take a few seconds to materialize. Block here instead
+            // until they exist so load() only ever happens once the receiver's very first
+            // manifest fetch can already succeed with a normal-looking stream.
+            if (isRawTsLive) {
+                // 3 good segments at ~4-5s each plus connection/probe overhead routinely takes
+                // 15-20s in testing — 12s consistently timed out one segment short, meaning
+                // load() still fired before the receiver's very first poll could succeed.
+                withContext(Dispatchers.IO) {
+                    castProxy?.awaitLiveSessionReady(castUrl, timeoutMs = 25_000)
+                }
+            }
 
             val client = session.remoteMediaClient ?: run {
                 Log.e("CastDebug", "remoteMediaClient is null")

@@ -1,7 +1,7 @@
 {
-  "versionCode": 336,
-  "versionName": "4.98",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.98/MKTV.apk",
-  "apkSha256": "d7e62bcf745048e3200377c788e90600681b504c2c55af3b41d197efdf231d7e",
-  "changelog": "Fixed favorites potentially reverting after an update (disabled Android's whole-app Auto Backup, which isn't needed since the app has its own cross-device sync); added a real progress bar with counts for Providers refresh; added checkbox bulk-hide for merged Movies; merged movies now track watch progress with a new detail screen (Play/Resume, Favorite, Clear Progress)."
+  "versionCode": 337,
+  "versionName": "4.99",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.99/MKTV.apk",
+  "apkSha256": "99fa41148c1f94dc6394fcc563bcdb372feb68d6904014e5acd82f49b70e2738",
+  "changelog": "Fixed casting showing the channel name but a black screen for raw live .ts streams (primary and merged providers) by repackaging them into properly packet-aligned HLS on the fly; fixed a stale background update that could force-show the Favorites genre-filter chips on other tabs like Providers."
 }

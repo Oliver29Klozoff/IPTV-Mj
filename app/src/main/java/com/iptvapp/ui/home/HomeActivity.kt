@@ -2963,8 +2963,14 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.combinedFavorites.collect { favorites ->
-                updateFavoriteGenreChips(favorites)
+                // combinedFavorites is a live StateFlow collector that keeps running regardless
+                // of which tab is showing — updateFavoriteGenreChips used to run unconditionally
+                // above this guard, so any re-emission while on a DIFFERENT tab (e.g. Providers)
+                // force-showed the genre chip row there even though nothing wired it up to do
+                // anything useful in that context. Gate it behind the same tab check as
+                // everything else in this collector.
                 if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@collect
+                updateFavoriteGenreChips(favorites)
                 val filtered = genreFilterFavorites(favorites)
                 combinedFavoriteAdapter.submitList(filtered)
                 viewModel.loadEpgForChannels(filtered.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })

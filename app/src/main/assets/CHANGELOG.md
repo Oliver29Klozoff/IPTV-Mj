@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v4.99 - 2026-07-23
+- **Fixed**: casting a channel (Chromecast) showed the channel name but a black screen, for
+  both primary and merged/secondary providers on some channels — any channel served as a raw,
+  unsegmented live .ts stream (common on IPTV panels, not just this app) can't be handed to
+  the Cast receiver directly; its video pipeline only understands segmented media (HLS/DASH/
+  progressive MP4). The proxy now repackages a raw live .ts stream into real, properly
+  packet-aligned HLS segments on the fly so casting works for those channels too.
+- **Fixed**: a stale background update could force-show the Favorites genre-filter chip row
+  ("All/Sports/Entertainment/...") on other tabs, most noticeably Providers, after switching
+  tabs a few times.
+
 ## v4.98 - 2026-07-22
 - **Fixed**: merged/secondary provider favorites (and other app data) could get silently
   reverted after installing an update — the app had Android's whole-device Auto Backup
