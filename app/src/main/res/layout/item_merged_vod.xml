@@ -10,6 +10,15 @@
     android:focusableInTouchMode="false"
     android:background="@drawable/focus_selector">
 
+    <CheckBox
+        android:id="@+id/cbVodBulkSelect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/ivVodPoster"
         android:layout_width="48dp"
@@ -51,6 +60,17 @@
             android:textAllCaps="true"
             android:textColor="#777777"
             android:textSize="10sp" />
+
+        <ProgressBar
+            android:id="@+id/progressMergedVod"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#008CFF"
+            android:visibility="gone" />
     </LinearLayout>
 
     <ImageView

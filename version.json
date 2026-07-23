@@ -1,7 +1,7 @@
 {
-  "versionCode": 335,
-  "versionName": "4.97",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.97/MKTV.apk",
-  "apkSha256": "d51f2cff5460157ccce2334334846a10efbefc0ae38abea8ed1b966d16031537",
-  "changelog": "Fixed cold-boot/rotation/fullscreen-exit routing for merged provider channels, added checkbox bulk-select for channels and shows (hide/favorite), sped up Providers Live guide-text loading, moved hidden categories to the bottom, added a Clear Progress button for movies, and fixed the search box's clear button leaving the keyboard up."
+  "versionCode": 336,
+  "versionName": "4.98",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.98/MKTV.apk",
+  "apkSha256": "d7e62bcf745048e3200377c788e90600681b504c2c55af3b41d197efdf231d7e",
+  "changelog": "Fixed favorites potentially reverting after an update (disabled Android's whole-app Auto Backup, which isn't needed since the app has its own cross-device sync); added a real progress bar with counts for Providers refresh; added checkbox bulk-hide for merged Movies; merged movies now track watch progress with a new detail screen (Play/Resume, Favorite, Clear Progress)."
 }

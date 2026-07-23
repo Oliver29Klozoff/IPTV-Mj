@@ -280,6 +280,36 @@ class HomeActivity : AppCompatActivity() {
         mergedSeriesAdapter.submitBulkSelection(emptySet())
     }
 
+    // Merged VOD bulk-hide — same shape as merged Series' above.
+    private val bulkSelectedMergedVodKeys = mutableSetOf<String>()
+    private var bulkSelectMergedVodMode = false
+    private val bulkSelectMergedVodIdleRunnable = Runnable {
+        if (bulkSelectMergedVodMode && bulkSelectedMergedVodKeys.isNotEmpty()) {
+            showBulkSelectIdlePrompt(
+                count = bulkSelectedMergedVodKeys.size,
+                onMoveToFavorites = {
+                    val items = bulkSelectedMergedVodKeys.mapNotNull { key ->
+                        val (serverIndex, streamId) = key.split(":", limit = 2)
+                        viewModel.mergedVod.value.firstOrNull { it.serverIndex == serverIndex.toInt() && it.streamId == streamId.toInt() }
+                    }
+                    viewModel.bulkHideMergedVod(items)
+                    Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} movies hidden", Toast.LENGTH_SHORT).show()
+                    clearBulkSelectionMergedVod()
+                },
+                onUnselectAll = { clearBulkSelectionMergedVod() },
+                itemLabel = "movie",
+                actionLabel = "Hide Selected"
+            )
+        }
+    }
+
+    private fun clearBulkSelectionMergedVod() {
+        bulkSelectedMergedVodKeys.clear()
+        bulkSelectMergedVodMode = false
+        bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
+        mergedVodAdapter.submitBulkSelection(emptySet())
+    }
+
     private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     private val settingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
@@ -835,24 +865,9 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         lifecycleScope.launch {
-            // Cold-boot merged-channel resume: onCreate routes the Providers tab to this
-            // channel's folder based on the same LAST_PLAYED_* DataStore keys, but the mini
-            // player itself is populated separately here — read the keys directly (rather than
-            // relying on currentMiniServerIndex/currentMiniMergedStreamId already being set by
-            // onCreate's own coroutine, which isn't guaranteed to have completed first) so
-            // getRecentChannel() below can't resume the wrong (primary) channel into the mini
-            // player and silently override what onCreate just set up.
-            if (currentMiniUrl.isEmpty()) {
-                val lastServerIndex = prefs.lastPlayedServerIndex.first()
-                val lastStreamId = prefs.lastPlayedStreamId.first()
-                if (lastServerIndex != -1 && lastStreamId != -1) {
-                    val channel = viewModel.getMergedChannelByIndexAndId(lastServerIndex, lastStreamId)
-                    if (channel != null) {
-                        playMergedChannel(channel)
-                        return@launch
-                    }
-                }
-            }
+            // Cold-boot merged-channel resume is handled by loadLastWatchedChannel() (called
+            // from onStart, which always runs before this), so currentMiniUrl is already
+            // populated by the time this coroutine runs — no need to duplicate that check here.
             val recent = viewModel.getRecentChannel()
             val isLive = currentMiniUrl.isNotEmpty() && !currentMiniIsVod
             // currentMiniStreamId == -1 alone doesn't mean "no primary channel is playing" — a
@@ -1510,22 +1525,40 @@ class HomeActivity : AppCompatActivity() {
         )
 
         mergedVodAdapter = MergedVodAdapter(
-            onItemClick = { vod ->
-                lifecycleScope.launch {
-                    try {
-                        val url = viewModel.getMergedVodStreamUrl(vod.serverIndex, vod.streamId, vod.containerExtension)
-                        openPlayer(
-                            url, "${vod.name} · ${vod.serverNickname}", -1, isVod = true,
-                            serverIndex = vod.serverIndex, mergedStreamId = vod.streamId
-                        )
-                    } catch (_: Exception) {
-                        Toast.makeText(this@HomeActivity, "Couldn't load this movie", Toast.LENGTH_SHORT).show()
-                    }
+            onItemClick = onItemClick@{ vod ->
+                if (bulkSelectMergedVodMode) {
+                    val key = "${vod.serverIndex}:${vod.streamId}"
+                    if (!bulkSelectedMergedVodKeys.add(key)) bulkSelectedMergedVodKeys.remove(key)
+                    mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                    Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected", Toast.LENGTH_SHORT).show()
+                    bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
+                    if (bulkSelectedMergedVodKeys.isEmpty()) bulkSelectMergedVodMode = false
+                    else bulkSelectHandler.postDelayed(bulkSelectMergedVodIdleRunnable, 8000)
+                    return@onItemClick
                 }
+                startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
+                    putExtra("server_index", vod.serverIndex)
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                    putExtra("vod_is_favorite", vod.isFavorite)
+                    putExtra("server_nickname", vod.serverNickname)
+                })
             },
             onFavoriteClick = { vod ->
                 viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
                 Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onItemLongClick = { vod ->
+                bulkSelectMergedVodMode = true
+                val key = "${vod.serverIndex}:${vod.streamId}"
+                bulkSelectedMergedVodKeys.add(key)
+                mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected — tap more movies to hide", Toast.LENGTH_SHORT).show()
+                bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
+                bulkSelectHandler.postDelayed(bulkSelectMergedVodIdleRunnable, 8000)
             }
         )
 

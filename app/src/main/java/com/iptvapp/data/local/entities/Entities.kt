@@ -171,8 +171,7 @@ data class MergedCategorySummary(val categoryId: String?, val categoryName: Stri
 
 // Movies-tab equivalent of MergedChannelEntity — same serverIndex convention, same
 // wholesale-refetch-preserving-favorites approach (see XtreamRepository.refreshMergedVod).
-// No watchedMs/durationMs in v1 (resume for merged VOD is a later stretch goal) and no
-// per-item plot/cast detail fetch — merged VOD plays directly rather than going through a
+// No per-item plot/cast detail fetch — merged VOD plays directly rather than going through a
 // detail screen, unlike primary VOD's VodDetailActivity.
 @Entity(tableName = "merged_vod", primaryKeys = ["serverIndex", "streamId"])
 data class MergedVodEntity(
@@ -188,7 +187,10 @@ data class MergedVodEntity(
     val added: String?,
     val isFavorite: Boolean = false,
     val favoriteFolderId: Int? = null,
-    val cachedAt: Long = System.currentTimeMillis()
+    val cachedAt: Long = System.currentTimeMillis(),
+    val watchedMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val isHidden: Boolean = false
 )
 
 data class MergedVodServerSummary(val serverIndex: Int, val serverNickname: String, val vodCount: Int)

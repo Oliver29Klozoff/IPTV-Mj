@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -288,6 +288,18 @@ abstract class IptvDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE series ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE merged_series ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // Adds hide-individual-item support to merged VOD (same isHidden pattern as
+        // MIGRATION_22_23's merged_series), plus watch-progress tracking merged VOD never had
+        // ("a later stretch goal" per MergedVodEntity's original kdoc) — needed for both the
+        // watched-first sort primary Movies already has and a Clear Progress action.
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE merged_vod ADD COLUMN watchedMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE merged_vod ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE merged_vod ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

@@ -370,7 +370,7 @@ data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val is
 // refresh, favorites/folders reusing FavoriteFolderEntity), see MergedVodEntity kdoc.
 @Dao
 interface MergedVodDao {
-    @Query("SELECT * FROM merged_vod ORDER BY serverIndex ASC, name ASC")
+    @Query("SELECT * FROM merged_vod WHERE isHidden = 0 ORDER BY serverIndex ASC, name ASC")
     fun getAll(): Flow<List<MergedVodEntity>>
     @Upsert
     suspend fun upsertAll(vod: List<MergedVodEntity>)
@@ -388,22 +388,22 @@ interface MergedVodDao {
     @Query("SELECT categoryId, categoryName, COUNT(*) as vodCount FROM merged_vod WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedVodCategorySummary>>
 
-    @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY name")
+    @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY name")
     fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>>
 
     @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity?
 
-    @Query("SELECT * FROM merged_vod WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, name")
+    @Query("SELECT * FROM merged_vod WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY serverIndex, name")
     fun search(query: String): Flow<List<MergedVodEntity>>
 
-    @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId FROM merged_vod")
+    @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId, watchedMs, durationMs, isHidden FROM merged_vod")
     suspend fun getUserData(): List<MergedVodUserData>
-    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND isHidden = 0 ORDER BY name ASC")
     fun getAllFavorites(): Flow<List<MergedVodEntity>>
-    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND favoriteFolderId = :folderId ORDER BY name ASC")
+    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND favoriteFolderId = :folderId AND isHidden = 0 ORDER BY name ASC")
     fun getFavoritesInFolder(folderId: Int): Flow<List<MergedVodEntity>>
-    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND favoriteFolderId IS NULL ORDER BY name ASC")
+    @Query("SELECT * FROM merged_vod WHERE isFavorite = 1 AND favoriteFolderId IS NULL AND isHidden = 0 ORDER BY name ASC")
     fun getUnfiledFavorites(): Flow<List<MergedVodEntity>>
     @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM merged_vod WHERE isFavorite = 1 GROUP BY favoriteFolderId")
     fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
@@ -413,9 +413,24 @@ interface MergedVodDao {
     suspend fun setFavoriteFolder(serverIndex: Int, streamId: Int, folderId: Int?)
     @Query("UPDATE merged_vod SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
     suspend fun clearFolderFromChannels(folderId: Int)
+    // Hide-individual-item support, same shape as MergedSeriesDao's hide/unhide/getHidden.
+    @Query("UPDATE merged_vod SET isHidden = 1 WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)")
+    suspend fun bulkSetHidden(serverIndex: Int, streamIds: List<Int>)
+    @Query("SELECT * FROM merged_vod WHERE isHidden = 1 ORDER BY serverIndex ASC, name ASC")
+    fun getHidden(): Flow<List<MergedVodEntity>>
+    // Watch-progress support, same shape as VodDao's updateWatchProgress/getWatchedMs/getDurationMs.
+    @Query("UPDATE merged_vod SET watchedMs = :watchedMs, durationMs = :durationMs WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun updateWatchProgress(serverIndex: Int, streamId: Int, watchedMs: Long, durationMs: Long)
+    @Query("SELECT watchedMs FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun getWatchedMs(serverIndex: Int, streamId: Int): Long?
+    @Query("SELECT durationMs FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun getDurationMs(serverIndex: Int, streamId: Int): Long?
 }
 
-data class MergedVodUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)
+data class MergedVodUserData(
+    val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?,
+    val watchedMs: Long = 0L, val durationMs: Long = 0L, val isHidden: Boolean = false
+)
 
 // Series-tab equivalent of MergedVodDao — same shape throughout, see MergedSeriesEntity kdoc.
 @Dao

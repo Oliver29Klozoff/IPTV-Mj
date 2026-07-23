@@ -179,14 +179,21 @@ class HomeViewModel @Inject constructor(
     /** Manual refresh only — fetches every configured server's live channels in parallel for
      * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
-        // _loading previously only covered the primary provider's own channel/category load —
-        // refreshing a merged/secondary provider showed no progress indicator at all. Reusing
-        // the same flag surfaces the existing progressBar for every provider, not just primary.
+        // _syncProgress drives the same visible blue bar + "N/Total" text the primary
+        // provider's first-run sync already shows — refreshing a merged/secondary provider
+        // previously only toggled the small spinner (_loading), easy to miss and with no count
+        // at all. Each merged-provider fetch is one bulk API call per server (not paginated),
+        // so "items" here means running total across servers, and progress advances per-server-
+        // completed rather than per-item within a server — coarser than the primary provider's
+        // true streamed progress, but still shows real movement instead of a bare spinner.
         viewModelScope.launch {
             _loading.value = true
             try {
-                repository.refreshMergedChannels(targetServerIndex)
+                repository.refreshMergedChannels(targetServerIndex) { completed, total, itemsSoFar ->
+                    _syncProgress.value = "Loading channels… $completed/$total providers ($itemsSoFar channels)" to (completed * 100 / total.coerceAtLeast(1))
+                }
             } finally {
+                _syncProgress.value = null
                 _loading.value = false
             }
         }
@@ -495,9 +502,12 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _loading.value = true
             try {
-                val errors = repository.refreshMergedVod(serverIndex)
+                val errors = repository.refreshMergedVod(serverIndex) { completed, total, itemsSoFar ->
+                    _syncProgress.value = "Loading movies… $completed/$total providers ($itemsSoFar movies)" to (completed * 100 / total.coerceAtLeast(1))
+                }
                 onDone(errors)
             } finally {
+                _syncProgress.value = null
                 _loading.value = false
             }
         }
@@ -591,9 +601,12 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _loading.value = true
             try {
-                val errors = repository.refreshMergedSeries(serverIndex)
+                val errors = repository.refreshMergedSeries(serverIndex) { completed, total, itemsSoFar ->
+                    _syncProgress.value = "Loading series… $completed/$total providers ($itemsSoFar shows)" to (completed * 100 / total.coerceAtLeast(1))
+                }
                 onDone(errors)
             } finally {
+                _syncProgress.value = null
                 _loading.value = false
             }
         }
@@ -1661,6 +1674,25 @@ class HomeViewModel @Inject constructor(
 
     fun unhideMergedSeries(serverIndex: Int, seriesId: Int) {
         viewModelScope.launch { repository.unhideMergedSeries(serverIndex, seriesId) }
+    }
+
+    // ─── Merged VOD hide (bulk checkbox select) + watch progress ────────────
+
+    // Grouped by serverIndex — same reasoning as bulkHideMergedSeries (composite-key DAO call,
+    // a bulk selection can span multiple merged providers at once).
+    fun bulkHideMergedVod(items: List<com.iptvapp.data.local.entities.MergedVodEntity>) {
+        viewModelScope.launch {
+            items.groupBy { it.serverIndex }.forEach { (serverIndex, group) ->
+                repository.bulkHideMergedVod(serverIndex, group.map { it.streamId })
+            }
+        }
+    }
+
+    suspend fun getMergedVodProgress(serverIndex: Int, streamId: Int): Pair<Long, Long> =
+        repository.getMergedVodProgress(serverIndex, streamId)
+
+    fun saveMergedVodProgress(serverIndex: Int, streamId: Int, watchedMs: Long, durationMs: Long) {
+        viewModelScope.launch { repository.saveMergedVodProgress(serverIndex, streamId, watchedMs, durationMs) }
     }
 
     // ─── Bulk Favorites ──────────────────────────────────────────────────────

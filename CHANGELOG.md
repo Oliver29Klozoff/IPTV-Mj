@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v4.98 - 2026-07-22
+- **Fixed**: merged/secondary provider favorites (and other app data) could get silently
+  reverted after installing an update — the app had Android's whole-device Auto Backup
+  enabled with no exclusions, which some phones use to restore a stale snapshot of the
+  entire app database right after a reinstall/update. Disabled it; the app already has its
+  own dedicated cross-device sync for continuity.
+- **Added**: Providers refresh (Live/Movies/Series) now shows a real progress bar with a
+  running count ("Loading movies… 2/3 providers, 4,200 movies") instead of a tiny, easy-to-
+  miss spinner.
+- **Added**: checkbox-based bulk-hide for Providers > Movies (merged VOD) — long-press to
+  select, matching the same flow Series already got.
+- **Added**: merged/secondary-provider movies now track watch progress and resume where you
+  left off. Tapping one opens a new detail screen (poster, rating, category, provider,
+  Play/Resume, Favorite, and Clear Progress) instead of playing immediately.
+
 ## v4.97 - 2026-07-22
 - **Fixed**: exiting fullscreen (or rotating the phone) while watching a merged/secondary
   provider channel always kicked you back to Favorites instead of that channel's own

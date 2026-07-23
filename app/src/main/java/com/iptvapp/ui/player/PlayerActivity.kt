@@ -1330,6 +1330,11 @@ class PlayerActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 repository.saveEpisodeProgress(episodeSeriesId, traktSeason, traktEpisode, watched, duration)
             }
+        } else if (serverIndex != -1 && mergedStreamId != -1) {
+            // Merged-provider VOD plays with streamId = -1 (no primary vod_streams row) —
+            // resolve progress by (serverIndex, mergedStreamId) instead, same composite-key
+            // convention as every other merged-provider table.
+            lifecycleScope.launch { repository.saveMergedVodProgress(serverIndex, mergedStreamId, watched, duration) }
         } else {
             if (streamId < 0) return
             lifecycleScope.launch { repository.saveVodProgress(streamId, watched, duration) }

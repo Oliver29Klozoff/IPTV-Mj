@@ -890,10 +890,14 @@ class XtreamRepository @Inject constructor(
     // per-provider refresh button in Settings, which deliberately only touches live channels/
     // categories, never VOD/series (that's the separate Movies/Series refresh already in the
     // Display section).
-    suspend fun refreshMergedChannels(targetServerIndex: Int? = null): Map<Int, String> {
+    suspend fun refreshMergedChannels(
+        targetServerIndex: Int? = null,
+        onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
+    ): Map<Int, String> {
         val servers = allConfiguredServers().let { all ->
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
         }
+        val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedChannelEntity>()
         // Wholesale re-fetch must not silently un-favorite/un-folder every merged channel —
@@ -946,6 +950,8 @@ class XtreamRepository @Inject constructor(
                         val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
                         android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
+                    } finally {
+                        onProgress(completedCount.incrementAndGet(), servers.size, results.size)
                     }
                 }
             }.forEach { it.await() }
@@ -1189,10 +1195,14 @@ class XtreamRepository @Inject constructor(
      * already-slow multi-provider refresh noticeably slower for users who only care about live
      * channels — matches the existing precedent of Live/Movies/Series having independent
      * refresh buttons for the primary provider too. */
-    suspend fun refreshMergedVod(targetServerIndex: Int? = null): Map<Int, String> {
+    suspend fun refreshMergedVod(
+        targetServerIndex: Int? = null,
+        onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
+    ): Map<Int, String> {
         val servers = allConfiguredServers().let { all ->
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
         }
+        val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedVodEntity>()
         val mergedUserData = db.mergedVodDao().getUserData().associateBy { it.serverIndex to it.streamId }
@@ -1224,7 +1234,10 @@ class XtreamRepository @Inject constructor(
                                         containerExtension = it.containerExtension,
                                         added = it.added,
                                         isFavorite = prev?.isFavorite ?: false,
-                                        favoriteFolderId = prev?.favoriteFolderId
+                                        favoriteFolderId = prev?.favoriteFolderId,
+                                        watchedMs = prev?.watchedMs ?: 0L,
+                                        durationMs = prev?.durationMs ?: 0L,
+                                        isHidden = prev?.isHidden ?: false
                                     )
                                 })
                             }
@@ -1233,6 +1246,8 @@ class XtreamRepository @Inject constructor(
                         val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
                         android.util.Log.e("MergedVod", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
+                    } finally {
+                        onProgress(completedCount.incrementAndGet(), servers.size, results.size)
                     }
                 }
             }.forEach { it.await() }
@@ -1266,6 +1281,20 @@ class XtreamRepository @Inject constructor(
         db.mergedVodDao().setFavoriteFolder(vod.serverIndex, vod.streamId, folderId)
     }
 
+    fun getHiddenMergedVod(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getHidden()
+    suspend fun bulkHideMergedVod(serverIndex: Int, streamIds: List<Int>) =
+        db.mergedVodDao().bulkSetHidden(serverIndex, streamIds)
+
+    suspend fun saveMergedVodProgress(serverIndex: Int, streamId: Int, watchedMs: Long, durationMs: Long) {
+        db.mergedVodDao().updateWatchProgress(serverIndex, streamId, watchedMs, durationMs)
+    }
+
+    suspend fun getMergedVodProgress(serverIndex: Int, streamId: Int): Pair<Long, Long> {
+        val watched = db.mergedVodDao().getWatchedMs(serverIndex, streamId) ?: 0L
+        val duration = db.mergedVodDao().getDurationMs(serverIndex, streamId) ?: 0L
+        return Pair(watched, duration)
+    }
+
     /** Same per-server-credentialed URL-building precedent as getMergedLiveStreamUrl. */
     suspend fun getMergedVodStreamUrl(serverIndex: Int, streamId: Int, containerExtension: String): String {
         val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
@@ -1277,10 +1306,14 @@ class XtreamRepository @Inject constructor(
      * and get_series instead of the VOD endpoints. Only series METADATA is cached here; season/
      * episode data is fetched on demand per-open via fetchMergedSeriesInfo below and never
      * cached, matching how the primary provider's SeriesDetailActivity already works. */
-    suspend fun refreshMergedSeries(targetServerIndex: Int? = null): Map<Int, String> {
+    suspend fun refreshMergedSeries(
+        targetServerIndex: Int? = null,
+        onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
+    ): Map<Int, String> {
         val servers = allConfiguredServers().let { all ->
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
         }
+        val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedSeriesEntity>()
         val mergedUserData = db.mergedSeriesDao().getUserData().associateBy { it.serverIndex to it.seriesId }
@@ -1323,6 +1356,8 @@ class XtreamRepository @Inject constructor(
                         val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
                         android.util.Log.e("MergedSeries", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
+                    } finally {
+                        onProgress(completedCount.incrementAndGet(), servers.size, results.size)
                     }
                 }
             }.forEach { it.await() }
