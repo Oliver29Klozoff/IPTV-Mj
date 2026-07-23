@@ -339,17 +339,39 @@ class SyncManager @Inject constructor(
                     mergedIdByName[name] = newId
                 }
             }
+            // A remote favorite whose provider IS configured locally (URL resolves) but whose
+            // channel row hasn't been cached here yet (e.g. this device hasn't run its first
+            // merged-channel refresh since the provider was added) would otherwise silently
+            // no-op via setFavorite's plain UPDATE and the favorite would just vanish. Stash it
+            // in the same pendingMergedFavorites set Backup/Restore already uses — it's drained
+            // automatically by applyPendingMergedRestoreData() the next time that provider's
+            // merged channels refresh.
+            val newPendingMergedFavorites = mutableSetOf<String>()
+            val newPendingMergedFolders = mutableSetOf<String>()
             remoteMergedFavorites.forEach { entry ->
                 val url = entry["serverUrl"] as? String ?: return@forEach
-                val serverIndex = serverIndexByUrl[url] ?: return@forEach
                 val streamId = (entry["streamId"] as? Long)?.toInt() ?: return@forEach
-                db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
-                mergedFavoritesMerged++
-                (entry["folderName"] as? String)?.let { folderName ->
-                    mergedIdByName[folderName]?.let { folderId ->
-                        db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                val folderName = entry["folderName"] as? String
+                val serverIndex = serverIndexByUrl[url]
+                val channel = serverIndex?.let { db.mergedChannelDao().getByIndexAndId(it, streamId) }
+                if (serverIndex != null && channel != null) {
+                    db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
+                    mergedFavoritesMerged++
+                    folderName?.let { name ->
+                        mergedIdByName[name]?.let { folderId ->
+                            db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                        }
                     }
+                } else {
+                    newPendingMergedFavorites.add("$url|$streamId")
+                    if (folderName != null) newPendingMergedFolders.add("$url|$streamId|$folderName")
                 }
+            }
+            if (newPendingMergedFavorites.isNotEmpty()) {
+                prefs.setPendingMergedFavorites(prefs.pendingMergedFavorites.first() + newPendingMergedFavorites)
+            }
+            if (newPendingMergedFolders.isNotEmpty()) {
+                prefs.setPendingMergedChannelFolders(prefs.pendingMergedChannelFolders.first() + newPendingMergedFolders)
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -361,11 +383,8 @@ class SyncManager @Inject constructor(
                 prefs.addFavoriteMergedCategoryId("$serverIndex:$categoryId")
             }
 
-            // Merged VOD/Series favorites — same URL-matched shape as merged channels above.
-            // Unconditionally applies setFavorite/setFavoriteFolder even if the local
-            // merged_vod/merged_series row doesn't exist yet (a no-op UPDATE in that case) —
-            // matches the existing merged-channel sync-down behavior exactly, no pending-apply
-            // fallback here (that's a Backup/Restore-only mechanism).
+            // Merged VOD favorites — same URL-matched shape as merged channels above, including
+            // the pending-stash fallback when the local merged_vod row isn't cached yet.
             @Suppress("UNCHECKED_CAST")
             val remoteMergedVodFavorites = (doc.get("mergedVodFavorites") as? List<Map<*, *>>) ?: emptyList()
             var mergedVodFavoritesMerged = 0
@@ -380,17 +399,32 @@ class SyncManager @Inject constructor(
                     vodIdByName[name] = newId
                 }
             }
+            val newPendingMergedVodFavorites = mutableSetOf<String>()
+            val newPendingMergedVodFolders = mutableSetOf<String>()
             remoteMergedVodFavorites.forEach { entry ->
                 val url = entry["serverUrl"] as? String ?: return@forEach
-                val serverIndex = serverIndexByUrl[url] ?: return@forEach
                 val streamId = (entry["streamId"] as? Long)?.toInt() ?: return@forEach
-                db.mergedVodDao().setFavorite(serverIndex, streamId, true)
-                mergedVodFavoritesMerged++
-                (entry["folderName"] as? String)?.let { folderName ->
-                    vodIdByName[folderName]?.let { folderId ->
-                        db.mergedVodDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                val folderName = entry["folderName"] as? String
+                val serverIndex = serverIndexByUrl[url]
+                val vod = serverIndex?.let { db.mergedVodDao().getByIndexAndId(it, streamId) }
+                if (serverIndex != null && vod != null) {
+                    db.mergedVodDao().setFavorite(serverIndex, streamId, true)
+                    mergedVodFavoritesMerged++
+                    folderName?.let { name ->
+                        vodIdByName[name]?.let { folderId ->
+                            db.mergedVodDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                        }
                     }
+                } else {
+                    newPendingMergedVodFavorites.add("$url|$streamId")
+                    if (folderName != null) newPendingMergedVodFolders.add("$url|$streamId|$folderName")
                 }
+            }
+            if (newPendingMergedVodFavorites.isNotEmpty()) {
+                prefs.setPendingMergedVodFavorites(prefs.pendingMergedVodFavorites.first() + newPendingMergedVodFavorites)
+            }
+            if (newPendingMergedVodFolders.isNotEmpty()) {
+                prefs.setPendingMergedVodFolders(prefs.pendingMergedVodFolders.first() + newPendingMergedVodFolders)
             }
 
             @Suppress("UNCHECKED_CAST")
@@ -407,17 +441,32 @@ class SyncManager @Inject constructor(
                     seriesIdByName[name] = newId
                 }
             }
+            val newPendingMergedSeriesFavorites = mutableSetOf<String>()
+            val newPendingMergedSeriesFolders = mutableSetOf<String>()
             remoteMergedSeriesFavorites.forEach { entry ->
                 val url = entry["serverUrl"] as? String ?: return@forEach
-                val serverIndex = serverIndexByUrl[url] ?: return@forEach
                 val seriesId = (entry["seriesId"] as? Long)?.toInt() ?: return@forEach
-                db.mergedSeriesDao().setFavorite(serverIndex, seriesId, true)
-                mergedSeriesFavoritesMerged++
-                (entry["folderName"] as? String)?.let { folderName ->
-                    seriesIdByName[folderName]?.let { folderId ->
-                        db.mergedSeriesDao().setFavoriteFolder(serverIndex, seriesId, folderId)
+                val folderName = entry["folderName"] as? String
+                val serverIndex = serverIndexByUrl[url]
+                val series = serverIndex?.let { db.mergedSeriesDao().getByIndexAndId(it, seriesId) }
+                if (serverIndex != null && series != null) {
+                    db.mergedSeriesDao().setFavorite(serverIndex, seriesId, true)
+                    mergedSeriesFavoritesMerged++
+                    folderName?.let { name ->
+                        seriesIdByName[name]?.let { folderId ->
+                            db.mergedSeriesDao().setFavoriteFolder(serverIndex, seriesId, folderId)
+                        }
                     }
+                } else {
+                    newPendingMergedSeriesFavorites.add("$url|$seriesId")
+                    if (folderName != null) newPendingMergedSeriesFolders.add("$url|$seriesId|$folderName")
                 }
+            }
+            if (newPendingMergedSeriesFavorites.isNotEmpty()) {
+                prefs.setPendingMergedSeriesFavorites(prefs.pendingMergedSeriesFavorites.first() + newPendingMergedSeriesFavorites)
+            }
+            if (newPendingMergedSeriesFolders.isNotEmpty()) {
+                prefs.setPendingMergedSeriesFolders(prefs.pendingMergedSeriesFolders.first() + newPendingMergedSeriesFolders)
             }
 
             // Hidden categories — no local-row dependency at all (a category id is just a

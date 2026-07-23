@@ -332,7 +332,18 @@ class SettingsActivity : AppCompatActivity() {
     private val accentPalette = listOf(
         "#008CFF", "#FF3B30", "#34C759", "#AF52DE", "#FF9500", "#FF2D55", "#5AC8FA"
     )
+    // Named two-stop gradients — selectable alongside the flat swatches above. Picking one only
+    // ever paints a real gradient on the tab indicator (the one place that can render it); every
+    // other accent consumer (progress tints, text colors) falls back to the start color, same as
+    // a plain solid pick. See HomeActivity.applyAccent().
+    private val accentGradients = listOf(
+        Triple("Sunset", "#FF9500", "#FF2D55"),
+        Triple("Ocean", "#008CFF", "#34C759"),
+        Triple("Berry", "#AF52DE", "#FF3B30"),
+        Triple("Aurora", "#34C759", "#5AC8FA")
+    )
     private var currentAccentColor = "#008CFF"
+    private var currentAccentColorEnd = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -616,28 +627,39 @@ class SettingsActivity : AppCompatActivity() {
             container.addView(this)
         }
 
-        fun buildTile(isFirstInRow: Boolean, hex: String?, isCustomTile: Boolean): android.widget.FrameLayout {
+        // Tile kinds: a flat swatch (hex), a named gradient preset (gradient), or the custom-hue
+        // picker tile (isCustomTile). Exactly one of hex/gradient is non-null unless isCustomTile.
+        fun buildTile(isFirstInRow: Boolean, hex: String?, gradient: Triple<String, String, String>?, isCustomTile: Boolean): android.widget.FrameLayout {
             val outer = android.widget.FrameLayout(this).apply {
                 layoutParams = android.widget.LinearLayout.LayoutParams(dp(44), dp(44)).apply {
                     if (!isFirstInRow) marginStart = dp(8)
                 }
             }
-            val isSelected = if (isCustomTile) accentPalette.none { it == currentAccentColor } else hex == currentAccentColor
+            val isSelected = when {
+                isCustomTile -> accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty()
+                gradient != null -> currentAccentColorEnd.equals(gradient.third, ignoreCase = true) && currentAccentColor.equals(gradient.second, ignoreCase = true)
+                else -> hex == currentAccentColor && currentAccentColorEnd.isEmpty()
+            }
             val swatch = View(this).apply {
                 val gd = android.graphics.drawable.GradientDrawable()
                 gd.shape = android.graphics.drawable.GradientDrawable.OVAL
-                if (isCustomTile) {
-                    if (isSelected) {
-                        gd.setColor(Color.parseColor(currentAccentColor))
-                    } else {
-                        // Conic hint that this tile opens a picker, not a single fixed color —
-                        // a plain solid circle here would look like just another preset.
-                        gd.colors = intArrayOf(Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.RED)
-                        gd.gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
+                when {
+                    isCustomTile -> {
+                        if (isSelected) {
+                            gd.setColor(Color.parseColor(currentAccentColor))
+                        } else {
+                            // Conic hint that this tile opens a picker, not a single fixed color —
+                            // a plain solid circle here would look like just another preset.
+                            gd.colors = intArrayOf(Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.RED)
+                            gd.gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
+                            gd.orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
+                        }
+                    }
+                    gradient != null -> {
+                        gd.colors = intArrayOf(Color.parseColor(gradient.second), Color.parseColor(gradient.third))
                         gd.orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
                     }
-                } else {
-                    gd.setColor(Color.parseColor(hex))
+                    else -> gd.setColor(Color.parseColor(hex))
                 }
                 background = gd
                 tag = hex
@@ -659,24 +681,36 @@ class SettingsActivity : AppCompatActivity() {
             outer.addView(swatch)
             outer.addView(ring)
             outer.setOnClickListener {
-                if (isCustomTile) {
-                    showCustomColorPickerDialog()
-                } else if (hex != null) {
-                    currentAccentColor = hex
-                    lifecycleScope.launch { prefs.setAccentColor(hex) }
-                    applyAccentToSettings(Color.parseColor(hex))
-                    setupAccentPicker()
+                when {
+                    isCustomTile -> showCustomColorPickerDialog()
+                    gradient != null -> {
+                        currentAccentColor = gradient.second
+                        currentAccentColorEnd = gradient.third
+                        lifecycleScope.launch { prefs.setAccentGradient(gradient.second, gradient.third) }
+                        applyAccentToSettings(Color.parseColor(gradient.second))
+                        setupAccentPicker()
+                    }
+                    hex != null -> {
+                        currentAccentColor = hex
+                        currentAccentColorEnd = ""
+                        lifecycleScope.launch { prefs.setAccentColor(hex) }
+                        applyAccentToSettings(Color.parseColor(hex))
+                        setupAccentPicker()
+                    }
                 }
             }
             return outer
         }
 
-        val allHexes = accentPalette + listOf<String?>(null) // null marker = the custom tile
+        data class TileSpec(val hex: String?, val gradient: Triple<String, String, String>?, val isCustomTile: Boolean)
+        val allTiles = accentPalette.map { TileSpec(it, null, false) } +
+            accentGradients.map { TileSpec(null, it, false) } +
+            listOf(TileSpec(null, null, true))
         var subRow: android.widget.LinearLayout? = null
-        allHexes.forEachIndexed { i, hex ->
+        allTiles.forEachIndexed { i, spec ->
             val posInRow = i % ACCENT_TILES_PER_ROW
             if (posInRow == 0) subRow = newSubRow()
-            subRow!!.addView(buildTile(isFirstInRow = posInRow == 0, hex = hex, isCustomTile = hex == null))
+            subRow!!.addView(buildTile(isFirstInRow = posInRow == 0, hex = spec.hex, gradient = spec.gradient, isCustomTile = spec.isCustomTile))
         }
     }
 
@@ -733,6 +767,7 @@ class SettingsActivity : AppCompatActivity() {
             .setPositiveButton("Apply") { _, _ ->
                 val hex = String.format("#%06X", 0xFFFFFF and Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
                 currentAccentColor = hex
+                currentAccentColorEnd = ""
                 lifecycleScope.launch { prefs.setAccentColor(hex) }
                 applyAccentToSettings(Color.parseColor(hex))
                 setupAccentPicker()
@@ -1361,6 +1396,7 @@ class SettingsActivity : AppCompatActivity() {
                 currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
                 binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
                 currentAccentColor = prefs.accentColor.first()
+                currentAccentColorEnd = prefs.accentColorEnd.first()
                 setupAccentPicker()
                 applyAccentToSettings(Color.parseColor(currentAccentColor))
                 setupSubtitleSettings()
@@ -2223,52 +2259,21 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    // Was hardcoded to the primary server only (a single prefs.credentials read) — now tests
+    // every currently-active provider (primary + enabled merged/secondary ones), same list
+    // Provider Health already covers, since "test all the active providers" should mean exactly
+    // that rather than just the one account this screen happens to be logged in as.
     private suspend fun runSpeedTest() {
         binding.btnSpeedTest.isEnabled = false
-        binding.tvSpeedTestResult.text = "Testing..."
+        binding.tvSpeedTestResult.text = "Testing all active providers…"
         try {
-            val result = withContext(Dispatchers.IO) {
-                val serverUrl = try { prefs.credentials.first().serverUrl } catch (_: Exception) { "" }
-                val uri = try { java.net.URI(serverUrl) } catch (_: Exception) {
-                    return@withContext "Error: invalid server URL"
-                }
-                val host = uri.host ?: return@withContext "Error: could not parse host"
-                val port = if (uri.port > 0) uri.port else 80
-
-                // TCP ping
-                val tcpTimes = mutableListOf<Long>()
-                repeat(3) {
-                    try {
-                        val start = System.currentTimeMillis()
-                        val socket = java.net.Socket()
-                        socket.connect(java.net.InetSocketAddress(host, port), 3000)
-                        val elapsed = System.currentTimeMillis() - start
-                        socket.close()
-                        tcpTimes.add(elapsed)
-                    } catch (_: Exception) {}
-                }
-                val tcpAvg = if (tcpTimes.isNotEmpty()) tcpTimes.average().toLong() else -1L
-                val tcpStr = if (tcpAvg >= 0) "TCP Ping: ${tcpAvg}ms avg (${tcpTimes.size}/3)"
-                             else "TCP Ping: failed"
-
-                // HTTP response
-                val httpStr = try {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(5, TimeUnit.SECONDS)
-                        .readTimeout(8, TimeUnit.SECONDS)
-                        .build()
-                    val start = System.currentTimeMillis()
-                    val response = client.newCall(Request.Builder().url(serverUrl).build()).execute()
-                    val elapsed = System.currentTimeMillis() - start
-                    response.close()
-                    "HTTP Response: ${elapsed}ms"
-                } catch (e: Exception) {
-                    "HTTP Response: failed (${e.message})"
-                }
-
-                "$tcpStr\n$httpStr\nServer: $host:$port"
+            val results = repository.runSpeedTestForAllProviders()
+            binding.tvSpeedTestResult.text = results.joinToString("\n\n") { r ->
+                val tcpStr = if (r.tcpAvgMs != null) "TCP Ping: ${r.tcpAvgMs}ms avg (${r.tcpSuccessCount}/3)" else "TCP Ping: failed"
+                val httpStr = if (r.httpMs != null) "HTTP Response: ${r.httpMs}ms" else "HTTP Response: failed"
+                val errorLine = r.error?.let { "\n$it" } ?: ""
+                "${r.nickname}\n$tcpStr\n$httpStr\nServer: ${r.host}$errorLine"
             }
-            binding.tvSpeedTestResult.text = result
         } catch (e: Exception) {
             binding.tvSpeedTestResult.text = "Error: ${e.message}"
         } finally {

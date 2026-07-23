@@ -879,6 +879,60 @@ class XtreamRepository @Inject constructor(
         }.awaitAll()
     }
 
+    data class ProviderSpeedTestResult(
+        val serverIndex: Int,
+        val nickname: String,
+        val host: String,
+        val tcpAvgMs: Long?,
+        val tcpSuccessCount: Int,
+        val httpMs: Long?,
+        val error: String?
+    )
+
+    /** Settings' "Provider Speed Test" used to only ever test the primary server (hardcoded
+     * read of prefs.credentials) — extended to loop every currently-active provider, same
+     * allConfiguredServers() choke point checkAllProviderHealth() already uses, so a disabled
+     * merged provider is skipped here exactly like everywhere else. Same TCP-connect-time +
+     * HTTP-response-time methodology the original single-server test used, just per server and
+     * run in parallel (each server's own 3x TCP probe + 1 HTTP fetch, capped by their own
+     * timeouts, so one slow/dead provider can't stall the others). */
+    suspend fun runSpeedTestForAllProviders(): List<ProviderSpeedTestResult> = coroutineScope {
+        allConfiguredServers().map { server ->
+            async(Dispatchers.IO) {
+                val uri = try { java.net.URI(server.serverUrl) } catch (_: Exception) {
+                    return@async ProviderSpeedTestResult(server.serverIndex, server.nickname, server.serverUrl, null, 0, null, "Invalid server URL")
+                }
+                val host = uri.host ?: return@async ProviderSpeedTestResult(server.serverIndex, server.nickname, server.serverUrl, null, 0, null, "Could not parse host")
+                val port = if (uri.port > 0) uri.port else 80
+
+                val tcpTimes = mutableListOf<Long>()
+                repeat(3) {
+                    try {
+                        val start = System.currentTimeMillis()
+                        val socket = java.net.Socket()
+                        socket.connect(java.net.InetSocketAddress(host, port), 3000)
+                        tcpTimes.add(System.currentTimeMillis() - start)
+                        socket.close()
+                    } catch (_: Exception) {}
+                }
+                val tcpAvg = if (tcpTimes.isNotEmpty()) tcpTimes.average().toLong() else null
+
+                val httpMs = try {
+                    val start = System.currentTimeMillis()
+                    val response = okHttpClient.newCall(Request.Builder().url(server.serverUrl).build()).execute()
+                    val elapsed = System.currentTimeMillis() - start
+                    response.close()
+                    elapsed
+                } catch (_: Exception) {
+                    null
+                }
+
+                val error = if (tcpTimes.isEmpty() && httpMs == null) "Unreachable" else null
+                ProviderSpeedTestResult(server.serverIndex, server.nickname, host, tcpAvg, tcpTimes.size, httpMs, error)
+            }
+        }.awaitAll()
+    }
+
     /** Fetches live channels from every configured server (primary + extras) in parallel for
      * the "All Providers" merged browse-and-play view — a deliberately separate cache from the
      * primary server's ChannelEntity table, since two different Xtream servers can reuse the

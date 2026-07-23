@@ -618,7 +618,11 @@ class HomeActivity : AppCompatActivity() {
         collapseContentColumn()
         setupLandscapeSidebar()
         lifecycleScope.launch {
-            applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
+            val endHex = prefs.accentColorEnd.first()
+            applyAccent(
+                android.graphics.Color.parseColor(prefs.accentColor.first()),
+                if (endHex.isNotEmpty()) android.graphics.Color.parseColor(endHex) else null
+            )
         }
         if (intent.getBooleanExtra(FeatureTourDialog.EXTRA_START_TOUR, false)) {
             FeatureTourDialog.show(this)
@@ -822,9 +826,25 @@ class HomeActivity : AppCompatActivity() {
         scheduleContentAutoCollapse()
     }
 
-    private fun applyAccent(colorInt: Int) {
+    // Gradient-preset accents (Sunset/Ocean/etc., picked in Settings) only ever render as a
+    // real gradient on the ONE surface here that can actually show one — the tab indicator bar,
+    // via TabLayout.setSelectedTabIndicator(Drawable), which (unlike
+    // setSelectedTabIndicatorColor(Int)) accepts an arbitrary Drawable. Everywhere else in this
+    // function (progress tints, text colors) can only ever hold a single solid color, so those
+    // stay on the gradient's start color exactly like a plain accent pick — a real gradient
+    // rework for focus rings/every list row's selected-state background across 14 layout files
+    // was scoped out as a separate, much bigger task.
+    private fun applyAccent(colorInt: Int, gradientEndColorInt: Int? = null) {
         currentAccent = colorInt
-        binding.tabLayout.setSelectedTabIndicatorColor(colorInt)
+        if (gradientEndColorInt != null) {
+            val gradient = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(colorInt, gradientEndColorInt)
+            )
+            binding.tabLayout.setSelectedTabIndicator(gradient)
+        } else {
+            binding.tabLayout.setSelectedTabIndicatorColor(colorInt)
+        }
         val csl = android.content.res.ColorStateList.valueOf(colorInt)
         binding.miniPlayerProgress?.indeterminateTintList = csl
         binding.progressBar?.indeterminateTintList = csl
@@ -849,7 +869,11 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         lifecycleScope.launch {
-            applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first()))
+            val endHex = prefs.accentColorEnd.first()
+            applyAccent(
+                android.graphics.Color.parseColor(prefs.accentColor.first()),
+                if (endHex.isNotEmpty()) android.graphics.Color.parseColor(endHex) else null
+            )
         }
         // Cheap, always-visible reminder of which server/account is currently active — useful
         // after adding/switching between multiple servers, where otherwise nothing in the

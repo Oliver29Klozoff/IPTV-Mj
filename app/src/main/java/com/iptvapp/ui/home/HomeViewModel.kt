@@ -176,9 +176,23 @@ class HomeViewModel @Inject constructor(
     var selectedMergedCategoryId: String? = null; private set
     var hasMergedCategorySelected: Boolean = false; private set
 
+    // Guards against two overlapping refreshMergedChannels() calls — e.g. the cold-start auto-
+    // refresh (HomeActivity.onCreate, which also re-fires on every orientation-triggered
+    // recreation) still in flight when the user impatiently taps the manual refresh button, or
+    // rotates again. Each call independently snapshots current favorites (getUserData()) before
+    // its network fetch, then clearForServer+upsertAll once done — two overlapping calls race
+    // that snapshot-fetch-write cycle, and whichever finishes last silently overwrites the
+    // other's more up-to-date favorite state with its own (now-stale) snapshot. This is the
+    // confirmed root cause of merged-provider favorites occasionally reverting after an update
+    // (the exact moment cold-start refresh and reopening the app coincide). Joining an in-flight
+    // call instead of starting a second one removes the race entirely, and avoids a wasted
+    // duplicate network fetch as a side benefit.
+    private var mergedChannelsRefreshJob: Job? = null
+
     /** Manual refresh only — fetches every configured server's live channels in parallel for
      * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
+        mergedChannelsRefreshJob?.takeIf { it.isActive }?.let { return }
         // _syncProgress drives the same visible blue bar + "N/Total" text the primary
         // provider's first-run sync already shows — refreshing a merged/secondary provider
         // previously only toggled the small spinner (_loading), easy to miss and with no count
@@ -186,7 +200,7 @@ class HomeViewModel @Inject constructor(
         // so "items" here means running total across servers, and progress advances per-server-
         // completed rather than per-item within a server — coarser than the primary provider's
         // true streamed progress, but still shows real movement instead of a bare spinner.
-        viewModelScope.launch {
+        mergedChannelsRefreshJob = viewModelScope.launch {
             _loading.value = true
             try {
                 repository.refreshMergedChannels(targetServerIndex) { completed, total, itemsSoFar ->
@@ -498,8 +512,12 @@ class HomeViewModel @Inject constructor(
     suspend fun getMergedVodStreamUrl(serverIndex: Int, streamId: Int, containerExtension: String): String =
         repository.getMergedVodStreamUrl(serverIndex, streamId, containerExtension)
 
+    // Same overlapping-refresh race as mergedChannelsRefreshJob above, same fix.
+    private var mergedVodRefreshJob: Job? = null
+
     fun refreshMergedVod(serverIndex: Int? = null, onDone: (errors: Map<Int, String>) -> Unit = {}) {
-        viewModelScope.launch {
+        mergedVodRefreshJob?.takeIf { it.isActive }?.let { return }
+        mergedVodRefreshJob = viewModelScope.launch {
             _loading.value = true
             try {
                 val errors = repository.refreshMergedVod(serverIndex) { completed, total, itemsSoFar ->
@@ -597,8 +615,12 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { repository.setMergedSeriesFavorite(series, favorite) }
     }
 
+    // Same overlapping-refresh race as mergedChannelsRefreshJob above, same fix.
+    private var mergedSeriesRefreshJob: Job? = null
+
     fun refreshMergedSeries(serverIndex: Int? = null, onDone: (errors: Map<Int, String>) -> Unit = {}) {
-        viewModelScope.launch {
+        mergedSeriesRefreshJob?.takeIf { it.isActive }?.let { return }
+        mergedSeriesRefreshJob = viewModelScope.launch {
             _loading.value = true
             try {
                 val errors = repository.refreshMergedSeries(serverIndex) { completed, total, itemsSoFar ->

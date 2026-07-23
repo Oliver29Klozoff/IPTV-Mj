@@ -1,5 +1,22 @@
 # IPTV App - Changelog
 
+## v5.2 - 2026-07-23
+- **Fixed**: merged/secondary-provider favorites (channels, movies, shows) could silently
+  disappear after an update, even with Cloud Sync — favorites/folders for a provider whose
+  channel list hadn't refreshed on this device yet were dropped instead of being retried, so
+  only category picks (which don't need that data) survived a Sync Down. They're now queued
+  and applied automatically as soon as that provider's channels/movies/shows are cached.
+- **Fixed**: two overlapping merged-provider refreshes (e.g. a cold-start auto-refresh
+  overlapping a manual refresh tap) could race each other and silently drop favorite state.
+  Refreshes now wait for any already-in-progress refresh instead of running concurrently.
+- **Added**: Settings' Provider Speed Test now checks every active provider (primary and all
+  enabled merged providers), not just the primary, showing TCP ping and HTTP response time
+  for each.
+- **Added**: accent color picker now includes four named two-color gradient presets (Sunset,
+  Ocean, Berry, Aurora) alongside the existing flat colors — shows as a real gradient on the
+  tab indicator bar, with the rest of the UI using the gradient's first color same as a plain
+  accent pick.
+
 ## v5.1 - 2026-07-23
 - **Added**: merged/secondary-provider channels now get the same "channel changer" as the
   primary provider in fullscreen — D-pad up/down (or the on-screen prev/next zones on touch)

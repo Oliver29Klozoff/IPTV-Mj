@@ -1,7 +1,7 @@
 {
-  "versionCode": 339,
-  "versionName": "5.1",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.1/MKTV.apk",
-  "apkSha256": "e5ed9b02468fa118eec0631541455b1924c602c797feda833d1f1a4a4a34b446",
-  "changelog": "Added a channel changer for merged/secondary-provider channels in fullscreen, matching the primary provider's D-pad/on-screen zone zapping. Fixed the last-played merged channel occasionally reverting to a primary channel right after installing an update."
+  "versionCode": 340,
+  "versionName": "5.2",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.2/MKTV.apk",
+  "apkSha256": "bb918ade95a10c9979c1071211ff6225d19566f97756f495ec8d58177196f46b",
+  "changelog": "Fixed merged/secondary-provider favorites (channels, movies, shows) silently disappearing after an update even with Cloud Sync. Fixed a race between overlapping merged-provider refreshes that could drop favorite state. Provider Speed Test now checks every active provider, not just the primary. Accent color picker now includes four gradient presets."
 }

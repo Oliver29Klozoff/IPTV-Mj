@@ -111,6 +111,12 @@ class PreferencesManager @Inject constructor(
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
+        // Empty = no gradient, accentColor is used as a plain solid color everywhere (unchanged
+        // legacy behavior). Set only by the named gradient presets (Sunset/Ocean/etc.) — the
+        // gradient is only ever rendered on surfaces that can actually show one (focus rings,
+        // tab indicator); everywhere else (text color, progress tints) still just uses
+        // accentColor's single value as the solid fallback, since those can't render a gradient.
+        val ACCENT_COLOR_END = stringPreferencesKey("accent_color_end")
         val AMOLED_BLACK = booleanPreferencesKey("amoled_black")
         val TRAKT_ACCESS_TOKEN = stringPreferencesKey("trakt_access_token")
         val TRAKT_REFRESH_TOKEN = stringPreferencesKey("trakt_refresh_token")
@@ -393,7 +399,23 @@ class PreferencesManager @Inject constructor(
     suspend fun setPreWarmOnFocus(enabled: Boolean) { context.dataStore.edit { it[Keys.PRE_WARM_ON_FOCUS] = enabled } }
 
     val accentColor: Flow<String> = context.dataStore.data.map { it[Keys.ACCENT_COLOR] ?: "#008CFF" }
-    suspend fun setAccentColor(color: String) { context.dataStore.edit { it[Keys.ACCENT_COLOR] = color } }
+    val accentColorEnd: Flow<String> = context.dataStore.data.map { it[Keys.ACCENT_COLOR_END] ?: "" }
+    suspend fun setAccentColor(color: String) {
+        // A plain solid pick (the existing preset swatches / custom hue picker) always clears
+        // any previously-set gradient end color — otherwise switching from a gradient preset
+        // back to a flat color would leave the old gradient's second color lingering and still
+        // applied on focus rings/tab indicator.
+        context.dataStore.edit {
+            it[Keys.ACCENT_COLOR] = color
+            it[Keys.ACCENT_COLOR_END] = ""
+        }
+    }
+    suspend fun setAccentGradient(startColor: String, endColor: String) {
+        context.dataStore.edit {
+            it[Keys.ACCENT_COLOR] = startColor
+            it[Keys.ACCENT_COLOR_END] = endColor
+        }
+    }
 
     suspend fun addFavoriteLiveCategoryId(categoryId: String) {
         context.dataStore.edit { prefs ->
