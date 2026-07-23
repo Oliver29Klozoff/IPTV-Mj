@@ -1025,9 +1025,21 @@ class HomeActivity : AppCompatActivity() {
             val lastServerIndex = prefs.lastPlayedServerIndex.first()
             val lastStreamId = prefs.lastPlayedStreamId.first()
             if (lastServerIndex != -1 && lastStreamId != -1) {
-                val channel = viewModel.getMergedChannelByIndexAndId(lastServerIndex, lastStreamId)
+                // onCreate's own cold-start auto-refresh (viewModel.refreshMergedChannels(),
+                // gated on "at least one extra provider configured" — same condition implied by
+                // lastServerIndex != -1 here) wipes and re-inserts that whole server's rows
+                // (clearForServer then upsertAll) — a lookup landing in that gap returned null
+                // even though the channel is genuinely still there moments later, silently
+                // falling through to the wrong (primary) channel below. A short retry window
+                // rides out that gap instead of giving up on the very first miss.
+                var channel: com.iptvapp.data.local.entities.MergedChannelEntity? = null
+                for (attempt in 1..10) {
+                    channel = viewModel.getMergedChannelByIndexAndId(lastServerIndex, lastStreamId)
+                    if (channel != null) break
+                    delay(300)
+                }
                 if (channel != null) {
-                    playMergedChannel(channel)
+                    playMergedChannel(channel!!)
                     return@launch
                 }
             }

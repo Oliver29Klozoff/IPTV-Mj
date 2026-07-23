@@ -1,7 +1,7 @@
 {
-  "versionCode": 338,
-  "versionName": "5.0",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.0/MKTV.apk",
-  "apkSha256": "b2ba3c9f75efe8befbabcbfee7bd16856c33d821295d3424cff65356c85db8d1",
-  "changelog": "Fixed a background connection/thread leak when casting a raw live .ts channel and switching channels or stopping casting repeatedly."
+  "versionCode": 339,
+  "versionName": "5.1",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.1/MKTV.apk",
+  "apkSha256": "e5ed9b02468fa118eec0631541455b1924c602c797feda833d1f1a4a4a34b446",
+  "changelog": "Added a channel changer for merged/secondary-provider channels in fullscreen, matching the primary provider's D-pad/on-screen zone zapping. Fixed the last-played merged channel occasionally reverting to a primary channel right after installing an update."
 }

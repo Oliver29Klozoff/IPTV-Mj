@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.1 - 2026-07-23
+- **Added**: merged/secondary-provider channels now get the same "channel changer" as the
+  primary provider in fullscreen — D-pad up/down (or the on-screen prev/next zones on touch)
+  zap through that provider's channel list within the same category, wrapping around, with
+  the same channel-name/EPG popup.
+- **Fixed**: right after installing an update, resuming the last-played channel could
+  occasionally revert to a primary-provider channel instead of the merged/secondary-provider
+  channel that was actually playing — a cold-start refresh of the merged-channel cache could
+  briefly wipe and re-add that provider's rows at the exact moment the resume logic looked
+  for it. It now retries for a few seconds instead of giving up on the first miss.
+
 ## v5.0 - 2026-07-23
 - **Fixed**: casting a raw live .ts channel could leave its background connection/thread
   running after you stopped casting or switched channels, since nothing ever told the

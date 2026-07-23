@@ -151,6 +151,15 @@ class PlayerActivity : AppCompatActivity() {
 
     private var channels: List<ChannelEntity> = emptyList()
     private var currentIndex: Int = -1
+    // Merged/secondary-provider equivalent of channels/currentIndex above — DPAD up/down and
+    // the on-screen prev/next zones previously did nothing (or worse, tried to zap through the
+    // stale/irrelevant primary channels list) while playing a merged channel, since only the
+    // primary list was ever fetched. Populated in onCreate the same way channels is: from
+    // whichever category the channel actually lives in, fetched fresh rather than passed in
+    // via intent extra, since merged channels are opened from many different call sites
+    // (mini player, Providers, Guide, Favorites) that don't all have a ready list on hand.
+    private var mergedChannels: List<com.iptvapp.data.local.entities.MergedChannelEntity> = emptyList()
+    private var mergedCurrentIndex: Int = -1
 
     private var retryCount = 0
     private var lastBackPressMs = 0L
@@ -241,16 +250,28 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
-        lifecycleScope.launch {
-            channels = if (streamIds != null && streamIds.isNotEmpty()) {
-                val all = repository.getAllChannels().first()
-                val idSet = streamIds.toSet()
-                val idOrder = streamIds.withIndex().associate { it.value to it.index }
-                all.filter { it.streamId in idSet }.sortedBy { idOrder[it.streamId] }
-            } else {
-                repository.getAllChannels().first()
+        if (!isVod && serverIndex != -1 && mergedStreamId != -1) {
+            // Merged channel — fetch the same category list Providers/Guide/etc. would show,
+            // so DPAD up/down and the on-screen zones zap through it exactly like primary does.
+            lifecycleScope.launch {
+                val current = repository.getMergedChannelByIndexAndId(serverIndex, mergedStreamId)
+                if (current != null) {
+                    mergedChannels = repository.getMergedChannelsByCategory(serverIndex, current.categoryId).first()
+                    mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == mergedStreamId }
+                }
             }
-            currentIndex = channels.indexOfFirst { it.streamId == streamId }
+        } else {
+            lifecycleScope.launch {
+                channels = if (streamIds != null && streamIds.isNotEmpty()) {
+                    val all = repository.getAllChannels().first()
+                    val idSet = streamIds.toSet()
+                    val idOrder = streamIds.withIndex().associate { it.value to it.index }
+                    all.filter { it.streamId in idSet }.sortedBy { idOrder[it.streamId] }
+                } else {
+                    repository.getAllChannels().first()
+                }
+                currentIndex = channels.indexOfFirst { it.streamId == streamId }
+            }
         }
 
         if (isVod && resumePositionMs > 0L) showResumeDialog()
@@ -1501,13 +1522,47 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /** Merged-channel equivalent of playChannel — same shape, but resolves the stream URL
+     * against that channel's own server (getMergedLiveStreamUrl) and tracks serverIndex/
+     * mergedStreamId instead of streamId, matching every other merged-aware code path in this
+     * Activity (saveVodProgress's serverIndex/mergedStreamId branch, MediaInfo cast metadata). */
+    private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        channelSwitchJob?.cancel()
+        channelSwitchJob = lifecycleScope.launch {
+            try {
+                serverIndex = channel.serverIndex
+                mergedStreamId = channel.streamId
+                streamTitle = "${channel.name} · ${channel.serverNickname}"
+                val url = repository.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
+                binding.tvChannelTitle.text = streamTitle
+                val idx = mergedChannels.indexOfFirst { it.streamId == channel.streamId }
+                if (idx >= 0) mergedCurrentIndex = idx
+                loadStream(url)
+            } catch (_: Exception) {
+                Toast.makeText(this@PlayerActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun nextChannel() {
+        if (serverIndex != -1) {
+            if (mergedChannels.isEmpty() || mergedCurrentIndex < 0) return
+            mergedCurrentIndex = (mergedCurrentIndex + 1) % mergedChannels.size
+            playMergedChannel(mergedChannels[mergedCurrentIndex])
+            return
+        }
         if (channels.isEmpty() || currentIndex < 0) return
         currentIndex = (currentIndex + 1) % channels.size
         playChannel(channels[currentIndex])
     }
 
     private fun previousChannel() {
+        if (serverIndex != -1) {
+            if (mergedChannels.isEmpty() || mergedCurrentIndex < 0) return
+            mergedCurrentIndex = if (mergedCurrentIndex == 0) mergedChannels.lastIndex else mergedCurrentIndex - 1
+            playMergedChannel(mergedChannels[mergedCurrentIndex])
+            return
+        }
         if (channels.isEmpty() || currentIndex < 0) return
         currentIndex = if (currentIndex == 0) channels.lastIndex else currentIndex - 1
         playChannel(channels[currentIndex])
