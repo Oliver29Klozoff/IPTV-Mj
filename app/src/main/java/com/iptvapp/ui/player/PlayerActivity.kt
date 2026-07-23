@@ -1298,11 +1298,13 @@ class PlayerActivity : AppCompatActivity() {
             // until they exist so load() only ever happens once the receiver's very first
             // manifest fetch can already succeed with a normal-looking stream.
             if (isRawTsLive) {
-                // 3 good segments at ~4-5s each plus connection/probe overhead routinely takes
-                // 15-20s in testing — 12s consistently timed out one segment short, meaning
-                // load() still fired before the receiver's very first poll could succeed.
+                // This only sets the ceiling — the wait loop returns as soon as
+                // hasEnoughGoodSegments() is true, well before the timeout in the normal case.
+                // 3 good segments at ~2s each plus connection/probe overhead is comfortably
+                // under this; kept generous rather than tight since timing out early just means
+                // load() races the receiver's window again (the original bug), not a crash.
                 withContext(Dispatchers.IO) {
-                    castProxy?.awaitLiveSessionReady(castUrl, timeoutMs = 25_000)
+                    castProxy?.awaitLiveSessionReady(castUrl, timeoutMs = 18_000)
                 }
             }
 

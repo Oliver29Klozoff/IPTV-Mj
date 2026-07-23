@@ -1,7 +1,7 @@
 {
-  "versionCode": 337,
-  "versionName": "4.99",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.99/MKTV.apk",
-  "apkSha256": "99fa41148c1f94dc6394fcc563bcdb372feb68d6904014e5acd82f49b70e2738",
-  "changelog": "Fixed casting showing the channel name but a black screen for raw live .ts streams (primary and merged providers) by repackaging them into properly packet-aligned HLS on the fly; fixed a stale background update that could force-show the Favorites genre-filter chips on other tabs like Providers."
+  "versionCode": 338,
+  "versionName": "5.0",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.0/MKTV.apk",
+  "apkSha256": "b2ba3c9f75efe8befbabcbfee7bd16856c33d821295d3424cff65356c85db8d1",
+  "changelog": "Fixed a background connection/thread leak when casting a raw live .ts channel and switching channels or stopping casting repeatedly."
 }

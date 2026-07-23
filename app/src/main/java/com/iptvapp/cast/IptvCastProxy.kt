@@ -318,6 +318,11 @@ private class LiveHlsSession(
     private val proxyBaseUrl: String
 ) {
     companion object {
+        // Tried 2000ms to shorten the MIN_SEGMENTS_BEFORE_SERVING wait — the manifest kept
+        // refreshing fine, but the receiver only ever fetched the first 3 segments and then
+        // silently stopped requesting more (while continuing to poll the manifest), a
+        // different failure mode than the original bug. 4000ms is the confirmed-working value
+        // — a real fix for the wait time needs a different angle (see PlayerActivity kdoc).
         private const val SEGMENT_DURATION_MS = 4000L
         private const val MAX_SEGMENT_BYTES = 4 * 1024 * 1024
         private const val SEGMENT_RING_SIZE = 8
@@ -343,6 +348,14 @@ private class LiveHlsSession(
     private val segments = java.util.concurrent.ConcurrentSkipListMap<Long, Segment>()
     private val nextSequence = AtomicInteger(0)
     private var readerThread: Thread? = null
+    // readLoop's input.read() blocks on the network — running alone only gets rechecked
+    // between reads, so it never actually interrupted an in-flight upstream connection. A
+    // channel change mid-cast (each proxyLiveUrl() call makes a brand-new session) or just
+    // backing out of casting a few times used to leave every abandoned session's reader thread
+    // and upstream connection running in the background indefinitely — call.cancel() closes
+    // the underlying socket immediately, which unblocks the read() with an IOException the
+    // readLoop's own try/catch (in start()) already swallows.
+    @Volatile private var activeCall: okhttp3.Call? = null
 
     fun start() {
         if (running) return
@@ -358,6 +371,7 @@ private class LiveHlsSession(
 
     fun stop() {
         running = false
+        activeCall?.cancel()
         segments.clear()
     }
 
@@ -365,7 +379,9 @@ private class LiveHlsSession(
         val ua = userAgent ?: "ExoPlayerLib/1.4.1 (Linux; Android)"
         val req = Request.Builder().url(upstreamUrl).header("User-Agent", ua).header("Accept", "*/*").build()
         Log.d("CastProxy", "LiveHlsSession[$id]: connecting to upstream ${com.iptvapp.util.LogSanitizer.redactCredentials(upstreamUrl)}")
-        client.newCall(req).execute().use { resp ->
+        val call = client.newCall(req)
+        activeCall = call
+        call.execute().use { resp ->
             Log.d("CastProxy", "LiveHlsSession[$id]: upstream responded status=${resp.code} ct=${resp.header("Content-Type")}")
             val body = resp.body ?: run {
                 Log.e("CastProxy", "LiveHlsSession[$id]: no body")

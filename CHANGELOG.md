@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.0 - 2026-07-23
+- **Fixed**: casting a raw live .ts channel could leave its background connection/thread
+  running after you stopped casting or switched channels, since nothing ever told the
+  in-flight network read to actually stop. It now cancels cleanly the moment casting ends.
+
 ## v4.99 - 2026-07-23
 - **Fixed**: casting a channel (Chromecast) showed the channel name but a black screen, for
   both primary and merged/secondary providers on some channels — any channel served as a raw,
