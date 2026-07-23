@@ -10,6 +10,15 @@
     android:focusableInTouchMode="false"
     android:background="@drawable/focus_selector">
 
+    <CheckBox
+        android:id="@+id/cbSeriesBulkSelect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/ivSeriesCover"
         android:layout_width="48dp"

@@ -58,6 +58,23 @@ class MergedChannelAdapter(
         notifyChangedRows { old[it] != map[it] || old.containsKey(it) != map.containsKey(it) }
     }
 
+    // Same "$serverIndex:$streamId" key as everything else here — bulk-select for merged
+    // channels (Favorite/Hide), mirroring ChannelAdapter's checkbox-per-row bulk mode.
+    private var bulkSelectedKeys: Set<String> = emptySet()
+    private var bulkSelectMode: Boolean = false
+
+    fun submitBulkSelection(keys: Set<String>) {
+        val old = bulkSelectedKeys
+        val oldMode = bulkSelectMode
+        bulkSelectedKeys = keys
+        bulkSelectMode = keys.isNotEmpty()
+        if (oldMode != bulkSelectMode) {
+            notifyItemRangeChanged(0, itemCount)
+        } else {
+            notifyChangedRows { old.contains(it) != keys.contains(it) }
+        }
+    }
+
     inner class ViewHolder(val binding: ItemMergedChannelBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -96,6 +113,16 @@ class MergedChannelAdapter(
                 binding.viewHealthDot.visibility = View.GONE
             }
             binding.root.isSelected = key == currentlyPlayingKey
+            if (bulkSelectMode) {
+                binding.cbBulkSelect?.visibility = View.VISIBLE
+                binding.cbBulkSelect?.isChecked = bulkSelectedKeys.contains(key)
+                binding.root.setBackgroundColor(
+                    if (bulkSelectedKeys.contains(key)) 0x33008CFF else 0x00000000
+                )
+            } else {
+                binding.cbBulkSelect?.visibility = View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+            }
             binding.ivFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()

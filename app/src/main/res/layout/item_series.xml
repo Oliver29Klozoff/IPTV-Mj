@@ -8,6 +8,14 @@
     android:focusable="true"
     android:focusableInTouchMode="false"
     android:background="@drawable/focus_selector">
+    <CheckBox
+        android:id="@+id/cbSeriesBulkSelect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
     <ImageView android:id="@+id/ivSeriesCover" android:layout_width="48dp" android:layout_height="60dp" android:scaleType="fitCenter" />
     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:orientation="vertical">
         <TextView android:id="@+id/tvSeriesName" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="14sp" android:maxLines="1" android:ellipsize="end" />

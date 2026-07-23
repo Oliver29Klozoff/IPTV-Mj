@@ -1,5 +1,33 @@
 # IPTV App - Changelog
 
+## v4.97 - 2026-07-22
+- **Fixed**: exiting fullscreen (or rotating the phone) while watching a merged/secondary
+  provider channel always kicked you back to Favorites instead of that channel's own
+  Providers folder.
+- **Fixed**: on a true cold start (app fully killed, not just backgrounded), the app now
+  reopens straight into whichever channel/folder you last had playing — including merged
+  providers, which previously always got silently overwritten back to your primary
+  provider's last-watched channel by two separate startup code paths.
+- **Added**: the currently-playing channel is now highlighted in the combined Live tab
+  (portrait, landscape, and after returning from fullscreen), matching Favorites' existing
+  highlight.
+- **Added**: checkbox-based bulk-select for channels (Live tab, both primary and merged
+  providers) and Providers > Movies/Series categories — long-press once to turn on
+  checkboxes, tap more to select, then an 8-second idle prompt offers to commit (favorite/
+  hide) or unselect everything, instead of a silent auto-commit.
+- **Added**: hide individual shows in bulk (Series, both primary and merged providers) via
+  the same checkbox flow — permanently removes them from the list.
+- **Added**: a "Clear Progress" button on a movie's detail screen, so a partially-watched
+  movie you don't want to finish can be dropped out of "Continue Watching" and the
+  watched-first sort.
+- **Fixed**: Providers > Live's guide text (now/next) used to fetch one network call per
+  channel with a pacing delay, making the whole tab feel slow to finish loading — it now
+  shows cached guide data instantly and does one bulk request per provider instead.
+- **Fixed**: the "Show Hidden Categories" toggle in Providers > Movies/Series appeared at
+  the top of the list, ahead of your actual categories — moved to the bottom.
+- **Fixed**: the search box's clear (X) button removed the text but left the keyboard/
+  cursor active — it now also dismisses the keyboard.
+
 ## v4.96 - 2026-07-22
 - **Fixed**: on the car-box/head-unit (landscape), the Providers tab's refresh icon shared its
   touch area with the "PROVIDERS" tab button underneath it — on a less-precise touchscreen, a

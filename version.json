@@ -1,7 +1,7 @@
 {
-  "versionCode": 334,
-  "versionName": "4.96",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.96/MKTV.apk",
-  "apkSha256": "457bb730a6cf9f3ba05a709552356118caa642c793e19031ba3565a36442102b",
-  "changelog": "Fixed the Providers tab's refresh button on the car-box/head-unit overlapping the tab button underneath it, making refresh seem unresponsive."
+  "versionCode": 335,
+  "versionName": "4.97",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v4.97/MKTV.apk",
+  "apkSha256": "d51f2cff5460157ccce2334334846a10efbefc0ae38abea8ed1b966d16031537",
+  "changelog": "Fixed cold-boot/rotation/fullscreen-exit routing for merged provider channels, added checkbox bulk-select for channels and shows (hide/favorite), sped up Providers Live guide-text loading, moved hidden categories to the bottom, added a Clear Progress button for movies, and fixed the search box's clear button leaving the keyboard up."
 }

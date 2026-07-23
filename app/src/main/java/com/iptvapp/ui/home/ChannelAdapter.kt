@@ -86,11 +86,18 @@ class ChannelAdapter(
     // visual indication at all of which rows were selected — cancelling the resulting dialog
     // then looked identical to selection having silently reset, even though it hadn't.
     private var bulkSelectedIds: Set<Int> = emptySet()
+    private var bulkSelectMode: Boolean = false
 
     fun submitBulkSelection(ids: Set<Int>) {
         val old = bulkSelectedIds
+        val oldMode = bulkSelectMode
         bulkSelectedIds = ids
-        notifyChangedRows { old.contains(it) != ids.contains(it) }
+        bulkSelectMode = ids.isNotEmpty()
+        if (oldMode != bulkSelectMode) {
+            notifyItemRangeChanged(0, itemCount)
+        } else {
+            notifyChangedRows { old.contains(it) != ids.contains(it) }
+        }
     }
 
     inner class ViewHolder(val binding: ItemChannelBinding) :
@@ -153,22 +160,18 @@ class ChannelAdapter(
             )
 
             binding.root.isSelected = item.streamId == currentlyPlayingStreamId
-            // Visible checkmark + tinted background so bulk-selected rows are unmistakable —
-            // otherwise there was zero feedback that a tap had registered as a selection at all.
-            if (bulkSelectedIds.contains(item.streamId)) {
-                binding.root.setBackgroundColor(0x33008CFF)
-                binding.ivFavorite.setImageResource(android.R.drawable.checkbox_on_background)
-                binding.ivFavorite.setColorFilter(android.graphics.Color.parseColor("#008CFF"))
+            // A real checkbox on every row while bulk mode is active — makes it obvious every
+            // row is selectable, not just that the tapped one changed (a repurposed star icon
+            // only showing state on already-selected rows gave no such at-a-glance affordance).
+            if (bulkSelectMode) {
+                binding.cbBulkSelect?.visibility = View.VISIBLE
+                binding.cbBulkSelect?.isChecked = bulkSelectedIds.contains(item.streamId)
+                binding.root.setBackgroundColor(
+                    if (bulkSelectedIds.contains(item.streamId)) 0x33008CFF else 0x00000000
+                )
             } else {
+                binding.cbBulkSelect?.visibility = View.GONE
                 binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
-                binding.ivFavorite.setImageResource(
-                    if (item.isFavorite) android.R.drawable.btn_star_big_on
-                    else android.R.drawable.btn_star_big_off
-                )
-                binding.ivFavorite.setColorFilter(
-                    if (item.isFavorite) android.graphics.Color.parseColor("#008CFF")
-                    else android.graphics.Color.parseColor("#444444")
-                )
             }
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()

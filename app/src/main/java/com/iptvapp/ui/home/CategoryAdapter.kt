@@ -21,6 +21,11 @@ class CategoryAdapter(
     // them out of the list entirely otherwise) — reuses the exact same Set<String>-pushed-
     // from-Activity mechanism submitFavoriteCategoryIds already established.
     private var hiddenCategoryIds: Set<String> = emptySet()
+    // Bulk-hide checkbox mode (Providers > Movies/Series category lists) — same shape as
+    // ChannelAdapter/LiveChannelAdapter's bulk-select: a real checkbox on every row while
+    // active, plain taps toggle instead of drilling into the category.
+    private var bulkSelectedCategoryIds: Set<String> = emptySet()
+    private var bulkSelectMode: Boolean = false
 
     fun resetSelection() {
         selectedPosition = 0
@@ -34,6 +39,12 @@ class CategoryAdapter(
 
     fun submitHiddenCategoryIds(ids: Set<String>) {
         hiddenCategoryIds = ids
+        notifyDataSetChanged()
+    }
+
+    fun submitBulkSelection(ids: Set<String>) {
+        bulkSelectedCategoryIds = ids
+        bulkSelectMode = ids.isNotEmpty()
         notifyDataSetChanged()
     }
 
@@ -53,7 +64,18 @@ class CategoryAdapter(
                 if (isSelected) 0xFFFFFFFF.toInt() else 0xFFAAAAAA.toInt()
             )
 
+            if (bulkSelectMode) {
+                binding.cbCategoryBulkSelect?.visibility = android.view.View.VISIBLE
+                binding.cbCategoryBulkSelect?.isChecked = item.categoryId in bulkSelectedCategoryIds
+            } else {
+                binding.cbCategoryBulkSelect?.visibility = android.view.View.GONE
+            }
+
             binding.root.setOnClickListener {
+                if (bulkSelectMode) {
+                    onCategoryClick(item)
+                    return@setOnClickListener
+                }
                 val prev = selectedPosition
                 selectedPosition = bindingAdapterPosition
                 notifyItemChanged(prev)

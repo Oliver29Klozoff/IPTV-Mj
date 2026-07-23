@@ -81,8 +81,8 @@
                 android:layout_gravity="end|center_vertical"
                 android:padding="6dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_popup_sync"
-                android:tint="#888888"
+                android:src="@android:drawable/stat_notify_sync"
+                android:tint="#4FC3F7"
                 android:contentDescription="Refresh providers" />
 
         </FrameLayout>

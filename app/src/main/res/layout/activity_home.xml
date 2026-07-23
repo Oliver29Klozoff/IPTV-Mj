@@ -69,15 +69,6 @@
             android:tint="#888888"
             android:visibility="gone" />
 
-        <ImageButton
-            android:id="@+id/btnRefreshProviders"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_popup_sync"
-            android:tint="#888888"
-            android:visibility="gone" />
 
         <!-- Reserves exactly the front-camera cutout's width on devices with a top-center
              punch-hole, so the search box (and Providers toggle right before it) shift clear
@@ -345,12 +336,22 @@
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:background="@drawable/focus_selector"
             android:gravity="center"
             android:text="Series"
             android:textAllCaps="true"
             android:textColor="#888888"
             android:textSize="11sp" />
+
+        <ImageButton
+            android:id="@+id/btnRefreshProviders"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/stat_notify_sync"
+            android:tint="#4FC3F7"
+            android:contentDescription="Refresh providers" />
 
     </LinearLayout>
 

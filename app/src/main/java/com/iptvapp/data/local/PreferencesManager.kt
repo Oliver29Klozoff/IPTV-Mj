@@ -72,6 +72,13 @@ class PreferencesManager @Inject constructor(
         // exactly like FAVORITE_MERGED_CATEGORY_IDS.
         val HIDDEN_MERGED_VOD_CATEGORY_IDS = stringSetPreferencesKey("hidden_merged_vod_category_ids")
         val HIDDEN_MERGED_SERIES_CATEGORY_IDS = stringSetPreferencesKey("hidden_merged_series_category_ids")
+        // Survives a true cold boot (process death), unlike HomeViewModel's savedMiniPlayerState
+        // which only survives a rotation-triggered recreation — so onCreate can route back to
+        // wherever the last-played LIVE channel actually lives (Favorites vs. Providers' server/
+        // category) even after the app was fully killed and relaunched. -1/-1 = primary channel
+        // (same sentinel convention as everywhere else), matching MiniPlayerState's shape.
+        val LAST_PLAYED_SERVER_INDEX = intPreferencesKey("last_played_server_index")
+        val LAST_PLAYED_STREAM_ID = intPreferencesKey("last_played_stream_id")
         // Restore/sync-down pending equivalents, keyed "$serverUrl|$categoryId" like
         // PENDING_MERGED_FAVORITE_CATEGORIES — applied once the URL resolves to a local
         // serverIndex (doesn't need that server's categories to actually be fetched yet, unlike
@@ -369,6 +376,15 @@ class PreferencesManager @Inject constructor(
 
     val lastChannelsFetchTime: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_CHANNELS_FETCH_TIME] ?: 0L }
     suspend fun setLastChannelsFetchTime(timeMs: Long) { context.dataStore.edit { it[Keys.LAST_CHANNELS_FETCH_TIME] = timeMs } }
+
+    val lastPlayedServerIndex: Flow<Int> = context.dataStore.data.map { it[Keys.LAST_PLAYED_SERVER_INDEX] ?: -1 }
+    val lastPlayedStreamId: Flow<Int> = context.dataStore.data.map { it[Keys.LAST_PLAYED_STREAM_ID] ?: -1 }
+    suspend fun setLastPlayedChannel(serverIndex: Int, streamId: Int) {
+        context.dataStore.edit {
+            it[Keys.LAST_PLAYED_SERVER_INDEX] = serverIndex
+            it[Keys.LAST_PLAYED_STREAM_ID] = streamId
+        }
+    }
 
     val githubToken: Flow<String> = context.dataStore.data.map { it[Keys.GITHUB_TOKEN] ?: "" }
     suspend fun setGithubToken(token: String) { context.dataStore.edit { it[Keys.GITHUB_TOKEN] = token } }

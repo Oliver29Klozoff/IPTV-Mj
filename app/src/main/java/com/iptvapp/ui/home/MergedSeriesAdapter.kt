@@ -18,6 +18,17 @@ class MergedSeriesAdapter(
     private val onItemLongClick: (MergedSeriesEntity) -> Unit = {}
 ) : ListAdapter<MergedSeriesEntity, MergedSeriesAdapter.ViewHolder>(DiffCallback()) {
 
+    // Bulk-hide checkbox mode — same shape as MergedChannelAdapter's bulk-select.
+    private var bulkSelectedKeys: Set<String> = emptySet()
+    private var bulkSelectMode: Boolean = false
+    private fun keyOf(item: MergedSeriesEntity) = "${item.serverIndex}:${item.seriesId}"
+
+    fun submitBulkSelection(keys: Set<String>) {
+        bulkSelectedKeys = keys
+        bulkSelectMode = keys.isNotEmpty()
+        notifyDataSetChanged()
+    }
+
     inner class ViewHolder(val binding: ItemMergedSeriesBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: MergedSeriesEntity) {
             binding.tvSeriesName.text = item.name
@@ -34,6 +45,16 @@ class MergedSeriesAdapter(
             binding.ivSeriesFavorite.setColorFilter(
                 if (item.isFavorite) android.graphics.Color.parseColor("#FFC107") else android.graphics.Color.parseColor("#555555")
             )
+            if (bulkSelectMode) {
+                binding.cbSeriesBulkSelect?.visibility = android.view.View.VISIBLE
+                binding.cbSeriesBulkSelect?.isChecked = bulkSelectedKeys.contains(keyOf(item))
+                binding.root.setBackgroundColor(
+                    if (bulkSelectedKeys.contains(keyOf(item))) 0x33008CFF else 0x00000000
+                )
+            } else {
+                binding.cbSeriesBulkSelect?.visibility = android.view.View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+            }
             binding.ivSeriesFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener { onItemClick(item) }
             binding.root.setOnLongClickListener { onItemLongClick(item); true }

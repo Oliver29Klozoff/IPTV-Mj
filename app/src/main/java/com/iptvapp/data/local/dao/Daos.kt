@@ -158,15 +158,15 @@ data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs
 
 @Dao
 interface SeriesDao {
-    @Query("SELECT * FROM series ORDER BY name ASC")
+    @Query("SELECT * FROM series WHERE isHidden = 0 ORDER BY name ASC")
     fun getAllSeries(): Flow<List<SeriesEntity>>
-    @Query("SELECT * FROM series WHERE categoryId = :categoryId ORDER BY name ASC")
+    @Query("SELECT * FROM series WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY name ASC")
     fun getSeriesByCategory(categoryId: String): Flow<List<SeriesEntity>>
-    @Query("SELECT * FROM series WHERE isFavorite = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM series WHERE isFavorite = 1 AND isHidden = 0 ORDER BY name ASC")
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
     @Query("SELECT * FROM series WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getSeriesById(seriesId: Int): SeriesEntity?
-    @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY name ASC")
     fun searchSeries(query: String): Flow<List<SeriesEntity>>
     @Upsert
     suspend fun upsertSeries(series: List<SeriesEntity>)
@@ -182,11 +182,18 @@ interface SeriesDao {
     suspend fun getDurationMs(streamId: Int): Long
     // Backs fetchSeries' preserve-across-refresh merge — same pattern
     // ChannelDao.getUserData() already uses for live channels.
-    @Query("SELECT seriesId, isFavorite, watchedMs, durationMs FROM series")
+    @Query("SELECT seriesId, isFavorite, watchedMs, durationMs, isHidden FROM series")
     suspend fun getUserData(): List<SeriesUserData>
+    // Hide-individual-show support, same shape as ChannelDao's hide/unhide/getHidden.
+    @Query("UPDATE series SET isHidden = 1 WHERE seriesId IN (:seriesIds)")
+    suspend fun bulkSetHidden(seriesIds: List<Int>)
+    @Query("UPDATE series SET isHidden = 0 WHERE seriesId = :seriesId")
+    suspend fun setUnhidden(seriesId: Int)
+    @Query("SELECT * FROM series WHERE isHidden = 1 ORDER BY name ASC")
+    fun getHiddenSeries(): Flow<List<SeriesEntity>>
 }
 
-data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long)
+data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long, val isHidden: Boolean = false)
 
 @Dao
 interface EpgDao {
@@ -413,7 +420,7 @@ data class MergedVodUserData(val serverIndex: Int, val streamId: Int, val isFavo
 // Series-tab equivalent of MergedVodDao — same shape throughout, see MergedSeriesEntity kdoc.
 @Dao
 interface MergedSeriesDao {
-    @Query("SELECT * FROM merged_series ORDER BY serverIndex ASC, name ASC")
+    @Query("SELECT * FROM merged_series WHERE isHidden = 0 ORDER BY serverIndex ASC, name ASC")
     fun getAll(): Flow<List<MergedSeriesEntity>>
     @Upsert
     suspend fun upsertAll(series: List<MergedSeriesEntity>)
@@ -431,19 +438,26 @@ interface MergedSeriesDao {
     @Query("SELECT categoryId, categoryName, COUNT(*) as seriesCount FROM merged_series WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedSeriesCategorySummary>>
 
-    @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY name")
+    @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY name")
     fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>>
 
     @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND seriesId = :seriesId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity?
 
-    @Query("SELECT * FROM merged_series WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, name")
+    @Query("SELECT * FROM merged_series WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY serverIndex, name")
     fun search(query: String): Flow<List<MergedSeriesEntity>>
 
-    @Query("SELECT serverIndex, seriesId, isFavorite, favoriteFolderId FROM merged_series")
+    @Query("SELECT serverIndex, seriesId, isFavorite, favoriteFolderId, isHidden FROM merged_series")
     suspend fun getUserData(): List<MergedSeriesUserData>
-    @Query("SELECT * FROM merged_series WHERE isFavorite = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM merged_series WHERE isFavorite = 1 AND isHidden = 0 ORDER BY name ASC")
     fun getAllFavorites(): Flow<List<MergedSeriesEntity>>
+    // Hide-individual-show support, same shape as SeriesDao's hide/unhide/getHidden.
+    @Query("UPDATE merged_series SET isHidden = 1 WHERE serverIndex = :serverIndex AND seriesId IN (:seriesIds)")
+    suspend fun bulkSetHidden(serverIndex: Int, seriesIds: List<Int>)
+    @Query("UPDATE merged_series SET isHidden = 0 WHERE serverIndex = :serverIndex AND seriesId = :seriesId")
+    suspend fun setUnhidden(serverIndex: Int, seriesId: Int)
+    @Query("SELECT * FROM merged_series WHERE isHidden = 1 ORDER BY serverIndex ASC, name ASC")
+    fun getHidden(): Flow<List<MergedSeriesEntity>>
     @Query("SELECT * FROM merged_series WHERE isFavorite = 1 AND favoriteFolderId = :folderId ORDER BY name ASC")
     fun getFavoritesInFolder(folderId: Int): Flow<List<MergedSeriesEntity>>
     @Query("SELECT * FROM merged_series WHERE isFavorite = 1 AND favoriteFolderId IS NULL ORDER BY name ASC")
@@ -458,4 +472,4 @@ interface MergedSeriesDao {
     suspend fun clearFolderFromChannels(folderId: Int)
 }
 
-data class MergedSeriesUserData(val serverIndex: Int, val seriesId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)
+data class MergedSeriesUserData(val serverIndex: Int, val seriesId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?, val isHidden: Boolean = false)

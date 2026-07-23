@@ -69,6 +69,15 @@ class VodDetailActivity : AppCompatActivity() {
                 binding.progressVod.progress = pct
                 binding.progressVod.visibility = View.VISIBLE
                 binding.btnPlay.text = "▶  Resume ($pct%)"
+                binding.btnClearProgress.visibility = View.VISIBLE
+                binding.btnClearProgress.setOnClickListener {
+                    lifecycleScope.launch {
+                        repository.saveVodProgress(streamId, 0L, 0L)
+                        binding.progressVod.visibility = View.GONE
+                        binding.btnPlay.text = "▶  Play"
+                        binding.btnClearProgress.visibility = View.GONE
+                    }
+                }
             }
         }
     }

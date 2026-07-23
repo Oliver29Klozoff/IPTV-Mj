@@ -17,6 +17,15 @@
         android:orientation="horizontal"
         android:paddingHorizontal="12dp">
 
+        <CheckBox
+            android:id="@+id/cbBulkSelect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/ivChannelLogo"
             android:layout_width="48dp"

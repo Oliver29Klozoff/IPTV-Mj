@@ -403,7 +403,8 @@ class XtreamRepository @Inject constructor(
                         categoryId = it.categoryId,
                         isFavorite = prev?.isFavorite ?: false,
                         watchedMs = prev?.watchedMs ?: 0L,
-                        durationMs = prev?.durationMs ?: 0L
+                        durationMs = prev?.durationMs ?: 0L,
+                        isHidden = prev?.isHidden ?: false
                     )
                 })
                 saved += chunk.size
@@ -414,6 +415,9 @@ class XtreamRepository @Inject constructor(
     }
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
+    fun getHiddenSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getHiddenSeries()
+    suspend fun bulkHideSeries(seriesIds: List<Int>) = db.seriesDao().bulkSetHidden(seriesIds)
+    suspend fun unhideSeries(seriesId: Int) = db.seriesDao().setUnhidden(seriesId)
 
     suspend fun setSeriesFavorite(seriesId: Int, isFavorite: Boolean) = db.seriesDao().setFavorite(seriesId, isFavorite)
 
@@ -1309,7 +1313,8 @@ class XtreamRepository @Inject constructor(
                                         categoryId = it.categoryId,
                                         categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized",
                                         isFavorite = prev?.isFavorite ?: false,
-                                        favoriteFolderId = prev?.favoriteFolderId
+                                        favoriteFolderId = prev?.favoriteFolderId,
+                                        isHidden = prev?.isHidden ?: false
                                     )
                                 })
                             }
@@ -1350,6 +1355,12 @@ class XtreamRepository @Inject constructor(
     suspend fun setMergedSeriesFolder(series: MergedSeriesEntity, folderId: Int?) {
         db.mergedSeriesDao().setFavoriteFolder(series.serverIndex, series.seriesId, folderId)
     }
+
+    fun getHiddenMergedSeries(): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().getHidden()
+    suspend fun bulkHideMergedSeries(serverIndex: Int, seriesIds: List<Int>) =
+        db.mergedSeriesDao().bulkSetHidden(serverIndex, seriesIds)
+    suspend fun unhideMergedSeries(serverIndex: Int, seriesId: Int) =
+        db.mergedSeriesDao().setUnhidden(serverIndex, seriesId)
 
     /** Merged-series equivalent of fetchSeriesInfo — fetches season/episode data from the
      * SPECIFIC server this series belongs to, never cached (see MergedSeriesEntity kdoc). */
@@ -1554,6 +1565,18 @@ class XtreamRepository @Inject constructor(
         db.mergedChannelDao().setFavorite(serverIndex, streamId, favorite)
     suspend fun setMergedChannelFolder(serverIndex: Int, streamId: Int, folderId: Int?) =
         db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+
+    /** Bulk favorite/unfavorite for merged channels, keyed by the same "$serverIndex:$streamId"
+     * composite string used throughout the merged-channel UI layer. No dedicated bulk SQL query
+     * (unlike ChannelDao.bulkSetFavorite's single-column IN) since the composite key can't be
+     * expressed that way without a join table — a plain loop is fine at bulk-select's scale
+     * (dozens of rows, not thousands). */
+    suspend fun bulkSetMergedChannelFavorite(keys: Collection<String>, favorite: Boolean) {
+        keys.forEach { key ->
+            val (serverIndex, streamId) = key.split(":", limit = 2).let { it[0].toInt() to it[1].toInt() }
+            db.mergedChannelDao().setFavorite(serverIndex, streamId, favorite)
+        }
+    }
 
     /** Builds a playback URL using the specific server a merged channel came from, not
      * whatever's currently the primary/active server. Uses "ts" rather than "m3u8" — confirmed

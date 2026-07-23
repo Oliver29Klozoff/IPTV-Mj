@@ -61,6 +61,24 @@ class LiveChannelAdapter(
         notifyChangedRows { old[it] != healthMap[it] }
     }
 
+    // Bulk-select — a real checkbox on every row while active, keyed by LiveChannelRow.id
+    // ("primary:$streamId" or "$serverIndex:$streamId"), covering primary AND merged channels
+    // in this one combined list.
+    private var bulkSelectedIds: Set<String> = emptySet()
+    private var bulkSelectMode: Boolean = false
+
+    fun submitBulkSelection(ids: Set<String>) {
+        val old = bulkSelectedIds
+        val oldMode = bulkSelectMode
+        bulkSelectedIds = ids
+        bulkSelectMode = ids.isNotEmpty()
+        if (oldMode != bulkSelectMode) {
+            notifyItemRangeChanged(0, itemCount)
+        } else {
+            notifyChangedRows { old.contains(it) != ids.contains(it) }
+        }
+    }
+
     inner class ViewHolder(val binding: ItemChannelBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -121,6 +139,16 @@ class LiveChannelAdapter(
             )
 
             binding.root.isSelected = item.id == currentlyPlayingId
+            if (bulkSelectMode) {
+                binding.cbBulkSelect?.visibility = View.VISIBLE
+                binding.cbBulkSelect?.isChecked = bulkSelectedIds.contains(item.id)
+                binding.root.setBackgroundColor(
+                    if (bulkSelectedIds.contains(item.id)) 0x33008CFF else 0x00000000
+                )
+            } else {
+                binding.cbBulkSelect?.visibility = View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+            }
 
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()

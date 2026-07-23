@@ -11,8 +11,20 @@ import com.iptvapp.databinding.ItemSeriesBinding
 
 class SeriesAdapter(
     private val onSeriesClick: (SeriesEntity) -> Unit,
-    private val onFavoriteClick: (SeriesEntity) -> Unit = {}
+    private val onFavoriteClick: (SeriesEntity) -> Unit = {},
+    private val onSeriesLongClick: (SeriesEntity) -> Unit = {}
 ) : ListAdapter<SeriesEntity, SeriesAdapter.ViewHolder>(DiffCallback()) {
+
+    // Bulk-hide checkbox mode — same shape as ChannelAdapter's bulk-select: a real checkbox on
+    // every row while active, plain taps toggle instead of opening the series.
+    private var bulkSelectedIds: Set<Int> = emptySet()
+    private var bulkSelectMode: Boolean = false
+
+    fun submitBulkSelection(ids: Set<Int>) {
+        bulkSelectedIds = ids
+        bulkSelectMode = ids.isNotEmpty()
+        notifyDataSetChanged()
+    }
 
     inner class ViewHolder(val binding: ItemSeriesBinding) :
         RecyclerView.ViewHolder(binding.root) {
@@ -34,7 +46,18 @@ class SeriesAdapter(
                 if (item.isFavorite) android.graphics.Color.parseColor("#FFC107")
                 else android.graphics.Color.parseColor("#555555")
             )
+            if (bulkSelectMode) {
+                binding.cbSeriesBulkSelect?.visibility = android.view.View.VISIBLE
+                binding.cbSeriesBulkSelect?.isChecked = bulkSelectedIds.contains(item.seriesId)
+                binding.root.setBackgroundColor(
+                    if (bulkSelectedIds.contains(item.seriesId)) 0x33008CFF else 0x00000000
+                )
+            } else {
+                binding.cbSeriesBulkSelect?.visibility = android.view.View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+            }
             binding.root.setOnClickListener { onSeriesClick(item) }
+            binding.root.setOnLongClickListener { onSeriesLongClick(item); true }
             binding.ivSeriesFavorite.setOnClickListener { onFavoriteClick(item) }
         }
     }

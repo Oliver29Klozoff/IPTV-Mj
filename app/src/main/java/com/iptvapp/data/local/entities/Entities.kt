@@ -68,7 +68,8 @@ data class SeriesEntity(
     val isFavorite: Boolean = false,
     val watchedMs: Long = 0L,
     val durationMs: Long = 0L,
-    val cachedAt: Long = System.currentTimeMillis()
+    val cachedAt: Long = System.currentTimeMillis(),
+    val isHidden: Boolean = false
 )
 
 // serverIndex disambiguates which server this program listing belongs to — -1 = primary
@@ -213,7 +214,8 @@ data class MergedSeriesEntity(
     val categoryName: String?,
     val isFavorite: Boolean = false,
     val favoriteFolderId: Int? = null,
-    val cachedAt: Long = System.currentTimeMillis()
+    val cachedAt: Long = System.currentTimeMillis(),
+    val isHidden: Boolean = false
 )
 
 data class MergedSeriesServerSummary(val serverIndex: Int, val serverNickname: String, val seriesCount: Int)

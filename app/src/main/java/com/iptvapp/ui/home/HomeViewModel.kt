@@ -47,7 +47,11 @@ class HomeViewModel @Inject constructor(
     // before a rotation-triggered recreation would otherwise reset the mini player to
     // whatever channel was last watched.
     data class MiniPlayerState(
-        val url: String, val title: String, val streamId: Int, val isVod: Boolean, val positionMs: Long
+        val url: String, val title: String, val streamId: Int, val isVod: Boolean, val positionMs: Long,
+        // -1/-1 means "primary provider channel" (same sentinel convention as everywhere else
+        // merged-channel identity is tracked) — a merged channel needs both to resolve back to
+        // its folder after a rotation-triggered HomeActivity recreation.
+        val serverIndex: Int = -1, val mergedStreamId: Int = -1
     )
     var savedMiniPlayerState: MiniPlayerState? = null
 
@@ -175,7 +179,17 @@ class HomeViewModel @Inject constructor(
     /** Manual refresh only — fetches every configured server's live channels in parallel for
      * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
-        viewModelScope.launch { repository.refreshMergedChannels(targetServerIndex) }
+        // _loading previously only covered the primary provider's own channel/category load —
+        // refreshing a merged/secondary provider showed no progress indicator at all. Reusing
+        // the same flag surfaces the existing progressBar for every provider, not just primary.
+        viewModelScope.launch {
+            _loading.value = true
+            try {
+                repository.refreshMergedChannels(targetServerIndex)
+            } finally {
+                _loading.value = false
+            }
+        }
     }
 
     // ─── Combined Live tab (primary + every configured secondary provider) ──────────────────
@@ -479,8 +493,13 @@ class HomeViewModel @Inject constructor(
 
     fun refreshMergedVod(serverIndex: Int? = null, onDone: (errors: Map<Int, String>) -> Unit = {}) {
         viewModelScope.launch {
-            val errors = repository.refreshMergedVod(serverIndex)
-            onDone(errors)
+            _loading.value = true
+            try {
+                val errors = repository.refreshMergedVod(serverIndex)
+                onDone(errors)
+            } finally {
+                _loading.value = false
+            }
         }
     }
 
@@ -570,8 +589,13 @@ class HomeViewModel @Inject constructor(
 
     fun refreshMergedSeries(serverIndex: Int? = null, onDone: (errors: Map<Int, String>) -> Unit = {}) {
         viewModelScope.launch {
-            val errors = repository.refreshMergedSeries(serverIndex)
-            onDone(errors)
+            _loading.value = true
+            try {
+                val errors = repository.refreshMergedSeries(serverIndex)
+                onDone(errors)
+            } finally {
+                _loading.value = false
+            }
         }
     }
 
@@ -600,22 +624,68 @@ class HomeViewModel @Inject constructor(
 
     private var mergedEpgJob: Job? = null
 
-    /** Now/next text per merged channel, fetched from each channel's own server. Same bounded
-     * window + pacing as the primary list's loadEpgForChannels — one get_short_epg call per
-     * channel with a small delay so a big category can't trip a provider's rate limiting. */
+    /** Now/next text per merged channel. Previously fired one get_short_epg network call per
+     * channel (paced 150ms apart) with nothing shown until each one landed — a category of 30+
+     * channels could take 10-20+ seconds to finish populating, which read as "Providers Live
+     * takes forever to load" even though the channel list itself rendered instantly. Providers
+     * Live never used fetchXmltvEpgForMergedServer/the persisted epg_entries cache at all
+     * (only the Guide tab did) despite both already existing — this now shows whatever's
+     * already cached immediately (same "instant from DB, refresh in background" shape as the
+     * primary list's loadEpgForChannels/publishEpgDisplay), then does ONE bulk XMLTV request
+     * per distinct server instead of one request per channel. The old per-channel
+     * fetchMergedShortEpgText loop is kept as a fallback afterward, still paced, only for
+     * whatever channels XMLTV didn't cover — so the rate-limit safety margin is unchanged. */
     fun loadEpgForMergedChannels(channels: List<com.iptvapp.data.local.entities.MergedChannelEntity>) {
         mergedEpgJob?.cancel()
         if (channels.isEmpty()) return
         mergedEpgJob = viewModelScope.launch {
+            val pairs = channels.map { it.serverIndex to it.streamId }
+            val cached = repository.getEpgForServerStreams(pairs).first()
+            if (cached.isNotEmpty()) {
+                publishMergedEpgDisplay(channels, cached)
+            }
+
+            channels.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                launch { repository.fetchXmltvEpgForMergedServer(serverIndex) }
+            }
+            val refreshed = repository.getEpgForServerStreams(pairs).first()
+            if (refreshed.isNotEmpty()) {
+                publishMergedEpgDisplay(channels, refreshed)
+            }
+
+            // Fallback for whatever channels XMLTV had no match for — same pacing as before.
+            val coveredKeys = refreshed.map { "${it.serverIndex}:${it.streamId}" }.toSet()
             channels.take(50).forEach { ch ->
                 val key = "${ch.serverIndex}:${ch.streamId}"
-                if (!_mergedEpgText.value.containsKey(key)) {
+                if (key !in coveredKeys && !_mergedEpgText.value.containsKey(key)) {
                     val text = repository.fetchMergedShortEpgText(ch.serverIndex, ch.streamId)
                     if (text != null) _mergedEpgText.value = _mergedEpgText.value + (key to text)
                     kotlinx.coroutines.delay(150)
                 }
             }
         }
+    }
+
+    /** Formats persisted EpgEntity rows into the same "NOW: x (Ym)  •  NEXT: y" text
+     * publishEpgDisplay produces for the primary list, keyed "serverIndex:streamId". */
+    private fun publishMergedEpgDisplay(
+        channels: List<com.iptvapp.data.local.entities.MergedChannelEntity>,
+        epgEntries: List<com.iptvapp.data.local.entities.EpgEntity>
+    ) {
+        val nowSecs = System.currentTimeMillis() / 1000
+        val byKey = epgEntries.groupBy { "${it.serverIndex}:${it.streamId}" }
+        val updates = channels.mapNotNull { ch ->
+            val key = "${ch.serverIndex}:${ch.streamId}"
+            val programs = byKey[key].orEmpty().sortedBy { it.startTimestamp }
+            val now = programs.firstOrNull { it.stopTimestamp > nowSecs }
+            val next = programs.firstOrNull { it.startTimestamp > (now?.stopTimestamp ?: Long.MAX_VALUE) }
+            if (now == null) return@mapNotNull null
+            val minutesLeft = ((now.stopTimestamp - nowSecs) / 60).coerceAtLeast(0)
+            val timeStr = if (minutesLeft > 0) " (${minutesLeft}m)" else ""
+            val text = if (next != null) "NOW: ${now.title}$timeStr  •  NEXT: ${next.title}" else "NOW: ${now.title}$timeStr"
+            key to text
+        }
+        if (updates.isNotEmpty()) _mergedEpgText.value = _mergedEpgText.value + updates
     }
 
     /** Live HEAD-check of every favorited merged channel, mirroring checkFavoritesHealth() —
@@ -1550,6 +1620,49 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { repository.setChannelHidden(streamId, false) }
     }
 
+    // ─── Series Hide (bulk checkbox select, primary + merged) ───────────────────
+
+    private val _hiddenSeries = MutableStateFlow<List<SeriesEntity>>(emptyList())
+    val hiddenSeries: StateFlow<List<SeriesEntity>> = _hiddenSeries
+
+    fun observeHiddenSeries() {
+        viewModelScope.launch {
+            repository.getHiddenSeries().collectLatest { _hiddenSeries.value = it }
+        }
+    }
+
+    fun bulkHideSeries(seriesIds: List<Int>) {
+        viewModelScope.launch { repository.bulkHideSeries(seriesIds) }
+    }
+
+    fun unhideSeries(seriesId: Int) {
+        viewModelScope.launch { repository.unhideSeries(seriesId) }
+    }
+
+    private val _hiddenMergedSeries = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedSeriesEntity>>(emptyList())
+    val hiddenMergedSeries: StateFlow<List<com.iptvapp.data.local.entities.MergedSeriesEntity>> = _hiddenMergedSeries
+
+    fun observeHiddenMergedSeries() {
+        viewModelScope.launch {
+            repository.getHiddenMergedSeries().collectLatest { _hiddenMergedSeries.value = it }
+        }
+    }
+
+    // Grouped by serverIndex since bulkHideMergedSeries is a per-server DAO call (composite
+    // key, same reasoning as bulkSetMergedChannelFavorite) — a bulk selection can span
+    // multiple merged providers' shows at once if the user selected across categories.
+    fun bulkHideMergedSeries(items: List<com.iptvapp.data.local.entities.MergedSeriesEntity>) {
+        viewModelScope.launch {
+            items.groupBy { it.serverIndex }.forEach { (serverIndex, group) ->
+                repository.bulkHideMergedSeries(serverIndex, group.map { it.seriesId })
+            }
+        }
+    }
+
+    fun unhideMergedSeries(serverIndex: Int, seriesId: Int) {
+        viewModelScope.launch { repository.unhideMergedSeries(serverIndex, seriesId) }
+    }
+
     // ─── Bulk Favorites ──────────────────────────────────────────────────────
 
     fun bulkAddFavorites(streamIds: List<Int>) {
@@ -1558,6 +1671,12 @@ class HomeViewModel @Inject constructor(
 
     fun bulkRemoveFavorites(streamIds: List<Int>) {
         viewModelScope.launch { repository.bulkClearFavorite(streamIds) }
+    }
+
+    // Merged-channel equivalent, keyed by "$serverIndex:$streamId" — see
+    // XtreamRepository.bulkSetMergedChannelFavorite kdoc.
+    fun bulkAddMergedFavorites(keys: Set<String>) {
+        viewModelScope.launch { repository.bulkSetMergedChannelFavorite(keys, true) }
     }
 
     // ─── Channels Like This ──────────────────────────────────────────────────

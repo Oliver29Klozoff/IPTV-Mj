@@ -1721,6 +1721,12 @@ class PlayerActivity : AppCompatActivity() {
             putExtra("stream_id", streamId)
             putExtra("stream_url", streamUrl)
             putExtra("stream_title", streamTitle)
+            // Previously dropped entirely — HomeActivity's playerLauncher result handler had no
+            // way to tell a merged-provider channel apart from a primary one on return, so
+            // exiting fullscreen for a merged channel always routed back to Favorites instead
+            // of the Providers tab it actually came from.
+            putExtra("server_index", serverIndex)
+            putExtra("merged_stream_id", mergedStreamId)
         })
         if (isVod && traktScrobbleStarted) {
             traktScrobbleStarted = false

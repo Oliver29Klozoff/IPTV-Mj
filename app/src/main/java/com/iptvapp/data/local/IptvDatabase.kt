@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -277,6 +277,17 @@ abstract class IptvDatabase : RoomDatabase() {
                         PRIMARY KEY(serverIndex, seriesId)
                     )
                 """.trimIndent())
+            }
+        }
+
+        // Adds hide-individual-show support to Series (both primary and merged) — same
+        // isHidden pattern ChannelEntity already established for Live channels, filtered out
+        // of the normal list the same way (unhide-able from Settings > Display, mirroring
+        // "Hidden Channels").
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE series ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE merged_series ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
             }
         }
     }
