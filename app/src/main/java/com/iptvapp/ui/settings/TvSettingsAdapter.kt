@@ -79,9 +79,30 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
                 // Separate click target from the row itself — tapping this must trigger the
                 // refresh action, not toggle Show Movies/Series Tab on/off.
                 btnAction.setOnClickListener { if (item.actionEnabled) item.onAction.invoke() }
+                // D-pad RIGHT on the row previously had nowhere defined to go — Android's default
+                // focus-finder often can't reliably jump from a focusable row container into a
+                // nested Button, so reaching this action button required switching to mouse/
+                // pointer mode. Explicitly hand focus to the button on RIGHT (only when it's
+                // actually visible+enabled), and hand it back to the row on LEFT.
+                itemView.setOnKeyListener { _, keyCode, event ->
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                        btnAction.visibility == View.VISIBLE && btnAction.isEnabled) {
+                        btnAction.requestFocus()
+                        true
+                    } else false
+                }
+                btnAction.setOnKeyListener { _, keyCode, event ->
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                        itemView.requestFocus()
+                        true
+                    } else false
+                }
             } else {
                 btnAction.visibility = View.GONE
                 btnAction.setOnClickListener(null)
+                itemView.setOnKeyListener(null)
             }
         }
 
@@ -95,6 +116,8 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
     class ActionVH(view: View) : RecyclerView.ViewHolder(view) {
         private val tvTitle: TextView = view.findViewById(R.id.tvActionTitle)
         private val tvValue: TextView = view.findViewById(R.id.tvActionValue)
+        private val tvChevron: TextView = view.findViewById(R.id.tvActionChevron)
+        private val btnAction: android.widget.Button = view.findViewById(R.id.btnActionAction)
 
         fun bind(item: TvSettingItem.Action) {
             tvTitle.text = item.title
@@ -104,6 +127,39 @@ class TvSettingsAdapter(private val items: List<TvSettingItem>) :
             itemView.alpha      = if (item.enabled) 1f else 0.45f
             itemView.isFocusable = item.enabled
             itemView.setOnClickListener { if (item.enabled) item.onClick() }
+
+            if (item.onAction != null) {
+                // A row with its own action button (e.g. "Merged Movies" + "↻ Refresh") has
+                // nothing for the chevron to indicate drilling into, unlike a plain Action row —
+                // hide it so the action button is the only thing on the right, same visual
+                // language as Toggle's ON/OFF+action rows.
+                tvChevron.visibility = View.GONE
+                btnAction.visibility = View.VISIBLE
+                btnAction.text = item.actionLabel ?: "↻"
+                btnAction.isEnabled = item.actionEnabled
+                btnAction.alpha = if (item.actionEnabled) 1f else 0.45f
+                btnAction.setOnClickListener { if (item.actionEnabled) item.onAction.invoke() }
+                itemView.setOnKeyListener { _, keyCode, event ->
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                        btnAction.visibility == View.VISIBLE && btnAction.isEnabled) {
+                        btnAction.requestFocus()
+                        true
+                    } else false
+                }
+                btnAction.setOnKeyListener { _, keyCode, event ->
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                        keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                        itemView.requestFocus()
+                        true
+                    } else false
+                }
+            } else {
+                tvChevron.visibility = View.VISIBLE
+                btnAction.visibility = View.GONE
+                btnAction.setOnClickListener(null)
+                itemView.setOnKeyListener(null)
+            }
         }
     }
 

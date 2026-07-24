@@ -24,6 +24,13 @@ sealed class TvSettingItem {
         var value: String = "",
         var enabled: Boolean = true,
         val danger: Boolean = false,
+        // Same "independently focusable secondary button on the same row" mechanism Toggle
+        // already has (e.g. Show Movies Tab's "↻ Refresh") — used for rows like "Merged Movies"/
+        // "Merged Series" that only need a refresh action and no ON/OFF state at all, so a full
+        // Toggle row (which always renders its ON/OFF value) would be the wrong shape.
+        var actionLabel: String? = null,
+        var actionEnabled: Boolean = true,
+        val onAction: (() -> Unit)? = null,
         val onClick: () -> Unit
     ) : TvSettingItem()
     data class Info(

@@ -22,6 +22,11 @@ class MergedChannelAdapter(
     private val onChannelDoubleClick: (MergedChannelEntity) -> Unit = {}
 ) : ListAdapter<MergedChannelEntity, MergedChannelAdapter.ViewHolder>(DiffCallback()) {
 
+    // Same D-pad-reachable-star pattern as ChannelAdapter — without this, TV had no way to
+    // reach the favorite star at all except a held-OK long-press into the actions menu, since
+    // the star itself was never made focusable/wired into the row's focus chain.
+    var isTvMode: Boolean = false
+
     private var epgTextByKey: Map<String, String> = emptyMap()
     private var healthByKey: Map<String, Boolean?> = emptyMap()
     // Highlights whichever row is currently loaded in the mini player — ChannelAdapter (Live
@@ -84,6 +89,14 @@ class MergedChannelAdapter(
 
         fun bind(item: MergedChannelEntity) {
             val key = keyOf(item)
+            if (isTvMode) {
+                binding.root.isFocusable = true
+                binding.ivFavorite.isFocusable = true
+                binding.root.nextFocusRightId = binding.ivFavorite.id
+                binding.ivFavorite.nextFocusLeftId = binding.root.id
+            } else {
+                binding.ivFavorite.isFocusable = false
+            }
             binding.tvChannelName.text = item.name
             binding.tvServerNickname.text = item.serverNickname
             val epg = epgTextByKey[key]

@@ -365,6 +365,7 @@ class XtreamRepository @Inject constructor(
     fun getVodCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("vod")
 
     fun getVodByCategory(categoryId: String): Flow<List<VodEntity>> = db.vodDao().getVodByCategory(categoryId)
+    fun getFavoriteVod(): Flow<List<VodEntity>> = db.vodDao().getFavoriteVod()
 
     suspend fun getVodStreamUrl(streamId: Int, containerExtension: String): String =
         urlBuilder().vodStreamUrl(streamId, containerExtension)
@@ -1264,7 +1265,11 @@ class XtreamRepository @Inject constructor(
             servers.map { server ->
                 async {
                     try {
-                        kotlinx.coroutines.withTimeout(15_000) {
+                        // Movie catalogs are typically far larger/slower to enumerate than live
+                        // channel lists (which use a 15s budget just above/below) — 15s here was
+                        // timing out both configured providers every time in practice, even
+                        // though the request was genuinely still in flight, not actually stuck.
+                        kotlinx.coroutines.withTimeout(60_000) {
                             val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
                             val catResponse = api.getVodCategories(builder.apiUrl(), server.username, server.password)
                             val categoryNames = if (catResponse.isSuccessful) {
@@ -1375,7 +1380,10 @@ class XtreamRepository @Inject constructor(
             servers.map { server ->
                 async {
                     try {
-                        kotlinx.coroutines.withTimeout(15_000) {
+                        // Same reasoning as merged VOD's refresh above — series catalogs are
+                        // large/slow enough that the 15s budget live channels use was timing out
+                        // real, still-in-flight requests rather than catching genuinely stuck ones.
+                        kotlinx.coroutines.withTimeout(60_000) {
                             val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
                             val catResponse = api.getSeriesCategories(builder.apiUrl(), server.username, server.password)
                             val categoryNames = if (catResponse.isSuccessful) {
@@ -1443,6 +1451,12 @@ class XtreamRepository @Inject constructor(
 
     suspend fun setMergedSeriesFolder(series: MergedSeriesEntity, folderId: Int?) {
         db.mergedSeriesDao().setFavoriteFolder(series.serverIndex, series.seriesId, folderId)
+    }
+
+    /** Favorites every series in a merged category at once — long-press on a category in the
+     * Providers > Series browse view, instead of favoriting one show at a time. */
+    suspend fun setMergedSeriesFavoriteForCategory(serverIndex: Int, categoryId: String?, folderId: Int?) {
+        db.mergedSeriesDao().setFavoriteForCategory(serverIndex, categoryId, folderId)
     }
 
     fun getHiddenMergedSeries(): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().getHidden()

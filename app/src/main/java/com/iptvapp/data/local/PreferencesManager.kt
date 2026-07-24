@@ -110,6 +110,7 @@ class PreferencesManager @Inject constructor(
         val LAST_CHANNELS_FETCH_TIME = longPreferencesKey("last_channels_fetch_time")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
+        val LAST_MERGED_CHANNELS_REFRESH = longPreferencesKey("last_merged_channels_refresh")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
         // Empty = no gradient, accentColor is used as a plain solid color everywhere (unchanged
         // legacy behavior). Set only by the named gradient presets (Sunset/Ocean/etc.) — the
@@ -394,6 +395,15 @@ class PreferencesManager @Inject constructor(
 
     val githubToken: Flow<String> = context.dataStore.data.map { it[Keys.GITHUB_TOKEN] ?: "" }
     suspend fun setGithubToken(token: String) { context.dataStore.edit { it[Keys.GITHUB_TOKEN] = token } }
+
+    // Gates HomeActivity's cold-start auto-refresh of merged/secondary providers' live channels
+    // — without this, every single app launch re-hit every configured provider's API regardless
+    // of how recently it last succeeded, which is wasted network traffic (and, for providers with
+    // strict connection limits, actively counterproductive).
+    val lastMergedChannelsRefresh: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_MERGED_CHANNELS_REFRESH] ?: 0L }
+    suspend fun setLastMergedChannelsRefresh(timestamp: Long) {
+        context.dataStore.edit { it[Keys.LAST_MERGED_CHANNELS_REFRESH] = timestamp }
+    }
 
     val preWarmOnFocus: Flow<Boolean> = context.dataStore.data.map { it[Keys.PRE_WARM_ON_FOCUS] ?: true }
     suspend fun setPreWarmOnFocus(enabled: Boolean) { context.dataStore.edit { it[Keys.PRE_WARM_ON_FOCUS] = enabled } }

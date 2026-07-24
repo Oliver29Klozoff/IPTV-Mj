@@ -1,7 +1,7 @@
 {
-  "versionCode": 340,
-  "versionName": "5.2",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.2/MKTV.apk",
-  "apkSha256": "bb918ade95a10c9979c1071211ff6225d19566f97756f495ec8d58177196f46b",
-  "changelog": "Fixed merged/secondary-provider favorites (channels, movies, shows) silently disappearing after an update even with Cloud Sync. Fixed a race between overlapping merged-provider refreshes that could drop favorite state. Provider Speed Test now checks every active provider, not just the primary. Accent color picker now includes four gradient presets."
+  "versionCode": 341,
+  "versionName": "5.3",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.3/MKTV.apk",
+  "apkSha256": "83f864f4cb2b9baf35eeb7b7fe68d9d31176f7b5a9a2153e15a06beb650cbee4",
+  "changelog": "Added pinned Favorites entries and sort options for Movies (primary and Providers). English-only filter now covers merged Movies/Series. Fixed merged Movies/Series refresh timing out too early, a favorites-navigation bug that snapped back to the first category, and the hard-to-notice sort button. Simplified video zoom to 2 modes. Trakt matched shows are now tappable."
 }

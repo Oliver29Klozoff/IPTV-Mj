@@ -481,6 +481,11 @@ interface MergedSeriesDao {
     fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
     @Query("UPDATE merged_series SET isFavorite = :favorite WHERE serverIndex = :serverIndex AND seriesId = :seriesId")
     suspend fun setFavorite(serverIndex: Int, seriesId: Int, favorite: Boolean)
+    // Long-pressing a merged-series category favorites every series in it at once (into an
+    // optional folder), instead of requiring one tap per show — same bulk-by-category shape as
+    // bulkSetHidden above, just setting isFavorite/favoriteFolderId instead of isHidden.
+    @Query("UPDATE merged_series SET isFavorite = 1, favoriteFolderId = :folderId WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL))")
+    suspend fun setFavoriteForCategory(serverIndex: Int, categoryId: String?, folderId: Int?)
     @Query("UPDATE merged_series SET favoriteFolderId = :folderId, isFavorite = 1 WHERE serverIndex = :serverIndex AND seriesId = :seriesId")
     suspend fun setFavoriteFolder(serverIndex: Int, seriesId: Int, folderId: Int?)
     @Query("UPDATE merged_series SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")

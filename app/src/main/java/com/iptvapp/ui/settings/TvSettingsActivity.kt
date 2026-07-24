@@ -121,7 +121,15 @@ class TvSettingsActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
             (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || event.keyCode == KeyEvent.KEYCODE_BACK)) {
-            if (activeSection != null) showSectionMenu() else finish()
+            if (activeSection != null) {
+                // Collapsing back to the section menu previously always focused the first row
+                // (Stream), regardless of which section you were just inside — annoying when
+                // Providers/Trakt/Sync etc. are several rows down, since every back-out meant
+                // re-navigating from the top. Remember which section is closing and focus that
+                // row instead.
+                val closingSection = activeSection
+                showSectionMenu(focusSection = closingSection)
+            } else finish()
             return true
         }
         return super.dispatchKeyEvent(event)
@@ -159,7 +167,10 @@ class TvSettingsActivity : AppCompatActivity() {
         else -> "⚙️"
     }
 
-    private fun showSectionMenu(focusFirst: Boolean = true) {
+    /** @param focusSection When set, focuses that section's own row in the menu instead of the
+     * first row — used when collapsing back out of a section via Back/D-pad-left, so you land
+     * back on the section you were just inside rather than always at the top of the list. */
+    private fun showSectionMenu(focusFirst: Boolean = true, focusSection: String? = null) {
         activeSection = null
         settingsItems.clear()
         sectionItems.forEach { (title, items) ->
@@ -169,7 +180,10 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         adapter.notifyDataSetChanged()
         binding.tvSettingsSectionTitle.text = "Settings"
-        if (focusFirst) focusFirstItem()
+        when {
+            focusSection != null -> focusItemById("section_$focusSection")
+            focusFirst -> focusFirstItem()
+        }
     }
 
     private fun showSection(title: String, focusFirst: Boolean = true) {
@@ -312,6 +326,29 @@ class TvSettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun itemIdOf(item: TvSettingItem): String? = when (item) {
+        is TvSettingItem.Toggle -> item.id
+        is TvSettingItem.Action -> item.id
+        is TvSettingItem.Info -> item.id
+        is TvSettingItem.SubHeader -> item.id
+        is TvSettingItem.Header -> null
+    }
+
+    /** Scrolls to and focuses the row matching [id], falling back to the first focusable row if
+     * not found (e.g. a section that no longer exists). Uses a short RecyclerView-bind-then-
+     * focus pattern like focusFirstItem(), since the target row's View may not exist yet the
+     * instant this is called (RecyclerView lays out lazily after notifyDataSetChanged). */
+    private fun focusItemById(id: String) {
+        val pos = settingsItems.indexOfFirst { itemIdOf(it) == id }
+        if (pos < 0) { focusFirstItem(); return }
+        binding.rvTvSettings.scrollToPosition(pos)
+        binding.rvTvSettings.post {
+            val holder = binding.rvTvSettings.findViewHolderForAdapterPosition(pos)
+            val target = holder?.itemView
+            if (target?.isFocusable == true) target.requestFocus() else focusFirstItem()
+        }
+    }
+
     // ─── List building ────────────────────────────────────────────────────────
 
     private suspend fun buildSettingsList() {
@@ -328,6 +365,12 @@ class TvSettingsActivity : AppCompatActivity() {
         extraServers.clear(); extraServers.addAll(prefs.getExtraServersWithNick())
         val syncEnabled  = prefs.syncEnabled.first()
         val syncSummary  = syncManager.getLastSyncSummary()
+        // Auto Sync's own row previously gave no indication of when it actually last ran —
+        // that lived only in the separate sync_status Info row further down, easy to miss/not
+        // obviously connected to the toggle above it. Show it as the toggle's own subtitle too.
+        val lastSyncMs   = prefs.lastSyncTime.first()
+        val lastSyncText = if (lastSyncMs == 0L) "Never synced yet"
+            else "Last synced: " + SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(lastSyncMs))
         val activeIdx    = prefs.activeServerIndex.first()
         val primaryNick  = prefs.serverNickname.first().ifEmpty { creds.username }
         val versionInfo  = try {
@@ -436,6 +479,34 @@ class TvSettingsActivity : AppCompatActivity() {
                 }
             }
         ) { c -> lifecycleScope.launch { prefs.setShowSeries(c) } }
+        // Show/Refresh Movies/Series above only ever touch the PRIMARY provider's own catalog
+        // (fetchVodStreams/fetchSeries) — merged/secondary providers' movies and shows (browsed
+        // via the Providers tab's Movies/Series mode buttons) had no refresh entry point on TV
+        // at all. These call the merged-only refresh functions (same ones the phone's Provider
+        // Speed Test/manual-refresh buttons use) — separate from the primary rows above, so
+        // refreshing one never touches the other. No show/hide toggle here since there's no
+        // separate "Merged Movies tab" to hide — Providers' Movies/Series modes already exist
+        // independent of any toggle.
+        val refreshMergedMovies: () -> Unit = {
+            setItemAction("display_merged_movies_refresh", "Loading…", enabled = false)
+            lifecycleScope.launch {
+                val errors = repository.refreshMergedVod()
+                setItemAction("display_merged_movies_refresh", "↻ Refresh", enabled = true)
+                toast(if (errors.isEmpty()) "Merged movies refreshed" else "Refreshed with ${errors.size} provider error(s)")
+            }
+        }
+        settingsItems += TvSettingItem.Action("display_merged_movies_refresh", "Merged Movies",
+            actionLabel = "↻ Refresh", onAction = refreshMergedMovies, onClick = refreshMergedMovies)
+        val refreshMergedSeries: () -> Unit = {
+            setItemAction("display_merged_series_refresh", "Loading…", enabled = false)
+            lifecycleScope.launch {
+                val errors = repository.refreshMergedSeries()
+                setItemAction("display_merged_series_refresh", "↻ Refresh", enabled = true)
+                toast(if (errors.isEmpty()) "Merged series refreshed" else "Refreshed with ${errors.size} provider error(s)")
+            }
+        }
+        settingsItems += TvSettingItem.Action("display_merged_series_refresh", "Merged Series",
+            actionLabel = "↻ Refresh", onAction = refreshMergedSeries, onClick = refreshMergedSeries)
 
         // ── EPG ──
         settingsItems += TvSettingItem.Header("EPG")
@@ -625,6 +696,7 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Action("sync_saved_codes", "Saved Pairing Codes") { showSavedPairingCodesDialog() }
         settingsItems += TvSettingItem.SubHeader("sync_sub_actions", "Actions") { toggleSubHeader("Sync", "sync_sub_actions") }
         settingsItems += TvSettingItem.Toggle("sync_auto", "Auto Sync to Cloud (daily)",
+            subtitle = lastSyncText,
             checked = syncEnabled) { enabled ->
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
             if (enabled) scheduleAutoSync() else cancelAutoSync()
@@ -680,9 +752,11 @@ class TvSettingsActivity : AppCompatActivity() {
     private fun setItemAction(id: String, label: String, enabled: Boolean) {
         val idx = indexOfItem(id)
         if (idx < 0) return
-        val item = settingsItems[idx] as? TvSettingItem.Toggle ?: return
-        item.actionLabel = label
-        item.actionEnabled = enabled
+        when (val item = settingsItems[idx]) {
+            is TvSettingItem.Toggle -> { item.actionLabel = label; item.actionEnabled = enabled }
+            is TvSettingItem.Action -> { item.actionLabel = label; item.actionEnabled = enabled }
+            else -> return
+        }
         adapter.notifyItemChanged(idx)
     }
 
@@ -1503,35 +1577,97 @@ class TvSettingsActivity : AppCompatActivity() {
 
     // ─── Servers ─────────────────────────────────────────────────────────────
 
+    /** Explicitly chains D-pad up/down and Enter/IME-next focus through a stacked form's fields,
+     * in order — Android's default focus-finder doesn't reliably traverse a plain vertical
+     * LinearLayout of mixed EditText/CheckBox views on TV D-pad input (a CheckBox breaks the
+     * chain for the fields after it), and a bare EditText's Enter key does nothing by default.
+     * Every EditText in the chain gets IME_ACTION_NEXT (IME_ACTION_DONE on the last one) so
+     * Enter/OK advances to the next field and closes the keyboard on the last. */
+    private fun wireFieldChain(vararg fields: android.view.View) {
+        fields.forEachIndexed { i, field ->
+            val next = fields.getOrNull(i + 1)
+            val prev = fields.getOrNull(i - 1)
+            if (next != null) field.nextFocusDownId = next.id.takeIf { it != android.view.View.NO_ID } ?: android.view.View.generateViewId().also { next.id = it }
+            if (prev != null) field.nextFocusUpId = prev.id.takeIf { it != android.view.View.NO_ID } ?: android.view.View.generateViewId().also { prev.id = it }
+            if (field is EditText) {
+                field.imeOptions = if (next != null) android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
+                    else android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+                field.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT) {
+                        next?.requestFocus()
+                        true
+                    } else if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                        field.clearFocus()
+                        true
+                    } else false
+                }
+            }
+        }
+    }
+
     private fun showServerOptions(index: Int) {
         val server = extraServers.getOrNull(index) ?: return
-        val actions = arrayOf("Switch", "Edit", "Update Channels", "Remove")
+        // "Test Connection" used to only be reachable by opening Edit first — moved up here as
+        // its own top-level action so checking connectivity doesn't require opening (and
+        // potentially fat-fingering) the full edit form. "Remove" previously deleted immediately
+        // on tap with no confirmation at all — an accidental D-pad press on the wrong row (this
+        // list has no visible danger styling to warn you) silently wiped that provider and its
+        // whole merged cache. Now asks first, see confirmRemoveServer().
+        val actions = arrayOf("Switch", "Edit", "Test Connection", "Update Channels", "Remove")
         AlertDialog.Builder(this)
             .setTitle(server.getOrElse(3) { "" }.ifBlank { "Provider ${index + 2}" })
             .setItems(actions) { _, which ->
                 when (which) {
                     0 -> switchToServer(index)
                     1 -> showEditServerDialog(index)
-                    2 -> {
+                    2 -> testServerConnection(index)
+                    3 -> {
                         toast("Updating channels for this provider…")
                         lifecycleScope.launch { repository.refreshMergedChannels() }
                     }
-                    3 -> {
-                        extraServers.removeAt(index)
-                        lifecycleScope.launch {
-                            prefs.saveExtraServersWithNick(extraServers)
-                            // Removing a server shifts every later server's index, which could
-                            // silently re-attribute stale merged-channel/VOD/series rows to the
-                            // wrong server until the next manual refresh — just clear the caches.
-                            db.mergedChannelDao().clearAll()
-                            db.mergedVodDao().clearAll()
-                            db.mergedSeriesDao().clearAll()
-                            rebuildList("server_add")
-                            toast("Provider removed")
-                        }
-                    }
+                    4 -> confirmRemoveServer(index)
                 }
             }
+            .show()
+    }
+
+    private fun testServerConnection(index: Int) {
+        val server = extraServers.getOrNull(index) ?: return
+        val url = server.getOrElse(0) { "" }
+        val user = server.getOrElse(1) { "" }
+        val pass = server.getOrElse(2) { "" }
+        if (url.isBlank() || user.isBlank()) {
+            toast("This provider has no URL/username set — edit it first")
+            return
+        }
+        toast("Testing connection…")
+        lifecycleScope.launch {
+            val result = repository.testProviderConnection(url, user, pass)
+            toast(if (result.reachable) "✓ Connected (${result.responseMs}ms)" else "✗ Failed — ${result.error}")
+        }
+    }
+
+    private fun confirmRemoveServer(index: Int) {
+        val server = extraServers.getOrNull(index) ?: return
+        val nick = server.getOrElse(3) { "" }.ifBlank { "Provider ${index + 2}" }
+        AlertDialog.Builder(this)
+            .setTitle("Remove $nick?")
+            .setMessage("This removes the provider and clears its cached merged channels/movies/shows. This can't be undone — you'll need to re-add it manually.")
+            .setPositiveButton("Remove") { _, _ ->
+                extraServers.removeAt(index)
+                lifecycleScope.launch {
+                    prefs.saveExtraServersWithNick(extraServers)
+                    // Removing a server shifts every later server's index, which could
+                    // silently re-attribute stale merged-channel/VOD/series rows to the
+                    // wrong server until the next manual refresh — just clear the caches.
+                    db.mergedChannelDao().clearAll()
+                    db.mergedVodDao().clearAll()
+                    db.mergedSeriesDao().clearAll()
+                    rebuildList("server_add")
+                    toast("Provider removed")
+                }
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -1557,6 +1693,7 @@ class TvSettingsActivity : AppCompatActivity() {
             }
         }
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass)
+        wireFieldChain(etNick, etUrl, etUser, etPass, cbShowPass)
         AlertDialog.Builder(this)
             .setTitle("Edit Primary Provider")
             .setView(layout)
@@ -1608,38 +1745,16 @@ class TvSettingsActivity : AppCompatActivity() {
             setText(server.getOrElse(4) { "" })
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
-        val tvTestResult = android.widget.TextView(this).apply {
-            textSize = 12f
-            setPadding(0, 12, 0, 0)
-            visibility = android.view.View.GONE
-        }
-        // Nothing validated a provider's credentials before saving it — a typo'd URL or wrong
-        // password just got saved silently, matching what phone SettingsActivity fixes too.
-        val btnTest = android.widget.Button(this).apply {
-            text = "Test Connection"
-            isAllCaps = false
-            textSize = 13f
-            setOnClickListener {
-                val url = etUrl.text.toString().replace(" ", "").trim()
-                val user = etUser.text.toString().trim()
-                val pass = etPass.text.toString().trim()
-                if (url.isBlank() || user.isBlank()) {
-                    toast("Enter a URL and username first")
-                    return@setOnClickListener
-                }
-                isEnabled = false
-                tvTestResult.visibility = android.view.View.VISIBLE
-                tvTestResult.text = "Testing…"
-                lifecycleScope.launch {
-                    val result = repository.testProviderConnection(url, user, pass)
-                    isEnabled = true
-                    tvTestResult.text = if (result.reachable) "✓ Connected (${result.responseMs}ms)"
-                        else "✗ Failed — ${result.error}"
-                }
-            }
-        }
+        // Test Connection moved to the Options list (showServerOptions/testServerConnection) so
+        // it's reachable without opening this full edit form — no longer duplicated here.
         layout.addView(etNick); layout.addView(etUrl); layout.addView(etUser); layout.addView(etPass); layout.addView(cbShowPass); layout.addView(etEpg)
-        layout.addView(btnTest); layout.addView(tvTestResult)
+        // D-pad down previously couldn't reliably reach etEpg — the checkbox sitting between
+        // etPass and etEpg breaks Android's default focus-finder chain on some TV D-pad
+        // implementations, since a CheckBox's focus behavior differs from an EditText's. Chain
+        // focus explicitly instead of relying on default up/down traversal, and make Enter/OK
+        // advance to the next field (IME_ACTION_NEXT) instead of doing nothing, ending on the
+        // last field with IME_ACTION_DONE to close the keyboard.
+        wireFieldChain(etNick, etUrl, etUser, etPass, cbShowPass, etEpg)
         AlertDialog.Builder(this)
             .setTitle("Edit Provider")
             .setView(layout)

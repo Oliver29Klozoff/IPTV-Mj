@@ -1,5 +1,29 @@
 # IPTV App - Changelog
 
+## v5.3 - 2026-07-24
+- **Added**: pinned "★ Favorites" entry at the top of the primary Movies category list, and a
+  "★ Favorites" section header above your favorited titles in both primary and merged/Providers
+  Movies lists.
+- **Added**: merged/Providers Movies now has a Sort button (Rating, Year Newest/Oldest, Recently
+  Added), matching the primary Movies tab — previously missing entirely.
+- **Added**: "English Movies & Series Only" now also filters merged/Providers Movies and Series
+  (categories and titles), not just the primary provider's.
+- **Fixed**: tapping the pinned Movies favorites entry (or any category) could silently snap back
+  to the first category a moment later — a background re-emission of the category list was
+  re-triggering the auto-select-first-category logic on every refresh, not just on first entry.
+- **Fixed**: merged Movies/Series refresh was timing out after 15 seconds even while genuinely
+  still downloading a large catalog — raised to 60 seconds so it isn't cut off mid-fetch.
+- **Fixed**: the Movies/Series sort button was easy to miss (unlabeled, same icon as the main
+  menu button, and could render partially behind a phone's front-camera cutout) — now has a
+  distinct icon, a "Sort" label, and sits clear of the camera cutout.
+- **Changed**: video zoom now cycles through 2 modes (Best Fit, Zoom In) instead of 13 — the
+  extra steps were rarely used and made the on-screen cycle tedious; Zoom In always visibly
+  crops in regardless of the stream's reported aspect ratio.
+- **Fixed**: Trakt "Sync Watched History" now shows matched shows as a tappable list that opens
+  straight into that show's detail page, instead of just a summary count.
+- Various TV interface improvements to Providers (Channels/Movies/Series mode row, D-pad
+  reachability for favorite stars, bulk-select bar, cold-boot resume) — still a work in progress.
+
 ## v5.2 - 2026-07-23
 - **Fixed**: merged/secondary-provider favorites (channels, movies, shows) could silently
   disappear after an update, even with Cloud Sync — favorites/folders for a provider whose

@@ -2049,32 +2049,81 @@ class SettingsActivity : AppCompatActivity() {
                 val unmatchedCount = result.unmatchedMovies.size + result.unmatchedShows.size
                 binding.tvTraktSyncStatus.text =
                     "Matched ${result.moviesMatched} movies, ${result.showsMatched} shows " +
-                        "(${result.episodesMarked} episodes marked watched)" +
-                        if (unmatchedCount > 0) " — $unmatchedCount unmatched (tap to view)" else ""
+                        "(${result.episodesMarked} episodes marked watched) — tap to view"
                 binding.tvTraktSyncStatus.setOnClickListener {
-                    if (unmatchedCount > 0) showUnmatchedTraktDialog(result)
+                    showTraktSyncResultDialog(result)
                 }
             }
         }
     }
 
-    private fun showUnmatchedTraktDialog(result: com.iptvapp.trakt.TraktManager.SyncBackResult) {
-        val message = buildString {
-            if (result.unmatchedMovies.isNotEmpty()) {
-                append("Movies not found in your library:\n")
-                result.unmatchedMovies.forEach { append("• $it\n") }
-            }
-            if (result.unmatchedShows.isNotEmpty()) {
-                if (isNotEmpty()) append("\n")
-                append("Shows not found in your library:\n")
-                result.unmatchedShows.forEach { append("• $it\n") }
-            }
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Unmatched Trakt Titles")
-            .setMessage(message)
+    // One combined dialog: matched shows are real list rows you can tap straight into
+    // SeriesDetailActivity (same extras Home's own primary-series list passes); unmatched
+    // titles/movies are shown as plain reference text below since they have no local series to
+    // open. Movies aren't listed as tappable rows since there's no per-title movie detail deep
+    // link as useful as jumping into a show's episode list.
+    private fun showTraktSyncResultDialog(result: com.iptvapp.trakt.TraktManager.SyncBackResult) {
+        val container = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density + 0.5f).toInt()
+        container.setPadding(dp(8), dp(8), dp(8), dp(8))
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Trakt Watched History")
+            .setView(android.widget.ScrollView(this).apply { addView(container) })
             .setPositiveButton("Close", null)
             .show()
+
+        if (result.matchedShows.isNotEmpty()) {
+            container.addView(android.widget.TextView(this).apply {
+                text = "Shows (tap to open):"
+                setPadding(dp(8), dp(8), dp(8), dp(4))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            result.matchedShows.forEach { show ->
+                container.addView(android.widget.TextView(this).apply {
+                    text = show.name
+                    setPadding(dp(16), dp(10), dp(16), dp(10))
+                    isClickable = true
+                    isFocusable = true
+                    val outValue = android.util.TypedValue()
+                    theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+                    setBackgroundResource(outValue.resourceId)
+                    setOnClickListener {
+                        dialog.dismiss()
+                        startActivity(Intent(this@SettingsActivity, com.iptvapp.ui.series.SeriesDetailActivity::class.java).apply {
+                            putExtra("series_id", show.seriesId)
+                            putExtra("series_name", show.name)
+                            putExtra("series_cover", show.cover)
+                            putExtra("series_genre", show.genre)
+                            putExtra("series_rating", show.rating)
+                            putExtra("series_plot", show.plot)
+                        })
+                    }
+                })
+            }
+        }
+
+        if (result.unmatchedMovies.isNotEmpty() || result.unmatchedShows.isNotEmpty()) {
+            container.addView(android.widget.TextView(this).apply {
+                text = "Not found in your library:"
+                setPadding(dp(8), dp(16), dp(8), dp(4))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            (result.unmatchedMovies + result.unmatchedShows).forEach { title ->
+                container.addView(android.widget.TextView(this).apply {
+                    text = "•  $title"
+                    setPadding(dp(16), dp(4), dp(16), dp(4))
+                })
+            }
+        }
+
+        if (result.matchedShows.isEmpty() && result.unmatchedMovies.isEmpty() && result.unmatchedShows.isEmpty()) {
+            container.addView(android.widget.TextView(this).apply {
+                text = "No watched movies or shows found on Trakt."
+                setPadding(dp(16), dp(16), dp(16), dp(16))
+            })
+        }
     }
 
     private fun refreshTraktStatus() {

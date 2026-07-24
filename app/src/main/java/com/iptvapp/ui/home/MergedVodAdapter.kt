@@ -8,15 +8,59 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.iptvapp.data.local.entities.MergedVodEntity
 import com.iptvapp.databinding.ItemMergedVodBinding
+import com.iptvapp.databinding.ItemSectionHeaderBinding
+
+// A "★ Favorites" header now separates favorited titles from the rest of the list, same
+// treatment as the primary Movies tab's VodAdapter/VodRow — previously favorites just floated
+// silently to the top of the flat list with nothing marking them as such, and merged Movies had
+// no sort concept at all (see HomeViewModel.applyMergedVodSort).
+sealed class MergedVodRow {
+    data class Header(val title: String) : MergedVodRow()
+    data class Item(val vod: MergedVodEntity) : MergedVodRow()
+}
 
 // Movies-tab equivalent of MergedChannelAdapter — see MergedVodEntity kdoc.
 class MergedVodAdapter(
     private val onItemClick: (MergedVodEntity) -> Unit,
     private val onFavoriteClick: (MergedVodEntity) -> Unit = {},
     private val onItemLongClick: (MergedVodEntity) -> Unit = {}
-) : ListAdapter<MergedVodEntity, MergedVodAdapter.ViewHolder>(DiffCallback()) {
+) : ListAdapter<MergedVodRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
-    // Bulk-hide checkbox mode — same shape as MergedSeriesAdapter's bulk-select.
+    companion object {
+        private const val TYPE_HEADER = 0
+        private const val TYPE_ITEM = 1
+    }
+
+    /** Wraps a plain MergedVodEntity list, inserting a "★ Favorites" header before the leading
+     * run of favorited titles when present — favorites-first ordering is still
+     * HomeViewModel.applyMergedVodSort's job, this just labels it. */
+    fun submitVodList(list: List<MergedVodEntity>) {
+        val favoriteCount = list.takeWhile { it.isFavorite }.size
+        val rows = buildList {
+            if (favoriteCount > 0) {
+                add(MergedVodRow.Header("★ Favorites"))
+                addAll(list.take(favoriteCount).map { MergedVodRow.Item(it) })
+                if (favoriteCount < list.size) add(MergedVodRow.Header("All Movies"))
+            }
+            addAll(list.drop(favoriteCount).map { MergedVodRow.Item(it) })
+        }
+        submitList(rows)
+    }
+
+    /** Plain list, no header, with a completion callback — TV's Providers Movies list (see
+     * TvHomeActivity), which still needs the callback to restore D-pad focus after a resubmit.
+     * The header row is a phone-only addition for now. */
+    fun submitPlainList(list: List<MergedVodEntity>, commitCallback: () -> Unit) {
+        submitList(list.map { MergedVodRow.Item(it) }, commitCallback)
+    }
+
+    override fun getItemViewType(position: Int) = when (getItem(position)) {
+        is MergedVodRow.Header -> TYPE_HEADER
+        is MergedVodRow.Item -> TYPE_ITEM
+    }
+
+    // Bulk-hide checkbox mode — same shape as MergedSeriesAdapter's bulk-select. Header rows are
+    // never part of the selection (keyOf/bulkSelectedKeys only ever address Item rows).
     private var bulkSelectedKeys: Set<String> = emptySet()
     private var bulkSelectMode: Boolean = false
     private fun keyOf(item: MergedVodEntity) = "${item.serverIndex}:${item.streamId}"
@@ -25,6 +69,12 @@ class MergedVodAdapter(
         bulkSelectedKeys = keys
         bulkSelectMode = keys.isNotEmpty()
         notifyDataSetChanged()
+    }
+
+    inner class HeaderViewHolder(val binding: ItemSectionHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(row: MergedVodRow.Header) {
+            binding.tvSectionHeader.text = row.title
+        }
     }
 
     inner class ViewHolder(val binding: ItemMergedVodBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -66,19 +116,27 @@ class MergedVodAdapter(
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemMergedVodBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return ViewHolder(binding)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == TYPE_HEADER) {
+            HeaderViewHolder(ItemSectionHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        } else {
+            ViewHolder(ItemMergedVodBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        }
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val row = getItem(position)) {
+            is MergedVodRow.Header -> (holder as HeaderViewHolder).bind(row)
+            is MergedVodRow.Item -> (holder as ViewHolder).bind(row.vod)
+        }
     }
 
-    class DiffCallback : DiffUtil.ItemCallback<MergedVodEntity>() {
-        override fun areItemsTheSame(a: MergedVodEntity, b: MergedVodEntity): Boolean =
-            a.serverIndex == b.serverIndex && a.streamId == b.streamId
-
-        override fun areContentsTheSame(a: MergedVodEntity, b: MergedVodEntity): Boolean = a == b
+    class DiffCallback : DiffUtil.ItemCallback<MergedVodRow>() {
+        override fun areItemsTheSame(a: MergedVodRow, b: MergedVodRow): Boolean = when {
+            a is MergedVodRow.Header && b is MergedVodRow.Header -> a.title == b.title
+            a is MergedVodRow.Item && b is MergedVodRow.Item -> a.vod.serverIndex == b.vod.serverIndex && a.vod.streamId == b.vod.streamId
+            else -> false
+        }
+        override fun areContentsTheSame(a: MergedVodRow, b: MergedVodRow): Boolean = a == b
     }
 }

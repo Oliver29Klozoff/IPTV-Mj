@@ -126,21 +126,18 @@ class PlayerActivity : AppCompatActivity() {
 
     // AspectRatioFrameLayout's Fit/Zoom/Stretch only react to a mismatch between the video's
     // *reported* dimensions and the container's — when a channel's codec metadata already
-    // matches the screen's aspect ratio (the common case: 16:9 IPTV on a 16:9 TV), all three
-    // modes end up visually identical, even though the actual picture can still have baked-in
-    // black bars (common on SD-upscaled channels) that resize modes can't see or crop. The last
-    // two steps add a plain view scale transform on top of Fit, which crops those out
-    // regardless of what the codec reports.
+    // matches the screen's aspect ratio (the common case: 16:9 IPTV on a 16:9 TV), RESIZE_MODE_
+    // ZOOM and RESIZE_MODE_FILL produce the identical crop before any extra scale is even
+    // applied, so a "Zoom" and "Stretch" pair kept looking the same as each other no matter what
+    // scale was added on top — confirmed via testing through two earlier attempts (13 steps, then
+    // 3 with a uniform +15% crop on both). Down to 2 modes: Best Fit (unchanged) and a plain
+    // +15% crop-in via view scale, which is guaranteed to look different from Best Fit on any
+    // stream since it doesn't depend on the resize-mode/container-aspect-ratio interaction at all.
     private data class ResizeStep(val mode: Int, val scale: Float, val label: String)
-    // After the three aspect modes, zoom continues in +10% increments per press (up to +100%)
-    // instead of the old fixed 15%/30% jumps, then wraps back around to Best Fit.
     private val resizeSteps = listOf(
         ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.0f, "Best Fit"),
-        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, 1.0f, "Zoom (aspect)"),
-        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FILL, 1.0f, "Stretch")
-    ) + (1..10).map { i ->
-        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1f + i * 0.1f, "Zoom In ${i * 10}%")
-    }
+        ResizeStep(AspectRatioFrameLayout.RESIZE_MODE_FIT, 1.15f, "Zoom In")
+    )
     private var resizeModeIndex = 0
 
     @Inject lateinit var repository: XtreamRepository
@@ -1514,6 +1511,11 @@ class PlayerActivity : AppCompatActivity() {
         channelSwitchJob = lifecycleScope.launch {
             streamId = channel.streamId
             streamTitle = channel.name
+            // Zapping via the channel changer (D-pad/on-screen zones) previously never updated
+            // "last played" — only the channel HomeActivity originally launched into did — so a
+            // cold boot after zapping around would revert to whatever was playing before you
+            // started changing channels, not where you actually ended up.
+            prefs.setLastPlayedChannel(-1, channel.streamId)
             val url = repository.getLiveStreamUrl(channel.streamId)
             binding.tvChannelTitle.text = streamTitle
             val idx = channels.indexOfFirst { it.streamId == channel.streamId }
@@ -1533,6 +1535,10 @@ class PlayerActivity : AppCompatActivity() {
                 serverIndex = channel.serverIndex
                 mergedStreamId = channel.streamId
                 streamTitle = "${channel.name} · ${channel.serverNickname}"
+                // Same fix as playChannel() above — zapping through a merged provider's channel
+                // changer must update "last played" too, or a cold boot after zapping reverts to
+                // whichever channel was playing before you started changing channels.
+                prefs.setLastPlayedChannel(channel.serverIndex, channel.streamId)
                 val url = repository.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
                 binding.tvChannelTitle.text = streamTitle
                 val idx = mergedChannels.indexOfFirst { it.streamId == channel.streamId }

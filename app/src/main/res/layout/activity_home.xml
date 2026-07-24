@@ -59,17 +59,6 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <ImageButton
-            android:id="@+id/btnVodSort"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_sort_by_size"
-            android:tint="#888888"
-            android:visibility="gone" />
-
-
         <!-- Reserves exactly the front-camera cutout's width on devices with a top-center
              punch-hole, so the search box (and Providers toggle right before it) shift clear
              of it instead of drawing underneath — width set at runtime, see HomeActivity's
@@ -78,6 +67,31 @@
             android:id="@+id/cutoutSpacer"
             android:layout_width="0dp"
             android:layout_height="1dp" />
+
+        <!-- Was a bare unlabeled icon using the exact same drawable as btnMenu (the main
+             hamburger button) — easy to miss or mistake for a second menu button. Distinct
+             icon + a text label makes it obvious this is Movies/Series sort (Rating/Year/
+             Recently Added), not another entry into the main menu. Also moved to AFTER
+             cutoutSpacer — it previously sat before the spacer, so on devices with a top-center
+             punch-hole camera it could be drawn partially/fully behind the cutout itself
+             instead of being shifted clear of it. -->
+        <Button
+            android:id="@+id/btnVodSort"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:drawableStart="@android:drawable/ic_menu_sort_alphabetically"
+            android:drawableTint="#888888"
+            android:drawablePadding="4dp"
+            android:paddingHorizontal="8dp"
+            android:text="Sort"
+            android:textAllCaps="false"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:visibility="gone" />
 
         <EditText
             android:id="@+id/etSearch"
@@ -344,6 +358,19 @@
             android:textColor="#888888"
             android:textSize="11sp" />
 
+        <!-- Merged/Providers Movies had no sort option at all before — same Rating/Year/
+             Recently Added options as primary Movies' btnVodSort, shown only in Movies mode. -->
+        <ImageButton
+            android:id="@+id/btnProvidersVodSort"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_sort_alphabetically"
+            android:tint="#888888"
+            android:contentDescription="Sort movies"
+            android:visibility="gone" />
+
         <ImageButton
             android:id="@+id/btnRefreshProviders"
             android:layout_width="32dp"
@@ -352,6 +379,22 @@
             android:src="@android:drawable/stat_notify_sync"
             android:tint="#4FC3F7"
             android:contentDescription="Refresh providers" />
+
+        <!-- Shown only while a bulk-select is active for whichever of Live/Movies/Series is
+             currently showing in Providers — hidden the rest of the time so it doesn't crowd
+             this already-tight row. -->
+        <TextView
+            android:id="@+id/btnProvidersSelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Select All"
+            android:textColor="#008CFF"
+            android:textSize="11sp"
+            android:visibility="gone" />
 
     </LinearLayout>
 
@@ -397,6 +440,69 @@
 
     </LinearLayout>
 
+    <!-- BULK-SELECT BAR — one shared bar (not one per tab) for every bulk-selectable list
+         (Favorites/primary channels, Providers Live/Movies/Series, the combined Live tab).
+         Shown only while that tab's bulk-select mode is active (see HomeActivity's
+         updateBulkSelectBar/clearBulkSelection* functions), stacked in the same
+         "only one row visible" pattern as guideModeRow/providersModeRow above it. -->
+    <LinearLayout
+        android:id="@+id/bulkSelectBar"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:background="#1A1A1A"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/guideModeRow">
+
+        <TextView
+            android:id="@+id/tvBulkSelectCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Select All"
+            android:textColor="#008CFF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectDone"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Done"
+            android:textColor="#34C759"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="✕"
+            android:textColor="#FF6B6B"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
     <!-- SYNC PROGRESS — shown while a large catalog (movies/series) is downloading -->
     <LinearLayout
         android:id="@+id/syncProgressContainer"
@@ -410,7 +516,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/guideModeRow">
+        app:layout_constraintTop_toBottomOf="@id/bulkSelectBar">
 
         <TextView
             android:id="@+id/tvSyncStatus"

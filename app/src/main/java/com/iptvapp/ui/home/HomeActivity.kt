@@ -171,6 +171,7 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMergedMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
         mergedChannelAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
     }
 
     // Live tab bulk-select (LiveChannelAdapter combines primary + every merged provider into
@@ -194,6 +195,89 @@ class HomeActivity : AppCompatActivity() {
     // Tapping outside just dismisses the dialog without touching the selection, same as
     // showMoveToFolderDialog's existing "cancel-by-tap-outside keeps selection" precedent —
     // the idle timer simply re-fires after another 8s of inactivity.
+    // Central bar/button updater for every bulk-select flow — called after any selection
+    // start/add/remove/clear. Favorites/primary-channels and the combined Live tab share the
+    // generic bulkSelectBar (they had no existing strip to put a button in); Providers reuses
+    // its own providersModeRow strip instead, per explicit request, since that's already visible
+    // there. Exactly one of these can be active at a time in practice (only one tab/list is ever
+    // being interacted with), so first-match-wins is fine.
+    private fun updateBulkSelectUi() {
+        binding.btnProvidersSelectAll?.visibility =
+            if ((providersMode == ProvidersMode.LIVE && bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) ||
+                (providersMode == ProvidersMode.MOVIES && bulkSelectMergedVodMode && bulkSelectedMergedVodKeys.isNotEmpty()) ||
+                (providersMode == ProvidersMode.SERIES && bulkSelectMergedSeriesMode && bulkSelectedMergedSeriesKeys.isNotEmpty()))
+                View.VISIBLE else View.GONE
+        binding.btnProvidersSelectAll?.setOnClickListener {
+            when (providersMode) {
+                ProvidersMode.LIVE -> {
+                    bulkSelectedMergedKeys.addAll(viewModel.mergedChannels.value.map { "${it.serverIndex}:${it.streamId}" })
+                    mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                    bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                    bulkSelectHandler.postDelayed(bulkSelectMergedIdleRunnable, 8000)
+                }
+                ProvidersMode.MOVIES -> {
+                    bulkSelectedMergedVodKeys.addAll(viewModel.mergedVod.value.map { "${it.serverIndex}:${it.streamId}" })
+                    mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                    bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
+                    bulkSelectHandler.postDelayed(bulkSelectMergedVodIdleRunnable, 8000)
+                }
+                ProvidersMode.SERIES -> {
+                    bulkSelectedMergedSeriesKeys.addAll(viewModel.mergedSeries.value.map { "${it.serverIndex}:${it.seriesId}" })
+                    mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                    bulkSelectHandler.removeCallbacks(bulkSelectMergedSeriesIdleRunnable)
+                    bulkSelectHandler.postDelayed(bulkSelectMergedSeriesIdleRunnable, 8000)
+                }
+            }
+            Toast.makeText(this, "Selected all", Toast.LENGTH_SHORT).show()
+            updateBulkSelectUi()
+        }
+
+        val state: Quadruple? = when {
+            bulkSelectMode && bulkSelectedIds.isNotEmpty() -> Quadruple(
+                bulkSelectedIds.size,
+                { bulkSelectedIds.addAll(viewModel.channels.value.map { it.streamId }); channelAdapter.submitBulkSelection(bulkSelectedIds.toSet()) },
+                {
+                    viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+                    Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                    clearBulkSelection()
+                },
+                { clearBulkSelection() }
+            )
+            bulkSelectLiveMode && bulkSelectedLiveIds.isNotEmpty() -> Quadruple(
+                bulkSelectedLiveIds.size,
+                { bulkSelectedLiveIds.addAll(liveChannelAdapter.currentList.map { it.id }); liveChannelAdapter.submitBulkSelection(bulkSelectedLiveIds.toSet()) },
+                { commitBulkLiveFavorites() },
+                { clearBulkSelectionLive() }
+            )
+            bulkSelectSeriesMode && bulkSelectedSeriesIds.isNotEmpty() -> Quadruple(
+                bulkSelectedSeriesIds.size,
+                { bulkSelectedSeriesIds.addAll(viewModel.series.value.map { it.seriesId }); seriesAdapter.submitBulkSelection(bulkSelectedSeriesIds.toSet()) },
+                {
+                    viewModel.bulkHideSeries(bulkSelectedSeriesIds.toList())
+                    Toast.makeText(this, "${bulkSelectedSeriesIds.size} shows hidden", Toast.LENGTH_SHORT).show()
+                    clearBulkSelectionSeries()
+                },
+                { clearBulkSelectionSeries() }
+            )
+            else -> null
+        }
+        if (state == null) {
+            binding.bulkSelectBar?.visibility = View.GONE
+            return
+        }
+        binding.bulkSelectBar?.visibility = View.VISIBLE
+        binding.tvBulkSelectCount?.text = "${state.count} selected"
+        binding.btnBulkSelectAll?.setOnClickListener {
+            state.selectAll()
+            Toast.makeText(this, "Selected all", Toast.LENGTH_SHORT).show()
+            updateBulkSelectUi()
+        }
+        binding.btnBulkSelectDone?.setOnClickListener { state.done() }
+        binding.btnBulkSelectCancel?.setOnClickListener { state.cancel() }
+    }
+
+    private data class Quadruple(val count: Int, val selectAll: () -> Unit, val done: () -> Unit, val cancel: () -> Unit)
+
     private fun showBulkSelectIdlePrompt(
         count: Int, onMoveToFavorites: () -> Unit, onUnselectAll: () -> Unit,
         itemLabel: String = "channel", actionLabel: String = "Move to Favorites"
@@ -203,6 +287,21 @@ class HomeActivity : AppCompatActivity() {
             .setPositiveButton(actionLabel) { _, _ -> onMoveToFavorites() }
             .setNegativeButton("Unselect All") { _, _ -> onUnselectAll() }
             .setNeutralButton("Keep Selecting", null)
+            .show()
+    }
+
+    // Bulk-hide flows (primary series, merged series, merged VOD) select via plain tap-to-toggle
+    // rather than a per-item menu — a SECOND long-press while already selecting (instead of
+    // toggling that one item again) offers this instead, since there's nowhere else in that flow
+    // to reach "select everything" from.
+    private fun showBulkSelectAllMenu(itemLabel: String, onSelectAll: () -> Unit, onDeselectAll: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setItems(arrayOf("Select All $itemLabel", "Deselect All", "Cancel")) { _, which ->
+                when (which) {
+                    0 -> onSelectAll()
+                    1 -> onDeselectAll()
+                }
+            }
             .show()
     }
 
@@ -222,6 +321,7 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectLiveMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectLiveIdleRunnable)
         liveChannelAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
     }
 
     // Series bulk-hide (checkbox mode) — primary and merged tracked separately since they're
@@ -249,6 +349,7 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectSeriesMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectSeriesIdleRunnable)
         seriesAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
     }
 
     private val bulkSelectedMergedSeriesKeys = mutableSetOf<String>()
@@ -278,6 +379,7 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMergedSeriesMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectMergedSeriesIdleRunnable)
         mergedSeriesAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
     }
 
     // Merged VOD bulk-hide — same shape as merged Series' above.
@@ -308,6 +410,7 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMergedVodMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
         mergedVodAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
     }
 
     private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -335,16 +438,26 @@ class HomeActivity : AppCompatActivity() {
         val returnedMergedStreamId = result.data?.getIntExtra("merged_stream_id", -1) ?: -1
         if (result.resultCode == Activity.RESULT_OK && returnedServerIndex != -1 && returnedMergedStreamId != -1) {
             suppressMiniAutoResume = true
-            currentMiniServerIndex = returnedServerIndex
-            currentMiniMergedStreamId = returnedMergedStreamId
-            currentMiniStreamId = -1
-            currentMiniIsVod = false
+            // Previously only flipped currentMiniServerIndex/currentMiniMergedStreamId and
+            // switched tabs — it never actually started the mini player (no setMediaItem/
+            // prepare/playWhenReady call anywhere in this branch, unlike the primary-channel
+            // branch below) and never scrolled/highlighted the returned channel in any adapter,
+            // so exiting fullscreen for a merged channel silently stopped playback and left
+            // focus wherever it happened to already be. playMergedChannel() is the same function
+            // every other merged-channel play path already goes through — it resolves the
+            // stream URL, starts the mini player, persists last-played, AND sets the "currently
+            // playing" key on every merged/combined adapter so the right row highlights.
+            lifecycleScope.launch {
+                val channel = viewModel.getMergedChannelByIndexAndId(returnedServerIndex, returnedMergedStreamId)
+                if (channel != null) playMergedChannel(channel)
+            }
             // Selecting the tab fires onTabSelected -> showAllProviders() synchronously, which
-            // reads currentMiniServerIndex/currentMiniMergedStreamId (already set above) and
-            // does the "jump straight to this channel's folder" itself — no need to duplicate
-            // that logic here, just make sure it's treated as a fresh visit to the tab.
-            // TabLayout.select() is a no-op (doesn't fire onTabSelected) if that tab was already
-            // selected before opening fullscreen — call showAllProviders() directly in that case.
+            // reads currentMiniServerIndex/currentMiniMergedStreamId (set above by
+            // playMergedChannel) and does the "jump straight to this channel's folder" itself —
+            // no need to duplicate that logic here, just make sure it's treated as a fresh visit
+            // to the tab. TabLayout.select() is a no-op (doesn't fire onTabSelected) if that tab
+            // was already selected before opening fullscreen — call showAllProviders() directly
+            // in that case.
             providersTabVisitedSinceTabSwitch = false
             if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
                 showAllProviders()
@@ -406,6 +519,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnProvidersModeLive?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.LIVE) active else inactive))
         binding.btnProvidersModeMovies?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.MOVIES) active else inactive))
         binding.btnProvidersModeSeries?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.SERIES) active else inactive))
+        binding.btnProvidersVodSort?.visibility = if (providersMode == ProvidersMode.MOVIES) View.VISIBLE else View.GONE
     }
     private var providersMode = ProvidersMode.LIVE
     // Populated in onCreate from the ViewModel (which survives activity recreation) when
@@ -571,9 +685,17 @@ class HomeActivity : AppCompatActivity() {
         // user manually tapped Refresh — meaning a freshly-installed app (or one that hasn't
         // opened that tab yet) showed nothing at all until a manual action. Auto-refresh it
         // once per cold start when at least one extra provider is actually configured, so
-        // it's already populated by the time the user checks that tab.
+        // it's already populated by the time the user checks that tab. Gated on staleness
+        // (>6h since the last successful refresh, manual or automatic) — without this, every
+        // single app launch re-hit every configured provider's API regardless of how recently
+        // it last succeeded, which is wasted traffic and actively counterproductive for
+        // providers with strict connection limits.
         lifecycleScope.launch {
-            if (prefs.getExtraServersWithNick().isNotEmpty()) viewModel.refreshMergedChannels()
+            val staleMs = 6 * 60 * 60 * 1000L
+            val sinceLastRefresh = System.currentTimeMillis() - prefs.lastMergedChannelsRefresh.first()
+            if (prefs.getExtraServersWithNick().isNotEmpty() && sinceLastRefresh >= staleMs) {
+                viewModel.refreshMergedChannels()
+            }
         }
         observeTabVisibility()
         // HomeActivity has no configChanges for orientation (unlike PlayerActivity), so
@@ -1067,6 +1189,20 @@ class HomeActivity : AppCompatActivity() {
                     return@launch
                 }
             }
+            // Primary-provider resume: LAST_PLAYED_* is now updated by every channel change
+            // (including PlayerActivity's zap-through-channels D-pad/on-screen changer, not just
+            // HomeActivity's own initial tap), so it reflects the actual last-played channel.
+            // getRecentChannel()'s "lastWatched DB column" fallback below is only ever touched
+            // by markChannelWatched() (Home's own tap handlers) — zapping never updated it, so
+            // trusting it first used to silently ignore anything zapped to in the player and
+            // revert to whatever was tapped from Home before zapping started.
+            if (lastServerIndex == -1 && lastStreamId != -1) {
+                val channel = viewModel.getChannelById(lastStreamId)
+                if (channel != null) {
+                    playInMiniPlayer(channel)
+                    return@launch
+                }
+            }
             val recent = viewModel.getRecentChannel()
             if (recent != null) {
                 playInMiniPlayer(recent)
@@ -1171,6 +1307,26 @@ class HomeActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showMergedVodSortDialog() {
+        val options = listOf(
+            HomeViewModel.VodSort.DEFAULT to "Default",
+            HomeViewModel.VodSort.RATING_DESC to "Rating (High to Low)",
+            HomeViewModel.VodSort.YEAR_NEWEST to "Year (Newest First)",
+            HomeViewModel.VodSort.YEAR_OLDEST to "Year (Oldest First)",
+            HomeViewModel.VodSort.RECENTLY_ADDED to "Recently Added"
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        val current = options.indexOfFirst { it.first == viewModel.mergedVodSort.value }.coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort Movies")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                viewModel.setMergedVodSort(options[which].first)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showSeriesSortDialog() {
         val options = listOf(
             HomeViewModel.SeriesSort.DEFAULT to "Default",
@@ -1214,6 +1370,7 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
+        binding.btnProvidersVodSort?.setOnClickListener { showMergedVodSortDialog() }
         // Providers tab has three independent browse modes (see ProvidersMode kdoc), selected
         // directly via three side-by-side buttons (providersModeRow) rather than one cycling
         // toggle — switching always resets to that mode's top level, same as re-entering the
@@ -1466,7 +1623,10 @@ class HomeActivity : AppCompatActivity() {
                     // setupRecyclerViews' construction of that adapter) — only Movies still
                     // routes a plain CategoryEntity click through here.
                     when (binding.tabLayout.selectedTabPosition) {
-                        TAB_MOVIES -> viewModel.selectVodCategory(category.categoryId)
+                        TAB_MOVIES -> {
+                            if (category.categoryId == VOD_FAVORITES_SENTINEL) viewModel.selectVodFavorites()
+                            else viewModel.selectVodCategory(category.categoryId)
+                        }
                     }
                     landscapeShowChannelsMode()
                 }
@@ -1491,7 +1651,7 @@ class HomeActivity : AppCompatActivity() {
                 } else if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS &&
                     providersMode == ProvidersMode.SERIES && viewModel.selectedMergedSeriesServerIndex != null &&
                     category.categoryId != SHOW_HIDDEN_CATEGORIES_SENTINEL) {
-                    showCategoryBulkHideDialog(category, isSeries = true)
+                    showSeriesCategoryLongPressMenu(category)
                 }
             }
         )
@@ -1501,6 +1661,7 @@ class HomeActivity : AppCompatActivity() {
                 if (bulkSelectMode) {
                     if (!bulkSelectedIds.add(channel.streamId)) bulkSelectedIds.remove(channel.streamId)
                     channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                    updateBulkSelectUi()
                     Toast.makeText(this, "${bulkSelectedIds.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                     if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
@@ -1535,6 +1696,7 @@ class HomeActivity : AppCompatActivity() {
                     val key = "${channel.serverIndex}:${channel.streamId}"
                     if (!bulkSelectedMergedKeys.add(key)) bulkSelectedMergedKeys.remove(key)
                     mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                    updateBulkSelectUi()
                     Toast.makeText(this, "${bulkSelectedMergedKeys.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
                     if (bulkSelectedMergedKeys.isEmpty()) bulkSelectMergedMode = false
@@ -1566,6 +1728,7 @@ class HomeActivity : AppCompatActivity() {
                     val key = "${vod.serverIndex}:${vod.streamId}"
                     if (!bulkSelectedMergedVodKeys.add(key)) bulkSelectedMergedVodKeys.remove(key)
                     mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                    updateBulkSelectUi()
                     Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
                     if (bulkSelectedMergedVodKeys.isEmpty()) bulkSelectMergedVodMode = false
@@ -1587,11 +1750,31 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
                 Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
-            onItemLongClick = { vod ->
+            onItemLongClick = onItemLongClick@{ vod ->
+                if (bulkSelectMergedVodMode) {
+                    // A second long-press mid-selection means "I want to act on the whole set",
+                    // not "toggle this one more item" (that's what plain taps already do) —
+                    // offers Select All (every currently-loaded row, not just this category),
+                    // Deselect All, or just close without changing anything.
+                    showBulkSelectAllMenu(
+                        itemLabel = "movies",
+                        onSelectAll = {
+                            bulkSelectedMergedVodKeys.addAll(viewModel.mergedVod.value.map { "${it.serverIndex}:${it.streamId}" })
+                            mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                            updateBulkSelectUi()
+                            Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected", Toast.LENGTH_SHORT).show()
+                            bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
+                            bulkSelectHandler.postDelayed(bulkSelectMergedVodIdleRunnable, 8000)
+                        },
+                        onDeselectAll = { clearBulkSelectionMergedVod() }
+                    )
+                    return@onItemLongClick
+                }
                 bulkSelectMergedVodMode = true
                 val key = "${vod.serverIndex}:${vod.streamId}"
                 bulkSelectedMergedVodKeys.add(key)
                 mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                updateBulkSelectUi()
                 Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected — tap more movies to hide", Toast.LENGTH_SHORT).show()
                 bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
                 bulkSelectHandler.postDelayed(bulkSelectMergedVodIdleRunnable, 8000)
@@ -1604,6 +1787,7 @@ class HomeActivity : AppCompatActivity() {
                     val key = "${series.serverIndex}:${series.seriesId}"
                     if (!bulkSelectedMergedSeriesKeys.add(key)) bulkSelectedMergedSeriesKeys.remove(key)
                     mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                    updateBulkSelectUi()
                     Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectMergedSeriesIdleRunnable)
                     if (bulkSelectedMergedSeriesKeys.isEmpty()) bulkSelectMergedSeriesMode = false
@@ -1624,11 +1808,27 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.setMergedSeriesFavorite(series, !series.isFavorite)
                 Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
-            onItemLongClick = { series ->
+            onItemLongClick = onItemLongClick@{ series ->
+                if (bulkSelectMergedSeriesMode) {
+                    showBulkSelectAllMenu(
+                        itemLabel = "shows",
+                        onSelectAll = {
+                            bulkSelectedMergedSeriesKeys.addAll(viewModel.mergedSeries.value.map { "${it.serverIndex}:${it.seriesId}" })
+                            mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                            updateBulkSelectUi()
+                            Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} selected", Toast.LENGTH_SHORT).show()
+                            bulkSelectHandler.removeCallbacks(bulkSelectMergedSeriesIdleRunnable)
+                            bulkSelectHandler.postDelayed(bulkSelectMergedSeriesIdleRunnable, 8000)
+                        },
+                        onDeselectAll = { clearBulkSelectionMergedSeries() }
+                    )
+                    return@onItemLongClick
+                }
                 bulkSelectMergedSeriesMode = true
                 val key = "${series.serverIndex}:${series.seriesId}"
                 bulkSelectedMergedSeriesKeys.add(key)
                 mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                updateBulkSelectUi()
                 Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} selected — tap more shows to hide", Toast.LENGTH_SHORT).show()
                 bulkSelectHandler.removeCallbacks(bulkSelectMergedSeriesIdleRunnable)
                 bulkSelectHandler.postDelayed(bulkSelectMergedSeriesIdleRunnable, 8000)
@@ -1708,6 +1908,7 @@ class HomeActivity : AppCompatActivity() {
                 if (bulkSelectLiveMode) {
                     if (!bulkSelectedLiveIds.add(row.id)) bulkSelectedLiveIds.remove(row.id)
                     liveChannelAdapter.submitBulkSelection(bulkSelectedLiveIds.toSet())
+                    updateBulkSelectUi()
                     Toast.makeText(this, "${bulkSelectedLiveIds.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectLiveIdleRunnable)
                     if (bulkSelectedLiveIds.isEmpty()) bulkSelectLiveMode = false
@@ -1803,6 +2004,7 @@ class HomeActivity : AppCompatActivity() {
                 if (bulkSelectSeriesMode) {
                     if (!bulkSelectedSeriesIds.add(series.seriesId)) bulkSelectedSeriesIds.remove(series.seriesId)
                     seriesAdapter.submitBulkSelection(bulkSelectedSeriesIds.toSet())
+                    updateBulkSelectUi()
                     Toast.makeText(this, "${bulkSelectedSeriesIds.size} selected", Toast.LENGTH_SHORT).show()
                     bulkSelectHandler.removeCallbacks(bulkSelectSeriesIdleRunnable)
                     if (bulkSelectedSeriesIds.isEmpty()) bulkSelectSeriesMode = false
@@ -1819,10 +2021,26 @@ class HomeActivity : AppCompatActivity() {
                 })
             },
             onFavoriteClick = { series -> viewModel.toggleSeriesFavorite(series) },
-            onSeriesLongClick = { series ->
+            onSeriesLongClick = onSeriesLongClick@{ series ->
+                if (bulkSelectSeriesMode) {
+                    showBulkSelectAllMenu(
+                        itemLabel = "shows",
+                        onSelectAll = {
+                            bulkSelectedSeriesIds.addAll(viewModel.series.value.map { it.seriesId })
+                            seriesAdapter.submitBulkSelection(bulkSelectedSeriesIds.toSet())
+                            updateBulkSelectUi()
+                            Toast.makeText(this, "${bulkSelectedSeriesIds.size} selected", Toast.LENGTH_SHORT).show()
+                            bulkSelectHandler.removeCallbacks(bulkSelectSeriesIdleRunnable)
+                            bulkSelectHandler.postDelayed(bulkSelectSeriesIdleRunnable, 8000)
+                        },
+                        onDeselectAll = { clearBulkSelectionSeries() }
+                    )
+                    return@onSeriesLongClick
+                }
                 bulkSelectSeriesMode = true
                 bulkSelectedSeriesIds.add(series.seriesId)
                 seriesAdapter.submitBulkSelection(bulkSelectedSeriesIds.toSet())
+                updateBulkSelectUi()
                 Toast.makeText(this, "${bulkSelectedSeriesIds.size} selected — tap more shows to hide", Toast.LENGTH_SHORT).show()
                 bulkSelectHandler.removeCallbacks(bulkSelectSeriesIdleRunnable)
                 bulkSelectHandler.postDelayed(bulkSelectSeriesIdleRunnable, 8000)
@@ -1999,7 +2217,7 @@ class HomeActivity : AppCompatActivity() {
                             landscapeShowChannelsMode()
                             binding.rvCategories.visibility = View.GONE
                             binding.rvChannels.adapter = mergedVodAdapter
-                            mergedVodAdapter.submitList(viewModel.mergedVod.value)
+                            mergedVodAdapter.submitVodList(viewModel.mergedVod.value)
                         }
                         ProvidersMode.SERIES -> {
                             viewModel.searchMergedSeries(query)
@@ -2178,6 +2396,7 @@ class HomeActivity : AppCompatActivity() {
         binding.rvCategories.visibility = View.VISIBLE
         binding.rvCategories.adapter = categoryAdapter
         binding.rvChannels.adapter = vodAdapter
+        vodCategoriesAutoSelected = false
         val cats = viewModel.vodCategories.value
         updateVodGenreChips(cats)
         submitFilteredVodCategories(cats)
@@ -2257,10 +2476,31 @@ class HomeActivity : AppCompatActivity() {
         return cats.filter { genre in vodCategoryBuckets(it) }
     }
 
+    // vodCategories is a persistent StateFlow that can re-emit for reasons unrelated to actually
+    // switching categories (health checks, EPG refresh, etc. touching shared state) — the
+    // pinned "★ Favorites" row gave a real reason to navigate away from the auto-selected first
+    // category for the first time, and every one of those re-emissions was calling
+    // selectVodCategory(filtered.first().categoryId) again, silently snapping back to category 1
+    // a moment after tapping anything else (Favorites or another category). Only auto-select on
+    // a genuinely fresh entry into Movies now.
+    private var vodCategoriesAutoSelected = false
+
     private fun submitFilteredVodCategories(cats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
         val filtered = vodCategoryFilter(cats)
-        submitCategories(filtered)
-        if (filtered.isNotEmpty()) viewModel.selectVodCategory(filtered.first().categoryId)
+        // "★ Favorites" pinned above the real categories — purely a display/entry-point row,
+        // not counted as a real category for auto-selecting the first one below (that should
+        // still land you on an actual category's movies on first entry, same as before).
+        val favoritesRow = com.iptvapp.data.local.entities.CategoryEntity(
+            categoryId = VOD_FAVORITES_SENTINEL,
+            categoryName = "★ Favorites",
+            parentId = 0,
+            type = "vod_category"
+        )
+        submitCategories(listOf(favoritesRow) + filtered)
+        if (!vodCategoriesAutoSelected && filtered.isNotEmpty()) {
+            vodCategoriesAutoSelected = true
+            viewModel.selectVodCategory(filtered.first().categoryId)
+        }
     }
 
     private fun updateVodGenreChips(allCats: List<com.iptvapp.data.local.entities.CategoryEntity>) {
@@ -2328,7 +2568,19 @@ class HomeActivity : AppCompatActivity() {
         android.util.Log.d("ProvidersJump", "showAllProviders: serverIndex=$playingServerIndex streamId=$playingStreamId")
         if (playingServerIndex != -1 && playingStreamId != -1) {
             lifecycleScope.launch {
-                val channel = viewModel.getMergedChannelByIndexAndId(playingServerIndex, playingStreamId)
+                // Same race as loadLastWatchedChannel()'s cold-boot lookup: onCreate's own
+                // cold-start auto-refresh (clearForServer then upsertAll for this exact server)
+                // can still be mid-flight when a fresh cold boot selects the Providers tab right
+                // away, so a single-shot lookup here could land in that gap and return null even
+                // though the channel is genuinely there moments later — silently falling back to
+                // showAllProvidersFromTop() (unscrolled) instead of jumping to/highlighting the
+                // actually-playing channel. Same short retry window rides it out.
+                var channel: com.iptvapp.data.local.entities.MergedChannelEntity? = null
+                for (attempt in 1..10) {
+                    channel = viewModel.getMergedChannelByIndexAndId(playingServerIndex, playingStreamId)
+                    if (channel != null) break
+                    delay(300)
+                }
                 android.util.Log.d("ProvidersJump", "getMergedChannelByIndexAndId result: $channel")
                 if (channel != null) {
                     jumpToPlayingMergedChannel(channel)
@@ -2459,7 +2711,16 @@ class HomeActivity : AppCompatActivity() {
                 val pos = list.indexOfFirst { it.streamId == channel.streamId }
                 if (pos >= 0) {
                     scrolled = true
-                    binding.rvChannels.post { binding.rvChannels.scrollToPosition(pos) }
+                    // scrollToPosition only scrolls the minimal distance needed to make the row
+                    // visible, which usually lands it flush against the very top/bottom edge of
+                    // the list — technically on-screen but easy to miss as "the focused row",
+                    // and D-pad focus can land on it half-obscured. scrollToPositionWithOffset
+                    // (0 = pin to the very top of the RecyclerView) matches every other
+                    // jump-to-currently-playing-channel call site in this file.
+                    binding.rvChannels.post {
+                        (binding.rvChannels.layoutManager as? LinearLayoutManager)
+                            ?.scrollToPositionWithOffset(pos, 0)
+                    }
                 }
             }
         }
@@ -2476,6 +2737,10 @@ class HomeActivity : AppCompatActivity() {
     // Movies/Series category list whenever that provider has at least one hidden category —
     // tapping it flips showingHiddenVodCategories/showingHiddenSeriesCategories and re-renders.
     private val SHOW_HIDDEN_CATEGORIES_SENTINEL = "__show_hidden_categories__"
+    // Sentinel categoryId for the "★ Favorites" row pinned to the top of primary Movies' own
+    // category list — same concept as FAVORITES_SERVER_SENTINEL above, just for a flat
+    // category list instead of a server picker (primary Movies has no server-picker step).
+    private val VOD_FAVORITES_SENTINEL = "__vod_favorites__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
         val favoritesRow = CategoryEntity(
@@ -2490,7 +2755,7 @@ class HomeActivity : AppCompatActivity() {
         return listOf(favoritesRow) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
-                categoryName = "${it.serverNickname} (${it.channelCount})",
+                categoryName = "${it.serverNickname} Live (${it.channelCount})",
                 parentId = 0,
                 type = "merged_server"
             )
@@ -2532,7 +2797,7 @@ class HomeActivity : AppCompatActivity() {
         return listOf(favoritesRow) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
-                categoryName = "${it.serverNickname} (${it.vodCount})",
+                categoryName = "${it.serverNickname} Movies (${it.vodCount})",
                 parentId = 0,
                 type = "merged_vod_server"
             )
@@ -2581,7 +2846,7 @@ class HomeActivity : AppCompatActivity() {
         return listOf(favoritesRow) + list.filter { it.serverIndex != -1 }.map {
             CategoryEntity(
                 categoryId = it.serverIndex.toString(),
-                categoryName = "${it.serverNickname} (${it.seriesCount})",
+                categoryName = "${it.serverNickname} Series (${it.seriesCount})",
                 parentId = 0,
                 type = "merged_series_server"
             )
@@ -3028,12 +3293,12 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.vod.collect {
                 lastVodList = it
-                if (binding.tabLayout.selectedTabPosition == TAB_MOVIES) vodAdapter.submitList(viewModel.applyVodSort(it))
+                if (binding.tabLayout.selectedTabPosition == TAB_MOVIES) vodAdapter.submitVodList(viewModel.applyVodSort(it))
             }
         }
         lifecycleScope.launch {
             viewModel.vodSort.collect {
-                if (binding.tabLayout.selectedTabPosition == TAB_MOVIES) vodAdapter.submitList(viewModel.applyVodSort(lastVodList))
+                if (binding.tabLayout.selectedTabPosition == TAB_MOVIES) vodAdapter.submitVodList(viewModel.applyVodSort(lastVodList))
             }
         }
         var lastSeriesList: List<com.iptvapp.data.local.entities.SeriesEntity> = emptyList()
@@ -3138,7 +3403,7 @@ class HomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.continueWatching.collect { list ->
-                if (binding.tabLayout.selectedTabPosition == TAB_HISTORY) vodAdapter.submitList(list)
+                if (binding.tabLayout.selectedTabPosition == TAB_HISTORY) vodAdapter.submitPlainList(list)
             }
         }
         lifecycleScope.launch {
@@ -3155,7 +3420,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.mergedVod.collect { list ->
                 if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.MOVIES) {
-                    mergedVodAdapter.submitList(list)
+                    mergedVodAdapter.submitVodList(list)
                 }
             }
         }
@@ -3233,6 +3498,7 @@ class HomeActivity : AppCompatActivity() {
                         bulkSelectLiveMode = true
                         bulkSelectedLiveIds.add(row.id)
                         liveChannelAdapter.submitBulkSelection(bulkSelectedLiveIds.toSet())
+                        updateBulkSelectUi()
                         Toast.makeText(this, "${bulkSelectedLiveIds.size} selected — tap more channels, or wait to add them", Toast.LENGTH_SHORT).show()
                         bulkSelectHandler.removeCallbacks(bulkSelectLiveIdleRunnable)
                         bulkSelectHandler.postDelayed(bulkSelectLiveIdleRunnable, 8000)
@@ -3240,6 +3506,7 @@ class HomeActivity : AppCompatActivity() {
                     "Deselect (bulk)" -> {
                         bulkSelectedLiveIds.remove(row.id)
                         liveChannelAdapter.submitBulkSelection(bulkSelectedLiveIds.toSet())
+                        updateBulkSelectUi()
                         if (bulkSelectedLiveIds.isEmpty()) {
                             bulkSelectLiveMode = false
                             bulkSelectHandler.removeCallbacks(bulkSelectLiveIdleRunnable)
@@ -3249,9 +3516,7 @@ class HomeActivity : AppCompatActivity() {
                         viewModel.hideChannel(ch.streamId)
                         Toast.makeText(this, "${ch.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
                     }
-                    else -> if (options[i].startsWith("✓ Add")) {
-                        commitBulkLiveFavorites()
-                    }
+                    else -> if (options[i].startsWith("✓ Add")) commitBulkLiveFavorites()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -3285,6 +3550,7 @@ class HomeActivity : AppCompatActivity() {
                         bulkSelectMode = true
                         bulkSelectedIds.add(channel.streamId)
                         channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                        updateBulkSelectUi()
                         Toast.makeText(this, "${bulkSelectedIds.size} selected — tap more channels, or wait to move/add them", Toast.LENGTH_SHORT).show()
                         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                         bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 8000)
@@ -3292,6 +3558,7 @@ class HomeActivity : AppCompatActivity() {
                     "Deselect (bulk)" -> {
                         bulkSelectedIds.remove(channel.streamId)
                         channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                        updateBulkSelectUi()
                         if (bulkSelectedIds.isEmpty()) {
                             bulkSelectMode = false
                             bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
@@ -3318,6 +3585,29 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
         channelAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
+    }
+
+    // Long-press entry point for a merged-series category — offers the existing bulk-hide flow
+    // plus a new "Favorite All Shows" shortcut (favorites every series in the category at once,
+    // into an optional folder, instead of tapping each show individually).
+    private fun showSeriesCategoryLongPressMenu(category: CategoryEntity) {
+        val serverIndex = category.categoryId.substringBefore(':', "").toIntOrNull() ?: return
+        val categoryId = category.categoryId.substringAfter(':', "").let { if (it == NO_CATEGORY_ID) null else it }
+        val categoryName = category.categoryName.substringBeforeLast(" (")
+        val options = arrayOf("★ Favorite All Shows", "👁 Hide Category")
+        AlertDialog.Builder(this)
+            .setTitle(categoryName)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showMoveToFolderDialog("Favorite all of \"$categoryName\" to", onCancel = {}) { folderId ->
+                        viewModel.favoriteMergedSeriesCategory(serverIndex, categoryId, folderId)
+                        Toast.makeText(this, "Added to Favorites", Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> showCategoryBulkHideDialog(category, isSeries = true)
+                }
+            }
+            .show()
     }
 
     // Long-press entry point for Movies/Series category bulk-hide — turns on checkbox mode
@@ -3374,6 +3664,7 @@ class HomeActivity : AppCompatActivity() {
                         bulkSelectMergedMode = true
                         bulkSelectedMergedKeys.add(key)
                         mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                        updateBulkSelectUi()
                         Toast.makeText(this, "${bulkSelectedMergedKeys.size} selected — tap more channels, or wait to add them", Toast.LENGTH_SHORT).show()
                         bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
                         bulkSelectHandler.postDelayed(bulkSelectMergedIdleRunnable, 8000)
@@ -3381,6 +3672,7 @@ class HomeActivity : AppCompatActivity() {
                     "Deselect (bulk)" -> {
                         bulkSelectedMergedKeys.remove(key)
                         mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                        updateBulkSelectUi()
                         if (bulkSelectedMergedKeys.isEmpty()) {
                             bulkSelectMergedMode = false
                             bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)

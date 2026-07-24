@@ -179,12 +179,18 @@ class TraktManager @Inject constructor(
         scrobble(progress, { auth, body -> api.scrobbleStop(auth, clientId, body = body) },
             show = TraktShow(showTitle), episode = TraktEpisode(season, episode))
 
+    data class MatchedShow(val seriesId: Int, val name: String, val cover: String?, val genre: String?, val rating: String?, val plot: String?)
+
     data class SyncBackResult(
         val moviesMatched: Int,
         val showsMatched: Int,
         val episodesMarked: Int,
         val unmatchedMovies: List<String> = emptyList(),
-        val unmatchedShows: List<String> = emptyList()
+        val unmatchedShows: List<String> = emptyList(),
+        // Lets the caller offer "tap to open" straight into each matched show's detail page —
+        // captured here since this is the only place that already has the local seriesId a
+        // Trakt title resolved to.
+        val matchedShows: List<MatchedShow> = emptyList()
     )
 
     /** One-time (re-runnable) pull of Trakt's watched history into local state — the reverse
@@ -225,6 +231,7 @@ class TraktManager @Inject constructor(
         var showsMatched = 0
         var episodesMarked = 0
         val unmatchedShows = mutableListOf<String>()
+        val matchedShows = mutableListOf<MatchedShow>()
         try {
             val watchedShows = api.getWatchedShows(auth, clientId).body().orEmpty()
             val localSeries = db.seriesDao().getAllSeries().first()
@@ -237,6 +244,7 @@ class TraktManager @Inject constructor(
                     continue
                 }
                 showsMatched++
+                matchedShows += MatchedShow(match.seriesId, match.name, match.cover, match.genre, match.rating, match.plot)
                 for (season in watched.seasons) {
                     for (ep in season.episodes) {
                         db.episodeWatchedDao().upsert(EpisodeWatchedEntity(match.seriesId, season.number, ep.number))
@@ -248,6 +256,6 @@ class TraktManager @Inject constructor(
             Log.e("TraktManager", "Show history sync failed: ${e.message}")
         }
 
-        return SyncBackResult(moviesMatched, showsMatched, episodesMarked, unmatchedMovies, unmatchedShows)
+        return SyncBackResult(moviesMatched, showsMatched, episodesMarked, unmatchedMovies, unmatchedShows, matchedShows)
     }
 }

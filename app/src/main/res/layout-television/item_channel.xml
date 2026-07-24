@@ -60,6 +60,15 @@
             android:padding="2dp"
             android:src="@android:drawable/btn_star_big_off" />
 
+        <CheckBox
+            android:id="@+id/cbBulkSelect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <ProgressBar

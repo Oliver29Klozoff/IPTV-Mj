@@ -189,8 +189,11 @@ class HomeViewModel @Inject constructor(
     // duplicate network fetch as a side benefit.
     private var mergedChannelsRefreshJob: Job? = null
 
-    /** Manual refresh only — fetches every configured server's live channels in parallel for
-     * the "All Providers" browse-and-play view. Not part of the automatic background sync. */
+    /** Fetches every configured server's live channels in parallel for the "All Providers"
+     * browse-and-play view — called either from a manual Refresh tap, or from HomeActivity's
+     * cold-start check (which only calls this when the last refresh is stale, via
+     * [PreferencesManager.lastMergedChannelsRefresh]). Stamps the refresh time on completion
+     * either way, since both call sites count as "freshened the cache" equally. */
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
         mergedChannelsRefreshJob?.takeIf { it.isActive }?.let { return }
         // _syncProgress drives the same visible blue bar + "N/Total" text the primary
@@ -206,6 +209,7 @@ class HomeViewModel @Inject constructor(
                 repository.refreshMergedChannels(targetServerIndex) { completed, total, itemsSoFar ->
                     _syncProgress.value = "Loading channels… $completed/$total providers ($itemsSoFar channels)" to (completed * 100 / total.coerceAtLeast(1))
                 }
+                prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
             } finally {
                 _syncProgress.value = null
                 _loading.value = false
@@ -471,7 +475,12 @@ class HomeViewModel @Inject constructor(
         mergedVodItemsJob?.cancel()
         _mergedVodCategories.value = emptyList()
         mergedVodItemsJob = viewModelScope.launch {
-            repository.getMergedVodAllFavorites().collectLatest { _mergedVod.value = it }
+            repository.getMergedVodAllFavorites()
+                .combine(prefs.englishOnlyMovies) { vod, englishOnly ->
+                    if (englishOnly) vod.filter { isEnglishCategory(it.categoryName) } else vod
+                }
+                .combine(_mergedVodSort) { vod, _ -> applyMergedVodSort(vod) }
+                .collectLatest { _mergedVod.value = it }
         }
     }
 
@@ -481,7 +490,13 @@ class HomeViewModel @Inject constructor(
         selectedMergedVodCategoryId = null
         mergedVodCategoriesJob?.cancel()
         mergedVodCategoriesJob = viewModelScope.launch {
-            repository.getMergedVodCategorySummaries(serverIndex).collectLatest { _mergedVodCategories.value = it }
+            // Same "English Movies & Series Only" setting the primary Movies tab already uses —
+            // merged/Providers Movies had no such filter at all before this.
+            repository.getMergedVodCategorySummaries(serverIndex)
+                .combine(prefs.englishOnlyMovies) { categories, englishOnly ->
+                    if (englishOnly) categories.filter { isEnglishCategory(it.categoryName) } else categories
+                }
+                .collectLatest { _mergedVodCategories.value = it }
         }
     }
 
@@ -490,18 +505,24 @@ class HomeViewModel @Inject constructor(
         selectedMergedVodCategoryId = categoryId
         mergedVodItemsJob?.cancel()
         mergedVodItemsJob = viewModelScope.launch {
-            repository.getMergedVodByCategory(serverIndex, categoryId).collectLatest {
-                _mergedVod.value = it.sortedByDescending { v -> v.isFavorite }
-            }
+            repository.getMergedVodByCategory(serverIndex, categoryId)
+                .combine(prefs.englishOnlyMovies) { vod, englishOnly ->
+                    if (englishOnly) vod.filter { isEnglishCategory(it.categoryName) } else vod
+                }
+                .combine(_mergedVodSort) { vod, _ -> applyMergedVodSort(vod) }
+                .collectLatest { _mergedVod.value = it }
         }
     }
 
     fun searchMergedVod(query: String) {
         mergedVodItemsJob?.cancel()
         mergedVodItemsJob = viewModelScope.launch {
-            repository.searchMergedVod(query).collectLatest {
-                _mergedVod.value = it.sortedByDescending { v -> v.isFavorite }
-            }
+            repository.searchMergedVod(query)
+                .combine(prefs.englishOnlyMovies) { vod, englishOnly ->
+                    if (englishOnly) vod.filter { isEnglishCategory(it.categoryName) } else vod
+                }
+                .combine(_mergedVodSort) { vod, _ -> applyMergedVodSort(vod) }
+                .collectLatest { _mergedVod.value = it }
         }
     }
 
@@ -577,7 +598,11 @@ class HomeViewModel @Inject constructor(
         mergedSeriesItemsJob?.cancel()
         _mergedSeriesCategories.value = emptyList()
         mergedSeriesItemsJob = viewModelScope.launch {
-            repository.getMergedSeriesAllFavorites().collectLatest { _mergedSeries.value = it }
+            repository.getMergedSeriesAllFavorites()
+                .combine(prefs.englishOnlyMovies) { series, englishOnly ->
+                    if (englishOnly) series.filter { isEnglishCategory(it.categoryName) } else series
+                }
+                .collectLatest { _mergedSeries.value = it }
         }
     }
 
@@ -587,7 +612,14 @@ class HomeViewModel @Inject constructor(
         selectedMergedSeriesCategoryId = null
         mergedSeriesCategoriesJob?.cancel()
         mergedSeriesCategoriesJob = viewModelScope.launch {
-            repository.getMergedSeriesCategorySummaries(serverIndex).collectLatest { _mergedSeriesCategories.value = it }
+            // Same "English Movies & Series Only" setting the primary Series tab already uses —
+            // merged/Providers Series had no such filter at all before this, even though the
+            // toggle's own label promised "Series" everywhere.
+            repository.getMergedSeriesCategorySummaries(serverIndex)
+                .combine(prefs.englishOnlyMovies) { categories, englishOnly ->
+                    if (englishOnly) categories.filter { isEnglishCategory(it.categoryName) } else categories
+                }
+                .collectLatest { _mergedSeriesCategories.value = it }
         }
     }
 
@@ -596,18 +628,22 @@ class HomeViewModel @Inject constructor(
         selectedMergedSeriesCategoryId = categoryId
         mergedSeriesItemsJob?.cancel()
         mergedSeriesItemsJob = viewModelScope.launch {
-            repository.getMergedSeriesByCategory(serverIndex, categoryId).collectLatest {
-                _mergedSeries.value = it.sortedByDescending { s -> s.isFavorite }
-            }
+            repository.getMergedSeriesByCategory(serverIndex, categoryId)
+                .combine(prefs.englishOnlyMovies) { series, englishOnly ->
+                    if (englishOnly) series.filter { isEnglishCategory(it.categoryName) } else series
+                }
+                .collectLatest { _mergedSeries.value = it.sortedByDescending { s -> s.isFavorite } }
         }
     }
 
     fun searchMergedSeries(query: String) {
         mergedSeriesItemsJob?.cancel()
         mergedSeriesItemsJob = viewModelScope.launch {
-            repository.searchMergedSeries(query).collectLatest {
-                _mergedSeries.value = it.sortedByDescending { s -> s.isFavorite }
-            }
+            repository.searchMergedSeries(query)
+                .combine(prefs.englishOnlyMovies) { series, englishOnly ->
+                    if (englishOnly) series.filter { isEnglishCategory(it.categoryName) } else series
+                }
+                .collectLatest { _mergedSeries.value = it.sortedByDescending { s -> s.isFavorite } }
         }
     }
 
@@ -1131,6 +1167,30 @@ class HomeViewModel @Inject constructor(
 
     fun setVodSort(mode: VodSort) { _vodSort.value = mode }
 
+    // Merged/Providers Movies had no sort concept at all before this — same VodSort enum/options
+    // (Rating/Year Newest/Year Oldest/Recently Added), kept as a separate state flow from
+    // primary Movies' _vodSort since they're independent lists a user could want sorted
+    // differently.
+    private val _mergedVodSort = MutableStateFlow(VodSort.DEFAULT)
+    val mergedVodSort: StateFlow<VodSort> = _mergedVodSort
+
+    fun setMergedVodSort(mode: VodSort) { _mergedVodSort.value = mode }
+
+    fun applyMergedVodSort(list: List<com.iptvapp.data.local.entities.MergedVodEntity>): List<com.iptvapp.data.local.entities.MergedVodEntity> {
+        val (favorited, rest) = list.partition { it.isFavorite }
+        val (started, untouched) = rest.partition { it.watchedMs > 0 }
+        val sortedFavorited = favorited.sortedByDescending { it.watchedMs }
+        val sortedStarted = started.sortedByDescending { it.watchedMs }
+        val sortedRest = when (_mergedVodSort.value) {
+            VodSort.DEFAULT -> untouched
+            VodSort.RATING_DESC -> untouched.sortedByDescending { it.rating?.toDoubleOrNull() ?: -1.0 }
+            VodSort.YEAR_NEWEST -> untouched.sortedByDescending { yearFromTitle(it.name) ?: -1 }
+            VodSort.YEAR_OLDEST -> untouched.sortedBy { yearFromTitle(it.name) ?: Int.MAX_VALUE }
+            VodSort.RECENTLY_ADDED -> untouched.sortedByDescending { it.added?.toLongOrNull() ?: 0L }
+        }
+        return sortedFavorited + sortedStarted + sortedRest
+    }
+
     /** Best-effort year parse from a title like "Jurassic Park (1993)" — providers embed it
      * in the name; there's no separate year field. Returns null if the title has none. */
     fun yearFromTitle(name: String): Int? =
@@ -1216,6 +1276,19 @@ class HomeViewModel @Inject constructor(
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             repository.getVodByCategory(categoryId).collectLatest {
+                _vod.value = it
+            }
+        }
+    }
+
+    // Pinned "★ Favorites" entry at the top of the primary Movies category list — same concept
+    // as merged/Providers Movies' own top-level Favorites row (selectMergedVodAllFavoritesAcrossServers),
+    // just adapted for primary Movies' flat category-list UI instead of a server picker.
+    fun selectVodFavorites() {
+        selectedVodCategoryId = null
+        vodJob?.cancel()
+        vodJob = viewModelScope.launch {
+            repository.getFavoriteVod().collectLatest {
                 _vod.value = it
             }
         }
@@ -1541,6 +1614,17 @@ class HomeViewModel @Inject constructor(
     }
 
     val favoriteMergedCategoryKeys: kotlinx.coroutines.flow.Flow<Set<String>> = repository.getFavoriteMergedCategoryIds()
+
+    /** Long-press a merged-series category to favorite every series in it at once (into an
+     * optional folder), rather than one show at a time. A different concept from
+     * toggleMergedCategoryFavorite above (which just pins a LIVE category to the top of its own
+     * list) — series has no such "pin category" concept, so long-press does something more
+     * useful there: actually adds every show to your Favorites. */
+    fun favoriteMergedSeriesCategory(serverIndex: Int, categoryId: String?, folderId: Int?) {
+        viewModelScope.launch {
+            repository.setMergedSeriesFavoriteForCategory(serverIndex, categoryId, folderId)
+        }
+    }
 
     // Hidden categories in Providers > Movies/Series — a separate concept from the favorite/pin
     // one above (hiding removes from the list entirely; favoriting just reorders to the top).

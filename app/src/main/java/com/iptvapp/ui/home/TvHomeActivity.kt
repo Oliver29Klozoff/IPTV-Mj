@@ -60,6 +60,8 @@ class TvHomeActivity : AppCompatActivity() {
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
+    private lateinit var mergedVodAdapter: MergedVodAdapter
+    private lateinit var mergedSeriesAdapter: MergedSeriesAdapter
     private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
@@ -100,6 +102,10 @@ class TvHomeActivity : AppCompatActivity() {
     private var autoPreviewJob: kotlinx.coroutines.Job? = null
     private var externalPlayerChoice = "internal"
     private var pendingContentFocus = false
+    // Guards onResume()'s "nothing playing yet, resume the primary recent channel" fallback
+    // against racing ahead of onCreate's own (async, up to ~3s) cold-boot resume lookup — see
+    // that block's comment for the full story.
+    private var coldBootResumeInProgress = false
 
     // Left-panel drill-down state
     private enum class NavState { SIDEBAR, CATEGORIES, CHANNELS }
@@ -138,6 +144,20 @@ class TvHomeActivity : AppCompatActivity() {
     private enum class Section { LIVE, CATEGORIES, MOVIES, SERIES, FAVORITES, GUIDE, PROVIDERS }
     private var currentSection = Section.FAVORITES
 
+    // Providers' own Channels/Movies/Series mode, independent of the top-level Section enum
+    // above (which primary Live/Movies/Series tabs use) — mirrors phone's ProvidersMode in
+    // HomeActivity. Resets to CHANNELS whenever Providers is freshly entered from the sidebar,
+    // same "fresh visit" reasoning as phone's providersTabVisitedSinceTabSwitch.
+    private enum class ProvidersMode { CHANNELS, MOVIES, SERIES }
+    private var providersMode = ProvidersMode.CHANNELS
+
+    private fun setProvidersModeButtonHighlight() {
+        val active = "#008CFF"; val inactive = "#888888"
+        binding.tvBtnProvidersModeChannels.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.CHANNELS) active else inactive))
+        binding.tvBtnProvidersModeMovies.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.MOVIES) active else inactive))
+        binding.tvBtnProvidersModeSeries.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.SERIES) active else inactive))
+    }
+
     // Bulk-select-to-favorites, Hide Channel, and Channels Like This were phone-only
     // (HomeActivity's showChannelActionsMenuDialog) — the D-pad long-press here only ever
     // opened the reminder flow. Same fields/Handler-based idle-commit pattern as phone.
@@ -148,10 +168,43 @@ class TvHomeActivity : AppCompatActivity() {
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             viewModel.bulkAddFavorites(bulkSelectedIds.toList())
             Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
-            bulkSelectedIds.clear()
-            bulkSelectMode = false
-            channelAdapter.submitBulkSelection(emptySet())
+            clearTvBulkSelection()
         }
+    }
+
+    private fun clearTvBulkSelection() {
+        bulkSelectedIds.clear()
+        bulkSelectMode = false
+        bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+        channelAdapter.submitBulkSelection(emptySet())
+        updateTvBulkSelectUi()
+    }
+
+    // Central bar updater for TV bulk-select — mirrors phone's updateBulkSelectUi in
+    // HomeActivity.kt. Only primary channels wired in for now (this is being ported one list at
+    // a time); extend the `when` here as merged channels/movies/series and primary series get
+    // their own bulk-select state added.
+    private fun updateTvBulkSelectUi() {
+        if (!bulkSelectMode || bulkSelectedIds.isEmpty()) {
+            binding.tvBulkSelectBar.visibility = View.GONE
+            return
+        }
+        binding.tvBulkSelectBar.visibility = View.VISIBLE
+        binding.tvBulkSelectCount.text = "${bulkSelectedIds.size} selected"
+        binding.tvBtnBulkSelectAll.setOnClickListener {
+            bulkSelectedIds.addAll(viewModel.channels.value.map { it.streamId })
+            channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+            Toast.makeText(this, "${bulkSelectedIds.size} selected", Toast.LENGTH_SHORT).show()
+            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+            bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+            updateTvBulkSelectUi()
+        }
+        binding.tvBtnBulkSelectDone.setOnClickListener {
+            viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+            Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+            clearTvBulkSelection()
+        }
+        binding.tvBtnBulkSelectCancel.setOnClickListener { clearTvBulkSelection() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -173,7 +226,39 @@ class TvHomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             if (prefs.getExtraServersWithNick().isNotEmpty()) viewModel.refreshMergedChannels()
         }
-        showSidebar()
+        // Same LAST_PLAYED_* cold-boot resume phone's HomeActivity does — TV previously always
+        // cold-booted straight to an empty sidebar with nothing auto-playing at all, unlike
+        // phone which restores whatever was last playing (primary or merged) and, for a merged
+        // channel, jumps the Providers list straight to it too. coldBootResumeInProgress guards
+        // onResume()'s own separate "nothing playing yet, resume something" fallback, which
+        // otherwise fires immediately (synchronously ahead of this async retry loop) and wins
+        // the race with a primary channel every time, even when this block is about to resolve
+        // to the actual last-played merged channel a moment later.
+        coldBootResumeInProgress = true
+        lifecycleScope.launch {
+            try {
+                val lastServerIndex = prefs.lastPlayedServerIndex.first()
+                val lastStreamId = prefs.lastPlayedStreamId.first()
+                if (lastServerIndex != -1 && lastStreamId != -1) {
+                    var channel: com.iptvapp.data.local.entities.MergedChannelEntity? = null
+                    for (attempt in 1..10) {
+                        channel = viewModel.getMergedChannelByIndexAndId(lastServerIndex, lastStreamId)
+                        if (channel != null) break
+                        delay(300)
+                    }
+                    if (channel != null) {
+                        playMergedChannel(channel)
+                        selectSection(Section.PROVIDERS)
+                        return@launch
+                    }
+                }
+                val recent = viewModel.getRecentChannel()
+                if (recent != null) playInMiniPlayer(recent)
+                showSidebar()
+            } finally {
+                coldBootResumeInProgress = false
+            }
+        }
         handleDeepLink(intent)
         if (intent.getBooleanExtra(FeatureTourDialog.EXTRA_START_TOUR, false)) {
             FeatureTourDialog.show(this)
@@ -261,7 +346,7 @@ class TvHomeActivity : AppCompatActivity() {
             val nickname = prefs.serverNickname.first()
             binding.tvEtSearch.hint = if (nickname.isNotBlank()) "Search ($nickname)…" else "Search…"
         }
-        if (currentMiniUrl.isEmpty()) {
+        if (currentMiniUrl.isEmpty() && !coldBootResumeInProgress) {
             lifecycleScope.launch {
                 val recent = viewModel.getRecentChannel()
                 if (recent != null) playInMiniPlayer(recent)
@@ -357,10 +442,12 @@ class TvHomeActivity : AppCompatActivity() {
                 )
             }
         }
-        lifecycleScope.launch {
-            val recent = viewModel.getRecentChannel()
-            if (recent != null) playInMiniPlayer(recent)
-        }
+        // Cold-boot resume (primary or merged) is now handled once, centrally, in onCreate —
+        // this used to unconditionally resume the primary "recent channel" here too, racing
+        // ahead of onCreate's merged-channel lookup (which needs a retry loop and so can take
+        // up to ~3s) since setupMiniPlayer() runs synchronously before that async resume even
+        // starts. It won that race essentially every time, which is why cold-booting into a
+        // merged channel kept showing a primary channel instead.
     }
 
     private fun playInMiniPlayer(channel: ChannelEntity) {
@@ -452,29 +539,69 @@ class TvHomeActivity : AppCompatActivity() {
                         binding.tvRvContent.adapter = vodAdapter
                         viewModel.selectVodCategory(cat.categoryId)
                     }
-                    Section.PROVIDERS -> {
-                        // 3-level drill (server -> category -> channels): the first tap picks
-                        // a server and should show ITS categories next, not channels yet.
-                        // Merged favorites are now viewed from the main Favorites tab (combined
-                        // with primary favorites, auto genre-classified) instead of a dedicated
-                        // "★ Favorites" tile here — favoriting/folder-assignment per channel
-                        // still works via each row's star and long-press menu.
-                        if (viewModel.selectedMergedServerIndex == null) {
-                            viewModel.selectMergedServer(cat.categoryId.toInt())
-                            categoryAdapter.submitList(emptyList())
-                            lifecycleScope.launch {
-                                viewModel.mergedCategories.collect { cats ->
-                                    if (viewModel.selectedMergedServerIndex != null) {
-                                        categoryAdapter.submitList(mergedCategoriesToSynthetic(cats))
+                    Section.PROVIDERS -> when (providersMode) {
+                        ProvidersMode.CHANNELS -> {
+                            // 3-level drill (server -> category -> channels): the first tap picks
+                            // a server and should show ITS categories next, not channels yet.
+                            // Merged favorites are now viewed from the main Favorites tab (combined
+                            // with primary favorites, auto genre-classified) instead of a dedicated
+                            // "★ Favorites" tile here — favoriting/folder-assignment per channel
+                            // still works via each row's star and long-press menu.
+                            if (viewModel.selectedMergedServerIndex == null) {
+                                viewModel.selectMergedServer(cat.categoryId.toInt())
+                                categoryAdapter.submitList(emptyList())
+                                lifecycleScope.launch {
+                                    viewModel.mergedCategories.collect { cats ->
+                                        if (viewModel.selectedMergedServerIndex != null) {
+                                            categoryAdapter.submitList(mergedCategoriesToSynthetic(cats))
+                                        }
                                     }
                                 }
+                                showCategoryPanel("PROVIDERS")
+                                showChannels = false
+                            } else {
+                                val categoryId = if (cat.categoryId == NO_CATEGORY_ID) null else cat.categoryId
+                                viewModel.selectMergedCategory(categoryId)
+                                binding.tvRvContent.adapter = mergedChannelAdapter
                             }
-                            showCategoryPanel("PROVIDERS")
-                            showChannels = false
-                        } else {
-                            val categoryId = if (cat.categoryId == NO_CATEGORY_ID) null else cat.categoryId
-                            viewModel.selectMergedCategory(categoryId)
-                            binding.tvRvContent.adapter = mergedChannelAdapter
+                        }
+                        ProvidersMode.MOVIES -> {
+                            if (viewModel.selectedMergedVodServerIndex == null) {
+                                viewModel.selectMergedVodServer(cat.categoryId.toInt())
+                                categoryAdapter.submitList(emptyList())
+                                lifecycleScope.launch {
+                                    viewModel.mergedVodCategories.collect { cats ->
+                                        if (viewModel.selectedMergedVodServerIndex != null) {
+                                            categoryAdapter.submitList(mergedVodCategoriesToSynthetic(cats))
+                                        }
+                                    }
+                                }
+                                showCategoryPanel("MOVIES")
+                                showChannels = false
+                            } else {
+                                val categoryId = if (cat.categoryId == NO_CATEGORY_ID) null else cat.categoryId
+                                viewModel.selectMergedVodCategory(categoryId)
+                                binding.tvRvContent.adapter = mergedVodAdapter
+                            }
+                        }
+                        ProvidersMode.SERIES -> {
+                            if (viewModel.selectedMergedSeriesServerIndex == null) {
+                                viewModel.selectMergedSeriesServer(cat.categoryId.toInt())
+                                categoryAdapter.submitList(emptyList())
+                                lifecycleScope.launch {
+                                    viewModel.mergedSeriesCategories.collect { cats ->
+                                        if (viewModel.selectedMergedSeriesServerIndex != null) {
+                                            categoryAdapter.submitList(mergedSeriesCategoriesToSynthetic(cats))
+                                        }
+                                    }
+                                }
+                                showCategoryPanel("SERIES")
+                                showChannels = false
+                            } else {
+                                val categoryId = if (cat.categoryId == NO_CATEGORY_ID) null else cat.categoryId
+                                viewModel.selectMergedSeriesCategory(categoryId)
+                                binding.tvRvContent.adapter = mergedSeriesAdapter
+                            }
                         }
                     }
                     else -> {}
@@ -499,6 +626,7 @@ class TvHomeActivity : AppCompatActivity() {
                     bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                     if (bulkSelectedIds.isEmpty()) bulkSelectMode = false
                     else bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+                    updateTvBulkSelectUi()
                     return@ChannelAdapter
                 }
                 lifecycleScope.launch {
@@ -544,8 +672,8 @@ class TvHomeActivity : AppCompatActivity() {
                 viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                 Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
-            // The star icon isn't reachable by D-pad — long-press (OK held) is how TV
-            // favorites/unfavorites a merged channel, mirroring the primary list's menu.
+            // Star is now D-pad-reachable (see isTvMode below) — long-press still works too,
+            // as an alternate path into the fuller actions menu (Play Fullscreen/Move to Folder).
             onChannelLongClick = { channel ->
                 val options = mutableListOf(
                     "Play Fullscreen",
@@ -570,6 +698,70 @@ class TvHomeActivity : AppCompatActivity() {
                             }
                             "Move to Folder" -> showMoveToFolderDialog(channel)
                         }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        )
+        mergedChannelAdapter.isTvMode = true
+
+        // Providers' Movies mode — same shape as mergedChannelAdapter above, but plays directly
+        // via MergedVodDetailActivity instead of the mini player (a movie is a single stream,
+        // not something to zap through). Favorite/long-press menu ported from the phone's
+        // equivalent (HomeActivity's Providers Movies long-press).
+        mergedVodAdapter = MergedVodAdapter(
+            onItemClick = { vod ->
+                startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
+                    putExtra("server_index", vod.serverIndex)
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                    putExtra("vod_is_favorite", vod.isFavorite)
+                    putExtra("server_nickname", vod.serverNickname)
+                })
+            },
+            onFavoriteClick = { vod ->
+                viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
+                Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onItemLongClick = { vod ->
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("${vod.name} · ${vod.serverNickname}")
+                    .setItems(arrayOf(if (vod.isFavorite) "Remove from Favorites" else "Add to Favorites")) { _, _ ->
+                        viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
+                        Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        )
+
+        // Providers' Series mode — opens SeriesDetailActivity per tap, same as the phone's
+        // equivalent (a series is never itself a single playable stream).
+        mergedSeriesAdapter = MergedSeriesAdapter(
+            onItemClick = { series ->
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                    putExtra("server_index", series.serverIndex)
+                })
+            },
+            onFavoriteClick = { series ->
+                viewModel.setMergedSeriesFavorite(series, !series.isFavorite)
+                Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+            },
+            onItemLongClick = { series ->
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("${series.name} · ${series.serverNickname}")
+                    .setItems(arrayOf(if (series.isFavorite) "Remove from Favorites" else "Add to Favorites")) { _, _ ->
+                        viewModel.setMergedSeriesFavorite(series, !series.isFavorite)
+                        Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
@@ -796,6 +988,12 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.GONE
         binding.tvCatTitle.text = title
+        // tvProvidersModeRow lives inside this shared panel (every section's server/category
+        // picker routes through showCategoryPanel) — it was only ever set VISIBLE once, in
+        // showMergedChannelsPanel(), and never set back to GONE for any other section, so once
+        // Providers had been opened even once, the row stayed visible on every other sidebar tab
+        // too (Live, Categories, Movies, Series, Favorites all share this same panel).
+        binding.tvProvidersModeRow.visibility = if (currentSection == Section.PROVIDERS) View.VISIBLE else View.GONE
         focusAdapterPositionRetrying(binding.tvRvCategories, 0)
         resetMiniPreviewToNowPlaying()
     }
@@ -944,9 +1142,34 @@ class TvHomeActivity : AppCompatActivity() {
             true
         }
         binding.btnTvSeries.setOnLongClickListener { showTvContinueSeriesTicker(); true }
-        binding.tvBtnChanRefresh.setOnClickListener {
-            viewModel.refreshMergedChannels()
-            Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+        binding.tvBtnChanRefresh.setOnClickListener { refreshCurrentProvidersMode() }
+        // Same refresh, reachable right in the mode row (server-picker level) — tvBtnChanRefresh
+        // above only ever appears after drilling into a category's leaf list, which for Movies/
+        // Series (and, it turns out, Channels too — a pre-existing gap) never actually showed
+        // since its visibility check only matched the literal title "PROVIDERS", not the real
+        // category name passed to showChannelPanel. This one is always reachable instead.
+        binding.tvBtnProvidersModeRefresh.setOnClickListener { refreshCurrentProvidersMode() }
+        // Providers' own Channels/Movies/Series mode row — see ProvidersMode kdoc. Switching
+        // always resets to that mode's top level (server picker), same as phone.
+        binding.tvBtnProvidersModeChannels.setOnClickListener {
+            providersMode = ProvidersMode.CHANNELS
+            setProvidersModeButtonHighlight()
+            viewModel.resetMergedSelection()
+            binding.tvRvContent.adapter = categoryAdapter
+            categoryAdapter.submitList(mergedServersToSynthetic(viewModel.mergedServers.value))
+            showCategoryPanel("PROVIDERS")
+        }
+        binding.tvBtnProvidersModeMovies.setOnClickListener {
+            providersMode = ProvidersMode.MOVIES
+            setProvidersModeButtonHighlight()
+            viewModel.startObservingMergedVodServers()
+            showMergedVodPanel()
+        }
+        binding.tvBtnProvidersModeSeries.setOnClickListener {
+            providersMode = ProvidersMode.SERIES
+            setProvidersModeButtonHighlight()
+            viewModel.startObservingMergedSeriesServers()
+            showMergedSeriesPanel()
         }
         binding.btnTvRecordings.setOnClickListener {
             startActivity(Intent(this, TvRecordingActivity::class.java))
@@ -973,6 +1196,11 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun selectSection(section: Section) {
+        // Only reset the jump-once guard when actually LEAVING Providers for a different
+        // section — re-selecting Providers again without switching away first (e.g. pressing
+        // the sidebar button twice in a row) should keep behaving like a plain re-visit, not
+        // re-jump every single time.
+        if (section != Section.PROVIDERS) providersJumpedSinceSectionSwitch = false
         currentSection = section
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
         activeSidebarButton().setTextColor(currentAccent)
@@ -1022,11 +1250,109 @@ class TvHomeActivity : AppCompatActivity() {
     // the main Favorites section now (combined with primary favorites, auto genre-classified)
     // instead of a dedicated "★ Favorites" tile here — favoriting/folder-assignment per channel
     // still works via each row's star and long-press menu.
+    // Only jumps once per fresh visit to Providers (sidebar tap or cold boot) — matches phone's
+    // providersTabVisitedSinceTabSwitch: re-entering Providers a second time in a row (without
+    // switching to another sidebar section first) just goes to the normal top-level browse
+    // instead of re-jumping, since you've presumably already seen the jump once.
+    private var providersJumpedSinceSectionSwitch = false
+
     private fun showMergedChannelsPanel() {
+        // Entering PROVIDERS fresh from the sidebar always resets to Channels mode, same as
+        // phone's Providers tab resetting to Live on a fresh tab switch — avoids landing back
+        // on whatever mode was last used with no way to tell without re-checking the buttons.
+        providersMode = ProvidersMode.CHANNELS
+        setProvidersModeButtonHighlight()
+        if (providersJumpedSinceSectionSwitch) {
+            showMergedChannelsPanelFromTop()
+            return
+        }
+        providersJumpedSinceSectionSwitch = true
+        val playingServerIndex = currentMiniServerIndex
+        val playingStreamId = currentMiniMergedStreamId
+        if (playingServerIndex != -1 && playingStreamId != -1) {
+            lifecycleScope.launch {
+                // Same cold-start-refresh race as phone's showAllProviders()/
+                // loadLastWatchedChannel() — the merged-channel auto-refresh can still be
+                // clearing/re-inserting this exact server's rows when Providers is opened right
+                // after a cold boot, so a single-shot lookup can land in that gap and miss a
+                // channel that's genuinely there moments later. Same short retry window.
+                var channel: com.iptvapp.data.local.entities.MergedChannelEntity? = null
+                for (attempt in 1..10) {
+                    channel = viewModel.getMergedChannelByIndexAndId(playingServerIndex, playingStreamId)
+                    if (channel != null) break
+                    delay(300)
+                }
+                if (channel != null) {
+                    jumpToPlayingMergedChannelInProviders(channel)
+                } else {
+                    showMergedChannelsPanelFromTop()
+                }
+            }
+        } else {
+            showMergedChannelsPanelFromTop()
+        }
+    }
+
+    private fun showMergedChannelsPanelFromTop() {
         viewModel.resetMergedSelection()
         binding.tvRvContent.adapter = categoryAdapter
         categoryAdapter.submitList(mergedServersToSynthetic(viewModel.mergedServers.value))
         showCategoryPanel("PROVIDERS")
+    }
+
+    private fun jumpToPlayingMergedChannelInProviders(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        binding.tvRvContent.adapter = mergedChannelAdapter
+        viewModel.selectMergedServer(channel.serverIndex)
+        viewModel.selectMergedCategory(channel.categoryId)
+        showChannelPanel("PROVIDERS")
+        var scrolled = false
+        lifecycleScope.launch {
+            viewModel.mergedChannels.collect { list ->
+                if (scrolled || viewModel.selectedMergedServerIndex != channel.serverIndex) return@collect
+                mergedChannelAdapter.submitList(list)
+                val pos = list.indexOfFirst { it.streamId == channel.streamId }
+                if (pos >= 0) {
+                    scrolled = true
+                    focusAdapterPositionRetrying(binding.tvRvContent, pos)
+                }
+            }
+        }
+    }
+
+    private fun showMergedVodPanel() {
+        viewModel.resetMergedVodSelection()
+        binding.tvRvContent.adapter = categoryAdapter
+        // startObservingMergedVodServers() (called right before this) only just started an
+        // async collector — reading viewModel.mergedVodServers.value synchronously here was
+        // still the pre-refresh snapshot (empty on a fresh app session), so the very first tap
+        // on Movies submitted an empty list. focusAdapterPositionRetrying then couldn't find a
+        // view holder at position 0, exhausted its retries, and fell back to focusing the
+        // RecyclerView itself — which isn't focusable when empty, so default focus search
+        // landed on the nearest focusable view instead (the ← back button), which is exactly
+        // the "jumps to the back button" bug. Collecting the flow (like showMergedChannelsPanel
+        // effectively gets for free from loadAll()'s always-running collector) instead of a
+        // one-shot snapshot fixes it at the source.
+        lifecycleScope.launch {
+            viewModel.mergedVodServers.collect { servers ->
+                if (viewModel.selectedMergedVodServerIndex == null && currentSection == Section.PROVIDERS && providersMode == ProvidersMode.MOVIES) {
+                    categoryAdapter.submitList(mergedVodServersToSynthetic(servers))
+                }
+            }
+        }
+        showCategoryPanel("MOVIES")
+    }
+
+    private fun showMergedSeriesPanel() {
+        viewModel.resetMergedSeriesSelection()
+        binding.tvRvContent.adapter = categoryAdapter
+        lifecycleScope.launch {
+            viewModel.mergedSeriesServers.collect { servers ->
+                if (viewModel.selectedMergedSeriesServerIndex == null && currentSection == Section.PROVIDERS && providersMode == ProvidersMode.SERIES) {
+                    categoryAdapter.submitList(mergedSeriesServersToSynthetic(servers))
+                }
+            }
+        }
+        showCategoryPanel("SERIES")
     }
 
     private val NO_CATEGORY_ID = "__uncategorized__"
@@ -1134,6 +1460,52 @@ class TvHomeActivity : AppCompatActivity() {
             )
         }
 
+    // Movies/Series equivalents of the two functions above, for tvProvidersModeRow's Movies/
+    // Series buttons — same simple shape (no server-prefix scoping on categoryId, since TV's
+    // categoryAdapter is only ever showing one server's categories at a time here, unlike
+    // phone's shared cross-mode adapter). Hidden-categories show/hide toggle intentionally not
+    // ported yet — a category hidden on phone just doesn't show here either, matching how
+    // primary Movies/Series already behave on TV (no hidden-category toggle there either).
+    private fun mergedVodServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedVodServerSummary>): List<CategoryEntity> =
+        list.filter { it.serverIndex != -1 }.map {
+            CategoryEntity(
+                categoryId = it.serverIndex.toString(),
+                categoryName = "${it.serverNickname} (${it.vodCount})",
+                parentId = 0,
+                type = "merged_vod_server"
+            )
+        }
+
+    private fun mergedVodCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedVodCategorySummary>): List<CategoryEntity> =
+        list.map {
+            CategoryEntity(
+                categoryId = it.categoryId ?: NO_CATEGORY_ID,
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.vodCount})",
+                parentId = 0,
+                type = "merged_vod_category"
+            )
+        }
+
+    private fun mergedSeriesServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedSeriesServerSummary>): List<CategoryEntity> =
+        list.filter { it.serverIndex != -1 }.map {
+            CategoryEntity(
+                categoryId = it.serverIndex.toString(),
+                categoryName = "${it.serverNickname} (${it.seriesCount})",
+                parentId = 0,
+                type = "merged_series_server"
+            )
+        }
+
+    private fun mergedSeriesCategoriesToSynthetic(list: List<com.iptvapp.data.local.entities.MergedSeriesCategorySummary>): List<CategoryEntity> =
+        list.map {
+            CategoryEntity(
+                categoryId = it.categoryId ?: NO_CATEGORY_ID,
+                categoryName = "${it.categoryName ?: "Uncategorized"} (${it.seriesCount})",
+                parentId = 0,
+                type = "merged_series_category"
+            )
+        }
+
     // Tapping a merged channel now behaves like every other channel list: starts in the mini
     // player first, and only goes fullscreen if the mini preview itself is pressed next —
     // currentMiniUrl/Title/StreamId/IsVod are plain generic fields already read by
@@ -1236,9 +1608,12 @@ class TvHomeActivity : AppCompatActivity() {
                 // mini player itself and pressing OK does what that button did instead) from
                 // wherever the cursor currently is: sidebar, a category/channel list, or the
                 // guide list.
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (binding.tvGenreChipContainer.hasFocus()) {
-                    // Let default focus search move between sibling genre chips instead of
-                    // jumping straight to the mini player.
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (binding.tvGenreChipContainer.hasFocus() || isProvidersModeRowFocused() || isTvBulkSelectBarFocused()) {
+                    // Let default focus search move between sibling genre chips / Providers
+                    // Channels-Movies-Series buttons / bulk-select bar buttons instead of jumping
+                    // straight to the mini player or being swallowed by the CATEGORIES catch-all
+                    // below — these rows previously had every Left/Right press unconditionally
+                    // intercepted before it could reach their own buttons.
                 } else when (navState) {
                     NavState.SIDEBAR -> {
                         navState = NavState.CHANNELS
@@ -1247,6 +1622,22 @@ class TvHomeActivity : AppCompatActivity() {
                     }
                     NavState.CATEGORIES -> return true
                     NavState.CHANNELS -> {
+                        // A channel row's own star sits to its right via nextFocusRightId (see
+                        // ChannelAdapter/MergedChannelAdapter's isTvMode wiring) — RIGHT used to
+                        // skip straight past it to the mini player unconditionally, so the star
+                        // was only reachable via a second, separate RIGHT press from a state that
+                        // was never actually reachable first. Try the row's own focus search
+                        // first; only fall through to the mini-player shortcut once that's
+                        // exhausted (i.e. focus is already on the star, or not on a row at all).
+                        val focused = currentFocus
+                        val rightTarget = focused?.focusSearch(View.FOCUS_RIGHT)
+                        if (focused != null && rightTarget != null && rightTarget !== focused &&
+                            binding.tvRvContent.let { it.hasFocus() || focused === it } &&
+                            rightTarget !== binding.tvMiniPlayerContainer
+                        ) {
+                            rightTarget.requestFocus()
+                            return true
+                        }
                         if (currentFocus !== binding.tvMiniPlayerContainer) {
                             binding.tvMiniPlayerContainer.requestFocus()
                             return true
@@ -1263,6 +1654,10 @@ class TvHomeActivity : AppCompatActivity() {
                             else -> showSidebar()
                         }
                         return true
+                    } else if (isProvidersModeRowFocused() || isTvBulkSelectBarFocused()) {
+                        // See the RIGHT-key comment above — let default focus search move
+                        // between Channels/Movies/Series (or the bulk-select bar's own buttons)
+                        // instead of any of the branches below.
                     } else if (binding.tvRvContent.hasFocus() || binding.tvRvCategories.hasFocus()) {
                         // Deep in a long list, climbing back up to search/refresh/Back one Up
                         // press at a time was slow and unreliable — Left jumps straight there.
@@ -1590,7 +1985,7 @@ class TvHomeActivity : AppCompatActivity() {
                     // applyVodSort also floats favorited/in-progress movies to the top — TV
                     // never called this at all, so favoriting/resuming had no visible effect
                     // here (phone already applies it, see HomeActivity.kt:2437).
-                    vodAdapter.submitList(viewModel.applyVodSort(it)) {
+                    vodAdapter.submitPlainList(viewModel.applyVodSort(it)) {
                         if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                     }
                 }
@@ -1654,10 +2049,57 @@ class TvHomeActivity : AppCompatActivity() {
             viewModel.channelHealth.collect { channelAdapter.submitHealth(it); republishCombinedHealth() }
         }
         lifecycleScope.launch {
+            viewModel.syncProgress.collect { progress ->
+                if (currentSection != Section.PROVIDERS || progress == null) {
+                    binding.tvProvidersSyncProgressContainer.visibility = View.GONE
+                    return@collect
+                }
+                binding.tvProvidersSyncProgressContainer.visibility = View.VISIBLE
+                binding.tvProvidersSyncStatus.text = progress.first
+                binding.tvProvidersSyncProgressBar.progress = progress.second
+            }
+        }
+        lifecycleScope.launch {
             viewModel.mergedChannels.collect {
-                if (currentSection == Section.PROVIDERS) {
-                    mergedChannelAdapter.submitList(it)
+                if (currentSection == Section.PROVIDERS && providersMode == ProvidersMode.CHANNELS) {
+                    // Previously a plain submitList with no focus preservation at all — favoriting
+                    // a channel (or any other re-emission of this Flow, e.g. the periodic health
+                    // check) re-diffs the list and RecyclerView doesn't keep D-pad focus pinned
+                    // to the same row across that swap on its own, so the cursor visibly jumped
+                    // (usually to wherever default focus search happened to land) on every tap.
+                    // Same capture-before/restore-after pattern the primary channel/favorites
+                    // collectors above already use.
+                    val focusedChild = binding.tvRvContent.focusedChild
+                    val focusedPos = if (focusedChild != null)
+                        binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
+                    mergedChannelAdapter.submitList(it) {
+                        if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
+                    }
                     viewModel.loadEpgForMergedChannels(it)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedVod.collect {
+                if (currentSection == Section.PROVIDERS && providersMode == ProvidersMode.MOVIES) {
+                    val focusedChild = binding.tvRvContent.focusedChild
+                    val focusedPos = if (focusedChild != null)
+                        binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
+                    mergedVodAdapter.submitPlainList(it) {
+                        if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
+                    }
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.mergedSeries.collect {
+                if (currentSection == Section.PROVIDERS && providersMode == ProvidersMode.SERIES) {
+                    val focusedChild = binding.tvRvContent.focusedChild
+                    val focusedPos = if (focusedChild != null)
+                        binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
+                    mergedSeriesAdapter.submitList(it) {
+                        if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
+                    }
                 }
             }
         }
@@ -1763,6 +2205,34 @@ class TvHomeActivity : AppCompatActivity() {
      * there via Up presses was unreliable, and there was no faster way to reach search/refresh/
      * Back than repeatedly pressing Up. Bound to D-pad Left as a direct shortcut, and also used
      * to make Up reliably escape the list instead of just being swallowed at the top row. */
+    private fun refreshCurrentProvidersMode() {
+        when (providersMode) {
+            ProvidersMode.CHANNELS -> {
+                viewModel.refreshMergedChannels()
+                Toast.makeText(this, "Refreshing all providers…", Toast.LENGTH_SHORT).show()
+            }
+            ProvidersMode.MOVIES -> {
+                viewModel.refreshMergedVod()
+                Toast.makeText(this, "Refreshing all providers' movies…", Toast.LENGTH_SHORT).show()
+            }
+            ProvidersMode.SERIES -> {
+                viewModel.refreshMergedSeries()
+                Toast.makeText(this, "Refreshing all providers' series…", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun isProvidersModeRowFocused(): Boolean =
+        binding.tvBtnProvidersModeChannels.hasFocus() ||
+        binding.tvBtnProvidersModeMovies.hasFocus() ||
+        binding.tvBtnProvidersModeSeries.hasFocus() ||
+        binding.tvBtnProvidersModeRefresh.hasFocus()
+
+    private fun isTvBulkSelectBarFocused(): Boolean =
+        binding.tvBtnBulkSelectAll.hasFocus() ||
+        binding.tvBtnBulkSelectDone.hasFocus() ||
+        binding.tvBtnBulkSelectCancel.hasFocus()
+
     private fun focusTopOfPanel() {
         when {
             binding.tvGuidePanel.visibility == View.VISIBLE -> binding.tvBtnGuideBack.requestFocus()
@@ -1911,6 +2381,7 @@ class TvHomeActivity : AppCompatActivity() {
                         Toast.makeText(this, "${bulkSelectedIds.size} selected — select more, or wait to add them", Toast.LENGTH_SHORT).show()
                         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                         bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+                        updateTvBulkSelectUi()
                     }
                     "Deselect (bulk)" -> {
                         bulkSelectedIds.remove(channel.streamId)
@@ -1919,6 +2390,7 @@ class TvHomeActivity : AppCompatActivity() {
                             bulkSelectMode = false
                             bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                         }
+                        updateTvBulkSelectUi()
                     }
                     "Hide Channel" -> {
                         viewModel.hideChannel(channel.streamId)
@@ -1929,9 +2401,7 @@ class TvHomeActivity : AppCompatActivity() {
                         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                         viewModel.bulkAddFavorites(bulkSelectedIds.toList())
                         Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
-                        bulkSelectedIds.clear()
-                        bulkSelectMode = false
-                        channelAdapter.submitBulkSelection(emptySet())
+                        clearTvBulkSelection()
                     }
                 }
             }
