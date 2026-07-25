@@ -1,7 +1,7 @@
 {
-  "versionCode": 343,
-  "versionName": "5.5",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.5/MKTV.apk",
-  "apkSha256": "c8d4103940de1ad2b7d9c0da1e871698b7061c64d21262cd5db59ac238e57b8b",
-  "changelog": "TV Providers D-pad parity finished: Movies and Series now have D-pad-reachable favorite stars and bulk-select (Select All/Hide Selected), matching Channels."
+  "versionCode": 344,
+  "versionName": "5.6",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.6/MKTV.apk",
+  "apkSha256": "722d64ea9aa4af30e84cf3ed7001e0835bdb611936b4d9e7347a2c857607985d",
+  "changelog": "Fixed History tab: now shows Recently Watched, Continue Watching Movies, and Continue Watching Series in one unified, live-updating list."
 }

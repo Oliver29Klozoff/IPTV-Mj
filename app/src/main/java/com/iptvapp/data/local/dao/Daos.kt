@@ -191,9 +191,47 @@ interface SeriesDao {
     suspend fun setUnhidden(seriesId: Int)
     @Query("SELECT * FROM series WHERE isHidden = 1 ORDER BY name ASC")
     fun getHiddenSeries(): Flow<List<SeriesEntity>>
+
+    // Continue Watching (series half) — one row per series, picking whichever episode row was
+    // most recently written, then keeping only the ones where THAT specific episode is still
+    // in-progress (not finished) — same 95%-threshold convention getInProgressVod already uses
+    // for movies. A series with its most recent episode fully watched isn't "in progress" even
+    // if an earlier episode was left mid-way long ago. episode_watched has no timestamp for
+    // partial progress (watchedAt is only set once an episode is marked fully watched, per
+    // EpisodeWatchedDao.ensureRow's kdoc) — SQLite's own rowid (monotonically increasing on
+    // insert, and Room's @Upsert here is effectively insert-then-update-in-place so rowid is
+    // stable/increasing across saveProgress calls) is the best available recency proxy.
+    @Query("""
+        SELECT s.*, ew.season AS lastSeason, ew.episode AS lastEpisode,
+               ew.watchedMs AS lastEpisodeWatchedMs, ew.durationMs AS lastEpisodeDurationMs
+        FROM series s
+        INNER JOIN (
+            SELECT ew1.rowid AS rid, ew1.seriesId, ew1.season, ew1.episode, ew1.watchedMs, ew1.durationMs
+            FROM episode_watched ew1
+            WHERE ew1.rowid = (
+                SELECT MAX(ew2.rowid) FROM episode_watched ew2
+                WHERE ew2.seriesId = ew1.seriesId
+            )
+        ) ew ON ew.seriesId = s.seriesId
+        WHERE s.isHidden = 0
+          AND ew.durationMs > 0
+          AND ew.watchedMs > 0
+          AND CAST(ew.watchedMs AS REAL) / ew.durationMs < 0.95
+        ORDER BY ew.rid DESC
+        LIMIT 20
+    """)
+    fun getInProgressSeries(): Flow<List<InProgressSeriesRow>>
 }
 
 data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long, val isHidden: Boolean = false)
+
+data class InProgressSeriesRow(
+    @Embedded val series: SeriesEntity,
+    val lastSeason: Int,
+    val lastEpisode: Int,
+    val lastEpisodeWatchedMs: Long,
+    val lastEpisodeDurationMs: Long
+)
 
 @Dao
 interface EpgDao {

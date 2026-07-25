@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.6 - 2026-07-25
+- **Fixed**: History tab was silently broken — it only ever showed recently-watched channels;
+  a dead code path tried to show in-progress movies but never actually rendered them, and
+  in-progress series weren't tracked at all. Replaced with a unified tab showing three labeled
+  sections: Recently Watched (channels), Continue Watching Movies, and Continue Watching Series,
+  each live-updating and tappable to resume.
+
 ## v5.5 - 2026-07-25
 - **Added** (TV): finished Providers D-pad parity — Movies and Series now have D-pad-reachable
   favorite stars and bulk-select (long-press to start, tap to toggle, second long-press for

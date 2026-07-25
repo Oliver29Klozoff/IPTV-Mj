@@ -614,6 +614,7 @@ class XtreamRepository @Inject constructor(
         db.epgDao().getEpgForServerStreamKeys(pairs.map { (serverIndex, streamId) -> "$serverIndex:$streamId" })
 
     fun getInProgressVod(): Flow<List<VodEntity>> = db.vodDao().getInProgressVod()
+    fun getInProgressSeries(): Flow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>> = db.seriesDao().getInProgressSeries()
 
     suspend fun fetchSeriesInfo(seriesId: Int): Resource<SeriesInfo> {
         val b = urlBuilder(); val c = creds()

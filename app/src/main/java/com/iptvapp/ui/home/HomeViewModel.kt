@@ -87,6 +87,9 @@ class HomeViewModel @Inject constructor(
     private val _continueWatching = MutableStateFlow<List<VodEntity>>(emptyList())
     val continueWatching: StateFlow<List<VodEntity>> = _continueWatching
 
+    private val _inProgressSeries = MutableStateFlow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>>(emptyList())
+    val inProgressSeries: StateFlow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>> = _inProgressSeries
+
     // User-created groups for organizing favorites (e.g. "Sports", "News") — same drill-down
     // shape as Live/Movies categories, but user-named instead of provider-supplied.
     private val _favoriteFolders = MutableStateFlow<List<com.iptvapp.data.local.entities.FavoriteFolderEntity>>(emptyList())
@@ -1030,6 +1033,9 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getInProgressVod().collectLatest { _continueWatching.value = it }
+            }
+            launch {
+                repository.getInProgressSeries().collectLatest { _inProgressSeries.value = it }
             }
             launch {
                 repository.getSeriesIdsWithProgress().collectLatest { seriesIdsWithProgress = it.toSet() }

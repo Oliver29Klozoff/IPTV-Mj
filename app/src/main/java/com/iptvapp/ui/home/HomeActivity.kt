@@ -54,6 +54,8 @@ import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.worker.EpgRefreshWorker
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -587,6 +589,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var liveChannelAdapter: LiveChannelAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var seriesAdapter: SeriesAdapter
+    private lateinit var watchingAdapter: WatchingAdapter
     private lateinit var guideAdapter: GuideAdapter
 
     private var miniPlayer: ExoPlayer? = null
@@ -2047,6 +2050,41 @@ class HomeActivity : AppCompatActivity() {
             }
         )
 
+        // History tab — see WatchingAdapter kdoc for why this replaced the old channelAdapter/
+        // vodAdapter mixup. Tapping resumes exactly like the equivalent long-press elsewhere.
+        watchingAdapter = WatchingAdapter(
+            onChannelClick = { channel ->
+                lifecycleScope.launch {
+                    playInMiniPlayer(channel)
+                    viewModel.markChannelWatched(channel.streamId)
+                    viewModel.setCurrentlyPlaying(channel.streamId)
+                }
+            },
+            onChannelFavoriteClick = { channel -> viewModel.toggleChannelFavorite(channel.streamId) },
+            onVodClick = { vod ->
+                startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                })
+            },
+            onVodFavoriteClick = { vod -> viewModel.toggleVodFavorite(vod) },
+            onSeriesClick = { row ->
+                val series = row.series
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                })
+            },
+            onSeriesFavoriteClick = { row -> viewModel.toggleSeriesFavorite(row.series) }
+        )
+
         guideAdapter = GuideAdapter(
             onChannelClick = { row ->
                 val mergedCh = row.mergedChannel
@@ -2539,11 +2577,14 @@ class HomeActivity : AppCompatActivity() {
         landscapeShowChannelsMode()
         setGenreFilterVisible(false)
         binding.rvCategories.visibility = View.GONE
-        binding.rvChannels.adapter = channelAdapter
-        channelAdapter.showDragHandles = false
-        // Submit snapshot on entry — StateFlow won't re-emit if value is unchanged, so the
-        // adapter would otherwise keep showing whatever the previous tab's list was
-        channelAdapter.submitList(viewModel.recentChannels.value.toList())
+        binding.rvChannels.adapter = watchingAdapter
+        // Submit snapshot on entry — StateFlows won't re-emit if unchanged, so the adapter would
+        // otherwise keep showing whatever the previous tab's list was.
+        watchingAdapter.submitRows(
+            viewModel.recentChannels.value.toList(),
+            viewModel.continueWatching.value,
+            viewModel.inProgressSeries.value
+        )
     }
 
     // Browse-and-play merged view across every configured server (Settings > Providers).
@@ -3401,13 +3442,20 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
+        // History tab (WatchingAdapter) — previously two separate collectors here, neither of
+        // which actually rendered correctly: continueWatching pushed into vodAdapter, which was
+        // never the adapter attached to rvChannels on this tab (showWatching() always set
+        // channelAdapter), so it silently did nothing visible; recentChannels' own collector was
+        // an empty no-op comment. One collector now keeps the tab live-updated while it's open,
+        // reusing the same three-source snapshot showWatching() takes on entry.
         lifecycleScope.launch {
-            viewModel.continueWatching.collect { list ->
-                if (binding.tabLayout.selectedTabPosition == TAB_HISTORY) vodAdapter.submitPlainList(list)
+            combine(viewModel.recentChannels, viewModel.continueWatching, viewModel.inProgressSeries) { channels, vod, series ->
+                Triple(channels, vod, series)
+            }.collectLatest { (channels, vod, series) ->
+                if (binding.tabLayout.selectedTabPosition == TAB_HISTORY) {
+                    watchingAdapter.submitRows(channels, vod, series)
+                }
             }
-        }
-        lifecycleScope.launch {
-            viewModel.recentChannels.collect { /* snapshot submitted in showWatching() on tab entry */ }
         }
         lifecycleScope.launch {
             viewModel.mergedChannels.collect { list ->
