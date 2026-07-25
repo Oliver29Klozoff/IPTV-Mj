@@ -36,6 +36,13 @@ class PreferencesManager @Inject constructor(
         // ISO 639-2 codes (e.g. "eng", "spa"), empty string = no preference/auto.
         val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("preferred_audio_language")
         val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("preferred_subtitle_language")
+        // Folder name under Environment.DIRECTORY_MOVIES that recordings are saved to via
+        // MediaStore (e.g. "MKTV" -> Movies/MKTV) — see RecordingFolderName kdoc.
+        val RECORDING_FOLDER_NAME = stringPreferencesKey("recording_folder_name")
+        // 0 = disabled. Otherwise recordings older than this many days are auto-deleted
+        // (file + DB row) by RecordingCleanupWorker.
+        val AUTO_DELETE_RECORDINGS_DAYS = intPreferencesKey("auto_delete_recordings_days")
+        val CRASH_REPORTING_ENABLED = booleanPreferencesKey("crash_reporting_enabled")
         val EPG_URL = stringPreferencesKey("epg_url")
         val LAST_EPG_REFRESH_TIME = longPreferencesKey("last_epg_refresh_time")
         val EPG_AUTO_REFRESH_HOURS = intPreferencesKey("epg_auto_refresh_hours")
@@ -263,6 +270,14 @@ class PreferencesManager @Inject constructor(
     val preferredSubtitleLanguage: Flow<String> = context.dataStore.data
         .map { it[Keys.PREFERRED_SUBTITLE_LANGUAGE] ?: "" }
 
+    val recordingFolderName: Flow<String> = context.dataStore.data
+        .map { it[Keys.RECORDING_FOLDER_NAME] ?: "MKTV" }
+
+    val autoDeleteRecordingsDays: Flow<Int> = context.dataStore.data
+        .map { it[Keys.AUTO_DELETE_RECORDINGS_DAYS] ?: 0 }
+    val crashReportingEnabled: Flow<Boolean> = context.dataStore.data
+        .map { it[Keys.CRASH_REPORTING_ENABLED] ?: true }
+
     val epgUrl: Flow<String> = context.dataStore.data
         .map { it[Keys.EPG_URL] ?: "" }
 
@@ -320,6 +335,18 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setPreferredSubtitleLanguage(code: String) {
         context.dataStore.edit { prefs -> prefs[Keys.PREFERRED_SUBTITLE_LANGUAGE] = code }
+    }
+
+    suspend fun setRecordingFolderName(name: String) {
+        context.dataStore.edit { prefs -> prefs[Keys.RECORDING_FOLDER_NAME] = name }
+    }
+
+    suspend fun setAutoDeleteRecordingsDays(days: Int) {
+        context.dataStore.edit { prefs -> prefs[Keys.AUTO_DELETE_RECORDINGS_DAYS] = days }
+    }
+
+    suspend fun setCrashReportingEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[Keys.CRASH_REPORTING_ENABLED] = enabled }
     }
 
     suspend fun setEpgUrl(url: String) {

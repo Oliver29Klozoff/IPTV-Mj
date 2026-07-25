@@ -302,6 +302,13 @@ interface RecordingDao {
     suspend fun getAnyActive(): RecordingEntity?
     @Query("SELECT * FROM recordings WHERE status = 'SCHEDULED' AND scheduledStartMs < :endMs AND (scheduledStartMs + durationMs) > :startMs")
     suspend fun getOverlapping(startMs: Long, endMs: Long): List<RecordingEntity>
+    // Auto-delete candidates for RecordingCleanupWorker — only finished recordings (DONE/FAILED
+    // both leave a row that's safe to age out; SCHEDULED/RECORDING/COMPRESSING must never be
+    // touched since they're not finished yet). Anchored on scheduledStartMs + durationMs (the
+    // recording's actual end time) rather than scheduledStartMs alone, so a long recording
+    // doesn't get deleted before it even finishes airing.
+    @Query("SELECT * FROM recordings WHERE status IN ('DONE', 'FAILED') AND (scheduledStartMs + durationMs) < :cutoffMs")
+    suspend fun getOlderThan(cutoffMs: Long): List<RecordingEntity>
 }
 
 @Dao

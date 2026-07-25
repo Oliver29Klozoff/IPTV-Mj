@@ -45,6 +45,20 @@
             android:src="@android:drawable/ic_menu_sort_by_size"
             android:tint="#FFFFFF" />
 
+        <!-- Opens a dialog that searches every configured provider (primary + all extraServers)
+             at once across channels/movies/series, tagging each result with its provider —
+             distinct from the per-tab etSearch below, which only searches whatever single
+             provider/content-type tab is currently open. -->
+        <ImageButton
+            android:id="@+id/btnSearchAllProviders"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_search"
+            android:contentDescription="Search all providers"
+            android:tint="#888888" />
+
         <ImageButton
             android:id="@+id/btnRefresh"
             android:layout_width="36dp"
@@ -567,6 +581,31 @@
                 android:gravity="center_vertical" />
 
         </HorizontalScrollView>
+
+        <!-- History tab only — clears every dismissible row in Continue Watching at once. -->
+        <LinearLayout
+            android:id="@+id/watchingClearAllBar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#1A1A1A"
+            android:gravity="center_vertical|end"
+            android:paddingHorizontal="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/btnClearAllWatching"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Clear All Continue Watching"
+                android:textColor="#008CFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"
+                android:padding="8dp" />
+
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

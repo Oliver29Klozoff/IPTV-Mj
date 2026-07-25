@@ -59,6 +59,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
     @Inject lateinit var database: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private lateinit var binding: ActivityRecordingSchedulerBinding
     private var allChannels: List<ChannelEntity> = emptyList()
@@ -157,6 +158,66 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showRecordingStorageSettingsDialog() {
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 0)
+        }
+        val folderLabel = android.widget.TextView(this).apply {
+            text = "Folder name (under Movies/)"
+            setTextColor(android.graphics.Color.WHITE)
+        }
+        val folderInput = EditText(this).apply {
+            setPadding(0, 16, 0, 24)
+        }
+        val retentionLabel = android.widget.TextView(this).apply {
+            text = "Auto-delete recordings after"
+            setTextColor(android.graphics.Color.WHITE)
+        }
+        val retentionOptions = listOf("Never" to 0, "7 days" to 7, "14 days" to 14, "30 days" to 30, "60 days" to 60, "90 days" to 90)
+        val retentionSpinner = android.widget.Spinner(this)
+        retentionSpinner.adapter = android.widget.ArrayAdapter(
+            this, android.R.layout.simple_spinner_item, retentionOptions.map { it.first }
+        ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+
+        container.addView(folderLabel)
+        container.addView(folderInput)
+        container.addView(retentionLabel)
+        container.addView(retentionSpinner)
+
+        lifecycleScope.launch {
+            folderInput.setText(prefs.recordingFolderName.first())
+            val savedDays = prefs.autoDeleteRecordingsDays.first()
+            retentionSpinner.setSelection(retentionOptions.indexOfFirst { it.second == savedDays }.coerceAtLeast(0))
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Recording Storage")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                val folderName = folderInput.text.toString().trim().ifEmpty { "MKTV" }
+                    .replace(Regex("[^a-zA-Z0-9 _-]"), "_")
+                val days = retentionOptions[retentionSpinner.selectedItemPosition].second
+                lifecycleScope.launch {
+                    prefs.setRecordingFolderName(folderName)
+                    prefs.setAutoDeleteRecordingsDays(days)
+                    if (days > 0) {
+                        val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.RecordingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
+                        androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).enqueueUniquePeriodicWork(
+                            com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME,
+                            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                            request
+                        )
+                    } else {
+                        androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).cancelUniqueWork(com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME)
+                    }
+                    Toast.makeText(this@RecordingSchedulerActivity, "New recordings will save to Movies/$folderName", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun toggleScheduleView() {
         showingScheduleView = !showingScheduleView
         if (showingScheduleView) {
@@ -203,6 +264,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         binding.dayScheduleView.onBlockClick = { rec -> onScheduleBlockClick(rec) }
         binding.dayScheduleView.onBlockLongClick = { rec -> showRenameDialog(rec) }
         binding.btnToggleScheduleView.setOnClickListener { toggleScheduleView() }
+        binding.btnRecordingStorageSettings.setOnClickListener { showRecordingStorageSettingsDialog() }
         binding.btnDayPrev.setOnClickListener { dayOffset -= 1; refreshScheduleView() }
         binding.btnDayNext.setOnClickListener { dayOffset += 1; refreshScheduleView() }
 
@@ -221,6 +283,19 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch { cleanupStaleRecordings() }
+
+        // Re-establish the cleanup worker in case it was cleared by an app update (KEEP = don't
+        // reset the timer) — mirrors how EpgRefreshWorker is re-armed in SettingsActivity.
+        lifecycleScope.launch {
+            if (prefs.autoDeleteRecordingsDays.first() > 0) {
+                val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.RecordingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
+                androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).enqueueUniquePeriodicWork(
+                    com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME,
+                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                    request
+                )
+            }
+        }
 
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->
@@ -637,18 +712,19 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
     }
 
-    private fun createOutputTarget(channel: ChannelEntity, startMs: Long): String =
+    private suspend fun createOutputTarget(channel: ChannelEntity, startMs: Long): String =
         createOutputTarget(channel.name, startMs)
 
-    private fun createOutputTarget(channelName: String, startMs: Long): String {
+    private suspend fun createOutputTarget(channelName: String, startMs: Long): String {
         val safeName = channelName.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
         val fileName = "${safeName}_${startMs}.ts"
+        val folderName = prefs.recordingFolderName.first()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp2t")
-                put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/MKTV")
+                put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/$folderName")
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             }
 
@@ -657,7 +733,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
 
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
-            .let { File(it, "MKTV") }
+            .let { File(it, folderName) }
         dir.mkdirs()
 
         return File(dir, fileName).absolutePath

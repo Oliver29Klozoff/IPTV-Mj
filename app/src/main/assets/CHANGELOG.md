@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.9 - 2026-07-25
+- **Added**: "Clear All Continue Watching" button on the History tab, alongside the existing
+  long-press-to-remove.
+- **Added** (Recordings): storage folder name is now customizable (Settings icon on the
+  Recordings screen), and recordings can be set to auto-delete after 7/14/30/60/90 days.
+- **Added**: automatic crash reporting (on by default, toggle in Settings → Sync → Diagnostics)
+  so bugs can be found and fixed without needing a manual debug report.
+- **Added**: Search All Providers — a new search icon in the top bar searches every configured
+  provider (primary + all extra providers) at once across Live/Movies/Series, tagging each
+  result with which provider it came from.
+
 ## v5.8 - 2026-07-25
 - **Added**: long-press a Continue Watching movie or series on the History tab to remove it from
   the list without losing your resume position — it reappears automatically once you actually

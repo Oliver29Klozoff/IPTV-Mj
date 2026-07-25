@@ -1,7 +1,7 @@
 {
-  "versionCode": 346,
-  "versionName": "5.8",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.8/MKTV.apk",
-  "apkSha256": "20a642743d185fcc43840eb4a4b20db2d6256b1cc2cf1b2f2fae2a68bf763364",
-  "changelog": "Added: remove items from Continue Watching, and preferred audio/subtitle language settings."
+  "versionCode": 347,
+  "versionName": "5.9",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.9/MKTV.apk",
+  "apkSha256": "95a6d8adf975a20b5dc084de7d84632d3c7d928d7e5f00300e7af8daecfc5543",
+  "changelog": "Added: Clear All Continue Watching, recordings storage/auto-cleanup, crash reporting, and Search All Providers."
 }

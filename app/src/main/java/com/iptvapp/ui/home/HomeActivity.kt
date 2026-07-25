@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.EditText
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -1422,6 +1423,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnMultiView?.setOnClickListener {
             startActivity(Intent(this, MultiViewActivity::class.java))
         }
+        binding.btnSearchAllProviders?.setOnClickListener { showGlobalSearchDialog() }
         binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
         binding.root.findViewById<android.widget.TextView?>(R.id.btnPipRestore)
             ?.setOnClickListener { togglePipMode() }
@@ -2226,6 +2228,117 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    // Searches primary + every extraServer at once across channels/movies/series, tagging each
+    // result with its provider — distinct from etSearch above, which only ever searches whatever
+    // single provider/content-type tab is currently open.
+    private fun showGlobalSearchDialog() {
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 0)
+        }
+        val input = EditText(this).apply {
+            hint = "Search all providers…"
+            setPadding(32, 16, 32, 16)
+        }
+        val resultsList = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity)
+        }
+        container.addView(input)
+        container.addView(resultsList, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (500 * resources.displayMetrics.density).toInt()
+        ))
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Search All Providers")
+            .setView(container)
+            .setNegativeButton("Close", null)
+            .create()
+
+        val adapter = GlobalSearchAdapter { result ->
+            dialog.dismiss()
+            onGlobalSearchResultClick(result)
+        }
+        resultsList.adapter = adapter
+
+        var debounceJob: kotlinx.coroutines.Job? = null
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val query = s.toString()
+                debounceJob?.cancel()
+                debounceJob = lifecycleScope.launch {
+                    if (query.length >= 2) kotlinx.coroutines.delay(300)
+                    viewModel.searchAllProviders(query)
+                }
+            }
+        })
+
+        lifecycleScope.launch {
+            viewModel.globalSearchResults.collect { adapter.submitList(it) }
+        }
+
+        dialog.setOnDismissListener { viewModel.clearGlobalSearch() }
+        dialog.show()
+    }
+
+    private fun onGlobalSearchResultClick(result: GlobalSearchResult) {
+        when (result) {
+            is GlobalSearchResult.Channel -> lifecycleScope.launch {
+                playInMiniPlayer(result.entity)
+                viewModel.markChannelWatched(result.entity.streamId)
+                viewModel.setCurrentlyPlaying(result.entity.streamId)
+            }
+            is GlobalSearchResult.MergedChannel -> playMergedChannel(result.entity)
+            is GlobalSearchResult.Vod -> {
+                val vod = result.entity
+                startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                })
+            }
+            is GlobalSearchResult.MergedVod -> {
+                val vod = result.entity
+                startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
+                    putExtra("server_index", vod.serverIndex)
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                    putExtra("vod_is_favorite", vod.isFavorite)
+                    putExtra("server_nickname", vod.serverNickname)
+                })
+            }
+            is GlobalSearchResult.Series -> {
+                val series = result.entity
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                })
+            }
+            is GlobalSearchResult.MergedSeries -> {
+                val series = result.entity
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                    putExtra("server_index", series.serverIndex)
+                })
+            }
+        }
+    }
+
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
             TAB_MOVIES -> viewModel.searchVod(query)
@@ -2349,6 +2462,9 @@ class HomeActivity : AppCompatActivity() {
         binding.genreFilterScroll?.visibility = if (visible) View.VISIBLE else View.GONE
         binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility =
             if (visible) View.VISIBLE else View.GONE
+        // Every showX() calls this on entry — only showWatching() re-shows the clear-all bar
+        // afterward, so unconditionally hiding it here keeps every other tab clean for free.
+        binding.watchingClearAllBar?.visibility = View.GONE
     }
 
     private fun buildGenreChip(genre: String, selected: Boolean, vertical: Boolean): View {
@@ -2593,6 +2709,18 @@ class HomeActivity : AppCompatActivity() {
             viewModel.continueWatching.value,
             viewModel.inProgressSeries.value
         )
+        binding.watchingClearAllBar?.visibility = View.VISIBLE
+        binding.btnClearAllWatching?.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Clear Continue Watching?")
+                .setMessage("Removes every movie and series from Continue Watching. Resume positions are kept — anything you resume watching will reappear here.")
+                .setPositiveButton("Clear All") { _, _ ->
+                    viewModel.clearAllContinueWatching()
+                    Toast.makeText(this, "Continue Watching cleared", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
     }
 
     // Browse-and-play merged view across every configured server (Settings > Providers).

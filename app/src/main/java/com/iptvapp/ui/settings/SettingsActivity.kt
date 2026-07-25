@@ -1006,6 +1006,16 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
 
         lifecycleScope.launch {
+            binding.switchCrashReporting.isChecked = prefs.crashReportingEnabled.first()
+        }
+        binding.switchCrashReporting.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                prefs.setCrashReportingEnabled(isChecked)
+                com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(isChecked)
+            }
+        }
+
+        lifecycleScope.launch {
             val enabled = prefs.autoBackupEnabled.first()
             binding.switchAutoBackup.isChecked = enabled
             updateAutoBackupPathLabel(enabled)

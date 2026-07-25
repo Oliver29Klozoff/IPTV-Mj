@@ -35,6 +35,28 @@ private fun List<EpgEntity>.nextProgram(current: EpgEntity?): EpgEntity? {
     return firstOrNull { it.startMs() > current.stopMs() }
 }
 
+// One tap-through result from searching every configured provider (primary + every extraServer)
+// at once, across every content type — unlike each tab's own search (which only ever looks at
+// whatever provider/content type that tab already had selected). providerLabel is the primary
+// provider's nickname (or "Primary" if unset) for primary rows, or the merged row's own
+// serverNickname for extraServer rows — always non-blank so results can always show which
+// provider they came from, per the original ask.
+sealed class GlobalSearchResult {
+    abstract val providerLabel: String
+    data class Channel(val entity: ChannelEntity, override val providerLabel: String) : GlobalSearchResult()
+    data class Vod(val entity: VodEntity, override val providerLabel: String) : GlobalSearchResult()
+    data class Series(val entity: SeriesEntity, override val providerLabel: String) : GlobalSearchResult()
+    data class MergedChannel(val entity: com.iptvapp.data.local.entities.MergedChannelEntity) : GlobalSearchResult() {
+        override val providerLabel get() = entity.serverNickname
+    }
+    data class MergedVod(val entity: com.iptvapp.data.local.entities.MergedVodEntity) : GlobalSearchResult() {
+        override val providerLabel get() = entity.serverNickname
+    }
+    data class MergedSeries(val entity: com.iptvapp.data.local.entities.MergedSeriesEntity) : GlobalSearchResult() {
+        override val providerLabel get() = entity.serverNickname
+    }
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: XtreamRepository,
@@ -1569,6 +1591,57 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private val _globalSearchResults = MutableStateFlow<List<GlobalSearchResult>>(emptyList())
+    val globalSearchResults: StateFlow<List<GlobalSearchResult>> = _globalSearchResults
+    private var globalSearchJob: Job? = null
+
+    // Searches primary + every extraServer at once, across channels/movies/series, unlike every
+    // other search entry point in the app (each of those only searches whatever single
+    // provider/content-type tab is currently open). Deliberately reads the raw repository Flows
+    // directly rather than reusing searchVod()/searchMergedChannels()/etc. above — those write
+    // into the shared _vod/_mergedChannels/... StateFlows that back the normal tabs, and this
+    // must not disturb whatever the user had open on another tab while this runs alongside it.
+    fun searchAllProviders(query: String) {
+        globalSearchJob?.cancel()
+        if (query.isBlank()) {
+            _globalSearchResults.value = emptyList()
+            return
+        }
+        globalSearchJob = viewModelScope.launch {
+            val primaryResults = combine(
+                repository.searchChannels(query),
+                repository.searchVod(query),
+                repository.searchSeries(query),
+                prefs.serverNickname
+            ) { channels, vod, series, primaryNick ->
+                val label = primaryNick.ifBlank { "Primary" }
+                buildList<GlobalSearchResult> {
+                    addAll(channels.map { GlobalSearchResult.Channel(it, label) })
+                    addAll(vod.map { GlobalSearchResult.Vod(it, label) })
+                    addAll(series.map { GlobalSearchResult.Series(it, label) })
+                }
+            }
+            val mergedResults = combine(
+                repository.searchMergedChannels(query),
+                repository.searchMergedVod(query),
+                repository.searchMergedSeries(query)
+            ) { mergedChannels, mergedVod, mergedSeries ->
+                buildList<GlobalSearchResult> {
+                    addAll(mergedChannels.map { GlobalSearchResult.MergedChannel(it) })
+                    addAll(mergedVod.map { GlobalSearchResult.MergedVod(it) })
+                    addAll(mergedSeries.map { GlobalSearchResult.MergedSeries(it) })
+                }
+            }
+            combine(primaryResults, mergedResults) { primary, merged -> primary + merged }
+                .collectLatest { _globalSearchResults.value = it }
+        }
+    }
+
+    fun clearGlobalSearch() {
+        globalSearchJob?.cancel()
+        _globalSearchResults.value = emptyList()
+    }
+
     fun showContinueWatching() {
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
@@ -1611,6 +1684,13 @@ class HomeViewModel @Inject constructor(
 
     fun dismissSeriesFromContinueWatching(seriesId: Int) {
         viewModelScope.launch { repository.dismissSeriesFromContinueWatching(seriesId) }
+    }
+
+    fun clearAllContinueWatching() {
+        viewModelScope.launch {
+            continueWatching.value.forEach { repository.dismissVodFromContinueWatching(it.streamId) }
+            inProgressSeries.value.forEach { repository.dismissSeriesFromContinueWatching(it.series.seriesId) }
+        }
     }
 
     fun toggleLiveCategoryFavorite(categoryId: String) {

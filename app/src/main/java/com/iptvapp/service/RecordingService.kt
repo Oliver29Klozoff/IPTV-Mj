@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
@@ -33,6 +34,7 @@ import javax.inject.Inject
 class RecordingService : Service() {
 
     @Inject lateinit var database: IptvDatabase
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     // Keyed by recordingId: when two recordings are scheduled concurrently, onStartCommand
@@ -163,22 +165,23 @@ class RecordingService : Service() {
         }
     }
 
-    private fun createCompressedOutputTarget(channelName: String): String {
+    private suspend fun createCompressedOutputTarget(channelName: String): String {
         val safeName = channelName.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
         val fileName = "${safeName}_${System.currentTimeMillis()}_compressed.mp4"
+        val folderName = prefs.recordingFolderName.first()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                put(MediaStore.Video.Media.RELATIVE_PATH, "${android.os.Environment.DIRECTORY_MOVIES}/MKTV")
+                put(MediaStore.Video.Media.RELATIVE_PATH, "${android.os.Environment.DIRECTORY_MOVIES}/$folderName")
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             }
             val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
             if (uri != null) return uri.toString()
         }
 
-        val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "MKTV")
+        val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), folderName)
         dir.mkdirs()
         return File(dir, fileName).absolutePath
     }

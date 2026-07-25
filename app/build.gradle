@@ -4,6 +4,7 @@ plugins {
     id 'com.google.dagger.hilt.android'
     id 'com.google.devtools.ksp'
     id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
 }
 
 android {
@@ -14,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 346
-        versionName "5.8"
+        versionCode 347
+        versionName "5.9"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -130,4 +131,5 @@ dependencies {
 
     implementation 'com.google.firebase:firebase-firestore-ktx:25.1.4'
     implementation 'com.google.firebase:firebase-auth-ktx:23.2.0'
+    implementation 'com.google.firebase:firebase-crashlytics-ktx:19.3.0'
 }

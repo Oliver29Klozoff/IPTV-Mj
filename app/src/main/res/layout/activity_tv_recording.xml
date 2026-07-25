@@ -30,6 +30,20 @@
                 android:letterSpacing="0.08" />
 
             <Button
+                android:id="@+id/btnRecordingStorageSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="STORAGE"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="20dp"
+                android:layout_marginEnd="12dp" />
+
+            <Button
                 android:id="@+id/btnToggleScheduleView"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"

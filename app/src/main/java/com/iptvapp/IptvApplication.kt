@@ -8,10 +8,16 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.util.LogSanitizer
 import com.iptvapp.worker.ReminderWorker
 import com.google.android.gms.cast.framework.CastContext
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -25,6 +31,9 @@ class IptvApplication : Application(), Configuration.Provider {
 
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
+
+    @Inject
+    lateinit var prefs: PreferencesManager
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -40,6 +49,7 @@ class IptvApplication : Application(), Configuration.Provider {
         // text became invisible. Force dark everywhere so stock dialogs always match.
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         setupCrashHandler()
+        applyCrashReportingPreference()
         createNotificationChannels()
         try { CastContext.getSharedInstance(this) } catch (_: Exception) {}
         // Marks which build is actually running the current process — an OTA update installs
@@ -83,7 +93,26 @@ class IptvApplication : Application(), Configuration.Provider {
                 val trimmed = if (existing.length > 50000) existing.takeLast(40000) else existing
                 logFile.writeText(trimmed + logEntry)
             } catch (_: Exception) {}
+            // Crashlytics only ever sees the sanitized message, never the raw throwable's own
+            // message (which could itself carry an unredacted stream URL) — same
+            // credential-safety rule as the local log file above.
+            try {
+                FirebaseCrashlytics.getInstance().log(LogSanitizer.redactCredentials(throwable.message ?: ""))
+                FirebaseCrashlytics.getInstance().recordException(throwable)
+            } catch (_: Exception) {}
             defaultHandler?.uncaughtException(thread, throwable)
+        }
+    }
+
+    // Crash reporting defaults ON (it's what lets bugs actually get found and fixed without
+    // relying on users to manually send a debug report), but stays user-controllable from
+    // Settings like every other data-sharing toggle in this app (Sync, Trakt).
+    private fun applyCrashReportingPreference() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val enabled = prefs.crashReportingEnabled.first()
+                FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(enabled)
+            } catch (_: Exception) {}
         }
     }
 
