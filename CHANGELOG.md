@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.5 - 2026-07-25
+- **Added** (TV): finished Providers D-pad parity — Movies and Series now have D-pad-reachable
+  favorite stars and bulk-select (long-press to start, tap to toggle, second long-press for
+  Select All/Deselect All), matching Channels. Movies/Series bulk-select hides selected titles
+  (same as the phone app), reachable via the shared bulk-select bar's "Hide Selected" button.
+
 ## v5.4 - 2026-07-25
 - **Added**: "★ Favorites" section header for Series too (primary and merged/Providers), same
   treatment Movies got in v5.3.

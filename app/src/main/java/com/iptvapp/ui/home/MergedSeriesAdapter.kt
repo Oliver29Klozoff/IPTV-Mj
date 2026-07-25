@@ -32,6 +32,9 @@ class MergedSeriesAdapter(
         private const val TYPE_ITEM = 1
     }
 
+    // Same D-pad-reachable-star pattern as MergedChannelAdapter/MergedVodAdapter.
+    var isTvMode: Boolean = false
+
     /** Wraps a plain MergedSeriesEntity list, inserting a "★ Favorites" header before the
      * leading run of favorited shows when present — favorites-first ordering is still
      * HomeViewModel's job, this just labels it. */
@@ -85,6 +88,14 @@ class MergedSeriesAdapter(
 
     inner class ViewHolder(val binding: ItemMergedSeriesBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: MergedSeriesEntity) {
+            if (isTvMode) {
+                binding.root.isFocusable = true
+                binding.ivSeriesFavorite.isFocusable = true
+                binding.root.nextFocusRightId = binding.ivSeriesFavorite.id
+                binding.ivSeriesFavorite.nextFocusLeftId = binding.root.id
+            } else {
+                binding.ivSeriesFavorite.isFocusable = false
+            }
             binding.tvSeriesName.text = item.name
             binding.tvSeriesRating.text = item.rating?.takeIf { it.isNotBlank() }?.let { "★ $it" } ?: ""
             binding.tvServerNickname.text = item.serverNickname

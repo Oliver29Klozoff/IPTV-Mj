@@ -1,7 +1,7 @@
 {
-  "versionCode": 342,
-  "versionName": "5.4",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.4/MKTV.apk",
-  "apkSha256": "4e6daf78efd0053d223829732bbd90e07753f8bc4c66b87909a0debdd879a462",
-  "changelog": "Added a Favorites section header for Series (primary and Providers), matching Movies. TV Providers Channels now has bulk-select with a D-pad-reachable Select All bar."
+  "versionCode": 343,
+  "versionName": "5.5",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.5/MKTV.apk",
+  "apkSha256": "c8d4103940de1ad2b7d9c0da1e871698b7061c64d21262cd5db59ac238e57b8b",
+  "changelog": "TV Providers D-pad parity finished: Movies and Series now have D-pad-reachable favorite stars and bulk-select (Select All/Hide Selected), matching Channels."
 }

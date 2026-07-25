@@ -200,7 +200,37 @@ class TvHomeActivity : AppCompatActivity() {
         updateTvBulkSelectUi()
     }
 
-    private data class TvBulkState(val count: Int, val selectAll: () -> Unit, val done: () -> Unit, val cancel: () -> Unit)
+    // Merged VOD/Series bulk-select is bulk-HIDE, not bulk-favorite (matches phone — see
+    // HomeActivity's bulkSelectedMergedVodKeys/bulkSelectedMergedSeriesKeys). No idle-timeout
+    // auto-commit dialog on TV, unlike phone — the persistent bulk-select bar's explicit "Done"
+    // button covers that same "commit the selection" step instead.
+    private val bulkSelectedMergedVodKeys = mutableSetOf<String>()
+    private var bulkSelectMergedVodMode = false
+
+    private fun clearTvBulkSelectionMergedVod() {
+        bulkSelectedMergedVodKeys.clear()
+        bulkSelectMergedVodMode = false
+        mergedVodAdapter.submitBulkSelection(emptySet())
+        updateTvBulkSelectUi()
+    }
+
+    private val bulkSelectedMergedSeriesKeys = mutableSetOf<String>()
+    private var bulkSelectMergedSeriesMode = false
+
+    private fun clearTvBulkSelectionMergedSeries() {
+        bulkSelectedMergedSeriesKeys.clear()
+        bulkSelectMergedSeriesMode = false
+        mergedSeriesAdapter.submitBulkSelection(emptySet())
+        updateTvBulkSelectUi()
+    }
+
+    private data class TvBulkState(
+        val count: Int,
+        val doneLabel: String = "Done",
+        val selectAll: () -> Unit,
+        val done: () -> Unit,
+        val cancel: () -> Unit
+    )
 
     // Central bar updater for TV bulk-select — mirrors phone's updateBulkSelectUi in
     // HomeActivity.kt. Checks each mode's flag in priority order, same "only one active at a
@@ -210,33 +240,69 @@ class TvHomeActivity : AppCompatActivity() {
         val state: TvBulkState? = when {
             bulkSelectMode && bulkSelectedIds.isNotEmpty() -> TvBulkState(
                 bulkSelectedIds.size,
-                {
+                selectAll = {
                     bulkSelectedIds.addAll(viewModel.channels.value.map { it.streamId })
                     channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
                     bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                     bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
                 },
-                {
+                done = {
                     viewModel.bulkAddFavorites(bulkSelectedIds.toList())
                     Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
                     clearTvBulkSelection()
                 },
-                { clearTvBulkSelection() }
+                cancel = { clearTvBulkSelection() }
             )
             bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty() -> TvBulkState(
                 bulkSelectedMergedKeys.size,
-                {
+                selectAll = {
                     bulkSelectedMergedKeys.addAll(viewModel.mergedChannels.value.map { "${it.serverIndex}:${it.streamId}" })
                     mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
                     bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
                     bulkSelectHandler.postDelayed(bulkSelectMergedIdleRunnable, 3000)
                 },
-                {
+                done = {
                     viewModel.bulkAddMergedFavorites(bulkSelectedMergedKeys.toSet())
                     Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
                     clearTvBulkSelectionMerged()
                 },
-                { clearTvBulkSelectionMerged() }
+                cancel = { clearTvBulkSelectionMerged() }
+            )
+            bulkSelectMergedVodMode && bulkSelectedMergedVodKeys.isNotEmpty() -> TvBulkState(
+                bulkSelectedMergedVodKeys.size,
+                doneLabel = "Hide Selected",
+                selectAll = {
+                    bulkSelectedMergedVodKeys.addAll(viewModel.mergedVod.value.map { "${it.serverIndex}:${it.streamId}" })
+                    mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                },
+                done = {
+                    val items = bulkSelectedMergedVodKeys.mapNotNull { key ->
+                        val (serverIndex, streamId) = key.split(":", limit = 2)
+                        viewModel.mergedVod.value.firstOrNull { it.serverIndex == serverIndex.toInt() && it.streamId == streamId.toInt() }
+                    }
+                    viewModel.bulkHideMergedVod(items)
+                    Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} movies hidden", Toast.LENGTH_SHORT).show()
+                    clearTvBulkSelectionMergedVod()
+                },
+                cancel = { clearTvBulkSelectionMergedVod() }
+            )
+            bulkSelectMergedSeriesMode && bulkSelectedMergedSeriesKeys.isNotEmpty() -> TvBulkState(
+                bulkSelectedMergedSeriesKeys.size,
+                doneLabel = "Hide Selected",
+                selectAll = {
+                    bulkSelectedMergedSeriesKeys.addAll(viewModel.mergedSeries.value.map { "${it.serverIndex}:${it.seriesId}" })
+                    mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                },
+                done = {
+                    val items = bulkSelectedMergedSeriesKeys.mapNotNull { key ->
+                        val (serverIndex, seriesId) = key.split(":", limit = 2)
+                        viewModel.mergedSeries.value.firstOrNull { it.serverIndex == serverIndex.toInt() && it.seriesId == seriesId.toInt() }
+                    }
+                    viewModel.bulkHideMergedSeries(items)
+                    Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} shows hidden", Toast.LENGTH_SHORT).show()
+                    clearTvBulkSelectionMergedSeries()
+                },
+                cancel = { clearTvBulkSelectionMergedSeries() }
             )
             else -> null
         }
@@ -246,6 +312,7 @@ class TvHomeActivity : AppCompatActivity() {
         }
         binding.tvBulkSelectBar.visibility = View.VISIBLE
         binding.tvBulkSelectCount.text = "${state.count} selected"
+        binding.tvBtnBulkSelectDone.text = state.doneLabel
         binding.tvBtnBulkSelectAll.setOnClickListener {
             state.selectAll()
             Toast.makeText(this, "Selected all", Toast.LENGTH_SHORT).show()
@@ -801,7 +868,16 @@ class TvHomeActivity : AppCompatActivity() {
         // not something to zap through). Favorite/long-press menu ported from the phone's
         // equivalent (HomeActivity's Providers Movies long-press).
         mergedVodAdapter = MergedVodAdapter(
-            onItemClick = { vod ->
+            onItemClick = onItemClick@{ vod ->
+                if (bulkSelectMergedVodMode) {
+                    val key = "${vod.serverIndex}:${vod.streamId}"
+                    if (!bulkSelectedMergedVodKeys.add(key)) bulkSelectedMergedVodKeys.remove(key)
+                    mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                    Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected", Toast.LENGTH_SHORT).show()
+                    if (bulkSelectedMergedVodKeys.isEmpty()) bulkSelectMergedVodMode = false
+                    updateTvBulkSelectUi()
+                    return@onItemClick
+                }
                 startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
                     putExtra("server_index", vod.serverIndex)
                     putExtra("vod_stream_id", vod.streamId)
@@ -817,22 +893,66 @@ class TvHomeActivity : AppCompatActivity() {
                 viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
                 Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
+            // Second long-press while already selecting offers Select All/Deselect All, same
+            // "nowhere else in a tap-to-toggle flow to reach select-everything" reasoning as
+            // phone's showBulkSelectAllMenu.
             onItemLongClick = { vod ->
+                if (bulkSelectMergedVodMode) {
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setItems(arrayOf("Select All movies", "Deselect All", "Cancel")) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    bulkSelectedMergedVodKeys.addAll(viewModel.mergedVod.value.map { "${it.serverIndex}:${it.streamId}" })
+                                    mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                                    Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected", Toast.LENGTH_SHORT).show()
+                                    updateTvBulkSelectUi()
+                                }
+                                1 -> clearTvBulkSelectionMergedVod()
+                            }
+                        }
+                        .show()
+                    return@MergedVodAdapter
+                }
+                val options = mutableListOf(
+                    if (vod.isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    "Select (bulk hide)"
+                )
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("${vod.name} · ${vod.serverNickname}")
-                    .setItems(arrayOf(if (vod.isFavorite) "Remove from Favorites" else "Add to Favorites")) { _, _ ->
-                        viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
-                        Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+                    .setItems(options.toTypedArray()) { _, which ->
+                        when (options[which]) {
+                            "Add to Favorites", "Remove from Favorites" -> {
+                                viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
+                                Toast.makeText(this, if (vod.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+                            }
+                            "Select (bulk hide)" -> {
+                                bulkSelectMergedVodMode = true
+                                bulkSelectedMergedVodKeys.add("${vod.serverIndex}:${vod.streamId}")
+                                mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                                updateTvBulkSelectUi()
+                                Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected — select more to hide", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
             }
         )
+        mergedVodAdapter.isTvMode = true
 
         // Providers' Series mode — opens SeriesDetailActivity per tap, same as the phone's
         // equivalent (a series is never itself a single playable stream).
         mergedSeriesAdapter = MergedSeriesAdapter(
-            onItemClick = { series ->
+            onItemClick = onItemClick@{ series ->
+                if (bulkSelectMergedSeriesMode) {
+                    val key = "${series.serverIndex}:${series.seriesId}"
+                    if (!bulkSelectedMergedSeriesKeys.add(key)) bulkSelectedMergedSeriesKeys.remove(key)
+                    mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                    Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} selected", Toast.LENGTH_SHORT).show()
+                    if (bulkSelectedMergedSeriesKeys.isEmpty()) bulkSelectMergedSeriesMode = false
+                    updateTvBulkSelectUi()
+                    return@onItemClick
+                }
                 startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
                     putExtra("series_id", series.seriesId)
                     putExtra("series_name", series.name)
@@ -848,16 +968,48 @@ class TvHomeActivity : AppCompatActivity() {
                 Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
             onItemLongClick = { series ->
+                if (bulkSelectMergedSeriesMode) {
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setItems(arrayOf("Select All shows", "Deselect All", "Cancel")) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    bulkSelectedMergedSeriesKeys.addAll(viewModel.mergedSeries.value.map { "${it.serverIndex}:${it.seriesId}" })
+                                    mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                                    Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} selected", Toast.LENGTH_SHORT).show()
+                                    updateTvBulkSelectUi()
+                                }
+                                1 -> clearTvBulkSelectionMergedSeries()
+                            }
+                        }
+                        .show()
+                    return@MergedSeriesAdapter
+                }
+                val options = mutableListOf(
+                    if (series.isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    "Select (bulk hide)"
+                )
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("${series.name} · ${series.serverNickname}")
-                    .setItems(arrayOf(if (series.isFavorite) "Remove from Favorites" else "Add to Favorites")) { _, _ ->
-                        viewModel.setMergedSeriesFavorite(series, !series.isFavorite)
-                        Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+                    .setItems(options.toTypedArray()) { _, which ->
+                        when (options[which]) {
+                            "Add to Favorites", "Remove from Favorites" -> {
+                                viewModel.setMergedSeriesFavorite(series, !series.isFavorite)
+                                Toast.makeText(this, if (series.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
+                            }
+                            "Select (bulk hide)" -> {
+                                bulkSelectMergedSeriesMode = true
+                                bulkSelectedMergedSeriesKeys.add("${series.serverIndex}:${series.seriesId}")
+                                mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                                updateTvBulkSelectUi()
+                                Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} selected — select more to hide", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
             }
         )
+        mergedSeriesAdapter.isTvMode = true
 
         combinedFavoriteAdapter = CombinedFavoriteAdapter(
             onChannelClick = { item ->

@@ -31,6 +31,10 @@ class MergedVodAdapter(
         private const val TYPE_ITEM = 1
     }
 
+    // Same D-pad-reachable-star pattern as MergedChannelAdapter — without this, TV had no way
+    // to reach the favorite star at all except a held-OK long-press into the actions menu.
+    var isTvMode: Boolean = false
+
     /** Wraps a plain MergedVodEntity list, inserting a "★ Favorites" header before the leading
      * run of favorited titles when present — favorites-first ordering is still
      * HomeViewModel.applyMergedVodSort's job, this just labels it. */
@@ -79,6 +83,14 @@ class MergedVodAdapter(
 
     inner class ViewHolder(val binding: ItemMergedVodBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: MergedVodEntity) {
+            if (isTvMode) {
+                binding.root.isFocusable = true
+                binding.ivVodFavorite.isFocusable = true
+                binding.root.nextFocusRightId = binding.ivVodFavorite.id
+                binding.ivVodFavorite.nextFocusLeftId = binding.root.id
+            } else {
+                binding.ivVodFavorite.isFocusable = false
+            }
             binding.tvVodName.text = item.name
             binding.tvVodRating.text = item.rating?.takeIf { it.isNotBlank() } ?: ""
             binding.tvServerNickname.text = item.serverNickname
