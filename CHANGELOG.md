@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.4 - 2026-07-25
+- **Added**: "★ Favorites" section header for Series too (primary and merged/Providers), same
+  treatment Movies got in v5.3.
+- **Added** (TV, in progress): Providers Channels now has bulk-select — long-press a channel to
+  start selecting, D-pad-reachable "Select All" bar, same as primary channels already had.
+
 ## v5.3 - 2026-07-24
 - **Added**: pinned "★ Favorites" entry at the top of the primary Movies category list, and a
   "★ Favorites" section header above your favorited titles in both primary and merged/Providers

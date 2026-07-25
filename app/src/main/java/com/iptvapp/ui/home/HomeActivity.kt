@@ -2224,7 +2224,7 @@ class HomeActivity : AppCompatActivity() {
                             landscapeShowChannelsMode()
                             binding.rvCategories.visibility = View.GONE
                             binding.rvChannels.adapter = mergedSeriesAdapter
-                            mergedSeriesAdapter.submitList(viewModel.mergedSeries.value)
+                            mergedSeriesAdapter.submitSeriesList(viewModel.mergedSeries.value)
                         }
                         ProvidersMode.LIVE -> {
                             viewModel.searchMergedChannels(query)
@@ -2424,7 +2424,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun submitFilteredSeries(list: List<com.iptvapp.data.local.entities.SeriesEntity>) {
-        seriesAdapter.submitList(viewModel.applySeriesSort(seriesGenreFilter(list)))
+        seriesAdapter.submitSeriesList(viewModel.applySeriesSort(seriesGenreFilter(list)))
     }
 
     private fun updateSeriesGenreChips(allSeries: List<com.iptvapp.data.local.entities.SeriesEntity>) {
@@ -3427,7 +3427,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.mergedSeries.collect { list ->
                 if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS && providersMode == ProvidersMode.SERIES) {
-                    mergedSeriesAdapter.submitList(list)
+                    mergedSeriesAdapter.submitSeriesList(list)
                 }
             }
         }

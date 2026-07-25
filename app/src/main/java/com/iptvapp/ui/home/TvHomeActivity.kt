@@ -180,31 +180,79 @@ class TvHomeActivity : AppCompatActivity() {
         updateTvBulkSelectUi()
     }
 
+    // Merged-channel equivalent of the bulk-select state above — same shape as phone's
+    // bulkSelectedMergedKeys/bulkSelectMergedMode in HomeActivity.kt.
+    private val bulkSelectedMergedKeys = mutableSetOf<String>()
+    private var bulkSelectMergedMode = false
+    private val bulkSelectMergedIdleRunnable = Runnable {
+        if (bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) {
+            viewModel.bulkAddMergedFavorites(bulkSelectedMergedKeys.toSet())
+            Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
+            clearTvBulkSelectionMerged()
+        }
+    }
+
+    private fun clearTvBulkSelectionMerged() {
+        bulkSelectedMergedKeys.clear()
+        bulkSelectMergedMode = false
+        bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+        mergedChannelAdapter.submitBulkSelection(emptySet())
+        updateTvBulkSelectUi()
+    }
+
+    private data class TvBulkState(val count: Int, val selectAll: () -> Unit, val done: () -> Unit, val cancel: () -> Unit)
+
     // Central bar updater for TV bulk-select — mirrors phone's updateBulkSelectUi in
-    // HomeActivity.kt. Only primary channels wired in for now (this is being ported one list at
-    // a time); extend the `when` here as merged channels/movies/series and primary series get
-    // their own bulk-select state added.
+    // HomeActivity.kt. Checks each mode's flag in priority order, same "only one active at a
+    // time in practice" assumption phone's version makes. Extend this `when` as merged
+    // movies/series and primary series get their own bulk-select state added.
     private fun updateTvBulkSelectUi() {
-        if (!bulkSelectMode || bulkSelectedIds.isEmpty()) {
+        val state: TvBulkState? = when {
+            bulkSelectMode && bulkSelectedIds.isNotEmpty() -> TvBulkState(
+                bulkSelectedIds.size,
+                {
+                    bulkSelectedIds.addAll(viewModel.channels.value.map { it.streamId })
+                    channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
+                    bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
+                    bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+                },
+                {
+                    viewModel.bulkAddFavorites(bulkSelectedIds.toList())
+                    Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                    clearTvBulkSelection()
+                },
+                { clearTvBulkSelection() }
+            )
+            bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty() -> TvBulkState(
+                bulkSelectedMergedKeys.size,
+                {
+                    bulkSelectedMergedKeys.addAll(viewModel.mergedChannels.value.map { "${it.serverIndex}:${it.streamId}" })
+                    mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                    bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                    bulkSelectHandler.postDelayed(bulkSelectMergedIdleRunnable, 3000)
+                },
+                {
+                    viewModel.bulkAddMergedFavorites(bulkSelectedMergedKeys.toSet())
+                    Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                    clearTvBulkSelectionMerged()
+                },
+                { clearTvBulkSelectionMerged() }
+            )
+            else -> null
+        }
+        if (state == null) {
             binding.tvBulkSelectBar.visibility = View.GONE
             return
         }
         binding.tvBulkSelectBar.visibility = View.VISIBLE
-        binding.tvBulkSelectCount.text = "${bulkSelectedIds.size} selected"
+        binding.tvBulkSelectCount.text = "${state.count} selected"
         binding.tvBtnBulkSelectAll.setOnClickListener {
-            bulkSelectedIds.addAll(viewModel.channels.value.map { it.streamId })
-            channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
-            Toast.makeText(this, "${bulkSelectedIds.size} selected", Toast.LENGTH_SHORT).show()
-            bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
-            bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
+            state.selectAll()
+            Toast.makeText(this, "Selected all", Toast.LENGTH_SHORT).show()
             updateTvBulkSelectUi()
         }
-        binding.tvBtnBulkSelectDone.setOnClickListener {
-            viewModel.bulkAddFavorites(bulkSelectedIds.toList())
-            Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
-            clearTvBulkSelection()
-        }
-        binding.tvBtnBulkSelectCancel.setOnClickListener { clearTvBulkSelection() }
+        binding.tvBtnBulkSelectDone.setOnClickListener { state.done() }
+        binding.tvBtnBulkSelectCancel.setOnClickListener { state.cancel() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -667,19 +715,38 @@ class TvHomeActivity : AppCompatActivity() {
         }
 
         mergedChannelAdapter = MergedChannelAdapter(
-            onChannelClick = { channel -> playMergedChannel(channel) },
+            onChannelClick = onChannelClick@{ channel ->
+                if (bulkSelectMergedMode) {
+                    val key = "${channel.serverIndex}:${channel.streamId}"
+                    if (!bulkSelectedMergedKeys.add(key)) bulkSelectedMergedKeys.remove(key)
+                    mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                    Toast.makeText(this, "${bulkSelectedMergedKeys.size} selected", Toast.LENGTH_SHORT).show()
+                    bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                    if (bulkSelectedMergedKeys.isEmpty()) bulkSelectMergedMode = false
+                    else bulkSelectHandler.postDelayed(bulkSelectMergedIdleRunnable, 3000)
+                    updateTvBulkSelectUi()
+                    return@onChannelClick
+                }
+                playMergedChannel(channel)
+            },
             onFavoriteClick = { channel ->
                 viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                 Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
             // Star is now D-pad-reachable (see isTvMode below) — long-press still works too,
-            // as an alternate path into the fuller actions menu (Play Fullscreen/Move to Folder).
+            // as an alternate path into the fuller actions menu (Play Fullscreen/Move to
+            // Folder/bulk-select), same shape as phone's showMergedChannelActionsMenu.
             onChannelLongClick = { channel ->
+                val key = "${channel.serverIndex}:${channel.streamId}"
                 val options = mutableListOf(
                     "Play Fullscreen",
-                    if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
+                    if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    if (bulkSelectedMergedKeys.contains(key)) "Deselect (bulk)" else "Select (bulk add to favorites)"
                 )
                 if (channel.isFavorite) options.add("Move to Folder")
+                if (bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) {
+                    options.add(0, "✓ Add ${bulkSelectedMergedKeys.size} selected to favorites")
+                }
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("${channel.name} · ${channel.serverNickname}")
                     .setItems(options.toTypedArray()) { _, which ->
@@ -696,7 +763,31 @@ class TvHomeActivity : AppCompatActivity() {
                                 viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                                 Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
                             }
+                            "Select (bulk add to favorites)" -> {
+                                bulkSelectMergedMode = true
+                                bulkSelectedMergedKeys.add(key)
+                                mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                                updateTvBulkSelectUi()
+                                Toast.makeText(this, "${bulkSelectedMergedKeys.size} selected — select more, or wait to add them", Toast.LENGTH_SHORT).show()
+                                bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                                bulkSelectHandler.postDelayed(bulkSelectMergedIdleRunnable, 3000)
+                            }
+                            "Deselect (bulk)" -> {
+                                bulkSelectedMergedKeys.remove(key)
+                                mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                                if (bulkSelectedMergedKeys.isEmpty()) {
+                                    bulkSelectMergedMode = false
+                                    bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                                }
+                                updateTvBulkSelectUi()
+                            }
                             "Move to Folder" -> showMoveToFolderDialog(channel)
+                            else -> if (options[which].startsWith("✓ Add")) {
+                                bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                                viewModel.bulkAddMergedFavorites(bulkSelectedMergedKeys.toSet())
+                                Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                                clearTvBulkSelectionMerged()
+                            }
                         }
                     }
                     .setNegativeButton("Cancel", null)
@@ -1788,7 +1879,7 @@ class TvHomeActivity : AppCompatActivity() {
         val genre = activeTvSeriesGenre
         val filtered = if (genre == null) list
             else list.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }
-        seriesAdapter.submitList(viewModel.applySeriesSort(filtered))
+        seriesAdapter.submitPlainList(viewModel.applySeriesSort(filtered))
     }
 
     // ── Genre folder chips (Series/Movies) — same bucketing GenreBuckets provides on phone ──
@@ -2001,7 +2092,7 @@ class TvHomeActivity : AppCompatActivity() {
                     val filtered = if (genre == null) it
                         else it.filter { s -> genre in com.iptvapp.util.GenreBuckets.bucketsFor(s.genre?.split(",").orEmpty()) }
                     // Same favorites/in-progress-first sort phone already applies (HomeActivity.kt:1717).
-                    seriesAdapter.submitList(viewModel.applySeriesSort(filtered)) {
+                    seriesAdapter.submitPlainList(viewModel.applySeriesSort(filtered)) {
                         if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                     }
                 }
@@ -2097,7 +2188,7 @@ class TvHomeActivity : AppCompatActivity() {
                     val focusedChild = binding.tvRvContent.focusedChild
                     val focusedPos = if (focusedChild != null)
                         binding.tvRvContent.getChildAdapterPosition(focusedChild) else -1
-                    mergedSeriesAdapter.submitList(it) {
+                    mergedSeriesAdapter.submitPlainList(it) {
                         if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
                     }
                 }

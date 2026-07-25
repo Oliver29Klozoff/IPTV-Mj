@@ -8,6 +8,15 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.iptvapp.data.local.entities.MergedSeriesEntity
 import com.iptvapp.databinding.ItemMergedSeriesBinding
+import com.iptvapp.databinding.ItemSectionHeaderBinding
+
+// A "★ Favorites" header separates favorited shows from the rest of the list, same treatment as
+// MergedVodAdapter/MergedVodRow — previously favorites just floated silently to the top of the
+// flat list with nothing marking them as such.
+sealed class MergedSeriesRow {
+    data class Header(val title: String) : MergedSeriesRow()
+    data class Item(val series: MergedSeriesEntity) : MergedSeriesRow()
+}
 
 // Series-tab equivalent of MergedVodAdapter — see MergedSeriesEntity kdoc. Tapping a row opens
 // SeriesDetailActivity (season/episode picker), unlike merged VOD which plays directly — a
@@ -16,9 +25,48 @@ class MergedSeriesAdapter(
     private val onItemClick: (MergedSeriesEntity) -> Unit,
     private val onFavoriteClick: (MergedSeriesEntity) -> Unit = {},
     private val onItemLongClick: (MergedSeriesEntity) -> Unit = {}
-) : ListAdapter<MergedSeriesEntity, MergedSeriesAdapter.ViewHolder>(DiffCallback()) {
+) : ListAdapter<MergedSeriesRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
-    // Bulk-hide checkbox mode — same shape as MergedChannelAdapter's bulk-select.
+    companion object {
+        private const val TYPE_HEADER = 0
+        private const val TYPE_ITEM = 1
+    }
+
+    /** Wraps a plain MergedSeriesEntity list, inserting a "★ Favorites" header before the
+     * leading run of favorited shows when present — favorites-first ordering is still
+     * HomeViewModel's job, this just labels it. */
+    fun submitSeriesList(list: List<MergedSeriesEntity>) {
+        val favoriteCount = list.takeWhile { it.isFavorite }.size
+        val rows = buildList {
+            if (favoriteCount > 0) {
+                add(MergedSeriesRow.Header("★ Favorites"))
+                addAll(list.take(favoriteCount).map { MergedSeriesRow.Item(it) })
+                if (favoriteCount < list.size) add(MergedSeriesRow.Header("All Series"))
+            }
+            addAll(list.drop(favoriteCount).map { MergedSeriesRow.Item(it) })
+        }
+        submitList(rows)
+    }
+
+    /** Plain list, no header — used by TV's Providers Series list (see TvHomeActivity), which
+     * is on hold for the header treatment for now. */
+    fun submitPlainList(list: List<MergedSeriesEntity>) {
+        submitList(list.map { MergedSeriesRow.Item(it) })
+    }
+
+    /** Plain list, no header, with a completion callback — TV still needs the callback to
+     * restore D-pad focus after a resubmit. */
+    fun submitPlainList(list: List<MergedSeriesEntity>, commitCallback: () -> Unit) {
+        submitList(list.map { MergedSeriesRow.Item(it) }, commitCallback)
+    }
+
+    override fun getItemViewType(position: Int) = when (getItem(position)) {
+        is MergedSeriesRow.Header -> TYPE_HEADER
+        is MergedSeriesRow.Item -> TYPE_ITEM
+    }
+
+    // Bulk-hide checkbox mode — same shape as MergedChannelAdapter's bulk-select. Header rows
+    // are never part of the selection.
     private var bulkSelectedKeys: Set<String> = emptySet()
     private var bulkSelectMode: Boolean = false
     private fun keyOf(item: MergedSeriesEntity) = "${item.serverIndex}:${item.seriesId}"
@@ -27,6 +75,12 @@ class MergedSeriesAdapter(
         bulkSelectedKeys = keys
         bulkSelectMode = keys.isNotEmpty()
         notifyDataSetChanged()
+    }
+
+    inner class HeaderViewHolder(val binding: ItemSectionHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(row: MergedSeriesRow.Header) {
+            binding.tvSectionHeader.text = row.title
+        }
     }
 
     inner class ViewHolder(val binding: ItemMergedSeriesBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -61,19 +115,27 @@ class MergedSeriesAdapter(
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemMergedSeriesBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return ViewHolder(binding)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == TYPE_HEADER) {
+            HeaderViewHolder(ItemSectionHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        } else {
+            ViewHolder(ItemMergedSeriesBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        }
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val row = getItem(position)) {
+            is MergedSeriesRow.Header -> (holder as HeaderViewHolder).bind(row)
+            is MergedSeriesRow.Item -> (holder as ViewHolder).bind(row.series)
+        }
     }
 
-    class DiffCallback : DiffUtil.ItemCallback<MergedSeriesEntity>() {
-        override fun areItemsTheSame(a: MergedSeriesEntity, b: MergedSeriesEntity): Boolean =
-            a.serverIndex == b.serverIndex && a.seriesId == b.seriesId
-
-        override fun areContentsTheSame(a: MergedSeriesEntity, b: MergedSeriesEntity): Boolean = a == b
+    class DiffCallback : DiffUtil.ItemCallback<MergedSeriesRow>() {
+        override fun areItemsTheSame(a: MergedSeriesRow, b: MergedSeriesRow): Boolean = when {
+            a is MergedSeriesRow.Header && b is MergedSeriesRow.Header -> a.title == b.title
+            a is MergedSeriesRow.Item && b is MergedSeriesRow.Item -> a.series.serverIndex == b.series.serverIndex && a.series.seriesId == b.series.seriesId
+            else -> false
+        }
+        override fun areContentsTheSame(a: MergedSeriesRow, b: MergedSeriesRow): Boolean = a == b
     }
 }

@@ -1,7 +1,7 @@
 {
-  "versionCode": 341,
-  "versionName": "5.3",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.3/MKTV.apk",
-  "apkSha256": "83f864f4cb2b9baf35eeb7b7fe68d9d31176f7b5a9a2153e15a06beb650cbee4",
-  "changelog": "Added pinned Favorites entries and sort options for Movies (primary and Providers). English-only filter now covers merged Movies/Series. Fixed merged Movies/Series refresh timing out too early, a favorites-navigation bug that snapped back to the first category, and the hard-to-notice sort button. Simplified video zoom to 2 modes. Trakt matched shows are now tappable."
+  "versionCode": 342,
+  "versionName": "5.4",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.4/MKTV.apk",
+  "apkSha256": "4e6daf78efd0053d223829732bbd90e07753f8bc4c66b87909a0debdd879a462",
+  "changelog": "Added a Favorites section header for Series (primary and Providers), matching Movies. TV Providers Channels now has bulk-select with a D-pad-reachable Select All bar."
 }
