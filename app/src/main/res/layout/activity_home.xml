@@ -582,31 +582,6 @@
 
         </HorizontalScrollView>
 
-        <!-- History tab only — clears every dismissible row in Continue Watching at once. -->
-        <LinearLayout
-            android:id="@+id/watchingClearAllBar"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:background="#1A1A1A"
-            android:gravity="center_vertical|end"
-            android:paddingHorizontal="12dp"
-            android:visibility="gone">
-
-            <TextView
-                android:id="@+id/btnClearAllWatching"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Clear All Continue Watching"
-                android:textColor="#008CFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:clickable="true"
-                android:focusable="true"
-                android:background="?attr/selectableItemBackground"
-                android:padding="8dp" />
-
-        </LinearLayout>
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"

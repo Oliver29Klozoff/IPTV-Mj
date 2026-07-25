@@ -262,6 +262,17 @@ class HomeActivity : AppCompatActivity() {
                 },
                 { clearBulkSelectionSeries() }
             )
+            bulkSelectWatchingMode && bulkSelectedWatchingKeys.isNotEmpty() -> Quadruple(
+                bulkSelectedWatchingKeys.size,
+                {
+                    val allKeys = viewModel.continueWatching.value.map { "v:${it.streamId}" } +
+                        viewModel.inProgressSeries.value.map { "s:${it.series.seriesId}" }
+                    bulkSelectedWatchingKeys.addAll(allKeys)
+                    watchingAdapter.submitBulkSelection(bulkSelectedWatchingKeys.toSet())
+                },
+                { commitBulkClearWatching() },
+                { clearBulkSelectionWatching() }
+            )
             else -> null
         }
         if (state == null) {
@@ -413,6 +424,41 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectMergedVodMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
         mergedVodAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
+    }
+
+    // Continue Watching bulk-select (History tab) — same shape as the others above, but clears
+    // items from Continue Watching (dismiss, preserving resume position) rather than favoriting/
+    // hiding. Keys are "v:$streamId" / "s:$seriesId" (see WatchingAdapter kdoc).
+    private val bulkSelectedWatchingKeys = mutableSetOf<String>()
+    private var bulkSelectWatchingMode = false
+    private val bulkSelectWatchingIdleRunnable = Runnable {
+        if (bulkSelectWatchingMode && bulkSelectedWatchingKeys.isNotEmpty()) {
+            showBulkSelectIdlePrompt(
+                count = bulkSelectedWatchingKeys.size,
+                onMoveToFavorites = { commitBulkClearWatching() },
+                onUnselectAll = { clearBulkSelectionWatching() },
+                itemLabel = "item",
+                actionLabel = "Clear Selected"
+            )
+        }
+    }
+
+    private fun commitBulkClearWatching() {
+        bulkSelectedWatchingKeys.forEach { key ->
+            val (type, id) = key.split(":", limit = 2)
+            if (type == "v") viewModel.dismissVodFromContinueWatching(id.toInt())
+            else viewModel.dismissSeriesFromContinueWatching(id.toInt())
+        }
+        Toast.makeText(this, "${bulkSelectedWatchingKeys.size} removed from Continue Watching", Toast.LENGTH_SHORT).show()
+        clearBulkSelectionWatching()
+    }
+
+    private fun clearBulkSelectionWatching() {
+        bulkSelectedWatchingKeys.clear()
+        bulkSelectWatchingMode = false
+        bulkSelectHandler.removeCallbacks(bulkSelectWatchingIdleRunnable)
+        watchingAdapter.submitBulkSelection(emptySet())
         updateBulkSelectUi()
     }
 
@@ -2073,10 +2119,6 @@ class HomeActivity : AppCompatActivity() {
                 })
             },
             onVodFavoriteClick = { vod -> viewModel.toggleVodFavorite(vod) },
-            onVodDismiss = { vod ->
-                viewModel.dismissVodFromContinueWatching(vod.streamId)
-                Toast.makeText(this, "Removed from Continue Watching", Toast.LENGTH_SHORT).show()
-            },
             onSeriesClick = { row ->
                 val series = row.series
                 startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
@@ -2089,9 +2131,22 @@ class HomeActivity : AppCompatActivity() {
                 })
             },
             onSeriesFavoriteClick = { row -> viewModel.toggleSeriesFavorite(row.series) },
-            onSeriesDismiss = { row ->
-                viewModel.dismissSeriesFromContinueWatching(row.series.seriesId)
-                Toast.makeText(this, "Removed from Continue Watching", Toast.LENGTH_SHORT).show()
+            onBulkStart = { key ->
+                bulkSelectWatchingMode = true
+                bulkSelectedWatchingKeys.add(key)
+                watchingAdapter.submitBulkSelection(bulkSelectedWatchingKeys.toSet())
+                updateBulkSelectUi()
+                Toast.makeText(this, "1 selected", Toast.LENGTH_SHORT).show()
+                bulkSelectHandler.postDelayed(bulkSelectWatchingIdleRunnable, 8000)
+            },
+            onBulkToggle = { key ->
+                if (!bulkSelectedWatchingKeys.add(key)) bulkSelectedWatchingKeys.remove(key)
+                watchingAdapter.submitBulkSelection(bulkSelectedWatchingKeys.toSet())
+                updateBulkSelectUi()
+                Toast.makeText(this, "${bulkSelectedWatchingKeys.size} selected", Toast.LENGTH_SHORT).show()
+                bulkSelectHandler.removeCallbacks(bulkSelectWatchingIdleRunnable)
+                if (bulkSelectedWatchingKeys.isEmpty()) bulkSelectWatchingMode = false
+                else bulkSelectHandler.postDelayed(bulkSelectWatchingIdleRunnable, 8000)
             }
         )
 
@@ -2462,9 +2517,6 @@ class HomeActivity : AppCompatActivity() {
         binding.genreFilterScroll?.visibility = if (visible) View.VISIBLE else View.GONE
         binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility =
             if (visible) View.VISIBLE else View.GONE
-        // Every showX() calls this on entry — only showWatching() re-shows the clear-all bar
-        // afterward, so unconditionally hiding it here keeps every other tab clean for free.
-        binding.watchingClearAllBar?.visibility = View.GONE
     }
 
     private fun buildGenreChip(genre: String, selected: Boolean, vertical: Boolean): View {
@@ -2709,18 +2761,6 @@ class HomeActivity : AppCompatActivity() {
             viewModel.continueWatching.value,
             viewModel.inProgressSeries.value
         )
-        binding.watchingClearAllBar?.visibility = View.VISIBLE
-        binding.btnClearAllWatching?.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Clear Continue Watching?")
-                .setMessage("Removes every movie and series from Continue Watching. Resume positions are kept — anything you resume watching will reappear here.")
-                .setPositiveButton("Clear All") { _, _ ->
-                    viewModel.clearAllContinueWatching()
-                    Toast.makeText(this, "Continue Watching cleared", Toast.LENGTH_SHORT).show()
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
     }
 
     // Browse-and-play merged view across every configured server (Settings > Providers).

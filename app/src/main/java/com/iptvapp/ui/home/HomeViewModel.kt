@@ -1686,13 +1686,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { repository.dismissSeriesFromContinueWatching(seriesId) }
     }
 
-    fun clearAllContinueWatching() {
-        viewModelScope.launch {
-            continueWatching.value.forEach { repository.dismissVodFromContinueWatching(it.streamId) }
-            inProgressSeries.value.forEach { repository.dismissSeriesFromContinueWatching(it.series.seriesId) }
-        }
-    }
-
     fun toggleLiveCategoryFavorite(categoryId: String) {
         viewModelScope.launch {
             val favoriteIds = repository.getFavoriteLiveCategoryIds().first()

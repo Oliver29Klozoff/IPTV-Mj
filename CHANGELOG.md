@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.10 - 2026-07-25
+- **Changed** (History tab): long-press a Continue Watching movie or series to select it,
+  tap/long-press others to add to the selection, then use the bulk-select bar to Select All or
+  clear everything selected in one go — replaces the old single "Clear All" confirmation button.
+
 ## v5.9 - 2026-07-25
 - **Added**: "Clear All Continue Watching" button on the History tab, alongside the existing
   long-press-to-remove.

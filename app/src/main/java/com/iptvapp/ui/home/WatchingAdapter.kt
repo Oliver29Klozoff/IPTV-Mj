@@ -24,8 +24,10 @@ import com.iptvapp.databinding.ItemVodBinding
 // have a real lastWatched timestamp), Continue Watching Movies, and Continue Watching Series
 // (movies/series only track resume position, not a "when", so they can't be honestly interleaved
 // with channels by true recency — each section is sorted by whatever signal it actually has).
-// Long-press on a Continue Watching Movies/Series row dismisses it from this list without
-// touching its resume position (see HomeViewModel.dismissVodFromContinueWatching kdoc).
+// Long-press on a Continue Watching Movies/Series row starts bulk-select (checkbox on every
+// row in both sections, further taps/long-presses toggle) so multiple items can be cleared at
+// once via HomeActivity's shared bulk-select bar — clearing removes them from this list without
+// touching their resume position (see HomeViewModel.dismissVodFromContinueWatching kdoc).
 sealed class WatchingRow {
     data class Header(val title: String) : WatchingRow()
     data class ChannelItem(val channel: ChannelEntity) : WatchingRow()
@@ -38,10 +40,11 @@ class WatchingAdapter(
     private val onChannelFavoriteClick: (ChannelEntity) -> Unit,
     private val onVodClick: (VodEntity) -> Unit,
     private val onVodFavoriteClick: (VodEntity) -> Unit,
-    private val onVodDismiss: (VodEntity) -> Unit,
     private val onSeriesClick: (InProgressSeriesRow) -> Unit,
     private val onSeriesFavoriteClick: (InProgressSeriesRow) -> Unit,
-    private val onSeriesDismiss: (InProgressSeriesRow) -> Unit
+    // key is "v:$streamId" or "s:$seriesId" — see bulkSelectedKeys kdoc below.
+    private val onBulkStart: (String) -> Unit,
+    private val onBulkToggle: (String) -> Unit
 ) : ListAdapter<WatchingRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
@@ -49,6 +52,20 @@ class WatchingAdapter(
         private const val TYPE_CHANNEL = 1
         private const val TYPE_VOD = 2
         private const val TYPE_SERIES = 3
+    }
+
+    // Bulk-select for "Clear All Continue Watching" — same shape as SeriesAdapter's bulk-hide
+    // checkbox mode. Keys are "v:$streamId" / "s:$seriesId" (prefixed, since VOD streamIds and
+    // series seriesIds are unrelated id spaces that could otherwise collide) so one selection
+    // set can span both Continue Watching sections at once. Recently Watched channels are never
+    // selectable here — long-press only dismisses movies/series, never channel history.
+    private var bulkSelectedKeys: Set<String> = emptySet()
+    private var bulkSelectMode: Boolean = false
+
+    fun submitBulkSelection(keys: Set<String>) {
+        bulkSelectedKeys = keys
+        bulkSelectMode = keys.isNotEmpty()
+        notifyDataSetChanged()
     }
 
     fun submitRows(recentChannels: List<ChannelEntity>, inProgressVod: List<VodEntity>, inProgressSeries: List<InProgressSeriesRow>) {
@@ -125,9 +142,20 @@ class WatchingAdapter(
                 binding.tvVodRating.text = ""
                 binding.progressVod.visibility = View.GONE
             }
-            binding.ivVodFavorite.setOnClickListener { onVodFavoriteClick(item) }
-            binding.root.setOnClickListener { onVodClick(item) }
-            binding.root.setOnLongClickListener { onVodDismiss(item); true }
+            val key = "v:${item.streamId}"
+            if (bulkSelectMode) {
+                binding.cbVodBulkSelect?.visibility = View.VISIBLE
+                binding.cbVodBulkSelect?.isChecked = bulkSelectedKeys.contains(key)
+                binding.root.setBackgroundColor(if (bulkSelectedKeys.contains(key)) 0x33008CFF else 0x00000000)
+                binding.root.setOnClickListener { onBulkToggle(key) }
+                binding.root.setOnLongClickListener { onBulkToggle(key); true }
+            } else {
+                binding.cbVodBulkSelect?.visibility = View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+                binding.ivVodFavorite.setOnClickListener { onVodFavoriteClick(item) }
+                binding.root.setOnClickListener { onVodClick(item) }
+                binding.root.setOnLongClickListener { onBulkStart(key); true }
+            }
         }
     }
 
@@ -154,9 +182,20 @@ class WatchingAdapter(
             } else {
                 binding.progressSeries.visibility = View.GONE
             }
-            binding.ivSeriesFavorite.setOnClickListener { onSeriesFavoriteClick(row) }
-            binding.root.setOnClickListener { onSeriesClick(row) }
-            binding.root.setOnLongClickListener { onSeriesDismiss(row); true }
+            val key = "s:${series.seriesId}"
+            if (bulkSelectMode) {
+                binding.cbSeriesBulkSelect?.visibility = View.VISIBLE
+                binding.cbSeriesBulkSelect?.isChecked = bulkSelectedKeys.contains(key)
+                binding.root.setBackgroundColor(if (bulkSelectedKeys.contains(key)) 0x33008CFF else 0x00000000)
+                binding.root.setOnClickListener { onBulkToggle(key) }
+                binding.root.setOnLongClickListener { onBulkToggle(key); true }
+            } else {
+                binding.cbSeriesBulkSelect?.visibility = View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+                binding.ivSeriesFavorite.setOnClickListener { onSeriesFavoriteClick(row) }
+                binding.root.setOnClickListener { onSeriesClick(row) }
+                binding.root.setOnLongClickListener { onBulkStart(key); true }
+            }
         }
     }
 
