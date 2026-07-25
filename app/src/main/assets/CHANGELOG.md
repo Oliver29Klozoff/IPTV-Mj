@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v5.7 - 2026-07-25
+- **Changed** (phone): reordered Settings tabs — Providers now follows Display, Backup and Sync
+  moved above Updates, and Updates is now the last tab before Logout.
+
 ## v5.6 - 2026-07-25
 - **Fixed**: History tab was silently broken — it only ever showed recently-watched channels;
   a dead code path tried to show in-progress movies but never actually rendered them, and

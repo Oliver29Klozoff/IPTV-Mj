@@ -117,7 +117,7 @@
                     android:textSize="12sp" />
 
                 <Button
-                    android:id="@+id/headerUpdates"
+                    android:id="@+id/headerServers"
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
@@ -125,7 +125,20 @@
                     android:backgroundTint="#1A1A1A"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
-                    android:text="Updates"
+                    android:text="Providers"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/headerRecordings"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:layout_marginHorizontal="6dp"
+                    android:layout_marginBottom="4dp"
+                    android:backgroundTint="#1A1A1A"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false"
+                    android:text="Recordings"
                     android:textColor="#AAAAAA"
                     android:textSize="12sp" />
 
@@ -143,19 +156,6 @@
                     android:textSize="12sp" />
 
                 <Button
-                    android:id="@+id/headerServers"
-                    android:layout_width="match_parent"
-                    android:layout_height="60dp"
-                    android:layout_marginHorizontal="6dp"
-                    android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
-                    android:focusable="true"
-                    android:focusableInTouchMode="false"
-                    android:text="Providers"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp" />
-
-                <Button
                     android:id="@+id/headerSync"
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
@@ -169,7 +169,7 @@
                     android:textSize="12sp" />
 
                 <Button
-                    android:id="@+id/headerRecordings"
+                    android:id="@+id/headerUpdates"
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
@@ -177,7 +177,7 @@
                     android:backgroundTint="#1A1A1A"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
-                    android:text="Recordings"
+                    android:text="Updates"
                     android:textColor="#AAAAAA"
                     android:textSize="12sp" />
 

@@ -78,12 +78,12 @@ class SettingsActivity : AppCompatActivity() {
     private var currentPanelIndex = 0
 
     private val panelViews get() = listOf(
-        binding.sectionStream, binding.sectionDisplay, binding.sectionUpdates,
-        binding.sectionBackup, binding.sectionServers, binding.sectionSync
+        binding.sectionStream, binding.sectionDisplay, binding.sectionServers,
+        binding.sectionBackup, binding.sectionSync, binding.sectionUpdates
     )
     private val navButtonViews get() = listOf(
-        binding.headerStream, binding.headerDisplay, binding.headerUpdates,
-        binding.headerBackup, binding.headerServers, binding.headerSync
+        binding.headerStream, binding.headerDisplay, binding.headerServers,
+        binding.headerBackup, binding.headerSync, binding.headerUpdates
     )
 
     // Explains what each control in the currently-open section actually does — many of these
@@ -126,14 +126,10 @@ class SettingsActivity : AppCompatActivity() {
             + "AMOLED Black: forces pure black backgrounds everywhere instead of dark gray — "
             + "saves battery on OLED screens and looks better in a dark room. Requires an "
             + "app restart to fully apply everywhere.",
-        // 2: Updates
-        "Check for Updates: manually checks for a new version right now instead of waiting "
-            + "for the automatic background check.\n\n"
-            + "What's New / Changelog: shows what changed in the current and past versions.\n\n"
-            + "Silent Self-Update: on Android 12+, skips the \"Install update?\" confirmation "
-            + "screen when the OS allows it, updating more seamlessly. Off by default since "
-            + "it bypasses a normal Android security prompt — only turn this on if you're "
-            + "comfortable with that.",
+        // 2: Providers
+        "Add, edit, or switch between multiple Xtream provider logins if you have more than "
+            + "one IPTV subscription — only one is active for playback at a time, but you "
+            + "can switch instantly without re-entering credentials.",
         // 3: Backup & Restore
         "Backup / Restore: saves your provider login, favorites, and settings to a file you "
             + "choose (Downloads, Drive, USB, etc.), or loads them back in — useful before "
@@ -141,11 +137,7 @@ class SettingsActivity : AppCompatActivity() {
             + "anywhere automatically; you pick the exact file location yourself.\n\n"
             + "Auto backup (weekly): does the same backup automatically once a week to that "
             + "same chosen location, without you having to remember to do it manually.",
-        // 4: Providers
-        "Add, edit, or switch between multiple Xtream provider logins if you have more than "
-            + "one IPTV subscription — only one is active for playback at a time, but you "
-            + "can switch instantly without re-entering credentials.",
-        // 5: Sync
+        // 4: Sync
         "Cross-Device Sync: keeps your favorites and watch history in sync across your "
             + "devices via a private Firebase-backed store — nothing public, only devices "
             + "using the same Pairing Code see each other's data.\n\n"
@@ -160,7 +152,15 @@ class SettingsActivity : AppCompatActivity() {
             + "Watching / History) to confirm it's working, since there's no local record in "
             + "this app. Only counts something as \"watched\" once you've watched past "
             + "roughly 80% of it, same as Trakt does everywhere else. Only tracks fullscreen "
-            + "playback, not the mini player."
+            + "playback, not the mini player.",
+        // 5: Updates
+        "Check for Updates: manually checks for a new version right now instead of waiting "
+            + "for the automatic background check.\n\n"
+            + "What's New / Changelog: shows what changed in the current and past versions.\n\n"
+            + "Silent Self-Update: on Android 12+, skips the \"Install update?\" confirmation "
+            + "screen when the OS allows it, updating more seamlessly. Off by default since "
+            + "it bypasses a normal Android security prompt — only turn this on if you're "
+            + "comfortable with that."
     )
 
     // ─── Search ─────────────────────────────────────────────────────────────
@@ -200,22 +200,22 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Subtitle Text Color", 1, null, R.id.sectionDisplay),
             SettingSearchEntry("Subtitle Background Color", 1, null, R.id.sectionDisplay),
             SettingSearchEntry("Subtitle Outline", 1, null, R.id.sectionDisplay),
-            SettingSearchEntry("Check for Updates", 2, R.id.hdrUpdates, R.id.hdrUpdates),
-            SettingSearchEntry("What's New / Changelog", 2, R.id.hdrUpdates, R.id.hdrUpdates),
-            SettingSearchEntry("Silent Self-Update", 2, R.id.hdrUpdates, R.id.hdrUpdates),
+            SettingSearchEntry("Check for Updates", 5, R.id.hdrUpdates, R.id.hdrUpdates),
+            SettingSearchEntry("What's New / Changelog", 5, R.id.hdrUpdates, R.id.hdrUpdates),
+            SettingSearchEntry("Silent Self-Update", 5, R.id.hdrUpdates, R.id.hdrUpdates),
             SettingSearchEntry("Backup", 3, null, R.id.sectionBackup),
             SettingSearchEntry("Restore", 3, null, R.id.sectionBackup),
             SettingSearchEntry("Auto backup", 3, null, R.id.sectionBackup),
-            SettingSearchEntry("Add Provider", 4, null, R.id.sectionServers),
-            SettingSearchEntry("Cross-Device Sync", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Push to Cloud", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Pull from Cloud", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Pairing Code", 5, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Diagnostics", 5, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
-            SettingSearchEntry("Send Debug Report", 5, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
-            SettingSearchEntry("Provider Health", 5, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
-            SettingSearchEntry("Connect Trakt", 5, null, R.id.sectionSync),
-            SettingSearchEntry("Sync Watched History from Trakt", 5, null, R.id.sectionSync)
+            SettingSearchEntry("Add Provider", 2, null, R.id.sectionServers),
+            SettingSearchEntry("Cross-Device Sync", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Push to Cloud", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Pull from Cloud", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Pairing Code", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
+            SettingSearchEntry("Diagnostics", 4, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
+            SettingSearchEntry("Send Debug Report", 4, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
+            SettingSearchEntry("Provider Health", 4, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
+            SettingSearchEntry("Connect Trakt", 4, null, R.id.sectionSync),
+            SettingSearchEntry("Sync Watched History from Trakt", 4, null, R.id.sectionSync)
         )
     }
 
