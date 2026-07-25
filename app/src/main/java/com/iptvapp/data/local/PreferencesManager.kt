@@ -33,6 +33,9 @@ class PreferencesManager @Inject constructor(
         val PASSWORD = stringPreferencesKey("password")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
         val PREFERRED_FORMAT = stringPreferencesKey("preferred_format")
+        // ISO 639-2 codes (e.g. "eng", "spa"), empty string = no preference/auto.
+        val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("preferred_audio_language")
+        val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("preferred_subtitle_language")
         val EPG_URL = stringPreferencesKey("epg_url")
         val LAST_EPG_REFRESH_TIME = longPreferencesKey("last_epg_refresh_time")
         val EPG_AUTO_REFRESH_HOURS = intPreferencesKey("epg_auto_refresh_hours")
@@ -254,6 +257,12 @@ class PreferencesManager @Inject constructor(
     val preferredFormat: Flow<String> = context.dataStore.data
         .map { it[Keys.PREFERRED_FORMAT] ?: "m3u8" }
 
+    val preferredAudioLanguage: Flow<String> = context.dataStore.data
+        .map { it[Keys.PREFERRED_AUDIO_LANGUAGE] ?: "" }
+
+    val preferredSubtitleLanguage: Flow<String> = context.dataStore.data
+        .map { it[Keys.PREFERRED_SUBTITLE_LANGUAGE] ?: "" }
+
     val epgUrl: Flow<String> = context.dataStore.data
         .map { it[Keys.EPG_URL] ?: "" }
 
@@ -303,6 +312,14 @@ class PreferencesManager @Inject constructor(
         context.dataStore.edit { prefs ->
             prefs[Keys.PREFERRED_FORMAT] = format
         }
+    }
+
+    suspend fun setPreferredAudioLanguage(code: String) {
+        context.dataStore.edit { prefs -> prefs[Keys.PREFERRED_AUDIO_LANGUAGE] = code }
+    }
+
+    suspend fun setPreferredSubtitleLanguage(code: String) {
+        context.dataStore.edit { prefs -> prefs[Keys.PREFERRED_SUBTITLE_LANGUAGE] = code }
     }
 
     suspend fun setEpgUrl(url: String) {

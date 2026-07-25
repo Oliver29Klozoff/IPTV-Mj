@@ -410,6 +410,90 @@
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
+                    <!-- Audio & Subtitle Language card — starts collapsed -->
+                    <androidx.cardview.widget.CardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:cardBackgroundColor="#161616"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                android:id="@+id/hdrLanguage"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="16dp"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:background="?attr/selectableItemBackground">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="AUDIO &amp; SUBTITLE LANGUAGE"
+                                    android:textColor="#AAAAAA"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1" />
+                                <TextView
+                                    android:id="@+id/chevLanguage"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="▼"
+                                    android:textColor="#555555"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyLanguage"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingLeft="16dp"
+                                android:paddingRight="16dp"
+                                android:paddingBottom="16dp"
+                                android:visibility="gone">
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Preferred Audio Language"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                                <Spinner
+                                    android:id="@+id/spinnerAudioLanguage"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:spinnerMode="dropdown" />
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="16dp"
+                                    android:text="Preferred Subtitle Language"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                                <Spinner
+                                    android:id="@+id/spinnerSubtitleLanguage"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:spinnerMode="dropdown" />
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="10dp"
+                                    android:text="Used when a stream offers multiple language tracks. If your provider doesn't tag languages, this has no effect."
+                                    android:textColor="#777777"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
                     <!-- Video Player card — starts collapsed -->
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"

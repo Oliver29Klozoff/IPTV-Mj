@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.8 - 2026-07-25
+- **Added**: long-press a Continue Watching movie or series on the History tab to remove it from
+  the list without losing your resume position — it reappears automatically once you actually
+  resume watching it.
+- **Added** (Settings → Stream & EPG): Preferred Audio Language and Preferred Subtitle Language —
+  when a stream offers multiple language tracks, automatically picks the one you chose instead of
+  the stream's default. Depends on your provider tagging tracks with language info.
+
 ## v5.7 - 2026-07-25
 - **Changed** (phone): reordered Settings tabs — Providers now follows Display, Backup and Sync
   moved above Updates, and Updates is now the last tab before Logout.

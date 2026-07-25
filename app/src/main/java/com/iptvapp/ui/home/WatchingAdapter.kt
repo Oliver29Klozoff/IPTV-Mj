@@ -24,6 +24,8 @@ import com.iptvapp.databinding.ItemVodBinding
 // have a real lastWatched timestamp), Continue Watching Movies, and Continue Watching Series
 // (movies/series only track resume position, not a "when", so they can't be honestly interleaved
 // with channels by true recency — each section is sorted by whatever signal it actually has).
+// Long-press on a Continue Watching Movies/Series row dismisses it from this list without
+// touching its resume position (see HomeViewModel.dismissVodFromContinueWatching kdoc).
 sealed class WatchingRow {
     data class Header(val title: String) : WatchingRow()
     data class ChannelItem(val channel: ChannelEntity) : WatchingRow()
@@ -36,8 +38,10 @@ class WatchingAdapter(
     private val onChannelFavoriteClick: (ChannelEntity) -> Unit,
     private val onVodClick: (VodEntity) -> Unit,
     private val onVodFavoriteClick: (VodEntity) -> Unit,
+    private val onVodDismiss: (VodEntity) -> Unit,
     private val onSeriesClick: (InProgressSeriesRow) -> Unit,
-    private val onSeriesFavoriteClick: (InProgressSeriesRow) -> Unit
+    private val onSeriesFavoriteClick: (InProgressSeriesRow) -> Unit,
+    private val onSeriesDismiss: (InProgressSeriesRow) -> Unit
 ) : ListAdapter<WatchingRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
@@ -123,6 +127,7 @@ class WatchingAdapter(
             }
             binding.ivVodFavorite.setOnClickListener { onVodFavoriteClick(item) }
             binding.root.setOnClickListener { onVodClick(item) }
+            binding.root.setOnLongClickListener { onVodDismiss(item); true }
         }
     }
 
@@ -151,6 +156,7 @@ class WatchingAdapter(
             }
             binding.ivSeriesFavorite.setOnClickListener { onSeriesFavoriteClick(row) }
             binding.root.setOnClickListener { onSeriesClick(row) }
+            binding.root.setOnLongClickListener { onSeriesDismiss(row); true }
         }
     }
 

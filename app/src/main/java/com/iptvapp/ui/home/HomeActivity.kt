@@ -2071,6 +2071,10 @@ class HomeActivity : AppCompatActivity() {
                 })
             },
             onVodFavoriteClick = { vod -> viewModel.toggleVodFavorite(vod) },
+            onVodDismiss = { vod ->
+                viewModel.dismissVodFromContinueWatching(vod.streamId)
+                Toast.makeText(this, "Removed from Continue Watching", Toast.LENGTH_SHORT).show()
+            },
             onSeriesClick = { row ->
                 val series = row.series
                 startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
@@ -2082,7 +2086,11 @@ class HomeActivity : AppCompatActivity() {
                     putExtra("series_plot", series.plot)
                 })
             },
-            onSeriesFavoriteClick = { row -> viewModel.toggleSeriesFavorite(row.series) }
+            onSeriesFavoriteClick = { row -> viewModel.toggleSeriesFavorite(row.series) },
+            onSeriesDismiss = { row ->
+                viewModel.dismissSeriesFromContinueWatching(row.series.seriesId)
+                Toast.makeText(this, "Removed from Continue Watching", Toast.LENGTH_SHORT).show()
+            }
         )
 
         guideAdapter = GuideAdapter(

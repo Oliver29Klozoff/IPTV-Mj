@@ -117,7 +117,11 @@ class SettingsActivity : AppCompatActivity() {
             + "Show USA Channels Only / English Movies & Series Only: filters live channels "
             + "or VOD/series to just those tagged for that country/language by your "
             + "provider — depends entirely on your provider's own naming, so may not work "
-            + "for every provider.",
+            + "for every provider.\n\n"
+            + "Preferred Audio / Subtitle Language: when a stream offers multiple language "
+            + "tracks, automatically selects the one matching your choice instead of whatever "
+            + "the stream defaults to. Only works if the stream actually tags its tracks with "
+            + "language info — depends on your provider.",
         // 1: Display
         "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
             + "screen — the content itself isn't deleted, just the tab.\n\n"
@@ -175,6 +179,8 @@ class SettingsActivity : AppCompatActivity() {
         listOf(
             SettingSearchEntry("EPG URL", 0, R.id.hdrEpgUrl, R.id.hdrEpgUrl),
             SettingSearchEntry("Stream Format", 0, R.id.hdrFormat, R.id.hdrFormat),
+            SettingSearchEntry("Preferred Audio Language", 0, R.id.hdrLanguage, R.id.hdrLanguage),
+            SettingSearchEntry("Preferred Subtitle Language", 0, R.id.hdrLanguage, R.id.hdrLanguage),
             SettingSearchEntry("Video Player", 0, R.id.hdrPlayer, R.id.hdrPlayer),
             SettingSearchEntry("EPG Refresh", 0, R.id.hdrEpgSection, R.id.hdrEpgSection),
             SettingSearchEntry("Auto Refresh Schedule", 0, R.id.hdrEpgSection, R.id.hdrEpgSection),
@@ -272,6 +278,7 @@ class SettingsActivity : AppCompatActivity() {
                 val bodyId = when (match.headerId) {
                     R.id.hdrEpgUrl -> R.id.bodyEpgUrl
                     R.id.hdrFormat -> R.id.bodyFormat
+                    R.id.hdrLanguage -> R.id.bodyLanguage
                     R.id.hdrPlayer -> R.id.bodyPlayer
                     R.id.hdrEpgSection -> R.id.bodyEpgSection
                     R.id.hdrSpeedTest -> R.id.bodySpeedTest
@@ -552,6 +559,8 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        setupLanguageSpinners()
+
         binding.rgPlayer.setOnCheckedChangeListener { _, checkedId ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch {
@@ -582,6 +591,47 @@ class SettingsActivity : AppCompatActivity() {
         }
         observeEpgRefreshWork()
         loadSettings()
+    }
+
+    // (label, ISO 639-2 code) — "No preference" maps to "" (empty = auto/default track
+    // selection, see PlayerActivity's DefaultTrackSelector setup). Covers the languages most
+    // Xtream providers actually tag; anything untagged falls back to the stream's default.
+    private val languageOptions = listOf(
+        "No preference" to "",
+        "English" to "eng",
+        "Spanish" to "spa",
+        "French" to "fra",
+        "German" to "deu",
+        "Italian" to "ita",
+        "Portuguese" to "por",
+        "Arabic" to "ara",
+        "Russian" to "rus",
+        "Hindi" to "hin",
+        "Mandarin" to "zho"
+    )
+
+    private fun setupLanguageSpinners() {
+        val labels = languageOptions.map { it.first }
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, labels).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        binding.spinnerAudioLanguage.adapter = adapter
+        binding.spinnerSubtitleLanguage.adapter = adapter
+
+        binding.spinnerAudioLanguage.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (isLoadingSettings) return
+                lifecycleScope.launch { prefs.setPreferredAudioLanguage(languageOptions[position].second) }
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        binding.spinnerSubtitleLanguage.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (isLoadingSettings) return
+                lifecycleScope.launch { prefs.setPreferredSubtitleLanguage(languageOptions[position].second) }
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
     }
 
     private fun setupSectionToggles() {
@@ -897,6 +947,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupCollapsibleCards() {
         wireCollapsible(R.id.hdrEpgUrl,      R.id.bodyEpgUrl,      R.id.chevEpgUrl)
         wireCollapsible(R.id.hdrFormat,      R.id.bodyFormat,      R.id.chevFormat)
+        wireCollapsible(R.id.hdrLanguage,    R.id.bodyLanguage,    R.id.chevLanguage)
         wireCollapsible(R.id.hdrPlayer,      R.id.bodyPlayer,      R.id.chevPlayer)
         wireCollapsible(R.id.hdrEpgSection,  R.id.bodyEpgSection,  R.id.chevEpgSection)
         wireCollapsible(R.id.hdrSpeedTest,   R.id.bodySpeedTest,   R.id.chevSpeedTest)
@@ -1359,6 +1410,14 @@ class SettingsActivity : AppCompatActivity() {
                     "ts" -> binding.rbTs.isChecked = true
                     else -> binding.rbM3u8.isChecked = true
                 }
+                val savedAudioLang = prefs.preferredAudioLanguage.first()
+                binding.spinnerAudioLanguage.setSelection(
+                    languageOptions.indexOfFirst { it.second == savedAudioLang }.coerceAtLeast(0)
+                )
+                val savedSubLang = prefs.preferredSubtitleLanguage.first()
+                binding.spinnerSubtitleLanguage.setSelection(
+                    languageOptions.indexOfFirst { it.second == savedSubLang }.coerceAtLeast(0)
+                )
                 binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
                 binding.cbEnglishOnlyMovies.isChecked = prefs.englishOnlyMovies.first()
@@ -2342,6 +2401,8 @@ class SettingsActivity : AppCompatActivity() {
             put("password", creds.password)
             put("epgUrl", prefs.epgUrl.first())
             put("preferredFormat", prefs.preferredFormat.first())
+            put("preferredAudioLanguage", prefs.preferredAudioLanguage.first())
+            put("preferredSubtitleLanguage", prefs.preferredSubtitleLanguage.first())
             put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
             put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
             put("usaOnlyChannels", prefs.usaOnlyChannels.first())
@@ -2517,6 +2578,8 @@ class SettingsActivity : AppCompatActivity() {
 
         json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let { prefs.setEpgUrl(it) }
         json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
+        if (json.has("preferredAudioLanguage")) prefs.setPreferredAudioLanguage(json.optString("preferredAudioLanguage", ""))
+        if (json.has("preferredSubtitleLanguage")) prefs.setPreferredSubtitleLanguage(json.optString("preferredSubtitleLanguage", ""))
         if (json.has("epgAutoRefreshHours")) prefs.setEpgAutoRefreshHours(json.optInt("epgAutoRefreshHours", 0))
         if (json.has("epgRefreshMissingOnly")) prefs.setEpgRefreshMissingOnly(json.optBoolean("epgRefreshMissingOnly", false))
         if (json.has("usaOnlyChannels")) prefs.setUsaOnlyChannels(json.optBoolean("usaOnlyChannels", true))

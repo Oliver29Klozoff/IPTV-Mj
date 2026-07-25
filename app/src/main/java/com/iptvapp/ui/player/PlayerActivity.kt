@@ -833,11 +833,15 @@ class PlayerActivity : AppCompatActivity() {
             .setMediaCodecSelector(codecSelector)
 
         val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
+        val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
+        val preferredSubtitleLanguage = kotlinx.coroutines.runBlocking { prefs.preferredSubtitleLanguage.first() }
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
             parameters = buildUponParameters()
                 .apply { if (tunnelingEnabled) setTunnelingEnabled(true) }
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !subtitlesEnabled)
                 .setSelectUndeterminedTextLanguage(subtitlesEnabled)
+                .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
+                .apply { if (subtitlesEnabled && preferredSubtitleLanguage.isNotBlank()) setPreferredTextLanguage(preferredSubtitleLanguage) }
                 .build()
         }
 

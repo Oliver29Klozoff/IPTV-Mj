@@ -53,7 +53,8 @@ data class VodEntity(
     val isFavorite: Boolean = false,
     val watchedMs: Long = 0L,
     val durationMs: Long = 0L,
-    val cachedAt: Long = System.currentTimeMillis()
+    val cachedAt: Long = System.currentTimeMillis(),
+    val dismissedFromContinueWatching: Boolean = false
 )
 
 @Entity(tableName = "series")
@@ -69,7 +70,8 @@ data class SeriesEntity(
     val watchedMs: Long = 0L,
     val durationMs: Long = 0L,
     val cachedAt: Long = System.currentTimeMillis(),
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    val dismissedFromContinueWatching: Boolean = false
 )
 
 // serverIndex disambiguates which server this program listing belongs to — -1 = primary

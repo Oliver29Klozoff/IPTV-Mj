@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -300,6 +300,17 @@ abstract class IptvDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE merged_vod ADD COLUMN watchedMs INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE merged_vod ADD COLUMN durationMs INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE merged_vod ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // Dismiss flags for Continue Watching rows — separate from watchedMs so dismissing a
+        // row doesn't destroy the actual resume position. Cleared automatically the next time
+        // progress is saved (see VodDao.updateWatchProgress / EpisodeWatchedDao.saveProgress),
+        // so a dismissed item reappears once the user actually resumes watching it.
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE vod_streams ADD COLUMN dismissedFromContinueWatching INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE series ADD COLUMN dismissedFromContinueWatching INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

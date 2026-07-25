@@ -1601,6 +1601,18 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { repository.setLiveCategoryFavorite(categoryId, isFavorite) }
     }
 
+    // Dismiss just hides the row from Continue Watching — resume position is preserved, and the
+    // dismissal is cleared automatically the next time progress is saved (see
+    // VodDao.updateWatchProgress / EpisodeWatchedDao.saveProgress), so resuming playback brings
+    // the item right back.
+    fun dismissVodFromContinueWatching(streamId: Int) {
+        viewModelScope.launch { repository.dismissVodFromContinueWatching(streamId) }
+    }
+
+    fun dismissSeriesFromContinueWatching(seriesId: Int) {
+        viewModelScope.launch { repository.dismissSeriesFromContinueWatching(seriesId) }
+    }
+
     fun toggleLiveCategoryFavorite(categoryId: String) {
         viewModelScope.launch {
             val favoriteIds = repository.getFavoriteLiveCategoryIds().first()

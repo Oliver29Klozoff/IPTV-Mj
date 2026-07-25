@@ -140,14 +140,18 @@ interface VodDao {
     suspend fun setFavorite(streamId: Int, isFavorite: Boolean)
     @Query("SELECT COUNT(*) FROM vod_streams")
     suspend fun getCount(): Int
-    @Query("UPDATE vod_streams SET watchedMs = :watchedMs, durationMs = :durationMs WHERE streamId = :streamId")
+    // Clears dismissedFromContinueWatching on every progress save — a dismissed movie should
+    // reappear in Continue Watching once the user actually resumes it, not stay hidden forever.
+    @Query("UPDATE vod_streams SET watchedMs = :watchedMs, durationMs = :durationMs, dismissedFromContinueWatching = 0 WHERE streamId = :streamId")
     suspend fun updateWatchProgress(streamId: Int, watchedMs: Long, durationMs: Long)
     @Query("SELECT watchedMs FROM vod_streams WHERE streamId = :streamId")
     suspend fun getWatchedMs(streamId: Int): Long?
     @Query("SELECT durationMs FROM vod_streams WHERE streamId = :streamId")
     suspend fun getDurationMs(streamId: Int): Long?
-    @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 ORDER BY watchedMs DESC LIMIT 20")
+    @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 AND dismissedFromContinueWatching = 0 ORDER BY watchedMs DESC LIMIT 20")
     fun getInProgressVod(): Flow<List<VodEntity>>
+    @Query("UPDATE vod_streams SET dismissedFromContinueWatching = 1 WHERE streamId = :streamId")
+    suspend fun dismissFromContinueWatching(streamId: Int)
     // Backs fetchVodStreams' preserve-across-refresh merge — same pattern
     // ChannelDao.getUserData() already uses for live channels.
     @Query("SELECT streamId, isFavorite, watchedMs, durationMs FROM vod_streams")
@@ -214,6 +218,7 @@ interface SeriesDao {
             )
         ) ew ON ew.seriesId = s.seriesId
         WHERE s.isHidden = 0
+          AND s.dismissedFromContinueWatching = 0
           AND ew.durationMs > 0
           AND ew.watchedMs > 0
           AND CAST(ew.watchedMs AS REAL) / ew.durationMs < 0.95
@@ -221,6 +226,8 @@ interface SeriesDao {
         LIMIT 20
     """)
     fun getInProgressSeries(): Flow<List<InProgressSeriesRow>>
+    @Query("UPDATE series SET dismissedFromContinueWatching = 1 WHERE seriesId = :seriesId")
+    suspend fun dismissFromContinueWatching(seriesId: Int)
 }
 
 data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long, val isHidden: Boolean = false)
@@ -327,9 +334,14 @@ interface EpisodeWatchedDao {
     suspend fun ensureRow(seriesId: Int, season: Int, episode: Int)
     @Query("UPDATE episode_watched SET watchedMs = :watchedMs, durationMs = :durationMs WHERE seriesId = :seriesId AND season = :season AND episode = :episode")
     suspend fun updateProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long)
+    // Clears the series' dismissedFromContinueWatching flag on every episode progress save — a
+    // dismissed series should reappear in Continue Watching once the user resumes it.
+    @Query("UPDATE series SET dismissedFromContinueWatching = 0 WHERE seriesId = :seriesId")
+    suspend fun clearContinueWatchingDismissal(seriesId: Int)
     suspend fun saveProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long) {
         ensureRow(seriesId, season, episode)
         updateProgress(seriesId, season, episode, watchedMs, durationMs)
+        clearContinueWatchingDismissal(seriesId)
     }
     @Query("SELECT watchedMs FROM episode_watched WHERE seriesId = :seriesId AND season = :season AND episode = :episode")
     suspend fun getWatchedMs(seriesId: Int, season: Int, episode: Int): Long?
