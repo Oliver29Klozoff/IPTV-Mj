@@ -1442,6 +1442,12 @@ class HomeViewModel @Inject constructor(
 
     fun showFavoriteChannels() = selectFavoriteFolderView(null)
 
+    // One-shot snapshot of every merged/extra-provider favorite channel, across all providers —
+    // used by Mosaic's channel picker so a favorite from a secondary provider can be put in a
+    // tile too, not just primary-provider favorites.
+    suspend fun getMergedFavoriteChannelsSnapshot(): List<com.iptvapp.data.local.entities.MergedChannelEntity> =
+        repository.getMergedAllFavorites().first()
+
     private fun favoriteFlowForSelection() = when (selectedFavoriteFolder) {
         null -> repository.getFavoriteChannels()
         -1 -> repository.getUnfiledFavorites()

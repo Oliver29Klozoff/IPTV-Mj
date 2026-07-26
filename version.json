@@ -1,7 +1,7 @@
 {
-  "versionCode": 348,
-  "versionName": "5.10",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.10/MKTV.apk",
-  "apkSha256": "9f94a597e060cba82ae476345a5dd416e3da6e0b0421ac451f14e11bf7aeae90",
-  "changelog": "Continue Watching: long-press to select, then bulk Select All / Clear Selected instead of a single Clear All button."
+  "versionCode": 349,
+  "versionName": "5.11",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.11/MKTV.apk",
+  "apkSha256": "fd3e0812954f9eccbcf4b7760833b9f5c8e8f38b1f6ce861cbc3c1330143acbb",
+  "changelog": "Fixed: Mosaic multi-view channel picker now includes favorites from every configured provider, not just the primary one."
 }

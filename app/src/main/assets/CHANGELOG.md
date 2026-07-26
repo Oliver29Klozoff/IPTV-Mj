@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.11 - 2026-07-26
+- **Fixed** (Mosaic multi-view): the channel picker's search only ever listed primary-provider
+  favorites — a favorite from a secondary/extra provider couldn't be put in a Mosaic tile at all.
+  It now searches and plays channels from every configured provider.
+
 ## v5.10 - 2026-07-25
 - **Changed** (History tab): long-press a Continue Watching movie or series to select it,
   tap/long-press others to add to the selection, then use the bulk-select bar to Select All or

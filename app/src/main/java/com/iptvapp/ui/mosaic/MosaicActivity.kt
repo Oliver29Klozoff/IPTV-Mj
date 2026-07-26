@@ -40,13 +40,23 @@ class MosaicActivity : AppCompatActivity() {
     private var allMuted = false
     private var focusedCell = -1 // -1 = none focused
 
+    // Mosaic's channel picker previously only ever listed primary-provider favorites (viewModel
+    // .channels is documented as primary-only) — a merged/extra-provider favorite couldn't be
+    // put in a Mosaic tile at all. This wraps whichever kind is actually loaded into a cell so
+    // loadChannel/fullscreen-launch can resolve the right stream-URL call for either.
+    private sealed class MosaicChannel(val name: String, val streamId: Int) {
+        class Primary(val entity: ChannelEntity) : MosaicChannel(entity.name, entity.streamId)
+        class Merged(val entity: com.iptvapp.data.local.entities.MergedChannelEntity) :
+            MosaicChannel(entity.name, entity.streamId)
+    }
+
     private data class MosaicCell(
         val root: FrameLayout,
         val playerView: PlayerView,
         val tvName: TextView,
         val progress: ProgressBar,
         val focusRing: View,
-        var channel: ChannelEntity? = null
+        var channel: MosaicChannel? = null
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +77,7 @@ class MosaicActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val favs = viewModel.channels.first { it.isNotEmpty() }
             favs.take(gridSize).forEachIndexed { i, ch ->
-                if (i < cells.size) loadChannel(i, ch)
+                if (i < cells.size) loadChannel(i, MosaicChannel.Primary(ch))
             }
         }
     }
@@ -189,12 +199,26 @@ class MosaicActivity : AppCompatActivity() {
             if (focusedCell == index) {
                 // Second tap → fullscreen
                 lifecycleScope.launch {
-                    val url = viewModel.getLiveStreamUrl(ch.streamId)
-                    startActivity(Intent(this@MosaicActivity, PlayerActivity::class.java).apply {
-                        putExtra("stream_url", url)
-                        putExtra("stream_title", ch.name)
-                        putExtra("stream_id", ch.streamId)
-                    })
+                    when (ch) {
+                        is MosaicChannel.Primary -> {
+                            val url = viewModel.getLiveStreamUrl(ch.streamId)
+                            startActivity(Intent(this@MosaicActivity, PlayerActivity::class.java).apply {
+                                putExtra("stream_url", url)
+                                putExtra("stream_title", ch.name)
+                                putExtra("stream_id", ch.streamId)
+                            })
+                        }
+                        is MosaicChannel.Merged -> {
+                            val url = viewModel.getMergedLiveStreamUrl(ch.entity.serverIndex, ch.entity.streamId)
+                            startActivity(Intent(this@MosaicActivity, PlayerActivity::class.java).apply {
+                                putExtra("stream_url", url)
+                                putExtra("stream_title", "${ch.name} · ${ch.entity.serverNickname}")
+                                putExtra("stream_id", -1)
+                                putExtra("server_index", ch.entity.serverIndex)
+                                putExtra("merged_stream_id", ch.entity.streamId)
+                            })
+                        }
+                    }
                 }
             } else {
                 setFocus(index)
@@ -230,15 +254,21 @@ class MosaicActivity : AppCompatActivity() {
         focusedCell = index
     }
 
-    private fun loadChannel(index: Int, channel: ChannelEntity) {
+    private fun loadChannel(index: Int, channel: MosaicChannel) {
         val cell = cells.getOrNull(index) ?: return
         val player = players.getOrNull(index) ?: return
         cell.channel = channel
-        cell.tvName.text = channel.name
+        cell.tvName.text = when (channel) {
+            is MosaicChannel.Primary -> channel.name
+            is MosaicChannel.Merged -> "${channel.name} · ${channel.entity.serverNickname}"
+        }
         cell.progress.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            val url = viewModel.getLiveStreamUrl(channel.streamId)
+            val url = when (channel) {
+                is MosaicChannel.Primary -> viewModel.getLiveStreamUrl(channel.streamId)
+                is MosaicChannel.Merged -> viewModel.getMergedLiveStreamUrl(channel.entity.serverIndex, channel.entity.streamId)
+            }
             player.stop()
             player.clearMediaItems()
             player.setMediaItem(MediaItem.fromUri(url))
@@ -269,13 +299,17 @@ class MosaicActivity : AppCompatActivity() {
     // A plain AlertDialog.setItems() list of every favorite's name was fine for a handful of
     // channels, but unusable once someone has 50+ favorites with no way to filter — mirrors
     // the search-over-a-ListView pattern RecordingSchedulerActivity's channel picker already
-    // uses elsewhere in the app.
+    // uses elsewhere in the app. Now also includes merged/extra-provider favorites, not just
+    // primary — previously a favorite from a secondary provider couldn't be put in a tile at all.
     private fun showChannelPicker(cellIndex: Int) {
         lifecycleScope.launch {
-            val channels = viewModel.channels.value.ifEmpty {
+            val primaryChannels = viewModel.channels.value.ifEmpty {
                 viewModel.showFavoriteChannels()
                 viewModel.channels.first { it.isNotEmpty() }
             }
+            val mergedChannels = viewModel.getMergedFavoriteChannelsSnapshot()
+            val channels: List<MosaicChannel> =
+                primaryChannels.map { MosaicChannel.Primary(it) } + mergedChannels.map { MosaicChannel.Merged(it) }
             var filtered = channels
 
             val layout = android.widget.LinearLayout(this@MosaicActivity).apply {
@@ -301,11 +335,15 @@ class MosaicActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .create()
 
+            fun labelFor(ch: MosaicChannel) = when (ch) {
+                is MosaicChannel.Primary -> ch.name
+                is MosaicChannel.Merged -> "${ch.name} (${ch.entity.serverNickname})"
+            }
             fun rebuildList() {
                 val q = etSearch.text.toString().trim()
                 filtered = if (q.isBlank()) channels else channels.filter { it.name.contains(q, ignoreCase = true) }
                 listView.adapter = android.widget.ArrayAdapter(
-                    this@MosaicActivity, android.R.layout.simple_list_item_1, filtered.map { it.name }
+                    this@MosaicActivity, android.R.layout.simple_list_item_1, filtered.map { labelFor(it) }
                 )
             }
             listView.setOnItemClickListener { _, _, pos, _ ->
