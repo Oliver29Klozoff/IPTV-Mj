@@ -944,6 +944,31 @@
                                 android:text="Maps Dolby Vision Profile 7 content to standard HEVC for devices without proper DV7 hardware support"
                                 android:textColor="#888888"
                                 android:textSize="11sp" />
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Audio Passthrough Fallback"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="14sp" />
+                                <Switch
+                                    android:id="@+id/switchAudioPassthroughFallback"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Forces stereo audio instead of Dolby/DTS passthrough — turn this on only if some channels/movies have no sound at all. Off by default since it disables surround sound on setups that do have a receiver."
+                                android:textColor="#888888"
+                                android:textSize="11sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 

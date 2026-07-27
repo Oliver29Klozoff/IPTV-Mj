@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.14 - 2026-07-27
+- **Added** (Settings → Stream & EPG): Audio Passthrough Fallback — forces stereo audio instead
+  of Dolby/DTS passthrough for TV boxes that produce no sound at all on channels/movies with
+  surround audio when no receiver is connected. Off by default.
+- **Added**: the player now reconnects immediately when the network changes (e.g. WiFi to
+  cellular on phone) instead of waiting for the stream to error out or stall on its own.
+
 ## v5.13 - 2026-07-27
 - **Fixed**: backups (manual and automatic) were missing several real settings — accent color,
   AMOLED black, external player choice, tunneled playback, DV7 fallback, extra buffering, silent

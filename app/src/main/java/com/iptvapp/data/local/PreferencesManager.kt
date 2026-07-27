@@ -142,6 +142,7 @@ class PreferencesManager @Inject constructor(
         val SUBTITLES_ENABLED = booleanPreferencesKey("subtitles_enabled")
         val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
+        val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
@@ -161,6 +162,14 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.DV7_FALLBACK_ENABLED] ?: false }
     suspend fun setDv7FallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.DV7_FALLBACK_ENABLED] = v }
+
+    // Off by default — most setups (phone speaker, TV's own speakers, or an actual connected
+    // AVR) handle passthrough fine, and forcing PCM means losing surround sound on a device
+    // that DID have a receiver. Only turn on if E-AC3/DTS streams produce no sound at all.
+    val audioPassthroughFallbackEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
+    suspend fun setAudioPassthroughFallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] = v }
 
     // Global, applies to every server — not a per-server setting. Defaults on since slower/
     // less reliable IPTV providers are the norm here, and the bigger buffer directly trades

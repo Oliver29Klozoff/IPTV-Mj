@@ -1,7 +1,7 @@
 {
-  "versionCode": 351,
-  "versionName": "5.13",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.13/MKTV.apk",
-  "apkSha256": "87c937618aa5412e16897453b682dac16133fe35b82b890f0f48fef5e5856f3a",
-  "changelog": "Backups now include accent color, AMOLED black, player/playback toggles, silent self-update, crash reporting, and recording storage settings."
+  "versionCode": 352,
+  "versionName": "5.14",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.14/MKTV.apk",
+  "apkSha256": "b61a6ab907e1dc2c0781e22082d0dd19842af38bb2f1eb00bbb6e87ccfc1474d",
+  "changelog": "Added Audio Passthrough Fallback setting and automatic reconnect on network change (e.g. WiFi to cellular)."
 }

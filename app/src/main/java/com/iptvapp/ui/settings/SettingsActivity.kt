@@ -111,6 +111,10 @@ class SettingsActivity : AppCompatActivity() {
             + "standard HEVC decoder instead (DV7 streams always include a valid HEVC base "
             + "layer), trading the extra HDR enhancement layer for a picture that actually "
             + "plays.\n\n"
+            + "Audio Passthrough Fallback: some TV boxes report Dolby/DTS passthrough support "
+            + "but produce no sound at all when no receiver is actually connected — this forces "
+            + "stereo audio instead. Off by default since it disables surround sound on setups "
+            + "that DO have a receiver; only turn it on if some channels/movies have no audio.\n\n"
             + "Global Extra Buffering: builds up a bigger buffer before playback starts, "
             + "trading a slower start for fewer stalls mid-stream on slow/unreliable "
             + "connections. On by default.\n\n"
@@ -188,6 +192,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("DNS over HTTPS", 0, R.id.hdrDoh, R.id.hdrDoh),
             SettingSearchEntry("Tunneled Playback", 0, null, R.id.switchTunneledPlayback),
             SettingSearchEntry("DV7 HEVC Fallback", 0, null, R.id.switchDv7Fallback),
+            SettingSearchEntry("Audio Passthrough Fallback", 0, null, R.id.switchAudioPassthroughFallback),
             SettingSearchEntry("Global Extra Buffering", 0, null, R.id.switchExtraBuffering),
             SettingSearchEntry("Picture-in-Picture", 0, null, R.id.switchPipEnabled),
             SettingSearchEntry("Show USA Channels Only", 0, null, R.id.cbUsaOnlyChannels),
@@ -1502,6 +1507,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchSyncEnabled.isChecked = prefs.syncEnabled.first()
                 binding.switchTunneledPlayback.isChecked = prefs.tunneledPlaybackEnabled.first()
                 binding.switchDv7Fallback.isChecked = prefs.dv7FallbackEnabled.first()
+                binding.switchAudioPassthroughFallback.isChecked = prefs.audioPassthroughFallbackEnabled.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
@@ -2353,6 +2359,10 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setDv7FallbackEnabled(enabled) }
         }
+        binding.switchAudioPassthroughFallback.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setAudioPassthroughFallbackEnabled(enabled) }
+        }
         binding.switchExtraBuffering.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
@@ -2482,6 +2492,7 @@ class SettingsActivity : AppCompatActivity() {
             put("externalPlayer", prefs.externalPlayer.first())
             put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
             put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
+            put("audioPassthroughFallbackEnabled", prefs.audioPassthroughFallbackEnabled.first())
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
             put("crashReportingEnabled", prefs.crashReportingEnabled.first())
@@ -2683,6 +2694,7 @@ class SettingsActivity : AppCompatActivity() {
         json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
         if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))
         if (json.has("dv7FallbackEnabled")) prefs.setDv7FallbackEnabled(json.optBoolean("dv7FallbackEnabled", false))
+        if (json.has("audioPassthroughFallbackEnabled")) prefs.setAudioPassthroughFallbackEnabled(json.optBoolean("audioPassthroughFallbackEnabled", false))
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
         if (json.has("crashReportingEnabled")) prefs.setCrashReportingEnabled(json.optBoolean("crashReportingEnabled", true))

@@ -165,6 +165,14 @@ class PlayerActivity : AppCompatActivity() {
     private var channelSwitchJob: Job? = null
     private var bufferWatchdog: Runnable? = null
 
+    // A WiFi<->cellular handoff (or any switch to a genuinely different network) silently kills
+    // the in-flight HTTP connection at the OS level without necessarily surfacing as a
+    // PlaybackException right away — until now the player had no idea the network even changed
+    // and just waited for the existing error/stall-triggered scheduleRetry() path to eventually
+    // notice. This reacts immediately instead of waiting for that.
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+    private var lastKnownNetwork: android.net.Network? = null
+
     private var sleepTimer: CountDownTimer? = null
     private var isAdjustingGesture = false
     private var gestureAccumY = 0f
@@ -243,6 +251,7 @@ class PlayerActivity : AppCompatActivity() {
 
         setupChannelZones()
         setupGestureDetector()
+        setupNetworkChangeReconnect()
         binding.tvChannelTitle.text = streamTitle
         binding.btnBack.setOnClickListener { finish() }
 
@@ -811,6 +820,7 @@ class PlayerActivity : AppCompatActivity() {
 
         val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
         val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }
+        val audioPassthroughFallbackEnabled = kotlinx.coroutines.runBlocking { prefs.audioPassthroughFallbackEnabled.first() }
 
         // DV7 fallback: some devices lack proper Dolby Vision Profile 7 (dual-layer) decode
         // support and either fail or black-screen. When enabled, redirect DV7 content to a
@@ -829,8 +839,31 @@ class PlayerActivity : AppCompatActivity() {
             }
         } else androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
 
-        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
-            .setMediaCodecSelector(codecSelector)
+        // Audio passthrough fallback: some TV boxes report E-AC3/DTS passthrough support
+        // (AudioCapabilities queries the device/HDMI sink) but produce total silence or crash
+        // when no AVR/receiver is actually connected to decode it. Forcing AudioCapabilities.
+        // DEFAULT (stereo PCM only, no passthrough encodings) makes DefaultAudioSink always
+        // transcode instead of passing through, at the cost of losing surround sound on setups
+        // that genuinely do have a receiver — same opt-in, device-specific-workaround shape as
+        // the DV7 fallback above.
+        val renderersFactory = if (audioPassthroughFallbackEnabled) {
+            object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
+                override fun buildAudioSink(
+                    context: android.content.Context,
+                    enableFloatOutput: Boolean,
+                    enableAudioTrackPlaybackParams: Boolean
+                ): androidx.media3.exoplayer.audio.AudioSink {
+                    return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                        .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                        .setEnableFloatOutput(enableFloatOutput)
+                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                        .build()
+                }
+            }.setMediaCodecSelector(codecSelector)
+        } else {
+            androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                .setMediaCodecSelector(codecSelector)
+        }
 
         val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
         val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
@@ -1125,6 +1158,44 @@ class PlayerActivity : AppCompatActivity() {
         val withoutExt = streamUrl.substringBeforeLast('.')
         if (withoutExt == streamUrl) return null
         return "$withoutExt.m3u8"
+    }
+
+    /** Registers a live network-change listener so a WiFi<->cellular handoff (or losing/gaining
+     * any network) triggers an immediate reconnect attempt instead of waiting for the stream to
+     * eventually error out or stall on its own — same underlying reconnect (scheduleRetry) the
+     * error/stall paths already use, just triggered proactively. `onAvailable` fires for the
+     * new default network once the handoff completes; comparing against lastKnownNetwork avoids
+     * reacting to the very first callback (registration itself always fires once immediately)
+     * or to capability-only changes on the same network (e.g. signal strength ticking) that
+     * registerDefaultNetworkCallback does NOT fire for anyway (it's Network-identity-based, not
+     * capability-based). */
+    private fun setupNetworkChangeReconnect() {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                val previous = lastKnownNetwork
+                lastKnownNetwork = network
+                // First callback on registration is just "here's the current network" — not an
+                // actual change to react to.
+                if (previous == null) return
+                if (previous == network) return
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "NETWORK CHANGED: streamId=$streamId reconnecting proactively"
+                )
+                runOnUiThread {
+                    retryJob?.cancel()
+                    retryCount = 0
+                    scheduleRetry()
+                }
+            }
+        }
+        networkCallback = callback
+        try {
+            cm.registerDefaultNetworkCallback(callback)
+        } catch (_: Exception) {
+            networkCallback = null
+        }
     }
 
     private fun scheduleRetry(suspectConnectionLimit: Boolean = false) {
@@ -1850,6 +1921,11 @@ class PlayerActivity : AppCompatActivity() {
         indicatorHandler.removeCallbacks(hideVolumeRunnable)
         recordBlinkAnimator?.cancel()
         unregisterPipActionReceiver()
+        networkCallback?.let { cb ->
+            try {
+                (getSystemService(CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager)?.unregisterNetworkCallback(cb)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun getLocalIpAddress(): String? {
