@@ -98,6 +98,11 @@ class MergedChannelAdapter(
                 binding.ivFavorite.isFocusable = false
             }
             binding.tvChannelName.text = item.name
+            val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
+            binding.tvQualityBadge?.apply {
+                visibility = if (quality != null) View.VISIBLE else View.GONE
+                text = quality ?: ""
+            }
             binding.tvServerNickname.text = item.serverNickname
             val epg = epgTextByKey[key]
             binding.tvEpgNow.visibility = if (epg != null) View.VISIBLE else View.GONE

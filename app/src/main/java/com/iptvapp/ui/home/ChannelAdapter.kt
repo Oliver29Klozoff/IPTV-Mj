@@ -110,6 +110,11 @@ class ChannelAdapter(
 
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
+            val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
+            binding.tvQualityBadge?.apply {
+                visibility = if (quality != null) View.VISIBLE else View.GONE
+                text = quality ?: ""
+            }
             binding.tvEpgNow.text = epgTextByStreamId[item.streamId] ?: "Guide loading..."
 
             val nextText = epgNextTextByStreamId[item.streamId]

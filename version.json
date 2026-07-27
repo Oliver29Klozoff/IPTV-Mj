@@ -1,7 +1,7 @@
 {
-  "versionCode": 352,
-  "versionName": "5.14",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.14/MKTV.apk",
-  "apkSha256": "b61a6ab907e1dc2c0781e22082d0dd19842af38bb2f1eb00bbb6e87ccfc1474d",
-  "changelog": "Added Audio Passthrough Fallback setting and automatic reconnect on network change (e.g. WiFi to cellular)."
+  "versionCode": 353,
+  "versionName": "5.15",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.15/MKTV.apk",
+  "apkSha256": "052b510676b436ae3690348a95b713b478f8d2851dd3fc1a8bd07b9e549fd705",
+  "changelog": "Added quality badge (SD/HD/FHD/4K) on channel tiles, parsed from the channel name."
 }

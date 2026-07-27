@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.15 - 2026-07-27
+- **Added**: a quality badge (SD/HD/FHD/4K) on channel tiles across Live, Favorites, Providers,
+  Continue Watching, and Search — parsed from the channel name itself, so duplicate channels
+  from different providers are easier to tell apart at a glance.
+
 ## v5.14 - 2026-07-27
 - **Added** (Settings → Stream & EPG): Audio Passthrough Fallback — forces stereo audio instead
   of Dolby/DTS passthrough for TV boxes that produce no sound at all on channels/movies with

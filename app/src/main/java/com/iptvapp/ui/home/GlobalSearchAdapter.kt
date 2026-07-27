@@ -34,6 +34,12 @@ class GlobalSearchAdapter(
                 is GlobalSearchResult.MergedSeries -> Triple(result.entity.name, result.entity.cover, "Series")
             }
             binding.tvChannelName.text = name
+            val isChannel = result is GlobalSearchResult.Channel || result is GlobalSearchResult.MergedChannel
+            val quality = if (isChannel) com.iptvapp.util.ChannelQualityTag.labelFor(name) else null
+            binding.tvQualityBadge?.apply {
+                visibility = if (quality != null) View.VISIBLE else View.GONE
+                text = quality ?: ""
+            }
             Glide.with(binding.ivChannelLogo)
                 .load(icon)
                 .placeholder(android.R.drawable.ic_menu_gallery)

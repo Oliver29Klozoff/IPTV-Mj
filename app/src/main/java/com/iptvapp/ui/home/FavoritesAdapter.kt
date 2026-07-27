@@ -1,6 +1,7 @@
 package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -73,6 +74,11 @@ class FavoritesAdapter(
 
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
+            val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
+            binding.tvQualityBadge?.apply {
+                visibility = if (quality != null) View.VISIBLE else View.GONE
+                text = quality ?: ""
+            }
             binding.tvEpgNow.text = ""
 
             Glide.with(binding.ivChannelLogo)

@@ -102,6 +102,11 @@ class WatchingAdapter(
     inner class ChannelViewHolder(val binding: ItemChannelBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
+            val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
+            binding.tvQualityBadge?.apply {
+                visibility = if (quality != null) View.VISIBLE else View.GONE
+                text = quality ?: ""
+            }
             binding.tvEpgNow.visibility = View.GONE
             Glide.with(binding.ivChannelLogo)
                 .load(item.streamIcon)

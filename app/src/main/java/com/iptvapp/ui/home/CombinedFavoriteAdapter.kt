@@ -85,6 +85,11 @@ class CombinedFavoriteAdapter(
 
         fun bind(item: CombinedFavorite) {
             binding.tvChannelName.text = item.name
+            val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
+            binding.tvQualityBadge?.apply {
+                visibility = if (quality != null) View.VISIBLE else View.GONE
+                text = quality ?: ""
+            }
             binding.tvEpgNow.text = epgTextById[item.id] ?: "Guide loading..."
 
             val nextText = epgNextTextById[item.id]
