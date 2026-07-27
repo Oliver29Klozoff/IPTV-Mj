@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.19 - 2026-07-27
+- **Fixed**: some trailers failed with "Video unavailable" in the embedded player (the uploader
+  disabled embedded playback for that specific video — a YouTube-side restriction, not a bug).
+  Now shows a clear message with a "Watch on YouTube" button instead of a dead black screen.
+
 ## v5.18 - 2026-07-27
 - **Added**: "Watch Trailer" button on Movie and Series detail screens — plays the provider's
   YouTube trailer in an embedded player, when one is available for that title.

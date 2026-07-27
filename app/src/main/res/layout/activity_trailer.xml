@@ -19,4 +19,38 @@
         android:tint="#FFFFFF"
         android:contentDescription="Close" />
 
+    <!-- Shown only when YouTube reports this specific video can't play in an embedded player
+         (a per-video restriction the uploader set, same as youtube.com's own site would show —
+         not fixable by retrying or switching player libraries). -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/tvTrailerError"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="This trailer can't play here — the uploader has disabled embedded playback."
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnWatchOnYoutube"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:backgroundTint="#FF0000"
+            android:text="Watch on YouTube"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
 </FrameLayout>

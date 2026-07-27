@@ -1,7 +1,7 @@
 {
-  "versionCode": 356,
-  "versionName": "5.18",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.18/MKTV.apk",
-  "apkSha256": "9888c3cdf654519de3b4ce93c93962301675082291de60d4fa014aeb31fe2548",
-  "changelog": "Added Watch Trailer for Movies/Series (when the provider has one), and fixed a blank Guide screen with no cached EPG data."
+  "versionCode": 357,
+  "versionName": "5.19",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.19/MKTV.apk",
+  "apkSha256": "8662d1aab4508ad33aeb3e23117f563828b1f5659a33d6cde7ddb72dcc74c43d",
+  "changelog": "Fixed unplayable trailers showing a dead screen — now offers Watch on YouTube instead."
 }
