@@ -196,6 +196,17 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    // Shows "Skip to Next Episode" once the player enters the last minute of a series episode
+    // (see skipToNextEpisode kdoc) — a minute is comfortably longer than most shows' end credits
+    // without being so early it interrupts the episode's actual final scene.
+    private val skipNextHandler = Handler(Looper.getMainLooper())
+    private val skipNextRunnable = object : Runnable {
+        override fun run() {
+            updateSkipToNextEpisodeVisibility()
+            skipNextHandler.postDelayed(this, 2000)
+        }
+    }
+
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
     private var castAvailable = false
@@ -283,38 +294,57 @@ class PlayerActivity : AppCompatActivity() {
         if (isVod && resumePositionMs > 0L) showResumeDialog()
     }
 
+    // Data for whichever advance action is actually available right now (next episode in the
+    // current list, or next season's first episode) — resolved once and shared by both the
+    // end-of-stream Up Next card and the manual "Skip to Next Episode" button, so the two never
+    // disagree about what "next" means.
+    private data class NextEpisodeAction(val title: String, val advance: () -> Unit)
+
+    private suspend fun resolveNextEpisodeAction(): NextEpisodeAction? {
+        val nextIndex = epIndex + 1
+        if (epIds.isEmpty()) return null
+
+        if (nextIndex < epIds.size) {
+            val title = epTitles.getOrElse(nextIndex) { "Next Episode" }
+            return NextEpisodeAction(title) { playNextEpisode(nextIndex) }
+        }
+
+        // Last episode of the season the player was launched with — epIds/epTitles/epExts
+        // only ever contain ONE season's episodes (see SeriesDetailActivity.launchEpisode,
+        // which passes currentSeasonEpisodes), so reaching the end of that array doesn't
+        // mean the series itself is over. Fetch the next season's episode list fresh and
+        // splice it in, rather than leaving Up Next silently unavailable at every season
+        // finale. Only possible for primary-provider series (episodeSeriesId == -1 for
+        // merged/other-provider series, which have no season/episode-int metadata to look
+        // this up from — see PlayerActivity's merged-series comment near saveVodProgress).
+        if (episodeSeriesId == -1) return null
+        val currentSeasonEpisode = traktManager.parseSeasonEpisode(epTitles.lastOrNull() ?: return null)
+            ?: return null
+        val nextSeasonNum = currentSeasonEpisode.first + 1
+        val info = (repository.fetchSeriesInfo(episodeSeriesId) as? com.iptvapp.util.Resource.Success)?.data ?: return null
+        val nextSeasonEpisodes = info.episodes?.get(nextSeasonNum.toString())
+            ?.sortedBy { it.episodeNum } ?: return null
+        if (nextSeasonEpisodes.isEmpty()) return null
+
+        val title = "S$nextSeasonNum E${nextSeasonEpisodes.first().episodeNum} ${nextSeasonEpisodes.first().title}"
+        return NextEpisodeAction(title) { playNextSeason(nextSeasonEpisodes) }
+    }
+
     private fun showUpNextIfAvailable() {
         lifecycleScope.launch {
             if (!prefs.autoplayNextEpisodeEnabled.first()) return@launch
+            val action = resolveNextEpisodeAction() ?: return@launch
+            showUpNextCard(action.title, action.advance)
+        }
+    }
 
-            val nextIndex = epIndex + 1
-            if (epIds.isEmpty()) return@launch
-
-            if (nextIndex < epIds.size) {
-                showUpNextCard(epTitles.getOrElse(nextIndex) { "Next Episode" }) { playNextEpisode(nextIndex) }
-                return@launch
-            }
-
-            // Last episode of the season the player was launched with — epIds/epTitles/epExts
-            // only ever contain ONE season's episodes (see SeriesDetailActivity.launchEpisode,
-            // which passes currentSeasonEpisodes), so reaching the end of that array doesn't
-            // mean the series itself is over. Fetch the next season's episode list fresh and
-            // splice it in, rather than leaving Up Next silently unavailable at every season
-            // finale. Only possible for primary-provider series (episodeSeriesId == -1 for
-            // merged/other-provider series, which have no season/episode-int metadata to look
-            // this up from — see PlayerActivity's merged-series comment near saveVodProgress).
-            if (episodeSeriesId == -1) return@launch
-            val currentSeasonEpisode = traktManager.parseSeasonEpisode(epTitles.lastOrNull() ?: return@launch)
-                ?: return@launch
-            val nextSeasonNum = currentSeasonEpisode.first + 1
-            val info = (repository.fetchSeriesInfo(episodeSeriesId) as? com.iptvapp.util.Resource.Success)?.data ?: return@launch
-            val nextSeasonEpisodes = info.episodes?.get(nextSeasonNum.toString())
-                ?.sortedBy { it.episodeNum } ?: return@launch
-            if (nextSeasonEpisodes.isEmpty()) return@launch
-
-            showUpNextCard("S$nextSeasonNum E${nextSeasonEpisodes.first().episodeNum} ${nextSeasonEpisodes.first().title}") {
-                playNextSeason(nextSeasonEpisodes)
-            }
+    // Lets you skip the trailing credits of an episode instead of waiting for STATE_ENDED —
+    // unlike the Up Next card, this jumps straight to the next episode with no countdown, since
+    // tapping it is already the explicit "I'm done, move on" action.
+    private fun skipToNextEpisode() {
+        binding.btnSkipToNextEpisode.visibility = View.GONE
+        lifecycleScope.launch {
+            resolveNextEpisodeAction()?.advance?.invoke()
         }
     }
 
@@ -574,6 +604,27 @@ class PlayerActivity : AppCompatActivity() {
         isHealthBadgeActive = false
         healthHandler.removeCallbacks(healthRunnable)
         binding.bufferHealthBadge.visibility = View.GONE
+    }
+
+    private var skipNextPollerStarted = false
+
+    private fun startSkipNextPoller() {
+        if (skipNextPollerStarted) return
+        skipNextPollerStarted = true
+        binding.btnSkipToNextEpisode.setOnClickListener { skipToNextEpisode() }
+        skipNextHandler.postDelayed(skipNextRunnable, 2000)
+    }
+
+    private fun updateSkipToNextEpisodeVisibility() {
+        val p = player ?: return
+        val duration = p.duration
+        if (duration == androidx.media3.common.C.TIME_UNSET || duration <= 0L) return
+        val remaining = duration - p.currentPosition
+        val withinLastMinute = remaining in 0..60_000L
+        // Hidden once the Up Next card itself is already showing (STATE_ENDED fired) — at that
+        // point the countdown card is the relevant control, not this one.
+        val shouldShow = withinLastMinute && binding.upNextCard.visibility != View.VISIBLE
+        binding.btnSkipToNextEpisode.visibility = if (shouldShow) View.VISIBLE else View.GONE
     }
 
     private fun showSleepTimerDialog() {
@@ -1013,6 +1064,7 @@ class PlayerActivity : AppCompatActivity() {
                                 binding.progressBuffering.visibility = View.GONE
                                 binding.tvRetryStatus.visibility = View.GONE
                                 if (isVod) startSeekBarUpdater()
+                                if (isVod && epIds.isNotEmpty()) startSkipNextPoller()
                                 startHealthBadge()
                                 // D-pad channel-change deliberately suppresses this so repeated
                                 // up/down keeps flipping channels instead of the first change
@@ -1945,6 +1997,7 @@ class PlayerActivity : AppCompatActivity() {
         retryJob?.cancel()
         seekRunnable?.let { seekHandler.removeCallbacks(it) }
         statsHandler.removeCallbacks(statsRunnable)
+        skipNextHandler.removeCallbacks(skipNextRunnable)
         stopHealthBadge()
         if (!isChangingConfigurations) {
             player?.release()

@@ -635,4 +635,24 @@
 
     </LinearLayout>
 
+    <!-- Shown during the last minute of a series episode (well before STATE_ENDED/credits),
+         letting you skip straight to the next episode instead of waiting through the credits
+         for the Up Next card above to appear. Hidden whenever Up Next is showing/already acted
+         on, since at that point this would be redundant. -->
+    <Button
+        android:id="@+id/btnSkipToNextEpisode"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="48dp"
+        android:layout_marginEnd="24dp"
+        android:backgroundTint="#CC000000"
+        android:text="Skip to Next Episode  ▶"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

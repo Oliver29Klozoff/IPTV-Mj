@@ -1,7 +1,7 @@
 {
-  "versionCode": 360,
-  "versionName": "5.22",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.22/MKTV.apk",
-  "apkSha256": "606b8feeb3426f5c4a67f00348d84a581f2984c05eb16fb63f8cd928f8524700",
-  "changelog": "Added Autoplay Next Episode toggle; Up Next now also works across season boundaries."
+  "versionCode": 361,
+  "versionName": "5.23",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.23/MKTV.apk",
+  "apkSha256": "88802f755364c3e854473d7804918800ca799b5fa8544e85647a707834ec2fbb",
+  "changelog": "Added Skip to Next Episode button during the last minute of a series episode."
 }

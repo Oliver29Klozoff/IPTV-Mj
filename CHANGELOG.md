@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.23 - 2026-07-27
+- **Added**: "Skip to Next Episode" button appears during the last minute of a series episode —
+  jump straight to the next episode without waiting through the credits for the end-of-episode
+  Up Next prompt.
+
 ## v5.22 - 2026-07-27
 - **Added** (Settings → Stream & EPG): Autoplay Next Episode toggle — on by default. The Up Next
   prompt (10s countdown, cancelable) that already existed now also works across season
