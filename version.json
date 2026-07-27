@@ -1,7 +1,7 @@
 {
-  "versionCode": 357,
-  "versionName": "5.19",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.19/MKTV.apk",
-  "apkSha256": "8662d1aab4508ad33aeb3e23117f563828b1f5659a33d6cde7ddb72dcc74c43d",
-  "changelog": "Fixed unplayable trailers showing a dead screen — now offers Watch on YouTube instead."
+  "versionCode": 358,
+  "versionName": "5.20",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.20/MKTV.apk",
+  "apkSha256": "411cdb84d47dd947519af01c3a623d9a70ad5c6d729a68722c8b35004294245d",
+  "changelog": "Fixed: Watch on YouTube fallback now shows for every trailer playback error, not just two specific ones."
 }

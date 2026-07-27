@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.20 - 2026-07-27
+- **Fixed**: the "Watch on YouTube" fallback from v5.19 only appeared for two specific trailer
+  error codes — other error codes (a generic player error, invalid request, etc.) still showed
+  just a toast with no way to actually watch it. Now every trailer playback error shows the
+  Watch on YouTube fallback.
+
 ## v5.19 - 2026-07-27
 - **Fixed**: some trailers failed with "Video unavailable" in the embedded player (the uploader
   disabled embedded playback for that specific video — a YouTube-side restriction, not a bug).

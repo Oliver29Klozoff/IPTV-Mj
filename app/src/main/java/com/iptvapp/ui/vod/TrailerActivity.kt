@@ -45,19 +45,14 @@ class TrailerActivity : AppCompatActivity() {
                 youTubePlayer.loadVideo(videoId, 0f)
             }
 
-            // The uploader disabled playback in third-party embedded players — this is a
-            // per-video restriction set on YouTube's end (same thing youtube.com's own site
-            // shows), not something a different player library or retry would fix. Offer to
-            // open it in the real YouTube app/site instead of leaving a dead black screen.
+            // Whatever the specific error code, the embedded player has already failed and
+            // there's nothing left to retry within it — every PlayerError case (not-found,
+            // embedding-disabled, invalid request, the generic "HTML5 player error", etc.) ends
+            // up needing the same escape hatch, so always offer it rather than only for the two
+            // cases originally guessed at.
             override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
-                if (error == PlayerConstants.PlayerError.VIDEO_NOT_FOUND ||
-                    error == PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER
-                ) {
-                    binding.tvTrailerError.visibility = View.VISIBLE
-                    binding.btnWatchOnYoutube.visibility = View.VISIBLE
-                } else {
-                    Toast.makeText(this@TrailerActivity, "Couldn't play trailer", Toast.LENGTH_SHORT).show()
-                }
+                binding.tvTrailerError.visibility = View.VISIBLE
+                binding.btnWatchOnYoutube.visibility = View.VISIBLE
             }
         })
     }
