@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.16 - 2026-07-27
+- **Fixed**: Settings → "Check for Update" showed an empty "What's new" popup — it only tried to
+  read the changelog as a JSON array, but it's actually published as a plain string. Now falls
+  back correctly, same as the automatic update popup already did.
+
 ## v5.15 - 2026-07-27
 - **Added**: a quality badge (SD/HD/FHD/4K) on channel tiles across Live, Favorites, Providers,
   Continue Watching, and Search — parsed from the channel name itself, so duplicate channels

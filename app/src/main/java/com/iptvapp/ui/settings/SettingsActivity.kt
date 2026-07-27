@@ -1401,10 +1401,13 @@ class SettingsActivity : AppCompatActivity() {
                 val apkSha256 = obj.optString("apkSha256", "").takeIf { it.isNotBlank() }
                 val installedCode = packageManager.getPackageInfo(packageName, 0).longVersionCode
                 if (latestCode > installedCode) {
-                    val changelog = buildString {
-                        val arr = obj.optJSONArray("changelog")
-                        if (arr != null) for (i in 0 until arr.length()) append("• ${arr.getString(i)}\n")
-                    }.trimEnd()
+                    // version.json's "changelog" has always been published as a plain string,
+                    // never a JSON array — optJSONArray() silently returns null for a string
+                    // field, which meant this dialog always showed an empty "What's new" body.
+                    // UpdateChecker.buildChangelog already has the correct array-or-string
+                    // fallback (used by the automatic update popup) — reuse it here instead of
+                    // re-duplicating (and re-breaking) the same logic.
+                    val changelog = com.iptvapp.update.UpdateChecker(this@SettingsActivity).buildChangelog(obj)
                     binding.tvUpdateStatus.text = "v$latestName available"
                     AlertDialog.Builder(this@SettingsActivity)
                         .setTitle("MKTV $latestName Available")
