@@ -39,6 +39,8 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("password", creds.password)
                 put("epgUrl", prefs.epgUrl.first())
                 put("preferredFormat", prefs.preferredFormat.first())
+                put("preferredAudioLanguage", prefs.preferredAudioLanguage.first())
+                put("preferredSubtitleLanguage", prefs.preferredSubtitleLanguage.first())
                 put("epgAutoRefreshHours", prefs.epgAutoRefreshHours.first())
                 put("epgRefreshMissingOnly", prefs.epgRefreshMissingOnly.first())
                 put("usaOnlyChannels", prefs.usaOnlyChannels.first())
@@ -73,12 +75,92 @@ class AutoBackupWorker @AssistedInject constructor(
                 // app-private storage but is still a plaintext export a user could later share
                 // manually; reconnecting Trakt after a restore is a small one-time action,
                 // copying a bearer token into an exportable file is not.
-                put("extraServers", JSONArray(prefs.getExtraServersWithNick().map { s ->
+                val extraServersList = prefs.getExtraServersWithNick()
+                put("extraServers", JSONArray(extraServersList.map { s ->
                     JSONObject().apply {
                         put("url", s[0]); put("user", s[1]); put("pass", s[2])
                         put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
                     }
                 }))
+
+                // Merged/other-provider favorites and pinned/hidden categories — previously
+                // missing entirely from auto-backup even though the manual "Backup" button
+                // includes them (buildBackupJson in SettingsActivity.kt), so a weekly
+                // auto-backup silently dropped every non-primary-provider favorite. Keyed by
+                // server URL, not serverIndex, for the same cross-device-identity reason
+                // buildBackupJson's version is.
+                val mergedUrlByIndex = extraServersList.mapIndexedNotNull { i, s ->
+                    s.getOrNull(0)?.takeIf { it.isNotBlank() }?.let { i to it }
+                }.toMap()
+                val mergedFavorites = db.mergedChannelDao().getAllFavorites().first()
+                put("mergedFavorites", JSONArray(mergedFavorites.mapNotNull { ch ->
+                    val url = mergedUrlByIndex[ch.serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply {
+                        put("serverUrl", url)
+                        put("streamId", ch.streamId)
+                        ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { put("folderName", it) } }
+                    }
+                }))
+                val favoriteMergedCategoryKeys = prefs.favoriteMergedCategoryIds.first()
+                put("mergedFavoriteCategories", JSONArray(favoriteMergedCategoryKeys.mapNotNull { key ->
+                    val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                    val categoryId = key.substringAfter(':', "")
+                    val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+                }))
+                val mergedVodFavorites = db.mergedVodDao().getAllFavorites().first()
+                put("mergedVodFavorites", JSONArray(mergedVodFavorites.mapNotNull { v ->
+                    val url = mergedUrlByIndex[v.serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply {
+                        put("serverUrl", url)
+                        put("streamId", v.streamId)
+                        v.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { put("folderName", it) } }
+                    }
+                }))
+                val mergedSeriesFavorites = db.mergedSeriesDao().getAllFavorites().first()
+                put("mergedSeriesFavorites", JSONArray(mergedSeriesFavorites.mapNotNull { s ->
+                    val url = mergedUrlByIndex[s.serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply {
+                        put("serverUrl", url)
+                        put("seriesId", s.seriesId)
+                        s.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { put("folderName", it) } }
+                    }
+                }))
+                val hiddenVodKeys = prefs.hiddenMergedVodCategoryIds.first()
+                put("hiddenMergedVodCategories", JSONArray(hiddenVodKeys.mapNotNull { key ->
+                    val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                    val categoryId = key.substringAfter(':', "")
+                    val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+                }))
+                val hiddenSeriesKeys = prefs.hiddenMergedSeriesCategoryIds.first()
+                put("hiddenMergedSeriesCategories", JSONArray(hiddenSeriesKeys.mapNotNull { key ->
+                    val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                    val categoryId = key.substringAfter(':', "")
+                    val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+                }))
+
+                // VOD/series watch progress and per-episode watched state — same fields
+                // buildBackupJson already includes; previously missing here entirely, so a
+                // weekly auto-backup restore would resume every movie/show from zero.
+                put("vodProgress", JSONObject(db.vodDao().getUserData()
+                    .filter { it.watchedMs > 0 }
+                    .associate { it.streamId.toString() to JSONObject().apply {
+                        put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                    } }))
+                put("seriesProgress", JSONObject(db.seriesDao().getUserData()
+                    .filter { it.watchedMs > 0 }
+                    .associate { it.seriesId.toString() to JSONObject().apply {
+                        put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                    } }))
+                put("episodesWatched", JSONArray(db.episodeWatchedDao().getAll().map {
+                    JSONObject().apply {
+                        put("seriesId", it.seriesId); put("season", it.season); put("episode", it.episode)
+                        put("watchedAt", it.watchedAt); put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                    }
+                }))
+
                 val style = prefs.subtitleStyle.first()
                 put("subtitleStyle", JSONObject().apply {
                     put("sizeScale", style.sizeScale)

@@ -1,7 +1,7 @@
 {
-  "versionCode": 349,
-  "versionName": "5.11",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.11/MKTV.apk",
-  "apkSha256": "fd3e0812954f9eccbcf4b7760833b9f5c8e8f38b1f6ce861cbc3c1330143acbb",
-  "changelog": "Fixed: Mosaic multi-view channel picker now includes favorites from every configured provider, not just the primary one."
+  "versionCode": 350,
+  "versionName": "5.12",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.12/MKTV.apk",
+  "apkSha256": "c355424169b00e0bb637aafbe8e8f9997cccbc9b3319a1868c7ab62409a5f2df",
+  "changelog": "Added backup scope picker (choose what to include), and fixed auto-backup missing extra-provider favorites and watch progress."
 }

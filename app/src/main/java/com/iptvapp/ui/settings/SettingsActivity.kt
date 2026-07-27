@@ -1070,21 +1070,70 @@ class SettingsActivity : AppCompatActivity() {
         WorkManager.getInstance(this).cancelUniqueWork(com.iptvapp.worker.SyncWorker.WORK_NAME)
     }
 
-    private fun backupSettings() {
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        createBackupLauncher.launch("MKTV_backup_$timestamp.json")
+    // Login credentials, EPG/playback settings, and show/hide tab toggles are always included —
+    // a backup missing the login is useless, and these are tiny/never worth excluding. Everything
+    // else is optional so a user who only wants a lightweight settings-only backup (or wants to
+    // deliberately leave watch history off a file they're about to share) can skip it — the
+    // restore side already treats every one of these fields as independently optional (see
+    // applyBackupJson), so any combination here restores safely.
+    private data class BackupScope(
+        val favorites: Boolean = true,
+        val watchHistory: Boolean = true,
+        val extraProviders: Boolean = true,
+        val subtitleStyle: Boolean = true
+    ) {
+        val isFullBackup get() = favorites && watchHistory && extraProviders && subtitleStyle
     }
+
+    private fun showBackupScopeDialog(onScopeChosen: (BackupScope) -> Unit) {
+        val labels = arrayOf(
+            "Favorites & folders",
+            "Watch history & resume progress",
+            "Extra providers & their favorites",
+            "Subtitle style"
+        )
+        val checked = booleanArrayOf(true, true, true, true)
+        AlertDialog.Builder(this)
+            .setTitle("What to include")
+            .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Continue") { _, _ ->
+                onScopeChosen(BackupScope(
+                    favorites = checked[0],
+                    watchHistory = checked[1],
+                    extraProviders = checked[2],
+                    subtitleStyle = checked[3]
+                ))
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun backupSettings() {
+        showBackupScopeDialog { scope ->
+            pendingBackupScope = scope
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            createBackupLauncher.launch("MKTV_backup_$timestamp.json")
+        }
+    }
+
+    // Stashed between showBackupScopeDialog's callback and createBackupLauncher's own callback
+    // (writeBackupToUri) — the SAF file-create flow is itself async/callback-based, so the scope
+    // can't just be a local variable passed straight through.
+    private var pendingBackupScope = BackupScope()
 
     /** Same private, app-only folder AutoBackupWorker writes weekly snapshots into —
      * keeping manual quick-backups alongside them means one list shows the full history. */
     private fun privateBackupsDir(): File =
         File(getExternalFilesDir(null), "backups").apply { mkdirs() }
 
+    // "Quick Backup Now" (from the Manage Backups list) always takes a full snapshot rather than
+    // asking scope questions first — it's meant to be a fast, no-decisions safety net, unlike the
+    // primary Backup button which explicitly asks what to include.
     private suspend fun quickBackupNow() {
         try {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val file = File(privateBackupsDir(), "MKTV_backup_$timestamp.json")
-            val body = buildBackupJson().toString(2)
+            val body = buildBackupJson(BackupScope()).toString(2)
             withContext(Dispatchers.IO) { file.writeText(body) }
             Toast.makeText(this, "Backup saved on this device", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -1146,7 +1195,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private suspend fun writeBackupToUri(uri: Uri) {
         try {
-            val body = buildBackupJson().toString(2)
+            val body = buildBackupJson(pendingBackupScope).toString(2)
             withContext(Dispatchers.IO) {
                 contentResolver.openOutputStream(uri, "wt")?.use { it.write(body.toByteArray()) }
                     ?: throw IllegalStateException("Could not open output stream")
@@ -1159,8 +1208,9 @@ class SettingsActivity : AppCompatActivity() {
                     throw IllegalStateException("file wrote empty, try a different save location")
                 }
             }
-            binding.tvBackupStatus.text = "✓ Backup saved"
-            Toast.makeText(this, "Backup saved", Toast.LENGTH_LONG).show()
+            val suffix = if (pendingBackupScope.isFullBackup) "" else " (partial — some categories skipped)"
+            binding.tvBackupStatus.text = "✓ Backup saved$suffix"
+            Toast.makeText(this, "Backup saved$suffix", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Backup failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -2403,9 +2453,12 @@ class SettingsActivity : AppCompatActivity() {
         private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
     }
 
-    private suspend fun buildBackupJson(): JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun buildBackupJson(scope: BackupScope = BackupScope()): JSONObject = withContext(Dispatchers.IO) {
         val creds = prefs.credentials.first()
         JSONObject().apply {
+            // Login + core playback/EPG settings + tab visibility are always included — a
+            // backup missing the login is useless, and these are small enough to never be
+            // worth excluding (see BackupScope kdoc).
             put("serverUrl", creds.serverUrl)
             put("username", creds.username)
             put("password", creds.password)
@@ -2419,136 +2472,147 @@ class SettingsActivity : AppCompatActivity() {
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
             put("showWatching", prefs.showWatching.first())
-            put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
-            put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
-            put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {
-                JSONObject().apply {
-                    put("streamId", it.streamId)
-                    put("lastWatched", it.lastWatched)
-                    put("viewCount", it.viewCount)
-                }
-            }))
-            // Folder ids are local autoincrement values (not portable across a restore onto
-            // a different/reset device), so folders are saved by NAME — same approach
-            // SyncManager already uses. Previously omitted entirely, so restoring a backup
-            // brought favorites back but dumped every one into Unsorted.
+
             val folders = db.favoriteFolderDao().getAll().first()
             val folderNameById = folders.associate { it.id to it.name }
-            val channelFolders = db.channelDao().getFavoriteChannelsBlocking()
-                .mapNotNull { ch -> ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> ch.streamId.toString() to name } } }
-                .toMap()
-            put("favoriteFolders", JSONArray(folders.map { it.name }))
-            put("channelFolders", JSONObject(channelFolders))
 
-            // Extra providers (the "Providers" merged-browse feature) were never included in
-            // any backup — restoring one silently dropped every non-primary provider. Trakt's
-            // OAuth tokens are deliberately NOT included here: unlike the rest of this file,
-            // that's a live credential, and this JSON can end up shared/exported (QR backup,
-            // emailed file) — reconnecting Trakt after a restore is a small one-time action,
-            // copying a bearer token into a plaintext file users might hand to someone else is not.
-            put("extraServers", JSONArray(prefs.getExtraServersWithNick().map { s ->
-                JSONObject().apply {
-                    put("url", s[0]); put("user", s[1]); put("pass", s[2])
-                    put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
-                }
-            }))
+            if (scope.favorites) {
+                put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
+                put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
+                // Folder ids are local autoincrement values (not portable across a restore onto
+                // a different/reset device), so folders are saved by NAME — same approach
+                // SyncManager already uses. Previously omitted entirely, so restoring a backup
+                // brought favorites back but dumped every one into Unsorted.
+                val channelFolders = db.channelDao().getFavoriteChannelsBlocking()
+                    .mapNotNull { ch -> ch.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> ch.streamId.toString() to name } } }
+                    .toMap()
+                put("favoriteFolders", JSONArray(folders.map { it.name }))
+                put("channelFolders", JSONObject(channelFolders))
+            }
 
-            // Merged/other-provider favorites, folder assignments, and pinned categories —
-            // keyed by server URL (not serverIndex, which is meaningless across devices/
-            // restores) so this matches a restore onto a device with providers configured in
-            // a different order. Previously omitted entirely — restoring a backup brought the
-            // provider list back but dropped every other-provider favorite silently.
-            val mergedUrlByIndex = repository.getMergedServerUrls()
-            val mergedFavorites = db.mergedChannelDao().getAllFavorites().first()
-            val mergedFolderNameById = folderNameById
-            put("mergedFavorites", JSONArray(mergedFavorites.mapNotNull { ch ->
-                val url = mergedUrlByIndex[ch.serverIndex] ?: return@mapNotNull null
-                JSONObject().apply {
-                    put("serverUrl", url)
-                    put("streamId", ch.streamId)
-                    ch.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
-                }
-            }))
-            val favoriteMergedCategoryKeys = prefs.favoriteMergedCategoryIds.first()
-            put("mergedFavoriteCategories", JSONArray(favoriteMergedCategoryKeys.mapNotNull { key ->
-                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
-                val categoryId = key.substringAfter(':', "")
-                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
-                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
-            }))
+            if (scope.watchHistory) {
+                put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {
+                    JSONObject().apply {
+                        put("streamId", it.streamId)
+                        put("lastWatched", it.lastWatched)
+                        put("viewCount", it.viewCount)
+                    }
+                }))
+                // VOD/series watch progress and per-episode watched state — same fields/shape
+                // SyncManager already pushes to Firebase, so a restored backup resumes movies/
+                // shows from where they left off instead of starting over. Only rows with real
+                // progress are included, same reasoning as favoriteChannelIds only including
+                // actual favorites.
+                put("vodProgress", JSONObject(db.vodDao().getUserData()
+                    .filter { it.watchedMs > 0 }
+                    .associate { it.streamId.toString() to JSONObject().apply {
+                        put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                    } }))
+                put("seriesProgress", JSONObject(db.seriesDao().getUserData()
+                    .filter { it.watchedMs > 0 }
+                    .associate { it.seriesId.toString() to JSONObject().apply {
+                        put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                    } }))
+                put("episodesWatched", JSONArray(db.episodeWatchedDao().getAll().map {
+                    JSONObject().apply {
+                        put("seriesId", it.seriesId); put("season", it.season); put("episode", it.episode)
+                        put("watchedAt", it.watchedAt); put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
+                    }
+                }))
+            }
 
-            // Merged VOD/Series favorites — same URL-keyed shape as mergedFavorites above, no
-            // category equivalent (neither DAO has a per-category favorite concept). Previously
-            // omitted entirely — restoring a backup brought merged live-channel favorites back
-            // but silently dropped every merged movie/show favorite.
-            val mergedVodFavorites = db.mergedVodDao().getAllFavorites().first()
-            put("mergedVodFavorites", JSONArray(mergedVodFavorites.mapNotNull { v ->
-                val url = mergedUrlByIndex[v.serverIndex] ?: return@mapNotNull null
-                JSONObject().apply {
-                    put("serverUrl", url)
-                    put("streamId", v.streamId)
-                    v.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
-                }
-            }))
-            val mergedSeriesFavorites = db.mergedSeriesDao().getAllFavorites().first()
-            put("mergedSeriesFavorites", JSONArray(mergedSeriesFavorites.mapNotNull { s ->
-                val url = mergedUrlByIndex[s.serverIndex] ?: return@mapNotNull null
-                JSONObject().apply {
-                    put("serverUrl", url)
-                    put("seriesId", s.seriesId)
-                    s.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
-                }
-            }))
+            if (scope.extraProviders) {
+                // Extra providers (the "Providers" merged-browse feature) were never included in
+                // any backup — restoring one silently dropped every non-primary provider. Trakt's
+                // OAuth tokens are deliberately NOT included here: unlike the rest of this file,
+                // that's a live credential, and this JSON can end up shared/exported (QR backup,
+                // emailed file) — reconnecting Trakt after a restore is a small one-time action,
+                // copying a bearer token into a plaintext file users might hand to someone else is not.
+                put("extraServers", JSONArray(prefs.getExtraServersWithNick().map { s ->
+                    JSONObject().apply {
+                        put("url", s[0]); put("user", s[1]); put("pass", s[2])
+                        put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
+                    }
+                }))
 
-            // Hidden categories in Providers > Movies/Series — same URL-keyed shape as the
-            // favorites above, separate concept (see PreferencesManager.HIDDEN_MERGED_VOD_
-            // CATEGORY_IDS kdoc).
-            val hiddenVodKeys = prefs.hiddenMergedVodCategoryIds.first()
-            put("hiddenMergedVodCategories", JSONArray(hiddenVodKeys.mapNotNull { key ->
-                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
-                val categoryId = key.substringAfter(':', "")
-                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
-                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
-            }))
-            val hiddenSeriesKeys = prefs.hiddenMergedSeriesCategoryIds.first()
-            put("hiddenMergedSeriesCategories", JSONArray(hiddenSeriesKeys.mapNotNull { key ->
-                val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
-                val categoryId = key.substringAfter(':', "")
-                val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
-                JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
-            }))
+                // Merged/other-provider favorites, folder assignments, and pinned categories —
+                // keyed by server URL (not serverIndex, which is meaningless across devices/
+                // restores) so this matches a restore onto a device with providers configured in
+                // a different order. Previously omitted entirely — restoring a backup brought the
+                // provider list back but dropped every other-provider favorite silently.
+                val mergedUrlByIndex = repository.getMergedServerUrls()
+                val mergedFavorites = db.mergedChannelDao().getAllFavorites().first()
+                val mergedFolderNameById = folderNameById
+                put("mergedFavorites", JSONArray(mergedFavorites.mapNotNull { ch ->
+                    val url = mergedUrlByIndex[ch.serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply {
+                        put("serverUrl", url)
+                        put("streamId", ch.streamId)
+                        ch.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
+                    }
+                }))
+                val favoriteMergedCategoryKeys = prefs.favoriteMergedCategoryIds.first()
+                put("mergedFavoriteCategories", JSONArray(favoriteMergedCategoryKeys.mapNotNull { key ->
+                    val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                    val categoryId = key.substringAfter(':', "")
+                    val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+                }))
 
-            val style = prefs.subtitleStyle.first()
-            put("subtitleStyle", JSONObject().apply {
-                put("sizeScale", style.sizeScale)
-                put("verticalOffsetDp", style.verticalOffsetDp)
-                put("bold", style.bold)
-                put("textColor", style.textColor)
-                put("backgroundColor", style.backgroundColor)
-                put("outlineEnabled", style.outlineEnabled)
-                put("outlineColor", style.outlineColor)
-            })
+                // Merged VOD/Series favorites — same URL-keyed shape as mergedFavorites above, no
+                // category equivalent (neither DAO has a per-category favorite concept). Previously
+                // omitted entirely — restoring a backup brought merged live-channel favorites back
+                // but silently dropped every merged movie/show favorite.
+                val mergedVodFavorites = db.mergedVodDao().getAllFavorites().first()
+                put("mergedVodFavorites", JSONArray(mergedVodFavorites.mapNotNull { v ->
+                    val url = mergedUrlByIndex[v.serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply {
+                        put("serverUrl", url)
+                        put("streamId", v.streamId)
+                        v.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
+                    }
+                }))
+                val mergedSeriesFavorites = db.mergedSeriesDao().getAllFavorites().first()
+                put("mergedSeriesFavorites", JSONArray(mergedSeriesFavorites.mapNotNull { s ->
+                    val url = mergedUrlByIndex[s.serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply {
+                        put("serverUrl", url)
+                        put("seriesId", s.seriesId)
+                        s.favoriteFolderId?.let { fid -> mergedFolderNameById[fid]?.let { put("folderName", it) } }
+                    }
+                }))
 
-            // VOD/series watch progress and per-episode watched state — same fields/shape
-            // SyncManager already pushes to Firebase, so a restored backup resumes movies/shows
-            // from where they left off instead of starting over. Only rows with real progress
-            // are included, same reasoning as favoriteChannelIds only including actual favorites.
-            put("vodProgress", JSONObject(db.vodDao().getUserData()
-                .filter { it.watchedMs > 0 }
-                .associate { it.streamId.toString() to JSONObject().apply {
-                    put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
-                } }))
-            put("seriesProgress", JSONObject(db.seriesDao().getUserData()
-                .filter { it.watchedMs > 0 }
-                .associate { it.seriesId.toString() to JSONObject().apply {
-                    put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
-                } }))
-            put("episodesWatched", JSONArray(db.episodeWatchedDao().getAll().map {
-                JSONObject().apply {
-                    put("seriesId", it.seriesId); put("season", it.season); put("episode", it.episode)
-                    put("watchedAt", it.watchedAt); put("watchedMs", it.watchedMs); put("durationMs", it.durationMs)
-                }
-            }))
+                // Hidden categories in Providers > Movies/Series — same URL-keyed shape as the
+                // favorites above, separate concept (see PreferencesManager.HIDDEN_MERGED_VOD_
+                // CATEGORY_IDS kdoc).
+                val hiddenVodKeys = prefs.hiddenMergedVodCategoryIds.first()
+                put("hiddenMergedVodCategories", JSONArray(hiddenVodKeys.mapNotNull { key ->
+                    val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                    val categoryId = key.substringAfter(':', "")
+                    val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+                }))
+                val hiddenSeriesKeys = prefs.hiddenMergedSeriesCategoryIds.first()
+                put("hiddenMergedSeriesCategories", JSONArray(hiddenSeriesKeys.mapNotNull { key ->
+                    val serverIndex = key.substringBefore(':', "").toIntOrNull() ?: return@mapNotNull null
+                    val categoryId = key.substringAfter(':', "")
+                    val url = mergedUrlByIndex[serverIndex] ?: return@mapNotNull null
+                    JSONObject().apply { put("serverUrl", url); put("categoryId", categoryId) }
+                }))
+            }
+
+            if (scope.subtitleStyle) {
+                val style = prefs.subtitleStyle.first()
+                put("subtitleStyle", JSONObject().apply {
+                    put("sizeScale", style.sizeScale)
+                    put("verticalOffsetDp", style.verticalOffsetDp)
+                    put("bold", style.bold)
+                    put("textColor", style.textColor)
+                    put("backgroundColor", style.backgroundColor)
+                    put("outlineEnabled", style.outlineEnabled)
+                    put("outlineColor", style.outlineColor)
+                })
+            }
         }
     }
 

@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.12 - 2026-07-26
+- **Added** (Settings → Backup): a "what to include" picker before every manual backup — choose
+  whether to include Favorites & folders, Watch history & resume progress, Extra providers &
+  their favorites, and Subtitle style. Login and core settings are always included.
+- **Fixed**: weekly automatic backups were silently missing extra-provider favorites and all
+  VOD/series watch progress that manual backups already included — auto-backup now includes
+  the same full set of data.
+
 ## v5.11 - 2026-07-26
 - **Fixed** (Mosaic multi-view): the channel picker's search only ever listed primary-provider
   favorites — a favorite from a secondary/extra provider couldn't be put in a Mosaic tile at all.
