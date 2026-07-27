@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.17 - 2026-07-27
+- **Added** (TV Settings): Provider Speed Test — tests every configured provider's latency at
+  once, same feature the phone app already had. TV previously only had Provider Health, not
+  Speed Test.
+
 ## v5.16 - 2026-07-27
 - **Fixed**: Settings → "Check for Update" showed an empty "What's new" popup — it only tried to
   read the changelog as a JSON array, but it's actually published as a plain string. Now falls

@@ -1,7 +1,7 @@
 {
-  "versionCode": 354,
-  "versionName": "5.16",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.16/MKTV.apk",
-  "apkSha256": "01de8c6a50968f58e1c99908af991c8f7aa8d41e4982d8a40b43bf7a4ea31c7a",
-  "changelog": "Fixed Settings > Check for Update showing an empty changelog popup."
+  "versionCode": 355,
+  "versionName": "5.17",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.17/MKTV.apk",
+  "apkSha256": "090773154b565d72055dc8886382cfd20d70eeafe45818034ab63e2913b00dd1",
+  "changelog": "Added Provider Speed Test to TV Settings (parity with phone)."
 }

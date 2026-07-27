@@ -628,6 +628,7 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         settingsItems += TvSettingItem.Action("backup_debug", "Send Debug Report") { sendDebugReport() }
         settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
+        settingsItems += TvSettingItem.Action("provider_speed_test", "Provider Speed Test") { showSpeedTestDialog() }
 
         // ── SERVERS ──
         settingsItems += TvSettingItem.Header("Providers")
@@ -1501,6 +1502,31 @@ class TvSettingsActivity : AppCompatActivity() {
                 }
             }
             builder.show()
+        }
+    }
+
+    // Phone's equivalent (runSpeedTest() in SettingsActivity.kt) writes into a dedicated
+    // tvSpeedTestResult TextView on that screen's layout — TV settings has no such row, so this
+    // shows the same repository.runSpeedTestForAllProviders() results in a dialog instead.
+    private fun showSpeedTestDialog() {
+        toast("Testing all active providers…")
+        lifecycleScope.launch {
+            try {
+                val results = repository.runSpeedTestForAllProviders()
+                val message = results.joinToString("\n\n") { r ->
+                    val tcpStr = if (r.tcpAvgMs != null) "TCP Ping: ${r.tcpAvgMs}ms avg (${r.tcpSuccessCount}/3)" else "TCP Ping: failed"
+                    val httpStr = if (r.httpMs != null) "HTTP Response: ${r.httpMs}ms" else "HTTP Response: failed"
+                    val errorLine = r.error?.let { "\n$it" } ?: ""
+                    "${r.nickname}\n$tcpStr\n$httpStr\nServer: ${r.host}$errorLine"
+                }
+                AlertDialog.Builder(this@TvSettingsActivity)
+                    .setTitle("Provider Speed Test")
+                    .setMessage(message)
+                    .setPositiveButton("Close", null)
+                    .show()
+            } catch (e: Exception) {
+                toast("Speed test failed: ${e.message}")
+            }
         }
     }
 
