@@ -143,6 +143,7 @@ class PreferencesManager @Inject constructor(
         val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
+        val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
@@ -170,6 +171,13 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
     suspend fun setAudioPassthroughFallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] = v }
+
+    // On by default — auto-advancing to the next episode with a cancelable 10s countdown is
+    // the expected behavior for a binge-watching feature; a user who dislikes it can turn it off.
+    val autoplayNextEpisodeEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.AUTOPLAY_NEXT_EPISODE_ENABLED] ?: true }
+    suspend fun setAutoplayNextEpisodeEnabled(v: Boolean) = context.dataStore.edit { it[Keys.AUTOPLAY_NEXT_EPISODE_ENABLED] = v }
 
     // Global, applies to every server — not a per-server setting. Defaults on since slower/
     // less reliable IPTV providers are the norm here, and the bigger buffer directly trades

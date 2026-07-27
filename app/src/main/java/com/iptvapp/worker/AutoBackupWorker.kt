@@ -56,6 +56,7 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
                 put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
                 put("audioPassthroughFallbackEnabled", prefs.audioPassthroughFallbackEnabled.first())
+                put("autoplayNextEpisodeEnabled", prefs.autoplayNextEpisodeEnabled.first())
                 put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
                 put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
                 put("crashReportingEnabled", prefs.crashReportingEnabled.first())

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.22 - 2026-07-27
+- **Added** (Settings → Stream & EPG): Autoplay Next Episode toggle — on by default. The Up Next
+  prompt (10s countdown, cancelable) that already existed now also works across season
+  boundaries, instead of stopping dead at the last episode of a season.
+
 ## v5.21 - 2026-07-27
 - **Changed**: removed the embedded in-app trailer player, which didn't reliably play trailers.
   "Watch Trailer" on Movie/Series detail screens now opens the trailer directly in the YouTube

@@ -1,7 +1,7 @@
 {
-  "versionCode": 359,
-  "versionName": "5.21",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.21/MKTV.apk",
-  "apkSha256": "559587f4ed1378cde5d88aeaa509ead205e7e9e39bbd548f7bd3ddb1af24fd4a",
-  "changelog": "Removed the unreliable embedded trailer player; Watch Trailer now opens YouTube directly."
+  "versionCode": 360,
+  "versionName": "5.22",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.22/MKTV.apk",
+  "apkSha256": "606b8feeb3426f5c4a67f00348d84a581f2984c05eb16fb63f8cd928f8524700",
+  "changelog": "Added Autoplay Next Episode toggle; Up Next now also works across season boundaries."
 }

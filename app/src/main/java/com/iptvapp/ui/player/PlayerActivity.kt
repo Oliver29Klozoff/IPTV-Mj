@@ -284,9 +284,41 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showUpNextIfAvailable() {
-        val nextIndex = epIndex + 1
-        if (epIds.isEmpty() || nextIndex >= epIds.size) return
-        val nextTitle = epTitles.getOrElse(nextIndex) { "Next Episode" }
+        lifecycleScope.launch {
+            if (!prefs.autoplayNextEpisodeEnabled.first()) return@launch
+
+            val nextIndex = epIndex + 1
+            if (epIds.isEmpty()) return@launch
+
+            if (nextIndex < epIds.size) {
+                showUpNextCard(epTitles.getOrElse(nextIndex) { "Next Episode" }) { playNextEpisode(nextIndex) }
+                return@launch
+            }
+
+            // Last episode of the season the player was launched with — epIds/epTitles/epExts
+            // only ever contain ONE season's episodes (see SeriesDetailActivity.launchEpisode,
+            // which passes currentSeasonEpisodes), so reaching the end of that array doesn't
+            // mean the series itself is over. Fetch the next season's episode list fresh and
+            // splice it in, rather than leaving Up Next silently unavailable at every season
+            // finale. Only possible for primary-provider series (episodeSeriesId == -1 for
+            // merged/other-provider series, which have no season/episode-int metadata to look
+            // this up from — see PlayerActivity's merged-series comment near saveVodProgress).
+            if (episodeSeriesId == -1) return@launch
+            val currentSeasonEpisode = traktManager.parseSeasonEpisode(epTitles.lastOrNull() ?: return@launch)
+                ?: return@launch
+            val nextSeasonNum = currentSeasonEpisode.first + 1
+            val info = (repository.fetchSeriesInfo(episodeSeriesId) as? com.iptvapp.util.Resource.Success)?.data ?: return@launch
+            val nextSeasonEpisodes = info.episodes?.get(nextSeasonNum.toString())
+                ?.sortedBy { it.episodeNum } ?: return@launch
+            if (nextSeasonEpisodes.isEmpty()) return@launch
+
+            showUpNextCard("S$nextSeasonNum E${nextSeasonEpisodes.first().episodeNum} ${nextSeasonEpisodes.first().title}") {
+                playNextSeason(nextSeasonEpisodes)
+            }
+        }
+    }
+
+    private fun showUpNextCard(nextTitle: String, onAdvance: () -> Unit) {
         binding.tvUpNextTitle.text = nextTitle
         binding.upNextCard.visibility = View.VISIBLE
 
@@ -297,14 +329,14 @@ class PlayerActivity : AppCompatActivity() {
                 val elapsed = System.currentTimeMillis() - start
                 val remaining = (totalMs - elapsed).coerceAtLeast(0L)
                 binding.upNextProgress.progress = ((remaining.toFloat() / totalMs) * 100).toInt()
-                if (remaining == 0L) { playNextEpisode(nextIndex); break }
+                if (remaining == 0L) { onAdvance(); break }
                 kotlinx.coroutines.delay(100)
             }
         }
 
         binding.btnUpNextPlay.setOnClickListener {
             upNextJob?.cancel()
-            playNextEpisode(nextIndex)
+            onAdvance()
         }
         binding.btnUpNextCancel.setOnClickListener {
             upNextJob?.cancel()
@@ -336,6 +368,35 @@ class PlayerActivity : AppCompatActivity() {
                     putExtra("season_num", s)
                     putExtra("episode_num", e)
                 }
+            }
+            finish()
+            startActivity(intent)
+        }
+    }
+
+    // Season-boundary equivalent of playNextEpisode — same restart-based advance, but swaps in
+    // the NEXT season's full episode list (so Up Next continues to work all the way through that
+    // season too) instead of continuing to index into the now-exhausted current-season array.
+    private fun playNextSeason(nextSeasonEpisodes: List<com.iptvapp.data.api.Episode>) {
+        binding.upNextCard.visibility = View.GONE
+        lifecycleScope.launch {
+            val first = nextSeasonEpisodes.first()
+            val url = repository.getSeriesEpisodeUrl(first.id, first.containerExtension)
+            val resumeMs = repository.getEpisodeProgress(episodeSeriesId, first.season, first.episodeNum).first
+            val intent = Intent(this@PlayerActivity, PlayerActivity::class.java).apply {
+                putExtra("stream_url", url)
+                putExtra("stream_title", "S${first.season}E${first.episodeNum} ${first.title}")
+                putExtra("stream_id", first.id.hashCode())
+                putExtra("is_vod", true)
+                putExtra("series_id", episodeSeriesId)
+                putExtra("ep_index", 0)
+                putExtra("resume_ms", resumeMs)
+                putStringArrayListExtra("ep_ids", ArrayList(nextSeasonEpisodes.map { it.id }))
+                putStringArrayListExtra("ep_titles", ArrayList(nextSeasonEpisodes.map { "S${it.season}E${it.episodeNum} ${it.title}" }))
+                putStringArrayListExtra("ep_exts", ArrayList(nextSeasonEpisodes.map { it.containerExtension }))
+                putExtra("series_name", traktSeriesName)
+                putExtra("season_num", first.season)
+                putExtra("episode_num", first.episodeNum)
             }
             finish()
             startActivity(intent)
