@@ -1,7 +1,7 @@
 {
-  "versionCode": 358,
-  "versionName": "5.20",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.20/MKTV.apk",
-  "apkSha256": "411cdb84d47dd947519af01c3a623d9a70ad5c6d729a68722c8b35004294245d",
-  "changelog": "Fixed: Watch on YouTube fallback now shows for every trailer playback error, not just two specific ones."
+  "versionCode": 359,
+  "versionName": "5.21",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.21/MKTV.apk",
+  "apkSha256": "559587f4ed1378cde5d88aeaa509ead205e7e9e39bbd548f7bd3ddb1af24fd4a",
+  "changelog": "Removed the unreliable embedded trailer player; Watch Trailer now opens YouTube directly."
 }

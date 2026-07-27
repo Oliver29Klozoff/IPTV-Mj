@@ -117,13 +117,17 @@ class VodDetailActivity : AppCompatActivity() {
                                 .placeholder(android.R.drawable.ic_menu_gallery)
                                 .into(binding.ivVodCover)
                         }
+                        // Embedded in-app playback (android-youtube-player library) was tried
+                        // and pulled — it failed to actually play trailers in practice. A plain
+                        // external link to the YouTube app/browser is far more reliable since it
+                        // reuses YouTube's own real player instead of a WebView-based reimplementation.
                         val trailerId = detail.youtubeTrailer?.trim()
                         if (!trailerId.isNullOrBlank()) {
                             binding.btnWatchTrailer.visibility = View.VISIBLE
                             binding.btnWatchTrailer.setOnClickListener {
-                                startActivity(Intent(this@VodDetailActivity, TrailerActivity::class.java).apply {
-                                    putExtra(TrailerActivity.EXTRA_VIDEO_ID, trailerId)
-                                })
+                                val ytIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=$trailerId"))
+                                runCatching { startActivity(ytIntent) }
+                                    .onFailure { android.widget.Toast.makeText(this@VodDetailActivity, "No app available to open this link", android.widget.Toast.LENGTH_SHORT).show() }
                             }
                         }
                     }

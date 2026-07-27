@@ -128,13 +128,17 @@ class SeriesDetailActivity : AppCompatActivity() {
                         if (!detail.plot.isNullOrBlank()) binding.tvSeriesPlot.text = detail.plot
                         if (!detail.genre.isNullOrBlank()) binding.tvSeriesGenre.text = detail.genre
                         if (!detail.rating.isNullOrBlank()) binding.tvSeriesRating.text = "★ ${detail.rating}"
+                        // Embedded in-app playback (android-youtube-player library) was tried
+                        // and pulled — it failed to actually play trailers in practice. A plain
+                        // external link to the YouTube app/browser is far more reliable since it
+                        // reuses YouTube's own real player instead of a WebView-based reimplementation.
                         val trailerId = detail.youtubeTrailer?.trim()
                         if (!trailerId.isNullOrBlank()) {
                             binding.btnWatchTrailer?.visibility = View.VISIBLE
                             binding.btnWatchTrailer?.setOnClickListener {
-                                startActivity(Intent(this@SeriesDetailActivity, com.iptvapp.ui.vod.TrailerActivity::class.java).apply {
-                                    putExtra(com.iptvapp.ui.vod.TrailerActivity.EXTRA_VIDEO_ID, trailerId)
-                                })
+                                val ytIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=$trailerId"))
+                                runCatching { startActivity(ytIntent) }
+                                    .onFailure { android.widget.Toast.makeText(this@SeriesDetailActivity, "No app available to open this link", android.widget.Toast.LENGTH_SHORT).show() }
                             }
                         }
                     }

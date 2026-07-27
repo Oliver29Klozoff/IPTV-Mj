@@ -104,13 +104,6 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|density|uiMode|keyboard|navigation|fontScale" />
 
         <activity
-            android:name=".ui.vod.TrailerActivity"
-            android:theme="@style/Theme.IptvApp.Fullscreen"
-            android:exported="false"
-            android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|density|uiMode|keyboard|navigation|fontScale" />
-
-        <activity
             android:name=".ui.player.MultiViewActivity"
             android:theme="@style/Theme.IptvApp.Fullscreen"
             android:exported="false"

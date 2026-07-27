@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.21 - 2026-07-27
+- **Changed**: removed the embedded in-app trailer player, which didn't reliably play trailers.
+  "Watch Trailer" on Movie/Series detail screens now opens the trailer directly in the YouTube
+  app (or browser) instead.
+
 ## v5.20 - 2026-07-27
 - **Fixed**: the "Watch on YouTube" fallback from v5.19 only appeared for two specific trailer
   error codes — other error codes (a generic player error, invalid request, etc.) still showed
