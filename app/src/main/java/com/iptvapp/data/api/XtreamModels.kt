@@ -81,7 +81,11 @@ data class VodInfoDetail(
     @SerializedName("genre") val genre: String?,
     @SerializedName("duration") val duration: String?,
     @SerializedName("rating") val rating: String?,
-    @SerializedName("backdrop_path") val backdropPath: List<String>?
+    @SerializedName("backdrop_path") val backdropPath: List<String>?,
+    // A bare YouTube video ID (e.g. "dQw4w9WgXcQ"), not a full URL — most Xtream panels that
+    // populate this at all send just the ID. Empty string or absent when the provider has no
+    // trailer for this title, which is common.
+    @SerializedName("youtube_trailer") val youtubeTrailer: String?
 )
 
 data class Series(
@@ -112,7 +116,8 @@ data class SeriesInfoDetail(
     @SerializedName("cast") val cast: String?,
     @SerializedName("director") val director: String?,
     @SerializedName("genre") val genre: String?,
-    @SerializedName("rating") val rating: String?
+    @SerializedName("rating") val rating: String?,
+    @SerializedName("youtube_trailer") val youtubeTrailer: String?
 )
 
 data class Season(

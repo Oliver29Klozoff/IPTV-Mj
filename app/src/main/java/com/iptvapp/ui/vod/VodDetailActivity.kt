@@ -117,6 +117,15 @@ class VodDetailActivity : AppCompatActivity() {
                                 .placeholder(android.R.drawable.ic_menu_gallery)
                                 .into(binding.ivVodCover)
                         }
+                        val trailerId = detail.youtubeTrailer?.trim()
+                        if (!trailerId.isNullOrBlank()) {
+                            binding.btnWatchTrailer.visibility = View.VISIBLE
+                            binding.btnWatchTrailer.setOnClickListener {
+                                startActivity(Intent(this@VodDetailActivity, TrailerActivity::class.java).apply {
+                                    putExtra(TrailerActivity.EXTRA_VIDEO_ID, trailerId)
+                                })
+                            }
+                        }
                     }
                 }
                 is Resource.Error -> {

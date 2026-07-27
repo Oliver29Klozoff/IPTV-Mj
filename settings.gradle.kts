@@ -19,6 +19,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // android-youtube-player (PierfrancescoSoffritti) is only published on JitPack, not
+        // Maven Central/Google — needed for the embedded VOD/series trailer player.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

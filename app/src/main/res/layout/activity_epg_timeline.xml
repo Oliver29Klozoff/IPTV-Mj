@@ -137,6 +137,24 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/timelineHeader" />
 
+    <!-- Shown only when there's truly no cached guide data at all AND the network fetch just
+         failed — normally cached-but-stale data is shown instead (see HomeViewModel.loadGuide
+         kdoc), so this is specifically the cold-start-with-no-connectivity-ever case. -->
+    <TextView
+        android:id="@+id/tvTimelineEmpty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:gravity="center"
+        android:text="No guide data available — check your connection and try refreshing."
+        android:textColor="#888888"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/timelineHeader" />
+
     <!-- Channel rows -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvTimeline"

@@ -15,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 26
         targetSdk 35
-        versionCode 355
-        versionName "5.17"
+        versionCode 356
+        versionName "5.18"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -132,4 +132,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore-ktx:25.1.4'
     implementation 'com.google.firebase:firebase-auth-ktx:23.2.0'
     implementation 'com.google.firebase:firebase-crashlytics-ktx:19.3.0'
+
+    // Embedded YouTube trailer playback on VOD/Series detail screens — WebView-based IFrame
+    // player, no Google API key/quota needed (unlike the official YouTube Android Player API).
+    implementation 'com.github.PierfrancescoSoffritti:android-youtube-player:10.0.4'
 }

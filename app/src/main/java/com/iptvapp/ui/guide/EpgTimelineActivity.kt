@@ -142,6 +142,7 @@ class EpgTimelineActivity : AppCompatActivity() {
             viewModel.guideRows.collect { rows ->
                 if (rows.isNotEmpty()) {
                     binding.timelineProgress.visibility = View.GONE
+                    binding.tvTimelineEmpty?.visibility = View.GONE
                     applySearchFilter(binding.etTimelineSearch.text?.toString() ?: "")
                     if (dayOffset == 0) binding.rvTimeline.post { scrollToNow() }
                 }
@@ -149,8 +150,13 @@ class EpgTimelineActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.loading.collect { loading ->
-                if (rows().isEmpty()) binding.timelineProgress.visibility =
-                    if (loading) View.VISIBLE else View.GONE
+                if (rows().isEmpty()) {
+                    binding.timelineProgress.visibility = if (loading) View.VISIBLE else View.GONE
+                    // Cold-start-with-no-connectivity case (see loadGuide kdoc): nothing was ever
+                    // cached, the fetch just finished (successfully or not) and there's still
+                    // nothing to show — silently staying blank looked identical to a bug.
+                    binding.tvTimelineEmpty?.visibility = if (!loading) View.VISIBLE else View.GONE
+                }
             }
         }
     }

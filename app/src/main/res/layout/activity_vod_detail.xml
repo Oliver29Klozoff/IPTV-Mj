@@ -51,6 +51,17 @@
             android:textColor="#FFFFFF" />
 
         <Button
+            android:id="@+id/btnWatchTrailer"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#222222"
+            android:text="▶  Watch Trailer"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+
+        <Button
             android:id="@+id/btnClearProgress"
             android:layout_width="match_parent"
             android:layout_height="40dp"

@@ -1,7 +1,7 @@
 {
-  "versionCode": 355,
-  "versionName": "5.17",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.17/MKTV.apk",
-  "apkSha256": "090773154b565d72055dc8886382cfd20d70eeafe45818034ab63e2913b00dd1",
-  "changelog": "Added Provider Speed Test to TV Settings (parity with phone)."
+  "versionCode": 356,
+  "versionName": "5.18",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.18/MKTV.apk",
+  "apkSha256": "9888c3cdf654519de3b4ce93c93962301675082291de60d4fa014aeb31fe2548",
+  "changelog": "Added Watch Trailer for Movies/Series (when the provider has one), and fixed a blank Guide screen with no cached EPG data."
 }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.18 - 2026-07-27
+- **Added**: "Watch Trailer" button on Movie and Series detail screens — plays the provider's
+  YouTube trailer in an embedded player, when one is available for that title.
+- **Fixed**: the Guide (EPG) screen silently showed a blank list on a fresh install with no
+  network connection yet — now shows a clear "No guide data available" message instead.
+
 ## v5.17 - 2026-07-27
 - **Added** (TV Settings): Provider Speed Test — tests every configured provider's latency at
   once, same feature the phone app already had. TV previously only had Provider Health, not

@@ -128,6 +128,15 @@ class SeriesDetailActivity : AppCompatActivity() {
                         if (!detail.plot.isNullOrBlank()) binding.tvSeriesPlot.text = detail.plot
                         if (!detail.genre.isNullOrBlank()) binding.tvSeriesGenre.text = detail.genre
                         if (!detail.rating.isNullOrBlank()) binding.tvSeriesRating.text = "★ ${detail.rating}"
+                        val trailerId = detail.youtubeTrailer?.trim()
+                        if (!trailerId.isNullOrBlank()) {
+                            binding.btnWatchTrailer?.visibility = View.VISIBLE
+                            binding.btnWatchTrailer?.setOnClickListener {
+                                startActivity(Intent(this@SeriesDetailActivity, com.iptvapp.ui.vod.TrailerActivity::class.java).apply {
+                                    putExtra(com.iptvapp.ui.vod.TrailerActivity.EXTRA_VIDEO_ID, trailerId)
+                                })
+                            }
+                        }
                     }
 
                     val seasons = allEpisodes.keys.sortedBy { it.toIntOrNull() ?: 0 }
