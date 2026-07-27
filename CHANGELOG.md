@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v5.24 - 2026-07-27
+- **Fixed**: tapping a channel in the home screen widget didn't actually open that channel — it
+  just launched the app generically due to a mismatched intent key. Now jumps straight to the
+  tapped channel, same as "Play This Channel" elsewhere in the app.
+- **Fixed**: Picture-in-Picture always forced a 16:9 window regardless of the actual video,
+  letterboxing 4:3 SD channels and other non-16:9 content. Now matches the real video shape.
+- **Fixed**: app launch did a small synchronous disk read (for the AMOLED black setting) before
+  drawing the first frame, on every single launch — now reads it without blocking startup.
+
 ## v5.23 - 2026-07-27
 - **Added**: "Skip to Next Episode" button appears during the last minute of a series episode —
   jump straight to the next episode without waiting through the credits for the end-of-episode

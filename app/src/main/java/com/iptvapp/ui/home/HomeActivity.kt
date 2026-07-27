@@ -695,7 +695,7 @@ class HomeActivity : AppCompatActivity() {
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs)
+        lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

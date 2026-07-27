@@ -101,7 +101,7 @@ class TvSettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityTvSettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs)
+        lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         workManager = WorkManager.getInstance(this)
 
         adapter = TvSettingsAdapter(settingsItems)

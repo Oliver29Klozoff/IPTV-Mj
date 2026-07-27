@@ -1,7 +1,7 @@
 {
-  "versionCode": 361,
-  "versionName": "5.23",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.23/MKTV.apk",
-  "apkSha256": "88802f755364c3e854473d7804918800ca799b5fa8544e85647a707834ec2fbb",
-  "changelog": "Added Skip to Next Episode button during the last minute of a series episode."
+  "versionCode": 362,
+  "versionName": "5.24",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.24/MKTV.apk",
+  "apkSha256": "8650ee5d3dc563b30a512b37818a4b0367765ab08ef6340896467888508e874b",
+  "changelog": "Fixed widget channel tap, PiP aspect ratio matching real video, and a small cold-launch delay."
 }

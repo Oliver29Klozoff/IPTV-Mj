@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import androidx.cardview.widget.CardView
 import com.iptvapp.data.local.PreferencesManager
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 object ThemeUtils {
     /** Forces a pure-black (#000000) background for OLED screens when the user has enabled
@@ -16,9 +15,15 @@ object ThemeUtils {
      * dark-gray "chrome" colors (cards, panels, sidebars — #0F0F0F/#111111/#141414/#161616/
      * #1A1A1A/#202020/#222222) directly on top of the root. This walks the view tree and
      * flattens any near-black neutral gray it finds to pure black too, while leaving real
-     * colors (accent blue, favorite-star red/gray, etc.) untouched. */
-    fun applyAmoledIfEnabled(rootView: View, prefs: PreferencesManager) {
-        val enabled = runBlocking { prefs.amoledBlack.first() }
+     * colors (accent blue, favorite-star red/gray, etc.) untouched.
+     *
+     * suspend rather than a runBlocking DataStore read — this used to block onCreate's main
+     * thread on every single launch (of every Activity that called it) for a synchronous disk
+     * read before the first frame drew. Callers now launch this from their own coroutine scope;
+     * the tree-walk itself still has to run on the main thread (it mutates Views), it's just no
+     * longer blocking on the preference read to get there. */
+    suspend fun applyAmoledIfEnabled(rootView: View, prefs: PreferencesManager) {
+        val enabled = prefs.amoledBlack.first()
         if (!enabled) return
         rootView.setBackgroundColor(Color.BLACK)
         blackenNearBlackBackgrounds(rootView)

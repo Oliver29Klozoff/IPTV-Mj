@@ -1057,6 +1057,15 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
 
+                    // Refreshes the PiP window's aspect ratio once the real video dimensions
+                    // are known (e.g. entering PiP before the first frame decodes, or a channel
+                    // switch mid-PiP to a different-shaped stream) — see pipAspectRatio kdoc.
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+                            setPictureInPictureParams(buildPipParams())
+                        }
+                    }
+
                     override fun onPlaybackStateChanged(state: Int) {
                         when (state) {
                             Player.STATE_READY -> {
@@ -1826,8 +1835,24 @@ class PlayerActivity : AppCompatActivity() {
     private var pipActionReceiver: android.content.BroadcastReceiver? = null
     private val pipPlayPauseAction = "com.iptvapp.PIP_PLAY_PAUSE"
 
+    // Previously always Rational(16, 9) regardless of the actual stream — a 4:3 SD channel or
+    // portrait content would get force-fit into a 16:9 PiP window instead of matching its real
+    // shape. Falls back to 16:9 only when the player doesn't know the video size yet (very early
+    // in playback) or reports something outside Android's supported PiP aspect ratio range
+    // (roughly 1:2.39 to 2.39:1) — PictureInPictureParams.Builder.setAspectRatio throws
+    // IllegalArgumentException outside that range, so this must be clamped defensively.
+    private fun pipAspectRatio(): Rational {
+        val videoSize = player?.videoSize
+        val width = videoSize?.width ?: 0
+        val height = videoSize?.height ?: 0
+        if (width <= 0 || height <= 0) return Rational(16, 9)
+        val ratio = width.toFloat() / height.toFloat()
+        if (ratio < 1f / 2.39f || ratio > 2.39f) return Rational(16, 9)
+        return Rational(width, height)
+    }
+
     private fun buildPipParams(): PictureInPictureParams {
-        val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9))
+        val builder = PictureInPictureParams.Builder().setAspectRatio(pipAspectRatio())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val isPlaying = player?.isPlaying ?: false
             val icon = android.graphics.drawable.Icon.createWithResource(

@@ -64,7 +64,14 @@ class ChannelWidgetFactory(private val context: Context) : RemoteViewsService.Re
         return RemoteViews(context.packageName, R.layout.widget_channel_row).apply {
             setTextViewText(R.id.tvWidgetChannelName, row.name)
             setTextViewText(R.id.tvWidgetEpgNow, row.epgTitle)
-            val fillIn = Intent().apply { putExtra("stream_id", row.streamId) }
+            // Tapping a widget row previously didn't actually open that channel — it used
+            // "stream_id" here, but HomeActivity.handleJumpToChannelExtra() (the actual
+            // jump-to-channel entry point, also used by Settings > Provider Health's "Play
+            // This Channel") reads EXTRA_JUMP_TO_STREAM_ID ("jump_to_stream_id") instead, so the
+            // extra was silently dropped and the widget just opened the app generically.
+            val fillIn = Intent().apply {
+                putExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, row.streamId)
+            }
             setOnClickFillInIntent(R.id.tvWidgetChannelName, fillIn)
             setOnClickFillInIntent(R.id.tvWidgetEpgNow, fillIn)
         }
