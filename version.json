@@ -1,7 +1,7 @@
 {
-  "versionCode": 350,
-  "versionName": "5.12",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.12/MKTV.apk",
-  "apkSha256": "c355424169b00e0bb637aafbe8e8f9997cccbc9b3319a1868c7ab62409a5f2df",
-  "changelog": "Added backup scope picker (choose what to include), and fixed auto-backup missing extra-provider favorites and watch progress."
+  "versionCode": 351,
+  "versionName": "5.13",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.13/MKTV.apk",
+  "apkSha256": "87c937618aa5412e16897453b682dac16133fe35b82b890f0f48fef5e5856f3a",
+  "changelog": "Backups now include accent color, AMOLED black, player/playback toggles, silent self-update, crash reporting, and recording storage settings."
 }

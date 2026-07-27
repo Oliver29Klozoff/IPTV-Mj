@@ -47,6 +47,19 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("showMovies", prefs.showMovies.first())
                 put("showSeries", prefs.showSeries.first())
                 put("showWatching", prefs.showWatching.first())
+                // Same display/playback/misc toggles buildBackupJson (SettingsActivity.kt) now
+                // includes — previously missing here too.
+                put("accentColor", prefs.accentColor.first())
+                put("accentColorEnd", prefs.accentColorEnd.first())
+                put("amoledBlack", prefs.amoledBlack.first())
+                put("externalPlayer", prefs.externalPlayer.first())
+                put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
+                put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
+                put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
+                put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
+                put("crashReportingEnabled", prefs.crashReportingEnabled.first())
+                put("recordingFolderName", prefs.recordingFolderName.first())
+                put("autoDeleteRecordingsDays", prefs.autoDeleteRecordingsDays.first())
                 put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
                 put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
                 put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {

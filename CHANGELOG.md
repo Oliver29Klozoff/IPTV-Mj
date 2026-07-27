@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.13 - 2026-07-27
+- **Fixed**: backups (manual and automatic) were missing several real settings — accent color,
+  AMOLED black, external player choice, tunneled playback, DV7 fallback, extra buffering, silent
+  self-update, crash reporting toggle, and the recording folder name/auto-delete setting. All are
+  now included and restored, so a restore actually gets your setup back exactly as it was.
+
 ## v5.12 - 2026-07-26
 - **Added** (Settings → Backup): a "what to include" picker before every manual backup — choose
   whether to include Favorites & folders, Watch history & resume progress, Extra providers &

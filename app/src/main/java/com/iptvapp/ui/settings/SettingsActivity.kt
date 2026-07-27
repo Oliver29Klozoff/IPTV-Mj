@@ -2472,6 +2472,21 @@ class SettingsActivity : AppCompatActivity() {
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
             put("showWatching", prefs.showWatching.first())
+            // Display/playback/misc toggles — previously missing from every backup entirely,
+            // so restoring onto a new device silently reset all of these to defaults instead of
+            // "get back to exactly how I had it." No security reason to exclude any of these
+            // (unlike Trakt/GitHub tokens below, which are live credentials).
+            put("accentColor", prefs.accentColor.first())
+            put("accentColorEnd", prefs.accentColorEnd.first())
+            put("amoledBlack", prefs.amoledBlack.first())
+            put("externalPlayer", prefs.externalPlayer.first())
+            put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
+            put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
+            put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
+            put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
+            put("crashReportingEnabled", prefs.crashReportingEnabled.first())
+            put("recordingFolderName", prefs.recordingFolderName.first())
+            put("autoDeleteRecordingsDays", prefs.autoDeleteRecordingsDays.first())
 
             val folders = db.favoriteFolderDao().getAll().first()
             val folderNameById = folders.associate { it.id to it.name }
@@ -2660,6 +2675,19 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("showMovies")) prefs.setShowMovies(json.optBoolean("showMovies", true))
         if (json.has("showSeries")) prefs.setShowSeries(json.optBoolean("showSeries", true))
         if (json.has("showWatching")) prefs.setShowWatching(json.optBoolean("showWatching", true))
+        json.optString("accentColor", "").takeIf { it.isNotEmpty() }?.let { start ->
+            val end = json.optString("accentColorEnd", "")
+            if (end.isNotEmpty()) prefs.setAccentGradient(start, end) else prefs.setAccentColor(start)
+        }
+        if (json.has("amoledBlack")) prefs.setAmoledBlack(json.optBoolean("amoledBlack", false))
+        json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
+        if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))
+        if (json.has("dv7FallbackEnabled")) prefs.setDv7FallbackEnabled(json.optBoolean("dv7FallbackEnabled", false))
+        if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
+        if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
+        if (json.has("crashReportingEnabled")) prefs.setCrashReportingEnabled(json.optBoolean("crashReportingEnabled", true))
+        json.optString("recordingFolderName", "").takeIf { it.isNotEmpty() }?.let { prefs.setRecordingFolderName(it) }
+        if (json.has("autoDeleteRecordingsDays")) prefs.setAutoDeleteRecordingsDays(json.optInt("autoDeleteRecordingsDays", 0))
 
         val favCatArray = json.optJSONArray("favoriteCategoryIds")
         if (favCatArray != null) {
