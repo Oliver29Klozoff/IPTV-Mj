@@ -71,6 +71,7 @@ class TvRecordingActivity : AppCompatActivity() {
     @Inject lateinit var database: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
 
     private lateinit var binding: ActivityTvRecordingBinding
 
@@ -326,8 +327,24 @@ class TvRecordingActivity : AppCompatActivity() {
                     .show()
             },
             onRetry = { rec -> retryRecording(rec) },
-            onTrimPadding = { rec -> showTrimPaddingDialog(rec) }
+            onTrimPadding = { rec -> showTrimPaddingDialog(rec) },
+            onTraktCollect = { rec -> addRecordingToTraktCollection(rec) }
         )
+        val adapter = binding.rvRecordings.adapter as RecordingListAdapter
+        lifecycleScope.launch {
+            traktManager.isConnected.collect { adapter.setTraktConnected(it) }
+        }
+    }
+
+    private fun addRecordingToTraktCollection(rec: RecordingEntity) {
+        lifecycleScope.launch {
+            val ok = traktManager.addRecordingToCollection(rec.programTitle ?: rec.channelName)
+            Toast.makeText(
+                this@TvRecordingActivity,
+                if (ok) "Added to Trakt collection" else "Couldn't add to Trakt collection",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     // Same ~20s pre-roll/post-roll trim as the phone Recording Scheduler — see
@@ -842,13 +859,21 @@ class TvRecordingActivity : AppCompatActivity() {
         private val onDelete: (RecordingEntity) -> Unit,
         private val onRename: (RecordingEntity) -> Unit = {},
         private val onRetry: (RecordingEntity) -> Unit = {},
-        private val onTrimPadding: (RecordingEntity) -> Unit = {}
+        private val onTrimPadding: (RecordingEntity) -> Unit = {},
+        private val onTraktCollect: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingListAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
+        private var traktConnected = false
 
         fun submitList(list: List<RecordingEntity>) {
             items = list
+            notifyDataSetChanged()
+        }
+
+        fun setTraktConnected(connected: Boolean) {
+            if (traktConnected == connected) return
+            traktConnected = connected
             notifyDataSetChanged()
         }
 
@@ -874,6 +899,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 b.btnTvRecShare.setOnClickListener { onShare(items[bindingAdapterPosition]) }
                 b.btnTvRecRetry.setOnClickListener { onRetry(items[bindingAdapterPosition]) }
                 b.btnTvRecTrimPadding.setOnClickListener { onTrimPadding(items[bindingAdapterPosition]) }
+                b.btnTvRecTraktCollect.setOnClickListener { onTraktCollect(items[bindingAdapterPosition]) }
                 b.btnTvRecDelete.setOnClickListener { onDelete(items[bindingAdapterPosition]) }
             }
 
@@ -898,6 +924,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 val isDone = rec.status == "DONE"
                 b.btnTvRecShare.visibility = if (isDone) View.VISIBLE else View.GONE
                 b.btnTvRecTrimPadding.visibility = if (isDone) View.VISIBLE else View.GONE
+                b.btnTvRecTraktCollect.visibility = if (isDone && traktConnected) View.VISIBLE else View.GONE
                 b.btnTvRecRetry.visibility = if (rec.status == "FAILED") View.VISIBLE else View.GONE
                 b.rowRecordingMain.isFocusable = true
                 b.rowRecordingMain.isFocusableInTouchMode = false

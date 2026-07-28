@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.33 - 2026-07-28
+- **Added**: recordings can now be cast to Chromecast, same as live channels and movies — the
+  local file is served over the phone/TV's own network to the receiver, with seeking support.
+- **Added**: a finished recording can now be added to your Trakt collection (marks it "owned",
+  separate from watched-history) — only shown once Trakt is connected, using the program title
+  captured from the guide at record time.
+
 ## v5.32 - 2026-07-28
 - **Added**: scheduling a recording now also warns if you're currently watching a live channel
   on the same provider — the same connection-limit collision risk as two overlapping

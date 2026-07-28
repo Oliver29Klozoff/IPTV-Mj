@@ -1,7 +1,7 @@
 {
-  "versionCode": 370,
-  "versionName": "5.32",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.32/MKTV.apk",
-  "apkSha256": "a1d9cff10d21a61c12cc1315ad99b585d9389a0dbdde260543f80e6638a70e1e",
-  "changelog": "Recording-vs-live conflict warning; Continue Watching home screen widget mode; recordings now play in-app and can scrobble to Trakt."
+  "versionCode": 371,
+  "versionName": "5.33",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.33/MKTV.apk",
+  "apkSha256": "b91e304a83a4a9ced8c813c54afd8f865a7d7e0e55dde7ecf281b32145c63fa0",
+  "changelog": "Recordings can now be cast to Chromecast, and added to your Trakt collection once connected."
 }

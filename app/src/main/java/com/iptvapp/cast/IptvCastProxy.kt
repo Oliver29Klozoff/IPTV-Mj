@@ -27,6 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class IptvCastProxy(
     private val localIp: String,
+    // Only needed for proxyLocalFile()/serving a recorded file's bytes (a Cast receiver can't
+    // resolve a file:// or content:// URI at all — those are meaningful only on this device — so
+    // this proxy has to actually open and stream the bytes itself, unlike the HTTP passthrough
+    // paths above which just forward an upstream network request).
+    private val appContext: android.content.Context? = null,
     private val onRequest: ((String) -> Unit)? = null
 ) {
 
@@ -89,6 +94,13 @@ class IptvCastProxy(
     fun proxyUrl(originalUrl: String): String =
         "http://$localIp:$listeningPort/s?u=${URLEncoder.encode(originalUrl, "UTF-8")}"
 
+    /** Entry point for casting a locally recorded file (content:// or file:// path) — unlike
+     * proxyUrl(), there's no upstream HTTP server to forward to, so /file below reads the local
+     * bytes directly via ContentResolver/File and serves them, with HTTP Range support since the
+     * Cast Default Media Receiver issues range requests for seeking on VOD-style content. */
+    fun proxyLocalFile(localPath: String): String =
+        "http://$localIp:$listeningPort/file?p=${URLEncoder.encode(localPath, "UTF-8")}"
+
     /** Entry point for a raw/live .ts channel — starts (or reuses) a LiveHlsSession for this
      * upstream URL and returns the URL to hand to the Cast receiver as its MediaInfo content
      * URL: a live-updating .m3u8 manifest instead of the raw stream URL proxyUrl() would give. */
@@ -127,11 +139,14 @@ class IptvCastProxy(
                 val requestLine = readLine(input) ?: return
                 // Read headers, capture User-Agent to forward
                 var incomingUserAgent: String? = null
+                var rangeHeader: String? = null
                 while (true) {
                     val header = readLine(input) ?: break
                     if (header.isEmpty()) break
                     if (header.startsWith("User-Agent:", ignoreCase = true))
                         incomingUserAgent = header.substringAfter(":").trim()
+                    if (header.startsWith("Range:", ignoreCase = true))
+                        rangeHeader = header.substringAfter(":").trim()
                 }
 
                 val parts = requestLine.split(" ")
@@ -156,6 +171,14 @@ class IptvCastProxy(
                             val manifest = session.buildManifest()
                             Log.d("CastProxy", "← /live.m3u8 bytes=${manifest.length}")
                             writeResponse(socket, "200 OK", "application/x-mpegURL", manifest.toByteArray())
+                        }
+                    }
+                    path.startsWith("/file") -> {
+                        val encodedPath = queryParam(path, "p")
+                        if (encodedPath == null) {
+                            writeResponse(socket, "400 Bad Request", "text/plain", "Missing path param".toByteArray())
+                        } else {
+                            serveLocalFile(socket, URLDecoder.decode(encodedPath, "UTF-8"), rangeHeader)
                         }
                     }
                     path.startsWith("/seg") -> {
@@ -251,6 +274,94 @@ class IptvCastProxy(
                 "Upstream: ${e.message}".toByteArray())
         }
     }
+
+    // Opens a recording's bytes (content:// via ContentResolver, file:// / plain path via
+    // FileInputStream) and serves them with HTTP Range support — the Default Media Receiver
+    // relies on 206 Partial Content to seek within VOD-style media, unlike the always-from-
+    // scratch live proxy paths above which never need to support arbitrary byte offsets.
+    private fun serveLocalFile(socket: Socket, localPath: String, rangeHeader: String?) {
+        val ctx = appContext
+        if (ctx == null) {
+            writeResponse(socket, "500 Internal Server Error", "text/plain", "No context".toByteArray())
+            return
+        }
+        try {
+            val totalLength = localFileLength(ctx, localPath)
+            if (totalLength < 0) {
+                writeResponse(socket, "404 Not Found", "text/plain", "File not found".toByteArray())
+                return
+            }
+            val contentType = guessContentType(localPath)
+            var start = 0L
+            var end = totalLength - 1
+            val isRange = rangeHeader?.startsWith("bytes=") == true
+            if (isRange) {
+                val spec = rangeHeader!!.removePrefix("bytes=")
+                val parts = spec.split("-")
+                parts.getOrNull(0)?.toLongOrNull()?.let { start = it }
+                parts.getOrNull(1)?.toLongOrNull()?.let { end = it }
+                end = end.coerceAtMost(totalLength - 1)
+            }
+            val length = (end - start + 1).coerceAtLeast(0)
+
+            openLocalFileStream(ctx, localPath).use { input ->
+                var skipped = 0L
+                while (skipped < start) {
+                    val n = input.skip(start - skipped)
+                    if (n <= 0) break
+                    skipped += n
+                }
+                val out = socket.getOutputStream()
+                val header = buildString {
+                    if (isRange) {
+                        append("HTTP/1.1 206 Partial Content\r\n")
+                        append("Content-Range: bytes $start-$end/$totalLength\r\n")
+                    } else {
+                        append("HTTP/1.1 200 OK\r\n")
+                    }
+                    append("Content-Type: $contentType\r\n")
+                    append("Content-Length: $length\r\n")
+                    append("Accept-Ranges: bytes\r\n")
+                    append("Access-Control-Allow-Origin: *\r\n")
+                    append("Access-Control-Allow-Methods: GET, OPTIONS\r\n")
+                    append("Access-Control-Allow-Headers: Range, Content-Type\r\n")
+                    append("Connection: close\r\n")
+                    append("\r\n")
+                }
+                out.write(header.toByteArray(Charsets.US_ASCII))
+                val buffer = ByteArray(64 * 1024)
+                var remaining = length
+                while (remaining > 0) {
+                    val toRead = minOf(buffer.size.toLong(), remaining).toInt()
+                    val n = input.read(buffer, 0, toRead)
+                    if (n == -1) break
+                    out.write(buffer, 0, n)
+                    remaining -= n
+                }
+                out.flush()
+            }
+        } catch (e: Exception) {
+            Log.e("CastProxy", "serveLocalFile error for $localPath", e)
+            try { writeResponse(socket, "500 Internal Server Error", "text/plain", "Error: ${e.message}".toByteArray()) } catch (_: Exception) {}
+        }
+    }
+
+    private fun localFileLength(ctx: android.content.Context, path: String): Long {
+        return if (path.startsWith("content://")) {
+            ctx.contentResolver.query(android.net.Uri.parse(path), arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getLong(0) else -1L } ?: -1L
+        } else {
+            val f = java.io.File(path)
+            if (f.exists()) f.length() else -1L
+        }
+    }
+
+    private fun openLocalFileStream(ctx: android.content.Context, path: String): java.io.InputStream =
+        if (path.startsWith("content://")) {
+            ctx.contentResolver.openInputStream(android.net.Uri.parse(path)) ?: throw java.io.IOException("Cannot open $path")
+        } else {
+            java.io.FileInputStream(path)
+        }
 
     private fun rewritePlaylist(content: String, baseUrl: String): String {
         val baseUri = URI(baseUrl)

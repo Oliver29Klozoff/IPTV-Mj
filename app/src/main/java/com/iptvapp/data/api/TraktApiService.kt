@@ -63,6 +63,12 @@ data class TraktWatchedEpisode(
     val plays: Int
 )
 
+// POST /sync/collection — marks a movie as "owned" in the user's Trakt collection, separate
+// from watched-history/scrobbling. Used for local recordings (see TraktManager.addRecordingToCollection):
+// only movies are supported here since RecordingEntity has no season/episode data to identify
+// a specific episode, unlike the scrobble path which does for series playback.
+data class TraktCollectionRequest(val movies: List<TraktMovie>? = null)
+
 // Sent to OUR proxy (not Trakt directly) — the proxy attaches client_id/client_secret itself,
 // so the app never needs to know the secret.
 data class TraktProxyCodeRequest(val code: String)
@@ -97,4 +103,8 @@ interface TraktApiService {
 
     @GET("sync/watched/shows")
     suspend fun getWatchedShows(@Header("Authorization") auth: String, @Header("trakt-api-key") key: String, @Header("trakt-api-version") version: String = "2"): Response<List<TraktWatchedShow>>
+
+    @Headers("Content-Type: application/json")
+    @POST("sync/collection")
+    suspend fun addToCollection(@Header("Authorization") auth: String, @Header("trakt-api-key") key: String, @Header("trakt-api-version") version: String = "2", @Body body: TraktCollectionRequest): Response<Unit>
 }

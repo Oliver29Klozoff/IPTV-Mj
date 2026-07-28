@@ -3,6 +3,7 @@ package com.iptvapp.trakt
 import android.util.Log
 import com.iptvapp.BuildConfig
 import com.iptvapp.data.api.TraktApiService
+import com.iptvapp.data.api.TraktCollectionRequest
 import com.iptvapp.data.api.TraktDeviceCodeRequest
 import com.iptvapp.data.api.TraktDeviceCodeResponse
 import com.iptvapp.data.api.TraktEpisode
@@ -178,6 +179,26 @@ class TraktManager @Inject constructor(
     suspend fun scrobbleEpisodeStop(showTitle: String, season: Int, episode: Int, progress: Float) =
         scrobble(progress, { auth, body -> api.scrobbleStop(auth, clientId, body = body) },
             show = TraktShow(showTitle), episode = TraktEpisode(season, episode))
+
+    // Mirrors _lastScrobbleError's reasoning — a manual, one-off action (unlike scrobbling, which
+    // fires constantly), so a toast on failure is fine here rather than needing a StateFlow for
+    // Settings to poll. Returns true on success so the caller can show the right toast.
+    /** Adds a locally recorded movie to the user's Trakt collection (marks it "owned", separate
+     * from watched-history). Only movies are supported — RecordingEntity has no season/episode
+     * data, so there's nothing reliable to identify a recorded episode by. Uses the same
+     * best-effort title(+year) parse as scrobbling, applied to the EPG program title captured at
+     * record time (falls back to the channel name if no EPG data was available). */
+    suspend fun addRecordingToCollection(programOrChannelName: String): Boolean {
+        val token = validAccessToken() ?: return false
+        val parsed = parseTitle(programOrChannelName)
+        return try {
+            val resp = api.addToCollection("Bearer $token", clientId, body = TraktCollectionRequest(movies = listOf(TraktMovie(parsed.title, parsed.year))))
+            resp.isSuccessful
+        } catch (e: Exception) {
+            Log.e("TraktManager", "Add to collection failed: ${e.message}")
+            false
+        }
+    }
 
     data class MatchedShow(val seriesId: Int, val name: String, val cover: String?, val genre: String?, val rating: String?, val plot: String?)
 

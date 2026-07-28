@@ -60,6 +60,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     @Inject lateinit var database: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
 
     private lateinit var binding: ActivityRecordingSchedulerBinding
     private var allChannels: List<ChannelEntity> = emptyList()
@@ -75,8 +76,23 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         onDelete = { rec -> showDeleteRecordingDialog(rec) },
         onRename = { rec -> showRenameDialog(rec) },
         onRetry = { rec -> retryRecording(rec) },
-        onTrimPadding = { rec -> showTrimPaddingDialog(rec) }
+        onTrimPadding = { rec -> showTrimPaddingDialog(rec) },
+        onTraktCollect = { rec -> addRecordingToTraktCollection(rec) }
     )
+
+    // Manual, one-off action (unlike scrobbling, which fires constantly during playback) — a
+    // toast on failure is appropriate here, unlike scrobble errors which are tracked in a
+    // StateFlow instead to avoid noisy per-scrobble toasts.
+    private fun addRecordingToTraktCollection(rec: RecordingEntity) {
+        lifecycleScope.launch {
+            val ok = traktManager.addRecordingToCollection(rec.programTitle ?: rec.channelName)
+            Toast.makeText(
+                this@RecordingSchedulerActivity,
+                if (ok) "Added to Trakt collection" else "Couldn't add to Trakt collection",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     // Every recording captures ~20s of pre-roll and ~20s of post-roll padding (PRE_ROLL_MS/
     // POST_ROLL_MS below) so a program that starts/ends slightly off the provider's advertised
@@ -294,6 +310,10 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         binding.btnRecordingStorageSettings.setOnClickListener { showRecordingStorageSettingsDialog() }
         binding.btnDayPrev.setOnClickListener { dayOffset -= 1; refreshScheduleView() }
         binding.btnDayNext.setOnClickListener { dayOffset += 1; refreshScheduleView() }
+
+        lifecycleScope.launch {
+            traktManager.isConnected.collect { recordingAdapter.setTraktConnected(it) }
+        }
 
         lifecycleScope.launch {
             allCategories = database.categoryDao().getCategoriesByType("live").first()
@@ -880,13 +900,24 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         private val onDelete: (RecordingEntity) -> Unit,
         private val onRename: (RecordingEntity) -> Unit = {},
         private val onRetry: (RecordingEntity) -> Unit = {},
-        private val onTrimPadding: (RecordingEntity) -> Unit = {}
+        private val onTrimPadding: (RecordingEntity) -> Unit = {},
+        private val onTraktCollect: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
+        // Most users don't use Trakt at all — the collection button only makes sense to show
+        // once connected, so this stays false (button stays gone) until the Activity observes
+        // traktManager.isConnected and calls setTraktConnected.
+        private var traktConnected = false
 
         fun submitList(list: List<RecordingEntity>) {
             items = list
+            notifyDataSetChanged()
+        }
+
+        fun setTraktConnected(connected: Boolean) {
+            if (traktConnected == connected) return
+            traktConnected = connected
             notifyDataSetChanged()
         }
 
@@ -931,10 +962,13 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     b.btnShare.setOnClickListener { shareFile(rec.outputPath) }
                     b.btnTrimPadding.visibility = View.VISIBLE
                     b.btnTrimPadding.setOnClickListener { onTrimPadding(rec) }
+                    b.btnTraktCollect.visibility = if (traktConnected) View.VISIBLE else View.GONE
+                    b.btnTraktCollect.setOnClickListener { onTraktCollect(rec) }
                 } else {
                     b.btnPlay.visibility = View.GONE
                     b.btnShare.visibility = View.GONE
                     b.btnTrimPadding.visibility = View.GONE
+                    b.btnTraktCollect.visibility = View.GONE
                 }
 
                 if (rec.status == "FAILED") {

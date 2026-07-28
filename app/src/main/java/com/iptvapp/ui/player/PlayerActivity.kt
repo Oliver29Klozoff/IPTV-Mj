@@ -1464,14 +1464,18 @@ class PlayerActivity : AppCompatActivity() {
             // within, so it isn't subject to the same "infinite socket" problem.
             val isRawTsLive = !isVod && directUrl.contains(".ts", ignoreCase = true) && !directUrl.contains(".m3u8", ignoreCase = true)
             val castUrl = if (localIp != null) {
-                val proxy = com.iptvapp.cast.IptvCastProxy(localIp).also {
+                val proxy = com.iptvapp.cast.IptvCastProxy(localIp, appContext = applicationContext).also {
                     it.start()
                     castProxy = it
                 }
-                if (isRawTsLive) {
-                    proxy.proxyLiveUrl(directUrl, "ExoPlayerLib/1.4.1 (Linux; Android)")
-                } else {
-                    proxy.proxyUrl(directUrl)
+                when {
+                    // A recorded file is a local content:// or file:// path, meaningless to the
+                    // Cast receiver on its own — proxyLocalFile actually reads and serves its
+                    // bytes (with Range support for seeking), unlike proxyUrl which just forwards
+                    // an upstream HTTP request.
+                    isRecordingPlayback -> proxy.proxyLocalFile(directUrl)
+                    isRawTsLive -> proxy.proxyLiveUrl(directUrl, "ExoPlayerLib/1.4.1 (Linux; Android)")
+                    else -> proxy.proxyUrl(directUrl)
                 }
             } else {
                 directUrl
@@ -1480,6 +1484,8 @@ class PlayerActivity : AppCompatActivity() {
             Log.d("CastDebug", "localIp=$localIp castUrl=$castUrl")
 
             val contentType = when {
+                isRecordingPlayback && directUrl.contains(".ts", ignoreCase = true) -> "video/mp2t"
+                isRecordingPlayback -> "video/mp4"
                 castUrl.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
                 castUrl.contains(".mpd",  ignoreCase = true) -> "application/dash+xml"
                 castUrl.contains(".mp4",  ignoreCase = true) -> "video/mp4"
