@@ -18,6 +18,10 @@ class IptvWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { updateWidget(context, manager, it) }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { WidgetPrefs.clear(context, it) }
+    }
+
     companion object {
         fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_channels)

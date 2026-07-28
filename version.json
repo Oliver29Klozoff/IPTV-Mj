@@ -1,7 +1,7 @@
 {
-  "versionCode": 363,
-  "versionName": "5.25",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.25/MKTV.apk",
-  "apkSha256": "6d674c139abded44ba7bc1e0265125b56e306767b04c5402c6b4fabc67eb4944",
-  "changelog": "Internal fix: unified the widget's database migration list with the main app's to prevent a future crash."
+  "versionCode": 364,
+  "versionName": "5.26",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.26/MKTV.apk",
+  "apkSha256": "f8a3224b9f19e5a0df71e79bf6af35b8858588936835b01c8b444c37c9f426bc",
+  "changelog": "Added a configuration screen for the home screen widget — pick which favorite channels show."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.26 - 2026-07-27
+- **Added**: home screen widget is now configurable — choose up to 10 specific favorite channels
+  to show instead of always the 10 most recent favorites. Re-add the widget or long-press it and
+  tap "Edit" to configure an existing one.
+
 ## v5.25 - 2026-07-27
 - **Fixed** (internal): the home screen widget kept its own separate, hand-maintained copy of
   the database migration list, which had already fallen behind the main app's — it hadn't broken

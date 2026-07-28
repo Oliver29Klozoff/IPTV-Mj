@@ -1,5 +1,6 @@
 package com.iptvapp.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
@@ -11,11 +12,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 class WidgetChannelService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
-        ChannelWidgetFactory(applicationContext)
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
+        val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        return ChannelWidgetFactory(applicationContext, widgetId)
+    }
 }
 
-class ChannelWidgetFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
+class ChannelWidgetFactory(
+    private val context: Context,
+    private val widgetId: Int
+) : RemoteViewsService.RemoteViewsFactory {
 
     private data class WidgetRow(val streamId: Int, val name: String, val epgTitle: String)
 
@@ -35,8 +41,17 @@ class ChannelWidgetFactory(private val context: Context) : RemoteViewsService.Re
                 .addMigrations(*IptvDatabase.ALL_MIGRATIONS)
                 .build()
             val channels = db.channelDao().getFavoriteChannelsBlocking()
+            // Only present once the user has actually gone through Configure (WidgetPrefs
+            // returns null otherwise) — falls back to the original "first 10 favorites"
+            // behavior for widgets added before this feature existed, or left unconfigured.
+            val selectedIds = WidgetPrefs.getSelectedStreamIds(context, widgetId)
+            val filteredChannels = if (selectedIds != null) {
+                channels.filter { it.streamId in selectedIds }
+            } else {
+                channels.take(10)
+            }
             val nowSec = System.currentTimeMillis() / 1000  // EPG timestamps are in seconds
-            rows = channels.take(10).map { ch ->
+            rows = filteredChannels.map { ch ->
                 val epg = db.epgDao().getCurrentProgramForWidget(ch.streamId, nowSec)
                 WidgetRow(ch.streamId, ch.name, epg?.title ?: "")
             }
