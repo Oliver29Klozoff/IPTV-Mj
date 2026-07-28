@@ -1,7 +1,7 @@
 {
-  "versionCode": 364,
-  "versionName": "5.26",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.26/MKTV.apk",
-  "apkSha256": "f8a3224b9f19e5a0df71e79bf6af35b8858588936835b01c8b444c37c9f426bc",
-  "changelog": "Added a configuration screen for the home screen widget — pick which favorite channels show."
+  "versionCode": 365,
+  "versionName": "5.27",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.27/MKTV.apk",
+  "apkSha256": "f8323a7a7849deb9272dab767c3764bbe7898c4b85c4e5102c13c30e3e0a990f",
+  "changelog": "Added Channel Change Speed setting on TV to reduce flicker when mashing channel-up/down."
 }

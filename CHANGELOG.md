@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.27 - 2026-07-27
+- **Added** (TV Settings → Stream): Channel Change Speed — Instant (default, unchanged), Fast,
+  Medium, or Slow. Adds a short delay after the last D-pad channel-up/down press before actually
+  switching, so rapid button-mashing settles on one channel instead of flickering through several.
+
 ## v5.26 - 2026-07-27
 - **Added**: home screen widget is now configurable — choose up to 10 specific favorite channels
   to show instead of always the 10 most recent favorites. Re-add the widget or long-press it and

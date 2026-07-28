@@ -144,6 +144,7 @@ class PreferencesManager @Inject constructor(
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
         val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
+        val CHANNEL_ZAP_DEBOUNCE_MS = intPreferencesKey("channel_zap_debounce_ms")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
@@ -178,6 +179,15 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.AUTOPLAY_NEXT_EPISODE_ENABLED] ?: true }
     suspend fun setAutoplayNextEpisodeEnabled(v: Boolean) = context.dataStore.edit { it[Keys.AUTOPLAY_NEXT_EPISODE_ENABLED] = v }
+
+    // 0 = instant/off (every D-pad press switches immediately, the original behavior). A
+    // non-zero value waits that many ms after the LAST press before actually resolving/loading
+    // the new stream, so rapid-fire channel-up/down mashing settles on one final channel switch
+    // instead of potentially firing several real network resolves/player reloads in a row.
+    val channelZapDebounceMs: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.CHANNEL_ZAP_DEBOUNCE_MS] ?: 0 }
+    suspend fun setChannelZapDebounceMs(ms: Int) = context.dataStore.edit { it[Keys.CHANNEL_ZAP_DEBOUNCE_MS] = ms }
 
     // Global, applies to every server — not a per-server setting. Defaults on since slower/
     // less reliable IPTV providers are the norm here, and the bigger buffer directly trades

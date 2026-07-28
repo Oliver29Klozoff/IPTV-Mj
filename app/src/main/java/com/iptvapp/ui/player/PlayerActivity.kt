@@ -1706,6 +1706,13 @@ class PlayerActivity : AppCompatActivity() {
     private fun playChannel(channel: ChannelEntity) {
         channelSwitchJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
+            // 0 by default (instant, unchanged behavior). A non-zero Channel Change Speed
+            // setting waits here for that long — if another zap comes in before it elapses,
+            // channelSwitchJob?.cancel() above kills this job before it ever touches streamId/
+            // currentIndex or resolves a URL, so mashing D-pad up/down settles on one real
+            // network resolve + player reload instead of firing one per press.
+            val debounceMs = prefs.channelZapDebounceMs.first()
+            if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
             streamId = channel.streamId
             streamTitle = channel.name
             // Zapping via the channel changer (D-pad/on-screen zones) previously never updated
@@ -1729,6 +1736,8 @@ class PlayerActivity : AppCompatActivity() {
         channelSwitchJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             try {
+                val debounceMs = prefs.channelZapDebounceMs.first()
+                if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
                 serverIndex = channel.serverIndex
                 mergedStreamId = channel.streamId
                 streamTitle = "${channel.name} · ${channel.serverNickname}"

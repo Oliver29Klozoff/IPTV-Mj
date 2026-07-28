@@ -405,6 +405,12 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Toggle("stream_extra_buffering", "Global Extra Buffering",
             subtitle = "Enable extra buffering for all providers by default — trades a slower start/seek for fewer mid-playback stalls. On by default.",
             checked = prefs.extraBufferingEnabled.first()) { c -> lifecycleScope.launch { prefs.setExtraBufferingEnabled(c) } }
+        settingsItems += TvSettingItem.Action("stream_zap_speed", "Channel Change Speed",
+            value = zapSpeedLabel(prefs.channelZapDebounceMs.first())) {
+            lifecycleScope.launch {
+                showChannelZapSpeedDialog(prefs.channelZapDebounceMs.first())
+            }
+        }
 
         // ── DISPLAY ──
         currentAccentColorHex = prefs.accentColor.first()
@@ -1042,6 +1048,37 @@ class TvSettingsActivity : AppCompatActivity() {
                     scheduleAutoEpgRefresh(h)
                     setItemValue("epg_auto_refresh", if (h == 0) "Off" else "Every ${h}h")
                     toast(if (h == 0) "Auto EPG refresh off" else "Auto EPG refresh every $h hours")
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun zapSpeedLabel(ms: Int) = when (ms) {
+        0 -> "Instant"
+        150 -> "Fast (150ms)"
+        300 -> "Medium (300ms)"
+        500 -> "Slow (500ms)"
+        else -> "Instant"
+    }
+
+    // A rapid D-pad channel-up/down press still switches the OSD preview instantly either way —
+    // this only delays the actual network resolve + player reload that happens after the last
+    // press, so mashing the button settles on one real channel switch instead of firing one per
+    // press. See PlayerActivity.playChannel/playMergedChannel kdoc.
+    private fun showChannelZapSpeedDialog(currentMs: Int) {
+        val options = arrayOf("Instant (no delay)", "Fast (150ms)", "Medium (300ms)", "Slow (500ms)")
+        val values = intArrayOf(0, 150, 300, 500)
+        val selIdx = values.indexOf(currentMs).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Channel Change Speed")
+            .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                val ms = values[which]
+                lifecycleScope.launch {
+                    prefs.setChannelZapDebounceMs(ms)
+                    setItemValue("stream_zap_speed", zapSpeedLabel(ms))
+                    toast("Channel change speed: ${zapSpeedLabel(ms)}")
                 }
                 dialog.dismiss()
             }
