@@ -869,7 +869,11 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 val durMin = rec.durationMs / 60_000
                 val sizeLabel = RecordingFileUtils.sizeLabel(b.root.context, rec.outputPath)
                 val sizeSuffix = if (sizeLabel.isNotEmpty()) " - $sizeLabel" else ""
-                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))} - ${durMin}min$sizeSuffix"
+                // Previously a FAILED recording just said "FAILED" with no explanation — most
+                // commonly confusing when it was actually a single-connection-plan conflict with
+                // another recording/live session. See RecordingService.classifyFailureReason.
+                val reasonSuffix = if (rec.status == "FAILED" && !rec.failureReason.isNullOrBlank()) "\n${rec.failureReason}" else ""
+                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))} - ${durMin}min$sizeSuffix$reasonSuffix"
                 b.tvRecStatus.text = rec.status
 
                 val (bg, fg) = when (rec.status) {

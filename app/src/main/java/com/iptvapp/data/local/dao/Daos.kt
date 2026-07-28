@@ -281,6 +281,12 @@ interface RecordingDao {
     suspend fun insert(recording: RecordingEntity): Long
     @Query("UPDATE recordings SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Int, status: String)
+    // Only ever called with status = "FAILED" — see RecordingService.classifyFailureReason.
+    // Clears any stale reason on a non-failure status change (e.g. a manual Retry starting a
+    // fresh attempt) since updateStatus (above) doesn't touch this column and a leftover reason
+    // from a previous failed attempt would otherwise linger and mislabel the new attempt.
+    @Query("UPDATE recordings SET status = :status, failureReason = :failureReason WHERE id = :id")
+    suspend fun updateStatusWithReason(id: Int, status: String, failureReason: String?)
     @Query("UPDATE recordings SET outputPath = :path, status = :status WHERE id = :id")
     suspend fun updatePathAndStatus(id: Int, path: String, status: String)
     // durationMs is otherwise just the originally-SCHEDULED length (see RecordingFileUtils.

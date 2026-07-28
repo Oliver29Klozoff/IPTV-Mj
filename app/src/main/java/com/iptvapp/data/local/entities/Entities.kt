@@ -104,7 +104,13 @@ data class RecordingEntity(
     // -1 = primary server (same sentinel MergedChannelEntity uses). streamId alone isn't
     // globally unique once merged-provider recordings exist — two different servers can reuse
     // the same numeric id — so this disambiguates which server streamId is scoped to.
-    val serverIndex: Int = -1
+    val serverIndex: Int = -1,
+    // Only ever set when status becomes FAILED — previously a recording just showed "FAILED"
+    // with zero indication why (connection-limit rejection vs. network blip vs. storage
+    // failure), which was especially confusing for the single-connection-plan conflict case
+    // (two recordings scheduled overlapping, one wins the one available connection and the
+    // other fails). See RecordingService.classifyFailureReason.
+    val failureReason: String? = null
 )
 
 // Per-episode watched state, keyed by (seriesId, season, episode) — deliberately independent

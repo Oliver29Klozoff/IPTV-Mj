@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.30 - 2026-07-28
+- **Added**: a FAILED recording now shows why it failed instead of just "FAILED" — including
+  specifically identifying when your provider rejected the connection because another stream
+  (live viewing or another overlapping recording) was already using your account's connection
+  limit.
+
 ## v5.29 - 2026-07-28
 - **Added**: "Remove Padding" action on finished recordings (phone and TV) — trims the ~20
   seconds of pre-roll/post-roll buffer every recording captures. Re-encodes and replaces the

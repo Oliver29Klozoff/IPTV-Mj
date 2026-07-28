@@ -88,12 +88,13 @@ class RecordingService : Service() {
         jobs[recordingId] = scope.launch {
             if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "RECORDING")
 
-            val ok = runCatching {
+            val result = runCatching {
                 openRecordingOutput(target).use { out ->
                     val bytes = recordStream(url, out, durationMs)
                     if (bytes < 1024) throw IOException("Recording wrote only $bytes bytes")
                 }
-            }.isSuccess
+            }
+            val ok = result.isSuccess
 
             finalizeTarget(target, ok)
             // The raw capture is safely on disk now (or definitively failed) — nothing past
@@ -107,7 +108,10 @@ class RecordingService : Service() {
                 val finalPath = compressedPath ?: target
                 if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
             } else {
-                if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "FAILED")
+                if (recordingId != -1) {
+                    val reason = classifyFailureReason(result.exceptionOrNull())
+                    database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                }
             }
 
             wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
@@ -149,6 +153,27 @@ class RecordingService : Service() {
             null
         } finally {
             runCatching { tempFile.delete() }
+        }
+    }
+
+    // recordDirectStream/recordHls only ever surface failures as a plain IOException message
+    // string (no structured error-code type, unlike PlayerActivity's live-playback error path
+    // which gets a real HttpDataSource.InvalidResponseCodeException) — this parses that same
+    // "HTTP $code" message shape to detect the same 403/429 connection-limit-rejection pattern
+    // PlayerActivity.looksLikeConnectionLimitRejection already checks for, so a FAILED recording
+    // can say something more useful than just "FAILED" with no explanation.
+    private fun classifyFailureReason(error: Throwable?): String {
+        val message = error?.message ?: return "Recording failed (unknown error)"
+        val httpCodeMatch = Regex("""HTTP (\d{3})""").find(message)
+        val httpCode = httpCodeMatch?.groupValues?.get(1)?.toIntOrNull()
+        return when {
+            httpCode == 403 || httpCode == 429 ->
+                "Provider rejected the connection — likely another stream (live viewing or another recording) was already using your account's connection limit"
+            httpCode != null -> "Provider returned an error (HTTP $httpCode)"
+            message.contains("only", ignoreCase = true) && message.contains("bytes", ignoreCase = true) ->
+                "No data received from the provider — connection may have been rejected or the stream was unavailable"
+            message.contains("Too many redirects", ignoreCase = true) -> "Stream redirected too many times"
+            else -> "Network error: ${message.take(100)}"
         }
     }
 

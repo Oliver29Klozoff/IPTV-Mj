@@ -852,7 +852,8 @@ class TvRecordingActivity : AppCompatActivity() {
                 val durMin = rec.durationMs / 60_000
                 val sizeLabel = RecordingFileUtils.sizeLabel(b.root.context, rec.outputPath)
                 val sizeSuffix = if (sizeLabel.isNotEmpty()) "  •  $sizeLabel" else ""
-                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))}  •  ${durMin} min$sizeSuffix"
+                val reasonSuffix = if (rec.status == "FAILED" && !rec.failureReason.isNullOrBlank()) "\n${rec.failureReason}" else ""
+                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))}  •  ${durMin} min$sizeSuffix$reasonSuffix"
                 b.tvRecStatus.text = rec.status
                 val (bg, fg) = when (rec.status) {
                     "RECORDING"   -> 0x33FF4444.toInt() to 0xFFFF4444.toInt()

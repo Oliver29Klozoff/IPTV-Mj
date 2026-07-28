@@ -1,7 +1,7 @@
 {
-  "versionCode": 367,
-  "versionName": "5.29",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.29/MKTV.apk",
-  "apkSha256": "11fea4ba817864e4136e2e12a800c2a9302c082a85cc3578dd693a957a01307d",
-  "changelog": "Added Remove Padding action on finished recordings (phone and TV) to trim the ~20s pre/post-roll buffer."
+  "versionCode": 368,
+  "versionName": "5.30",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.30/MKTV.apk",
+  "apkSha256": "feb5617fc37613e78b8ea7f064a3dbb09e280db5fdcc60a9f3209dc137075a81",
+  "changelog": "FAILED recordings now show why they failed, including connection-limit conflicts with overlapping recordings/live viewing."
 }
