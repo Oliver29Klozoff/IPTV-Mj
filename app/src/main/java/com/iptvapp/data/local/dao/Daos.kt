@@ -283,6 +283,12 @@ interface RecordingDao {
     suspend fun updateStatus(id: Int, status: String)
     @Query("UPDATE recordings SET outputPath = :path, status = :status WHERE id = :id")
     suspend fun updatePathAndStatus(id: Int, path: String, status: String)
+    // durationMs is otherwise just the originally-SCHEDULED length (see RecordingFileUtils.
+    // durationMs kdoc) — "Remove Padding" corrects it to the actual trimmed file's real length
+    // so anything reading this field afterward (list display, auto-cleanup age calculations)
+    // isn't working off stale padding-inclusive timing.
+    @Query("UPDATE recordings SET outputPath = :path, durationMs = :durationMs, status = :status WHERE id = :id")
+    suspend fun updatePathDurationAndStatus(id: Int, path: String, durationMs: Long, status: String)
     @Query("UPDATE recordings SET channelName = :name WHERE id = :id")
     suspend fun rename(id: Int, name: String)
     @Delete

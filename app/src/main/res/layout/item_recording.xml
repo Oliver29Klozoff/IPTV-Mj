@@ -70,6 +70,19 @@
         android:tint="#FF8800"
         android:visibility="gone" />
 
+    <!-- Trims the fixed ~20s pre-roll/post-roll padding off the file — see RecordingTrimmer
+         kdoc. Only shown for DONE recordings, same visibility rule as btnPlay/btnShare. -->
+    <ImageButton
+        android:id="@+id/btnTrimPadding"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_crop"
+        android:tint="#AAAAAA"
+        android:contentDescription="Remove padding"
+        android:visibility="gone" />
+
     <ImageButton
         android:id="@+id/btnDelete"
         android:layout_width="32dp"

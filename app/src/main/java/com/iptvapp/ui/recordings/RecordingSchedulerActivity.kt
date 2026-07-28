@@ -74,8 +74,35 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     private val recordingAdapter = RecordingAdapter(
         onDelete = { rec -> showDeleteRecordingDialog(rec) },
         onRename = { rec -> showRenameDialog(rec) },
-        onRetry = { rec -> retryRecording(rec) }
+        onRetry = { rec -> retryRecording(rec) },
+        onTrimPadding = { rec -> showTrimPaddingDialog(rec) }
     )
+
+    // Every recording captures ~20s of pre-roll and ~20s of post-roll padding (PRE_ROLL_MS/
+    // POST_ROLL_MS below) so a program that starts/ends slightly off the provider's advertised
+    // schedule doesn't get clipped — this cuts exactly that padding back out, on demand, via a
+    // full re-encode (same Transformer pipeline that already runs after every recording to
+    // compress it) rather than a fast stream-copy. See RecordingTrimmer kdoc for why: clip-point
+    // precision against raw MPEG-TS captures isn't frame-exact, which is fine for a ~20s window
+    // but means this isn't instant — expect it to take roughly as long as compressing normally.
+    private fun showTrimPaddingDialog(rec: RecordingEntity) {
+        AlertDialog.Builder(this)
+            .setTitle("Remove Padding?")
+            .setMessage("Cuts the ~20 seconds of extra buffer from the start and end of \"${rec.channelName}\". This re-encodes the file and replaces it — it can't be undone.")
+            .setPositiveButton("Remove Padding") { _, _ ->
+                lifecycleScope.launch {
+                    Toast.makeText(this@RecordingSchedulerActivity, "Removing padding…", Toast.LENGTH_SHORT).show()
+                    val ok = com.iptvapp.util.RecordingTrimmer.removePadding(this@RecordingSchedulerActivity, database, rec)
+                    Toast.makeText(
+                        this@RecordingSchedulerActivity,
+                        if (ok) "Padding removed" else "Couldn't trim this recording",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     // The failed attempt's own scheduled time has already passed by the time anyone notices
     // it failed — re-recording that exact original window would be pointless. Retry instead
@@ -817,7 +844,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     inner class RecordingAdapter(
         private val onDelete: (RecordingEntity) -> Unit,
         private val onRename: (RecordingEntity) -> Unit = {},
-        private val onRetry: (RecordingEntity) -> Unit = {}
+        private val onRetry: (RecordingEntity) -> Unit = {},
+        private val onTrimPadding: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -862,9 +890,12 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     b.btnPlay.setOnClickListener { playFile(rec.outputPath) }
                     b.btnShare.visibility = View.VISIBLE
                     b.btnShare.setOnClickListener { shareFile(rec.outputPath) }
+                    b.btnTrimPadding.visibility = View.VISIBLE
+                    b.btnTrimPadding.setOnClickListener { onTrimPadding(rec) }
                 } else {
                     b.btnPlay.visibility = View.GONE
                     b.btnShare.visibility = View.GONE
+                    b.btnTrimPadding.visibility = View.GONE
                 }
 
                 if (rec.status == "FAILED") {

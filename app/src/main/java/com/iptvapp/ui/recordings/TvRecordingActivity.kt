@@ -325,8 +325,31 @@ class TvRecordingActivity : AppCompatActivity() {
                     .setNegativeButton("Cancel", null)
                     .show()
             },
-            onRetry = { rec -> retryRecording(rec) }
+            onRetry = { rec -> retryRecording(rec) },
+            onTrimPadding = { rec -> showTrimPaddingDialog(rec) }
         )
+    }
+
+    // Same ~20s pre-roll/post-roll trim as the phone Recording Scheduler — see
+    // RecordingSchedulerActivity.showTrimPaddingDialog / RecordingTrimmer kdoc for why this is a
+    // full re-encode (not instant) and not frame-exact.
+    private fun showTrimPaddingDialog(rec: RecordingEntity) {
+        AlertDialog.Builder(this)
+            .setTitle("Remove Padding?")
+            .setMessage("Cuts the ~20 seconds of extra buffer from the start and end of \"${rec.channelName}\". This re-encodes the file and replaces it — it can't be undone.")
+            .setPositiveButton("Remove Padding") { _, _ ->
+                lifecycleScope.launch {
+                    Toast.makeText(this@TvRecordingActivity, "Removing padding…", Toast.LENGTH_SHORT).show()
+                    val ok = com.iptvapp.util.RecordingTrimmer.removePadding(this@TvRecordingActivity, database, rec)
+                    Toast.makeText(
+                        this@TvRecordingActivity,
+                        if (ok) "Padding removed" else "Couldn't trim this recording",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun playFile(path: String) = com.iptvapp.util.RecordingFileUtils.playFile(this, path)
@@ -788,7 +811,8 @@ class TvRecordingActivity : AppCompatActivity() {
         private val onShare: (RecordingEntity) -> Unit,
         private val onDelete: (RecordingEntity) -> Unit,
         private val onRename: (RecordingEntity) -> Unit = {},
-        private val onRetry: (RecordingEntity) -> Unit = {}
+        private val onRetry: (RecordingEntity) -> Unit = {},
+        private val onTrimPadding: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingListAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -819,6 +843,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 b.rowRecordingMain.setOnLongClickListener { onRename(items[bindingAdapterPosition]); true }
                 b.btnTvRecShare.setOnClickListener { onShare(items[bindingAdapterPosition]) }
                 b.btnTvRecRetry.setOnClickListener { onRetry(items[bindingAdapterPosition]) }
+                b.btnTvRecTrimPadding.setOnClickListener { onTrimPadding(items[bindingAdapterPosition]) }
                 b.btnTvRecDelete.setOnClickListener { onDelete(items[bindingAdapterPosition]) }
             }
 
@@ -841,6 +866,7 @@ class TvRecordingActivity : AppCompatActivity() {
 
                 val isDone = rec.status == "DONE"
                 b.btnTvRecShare.visibility = if (isDone) View.VISIBLE else View.GONE
+                b.btnTvRecTrimPadding.visibility = if (isDone) View.VISIBLE else View.GONE
                 b.btnTvRecRetry.visibility = if (rec.status == "FAILED") View.VISIBLE else View.GONE
                 b.rowRecordingMain.isFocusable = true
                 b.rowRecordingMain.isFocusableInTouchMode = false

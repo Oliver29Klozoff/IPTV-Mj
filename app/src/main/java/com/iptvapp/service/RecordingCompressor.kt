@@ -34,8 +34,21 @@ object RecordingCompressor {
         else -> BITRATE_SD
     }
 
-    /** Returns true if [outputPath] was written successfully. */
-    suspend fun compress(context: Context, inputUri: Uri, outputPath: String, sourceHeight: Int): Boolean {
+    /** Returns true if [outputPath] was written successfully. [trimStartMs]/[trimEndMs], when
+     * both non-null, clip the source to that range (used by "Remove Padding" — see
+     * RecordingSchedulerActivity.showTrimPaddingDialog) via the same re-encode pipeline that
+     * already runs on every recording, rather than a separate stream-copy path. Note this is a
+     * full decode+encode, not a fast remux — clip-boundary precision against the app's raw
+     * MPEG-TS captures is "approximate to the second," not frame-exact, which is fine for
+     * trimming a fixed ~20s padding window but wouldn't be for a frame-accurate arbitrary cut. */
+    suspend fun compress(
+        context: Context,
+        inputUri: Uri,
+        outputPath: String,
+        sourceHeight: Int,
+        trimStartMs: Long? = null,
+        trimEndMs: Long? = null
+    ): Boolean {
         val appContext = context.applicationContext
         val bitrate = targetBitrateFor(sourceHeight)
 
@@ -71,7 +84,16 @@ object RecordingCompressor {
                 }
 
                 try {
-                    val editedItem = EditedMediaItem.Builder(MediaItem.fromUri(inputUri)).build()
+                    val mediaItemBuilder = MediaItem.Builder().setUri(inputUri)
+                    if (trimStartMs != null && trimEndMs != null) {
+                        mediaItemBuilder.setClippingConfiguration(
+                            MediaItem.ClippingConfiguration.Builder()
+                                .setStartPositionMs(trimStartMs)
+                                .setEndPositionMs(trimEndMs)
+                                .build()
+                        )
+                    }
+                    val editedItem = EditedMediaItem.Builder(mediaItemBuilder.build()).build()
                     transformer.start(editedItem, outputPath)
                 } catch (e: Exception) {
                     Log.e("RecordingCompressor", "Transformer.start() threw", e)

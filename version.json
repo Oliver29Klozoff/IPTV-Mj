@@ -1,7 +1,7 @@
 {
-  "versionCode": 366,
-  "versionName": "5.28",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.28/MKTV.apk",
-  "apkSha256": "34d00047f892b0d7050263dfef4aeb551d7774b58fa5db751a04bd30deb8283b",
-  "changelog": "Guide search now matches program titles too, not just channel names."
+  "versionCode": 367,
+  "versionName": "5.29",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.29/MKTV.apk",
+  "apkSha256": "11fea4ba817864e4136e2e12a800c2a9302c082a85cc3578dd693a957a01307d",
+  "changelog": "Added Remove Padding action on finished recordings (phone and TV) to trim the ~20s pre/post-roll buffer."
 }

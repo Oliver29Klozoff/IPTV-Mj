@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.29 - 2026-07-28
+- **Added**: "Remove Padding" action on finished recordings (phone and TV) — trims the ~20
+  seconds of pre-roll/post-roll buffer every recording captures. Re-encodes and replaces the
+  file, so it takes roughly as long as the automatic post-recording compression does.
+
 ## v5.28 - 2026-07-28
 - **Added**: Guide search now also matches airing/upcoming program titles, not just channel
   names — searching "NFL" now finds any channel currently airing something with NFL in the

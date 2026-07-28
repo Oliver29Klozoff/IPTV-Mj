@@ -79,6 +79,24 @@ object RecordingFileUtils {
             .onFailure { Toast.makeText(context, "No app available to share with", Toast.LENGTH_SHORT).show() }
     }
 
+    // RecordingEntity.durationMs is the originally-SCHEDULED duration (requested length +
+    // pre/post-roll), never updated to reflect what was actually captured (reconnects/stalls can
+    // make the real file shorter, or a slow read can overshoot slightly) — anything that needs
+    // the real length (e.g. "Remove Padding" computing where post-roll actually starts) must
+    // probe the file itself, same MediaMetadataRetriever pattern RecordingService.probeVideoHeight
+    // already uses for video height.
+    fun durationMs(context: Context, path: String): Long? {
+        val retriever = android.media.MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, resolveUri(context, path) ?: return null)
+            retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        } catch (_: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
     fun sizeLabel(context: Context, path: String): String {
         val bytes = sizeBytes(context, path)
         return if (bytes < 0) "" else formatBytes(bytes)
