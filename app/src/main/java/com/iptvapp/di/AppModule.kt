@@ -145,31 +145,7 @@ object AppModule {
             context,
             IptvDatabase::class.java,
             IptvDatabase.DATABASE_NAME
-        ).addMigrations(
-            IptvDatabase.MIGRATION_2_3,
-            IptvDatabase.MIGRATION_3_4,
-            IptvDatabase.MIGRATION_4_5,
-            IptvDatabase.MIGRATION_5_6,
-            IptvDatabase.MIGRATION_6_7,
-            IptvDatabase.MIGRATION_7_8,
-            IptvDatabase.MIGRATION_8_9,
-            IptvDatabase.MIGRATION_9_10,
-            IptvDatabase.MIGRATION_10_11,
-            IptvDatabase.MIGRATION_11_12,
-            IptvDatabase.MIGRATION_12_13,
-            IptvDatabase.MIGRATION_13_14,
-            IptvDatabase.MIGRATION_14_15,
-            IptvDatabase.MIGRATION_15_16,
-            IptvDatabase.MIGRATION_16_17,
-            IptvDatabase.MIGRATION_17_18,
-            IptvDatabase.MIGRATION_18_19,
-            IptvDatabase.MIGRATION_19_20,
-            IptvDatabase.MIGRATION_20_21,
-            IptvDatabase.MIGRATION_21_22,
-            IptvDatabase.MIGRATION_22_23,
-            IptvDatabase.MIGRATION_23_24,
-            IptvDatabase.MIGRATION_24_25
-        ).build()
+        ).addMigrations(*IptvDatabase.ALL_MIGRATIONS).build()
 
     @Provides fun provideChannelDao(db: IptvDatabase) = db.channelDao()
     @Provides fun provideCategoryDao(db: IptvDatabase) = db.categoryDao()

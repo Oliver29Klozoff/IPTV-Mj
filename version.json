@@ -1,7 +1,7 @@
 {
-  "versionCode": 362,
-  "versionName": "5.24",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.24/MKTV.apk",
-  "apkSha256": "8650ee5d3dc563b30a512b37818a4b0367765ab08ef6340896467888508e874b",
-  "changelog": "Fixed widget channel tap, PiP aspect ratio matching real video, and a small cold-launch delay."
+  "versionCode": 363,
+  "versionName": "5.25",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.25/MKTV.apk",
+  "apkSha256": "6d674c139abded44ba7bc1e0265125b56e306767b04c5402c6b4fabc67eb4944",
+  "changelog": "Internal fix: unified the widget's database migration list with the main app's to prevent a future crash."
 }

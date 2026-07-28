@@ -27,25 +27,12 @@ class ChannelWidgetFactory(private val context: Context) : RemoteViewsService.Re
 
     private fun load() {
         runBlocking(Dispatchers.IO) {
+            // Was a hand-typed, independent copy of the migration list that silently fell behind
+            // the main app's (stuck at MIGRATION_17_18 while the app was on MIGRATION_24_25) —
+            // now shares the single source of truth so it can never drift again. See
+            // IptvDatabase.ALL_MIGRATIONS kdoc.
             val db = Room.databaseBuilder(context, IptvDatabase::class.java, IptvDatabase.DATABASE_NAME)
-                .addMigrations(
-                    IptvDatabase.MIGRATION_2_3,
-                    IptvDatabase.MIGRATION_3_4,
-                    IptvDatabase.MIGRATION_4_5,
-                    IptvDatabase.MIGRATION_5_6,
-                    IptvDatabase.MIGRATION_6_7,
-                    IptvDatabase.MIGRATION_7_8,
-                    IptvDatabase.MIGRATION_8_9,
-                    IptvDatabase.MIGRATION_9_10,
-                    IptvDatabase.MIGRATION_10_11,
-                    IptvDatabase.MIGRATION_11_12,
-                    IptvDatabase.MIGRATION_12_13,
-                    IptvDatabase.MIGRATION_13_14,
-                    IptvDatabase.MIGRATION_14_15,
-                    IptvDatabase.MIGRATION_15_16,
-                    IptvDatabase.MIGRATION_16_17,
-                    IptvDatabase.MIGRATION_17_18
-                )
+                .addMigrations(*IptvDatabase.ALL_MIGRATIONS)
                 .build()
             val channels = db.channelDao().getFavoriteChannelsBlocking()
             val nowSec = System.currentTimeMillis() / 1000  // EPG timestamps are in seconds

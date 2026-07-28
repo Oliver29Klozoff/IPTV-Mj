@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.25 - 2026-07-27
+- **Fixed** (internal): the home screen widget kept its own separate, hand-maintained copy of
+  the database migration list, which had already fallen behind the main app's — it hadn't broken
+  anything yet, but the next schema change would have crashed the widget outright. Both now share
+  a single migration list that can't drift apart again.
+
 ## v5.24 - 2026-07-27
 - **Fixed**: tapping a channel in the home screen widget didn't actually open that channel — it
   just launched the app generically due to a mismatched intent key. Now jumps straight to the

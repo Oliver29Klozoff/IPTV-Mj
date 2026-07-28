@@ -313,5 +313,23 @@ abstract class IptvDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE series ADD COLUMN dismissedFromContinueWatching INTEGER NOT NULL DEFAULT 0")
             }
         }
+
+        // Single source of truth for "every migration this app has ever had" — AppModule's main
+        // DB instance and WidgetChannelService's separate widget-process DB instance both need
+        // the complete chain, and used to maintain two independently hand-typed copies of this
+        // list. The widget's copy silently fell behind (stuck at MIGRATION_17_18 while the app
+        // was already on MIGRATION_24_25) since nothing forced the two lists to stay in sync —
+        // it happened not to matter yet only because neither of the widget's two queries touched
+        // any column added by a migration after 17_18, but the next schema change to
+        // ChannelEntity/EpgEntity would have crashed the widget's RemoteViewsFactory outright.
+        // Both call sites should always reference this array now instead of listing migrations
+        // by hand.
+        val ALL_MIGRATIONS = arrayOf(
+            MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+            MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+            MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+            MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
+            MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25
+        )
     }
 }
