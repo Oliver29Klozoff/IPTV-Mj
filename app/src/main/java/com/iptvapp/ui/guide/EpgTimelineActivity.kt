@@ -129,9 +129,15 @@ class EpgTimelineActivity : AppCompatActivity() {
         }
     }
 
+    // Previously only matched the CHANNEL name — searching a show/program title (e.g. "NFL")
+    // found nothing unless the channel itself happened to be named that, even though every
+    // GuideRow already carries its full programs list. Now matches either.
     private fun applySearchFilter(query: String) {
         val q = query.trim()
-        val filtered = if (q.isBlank()) rows() else rows().filter { it.name.contains(q, ignoreCase = true) }
+        val filtered = if (q.isBlank()) rows() else rows().filter { row ->
+            row.name.contains(q, ignoreCase = true) ||
+                row.programs.any { it.title.contains(q, ignoreCase = true) }
+        }
         adapter.submitList(filtered)
     }
 

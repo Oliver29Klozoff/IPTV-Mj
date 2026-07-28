@@ -1,7 +1,7 @@
 {
-  "versionCode": 365,
-  "versionName": "5.27",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.27/MKTV.apk",
-  "apkSha256": "f8323a7a7849deb9272dab767c3764bbe7898c4b85c4e5102c13c30e3e0a990f",
-  "changelog": "Added Channel Change Speed setting on TV to reduce flicker when mashing channel-up/down."
+  "versionCode": 366,
+  "versionName": "5.28",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.28/MKTV.apk",
+  "apkSha256": "34d00047f892b0d7050263dfef4aeb551d7774b58fa5db751a04bd30deb8283b",
+  "changelog": "Guide search now matches program titles too, not just channel names."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.28 - 2026-07-28
+- **Added**: Guide search now also matches airing/upcoming program titles, not just channel
+  names — searching "NFL" now finds any channel currently airing something with NFL in the
+  title, not just a channel literally named that. Already covered every configured provider.
+
 ## v5.27 - 2026-07-27
 - **Added** (TV Settings → Stream): Channel Change Speed — Instant (default, unchanged), Fast,
   Medium, or Slow. Adds a short delay after the last D-pad channel-up/down press before actually
