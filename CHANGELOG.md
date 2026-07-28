@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v5.32 - 2026-07-28
+- **Added**: scheduling a recording now also warns if you're currently watching a live channel
+  on the same provider — the same connection-limit collision risk as two overlapping
+  recordings, previously only checked against other scheduled recordings.
+- **Added**: home screen widget can now show Continue Watching (in-progress movies and shows)
+  instead of live channels — pick the mode in the widget's configure screen (long-press it,
+  tap Edit). Tapping a movie resumes it directly; tapping a show opens its episode picker.
+- **Changed**: tapping Play on a finished recording now plays it in-app (same player used for
+  live TV and movies) instead of always opening an external video player — this also means
+  recordings can now scrobble to Trakt, using the program title captured from the guide at
+  record time. Opening with an external player is still available via Share.
+
 ## v5.31 - 2026-07-28
 - **Fixed**: a manually-triggered "Quick Backup Now" could get silently deleted by the next
   weekly automatic backup once you had more than 5 backups total — they now use separate

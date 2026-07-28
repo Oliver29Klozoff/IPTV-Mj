@@ -10,6 +10,10 @@ import android.content.Context
 object WidgetPrefs {
     private const val PREFS_NAME = "widget_channel_selection"
     private const val KEY_PREFIX = "widget_"
+    private const val MODE_KEY_PREFIX = "widget_mode_"
+
+    const val MODE_LIVE = "live"
+    const val MODE_CONTINUE_WATCHING = "continue_watching"
 
     // null = no explicit selection saved yet (falls back to "first 10 favorites", the original
     // hardcoded behavior) — only non-null once the user has actually gone through Configure.
@@ -25,9 +29,31 @@ object WidgetPrefs {
             .apply()
     }
 
+    // Distinct from clear() below — this only resets the channel selection (used when the user
+    // saves Configure with nothing checked, falling back to "first 10 favorites"), without also
+    // wiping the mode the user just chose on the same screen.
+    fun clearSelectedStreamIds(context: Context, widgetId: Int) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(KEY_PREFIX + widgetId)
+            .apply()
+    }
+
+    // Defaults to MODE_LIVE so widgets added before this feature existed keep their original
+    // behavior unchanged.
+    fun getMode(context: Context, widgetId: Int): String =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(MODE_KEY_PREFIX + widgetId, MODE_LIVE) ?: MODE_LIVE
+
+    fun setMode(context: Context, widgetId: Int, mode: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(MODE_KEY_PREFIX + widgetId, mode)
+            .apply()
+    }
+
     fun clear(context: Context, widgetId: Int) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .remove(KEY_PREFIX + widgetId)
+            .remove(MODE_KEY_PREFIX + widgetId)
             .apply()
     }
 }

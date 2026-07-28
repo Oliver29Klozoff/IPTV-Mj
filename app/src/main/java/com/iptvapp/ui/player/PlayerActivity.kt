@@ -100,6 +100,12 @@ class PlayerActivity : AppCompatActivity() {
     private var serverIndex: Int = -1
     private var mergedStreamId: Int = -1
     private var isVod: Boolean = false
+    // A locally recorded file played back from the Recordings screen — always launched with
+    // is_vod=true too (a finished recording behaves like VOD: seekable, no live-edge concept, and
+    // Trakt-scrobblable via the existing isVod movie-title path using programTitle/channelName as
+    // stream_title). This flag exists only to pick a different ExoPlayer data source in
+    // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
+    private var isRecordingPlayback: Boolean = false
     private var resumePositionMs: Long = 0L
     // Set only when playing a series episode (from series_id extra) — progress for episodes
     // saves into episode_watched (keyed by seriesId/season/episode), never vod_streams, since
@@ -250,6 +256,7 @@ class PlayerActivity : AppCompatActivity() {
         serverIndex = intent.getIntExtra("server_index", -1)
         mergedStreamId = intent.getIntExtra("merged_stream_id", -1)
         isVod = intent.getBooleanExtra("is_vod", false)
+        isRecordingPlayback = intent.getBooleanExtra("is_recording", false)
         resumePositionMs = intent.getLongExtra("resume_ms", 0L)
         epIds    = intent.getStringArrayListExtra("ep_ids")    ?: emptyList()
         epTitles = intent.getStringArrayListExtra("ep_titles") ?: emptyList()
@@ -265,6 +272,10 @@ class PlayerActivity : AppCompatActivity() {
         setupNetworkChangeReconnect()
         binding.tvChannelTitle.text = streamTitle
         binding.btnBack.setOnClickListener { finish() }
+
+        if (!isVod) {
+            lifecycleScope.launch { prefs.setLivePlaybackActive(serverIndex) }
+        }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
         if (!isVod && serverIndex != -1 && mergedStreamId != -1) {
@@ -916,8 +927,16 @@ class PlayerActivity : AppCompatActivity() {
         // which looked exactly like "plays fine in the mini player, black screen + endless
         // reconnect loop in fullscreen" since that's the only real pipeline difference
         // between the two players for live channels.
-        val upstreamDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
-            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        // Locally recorded files (content:// or file:// paths, played back via the Recordings
+        // screen's "Play in App" action so they can scrobble to Trakt) aren't HTTP resources at
+        // all — OkHttpDataSource can't read them, so this case needs the plain platform data
+        // source instead of the IPTV-CDN-tuned OkHttp one used for every live/VOD stream.
+        val upstreamDataSourceFactory = if (isRecordingPlayback) {
+            androidx.media3.datasource.DefaultDataSource.Factory(this)
+        } else {
+            OkHttpDataSource.Factory(okHttpClient)
+                .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        }
         // Live TV used to route through an on-disk cache (ManifestBypassCacheDataSource) to
         // power a DVR/rewind buffer beyond ExoPlayer's in-memory back buffer. Confirmed by
         // A/B testing on the Shield and phone: some providers (shop4uu at least) reuse the
@@ -1720,6 +1739,7 @@ class PlayerActivity : AppCompatActivity() {
             // cold boot after zapping around would revert to whatever was playing before you
             // started changing channels, not where you actually ended up.
             prefs.setLastPlayedChannel(-1, channel.streamId)
+            prefs.setLivePlaybackActive(-1)
             val url = repository.getLiveStreamUrl(channel.streamId)
             binding.tvChannelTitle.text = streamTitle
             val idx = channels.indexOfFirst { it.streamId == channel.streamId }
@@ -1745,6 +1765,7 @@ class PlayerActivity : AppCompatActivity() {
                 // changer must update "last played" too, or a cold boot after zapping reverts to
                 // whichever channel was playing before you started changing channels.
                 prefs.setLastPlayedChannel(channel.serverIndex, channel.streamId)
+                prefs.setLivePlaybackActive(channel.serverIndex)
                 val url = repository.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
                 binding.tvChannelTitle.text = streamTitle
                 val idx = mergedChannels.indexOfFirst { it.streamId == channel.streamId }
@@ -2060,6 +2081,11 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (!isVod && !isChangingConfigurations) {
+            // Fire-and-forget: this Activity is finishing, so there's no lifecycleScope left to
+            // await, but a plain DataStore write from a short-lived GlobalScope launch is safe.
+            kotlinx.coroutines.GlobalScope.launch { prefs.clearLivePlaybackActive() }
+        }
         upNextJob?.cancel()
         castProxy?.stop()
         castProxy = null

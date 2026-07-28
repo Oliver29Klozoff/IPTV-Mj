@@ -272,7 +272,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     // instead — no new business logic, only a new tap target for existing functionality.
     private fun onScheduleBlockClick(rec: RecordingEntity) {
         when (rec.status) {
-            "DONE" -> playFile(rec.outputPath)
+            "DONE" -> playFile(rec)
             "FAILED" -> retryRecording(rec)
             else -> showDeleteRecordingDialog(rec)
         }
@@ -610,10 +610,33 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             .show()
     }
 
+    // Checks whether a live stream on the SAME provider is playing right now — a fresh recording
+    // on that provider will very likely collide with the account's connection limit exactly like
+    // two overlapping recordings do, but this case was previously unchecked since the DB-backed
+    // overlap query only ever compares against other scheduled recordings.
+    private suspend fun confirmNoLiveConflict(targetServerIndex: Int): Boolean {
+        val activeIndex = prefs.livePlaybackActiveServerIndex.first() ?: return true
+        if (activeIndex != targetServerIndex) return true
+        return kotlinx.coroutines.suspendCancellableCoroutine<Boolean> { cont ->
+            AlertDialog.Builder(this@RecordingSchedulerActivity)
+                .setTitle("Live Channel Playing")
+                .setMessage(
+                    "You're currently watching a live channel on this same provider. If your " +
+                        "plan only allows one stream at a time, starting this recording will " +
+                        "likely fail. Schedule anyway?"
+                )
+                .setPositiveButton("Schedule Anyway") { _, _ -> cont.resume(true) {} }
+                .setNegativeButton("Cancel") { _, _ -> cont.resume(false) {} }
+                .setOnCancelListener { cont.resume(false) {} }
+                .show()
+        }
+    }
+
     private fun scheduleRecording(channel: ChannelEntity, requestedStartMs: Long, requestedDurationMs: Long) {
         val startMs = requestedStartMs - PRE_ROLL_MS
         val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
         lifecycleScope.launch {
+            if (!confirmNoLiveConflict(-1)) return@launch
             val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
             if (overlapping.isNotEmpty()) {
                 // Most Xtream plans allow only one simultaneous stream, so two recordings
@@ -639,13 +662,20 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             try {
                 val streamUrl = repository.getLiveStreamUrlForRecording(channel.streamId)
                 val outputTarget = createOutputTarget(channel, startMs)
+                // Best-effort program title at the actual requested time (not the pre-roll-shifted
+                // startMs) — this is the only identity a recording gets beyond its channel name,
+                // used later to scrobble the right title to Trakt on playback.
+                val programTitle = try {
+                    database.epgDao().getNowPlaying(channel.streamId)?.title
+                } catch (_: Exception) { null }
 
                 val recording = RecordingEntity(
                     streamId = channel.streamId,
                     channelName = channel.name,
                     scheduledStartMs = startMs,
                     durationMs = durationMs,
-                    outputPath = outputTarget
+                    outputPath = outputTarget,
+                    programTitle = programTitle
                 )
 
                 val id = database.recordingDao().insert(recording).toInt()
@@ -682,6 +712,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         val startMs = requestedStartMs - PRE_ROLL_MS
         val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
         lifecycleScope.launch {
+            if (!confirmNoLiveConflict(channel.serverIndex)) return@launch
             val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
             if (overlapping.isNotEmpty()) {
                 val names = overlapping.joinToString(", ") { it.channelName }
@@ -703,6 +734,9 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             try {
                 val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
                 val outputTarget = createOutputTarget(channel.name, startMs)
+                val programTitle = try {
+                    database.epgDao().getNowPlaying(channel.streamId, channel.serverIndex)?.title
+                } catch (_: Exception) { null }
 
                 val recording = RecordingEntity(
                     streamId = channel.streamId,
@@ -710,7 +744,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     channelName = channel.name,
                     scheduledStartMs = startMs,
                     durationMs = durationMs,
-                    outputPath = outputTarget
+                    outputPath = outputTarget,
+                    programTitle = programTitle
                 )
 
                 val id = database.recordingDao().insert(recording).toInt()
@@ -891,7 +926,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
                 if (rec.status == "DONE") {
                     b.btnPlay.visibility = View.VISIBLE
-                    b.btnPlay.setOnClickListener { playFile(rec.outputPath) }
+                    b.btnPlay.setOnClickListener { playFile(rec) }
                     b.btnShare.visibility = View.VISIBLE
                     b.btnShare.setOnClickListener { shareFile(rec.outputPath) }
                     b.btnTrimPadding.visibility = View.VISIBLE
@@ -912,7 +947,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         }
     }
 
-    private fun playFile(path: String) = com.iptvapp.util.RecordingFileUtils.playFile(this, path)
+    private fun playFile(rec: RecordingEntity) = com.iptvapp.util.RecordingFileUtils.playInApp(this, rec)
 
     private fun shareFile(path: String) = com.iptvapp.util.RecordingFileUtils.shareFile(this, path)
 }

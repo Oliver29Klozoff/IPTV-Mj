@@ -1,7 +1,7 @@
 {
-  "versionCode": 369,
-  "versionName": "5.31",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.31/MKTV.apk",
-  "apkSha256": "342a64ee402590d06d47d93aea31fc77251da839118a4f42ec095b4f5df41f40",
-  "changelog": "Fixed manual backups being prunable by auto-backup; added file size, count, and pre-restore content summary to Manage Backups."
+  "versionCode": 370,
+  "versionName": "5.32",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.32/MKTV.apk",
+  "apkSha256": "a1d9cff10d21a61c12cc1315ad99b585d9389a0dbdde260543f80e6638a70e1e",
+  "changelog": "Recording-vs-live conflict warning; Continue Watching home screen widget mode; recordings now play in-app and can scrobble to Trakt."
 }

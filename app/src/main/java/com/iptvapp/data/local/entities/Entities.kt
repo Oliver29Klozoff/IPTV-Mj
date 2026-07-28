@@ -110,7 +110,13 @@ data class RecordingEntity(
     // failure), which was especially confusing for the single-connection-plan conflict case
     // (two recordings scheduled overlapping, one wins the one available connection and the
     // other fails). See RecordingService.classifyFailureReason.
-    val failureReason: String? = null
+    val failureReason: String? = null,
+    // Captured from the EPG's "now" entry for this channel at the moment the recording was
+    // scheduled/started (best-effort — null if no EPG data was available). This is the only
+    // program-identity signal recordings have; channelName alone (e.g. "ESPN HD") is a channel,
+    // not a program, and can't be scrobbled to Trakt correctly. See PlayerActivity's Trakt
+    // scrobble gating, which now uses this when a recording is played back.
+    val programTitle: String? = null
 )
 
 // Per-episode watched state, keyed by (seriesId, season, episode) — deliberately independent

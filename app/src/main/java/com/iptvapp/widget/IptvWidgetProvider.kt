@@ -35,12 +35,22 @@ class IptvWidgetProvider : AppWidgetProvider() {
             }
             views.setRemoteAdapter(R.id.lvWidgetChannels, serviceIntent)
 
+            // Rows can now resolve to either a live channel jump (HomeActivity), a movie
+            // (PlayerActivity, needs an async stream-URL lookup first), or a series (opens its
+            // detail screen) — WidgetTapReceiver is a transparent pass-through Activity that
+            // decides which based on the fill-in intent's action extra.
+            val tapIntent = PendingIntent.getActivity(
+                context, 0,
+                Intent(context, WidgetTapReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            views.setPendingIntentTemplate(R.id.lvWidgetChannels, tapIntent)
+
             val openIntent = PendingIntent.getActivity(
                 context, 0,
                 Intent(context, HomeActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setPendingIntentTemplate(R.id.lvWidgetChannels, openIntent)
             views.setOnClickPendingIntent(R.id.tvWidgetUpdated, openIntent)
 
             manager.updateAppWidget(widgetId, views)

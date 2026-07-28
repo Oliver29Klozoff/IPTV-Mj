@@ -43,8 +43,30 @@ class WidgetConfigureActivity : Activity() {
             return
         }
 
+        if (WidgetPrefs.getMode(this, widgetId) == WidgetPrefs.MODE_CONTINUE_WATCHING) {
+            binding.rbConfigModeContinueWatching.isChecked = true
+        }
+        updateModeUi()
+        binding.rgConfigMode.setOnCheckedChangeListener { _, _ -> updateModeUi() }
+
         loadFavorites()
         binding.btnConfigSave.setOnClickListener { saveAndFinish() }
+    }
+
+    private fun isContinueWatchingMode() = binding.rbConfigModeContinueWatching.isChecked
+
+    private fun updateModeUi() {
+        val continueWatching = isContinueWatchingMode()
+        val noFavorites = allFavorites.isEmpty()
+        binding.lvConfigChannels.visibility =
+            if (continueWatching || noFavorites) android.view.View.GONE else android.view.View.VISIBLE
+        binding.tvConfigEmpty.visibility =
+            if (!continueWatching && noFavorites) android.view.View.VISIBLE else android.view.View.GONE
+        binding.btnConfigSave.visibility = android.view.View.VISIBLE
+        binding.tvConfigHint.text = if (continueWatching)
+            "Shows your most recently in-progress movies and shows, most recent first."
+        else
+            "Pick up to 10 favorites to show. Leave nothing selected to always show your 10 most recent favorites."
     }
 
     private fun loadFavorites() {
@@ -58,12 +80,8 @@ class WidgetConfigureActivity : Activity() {
                 list
             }
             allFavorites = favorites
-            if (favorites.isEmpty()) {
-                binding.tvConfigEmpty.visibility = android.view.View.VISIBLE
-                binding.lvConfigChannels.visibility = android.view.View.GONE
-                binding.btnConfigSave.visibility = android.view.View.GONE
-                return@launch
-            }
+            updateModeUi()
+            if (favorites.isEmpty()) return@launch
 
             val alreadySelected = WidgetPrefs.getSelectedStreamIds(this@WidgetConfigureActivity, widgetId).orEmpty()
             val adapter = ArrayAdapter(
@@ -80,21 +98,26 @@ class WidgetConfigureActivity : Activity() {
     }
 
     private fun saveAndFinish() {
-        val checked = binding.lvConfigChannels.checkedItemPositions
-        val selected = (0 until allFavorites.size)
-            .filter { checked.get(it) }
-            .map { allFavorites[it].streamId }
-            .toSet()
+        val mode = if (isContinueWatchingMode()) WidgetPrefs.MODE_CONTINUE_WATCHING else WidgetPrefs.MODE_LIVE
+        WidgetPrefs.setMode(this, widgetId, mode)
 
-        if (selected.size > 10) {
-            Toast.makeText(this, "Pick at most 10 channels", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (mode == WidgetPrefs.MODE_LIVE) {
+            val checked = binding.lvConfigChannels.checkedItemPositions
+            val selected = (0 until allFavorites.size)
+                .filter { checked.get(it) }
+                .map { allFavorites[it].streamId }
+                .toSet()
 
-        if (selected.isEmpty()) {
-            WidgetPrefs.clear(this, widgetId)
-        } else {
-            WidgetPrefs.setSelectedStreamIds(this, widgetId, selected)
+            if (selected.size > 10) {
+                Toast.makeText(this, "Pick at most 10 channels", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            if (selected.isEmpty()) {
+                WidgetPrefs.clearSelectedStreamIds(this, widgetId)
+            } else {
+                WidgetPrefs.setSelectedStreamIds(this, widgetId, selected)
+            }
         }
 
         IptvWidgetProvider.updateWidget(this, AppWidgetManager.getInstance(this), widgetId)

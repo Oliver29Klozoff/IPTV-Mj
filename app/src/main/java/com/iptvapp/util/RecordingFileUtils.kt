@@ -52,6 +52,33 @@ object RecordingFileUtils {
             .onFailure { Toast.makeText(context, "No video player installed", Toast.LENGTH_SHORT).show() }
     }
 
+    // In-app playback via this app's own PlayerActivity — same player used for live/VOD, which
+    // means a finished recording can now scrobble to Trakt (using the EPG program title captured
+    // at record time, see RecordingEntity.programTitle) instead of only ever opening in whatever
+    // external video player the user has installed. Replaces playFile() as the default tap
+    // action; external "Open with..." is still reachable via Share.
+    fun playInApp(context: Context, rec: com.iptvapp.data.local.entities.RecordingEntity) {
+        val path = rec.outputPath
+        val uri = resolveUri(context, path) ?: return
+        if (!path.startsWith("content://")) {
+            val length = File(path).length()
+            if (length < 1024) {
+                Toast.makeText(context, "Recording incomplete ($length bytes)", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+        val intent = Intent(context, com.iptvapp.ui.player.PlayerActivity::class.java).apply {
+            putExtra("stream_url", uri.toString())
+            putExtra("stream_title", rec.programTitle ?: rec.channelName)
+            putExtra("stream_id", rec.id)
+            putExtra("is_vod", true)
+            putExtra("is_recording", true)
+            if (context !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { context.startActivity(intent) }
+            .onFailure { Toast.makeText(context, "Couldn't play recording", Toast.LENGTH_SHORT).show() }
+    }
+
     /** Deletes the actual recorded file/MediaStore entry — separate from removing the
      * RecordingEntity DB row, since "remove from this list" and "delete from device storage"
      * are two different user intents (see the delete-confirmation flow in both Activities). */

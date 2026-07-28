@@ -9,12 +9,39 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="Choose channels for this widget"
+        android:text="Choose what this widget shows"
         android:textColor="#FFFFFF"
         android:textSize="16sp"
         android:textStyle="bold" />
 
+    <RadioGroup
+        android:id="@+id/rgConfigMode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="8dp">
+
+        <RadioButton
+            android:id="@+id/rbConfigModeLive"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="24dp"
+            android:checked="true"
+            android:text="Live Channels"
+            android:textColor="#FFFFFF" />
+
+        <RadioButton
+            android:id="@+id/rbConfigModeContinueWatching"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Continue Watching"
+            android:textColor="#FFFFFF" />
+
+    </RadioGroup>
+
     <TextView
+        android:id="@+id/tvConfigHint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="16dp"

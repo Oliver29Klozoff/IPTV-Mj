@@ -261,7 +261,7 @@ class TvRecordingActivity : AppCompatActivity() {
     // instead — no new business logic, only a new tap target for existing functionality.
     private fun onScheduleBlockClick(rec: RecordingEntity) {
         when (rec.status) {
-            "DONE" -> playFile(rec.outputPath)
+            "DONE" -> playFile(rec)
             "FAILED" -> retryRecording(rec)
             else -> showDeleteRecordingDialog(rec)
         }
@@ -305,7 +305,7 @@ class TvRecordingActivity : AppCompatActivity() {
     private fun setupRecordingsList() {
         binding.rvRecordings.layoutManager = LinearLayoutManager(this)
         binding.rvRecordings.adapter = RecordingListAdapter(
-            onPlay = { rec -> playFile(rec.outputPath) },
+            onPlay = { rec -> playFile(rec) },
             onShare = { rec -> shareFile(rec.outputPath) },
             onDelete = { rec -> showDeleteRecordingDialog(rec) },
             onRename = { rec ->
@@ -352,7 +352,7 @@ class TvRecordingActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun playFile(path: String) = com.iptvapp.util.RecordingFileUtils.playFile(this, path)
+    private fun playFile(rec: RecordingEntity) = com.iptvapp.util.RecordingFileUtils.playInApp(this, rec)
 
     private fun shareFile(path: String) = com.iptvapp.util.RecordingFileUtils.shareFile(this, path)
 
@@ -596,10 +596,31 @@ class TvRecordingActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    // Checks whether a live stream on the SAME provider is playing right now — mirrors the
+    // phone scheduler's identical check (RecordingSchedulerActivity.confirmNoLiveConflict).
+    private suspend fun confirmNoLiveConflict(targetServerIndex: Int): Boolean {
+        val activeIndex = prefs.livePlaybackActiveServerIndex.first() ?: return true
+        if (activeIndex != targetServerIndex) return true
+        return kotlinx.coroutines.suspendCancellableCoroutine<Boolean> { cont ->
+            androidx.appcompat.app.AlertDialog.Builder(this@TvRecordingActivity)
+                .setTitle("Live Channel Playing")
+                .setMessage(
+                    "You're currently watching a live channel on this same provider. If your " +
+                        "plan only allows one stream at a time, starting this recording will " +
+                        "likely fail. Schedule anyway?"
+                )
+                .setPositiveButton("Schedule Anyway") { _, _ -> cont.resume(true) {} }
+                .setNegativeButton("Cancel") { _, _ -> cont.resume(false) {} }
+                .setOnCancelListener { cont.resume(false) {} }
+                .show()
+        }
+    }
+
     private fun scheduleRecording(channel: ChannelEntity, requestedStartMs: Long, requestedDurationMs: Long) {
         val startMs = requestedStartMs - PRE_ROLL_MS
         val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
         lifecycleScope.launch {
+            if (!confirmNoLiveConflict(-1)) return@launch
             // Most Xtream plans allow only one simultaneous stream, so two recordings
             // scheduled at overlapping times will very likely just fail each other silently —
             // worth a heads-up before committing, same check as the phone scheduler.
@@ -624,13 +645,17 @@ class TvRecordingActivity : AppCompatActivity() {
             try {
                 val streamUrl = repository.getLiveStreamUrlForRecording(channel.streamId)
                 val outputTarget = createOutputTarget(channel, startMs)
+                val programTitle = try {
+                    database.epgDao().getNowPlaying(channel.streamId)?.title
+                } catch (_: Exception) { null }
 
                 val recording = RecordingEntity(
                     streamId = channel.streamId,
                     channelName = channel.name,
                     scheduledStartMs = startMs,
                     durationMs = durationMs,
-                    outputPath = outputTarget
+                    outputPath = outputTarget,
+                    programTitle = programTitle
                 )
                 val id = database.recordingDao().insert(recording).toInt()
                 scheduleAlarm(id, channel.name, streamUrl, durationMs, outputTarget, startMs)
@@ -655,6 +680,7 @@ class TvRecordingActivity : AppCompatActivity() {
         val startMs = requestedStartMs - PRE_ROLL_MS
         val durationMs = requestedDurationMs + PRE_ROLL_MS + POST_ROLL_MS
         lifecycleScope.launch {
+            if (!confirmNoLiveConflict(channel.serverIndex)) return@launch
             val overlapping = try { repository.getOverlappingRecordings(startMs, durationMs) } catch (_: Exception) { emptyList() }
             if (overlapping.isNotEmpty()) {
                 val names = overlapping.joinToString(", ") { it.channelName }
@@ -676,6 +702,9 @@ class TvRecordingActivity : AppCompatActivity() {
             try {
                 val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
                 val outputTarget = createOutputTarget(channel.name, startMs)
+                val programTitle = try {
+                    database.epgDao().getNowPlaying(channel.streamId, channel.serverIndex)?.title
+                } catch (_: Exception) { null }
 
                 val recording = RecordingEntity(
                     streamId = channel.streamId,
@@ -683,7 +712,8 @@ class TvRecordingActivity : AppCompatActivity() {
                     channelName = channel.name,
                     scheduledStartMs = startMs,
                     durationMs = durationMs,
-                    outputPath = outputTarget
+                    outputPath = outputTarget,
+                    programTitle = programTitle
                 )
                 val id = database.recordingDao().insert(recording).toInt()
                 scheduleAlarm(id, channel.name, streamUrl, durationMs, outputTarget, startMs)

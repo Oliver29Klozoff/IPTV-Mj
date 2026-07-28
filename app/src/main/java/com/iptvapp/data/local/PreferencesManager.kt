@@ -89,6 +89,12 @@ class PreferencesManager @Inject constructor(
         // (same sentinel convention as everywhere else), matching MiniPlayerState's shape.
         val LAST_PLAYED_SERVER_INDEX = intPreferencesKey("last_played_server_index")
         val LAST_PLAYED_STREAM_ID = intPreferencesKey("last_played_stream_id")
+        // Unlike LAST_PLAYED_SERVER_INDEX/STREAM_ID above (which persist as a "most recent
+        // channel" marker and are never cleared), this reflects whether a LIVE channel is
+        // actually playing right now — set when PlayerActivity starts live playback, cleared in
+        // onDestroy (not onStop, so it survives rotation/PiP). Used to warn when scheduling a
+        // recording against the same provider a live stream is actively using.
+        val LIVE_PLAYBACK_ACTIVE_SERVER_INDEX = intPreferencesKey("live_playback_active_server_index")
         // Restore/sync-down pending equivalents, keyed "$serverUrl|$categoryId" like
         // PENDING_MERGED_FAVORITE_CATEGORIES — applied once the URL resolves to a local
         // serverIndex (doesn't need that server's categories to actually be fetched yet, unlike
@@ -462,6 +468,14 @@ class PreferencesManager @Inject constructor(
             it[Keys.LAST_PLAYED_SERVER_INDEX] = serverIndex
             it[Keys.LAST_PLAYED_STREAM_ID] = streamId
         }
+    }
+
+    val livePlaybackActiveServerIndex: Flow<Int?> = context.dataStore.data.map { it[Keys.LIVE_PLAYBACK_ACTIVE_SERVER_INDEX] }
+    suspend fun setLivePlaybackActive(serverIndex: Int) {
+        context.dataStore.edit { it[Keys.LIVE_PLAYBACK_ACTIVE_SERVER_INDEX] = serverIndex }
+    }
+    suspend fun clearLivePlaybackActive() {
+        context.dataStore.edit { it.remove(Keys.LIVE_PLAYBACK_ACTIVE_SERVER_INDEX) }
     }
 
     val githubToken: Flow<String> = context.dataStore.data.map { it[Keys.GITHUB_TOKEN] ?: "" }
