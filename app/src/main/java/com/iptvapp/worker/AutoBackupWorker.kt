@@ -198,6 +198,10 @@ class AutoBackupWorker @AssistedInject constructor(
             // permissions could read.
             val dir = File(appContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
             File(dir, fileName).writeText(body)
+            // Only ever prunes its OWN "MKTV_backup_*" files — SettingsActivity's manual "Quick
+            // Backup Now" writes "MKTV_manual_*" specifically so this can never delete a manual
+            // snapshot. They used to share this same prefix, which meant this 5-newest prune
+            // would silently delete manual backups too once the shared pool exceeded 5 files.
             dir.listFiles { f -> f.name.startsWith("MKTV_backup_") && f.name.endsWith(".json") }
                 ?.sortedByDescending { it.lastModified() }
                 ?.drop(5)

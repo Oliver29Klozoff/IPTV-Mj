@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v5.31 - 2026-07-28
+- **Fixed**: a manually-triggered "Quick Backup Now" could get silently deleted by the next
+  weekly automatic backup once you had more than 5 backups total — they now use separate
+  filenames so each has its own retention and can never prune the other.
+- **Added**: "Manage Backups on This Device" now shows each backup's file size, whether it's
+  Manual or Auto, and a total count/size in the title. Restoring a backup now shows a summary
+  of what's actually in it (favorites, extra providers, in-progress movies/shows) before you
+  commit, instead of a blind generic warning.
+
 ## v5.30 - 2026-07-28
 - **Added**: a FAILED recording now shows why it failed instead of just "FAILED" — including
   specifically identifying when your provider rejected the connection because another stream

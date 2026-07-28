@@ -1138,10 +1138,18 @@ class SettingsActivity : AppCompatActivity() {
     // "Quick Backup Now" (from the Manage Backups list) always takes a full snapshot rather than
     // asking scope questions first — it's meant to be a fast, no-decisions safety net, unlike the
     // primary Backup button which explicitly asks what to include.
+    //
+    // Filename prefix is deliberately "MKTV_manual_", NOT "MKTV_backup_" (what AutoBackupWorker
+    // uses) — they used to share the same prefix, which meant AutoBackupWorker's own 5-newest
+    // retention prune (keeps only the 5 most recent MKTV_backup_*.json files, deleting the rest)
+    // couldn't tell a manual snapshot apart from its own weekly ones. Any time the account had
+    // built up more than 5 total backups across both, the next scheduled auto-backup run would
+    // silently delete a manual backup the user had deliberately kept, with no warning. Separate
+    // prefixes give each its own independent retention scope.
     private suspend fun quickBackupNow() {
         try {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val file = File(privateBackupsDir(), "MKTV_backup_$timestamp.json")
+            val file = File(privateBackupsDir(), "MKTV_manual_$timestamp.json")
             val body = buildBackupJson(BackupScope()).toString(2)
             withContext(Dispatchers.IO) { file.writeText(body) }
             Toast.makeText(this, "Backup saved on this device", Toast.LENGTH_SHORT).show()
@@ -1154,10 +1162,14 @@ class SettingsActivity : AppCompatActivity() {
         val files = privateBackupsDir().listFiles { f -> f.name.endsWith(".json") }
             ?.sortedByDescending { it.lastModified() } ?: emptyList()
         val dateFmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+        val totalSizeLabel = formatBackupBytes(files.sumOf { it.length() })
         val labels = arrayOf("+ Quick Backup Now") +
-            files.map { dateFmt.format(Date(it.lastModified())) }.toTypedArray()
+            files.map { f ->
+                val kind = if (f.name.startsWith("MKTV_manual_")) "Manual" else "Auto"
+                "${dateFmt.format(Date(f.lastModified()))}  •  $kind  •  ${formatBackupBytes(f.length())}"
+            }.toTypedArray()
         AlertDialog.Builder(this)
-            .setTitle("Backups on This Device")
+            .setTitle("Backups on This Device (${files.size}, $totalSizeLabel)")
             .setItems(labels) { _, which ->
                 if (which == 0) {
                     lifecycleScope.launch { quickBackupNow(); showManageBackupsDialog() }
@@ -1169,6 +1181,32 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun formatBackupBytes(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val kb = bytes / 1024.0
+        if (kb < 1024) return "%.1f KB".format(kb)
+        return "%.1f MB".format(kb / 1024.0)
+    }
+
+    // Parses just enough of the file to answer "what's actually in this?" without going
+    // through the full applyBackupJson restore path — restoring previously required blindly
+    // trusting a generic "this will overwrite your login, favorites, and settings" message with
+    // no indication of what the file actually contained (how many favorites, whether extra
+    // providers were included, etc.) until after committing to the restore.
+    private fun backupContentSummary(file: File): String = try {
+        val json = org.json.JSONObject(file.readText())
+        val parts = mutableListOf<String>()
+        json.optString("serverUrl", "").takeIf { it.isNotBlank() }?.let { parts.add("Login: $it") }
+        json.optJSONArray("favoriteChannelIds")?.length()?.takeIf { it > 0 }?.let { parts.add("$it favorite channel${if (it == 1) "" else "s"}") }
+        json.optJSONArray("extraServers")?.length()?.takeIf { it > 0 }?.let { parts.add("$it extra provider${if (it == 1) "" else "s"}") }
+        json.optJSONArray("mergedFavorites")?.length()?.takeIf { it > 0 }?.let { parts.add("$it other-provider favorites") }
+        json.optJSONObject("vodProgress")?.length()?.takeIf { it > 0 }?.let { parts.add("$it movie${if (it == 1) "" else "s"} in progress") }
+        json.optJSONObject("seriesProgress")?.length()?.takeIf { it > 0 }?.let { parts.add("$it show${if (it == 1) "" else "s"} in progress") }
+        if (parts.isEmpty()) "Settings only (no favorites/providers/progress in this file)" else parts.joinToString("\n") { "• $it" }
+    } catch (e: Exception) {
+        "Couldn't read this backup's contents: ${e.message}"
+    }
+
     private fun showBackupFileActionDialog(file: File) {
         val dateFmt = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
         AlertDialog.Builder(this)
@@ -1177,7 +1215,7 @@ class SettingsActivity : AppCompatActivity() {
                 when (which) {
                     0 -> AlertDialog.Builder(this)
                         .setTitle("Restore this backup?")
-                        .setMessage("This will overwrite your current login, favorites, and settings.")
+                        .setMessage("This will overwrite your current login, favorites, and settings with:\n\n${backupContentSummary(file)}")
                         .setPositiveButton("Restore") { _, _ -> lifecycleScope.launch { restoreBackupFromFile(file) } }
                         .setNegativeButton("Cancel", null)
                         .show()
