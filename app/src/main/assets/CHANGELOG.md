@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.37 - 2026-07-29
+- **Added** (Settings → Display, phone): Auto-Clear Continue Watching — Never / 7 / 30 / 90
+  days. An abandoned in-progress movie or show is automatically cleared from Continue Watching
+  once it's been untouched that long, the same way recordings already auto-delete. It reappears
+  automatically if you actually resume it later.
+
 ## v5.36 - 2026-07-28
 - **Changed** (phone Settings): Subtitle Style (size, offset, bold, colors, outline) moved out
   of the Display section into Stream & EPG's "Audio, Subtitles & Language" dropdown, alongside

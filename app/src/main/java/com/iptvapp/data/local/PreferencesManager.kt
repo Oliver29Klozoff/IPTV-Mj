@@ -48,6 +48,10 @@ class PreferencesManager @Inject constructor(
         // 0 = disabled. Otherwise recordings older than this many days are auto-deleted
         // (file + DB row) by RecordingCleanupWorker.
         val AUTO_DELETE_RECORDINGS_DAYS = intPreferencesKey("auto_delete_recordings_days")
+        // 0 = disabled. Otherwise in-progress Continue Watching entries (movies/series) whose
+        // last watch activity is older than this many days are auto-cleared (dismissed, same as
+        // a manual long-press-to-remove) by ContinueWatchingCleanupWorker.
+        val AUTO_CLEAR_CONTINUE_WATCHING_DAYS = intPreferencesKey("auto_clear_continue_watching_days")
         val CRASH_REPORTING_ENABLED = booleanPreferencesKey("crash_reporting_enabled")
         val EPG_URL = stringPreferencesKey("epg_url")
         val LAST_EPG_REFRESH_TIME = longPreferencesKey("last_epg_refresh_time")
@@ -332,6 +336,8 @@ class PreferencesManager @Inject constructor(
 
     val autoDeleteRecordingsDays: Flow<Int> = context.dataStore.data
         .map { it[Keys.AUTO_DELETE_RECORDINGS_DAYS] ?: 0 }
+    val autoClearContinueWatchingDays: Flow<Int> = context.dataStore.data
+        .map { it[Keys.AUTO_CLEAR_CONTINUE_WATCHING_DAYS] ?: 0 }
     val crashReportingEnabled: Flow<Boolean> = context.dataStore.data
         .map { it[Keys.CRASH_REPORTING_ENABLED] ?: true }
 
@@ -400,6 +406,10 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setAutoDeleteRecordingsDays(days: Int) {
         context.dataStore.edit { prefs -> prefs[Keys.AUTO_DELETE_RECORDINGS_DAYS] = days }
+    }
+
+    suspend fun setAutoClearContinueWatchingDays(days: Int) {
+        context.dataStore.edit { prefs -> prefs[Keys.AUTO_CLEAR_CONTINUE_WATCHING_DAYS] = days }
     }
 
     suspend fun setCrashReportingEnabled(enabled: Boolean) {

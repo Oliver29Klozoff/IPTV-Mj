@@ -1,7 +1,7 @@
 {
-  "versionCode": 374,
-  "versionName": "5.36",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.36/MKTV.apk",
-  "apkSha256": "10fcbdb06b5be4fa9ea192c15a79e2680b250454dbe9345e3100042e0266cbe8",
-  "changelog": "Moved Subtitle Style into Stream & EPG's Audio/Subtitle Language dropdown (phone)."
+  "versionCode": 375,
+  "versionName": "5.37",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.37/MKTV.apk",
+  "apkSha256": "bdb1107a4718d68be901ac884f7687afd749f7b672309fa86e69892cb85ffcc9",
+  "changelog": "Added Auto-Clear Continue Watching setting (Never/7/30/90 days)."
 }

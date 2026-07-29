@@ -135,6 +135,10 @@ class SettingsActivity : AppCompatActivity() {
         // 1: Display
         "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
             + "screen — the content itself isn't deleted, just the tab.\n\n"
+            + "Auto-Clear Continue Watching: automatically removes an in-progress movie or "
+            + "show from Continue Watching once it's been untouched for the chosen number of "
+            + "days — it comes back automatically if you actually resume it later. Off by "
+            + "default.\n\n"
             + "Accent Color: the highlight color used for selected tabs, buttons, and "
             + "progress bars throughout the app.\n\n"
             + "AMOLED Black: forces pure black backgrounds everywhere instead of dark gray — "
@@ -212,6 +216,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Show Movies Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
             SettingSearchEntry("Show Series Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
             SettingSearchEntry("Show Watching Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
+            SettingSearchEntry("Auto-Clear Continue Watching", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
             SettingSearchEntry("Accent Color", 1, R.id.hdrAccentColor, R.id.hdrAccentColor),
             SettingSearchEntry("AMOLED Black", 1, R.id.hdrAccentColor, R.id.hdrAccentColor),
             SettingSearchEntry("Quick Actions", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
@@ -371,6 +376,19 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         workManager = WorkManager.getInstance(this)
 
+        // Re-establish in case it was cleared by an app update (KEEP = don't reset the timer) —
+        // mirrors RecordingSchedulerActivity's identical re-arm for RecordingCleanupWorker.
+        lifecycleScope.launch {
+            if (prefs.autoClearContinueWatchingDays.first() > 0) {
+                val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.ContinueWatchingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
+                workManager.enqueueUniquePeriodicWork(
+                    com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME,
+                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                    request
+                )
+            }
+        }
+
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSettingsHelp.setOnClickListener { showSettingsHelp() }
         binding.btnSettingsSearch.setOnClickListener { showSettingsSearchDialog() }
@@ -511,6 +529,8 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setShowWatching(isChecked) }
         }
+
+        binding.rowAutoClearContinueWatching.setOnClickListener { showAutoClearContinueWatchingDialog() }
 
         binding.btnRefreshMovies.setOnClickListener {
             binding.btnRefreshMovies.isEnabled = false
@@ -1481,6 +1501,39 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun autoClearContinueWatchingLabel(days: Int) = if (days <= 0) "Never" else "After $days days"
+
+    private fun showAutoClearContinueWatchingDialog() {
+        lifecycleScope.launch {
+            val current = prefs.autoClearContinueWatchingDays.first()
+            val options = arrayOf("Never", "After 7 days", "After 30 days", "After 90 days")
+            val values = intArrayOf(0, 7, 30, 90)
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Auto-Clear Continue Watching")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val days = values[which]
+                    lifecycleScope.launch {
+                        prefs.setAutoClearContinueWatchingDays(days)
+                        binding.tvAutoClearContinueWatchingValue.text = autoClearContinueWatchingLabel(days)
+                        if (days > 0) {
+                            val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.ContinueWatchingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
+                            androidx.work.WorkManager.getInstance(this@SettingsActivity).enqueueUniquePeriodicWork(
+                                com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME,
+                                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                                request
+                            )
+                        } else {
+                            androidx.work.WorkManager.getInstance(this@SettingsActivity).cancelUniqueWork(com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME)
+                        }
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun checkForUpdate() {
         binding.tvUpdateStatus.text = "Checking..."
         binding.btnCheckUpdate.isEnabled = false
@@ -1590,6 +1643,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()
                 binding.cbShowSeries.isChecked = prefs.showSeries.first()
                 binding.cbShowWatching.isChecked = prefs.showWatching.first()
+                binding.tvAutoClearContinueWatchingValue.text = autoClearContinueWatchingLabel(prefs.autoClearContinueWatchingDays.first())
                 when (prefs.externalPlayer.first()) {
                     "vlc"      -> binding.rbPlayerVlc.isChecked = true
                     "mxplayer" -> binding.rbPlayerMx.isChecked = true

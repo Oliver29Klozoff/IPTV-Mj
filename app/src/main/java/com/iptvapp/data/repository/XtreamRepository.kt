@@ -589,6 +589,10 @@ class XtreamRepository @Inject constructor(
 
     suspend fun saveEpisodeProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long) {
         db.episodeWatchedDao().saveProgress(seriesId, season, episode, watchedMs, durationMs)
+        // getInProgressSeries() is actually driven by episode_watched rows (see its own kdoc),
+        // not series.watchedMs/durationMs — but series.lastWatchedAt is what
+        // ContinueWatchingCleanupWorker checks for staleness, so it needs to be touched here too.
+        db.seriesDao().touchLastWatched(seriesId)
     }
 
     suspend fun getEpisodeProgress(seriesId: Int, season: Int, episode: Int): Pair<Long, Long> {

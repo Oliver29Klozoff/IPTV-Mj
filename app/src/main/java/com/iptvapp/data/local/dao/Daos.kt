@@ -142,8 +142,8 @@ interface VodDao {
     suspend fun getCount(): Int
     // Clears dismissedFromContinueWatching on every progress save — a dismissed movie should
     // reappear in Continue Watching once the user actually resumes it, not stay hidden forever.
-    @Query("UPDATE vod_streams SET watchedMs = :watchedMs, durationMs = :durationMs, dismissedFromContinueWatching = 0 WHERE streamId = :streamId")
-    suspend fun updateWatchProgress(streamId: Int, watchedMs: Long, durationMs: Long)
+    @Query("UPDATE vod_streams SET watchedMs = :watchedMs, durationMs = :durationMs, dismissedFromContinueWatching = 0, lastWatchedAt = :nowMs WHERE streamId = :streamId")
+    suspend fun updateWatchProgress(streamId: Int, watchedMs: Long, durationMs: Long, nowMs: Long = System.currentTimeMillis())
     @Query("SELECT watchedMs FROM vod_streams WHERE streamId = :streamId")
     suspend fun getWatchedMs(streamId: Int): Long?
     @Query("SELECT durationMs FROM vod_streams WHERE streamId = :streamId")
@@ -152,6 +152,11 @@ interface VodDao {
     fun getInProgressVod(): Flow<List<VodEntity>>
     @Query("UPDATE vod_streams SET dismissedFromContinueWatching = 1 WHERE streamId = :streamId")
     suspend fun dismissFromContinueWatching(streamId: Int)
+    // Used by ContinueWatchingCleanupWorker — dismisses (doesn't delete the catalog row, just
+    // clears it from the Continue Watching row) any in-progress movie whose last watch activity
+    // is older than the cutoff, mirroring RecordingCleanupWorker's age-based retention pattern.
+    @Query("UPDATE vod_streams SET dismissedFromContinueWatching = 1 WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 AND dismissedFromContinueWatching = 0 AND lastWatchedAt < :cutoffMs")
+    suspend fun dismissStaleContinueWatching(cutoffMs: Long)
     // Backs fetchVodStreams' preserve-across-refresh merge — same pattern
     // ChannelDao.getUserData() already uses for live channels.
     @Query("SELECT streamId, isFavorite, watchedMs, durationMs FROM vod_streams")
@@ -178,8 +183,8 @@ interface SeriesDao {
     suspend fun setFavorite(seriesId: Int, isFavorite: Boolean)
     @Query("SELECT COUNT(*) FROM series")
     suspend fun getCount(): Int
-    @Query("UPDATE series SET watchedMs = :watchedMs, durationMs = :durationMs WHERE seriesId = :seriesId")
-    suspend fun updateWatchProgress(seriesId: Int, watchedMs: Long, durationMs: Long)
+    @Query("UPDATE series SET watchedMs = :watchedMs, durationMs = :durationMs, lastWatchedAt = :nowMs WHERE seriesId = :seriesId")
+    suspend fun updateWatchProgress(seriesId: Int, watchedMs: Long, durationMs: Long, nowMs: Long = System.currentTimeMillis())
     @Query("SELECT watchedMs FROM series WHERE seriesId = :streamId")
     suspend fun getWatchedMs(streamId: Int): Long
     @Query("SELECT durationMs FROM series WHERE seriesId = :streamId")
@@ -228,6 +233,13 @@ interface SeriesDao {
     fun getInProgressSeries(): Flow<List<InProgressSeriesRow>>
     @Query("UPDATE series SET dismissedFromContinueWatching = 1 WHERE seriesId = :seriesId")
     suspend fun dismissFromContinueWatching(seriesId: Int)
+    @Query("UPDATE series SET lastWatchedAt = :nowMs WHERE seriesId = :seriesId")
+    suspend fun touchLastWatched(seriesId: Int, nowMs: Long = System.currentTimeMillis())
+    // Used by ContinueWatchingCleanupWorker — same age-based dismiss as VodDao's
+    // dismissStaleContinueWatching, applied to any series whose last episode-progress touch
+    // (see touchLastWatched, called from saveEpisodeProgress) is older than the cutoff.
+    @Query("UPDATE series SET dismissedFromContinueWatching = 1 WHERE dismissedFromContinueWatching = 0 AND lastWatchedAt > 0 AND lastWatchedAt < :cutoffMs")
+    suspend fun dismissStaleContinueWatching(cutoffMs: Long)
 }
 
 data class SeriesUserData(val seriesId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long, val isHidden: Boolean = false)

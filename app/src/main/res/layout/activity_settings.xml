@@ -1437,6 +1437,47 @@
                                     android:textSize="14sp"
                                     android:buttonTint="#008CFF"
                                     android:checked="true" />
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:layout_marginVertical="12dp"
+                                    android:background="#222222" />
+                                <LinearLayout
+                                    android:id="@+id/rowAutoClearContinueWatching"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:clickable="true"
+                                    android:focusable="true">
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical">
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="Auto-Clear Continue Watching"
+                                            android:textColor="#FFFFFF"
+                                            android:textSize="14sp" />
+                                        <TextView
+                                            android:id="@+id/tvAutoClearContinueWatchingValue"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="Never"
+                                            android:textColor="#888888"
+                                            android:textSize="13sp" />
+                                    </LinearLayout>
+                                    <TextView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="4dp"
+                                        android:text="Automatically clears an in-progress movie or show from Continue Watching once you haven't touched it for this long. It reappears if you actually resume it later."
+                                        android:textColor="#888888"
+                                        android:textSize="11sp" />
+                                </LinearLayout>
                             </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>

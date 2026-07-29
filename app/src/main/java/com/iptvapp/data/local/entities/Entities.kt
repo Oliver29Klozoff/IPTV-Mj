@@ -54,7 +54,12 @@ data class VodEntity(
     val watchedMs: Long = 0L,
     val durationMs: Long = 0L,
     val cachedAt: Long = System.currentTimeMillis(),
-    val dismissedFromContinueWatching: Boolean = false
+    val dismissedFromContinueWatching: Boolean = false,
+    // Set whenever updateWatchProgress() is called (i.e. actual playback progress, not catalog
+    // refresh) — cachedAt above only reflects when this row was last synced from the provider's
+    // catalog, not when the user last actually watched it, so it can't back a staleness cleanup.
+    // Used by ContinueWatchingCleanupWorker to auto-clear long-abandoned in-progress entries.
+    val lastWatchedAt: Long = 0L
 )
 
 @Entity(tableName = "series")
@@ -71,7 +76,8 @@ data class SeriesEntity(
     val durationMs: Long = 0L,
     val cachedAt: Long = System.currentTimeMillis(),
     val isHidden: Boolean = false,
-    val dismissedFromContinueWatching: Boolean = false
+    val dismissedFromContinueWatching: Boolean = false,
+    val lastWatchedAt: Long = 0L
 )
 
 // serverIndex disambiguates which server this program listing belongs to — -1 = primary

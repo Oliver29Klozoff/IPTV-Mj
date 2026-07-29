@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 27,
+    version = 28,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -332,6 +332,19 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Backs ContinueWatchingCleanupWorker's staleness check — neither table previously
+        // tracked when watch progress was last actually saved (cachedAt only reflects catalog
+        // refresh time), so there was no way to tell a recently-abandoned in-progress title from
+        // one abandoned months ago. Defaults to 0 for existing rows, same as a brand-new row
+        // before its first progress save — existing in-progress entries are simply not eligible
+        // for cleanup until the next time they're actually resumed.
+        val MIGRATION_27_28 = object : Migration(27, 28) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE vod_streams ADD COLUMN lastWatchedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE series ADD COLUMN lastWatchedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         // Single source of truth for "every migration this app has ever had" — AppModule's main
         // DB instance and WidgetChannelService's separate widget-process DB instance both need
         // the complete chain, and used to maintain two independently hand-typed copies of this
@@ -347,7 +360,8 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
             MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
-            MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27
+            MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
+            MIGRATION_27_28
         )
     }
 }
