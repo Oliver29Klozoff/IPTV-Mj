@@ -967,9 +967,13 @@ class XtreamRepository @Inject constructor(
             message.contains("setLenient", ignoreCase = true) ||
             message.contains("Use JsonReader", ignoreCase = true)
         return if (looksLikeNonJsonBody) {
-            "Provider returned an invalid response instead of channel data — this usually means " +
-                "the login has expired or been disabled, or the connection limit was hit. Try " +
-                "re-entering the provider's credentials or checking with your provider."
+            "Provider returned an invalid response instead of channel data. This can mean the " +
+                "login has expired/been disabled or the connection limit was hit — but it's also " +
+                "commonly caused by a weak or unstable network connection corrupting the " +
+                "response, or a router/network blocking or redirecting the request (e.g. a " +
+                "captive portal or DNS filtering on that Wi-Fi). If this works on one network " +
+                "but not another (or on one device but not another), suspect the network first " +
+                "before assuming the provider is at fault."
         } else {
             message
         }
@@ -996,9 +1000,14 @@ class XtreamRepository @Inject constructor(
                         // single-provider request) — with several extra providers configured,
                         // one slow/dead one used to stall the ENTIRE "All Providers" refresh
                         // for up to that long before the batch's error map was even populated.
-                        // A short per-server budget here means one bad provider can't hold the
-                        // other, healthy ones hostage.
-                        kotlinx.coroutines.withTimeout(15_000) {
+                        // A per-server budget here means one bad provider can't hold the other,
+                        // healthy ones hostage. Originally 15s, which was confirmed too tight for
+                        // a large catalog (tens of thousands of channels) over a slower connection
+                        // (a VPN, or a weak signal) — the request was otherwise succeeding
+                        // (confirmed via a real device test: login succeeded through a VPN, only
+                        // the channel-list fetch itself timed out), just not fast enough. Raised
+                        // to give that case a real chance while still bounded.
+                        kotlinx.coroutines.withTimeout(45_000) {
                         val builder = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
                         // Categories are fetched too — a single provider can itself have tens
                         // of thousands of channels, so a flat per-server list is just as

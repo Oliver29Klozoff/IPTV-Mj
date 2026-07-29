@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.40 - 2026-07-29
+- **Fixed**: a merged provider with a large channel catalog could time out fetching channels on
+  a slower connection (a VPN, or a weak signal) even though the login itself succeeded — the
+  per-provider fetch budget was a fixed 15 seconds, confirmed too tight for this case on a real
+  device. Raised to 45 seconds.
+- **Changed**: the merged-provider "invalid response" error message now explains that this is
+  often caused by network interference (a router/ISP blocking or filtering the connection, or a
+  weak/unstable signal corrupting the response) rather than always being a provider account
+  problem — confirmed via a real case where the same provider worked fine on cellular and on
+  another device's network, but failed only on one specific Wi-Fi.
+
 ## v5.39 - 2026-07-29
 - **Fixed**: a merged/secondary provider with a large channel catalog could get stuck refreshing
   forever with channels never appearing — the whole catalog was written to the database as one
