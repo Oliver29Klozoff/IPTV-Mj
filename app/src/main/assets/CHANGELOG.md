@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.36 - 2026-07-28
+- **Changed** (phone Settings): Subtitle Style (size, offset, bold, colors, outline) moved out
+  of the Display section into Stream & EPG's "Audio, Subtitles & Language" dropdown, alongside
+  the existing subtitle language setting — both are subtitle-related, so they now live in one
+  place instead of two.
+
 ## v5.35 - 2026-07-28
 - **Fixed**: Guide "Remind Me" notifications fired at the exact moment a program started —
   by the time you saw it, the show had already begun, giving zero time to actually switch

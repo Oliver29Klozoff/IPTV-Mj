@@ -1,7 +1,7 @@
 {
-  "versionCode": 373,
-  "versionName": "5.35",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.35/MKTV.apk",
-  "apkSha256": "4aed6483120b774d759e562e9e59058a73e68c7646db2d8c87b8e4d18ccf8c76",
-  "changelog": "Fixed Remind Me notifications firing at program start instead of before; added a configurable lead time."
+  "versionCode": 374,
+  "versionName": "5.36",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.36/MKTV.apk",
+  "apkSha256": "10fcbdb06b5be4fa9ea192c15a79e2680b250454dbe9345e3100042e0266cbe8",
+  "changelog": "Moved Subtitle Style into Stream & EPG's Audio/Subtitle Language dropdown (phone)."
 }

@@ -436,7 +436,7 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
-                                    android:text="AUDIO &amp; SUBTITLE LANGUAGE"
+                                    android:text="AUDIO, SUBTITLES &amp; LANGUAGE"
                                     android:textColor="#AAAAAA"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
@@ -490,6 +490,108 @@
                                     android:text="Used when a stream offers multiple language tracks. If your provider doesn't tag languages, this has no effect."
                                     android:textColor="#777777"
                                     android:textSize="11sp" />
+                                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="16dp" android:background="#222222" />
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="SUBTITLE STYLE"
+                                    android:textColor="#777777"
+                                    android:textSize="11sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="0.1"
+                                    android:paddingBottom="8dp" />
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:id="@+id/rowSubSize">
+                                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                                        android:text="Subtitle Size" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                    <TextView android:id="@+id/tvSubSizeValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                        android:textColor="#888888" android:textSize="13sp" />
+                                </LinearLayout>
+                                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:id="@+id/rowSubOffset">
+                                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                                        android:text="Vertical Offset" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                    <TextView android:id="@+id/tvSubOffsetValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                        android:textColor="#888888" android:textSize="13sp" />
+                                </LinearLayout>
+                                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
+                                <CheckBox
+                                    android:id="@+id/cbSubBold"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Bold"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="14sp"
+                                    android:buttonTint="#008CFF" />
+                                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:id="@+id/rowSubTextColor">
+                                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                                        android:text="Text Color" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                    <TextView android:id="@+id/tvSubTextColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                        android:textColor="#888888" android:textSize="13sp" />
+                                </LinearLayout>
+                                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:id="@+id/rowSubBgColor">
+                                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                                        android:text="Background Color" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                    <TextView android:id="@+id/tvSubBgColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                        android:textColor="#888888" android:textSize="13sp" />
+                                </LinearLayout>
+                                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
+                                <CheckBox
+                                    android:id="@+id/cbSubOutline"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Outline"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="14sp"
+                                    android:buttonTint="#008CFF" />
+                                <LinearLayout
+                                    android:id="@+id/rowSubOutlineColor"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:background="?attr/selectableItemBackground">
+                                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                                        android:text="Outline Color" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                    <TextView android:id="@+id/tvSubOutlineColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                        android:textColor="#888888" android:textSize="13sp" />
+                                </LinearLayout>
                             </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
@@ -1433,123 +1535,6 @@
                                     android:text="Use the TV interface and D-pad navigation on this device even though it's not detected as a TV — for a car head unit/box or other non-standard screen. Restarts the app."
                                     android:textColor="#888888"
                                     android:textSize="11sp" />
-                            </LinearLayout>
-                        </LinearLayout>
-                    </androidx.cardview.widget.CardView>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:text="SUBTITLES"
-                        android:textColor="#008CFF"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.15"
-                        android:paddingBottom="12dp" />
-
-                    <androidx.cardview.widget.CardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="0dp">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:clickable="true"
-                                android:focusable="true"
-                                android:background="?attr/selectableItemBackground"
-                                android:id="@+id/rowSubSize">
-                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                    android:text="Subtitle Size" android:textColor="#FFFFFF" android:textSize="14sp" />
-                                <TextView android:id="@+id/tvSubSizeValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:textColor="#888888" android:textSize="13sp" />
-                            </LinearLayout>
-                            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:clickable="true"
-                                android:focusable="true"
-                                android:background="?attr/selectableItemBackground"
-                                android:id="@+id/rowSubOffset">
-                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                    android:text="Vertical Offset" android:textColor="#FFFFFF" android:textSize="14sp" />
-                                <TextView android:id="@+id/tvSubOffsetValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:textColor="#888888" android:textSize="13sp" />
-                            </LinearLayout>
-                            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
-                            <CheckBox
-                                android:id="@+id/cbSubBold"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Bold"
-                                android:textColor="#FFFFFF"
-                                android:textSize="14sp"
-                                android:buttonTint="#008CFF" />
-                            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:clickable="true"
-                                android:focusable="true"
-                                android:background="?attr/selectableItemBackground"
-                                android:id="@+id/rowSubTextColor">
-                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                    android:text="Text Color" android:textColor="#FFFFFF" android:textSize="14sp" />
-                                <TextView android:id="@+id/tvSubTextColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:textColor="#888888" android:textSize="13sp" />
-                            </LinearLayout>
-                            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:clickable="true"
-                                android:focusable="true"
-                                android:background="?attr/selectableItemBackground"
-                                android:id="@+id/rowSubBgColor">
-                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                    android:text="Background Color" android:textColor="#FFFFFF" android:textSize="14sp" />
-                                <TextView android:id="@+id/tvSubBgColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:textColor="#888888" android:textSize="13sp" />
-                            </LinearLayout>
-                            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
-                            <CheckBox
-                                android:id="@+id/cbSubOutline"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Outline"
-                                android:textColor="#FFFFFF"
-                                android:textSize="14sp"
-                                android:buttonTint="#008CFF" />
-                            <LinearLayout
-                                android:id="@+id/rowSubOutlineColor"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:clickable="true"
-                                android:focusable="true"
-                                android:background="?attr/selectableItemBackground">
-                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                    android:text="Outline Color" android:textColor="#FFFFFF" android:textSize="14sp" />
-                                <TextView android:id="@+id/tvSubOutlineColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:textColor="#888888" android:textSize="13sp" />
                             </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>

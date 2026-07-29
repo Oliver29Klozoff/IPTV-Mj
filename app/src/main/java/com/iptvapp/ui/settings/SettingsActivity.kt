@@ -128,7 +128,10 @@ class SettingsActivity : AppCompatActivity() {
             + "Preferred Audio / Subtitle Language: when a stream offers multiple language "
             + "tracks, automatically selects the one matching your choice instead of whatever "
             + "the stream defaults to. Only works if the stream actually tags its tracks with "
-            + "language info — depends on your provider.",
+            + "language info — depends on your provider.\n\n"
+            + "Subtitle Style (size, offset, bold, colors, outline): customizes how subtitles "
+            + "look during playback — lives in this same dropdown alongside the language "
+            + "settings since both apply to subtitles.",
         // 1: Display
         "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
             + "screen — the content itself isn't deleted, just the tab.\n\n"
@@ -201,6 +204,10 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Picture-in-Picture", 0, null, R.id.switchPipEnabled),
             SettingSearchEntry("Show USA Channels Only", 0, null, R.id.cbUsaOnlyChannels),
             SettingSearchEntry("Show English Movies & Series Only", 0, null, R.id.cbEnglishOnlyMovies),
+            SettingSearchEntry("Subtitle Size", 0, R.id.hdrLanguage, R.id.hdrLanguage),
+            SettingSearchEntry("Subtitle Text Color", 0, R.id.hdrLanguage, R.id.hdrLanguage),
+            SettingSearchEntry("Subtitle Background Color", 0, R.id.hdrLanguage, R.id.hdrLanguage),
+            SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.hdrLanguage),
             SettingSearchEntry("Channels & Tabs", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
             SettingSearchEntry("Show Movies Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
             SettingSearchEntry("Show Series Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
@@ -211,10 +218,6 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Sort Channels", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
             SettingSearchEntry("Multi-view / Mosaic", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
             SettingSearchEntry("Feature Tour", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
-            SettingSearchEntry("Subtitle Size", 1, null, R.id.sectionDisplay),
-            SettingSearchEntry("Subtitle Text Color", 1, null, R.id.sectionDisplay),
-            SettingSearchEntry("Subtitle Background Color", 1, null, R.id.sectionDisplay),
-            SettingSearchEntry("Subtitle Outline", 1, null, R.id.sectionDisplay),
             SettingSearchEntry("Check for Updates", 5, R.id.hdrUpdates, R.id.hdrUpdates),
             SettingSearchEntry("What's New / Changelog", 5, R.id.hdrUpdates, R.id.hdrUpdates),
             SettingSearchEntry("Silent Self-Update", 5, R.id.hdrUpdates, R.id.hdrUpdates),
