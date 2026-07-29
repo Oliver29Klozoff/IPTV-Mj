@@ -1,7 +1,7 @@
 {
-  "versionCode": 378,
-  "versionName": "5.40",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.40/MKTV.apk",
-  "apkSha256": "3416e512f7e0831f14a82a9638b7a77b5c4d6088e35f963c54fb92327aac2903",
-  "changelog": "Raised merged-provider channel fetch timeout to 45s for large catalogs on slow connections; clearer error messaging."
+  "versionCode": 379,
+  "versionName": "5.41",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.41/MKTV.apk",
+  "apkSha256": "149cab2f0a8d3b2cd9bcd5373e46af4e2d81a3e3b31afa8a9e61fca65b61e7f9",
+  "changelog": "Fixed enabling/disabling a provider wiping every provider's merged favorites and folders."
 }

@@ -679,9 +679,16 @@ class TvSettingsActivity : AppCompatActivity() {
                     extraServers[i] = updated
                     lifecycleScope.launch {
                         prefs.saveExtraServersWithNick(extraServers)
-                        db.mergedChannelDao().clearAll()
-                        db.mergedVodDao().clearAll()
-                        db.mergedSeriesDao().clearAll()
+                        // Previously called clearAll() here unconditionally — every toggle of ANY
+                        // provider wiped EVERY configured provider's merged favorites/folders,
+                        // which also destroyed the isFavorite/favoriteFolderId state
+                        // refreshMergedChannels()'s "prev" lookup needs to restore favorites on
+                        // the next refresh (so re-enabling a provider could never get its
+                        // favorites back either). Disabled providers are already excluded from
+                        // every browsing/refresh path via allConfiguredServers() — nothing needs
+                        // clearing here at all; the data just sits untouched until re-enabled.
+                        // See HomeViewModel.startCombinedLiveCategories (phone) for the one
+                        // aggregate-favorites read that needed an enabled-servers filter instead.
                         rebuildList("server_add")
                     }
                 }

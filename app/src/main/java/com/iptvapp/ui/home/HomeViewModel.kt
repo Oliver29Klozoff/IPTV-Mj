@@ -266,7 +266,16 @@ class HomeViewModel @Inject constructor(
     private fun startCombinedLiveCategories() {
         combinedLiveCategoriesJob?.cancel()
         combinedLiveCategoriesJob = viewModelScope.launch {
-            repository.getMergedServerSummaries().collectLatest { servers ->
+            repository.getMergedServerSummaries().collectLatest { allServers ->
+                // A disabled provider's merged_channels rows are deliberately left untouched on
+                // disable (see SettingsActivity's provider-enable toggle) so its favorites/
+                // folders survive being re-enabled later — this is the one merged-data read that
+                // doesn't already go through XtreamRepository.allConfiguredServers()'s enabled-
+                // only filter, so it has to filter here instead of relying on the rows being gone.
+                val enabledIndices = prefs.getExtraServersWithNick()
+                    .mapIndexedNotNull { i, s -> if (s.getOrElse(5) { "true" }.toBoolean()) i else null }
+                    .toSet()
+                val servers = allServers.filter { it.serverIndex in enabledIndices }
                 val mergedCategoryFlows = servers.map { server ->
                     repository.getMergedCategorySummaries(server.serverIndex)
                         .combine(prefs.usaOnlyChannels) { cats, usaOnly ->

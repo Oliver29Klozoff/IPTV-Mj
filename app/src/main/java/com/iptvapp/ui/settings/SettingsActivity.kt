@@ -1902,13 +1902,20 @@ class SettingsActivity : AppCompatActivity() {
                         extraServers[i] = updated
                         lifecycleScope.launch {
                             prefs.saveExtraServersWithNick(extraServers)
-                            // Disabling is architecturally a temporary Remove — same cache-clear
-                            // as the Remove button, so a disabled provider's stale favorited
-                            // items don't linger in the aggregate Favorites views until the next
-                            // full app restart.
-                            db.mergedChannelDao().clearAll()
-                            db.mergedVodDao().clearAll()
-                            db.mergedSeriesDao().clearAll()
+                            // Previously called clearAll() here unconditionally (every toggle of
+                            // ANY provider wiped EVERY configured provider's merged favorites/
+                            // folders — channels, VOD, and series alike). That not only affected
+                            // unrelated providers, it also destroyed the exact isFavorite/
+                            // favoriteFolderId state that refreshMergedChannels()'s "prev" lookup
+                            // needs to restore favorites on the next refresh — so re-enabling a
+                            // disabled provider could never get its favorites back either.
+                            // Disabled providers are already excluded from every browsing/refresh
+                            // path via allConfiguredServers() — the aggregate Favorites view is
+                            // the one place that reads merged_channels directly without going
+                            // through that filter, so it's fixed to filter by enabled servers
+                            // instead (see HomeViewModel.startCombinedLiveCategories). Nothing
+                            // needs to be cleared here at all: the data just sits untouched until
+                            // the provider is re-enabled and refreshed again.
                         }
                         updateServerList()
                     }

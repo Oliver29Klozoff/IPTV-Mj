@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.41 - 2026-07-29
+- **Fixed**: enabling/disabling ANY configured provider (Settings → Providers, phone and TV)
+  was wiping merged favorites and folder assignments for EVERY configured provider, not just
+  the one being toggled — a disabled provider's favorites could never come back even after
+  re-enabling it, since the underlying data needed to restore them had already been deleted.
+  Disabling a provider no longer touches any saved data at all; it's just hidden from
+  Favorites/browsing until re-enabled, exactly as it was before.
+
 ## v5.40 - 2026-07-29
 - **Fixed**: a merged provider with a large channel catalog could time out fetching channels on
   a slower connection (a VPN, or a weak signal) even though the login itself succeeded — the
