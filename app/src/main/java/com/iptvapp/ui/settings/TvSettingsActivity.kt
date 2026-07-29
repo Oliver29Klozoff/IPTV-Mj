@@ -411,6 +411,12 @@ class TvSettingsActivity : AppCompatActivity() {
                 showChannelZapSpeedDialog(prefs.channelZapDebounceMs.first())
             }
         }
+        settingsItems += TvSettingItem.Action("stream_live_reconnect_speed", "Live Reconnect Speed",
+            value = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())) {
+            lifecycleScope.launch {
+                showLiveReconnectSpeedDialog(prefs.liveReconnectSpeed.first())
+            }
+        }
 
         // ── DISPLAY ──
         currentAccentColorHex = prefs.accentColor.first()
@@ -1048,6 +1054,31 @@ class TvSettingsActivity : AppCompatActivity() {
                     scheduleAutoEpgRefresh(h)
                     setItemValue("epg_auto_refresh", if (h == 0) "Off" else "Every ${h}h")
                     toast(if (h == 0) "Auto EPG refresh off" else "Auto EPG refresh every $h hours")
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun liveReconnectSpeedLabel(speed: String) = when (speed) {
+        "aggressive" -> "Aggressive"
+        "patient" -> "Patient"
+        else -> "Normal"
+    }
+
+    private fun showLiveReconnectSpeedDialog(current: String) {
+        val options = arrayOf("Aggressive (1s steps, 10s ceiling)", "Normal (2s steps, 30s ceiling)", "Patient (3s steps, 60s ceiling)")
+        val values = arrayOf("aggressive", "normal", "patient")
+        val selIdx = values.indexOf(current).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Live Reconnect Speed")
+            .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                val speed = values[which]
+                lifecycleScope.launch {
+                    prefs.setLiveReconnectSpeed(speed)
+                    setItemValue("stream_live_reconnect_speed", liveReconnectSpeedLabel(speed))
+                    toast("Live reconnect speed: ${liveReconnectSpeedLabel(speed)}")
                 }
                 dialog.dismiss()
             }

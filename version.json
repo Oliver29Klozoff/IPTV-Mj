@@ -1,7 +1,7 @@
 {
-  "versionCode": 371,
-  "versionName": "5.33",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.33/MKTV.apk",
-  "apkSha256": "b91e304a83a4a9ced8c813c54afd8f865a7d7e0e55dde7ecf281b32145c63fa0",
-  "changelog": "Recordings can now be cast to Chromecast, and added to your Trakt collection once connected."
+  "versionCode": 372,
+  "versionName": "5.34",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.34/MKTV.apk",
+  "apkSha256": "68063c1e62e6d0f9319f40776928cb988c0a0b78336ce4d7d221cce5c0e97433",
+  "changelog": "Added Live Reconnect Speed setting (Aggressive/Normal/Patient) for live channel retry behavior."
 }

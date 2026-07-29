@@ -151,6 +151,7 @@ class PreferencesManager @Inject constructor(
         val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
         val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
         val CHANNEL_ZAP_DEBOUNCE_MS = intPreferencesKey("channel_zap_debounce_ms")
+        val LIVE_RECONNECT_SPEED = stringPreferencesKey("live_reconnect_speed")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
@@ -194,6 +195,15 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.CHANNEL_ZAP_DEBOUNCE_MS] ?: 0 }
     suspend fun setChannelZapDebounceMs(ms: Int) = context.dataStore.edit { it[Keys.CHANNEL_ZAP_DEBOUNCE_MS] = ms }
+
+    // Controls how fast/how long live playback backs off and keeps retrying on a stalled/dropped
+    // connection — live never gives up entirely (unlike VOD, which stops after maxRetries and
+    // tries a format fallback), it only ever changes how the backoff ramps and where it holds.
+    // "normal" (default) preserves the original hardcoded behavior (2s steps, 30s ceiling) exactly.
+    val liveReconnectSpeed: Flow<String> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.LIVE_RECONNECT_SPEED] ?: "normal" }
+    suspend fun setLiveReconnectSpeed(speed: String) = context.dataStore.edit { it[Keys.LIVE_RECONNECT_SPEED] = speed }
 
     // Global, applies to every server — not a per-server setting. Defaults on since slower/
     // less reliable IPTV providers are the norm here, and the bigger buffer directly trades

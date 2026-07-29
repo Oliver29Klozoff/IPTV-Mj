@@ -1428,6 +1428,33 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun liveReconnectSpeedLabel(speed: String) = when (speed) {
+        "aggressive" -> "Aggressive"
+        "patient" -> "Patient"
+        else -> "Normal"
+    }
+
+    private fun showLiveReconnectSpeedDialog() {
+        lifecycleScope.launch {
+            val current = prefs.liveReconnectSpeed.first()
+            val options = arrayOf("Aggressive (1s steps, 10s ceiling)", "Normal (2s steps, 30s ceiling)", "Patient (3s steps, 60s ceiling)")
+            val values = arrayOf("aggressive", "normal", "patient")
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Live Reconnect Speed")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val speed = values[which]
+                    lifecycleScope.launch {
+                        prefs.setLiveReconnectSpeed(speed)
+                        binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(speed)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun checkForUpdate() {
         binding.tvUpdateStatus.text = "Checking..."
         binding.btnCheckUpdate.isEnabled = false
@@ -1555,6 +1582,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchAudioPassthroughFallback.isChecked = prefs.audioPassthroughFallbackEnabled.first()
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
+                binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
                 binding.cbDohEnabled.isChecked = dohEnabled
@@ -2417,6 +2445,7 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
+        binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
         binding.switchPipEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setPipEnabled(enabled) }

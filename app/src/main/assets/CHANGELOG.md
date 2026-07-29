@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.34 - 2026-07-28
+- **Added** (Settings → Stream, phone and TV): Live Reconnect Speed — Aggressive/Normal/Patient,
+  controls how fast a live channel keeps retrying and how long it waits between attempts after a
+  dropped or stalled connection. Normal (default) matches the previous fixed behavior exactly;
+  Patient is useful for slower or less reliable providers.
+
 ## v5.33 - 2026-07-28
 - **Added**: recordings can now be cast to Chromecast, same as live channels and movies — the
   local file is served over the phone/TV's own network to the receiver, with seeking support.

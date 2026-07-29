@@ -167,6 +167,10 @@ class PlayerActivity : AppCompatActivity() {
     private var retryCount = 0
     private var lastBackPressMs = 0L
     private val maxRetries = 5
+    // Cached rather than re-read from DataStore on every scheduleRetry() call (which can fire
+    // repeatedly in a short window on a flaky stream) — refreshed once in onCreate, matching the
+    // read-once-at-launch pattern already used for extraBufferingEnabled/tunneledPlaybackEnabled.
+    private var liveReconnectSpeed: String = "normal"
     private var retryJob: Job? = null
     private var channelSwitchJob: Job? = null
     private var bufferWatchdog: Runnable? = null
@@ -275,6 +279,7 @@ class PlayerActivity : AppCompatActivity() {
 
         if (!isVod) {
             lifecycleScope.launch { prefs.setLivePlaybackActive(serverIndex) }
+            lifecycleScope.launch { liveReconnectSpeed = prefs.liveReconnectSpeed.first() }
         }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
@@ -1380,8 +1385,16 @@ class PlayerActivity : AppCompatActivity() {
             val backoffMs = if (isVod) {
                 (2000L * (retryCount + 1)).coerceAtMost(16000L)
             } else {
-                // Live: ramp up to 30s then hold there
-                (2000L * (retryCount + 1)).coerceAtMost(30000L)
+                // Live: ramps up then holds at a ceiling — both the step size and ceiling scale
+                // with the user's chosen reconnect speed. "normal" is the original hardcoded
+                // behavior (2s steps, 30s ceiling), unchanged for anyone who hasn't touched the
+                // new setting.
+                val (stepMs, ceilingMs) = when (liveReconnectSpeed) {
+                    "aggressive" -> 1000L to 10_000L
+                    "patient" -> 3000L to 60_000L
+                    else -> 2000L to 30_000L
+                }
+                (stepMs * (retryCount + 1)).coerceAtMost(ceilingMs)
             }
             val attempt = retryCount + 1
             val delaySec = backoffMs / 1000
