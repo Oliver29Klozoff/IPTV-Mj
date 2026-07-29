@@ -1,7 +1,7 @@
 {
-  "versionCode": 376,
-  "versionName": "5.38",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.38/MKTV.apk",
-  "apkSha256": "dea46b8caea14a4070e4149ff15e5c881cd57250e8ca8390564a9aa1c32c305a",
-  "changelog": "Recordings that fail now post a system notification with the failure reason."
+  "versionCode": 377,
+  "versionName": "5.39",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.39/MKTV.apk",
+  "apkSha256": "d6fc60fd88c266f6fde5a85bfe4c1763fad7131860d3c43e07f8031ca0cfa7aa",
+  "changelog": "Fixed merged provider channels getting stuck forever on a large catalog; refresh failures are now shown instead of failing silently."
 }

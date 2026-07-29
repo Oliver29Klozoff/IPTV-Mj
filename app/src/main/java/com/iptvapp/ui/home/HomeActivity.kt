@@ -3385,6 +3385,19 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            // A merged-provider refresh (cold-start auto-refresh, or the "Refreshing all
+            // providers…" toast's underlying call) used to fail completely silently for every
+            // call site except one specific Settings button — this surfaces the real reason
+            // (bad/expired credentials, provider returning HTML instead of JSON, a timeout)
+            // instead of leaving stale/empty merged channels with zero indication anything
+            // went wrong.
+            viewModel.lastMergedChannelsRefreshError.collect { error ->
+                if (error != null) {
+                    Toast.makeText(this@HomeActivity, "Provider refresh failed: $error", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        lifecycleScope.launch {
             viewModel.syncProgress.collect { progress ->
                 if (progress == null) {
                     binding.syncProgressContainer?.visibility = View.GONE

@@ -952,6 +952,29 @@ class XtreamRepository @Inject constructor(
     // per-provider refresh button in Settings, which deliberately only touches live channels/
     // categories, never VOD/series (that's the separate Movies/Series refresh already in the
     // Display section).
+    // Retrofit/Gson deserializes get_live_categories/get_live_streams' body immediately
+    // (Response<List<...>>), so a provider returning HTML instead of JSON (an expired/disabled
+    // account's login-redirect page, a WAF/Cloudflare block page, or just a wrong API path) never
+    // surfaces as a clean HTTP error — it throws deep inside Gson with a message like "Use
+    // JsonReader.setLenient(true) to accept malformed JSON at line 1 column 1 path $", which is
+    // meaningless to a user and gives no hint about what's actually wrong. This recognizes that
+    // specific failure signature and translates it into the real, actionable cause.
+    private fun describeMergedChannelFetchError(e: Exception): String {
+        if (e is kotlinx.coroutines.TimeoutCancellationException) return "Timed out"
+        val message = e.message ?: return "Unknown error"
+        val looksLikeNonJsonBody = e is com.google.gson.stream.MalformedJsonException ||
+            message.contains("MalformedJsonException") ||
+            message.contains("setLenient", ignoreCase = true) ||
+            message.contains("Use JsonReader", ignoreCase = true)
+        return if (looksLikeNonJsonBody) {
+            "Provider returned an invalid response instead of channel data — this usually means " +
+                "the login has expired or been disabled, or the connection limit was hit. Try " +
+                "re-entering the provider's credentials or checking with your provider."
+        } else {
+            message
+        }
+    }
+
     suspend fun refreshMergedChannels(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
@@ -1009,9 +1032,9 @@ class XtreamRepository @Inject constructor(
                         }
                         } // withTimeout
                     } catch (e: Exception) {
-                        val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
-                        android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
-                        errors[server.serverIndex] = msg ?: "Unknown error"
+                        val msg = describeMergedChannelFetchError(e)
+                        android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: ${e.message}", e)
+                        errors[server.serverIndex] = msg
                     } finally {
                         onProgress(completedCount.incrementAndGet(), servers.size, results.size)
                     }
@@ -1027,7 +1050,18 @@ class XtreamRepository @Inject constructor(
         results.map { it.serverIndex }.distinct().forEach { serverIndex ->
             db.mergedChannelDao().clearForServer(serverIndex)
         }
-        db.mergedChannelDao().upsertAll(results)
+        // A single @Upsert call over the WHOLE combined results list runs as one giant
+        // transaction — fine for a small catalog, but a provider with a large one (tens of
+        // thousands of channels) could leave that one COMMIT running for minutes on slower
+        // storage (confirmed via SQLiteConnectionPool logs on a Shield box: a stuck COMMIT held
+        // the only active connection, starving every other DB read — including the one backing
+        // the channel list UI — so channels never appeared even though the fetch itself
+        // succeeded). Same fix already applied to VOD/series sync (fetchVodStreams/
+        // fetchSeries) for the same reason — chunk so only one chunk's worth of rows commits at
+        // a time.
+        results.chunked(2000).forEach { chunk ->
+            db.mergedChannelDao().upsertAll(chunk)
+        }
         applyPendingMergedRestoreData(servers)
         return errors
     }

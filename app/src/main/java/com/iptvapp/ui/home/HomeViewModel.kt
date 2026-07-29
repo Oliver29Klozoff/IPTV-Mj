@@ -230,9 +230,13 @@ class HomeViewModel @Inject constructor(
         // true streamed progress, but still shows real movement instead of a bare spinner.
         mergedChannelsRefreshJob = viewModelScope.launch {
             _loading.value = true
+            _lastMergedChannelsRefreshError.value = null
             try {
-                repository.refreshMergedChannels(targetServerIndex) { completed, total, itemsSoFar ->
+                val errors = repository.refreshMergedChannels(targetServerIndex) { completed, total, itemsSoFar ->
                     _syncProgress.value = "Loading channels… $completed/$total providers ($itemsSoFar channels)" to (completed * 100 / total.coerceAtLeast(1))
+                }
+                if (errors.isNotEmpty()) {
+                    _lastMergedChannelsRefreshError.value = errors.values.first()
                 }
                 prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
             } finally {
@@ -813,6 +817,15 @@ class HomeViewModel @Inject constructor(
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
+
+    // refreshMergedChannels() used to just discard the per-server error map it gets back —
+    // every call site showed a generic "Refreshing all providers…" toast with no way to tell
+    // a real failure (bad/expired credentials, provider returning HTML instead of JSON, a
+    // timeout) from success. Exposed here so HomeActivity's refresh toast can show the real
+    // reason instead. Null means "no error to show" (either still loading, or the last refresh
+    // succeeded for every configured provider).
+    private val _lastMergedChannelsRefreshError = MutableStateFlow<String?>(null)
+    val lastMergedChannelsRefreshError: StateFlow<String?> = _lastMergedChannelsRefreshError
 
     /** Null when hidden. Pair of (status text, 0-100 percent) while a large catalog syncs. */
     private val _syncProgress = MutableStateFlow<Pair<String, Int>?>(null)

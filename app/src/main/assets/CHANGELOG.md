@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v5.39 - 2026-07-29
+- **Fixed**: a merged/secondary provider with a large channel catalog could get stuck refreshing
+  forever with channels never appearing — the whole catalog was written to the database as one
+  giant transaction, and on slower storage that single commit could take minutes, blocking every
+  other database read (including the one populating the channel list) the entire time. Now
+  written in chunks, same fix already applied to VOD/series sync for the same reason.
+- **Fixed**: a merged-provider refresh failure (bad/expired login, provider returning an invalid
+  response instead of channel data, a timeout) was silently swallowed everywhere except one
+  specific Settings button — every refresh path now shows the real reason instead of leaving
+  stale/empty channels with no explanation. A garbled/non-JSON provider response now reports
+  clearly as a likely expired or disabled login instead of a raw parser error.
+
 ## v5.38 - 2026-07-29
 - **Added**: a recording that fails now posts a system notification with the failure reason
   (e.g. provider connection-limit rejection) — previously a failed recording was completely
