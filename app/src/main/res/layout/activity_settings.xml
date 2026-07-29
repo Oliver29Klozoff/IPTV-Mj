@@ -716,6 +716,49 @@
                                     <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
                                     <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
                                 </RadioGroup>
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:layout_marginTop="12dp"
+                                    android:layout_marginBottom="4dp"
+                                    android:background="#222222" />
+                                <LinearLayout
+                                    android:id="@+id/rowReminderLeadTime"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical"
+                                    android:paddingTop="8dp"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:clickable="true"
+                                    android:focusable="true">
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical">
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="Remind Me Lead Time"
+                                            android:textColor="#FFFFFF"
+                                            android:textSize="14sp" />
+                                        <TextView
+                                            android:id="@+id/tvReminderLeadTimeValue"
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="5 min before"
+                                            android:textColor="#888888"
+                                            android:textSize="13sp" />
+                                    </LinearLayout>
+                                    <TextView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="4dp"
+                                        android:text="How long before a program starts a Guide &quot;Remind Me&quot; notification fires — gives you time to actually switch over instead of finding out right as it starts."
+                                        android:textColor="#888888"
+                                        android:textSize="11sp" />
+                                </LinearLayout>
                             </LinearLayout>
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>

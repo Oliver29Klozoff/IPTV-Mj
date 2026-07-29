@@ -558,6 +558,12 @@ class TvSettingsActivity : AppCompatActivity() {
                 showAutoRefreshDialog(prefs.epgAutoRefreshHours.first())
             }
         }
+        settingsItems += TvSettingItem.Action("epg_reminder_lead", "Remind Me Lead Time",
+            value = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())) {
+            lifecycleScope.launch {
+                showReminderLeadTimeDialog(prefs.reminderLeadMinutes.first())
+            }
+        }
 
         // ── UPDATES ──
         settingsItems += TvSettingItem.Header("Updates")
@@ -1054,6 +1060,27 @@ class TvSettingsActivity : AppCompatActivity() {
                     scheduleAutoEpgRefresh(h)
                     setItemValue("epg_auto_refresh", if (h == 0) "Off" else "Every ${h}h")
                     toast(if (h == 0) "Auto EPG refresh off" else "Auto EPG refresh every $h hours")
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun reminderLeadTimeLabel(minutes: Int) = if (minutes <= 0) "At start time" else "$minutes min before"
+
+    private fun showReminderLeadTimeDialog(currentMinutes: Int) {
+        val options = arrayOf("At start time", "1 min before", "5 min before", "10 min before", "15 min before")
+        val values = intArrayOf(0, 1, 5, 10, 15)
+        val selIdx = values.indexOf(currentMinutes).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Remind Me Lead Time")
+            .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                val minutes = values[which]
+                lifecycleScope.launch {
+                    prefs.setReminderLeadMinutes(minutes)
+                    setItemValue("epg_reminder_lead", reminderLeadTimeLabel(minutes))
+                    toast("Remind Me lead time: ${reminderLeadTimeLabel(minutes)}")
                 }
                 dialog.dismiss()
             }

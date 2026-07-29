@@ -10,7 +10,10 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.iptvapp.R
+import com.iptvapp.data.local.dataStore
 import com.iptvapp.ui.home.HomeActivity
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 class ChannelTimerReceiver : BroadcastReceiver() {
 
@@ -18,6 +21,7 @@ class ChannelTimerReceiver : BroadcastReceiver() {
         val channelName = intent.getStringExtra("channel_name") ?: return
         val programTitle = intent.getStringExtra("program_title") ?: return
         val streamId = intent.getIntExtra("stream_id", -1)
+        val leadMinutes = intent.getIntExtra("lead_minutes", 0)
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
@@ -31,9 +35,10 @@ class ChannelTimerReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val title = if (leadMinutes > 0) "$programTitle starts in $leadMinutes min" else "$programTitle is starting now"
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("$programTitle is starting now")
+            .setContentTitle(title)
             .setContentText(channelName)
             .setContentIntent(tapPi)
             .setAutoCancel(true)
@@ -57,11 +62,22 @@ class ChannelTimerReceiver : BroadcastReceiver() {
 
 object ChannelTimerScheduler {
 
+    // Fires the notification `reminderLeadMinutes` before the program's actual start time
+    // (default 5 min, configurable in Settings) instead of exactly at startMs — previously the
+    // alarm was set for startMs itself, so the notification read "X is starting now" at the exact
+    // moment the show had already begun, giving zero time to actually switch over. Reading the
+    // preference here (rather than at each of the 4 call sites) keeps this a one-line change for
+    // GuideAdapter/EpgTimelineActivity/HomeActivity/TvHomeActivity's existing "Remind Me" calls.
     fun schedule(context: Context, streamId: Int, channelName: String, programTitle: String, startMs: Long) {
+        val leadMinutes = runBlocking {
+            context.dataStore.data.first()[com.iptvapp.data.local.REMINDER_LEAD_MINUTES_KEY] ?: 5
+        }
+        val fireAtMs = (startMs - leadMinutes * 60_000L).coerceAtLeast(System.currentTimeMillis() + 1000L)
         val intent = Intent(context, ChannelTimerReceiver::class.java).apply {
             putExtra("stream_id", streamId)
             putExtra("channel_name", channelName)
             putExtra("program_title", programTitle)
+            putExtra("lead_minutes", if (fireAtMs < startMs) leadMinutes else 0)
         }
         val pi = PendingIntent.getBroadcast(
             context, streamId, intent,
@@ -69,9 +85,9 @@ object ChannelTimerScheduler {
         )
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
-            am.set(AlarmManager.RTC_WAKEUP, startMs, pi)
+            am.set(AlarmManager.RTC_WAKEUP, fireAtMs, pi)
         } else {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pi)
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAtMs, pi)
         }
     }
 

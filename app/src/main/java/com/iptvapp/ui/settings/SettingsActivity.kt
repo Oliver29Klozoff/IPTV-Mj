@@ -1455,6 +1455,29 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun reminderLeadTimeLabel(minutes: Int) = if (minutes <= 0) "At start time" else "$minutes min before"
+
+    private fun showReminderLeadTimeDialog() {
+        lifecycleScope.launch {
+            val current = prefs.reminderLeadMinutes.first()
+            val options = arrayOf("At start time", "1 min before", "5 min before", "10 min before", "15 min before")
+            val values = intArrayOf(0, 1, 5, 10, 15)
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Remind Me Lead Time")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val minutes = values[which]
+                    lifecycleScope.launch {
+                        prefs.setReminderLeadMinutes(minutes)
+                        binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(minutes)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun checkForUpdate() {
         binding.tvUpdateStatus.text = "Checking..."
         binding.btnCheckUpdate.isEnabled = false
@@ -1583,6 +1606,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
+                binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
                 binding.cbDohEnabled.isChecked = dohEnabled
@@ -2446,6 +2470,7 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
+        binding.rowReminderLeadTime.setOnClickListener { showReminderLeadTimeDialog() }
         binding.switchPipEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setPipEnabled(enabled) }

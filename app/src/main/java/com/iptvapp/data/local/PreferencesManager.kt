@@ -15,6 +15,12 @@ import javax.inject.Singleton
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "iptv_prefs")
 
+// Top-level (not in the private Keys object below) so ChannelTimerScheduler — a plain object with
+// no Hilt injection, used from BroadcastReceiver-adjacent code that schedules AlarmManager
+// reminders — can read it directly via the same Context.dataStore extension, without needing a
+// full PreferencesManager instance.
+val REMINDER_LEAD_MINUTES_KEY = intPreferencesKey("reminder_lead_minutes")
+
 data class ServerCredentials(
     val serverUrl: String,
     val username: String,
@@ -204,6 +210,14 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.LIVE_RECONNECT_SPEED] ?: "normal" }
     suspend fun setLiveReconnectSpeed(speed: String) = context.dataStore.edit { it[Keys.LIVE_RECONNECT_SPEED] = speed }
+
+    // How many minutes before a program starts a "Remind Me" notification fires — previously
+    // hardcoded to 0 (fired exactly at start time, so the notification read "X is starting now"
+    // but the show had already begun by the time you saw it and switched channels).
+    val reminderLeadMinutes: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[REMINDER_LEAD_MINUTES_KEY] ?: 5 }
+    suspend fun setReminderLeadMinutes(minutes: Int) = context.dataStore.edit { it[REMINDER_LEAD_MINUTES_KEY] = minutes }
 
     // Global, applies to every server — not a per-server setting. Defaults on since slower/
     // less reliable IPTV providers are the norm here, and the bigger buffer directly trades

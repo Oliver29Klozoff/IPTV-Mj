@@ -1,7 +1,7 @@
 {
-  "versionCode": 372,
-  "versionName": "5.34",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.34/MKTV.apk",
-  "apkSha256": "68063c1e62e6d0f9319f40776928cb988c0a0b78336ce4d7d221cce5c0e97433",
-  "changelog": "Added Live Reconnect Speed setting (Aggressive/Normal/Patient) for live channel retry behavior."
+  "versionCode": 373,
+  "versionName": "5.35",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.35/MKTV.apk",
+  "apkSha256": "4aed6483120b774d759e562e9e59058a73e68c7646db2d8c87b8e4d18ccf8c76",
+  "changelog": "Fixed Remind Me notifications firing at program start instead of before; added a configurable lead time."
 }

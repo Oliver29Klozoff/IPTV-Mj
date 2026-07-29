@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.35 - 2026-07-28
+- **Fixed**: Guide "Remind Me" notifications fired at the exact moment a program started —
+  by the time you saw it, the show had already begun, giving zero time to actually switch
+  over. Now fires ahead of time instead.
+- **Added** (Settings → EPG, phone and TV): Remind Me Lead Time — how many minutes before a
+  program starts the reminder notification fires (At start time / 1 / 5 / 10 / 15 min before).
+  Defaults to 5 minutes.
+
 ## v5.34 - 2026-07-28
 - **Added** (Settings → Stream, phone and TV): Live Reconnect Speed — Aggressive/Normal/Patient,
   controls how fast a live channel keeps retrying and how long it waits between attempts after a
