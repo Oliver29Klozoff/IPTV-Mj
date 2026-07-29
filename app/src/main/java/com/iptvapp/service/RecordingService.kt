@@ -47,7 +47,17 @@ class RecordingService : Service() {
 
     companion object {
         const val CHANNEL_ID = "recording_notifications"
+        // Separate from CHANNEL_ID above — that one is IMPORTANCE_LOW and silent by design (it's
+        // just the ongoing foreground-service indicator "Recording: X"). A failure needs to
+        // actually get noticed (a recording is fire-and-forget — the user isn't watching the
+        // Recordings screen when it fails), so it gets its own higher-importance channel instead
+        // of riding the silent one.
+        const val FAILURE_CHANNEL_ID = "recording_failure_notifications"
         const val NOTIF_ID = 2001
+        // Offset well clear of NOTIF_ID/foreground-service notification ids so a failure alert
+        // for recordingId N never collides with (or gets silently replaced by) another
+        // notification using the same raw id.
+        const val NOTIF_ID_FAILURE_BASE = 3_000_000
         const val EXTRA_RECORDING_ID = "recording_id"
         const val EXTRA_STREAM_URL = "stream_url"
         const val EXTRA_CHANNEL_NAME = "channel_name"
@@ -59,9 +69,30 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(CHANNEL_ID, "Recordings", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Recordings", NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(NotificationChannel(FAILURE_CHANNEL_ID, "Recording Failures", NotificationManager.IMPORTANCE_HIGH))
         }
+    }
+
+    private fun notifyRecordingFailed(recordingId: Int, channelName: String, reason: String) {
+        val tapIntent = Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val tapPi = android.app.PendingIntent.getActivity(
+            this, recordingId, tapIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, FAILURE_CHANNEL_ID)
+            .setSmallIcon(com.iptvapp.R.drawable.ic_notification)
+            .setContentTitle("Recording failed: $channelName")
+            .setContentText(reason)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(reason))
+            .setContentIntent(tapPi)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(NOTIF_ID_FAILURE_BASE + recordingId, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -111,6 +142,7 @@ class RecordingService : Service() {
                 if (recordingId != -1) {
                     val reason = classifyFailureReason(result.exceptionOrNull())
                     database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                    notifyRecordingFailed(recordingId, name, reason)
                 }
             }
 

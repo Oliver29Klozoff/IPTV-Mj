@@ -1,7 +1,7 @@
 {
-  "versionCode": 375,
-  "versionName": "5.37",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.37/MKTV.apk",
-  "apkSha256": "bdb1107a4718d68be901ac884f7687afd749f7b672309fa86e69892cb85ffcc9",
-  "changelog": "Added Auto-Clear Continue Watching setting (Never/7/30/90 days)."
+  "versionCode": 376,
+  "versionName": "5.38",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.38/MKTV.apk",
+  "apkSha256": "dea46b8caea14a4070e4149ff15e5c881cd57250e8ca8390564a9aa1c32c305a",
+  "changelog": "Recordings that fail now post a system notification with the failure reason."
 }

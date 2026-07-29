@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.38 - 2026-07-29
+- **Added**: a recording that fails now posts a system notification with the failure reason
+  (e.g. provider connection-limit rejection) — previously a failed recording was completely
+  silent unless you happened to open the Recordings screen. Tapping the notification opens
+  Recordings.
+
 ## v5.37 - 2026-07-29
 - **Added** (Settings → Display, phone): Auto-Clear Continue Watching — Never / 7 / 30 / 90
   days. An abandoned in-progress movie or show is automatically cleared from Continue Watching
