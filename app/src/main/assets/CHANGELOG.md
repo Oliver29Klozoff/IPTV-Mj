@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.43 - 2026-07-29
+- **Fixed**: a crash right after launch if a favorited channel belonged to a currently-disabled
+  provider — the background favorites health-check tried to build a stream URL for it and
+  crashed the whole app instead of just marking it unhealthy. This became newly reachable after
+  v5.41 stopped deleting a disabled provider's favorites (which previously masked it).
+- **Added** (Mosaic/Multi-View): a 2-tile (1×2) layout option, in addition to the existing 2×2
+  and 2×3 grids — tap the grid-size button to cycle through all three.
+
 ## v5.42 - 2026-07-29
 - **Fixed**: Backup/Restore (manual and automatic, phone and TV) didn't save whether a provider
   was enabled or disabled — restoring a backup silently re-enabled every previously-disabled

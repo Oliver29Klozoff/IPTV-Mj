@@ -36,7 +36,7 @@ class MosaicActivity : AppCompatActivity() {
 
     private val players = mutableListOf<ExoPlayer>()
     private val cells = mutableListOf<MosaicCell>()
-    private var gridSize = 4 // 4 or 6
+    private var gridSize = 4 // 2, 4, or 6
     private var allMuted = false
     private var focusedCell = -1 // -1 = none focused
 
@@ -91,7 +91,7 @@ class MosaicActivity : AppCompatActivity() {
         focusedCell = -1
 
         val cols = if (size <= 4) 2 else 3
-        val rows = if (size == 6) 2 else 2
+        val rows = if (size == 2) 1 else 2
         binding.mosaicGrid.columnCount = cols
         binding.mosaicGrid.rowCount = rows
 
@@ -361,8 +361,16 @@ class MosaicActivity : AppCompatActivity() {
     }
 
     private fun cycleGridSize() {
-        gridSize = if (gridSize == 4) 6 else 4
-        binding.btnGridSize.text = if (gridSize == 4) "2×2" else "2×3"
+        gridSize = when (gridSize) {
+            2 -> 4
+            4 -> 6
+            else -> 2
+        }
+        binding.btnGridSize.text = when (gridSize) {
+            2 -> "1×2"
+            4 -> "2×2"
+            else -> "2×3"
+        }
         setupGrid(gridSize)
         loadFavorites()
     }

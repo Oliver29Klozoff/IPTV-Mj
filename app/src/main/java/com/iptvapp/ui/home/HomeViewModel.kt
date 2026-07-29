@@ -806,8 +806,19 @@ class HomeViewModel @Inject constructor(
             // Same rate-limit-avoidance pacing as checkFavoritesHealth — see its comment.
             favorites.forEach { ch ->
                 launch {
-                    val url = repository.getMergedLiveStreamUrl(ch.serverIndex, ch.streamId)
-                    val alive = repository.checkStreamHealth(url)
+                    // A favorited channel whose provider is currently disabled (its
+                    // merged_channels row is deliberately kept around now — see the v5.41 fix for
+                    // why disabling no longer deletes favorites) has no live server to build a
+                    // stream URL from; getMergedLiveStreamUrl throws for exactly this case. That
+                    // used to be effectively impossible (disabling used to wipe the row first) —
+                    // now that it's reachable, treat it as "unhealthy" instead of letting an
+                    // uncaught exception here crash the whole app.
+                    val alive = try {
+                        val url = repository.getMergedLiveStreamUrl(ch.serverIndex, ch.streamId)
+                        repository.checkStreamHealth(url)
+                    } catch (_: Exception) {
+                        false
+                    }
                     _mergedHealth.value = _mergedHealth.value + ("${ch.serverIndex}:${ch.streamId}" to alive)
                 }
                 kotlinx.coroutines.delay(150)

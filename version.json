@@ -1,7 +1,7 @@
 {
-  "versionCode": 380,
-  "versionName": "5.42",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.42/MKTV.apk",
-  "apkSha256": "2bfefab4f02031900fee685b06457eb38e1eacee39c1452af23105ae6d4e5d0b",
-  "changelog": "Backup/Restore now preserves per-provider enabled/disabled state."
+  "versionCode": 381,
+  "versionName": "5.43",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.43/MKTV.apk",
+  "apkSha256": "000fa7c1d7f779a1cb1d7ccaa95fcf6f97351050a42b3dc1ad30a1edca05d081",
+  "changelog": "Fixed a launch crash from a favorited channel on a disabled provider; added a 2-tile Mosaic layout."
 }
