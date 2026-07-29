@@ -1236,6 +1236,9 @@ class TvSettingsActivity : AppCompatActivity() {
                 JSONObject().apply {
                     put("url", s[0]); put("user", s[1]); put("pass", s[2])
                     put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
+                    // Previously omitted — restoring silently re-enabled every provider that had
+                    // been disabled, since a missing field defaults to enabled on restore.
+                    put("enabled", s.getOrElse(5) { "true" })
                 }
             }))
 
@@ -1477,7 +1480,8 @@ class TvSettingsActivity : AppCompatActivity() {
                     val obj = extraServersArray.getJSONObject(i)
                     listOf(
                         obj.optString("url", ""), obj.optString("user", ""), obj.optString("pass", ""),
-                        obj.optString("nick", ""), obj.optString("epg", "")
+                        obj.optString("nick", ""), obj.optString("epg", ""),
+                        obj.optString("enabled", "true")
                     )
                 }
                 prefs.saveExtraServersWithNick(restored)

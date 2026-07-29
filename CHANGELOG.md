@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.42 - 2026-07-29
+- **Fixed**: Backup/Restore (manual and automatic, phone and TV) didn't save whether a provider
+  was enabled or disabled — restoring a backup silently re-enabled every previously-disabled
+  provider. Backups now correctly preserve and restore that state.
+
 ## v5.41 - 2026-07-29
 - **Fixed**: enabling/disabling ANY configured provider (Settings → Providers, phone and TV)
   was wiping merged favorites and folder assignments for EVERY configured provider, not just

@@ -1,7 +1,7 @@
 {
-  "versionCode": 379,
-  "versionName": "5.41",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.41/MKTV.apk",
-  "apkSha256": "149cab2f0a8d3b2cd9bcd5373e46af4e2d81a3e3b31afa8a9e61fca65b61e7f9",
-  "changelog": "Fixed enabling/disabling a provider wiping every provider's merged favorites and folders."
+  "versionCode": 380,
+  "versionName": "5.42",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.42/MKTV.apk",
+  "apkSha256": "2bfefab4f02031900fee685b06457eb38e1eacee39c1452af23105ae6d4e5d0b",
+  "changelog": "Backup/Restore now preserves per-provider enabled/disabled state."
 }
