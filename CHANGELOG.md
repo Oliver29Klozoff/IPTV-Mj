@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.44 - 2026-07-29
+- **Fixed** (phone, landscape): the search field's clear (X) button — already present in
+  portrait — was a permanently-hidden placeholder in landscape, so there was no way to clear
+  the search text and dismiss the keyboard/cursor in one tap. Now a real, working button next
+  to the search field, matching portrait's behavior.
+
 ## v5.43 - 2026-07-29
 - **Fixed**: a crash right after launch if a favorited channel belonged to a currently-disabled
   provider — the background favorites health-check tried to build a stream URL for it and
