@@ -1,7 +1,7 @@
 {
-  "versionCode": 383,
-  "versionName": "5.45",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.45/MKTV.apk",
-  "apkSha256": "07e26518c20c8a8b52d10b90cdc705f26b8768d2a672da103a3ccbd4405f70b9",
-  "changelog": "Moved landscape search clear button inside the search box."
+  "versionCode": 384,
+  "versionName": "5.46",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.46/MKTV.apk",
+  "apkSha256": "92b2741408a4dc96a712b5dc189dd5d75da099f0ce727005690e3ca77ec42410",
+  "changelog": "Moved portrait search clear button inside the search box."
 }

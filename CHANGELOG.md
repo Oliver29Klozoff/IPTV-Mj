@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.46 - 2026-07-30
+- **Fixed** (phone, portrait): the search field's clear (X) button was floating outside the
+  search box, off to the left near the menu button, instead of inside it — same layout mistake
+  just fixed in landscape. It now sits inside the search box, right-aligned, in both
+  orientations.
+
 ## v5.45 - 2026-07-29
 - **Changed** (phone, landscape): the search field's clear (X) button now sits inside the
   search box on the right edge, matching how it's positioned everywhere else — it was
