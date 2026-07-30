@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.47 - 2026-07-30
+- **Fixed**: a real out-of-memory crash from parsing a large XMLTV EPG feed for a merged
+  provider — when more than one provider's guide data refreshed at the same time, a shared
+  (non-thread-safe) date parser could get corrupted by the concurrent access and spiral into a
+  runaway allocation loop until the app ran out of memory. Each fetch now gets its own parser
+  instance.
+- **Added**: the mini player now respects the Subtitles setting (Settings → Stream) — it was
+  never applied there before, so a channel with subtitle tracks played without them in the
+  mini player regardless of your subtitle language/on-off preference, even though fullscreen
+  playback already honored it.
+
 ## v5.46 - 2026-07-30
 - **Fixed** (phone, portrait): the search field's clear (X) button was floating outside the
   search box, off to the left near the menu button, instead of inside it — same layout mistake

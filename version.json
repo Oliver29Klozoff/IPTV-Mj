@@ -1,7 +1,7 @@
 {
-  "versionCode": 384,
-  "versionName": "5.46",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.46/MKTV.apk",
-  "apkSha256": "92b2741408a4dc96a712b5dc189dd5d75da099f0ce727005690e3ca77ec42410",
-  "changelog": "Moved portrait search clear button inside the search box."
+  "versionCode": 385,
+  "versionName": "5.47",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.47/MKTV.apk",
+  "apkSha256": "dd836c8293d4a7152a166feb66752fb0243a856a1e07b72664d77745caf00ad6",
+  "changelog": "Fixed OOM crash parsing merged-provider XMLTV EPG; mini player now respects the Subtitles setting."
 }

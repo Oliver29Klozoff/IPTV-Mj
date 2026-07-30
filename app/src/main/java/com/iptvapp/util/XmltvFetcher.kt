@@ -49,14 +49,22 @@ object XmltvFetcher {
         }
     }
 
-    private val tsFmt = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US)
+    // SimpleDateFormat is explicitly documented as NOT thread-safe — a single shared instance
+    // here, called from parseTs() during concurrent merged-provider EPG fetches (each provider's
+    // XMLTV feed is parsed on its own coroutine), let two threads corrupt its internal
+    // Calendar/NumberFormat state at the same time. That corruption doesn't just produce a wrong
+    // date — it can drive DecimalFormat.parse into a runaway loop that keeps allocating until the
+    // heap is exhausted (confirmed via a real OOM crash inside SimpleDateFormat.subParse while
+    // parsing a large XMLTV feed). A thread-local instance gives each thread/coroutine its own
+    // formatter, matching the standard fix for this well-known SimpleDateFormat pitfall.
+    private val tsFmt = ThreadLocal.withInitial { SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US) }
 
     private fun parseTs(raw: String): Long {
         if (raw.isBlank()) return 0L
         return try {
             val s = raw.trim()
             val withTz = if (' ' in s) s else "$s +0000"
-            (tsFmt.parse(withTz)?.time ?: 0L) / 1000L
+            (tsFmt.get()!!.parse(withTz)?.time ?: 0L) / 1000L
         } catch (_: Exception) { 0L }
     }
 

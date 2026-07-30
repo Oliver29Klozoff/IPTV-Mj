@@ -1138,7 +1138,25 @@ class HomeActivity : AppCompatActivity() {
             .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${android.os.Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
         val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
             .setDataSourceFactory(upstreamDataSourceFactory)
-        miniPlayer = ExoPlayer.Builder(this).setMediaSourceFactory(mediaSourceFactory).build().also { player ->
+        // The mini player never applied the Subtitles setting at all (only PlayerActivity/
+        // fullscreen did) — a channel with subtitle tracks played silently without them here
+        // regardless of the user's Settings > Stream choice. Same track-selector setup as
+        // PlayerActivity.buildPlayer, so the two players agree on whether subtitles show.
+        val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
+        val preferredSubtitleLanguage = kotlinx.coroutines.runBlocking { prefs.preferredSubtitleLanguage.first() }
+        val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
+        val miniTrackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+            parameters = buildUponParameters()
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !subtitlesEnabled)
+                .setSelectUndeterminedTextLanguage(subtitlesEnabled)
+                .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
+                .apply { if (subtitlesEnabled && preferredSubtitleLanguage.isNotBlank()) setPreferredTextLanguage(preferredSubtitleLanguage) }
+                .build()
+        }
+        miniPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setTrackSelector(miniTrackSelector)
+            .build().also { player ->
             binding.miniPlayerView.player = player
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
