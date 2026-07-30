@@ -155,24 +155,22 @@
 
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" android:layout_marginTop="4dp" />
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="8dp"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_marginTop="8dp">
             <EditText
                 android:id="@+id/etSearch"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="36dp"
                 android:background="#1E1E1E"
                 android:hint="Search..."
                 android:textColorHint="#555555"
                 android:textColor="#FFFFFF"
                 android:textSize="12sp"
-                android:paddingHorizontal="8dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="36dp"
                 android:inputType="text"
                 android:imeOptions="actionSearch"
                 android:singleLine="true" />
@@ -180,13 +178,13 @@
                 android:id="@+id/btnClearSearch"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:layout_marginStart="4dp"
+                android:layout_gravity="center_vertical|end"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:tint="#888888"
                 android:contentDescription="Clear search"
                 android:visibility="gone" />
-        </LinearLayout>
+        </FrameLayout>
 
         <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
 
