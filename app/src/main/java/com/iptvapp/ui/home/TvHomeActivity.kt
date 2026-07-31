@@ -1134,7 +1134,7 @@ class TvHomeActivity : AppCompatActivity() {
         )
         binding.btnGuideRefresh.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
-            viewModel.loadGuide()
+            viewModel.loadGuide(forceRefresh = true)
         }
 
         binding.tvRvCategories.layoutManager = LinearLayoutManager(this)

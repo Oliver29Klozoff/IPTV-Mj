@@ -1065,7 +1065,8 @@ class XtreamRepository @Inject constructor(
                                     categoryId = it.categoryId,
                                     categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized",
                                     isFavorite = prev?.isFavorite ?: false,
-                                    favoriteFolderId = prev?.favoriteFolderId
+                                    favoriteFolderId = prev?.favoriteFolderId,
+                                    epgChannelId = it.epgChannelId
                                 )
                             })
                         }
@@ -1707,8 +1708,18 @@ class XtreamRepository @Inject constructor(
             android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): no cached merged_channels rows for this server — channels haven't been refreshed yet")
             return@withContext 0
         }
-        val byName = mutableMapOf<String, Int>()
-        channels.forEach { ch -> byName[normalizeForMatch(ch.name)] = ch.streamId }
+        // Multiple local channels commonly share one epgChannelId — HD/SD/EAST/WEST variants of
+        // the same network all carry their network's single EPG id (e.g. "US: USA NETWORK HD",
+        // "US: USA NETWORK WEST HD", "US: USA NETWORK EAST HD" all use "usanetwork.us"). A
+        // single-valued map here meant only the last channel processed for a given id kept its
+        // match — every earlier variant silently lost its EPG entirely. Both maps are one-to-many
+        // so every variant gets the same programs.
+        val byEpgId = mutableMapOf<String, MutableList<Int>>()
+        val byName = mutableMapOf<String, MutableList<Int>>()
+        channels.forEach { ch ->
+            if (!ch.epgChannelId.isNullOrBlank()) byEpgId.getOrPut(ch.epgChannelId.lowercase()) { mutableListOf() }.add(ch.streamId)
+            byName.getOrPut(normalizeForMatch(ch.name)) { mutableListOf() }.add(ch.streamId)
+        }
 
         try {
             var xmlChannels = emptyList<com.iptvapp.util.XmltvChannel>()
@@ -1723,34 +1734,42 @@ class XtreamRepository @Inject constructor(
                 return@withContext 0
             }
 
-            val xmlChannelToStreamId = mutableMapOf<String, Int>()
+            // Same byEpgId-first matching the primary provider's fetchXmltvFromUrl already used
+            // (see MergedChannelEntity.epgChannelId kdoc for why this was missing here) — a
+            // stable provider-assigned ID match is far more reliable than fuzzy channel-name
+            // matching, which previously could resolve XMLTV entries to entirely different local
+            // channels than the ones actually favorited on a provider with a large/messy feed.
+            val xmlChannelToStreamIds = mutableMapOf<String, List<Int>>()
             xmlChannels.forEach { xmlCh ->
                 val normXml = normalizeForMatch(xmlCh.displayName)
-                val resolved = byName[normXml]
+                val resolved = byEpgId[xmlCh.id.lowercase()]
+                    ?: byName[normXml]
                     ?: if (normXml.isBlank()) null else {
                         byName.entries.firstOrNull { (key, _) ->
                             key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
                         }?.value
                     }
-                if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
+                if (resolved != null) xmlChannelToStreamIds[xmlCh.id] = resolved
             }
-            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamId.size}/${xmlChannels.size} xmltv channels to local channels by name")
+            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size}/${xmlChannels.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")
 
             val nowSec = System.currentTimeMillis() / 1000
             val entities = mutableListOf<EpgEntity>()
             xmlPrograms.forEach { prog ->
-                val streamId = xmlChannelToStreamId[prog.channelId] ?: return@forEach
-                entities.add(EpgEntity(
-                    serverIndex    = serverIndex,
-                    id             = "x_${prog.channelId}_${prog.startSec}",
-                    streamId       = streamId,
-                    title          = prog.title,
-                    description    = prog.description,
-                    startTimestamp = prog.startSec,
-                    stopTimestamp  = prog.stopSec,
-                    nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
-                    hasArchive     = 0
-                ))
+                val streamIds = xmlChannelToStreamIds[prog.channelId] ?: return@forEach
+                streamIds.forEach { streamId ->
+                    entities.add(EpgEntity(
+                        serverIndex    = serverIndex,
+                        id             = "x_${prog.channelId}_${streamId}_${prog.startSec}",
+                        streamId       = streamId,
+                        title          = prog.title,
+                        description    = prog.description,
+                        startTimestamp = prog.startSec,
+                        stopTimestamp  = prog.stopSec,
+                        nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
+                        hasArchive     = 0
+                    ))
+                }
             }
             android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): saving ${entities.size} EPG entries after channel-match filtering")
             entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
@@ -1789,6 +1808,7 @@ class XtreamRepository @Inject constructor(
         keys.forEach { key ->
             val (serverIndex, streamId) = key.split(":", limit = 2).let { it[0].toInt() to it[1].toInt() }
             db.mergedChannelDao().setFavorite(serverIndex, streamId, favorite)
+            android.util.Log.d("BulkRemoveDebug", "setFavorite(serverIndex=$serverIndex, streamId=$streamId, favorite=$favorite) executed")
         }
     }
 

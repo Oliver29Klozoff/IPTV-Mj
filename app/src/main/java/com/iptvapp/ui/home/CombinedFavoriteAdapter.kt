@@ -26,10 +26,10 @@ object FavoriteStarColors {
 
 // Favorites-tab-only adapter over the display union CombinedFavorite (primary + Providers-tab
 // favorites shown together). Ported from ChannelAdapter's Glide/health-dot/double-click/
-// pressed-row-guard logic rather than sharing a base class, since several ChannelAdapter
+// pressed-row-guard/bulk-select logic rather than sharing a base class, since some ChannelAdapter
 // features don't apply here: no drag-reorder (favOrder is primary-only and meaningless across
-// servers), no bulk-select, no EPG progress bar (merged channels have no locally cached EPG
-// entries to compute progress from — only the short now/next text fetched per-row).
+// servers), no EPG progress bar (merged channels have no locally cached EPG entries to compute
+// progress from — only the short now/next text fetched per-row).
 class CombinedFavoriteAdapter(
     private val onChannelClick: (CombinedFavorite) -> Unit,
     private val onChannelDoubleClick: (CombinedFavorite) -> Unit = {},
@@ -47,6 +47,24 @@ class CombinedFavoriteAdapter(
 
     // Same rebind-mid-long-press guard as ChannelAdapter — see its kdoc for why this exists.
     private var pressedId: String? = null
+
+    // Bulk-select for removing favorites in one pass — same shape as ChannelAdapter's, keyed by
+    // CombinedFavorite.id ("primary:$streamId" or "$serverIndex:$streamId") since this tab mixes
+    // primary and merged-provider favorites in one list.
+    private var bulkSelectedIds: Set<String> = emptySet()
+    private var bulkSelectMode: Boolean = false
+
+    fun submitBulkSelection(ids: Set<String>) {
+        val old = bulkSelectedIds
+        val oldMode = bulkSelectMode
+        bulkSelectedIds = ids
+        bulkSelectMode = ids.isNotEmpty()
+        if (oldMode != bulkSelectMode) {
+            notifyItemRangeChanged(0, itemCount)
+        } else {
+            notifyChangedRows { old.contains(it) != ids.contains(it) }
+        }
+    }
 
     private inline fun notifyChangedRows(changed: (id: String) -> Boolean) {
         currentList.forEachIndexed { index, item ->
@@ -152,6 +170,16 @@ class CombinedFavoriteAdapter(
             )
 
             binding.root.isSelected = item.id == currentlyPlayingId
+            if (bulkSelectMode) {
+                binding.cbBulkSelect?.visibility = View.VISIBLE
+                binding.cbBulkSelect?.isChecked = bulkSelectedIds.contains(item.id)
+                binding.root.setBackgroundColor(
+                    if (bulkSelectedIds.contains(item.id)) 0x33008CFF else 0x00000000
+                )
+            } else {
+                binding.cbBulkSelect?.visibility = View.GONE
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+            }
 
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()

@@ -1,7 +1,7 @@
 {
-  "versionCode": 386,
-  "versionName": "5.48",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.48/MKTV.apk",
-  "apkSha256": "41ff68545f3a189006a112db58b77913e915e408b0f8560ffa8e6b5b46a0df1f",
-  "changelog": "Fixed a real crash loading Guide with many favorites; TV Guide now includes merged providers; merged EPG URL/timeout/error fixes."
+  "versionCode": 387,
+  "versionName": "5.49",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.49/MKTV.apk",
+  "apkSha256": "3004a1f7186a67533c65986285f6f066118a10f52a8fab11309e3e9fbdb14fce",
+  "changelog": "Fixed merged-provider EPG matching for channels sharing a network id; added provider labels in Guide, a manual Guide refresh button, and bulk-remove for Favorites."
 }

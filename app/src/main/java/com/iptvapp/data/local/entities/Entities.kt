@@ -171,6 +171,14 @@ data class MergedChannelEntity(
     val streamIcon: String?,
     val num: Int,
     val serverNickname: String,
+    // Xtream's own stable per-channel EPG identifier (get_live_streams' epg_channel_id) — was
+    // never captured for merged/secondary providers at all, unlike the primary ChannelEntity
+    // which always had it. Without it, fetchXmltvEpgForMergedServer could only fall back to
+    // fuzzy channel-name matching against the XMLTV feed, which is why favorited channels on a
+    // provider with a large/messy XMLTV feed could get zero guide data even when the fetch
+    // itself succeeded — see XtreamRepository.fetchXmltvFromUrl (primary path) for the
+    // byEpgId-first matching this now allows merged channels to use too.
+    val epgChannelId: String? = null,
     // A single server can itself have tens of thousands of channels (real-world reseller
     // panels observed at 30k-85k), so category grouping is required even per-server, not just
     // across servers — categoryName is denormalized here rather than a separate merged

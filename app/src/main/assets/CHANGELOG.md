@@ -1,5 +1,23 @@
 # IPTV App - Changelog
 
+## v5.49 - 2026-07-31
+- **Fixed**: merged/secondary-provider EPG matching silently lost data for any channel that
+  shared its network's EPG id with another channel (e.g. "USA Network HD/WEST/EAST" or
+  "TNT HD/SD" all use one shared id) — only the last channel processed for that id ever got
+  matched, so every other variant showed no program data even on an otherwise-successful guide
+  fetch. Confirmed via live testing: raised the match rate from 104/213 to 134/213 favorited
+  channels on one account.
+- **Added**: a provider label (e.g. "Primary" or the merged provider's nickname) on each row in
+  the phone's Grid/Timeline Guide view, so it's clear at a glance which provider's EPG populated
+  that row.
+- **Added**: a manual refresh button on the Guide tab's "What's On/Grid" row (phone, both
+  portrait and landscape) that forces a fresh EPG fetch, matching the Grid/Timeline view's
+  existing refresh button.
+- **Added**: bulk-select on the Favorites tab — long-press a channel, choose "Select (bulk remove
+  from favorites)", then tap more channels before removing them all at once. Known issue: removing
+  a mix of primary and other-provider favorites in one batch can leave the other-provider channels
+  still showing until the tab is reopened.
+
 ## v5.48 - 2026-07-30
 - **Fixed**: a real crash (SQLiteException: too many SQL variables) when the Guide tab tried to
   load EPG for an account with a large number of favorited channels/categories — the query

@@ -458,6 +458,20 @@
             android:textColor="#008CFF"
             android:textSize="12sp" />
 
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/btnGuideRefreshRow"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_popup_sync"
+            android:tint="#888888"
+            android:contentDescription="Refresh guide" />
+
     </LinearLayout>
 
     <!-- BULK-SELECT BAR — one shared bar (not one per tab) for every bulk-selectable list

@@ -273,6 +273,15 @@ class HomeActivity : AppCompatActivity() {
                 { commitBulkClearWatching() },
                 { clearBulkSelectionWatching() }
             )
+            bulkSelectFavoritesMode && bulkSelectedFavoriteIds.isNotEmpty() -> Quadruple(
+                bulkSelectedFavoriteIds.size,
+                {
+                    bulkSelectedFavoriteIds.addAll(combinedFavoriteAdapter.currentList.map { it.id })
+                    combinedFavoriteAdapter.submitBulkSelection(bulkSelectedFavoriteIds.toSet())
+                },
+                { commitBulkRemoveFavorites() },
+                { clearBulkSelectionFavorites() }
+            )
             else -> null
         }
         if (state == null) {
@@ -459,6 +468,42 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectWatchingMode = false
         bulkSelectHandler.removeCallbacks(bulkSelectWatchingIdleRunnable)
         watchingAdapter.submitBulkSelection(emptySet())
+        updateBulkSelectUi()
+    }
+
+    // Favorites tab bulk-select — same shape as the others above, but removes from favorites
+    // instead of adding/hiding/clearing. Keys are CombinedFavorite.id ("primary:$streamId" or
+    // "$serverIndex:$streamId") since this tab mixes primary and merged-provider favorites.
+    private val bulkSelectedFavoriteIds = mutableSetOf<String>()
+    private var bulkSelectFavoritesMode = false
+    private val bulkSelectFavoritesIdleRunnable = Runnable {
+        if (bulkSelectFavoritesMode && bulkSelectedFavoriteIds.isNotEmpty()) {
+            showBulkSelectIdlePrompt(
+                count = bulkSelectedFavoriteIds.size,
+                onMoveToFavorites = { commitBulkRemoveFavorites() },
+                onUnselectAll = { clearBulkSelectionFavorites() },
+                itemLabel = "channel",
+                actionLabel = "Remove Selected"
+            )
+        }
+    }
+
+    private fun commitBulkRemoveFavorites() {
+        val primaryIds = bulkSelectedFavoriteIds
+            .filter { it.startsWith("primary:") }
+            .mapNotNull { it.substringAfter("primary:").toIntOrNull() }
+        val mergedKeys = bulkSelectedFavoriteIds.filterNot { it.startsWith("primary:") }.toSet()
+        if (primaryIds.isNotEmpty()) viewModel.bulkRemoveFavorites(primaryIds)
+        if (mergedKeys.isNotEmpty()) viewModel.bulkRemoveMergedFavorites(mergedKeys)
+        Toast.makeText(this, "Removed ${bulkSelectedFavoriteIds.size} from favorites", Toast.LENGTH_SHORT).show()
+        clearBulkSelectionFavorites()
+    }
+
+    private fun clearBulkSelectionFavorites() {
+        bulkSelectedFavoriteIds.clear()
+        bulkSelectFavoritesMode = false
+        bulkSelectHandler.removeCallbacks(bulkSelectFavoritesIdleRunnable)
+        combinedFavoriteAdapter.submitBulkSelection(emptySet())
         updateBulkSelectUi()
     }
 
@@ -1905,7 +1950,17 @@ class HomeActivity : AppCompatActivity() {
         )
 
         combinedFavoriteAdapter = CombinedFavoriteAdapter(
-            onChannelClick = { item ->
+            onChannelClick = onChannelClick@{ item ->
+                if (bulkSelectFavoritesMode) {
+                    if (!bulkSelectedFavoriteIds.add(item.id)) bulkSelectedFavoriteIds.remove(item.id)
+                    combinedFavoriteAdapter.submitBulkSelection(bulkSelectedFavoriteIds.toSet())
+                    updateBulkSelectUi()
+                    Toast.makeText(this, "${bulkSelectedFavoriteIds.size} selected", Toast.LENGTH_SHORT).show()
+                    bulkSelectHandler.removeCallbacks(bulkSelectFavoritesIdleRunnable)
+                    if (bulkSelectedFavoriteIds.isEmpty()) bulkSelectFavoritesMode = false
+                    else bulkSelectHandler.postDelayed(bulkSelectFavoritesIdleRunnable, 8000)
+                    return@onChannelClick
+                }
                 currentMiniCombinedFavoriteId = item.id
                 combinedFavoriteAdapter.setCurrentlyPlayingId(item.id)
                 when (item) {
@@ -1952,11 +2007,23 @@ class HomeActivity : AppCompatActivity() {
                 }
                 Toast.makeText(this, if (wasFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
-            onChannelLongClick = { item ->
-                when (item) {
-                    is CombinedFavorite.Primary -> showChannelActionsMenu(item.channel)
-                    is CombinedFavorite.Merged -> showMergedChannelActionsMenu(item.channel)
+            onChannelLongClick = onChannelLongClick@{ item ->
+                if (bulkSelectFavoritesMode) {
+                    showBulkSelectAllMenu(
+                        itemLabel = "channels",
+                        onSelectAll = {
+                            bulkSelectedFavoriteIds.addAll(combinedFavoriteAdapter.currentList.map { it.id })
+                            combinedFavoriteAdapter.submitBulkSelection(bulkSelectedFavoriteIds.toSet())
+                            updateBulkSelectUi()
+                            Toast.makeText(this, "${bulkSelectedFavoriteIds.size} selected", Toast.LENGTH_SHORT).show()
+                            bulkSelectHandler.removeCallbacks(bulkSelectFavoritesIdleRunnable)
+                            bulkSelectHandler.postDelayed(bulkSelectFavoritesIdleRunnable, 8000)
+                        },
+                        onDeselectAll = { clearBulkSelectionFavorites() }
+                    )
+                    return@onChannelLongClick
                 }
+                showFavoriteActionsMenu(item)
             }
         )
 
@@ -3303,6 +3370,10 @@ class HomeActivity : AppCompatActivity() {
         binding.btnTimelineViewRow?.setOnClickListener {
             timelineLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
         }
+        binding.btnGuideRefreshRow?.setOnClickListener {
+            Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
+            viewModel.loadGuide(forceRefresh = true)
+        }
     }
 
     private fun openPlayer(
@@ -3772,6 +3843,42 @@ class HomeActivity : AppCompatActivity() {
                         Toast.makeText(this, "${ch.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
                     }
                     else -> if (options[i].startsWith("✓ Add")) commitBulkLiveFavorites()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // Favorites-tab-only long-press menu — distinct from showChannelActionsMenu/
+    // showMergedChannelActionsMenu (which are shared with the Providers/browsing tabs and
+    // offer "add to favorites") since every row here is already a favorite, so the useful
+    // bulk action is removing, not adding. Covers both Primary and Merged items in one place
+    // since this tab mixes them.
+    private fun showFavoriteActionsMenu(item: CombinedFavorite) {
+        val title = when (item) {
+            is CombinedFavorite.Primary -> item.channel.name
+            is CombinedFavorite.Merged -> "${item.channel.name} · ${item.channel.serverNickname}"
+        }
+        val options = mutableListOf("Remove from Favorites", "Select (bulk remove from favorites)")
+        if (item is CombinedFavorite.Primary) options.add(0, "Set Reminder")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(options.toTypedArray()) { _, i ->
+                when (options[i]) {
+                    "Set Reminder" -> if (item is CombinedFavorite.Primary) showReminderDialog(item.channel)
+                    "Remove from Favorites" -> {
+                        viewModel.toggleCombinedFavorite(item)
+                        Toast.makeText(this, "Removed from favorites", Toast.LENGTH_SHORT).show()
+                    }
+                    "Select (bulk remove from favorites)" -> {
+                        bulkSelectFavoritesMode = true
+                        bulkSelectedFavoriteIds.add(item.id)
+                        combinedFavoriteAdapter.submitBulkSelection(bulkSelectedFavoriteIds.toSet())
+                        updateBulkSelectUi()
+                        Toast.makeText(this, "${bulkSelectedFavoriteIds.size} selected — tap more channels, or wait to remove them", Toast.LENGTH_SHORT).show()
+                        bulkSelectHandler.removeCallbacks(bulkSelectFavoritesIdleRunnable)
+                        bulkSelectHandler.postDelayed(bulkSelectFavoritesIdleRunnable, 8000)
+                    }
                 }
             }
             .setNegativeButton("Cancel", null)

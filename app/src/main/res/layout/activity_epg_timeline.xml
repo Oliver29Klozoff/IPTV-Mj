@@ -84,6 +84,21 @@
             android:textColor="#008CFF"
             android:textSize="13sp" />
 
+        <!-- The Guide previously had no way to force a fresh EPG fetch at all — loadGuide()'s
+             own staleness check only looks at the newest cached stop-timestamp ACROSS EVERY
+             provider, so one provider's far-future cached data (even if wrong/mismatched) could
+             mask another provider's genuinely stale/incorrect rows indefinitely with no way to
+             force a redo short of reinstalling or clearing app data. -->
+        <ImageButton
+            android:id="@+id/btnTimelineRefresh"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_popup_sync"
+            android:tint="#888888"
+            android:contentDescription="Refresh guide" />
+
     </LinearLayout>
 
     <!-- Header row: channel column spacer + time labels -->

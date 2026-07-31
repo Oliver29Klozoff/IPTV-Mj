@@ -28,15 +28,31 @@
             android:scaleType="fitCenter"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/tvTimelineChannelName"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:textColor="#DDDDDD"
-            android:textSize="11sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvTimelineChannelName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="#DDDDDD"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/tvTimelineProviderLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#777777"
+                android:textSize="9sp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

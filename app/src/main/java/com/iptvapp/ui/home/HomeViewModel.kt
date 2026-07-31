@@ -1520,7 +1520,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun loadGuide() {
+    // forceRefresh bypasses the staleness check below — previously there was no way to force a
+    // redo at all: the check only looks at the newest cached EPG stop-timestamp ACROSS EVERY
+    // provider combined, so one provider's far-future (even if wrong/mismatched) cached data
+    // could mask another provider's genuinely stale or incorrectly-matched rows indefinitely,
+    // with no way to force a re-fetch short of reinstalling or clearing app data.
+    fun loadGuide(forceRefresh: Boolean = false) {
         guideJob?.cancel()
         guideJob = viewModelScope.launch {
             val favChannels = repository.getFavoriteChannels().first()
@@ -1563,7 +1568,7 @@ class HomeViewModel @Inject constructor(
             val newestStop = repository.getNewestEpgStop()
             val newestStopMs = if (newestStop != null && newestStop < 100_000_000_000L)
                 newestStop * 1000L else newestStop ?: 0L
-            val stale = newestStopMs < System.currentTimeMillis() + 30 * 60 * 1000L
+            val stale = forceRefresh || newestStopMs < System.currentTimeMillis() + 30 * 60 * 1000L
 
             if (stale) {
                 if (cached.isEmpty() && mergedCached.isEmpty()) _loading.value = true
@@ -1957,6 +1962,10 @@ class HomeViewModel @Inject constructor(
     // XtreamRepository.bulkSetMergedChannelFavorite kdoc.
     fun bulkAddMergedFavorites(keys: Set<String>) {
         viewModelScope.launch { repository.bulkSetMergedChannelFavorite(keys, true) }
+    }
+
+    fun bulkRemoveMergedFavorites(keys: Set<String>) {
+        viewModelScope.launch { repository.bulkSetMergedChannelFavorite(keys, false) }
     }
 
     // ─── Channels Like This ──────────────────────────────────────────────────

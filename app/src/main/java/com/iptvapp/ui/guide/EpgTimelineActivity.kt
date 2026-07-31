@@ -14,6 +14,7 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -86,6 +87,10 @@ class EpgTimelineActivity : AppCompatActivity() {
         binding.btnTimelineBack.setOnClickListener { finish() }
         binding.btnTimelineNow.setOnClickListener {
             if (dayOffset != 0) changeDay(-dayOffset) else scrollToNow()
+        }
+        binding.btnTimelineRefresh.setOnClickListener {
+            Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
+            viewModel.loadGuide(forceRefresh = true)
         }
         binding.btnTimelinePrevDay.setOnClickListener { changeDay(-1) }
         binding.btnTimelineNextDay.setOnClickListener { changeDay(1) }
@@ -401,6 +406,7 @@ class TimelineAdapter(
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val ivLogo: ImageView = view.findViewById(R.id.ivTimelineChannelLogo)
         private val tvName: TextView = view.findViewById(R.id.tvTimelineChannelName)
+        private val tvProviderLabel: TextView? = view.findViewById(R.id.tvTimelineProviderLabel)
         val scrollView: HorizontalScrollView = view.findViewById(R.id.programRowScroll)
         private val container: LinearLayout = view.findViewById(R.id.programRowContainer)
 
@@ -409,6 +415,7 @@ class TimelineAdapter(
         fun bind(row: GuideRow) {
             tvName.text = row.name
             tvName.setOnClickListener { onChannelClick(row) }
+            tvProviderLabel?.text = row.providerLabel
             providerStripe?.setBackgroundColor(providerColorFor(row.serverIndex) ?: 0x00000000)
             if (!row.streamIcon.isNullOrBlank()) {
                 ivLogo.visibility = View.VISIBLE
