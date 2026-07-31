@@ -1567,6 +1567,17 @@ class HomeViewModel @Inject constructor(
 
             if (stale) {
                 if (cached.isEmpty() && mergedCached.isEmpty()) _loading.value = true
+                // Same visible blue bar + "N/Total" text _syncProgress already drives for merged
+                // channel/movie/series refreshes — the Guide fetch previously only had the plain
+                // indeterminate spinner (_loading), giving no sense of how much was left,
+                // especially noticeable with a large favorites list or several merged providers.
+                val mergedServerIndices = mergedFavorites.map { it.serverIndex }.distinct()
+                val totalUnits = allChannels.size + mergedServerIndices.size + mergedFavorites.size
+                val completedUnits = java.util.concurrent.atomic.AtomicInteger(0)
+                fun bumpGuideProgress() {
+                    val done = completedUnits.incrementAndGet()
+                    _syncProgress.value = "Loading guide… $done/${totalUnits.coerceAtLeast(1)}" to (done * 100 / totalUnits.coerceAtLeast(1))
+                }
                 try {
                     coroutineScope {
                         // Paced (150ms between launches), matching loadEpgForMergedChannels/
@@ -1575,19 +1586,20 @@ class HomeViewModel @Inject constructor(
                         // history), so both the primary and merged-provider fetch loops below
                         // deliberately space requests out instead of firing all at once.
                         allChannels.forEach { ch ->
-                            launch { repository.fetchEpg(ch.streamId) }
+                            launch { repository.fetchEpg(ch.streamId); bumpGuideProgress() }
                             kotlinx.coroutines.delay(150)
                         }
-                        mergedFavorites.map { it.serverIndex }.distinct().forEach { serverIndex ->
-                            launch { repository.fetchXmltvEpgForMergedServer(serverIndex) }
+                        mergedServerIndices.forEach { serverIndex ->
+                            launch { repository.fetchXmltvEpgForMergedServer(serverIndex); bumpGuideProgress() }
                         }
                         mergedFavorites.forEach { ch ->
-                            launch { repository.fetchMergedEpg(ch.serverIndex, ch.streamId) }
+                            launch { repository.fetchMergedEpg(ch.serverIndex, ch.streamId); bumpGuideProgress() }
                             kotlinx.coroutines.delay(150)
                         }
                     }
                 } finally {
                     _loading.value = false
+                    _syncProgress.value = null
                 }
                 // Reload from DB after network fetch and update rows
                 val fresh = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()

@@ -1,5 +1,21 @@
 # IPTV App - Changelog
 
+## v5.48 - 2026-07-30
+- **Fixed**: a real crash (SQLiteException: too many SQL variables) when the Guide tab tried to
+  load EPG for an account with a large number of favorited channels/categories — the query
+  passed every stream ID into one unbounded database call instead of chunking it, which could
+  exceed SQLite's parameter limit and crash the entire app. Confirmed via a real crash log.
+- **Added** (TV): the Guide panel now includes favorited merged/secondary-provider channels and
+  their program data, matching what the phone's full-screen Guide already did — previously TV's
+  Guide only ever showed the primary provider.
+- **Fixed**: a merged provider's own custom EPG URL (Settings → Providers → Edit → EPG URL) was
+  never actually used when fetching that provider's guide data — it's now tried first, falling
+  back to the provider's default guide path.
+- **Fixed**: the merged-provider "invalid response" error message now explains that network
+  interference or a flaky provider server is a common cause, not just an account problem.
+- **Changed**: the merged-provider guide fetch's per-server time budget raised from 15 to 45
+  seconds, giving a large catalog on a slower connection a real chance to finish.
+
 ## v5.47 - 2026-07-30
 - **Fixed**: a real out-of-memory crash from parsing a large XMLTV EPG feed for a merged
   provider — when more than one provider's guide data refreshed at the same time, a shared

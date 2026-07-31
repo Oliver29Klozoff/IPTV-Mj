@@ -1117,19 +1117,24 @@ class TvHomeActivity : AppCompatActivity() {
         )
 
         epgGuideAdapter = TvEpgGuideAdapter(
-            onChannelClick = { channel ->
-                lifecycleScope.launch {
-                    playInMiniPlayer(channel)
-                    viewModel.markChannelWatched(channel.streamId)
-                    viewModel.setCurrentlyPlaying(channel.streamId)
+            onChannelClick = { row ->
+                val primaryChannel = row.channel
+                if (primaryChannel != null) {
+                    lifecycleScope.launch {
+                        playInMiniPlayer(primaryChannel)
+                        viewModel.markChannelWatched(primaryChannel.streamId)
+                        viewModel.setCurrentlyPlaying(primaryChannel.streamId)
+                    }
+                } else {
+                    row.mergedChannel?.let { playMergedChannel(it) }
                 }
                 scheduleTvAutoCollapse()
             },
-            onChannelLongClick = { channel -> showTvReminderDialog(channel) }
+            onChannelLongClick = { row -> showTvReminderDialogForRow(row) }
         )
         binding.btnGuideRefresh.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
-            viewModel.loadEpgForChannels(viewModel.channels.value)
+            viewModel.loadGuide()
         }
 
         binding.tvRvCategories.layoutManager = LinearLayoutManager(this)
@@ -2378,27 +2383,26 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
-    private var allEpgChannels: List<ChannelEntity> = emptyList()
-
     private fun observeEpgGuide() {
+        // guideRows already merges primary + favorited merged-provider channels (see
+        // HomeViewModel.loadGuide) and is pre-filtered to rows that actually have programs —
+        // previously this only ever observed viewModel.channels (primary-only), so a favorited
+        // merged/secondary-provider channel's guide data never showed on TV at all, unlike the
+        // phone's full-screen Guide which already used this same source.
         lifecycleScope.launch {
-            viewModel.channels.collect { channels ->
-                allEpgChannels = channels
-                val epgText = viewModel.channelEpgText.value
-                epgGuideAdapter.submitList(channels.filter { hasRealEpg(epgText, it.streamId) })
+            viewModel.guideRows.collect { rows -> epgGuideAdapter.submitList(rows) }
+        }
+        viewModel.loadGuide()
+        // NOW/progress in TvEpgGuideAdapter is computed from wall-clock time against each row's
+        // static program list at bind time — nothing re-triggers a rebind as time passes on its
+        // own, so without this the progress bar/NOW text would freeze at whatever it showed when
+        // guideRows last emitted. A plain per-minute full rebind is cheap (rows only number in
+        // the dozens) and matches the ~30-60min granularity of real program blocks.
+        lifecycleScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                epgGuideAdapter.notifyItemRangeChanged(0, epgGuideAdapter.itemCount)
             }
-        }
-        lifecycleScope.launch {
-            viewModel.channelEpgText.collect { epgText ->
-                epgGuideAdapter.submitEpgText(epgText)
-                epgGuideAdapter.submitList(allEpgChannels.filter { hasRealEpg(epgText, it.streamId) })
-            }
-        }
-        lifecycleScope.launch {
-            viewModel.channelEpgNextText.collect { epgGuideAdapter.submitEpgNextText(it) }
-        }
-        lifecycleScope.launch {
-            viewModel.channelEpgProgress.collect { epgGuideAdapter.submitEpgProgress(it) }
         }
     }
 
@@ -2488,11 +2492,6 @@ class TvHomeActivity : AppCompatActivity() {
             }
             binding.tvCatPanel.visibility == View.VISIBLE -> binding.tvBtnCatBack.requestFocus()
         }
-    }
-
-    private fun hasRealEpg(epgText: Map<Int, String>, streamId: Int): Boolean {
-        val text = epgText[streamId] ?: return false
-        return text.isNotBlank() && text != "—"
     }
 
     /** Brings the just-selected channel's row into view in the EPG guide, so you can see
@@ -2845,6 +2844,42 @@ class TvHomeActivity : AppCompatActivity() {
                 (resources.displayMetrics.heightPixels * 0.75).toInt()
             )
         }
+    }
+
+    // Reminders/recording scheduling only exist for primary-provider channels today
+    // (ChannelTimerScheduler/RecordingSchedulerActivity have no serverIndex concept, same
+    // reasoning as the phone Guide's GuideAdapter.showTimerDialog) — a merged/secondary-provider
+    // row just gets the Remind Me option via row.programs directly (no getUpcomingEpg() call,
+    // since that DAO query is primary-channels-only; GuideRow already carries the programs).
+    private fun showTvReminderDialogForRow(row: com.iptvapp.ui.guide.GuideRow) {
+        val primaryChannel = row.channel
+        if (primaryChannel != null) {
+            showTvReminderDialog(primaryChannel)
+            return
+        }
+        val nowMs = System.currentTimeMillis()
+        fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
+        val upcoming = row.programs.filter { toMs(it.startTimestamp) > nowMs }.sortedBy { it.startTimestamp }
+        if (upcoming.isEmpty()) {
+            Toast.makeText(this, "No upcoming guide data for ${row.name}", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val fmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+        val labels = upcoming.map { epg ->
+            val startMs = toMs(epg.startTimestamp)
+            val minUntil = ((startMs - nowMs) / 60000).coerceAtLeast(0)
+            val timeStr = if (minUntil == 0L) "Now" else "in ${minUntil}min"
+            "${epg.title} (${fmt.format(Date(startMs))} — $timeStr)"
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Remind me — ${row.name}")
+            .setItems(labels) { _, i ->
+                val epg = upcoming[i]
+                val startMs = toMs(epg.startTimestamp)
+                ChannelTimerScheduler.schedule(this, row.streamId, row.name, epg.title, startMs)
+                Toast.makeText(this, "Reminder set for ${fmt.format(Date(startMs))}", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun showTvReminderDialog(channel: ChannelEntity) {

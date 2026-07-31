@@ -9,6 +9,16 @@
     android:gravity="center_vertical"
     android:paddingHorizontal="16dp">
 
+    <!-- Color-coded by provider, same palette/meaning as the phone Guide's viewProviderStripe
+         (see GuideModels.providerColorFor) — gone/transparent for primary-provider rows, which
+         deliberately have no stripe there either. -->
+    <View
+        android:id="@+id/tvEpgRowProviderStripe"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="8dp"
+        android:background="@android:color/transparent" />
+
     <TextView
         android:id="@+id/tvEpgRowChannel"
         android:layout_width="110dp"

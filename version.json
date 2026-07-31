@@ -1,7 +1,7 @@
 {
-  "versionCode": 385,
-  "versionName": "5.47",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.47/MKTV.apk",
-  "apkSha256": "dd836c8293d4a7152a166feb66752fb0243a856a1e07b72664d77745caf00ad6",
-  "changelog": "Fixed OOM crash parsing merged-provider XMLTV EPG; mini player now respects the Subtitles setting."
+  "versionCode": 386,
+  "versionName": "5.48",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.48/MKTV.apk",
+  "apkSha256": "41ff68545f3a189006a112db58b77913e915e408b0f8560ffa8e6b5b46a0df1f",
+  "changelog": "Fixed a real crash loading Guide with many favorites; TV Guide now includes merged providers; merged EPG URL/timeout/error fixes."
 }

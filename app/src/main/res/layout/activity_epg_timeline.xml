@@ -125,7 +125,9 @@
 
     </LinearLayout>
 
-    <!-- Loading indicator -->
+    <!-- Loading indicator — shown only until real fetch progress is known (see
+         timelineSyncProgressContainer below, which takes over once the network fetch actually
+         starts and can report "N/Total"). -->
     <ProgressBar
         android:id="@+id/timelineProgress"
         android:layout_width="wrap_content"
@@ -136,6 +138,41 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/timelineHeader" />
+
+    <!-- Determinate guide-fetch progress — mirrors the home screen's syncProgressContainer
+         (same "Loading X… N/Total" + percent-bar pattern already used for merged channel/movie/
+         series refreshes), so loading the Guide isn't just a bare spinner with no sense of how
+         much is left. -->
+    <LinearLayout
+        android:id="@+id/timelineSyncProgressContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/timelineHeader">
+
+        <TextView
+            android:id="@+id/tvTimelineSyncStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp" />
+
+        <ProgressBar
+            android:id="@+id/timelineSyncProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#008CFF" />
+
+    </LinearLayout>
 
     <!-- Shown only when there's truly no cached guide data at all AND the network fetch just
          failed — normally cached-but-stale data is shown instead (see HomeViewModel.loadGuide

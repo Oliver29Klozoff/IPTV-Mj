@@ -608,14 +608,38 @@ class XtreamRepository @Inject constructor(
     suspend fun getEpisodeWatchedForSeries(seriesId: Int): List<com.iptvapp.data.local.entities.EpisodeWatchedEntity> =
         db.episodeWatchedDao().getForSeries(seriesId)
 
+    // A plain single-query IN(...) here blew past SQLite's ~999-bound-parameter limit and
+    // crashed the whole app (SQLiteException: too many SQL variables) for an account with a
+    // large enough favorites/category selection feeding the Guide tab — confirmed via a real
+    // crash log. Chunking was already applied ad-hoc at one call site (loadEpgForChannels) but
+    // missed here, the Guide's own query and by far the most likely to hit a large id list.
+    // Every real call site only ever collects this once (.first()), never observes it live, so
+    // combining chunk results into one list-emitting Flow changes nothing for callers.
     fun getEpgForStreams(streamIds: List<Int>): Flow<List<EpgEntity>> =
-        db.epgDao().getEpgForStreams(streamIds)
+        if (streamIds.size <= 900) {
+            db.epgDao().getEpgForStreams(streamIds)
+        } else {
+            kotlinx.coroutines.flow.flow {
+                emit(streamIds.chunked(900).flatMap { chunk -> db.epgDao().getEpgForStreams(chunk).first() })
+            }
+        }
 
     /** EPG across multiple servers at once, keyed by exact (serverIndex, streamId) pairs so two
      * different servers reusing the same numeric streamId never collide — used by the Guide
-     * tab once merged/secondary-provider favorites are included alongside the primary provider. */
-    fun getEpgForServerStreams(pairs: List<Pair<Int, Int>>): Flow<List<EpgEntity>> =
-        db.epgDao().getEpgForServerStreamKeys(pairs.map { (serverIndex, streamId) -> "$serverIndex:$streamId" })
+     * tab once merged/secondary-provider favorites are included alongside the primary provider.
+     * Same SQLite bound-parameter chunking as getEpgForStreams above — a large enough combined
+     * merged-favorites count across providers could hit the same crash. */
+    fun getEpgForServerStreams(pairs: List<Pair<Int, Int>>): Flow<List<EpgEntity>> {
+        val keys = pairs.map { (serverIndex, streamId) -> "$serverIndex:$streamId" }
+        return if (keys.size <= 900) {
+            db.epgDao().getEpgForServerStreamKeys(keys)
+        } else {
+            kotlinx.coroutines.flow.flow {
+                emit(keys.chunked(900).flatMap { chunk -> db.epgDao().getEpgForServerStreamKeys(chunk).first() })
+            }
+        }
+    }
+    suspend fun getStreamIdsWithEpg(serverIndex: Int) = db.epgDao().getStreamIdsWithEpg(serverIndex)
 
     fun getInProgressVod(): Flow<List<VodEntity>> = db.vodDao().getInProgressVod()
     fun getInProgressSeries(): Flow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>> = db.seriesDao().getInProgressSeries()
@@ -783,7 +807,13 @@ class XtreamRepository @Inject constructor(
         val serverUrl: String,
         val username: String,
         val password: String,
-        val nickname: String
+        val nickname: String,
+        // Per-provider custom guide URL (Settings > Providers > Edit > EPG URL) — was never
+        // carried through here at all, so fetchXmltvEpgForMergedServer always built its XMLTV
+        // request from the server's base URL + "/xmltv.php" regardless of this field, silently
+        // ignoring it. Blank means "use the server's own default xmltv.php path," same fallback
+        // XmltvFetcher.buildUrl already assumed.
+        val epgUrl: String = ""
     )
 
     // serverIndex -1 = primary, 0..N-1 = extraServers[i] — same convention as
@@ -792,7 +822,7 @@ class XtreamRepository @Inject constructor(
         val primary = creds()
         val primaryNick = prefs.serverNickname.first().ifBlank { primary.username }
         val servers = mutableListOf(
-            ConfiguredServer(-1, primary.serverUrl, primary.username, primary.password, primaryNick)
+            ConfiguredServer(-1, primary.serverUrl, primary.username, primary.password, primaryNick, prefs.epgUrl.first())
         )
         prefs.getExtraServersWithNick().forEachIndexed { i, s ->
             // A disabled provider is treated as if it doesn't exist for every browsing/refresh/
@@ -803,7 +833,7 @@ class XtreamRepository @Inject constructor(
             // dimmed, with its saved credentials intact — for the user to re-enable later.
             if (!s.getOrElse(5) { "true" }.toBoolean()) return@forEachIndexed
             val nick = s.getOrElse(3) { "" }.ifBlank { s[1] }
-            servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick))
+            servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick, s.getOrElse(4) { "" }))
         }
         return servers
     }
@@ -1652,18 +1682,46 @@ class XtreamRepository @Inject constructor(
      * low-rate-limit-risk way to get merged providers real timeline depth, rather than an
      * unpaced per-channel loop. Never throws — returns 0 on any failure. */
     suspend fun fetchXmltvEpgForMergedServer(serverIndex: Int): Int = withContext(Dispatchers.IO) {
-        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return@withContext 0
-        if (server.serverUrl.isBlank()) return@withContext 0
-        val url = XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password)
+        val tag = "MergedXmltv"
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: run {
+            android.util.Log.w(tag, "serverIndex=$serverIndex: not in allConfiguredServers (disabled or removed)")
+            return@withContext 0
+        }
+        if (server.serverUrl.isBlank()) {
+            android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): blank serverUrl")
+            return@withContext 0
+        }
+        // Try the provider's own custom EPG URL first (Settings > Providers > Edit > EPG URL) —
+        // previously ignored entirely here, so a provider whose real XMLTV feed lives at a
+        // different URL than its Xtream panel's default /xmltv.php path (exactly the case the
+        // per-provider EPG URL field exists for) always got zero channels/programs back, since
+        // the default path either 404s or serves an empty feed for that panel. Falls back to the
+        // default path if no custom URL is set, or if the custom one returns nothing.
+        val sources = listOfNotNull(
+            server.epgUrl.takeIf { it.isNotBlank() },
+            XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password)
+        ).distinct()
 
         val channels = db.mergedChannelDao().getAllForServer(serverIndex)
-        if (channels.isEmpty()) return@withContext 0
+        if (channels.isEmpty()) {
+            android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): no cached merged_channels rows for this server — channels haven't been refreshed yet")
+            return@withContext 0
+        }
         val byName = mutableMapOf<String, Int>()
         channels.forEach { ch -> byName[normalizeForMatch(ch.name)] = ch.streamId }
 
         try {
-            val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
-            if (xmlPrograms.isEmpty()) return@withContext 0
+            var xmlChannels = emptyList<com.iptvapp.util.XmltvChannel>()
+            var xmlPrograms = emptyList<com.iptvapp.util.XmltvProgram>()
+            for (url in sources) {
+                val (ch, pr) = XmltvFetcher.fetch(url)
+                android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): source ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} returned ${ch.size} channels, ${pr.size} programs")
+                if (pr.isNotEmpty()) { xmlChannels = ch; xmlPrograms = pr; break }
+            }
+            if (xmlPrograms.isEmpty()) {
+                android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): every source gave zero programs — provider may not offer XMLTV at these URLs, or the request failed silently (see XmltvFetcher.fetch, which swallows errors and returns empty)")
+                return@withContext 0
+            }
 
             val xmlChannelToStreamId = mutableMapOf<String, Int>()
             xmlChannels.forEach { xmlCh ->
@@ -1676,6 +1734,7 @@ class XtreamRepository @Inject constructor(
                     }
                 if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
             }
+            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamId.size}/${xmlChannels.size} xmltv channels to local channels by name")
 
             val nowSec = System.currentTimeMillis() / 1000
             val entities = mutableListOf<EpgEntity>()
@@ -1693,9 +1752,11 @@ class XtreamRepository @Inject constructor(
                     hasArchive     = 0
                 ))
             }
+            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): saving ${entities.size} EPG entries after channel-match filtering")
             entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
             entities.size
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e(tag, "serverIndex=$serverIndex (${server.nickname}): failed", e)
             0
         }
     }

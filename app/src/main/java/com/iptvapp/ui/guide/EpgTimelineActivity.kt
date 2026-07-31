@@ -157,11 +157,28 @@ class EpgTimelineActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.loading.collect { loading ->
                 if (rows().isEmpty()) {
-                    binding.timelineProgress.visibility = if (loading) View.VISIBLE else View.GONE
+                    // Plain indeterminate spinner only while there's no real progress info yet
+                    // (syncProgress starts emitting once the fetch loop actually begins) — once it
+                    // does, timelineSyncProgressContainer takes over with real "N/Total" numbers.
+                    binding.timelineProgress.visibility =
+                        if (loading && viewModel.syncProgress.value == null) View.VISIBLE else View.GONE
                     // Cold-start-with-no-connectivity case (see loadGuide kdoc): nothing was ever
                     // cached, the fetch just finished (successfully or not) and there's still
                     // nothing to show — silently staying blank looked identical to a bug.
                     binding.tvTimelineEmpty?.visibility = if (!loading) View.VISIBLE else View.GONE
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.syncProgress.collect { progress ->
+                if (progress == null) {
+                    binding.timelineSyncProgressContainer.visibility = View.GONE
+                } else {
+                    val (text, percent) = progress
+                    binding.timelineProgress.visibility = View.GONE
+                    binding.timelineSyncProgressContainer.visibility = View.VISIBLE
+                    binding.tvTimelineSyncStatus.text = text
+                    binding.timelineSyncProgressBar.progress = percent
                 }
             }
         }

@@ -24,6 +24,8 @@ object XmltvFetcher {
     fun buildUrl(serverUrl: String, username: String, password: String): String =
         "${serverUrl.trimEnd('/')}/xmltv.php?username=$username&password=$password"
 
+    private const val TAG = "XmltvFetcher"
+
     /** Returns (channels, programs). Empty pair on any network/parse error — never throws. */
     fun fetch(url: String): Pair<List<XmltvChannel>, List<XmltvProgram>> {
         return try {
@@ -33,7 +35,11 @@ object XmltvFetcher {
             conn.instanceFollowRedirects = true
             conn.setRequestProperty("Accept-Encoding", "gzip")
             conn.connect()
-            if (conn.responseCode !in 200..299) return Pair(emptyList(), emptyList())
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                android.util.Log.w(TAG, "HTTP $code for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)}")
+                return Pair(emptyList(), emptyList())
+            }
 
             val buffered = conn.inputStream.buffered()
             buffered.mark(2)
@@ -45,6 +51,7 @@ object XmltvFetcher {
 
             stream.buffered().use { parse(it) }
         } catch (e: Exception) {
+            android.util.Log.e(TAG, "fetch failed for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)}: ${e.javaClass.simpleName}: ${e.message}")
             Pair(emptyList(), emptyList())
         }
     }
