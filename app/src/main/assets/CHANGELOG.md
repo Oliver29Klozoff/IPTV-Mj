@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v5.50 - 2026-07-31
+- **Fixed**: lowered minimum Android version from 8.0 to 7.1 (API 26 → 25) — some older Fire TV
+  Stick 4K units (Fire OS 6 / Android 7.1) couldn't install the app at all ("problem parsing the
+  package"). Every API-26-specific code path was already guarded with a version check, so this
+  only expands device support, no behavior changes on newer devices.
+- **Fixed**: a favorited channel restored via cloud sync kept showing whatever provider nickname
+  was cached at the time it was last refreshed, even after the provider was later renamed or
+  swapped between primary/secondary — now resolved live so it always reflects the provider's
+  current name.
+- **Added**: the primary provider's nickname now shows underneath blue-star favorites in the
+  Favorites tab, matching the tag other-provider (merged) favorites already showed.
+
 ## v5.49 - 2026-07-31
 - **Fixed**: merged/secondary-provider EPG matching silently lost data for any channel that
   shared its network's EPG id with another channel (e.g. "USA Network HD/WEST/EAST" or

@@ -1,7 +1,7 @@
 {
-  "versionCode": 387,
-  "versionName": "5.49",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.49/MKTV.apk",
-  "apkSha256": "3004a1f7186a67533c65986285f6f066118a10f52a8fab11309e3e9fbdb14fce",
-  "changelog": "Fixed merged-provider EPG matching for channels sharing a network id; added provider labels in Guide, a manual Guide refresh button, and bulk-remove for Favorites."
+  "versionCode": 388,
+  "versionName": "5.50",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.50/MKTV.apk",
+  "apkSha256": "bd155a2ccd640e7e00f171a6ea83a62f2c350d5aa702f5508d76e2089c0ec045",
+  "changelog": "Lowered minimum Android version to support older Fire TV Stick 4K units; fixed stale provider nicknames on synced favorites; added primary provider label to Favorites."
 }

@@ -846,6 +846,15 @@ class XtreamRepository @Inject constructor(
     suspend fun getMergedServerUrls(): Map<Int, String> =
         allConfiguredServers().filter { it.serverIndex != -1 }.associate { it.serverIndex to it.serverUrl }
 
+    /** Current nickname for each configured extra server, by serverIndex. MergedChannelEntity's
+     * own serverNickname column is a snapshot written at refresh time — it goes stale the moment
+     * a user renames a provider or reassigns which slot is primary vs. secondary (favorites
+     * restored via sync/backup keep whatever nickname was cached on that row, not the current
+     * one). UI code displaying a merged favorite's provider name should prefer this live lookup
+     * over the entity's own field. */
+    suspend fun getMergedServerNicknames(): Map<Int, String> =
+        allConfiguredServers().filter { it.serverIndex != -1 }.associate { it.serverIndex to it.nickname }
+
     data class ProviderHealthStatus(
         val serverIndex: Int,
         val nickname: String,

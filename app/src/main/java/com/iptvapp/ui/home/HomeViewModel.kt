@@ -150,8 +150,10 @@ class HomeViewModel @Inject constructor(
             combine(primaryFlow, mergedFlow, _liveCategories) { primary, merged, cats ->
                 val namesById = cats.associate { it.categoryId to it.categoryName }
                 _channels.value = primary
-                primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId]) } +
-                    merged.map { CombinedFavorite.Merged(it) }
+                val liveNicknames = repository.getMergedServerNicknames()
+                val primaryNickname = primaryNicknameLabel()
+                primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) } +
+                    merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
             }.collectLatest { _combinedFavorites.value = it }
         }
     }
@@ -1054,8 +1056,12 @@ class HomeViewModel @Inject constructor(
                     _liveCategories
                 ) { primary, merged, cats ->
                     val namesById = cats.associate { it.categoryId to it.categoryName }
-                    primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId]) } +
-                        merged.map { CombinedFavorite.Merged(it) }
+                    // Live nicknames, not each row's own (possibly stale) serverNickname column —
+                    // see CombinedFavorite.Merged's kdoc for why.
+                    val liveNicknames = repository.getMergedServerNicknames()
+                    val primaryNickname = primaryNicknameLabel()
+                    primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) } +
+                        merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
                 }.collectLatest { _combinedFavorites.value = it }
             }
             launch {
@@ -1475,6 +1481,16 @@ class HomeViewModel @Inject constructor(
 
     fun showFavoriteChannels() = selectFavoriteFolderView(null)
 
+    // Same nickname-or-username fallback XtreamRepository.allConfiguredServers() uses for the
+    // primary server — the Favorites tab previously never showed any tag at all on primary
+    // favorites (CombinedFavorite.Primary.serverNickname was hardcoded null), which made it hard
+    // to tell at a glance which provider a blue-starred favorite actually belonged to once the
+    // primary login itself gets swapped between providers over time.
+    private suspend fun primaryNicknameLabel(): String {
+        val nick = prefs.serverNickname.first()
+        return nick.ifBlank { prefs.credentials.first().username }
+    }
+
     // One-shot snapshot of every merged/extra-provider favorite channel, across all providers —
     // used by Mosaic's channel picker so a favorite from a secondary provider can be put in a
     // tile too, not just primary-provider favorites.
@@ -1512,10 +1528,12 @@ class HomeViewModel @Inject constructor(
                 _channels.value = primary.filter {
                     it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q)
                 }
+                val liveNicknames = repository.getMergedServerNicknames()
+                val primaryNickname = primaryNicknameLabel()
                 primary.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
-                    .map { CombinedFavorite.Primary(it, namesById[it.categoryId]) } +
+                    .map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) } +
                     merged.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
-                        .map { CombinedFavorite.Merged(it) }
+                        .map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
             }.collectLatest { _combinedFavorites.value = it }
         }
     }
