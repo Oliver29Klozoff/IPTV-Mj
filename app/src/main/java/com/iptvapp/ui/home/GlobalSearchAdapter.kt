@@ -32,9 +32,18 @@ class GlobalSearchAdapter(
                 is GlobalSearchResult.MergedChannel -> Triple(result.entity.name, result.entity.streamIcon, "Live")
                 is GlobalSearchResult.MergedVod -> Triple(result.entity.name, result.entity.streamIcon, "Movie")
                 is GlobalSearchResult.MergedSeries -> Triple(result.entity.name, result.entity.cover, "Series")
+                // The search term matched a PROGRAM's title/description, not this channel's own
+                // name — the channel name alone here wouldn't explain why it showed up, so the
+                // subtitle line below shows "Airing: <program>" instead of the usual type label.
+                is GlobalSearchResult.ProgramMatch -> Triple(
+                    result.channel?.name ?: result.mergedChannel?.name ?: "",
+                    result.channel?.streamIcon ?: result.mergedChannel?.streamIcon,
+                    "Airing: ${result.programTitle}"
+                )
             }
             binding.tvChannelName.text = name
-            val isChannel = result is GlobalSearchResult.Channel || result is GlobalSearchResult.MergedChannel
+            val isChannel = result is GlobalSearchResult.Channel || result is GlobalSearchResult.MergedChannel ||
+                result is GlobalSearchResult.ProgramMatch
             val quality = if (isChannel) com.iptvapp.util.ChannelQualityTag.labelFor(name) else null
             binding.tvQualityBadge?.apply {
                 visibility = if (quality != null) View.VISIBLE else View.GONE
@@ -64,6 +73,7 @@ class GlobalSearchAdapter(
             is GlobalSearchResult.MergedChannel -> "mc:${r.entity.serverIndex}:${r.entity.streamId}"
             is GlobalSearchResult.MergedVod -> "mv:${r.entity.serverIndex}:${r.entity.streamId}"
             is GlobalSearchResult.MergedSeries -> "ms:${r.entity.serverIndex}:${r.entity.seriesId}"
+            is GlobalSearchResult.ProgramMatch -> "pm:${r.channel?.streamId ?: r.mergedChannel?.serverIndex}:${r.mergedChannel?.streamId ?: r.channel?.streamId}:${r.programTitle}"
         }
         override fun areItemsTheSame(a: GlobalSearchResult, b: GlobalSearchResult) = key(a) == key(b)
         override fun areContentsTheSame(a: GlobalSearchResult, b: GlobalSearchResult) = a == b

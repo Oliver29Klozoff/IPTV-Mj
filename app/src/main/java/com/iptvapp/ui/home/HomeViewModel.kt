@@ -55,6 +55,15 @@ sealed class GlobalSearchResult {
     data class MergedSeries(val entity: com.iptvapp.data.local.entities.MergedSeriesEntity) : GlobalSearchResult() {
         override val providerLabel get() = entity.serverNickname
     }
+    // "What's airing" match — the search term matched a program's title/description, not the
+    // channel's own name, so programTitle is carried along for display ("Airing: <title>")
+    // since the channel row alone wouldn't explain why it showed up in these results at all.
+    data class ProgramMatch(
+        val channel: ChannelEntity?,
+        val mergedChannel: com.iptvapp.data.local.entities.MergedChannelEntity?,
+        val programTitle: String,
+        override val providerLabel: String
+    ) : GlobalSearchResult()
 }
 
 @HiltViewModel
@@ -1012,7 +1021,13 @@ class HomeViewModel @Inject constructor(
         // around every "|" before matching makes this work across both conventions instead of
         // only the first provider's exact style.
         val n = name.trim().uppercase().replace(Regex("\\s*\\|\\s*"), "|")
-        return n.startsWith("US|") || n.contains("|US|")
+        // One provider (confirmed: a category list that came back completely empty under "USA
+        // Only" despite genuinely being all-USA content) tags its USA categories "AM|USA GENERAL",
+        // "AM|USA SPORTS", etc. — USA as the first WORD of the segment after a pipe, not the
+        // whole segment on its own like "US|..." is. \b(...)\b keeps this from also matching
+        // something like "MUSA" or "USAGE" that merely contains the letters.
+        return n.startsWith("US|") || n.contains("|US|") ||
+            Regex("""(^|\|)USA\b""").containsMatchIn(n)
     }
 
     // Matched as a whole token (not just a prefix) — avoids matching category names that
@@ -1706,7 +1721,20 @@ class HomeViewModel @Inject constructor(
                     addAll(mergedSeries.map { GlobalSearchResult.MergedSeries(it) })
                 }
             }
-            combine(primaryResults, mergedResults) { primary, merged -> primary + merged }
+            // "What's airing" matches — a one-shot lookup rather than a reactive Flow like the
+            // sources above, since EPG data doesn't change on the timescale a search session
+            // lasts. Computed once up front and merged into every emission below so it doesn't
+            // need re-querying every time the reactive sources emit.
+            val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
+            val programResults = repository.searchProgramsAcrossChannels(query).map { match ->
+                GlobalSearchResult.ProgramMatch(
+                    channel = match.channel,
+                    mergedChannel = match.mergedChannel,
+                    programTitle = match.programTitle,
+                    providerLabel = match.mergedChannel?.serverNickname ?: primaryNick
+                )
+            }
+            combine(primaryResults, mergedResults) { primary, merged -> primary + merged + programResults }
                 .collectLatest { _globalSearchResults.value = it }
         }
     }

@@ -607,6 +607,24 @@ class PlayerActivity : AppCompatActivity() {
             append("$bufPct%")
             if (bitrate.isNotEmpty()) append("  $bitrate")
         }
+
+        // Real-stream HDR/Dolby Vision detection — unlike ChannelQualityTag's SD/HD/FHD/4K tag
+        // (parsed from the channel's name text before playback even starts), this reads the
+        // actual decoded video format, so it only ever shows for a genuinely HDR/DV stream, not
+        // whatever a provider happened to label the channel. Dolby Vision isn't a colorTransfer
+        // value on its own — it's identified by the video mimeType instead, same check
+        // dv7FallbackEnabled already uses above for the DV7-to-HEVC decoder redirect.
+        val hdrLabel = when {
+            vf?.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION -> "DV"
+            vf?.colorInfo?.let { androidx.media3.common.ColorInfo.isTransferHdr(it) } == true -> "HDR"
+            else -> null
+        }
+        if (hdrLabel != null) {
+            binding.tvHdrBadge.text = hdrLabel
+            binding.tvHdrBadge.visibility = View.VISIBLE
+        } else {
+            binding.tvHdrBadge.visibility = View.GONE
+        }
     }
 
     private fun startHealthBadge() {

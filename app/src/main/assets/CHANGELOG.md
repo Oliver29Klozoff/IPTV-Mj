@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v5.53 - 2026-08-01
+- **Fixed**: "USA Only Channels" could reduce a provider's entire Live category list to zero —
+  the filter only recognized an exact "US" tag (e.g. "US | ESPN"), but some providers tag their
+  USA content as "USA" instead (e.g. "AM | USA SPORTS"), so every one of that provider's
+  categories was silently filtered out. Confirmed and fixed via live testing after a newly added
+  provider's channels refreshed successfully but showed zero categories in the Providers tab.
+- **Added**: global search now also matches EPG program titles/descriptions, not just channel/
+  movie/show names — a result shows "Airing: <program>" and jumps straight to that channel.
+- **Added**: a real HDR/Dolby Vision badge in the player, based on the actual decoded video
+  stream rather than guessing from the channel's name (which the existing SD/HD/FHD/4K tag
+  already did and still does for list views before playback starts).
+
 ## v5.52 - 2026-07-31
 - **Fixed**: v5.51 fixed the launch crash on Android 7.1-8.1 devices but missed the same
   `getLongVersionCode()` API-28 crash inside Settings (phone and TV) — tapping Settings on an

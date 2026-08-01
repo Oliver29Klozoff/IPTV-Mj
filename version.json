@@ -1,7 +1,7 @@
 {
-  "versionCode": 390,
-  "versionName": "5.52",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.52/MKTV.apk",
-  "apkSha256": "52a718bc5e69fe0cf218d33f21efcb5632d1ee5d35b32395c14b3db2b84e3890",
-  "changelog": "Fixed a crash when opening Settings on Android 7.1-8.1 devices (e.g. Fire TV Stick 4K), missed by v5.51's earlier fix for the same issue."
+  "versionCode": 391,
+  "versionName": "5.53",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.53/MKTV.apk",
+  "apkSha256": "f2df381e8085c333be5865246f69474ed3609469530a9d396a6f355c104e2719",
+  "changelog": "Fixed USA Only Channels filter hiding an entire provider's categories; added EPG program search and a real HDR/Dolby Vision badge in the player."
 }

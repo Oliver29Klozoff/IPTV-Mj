@@ -2476,6 +2476,21 @@ class HomeActivity : AppCompatActivity() {
                     putExtra("server_index", series.serverIndex)
                 })
             }
+            // "What's airing" result — plays whichever side (primary/merged) actually resolved,
+            // same as tapping the equivalent Channel/MergedChannel result directly.
+            is GlobalSearchResult.ProgramMatch -> {
+                val ch = result.channel
+                val merged = result.mergedChannel
+                if (ch != null) {
+                    lifecycleScope.launch {
+                        playInMiniPlayer(ch)
+                        viewModel.markChannelWatched(ch.streamId)
+                        viewModel.setCurrentlyPlaying(ch.streamId)
+                    }
+                } else if (merged != null) {
+                    playMergedChannel(merged)
+                }
+            }
         }
     }
 

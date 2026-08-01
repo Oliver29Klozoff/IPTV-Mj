@@ -279,6 +279,22 @@ interface EpgDao {
     suspend fun getNowPlaying(streamId: Int, serverIndex: Int = -1): EpgEntity?
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND startTimestamp <= :nowSec AND stopTimestamp >= :nowSec LIMIT 1")
     fun getCurrentProgramForWidget(streamId: Int, nowSec: Long, serverIndex: Int = -1): EpgEntity?
+    // "What's airing" search — matches program title/description rather than channel name, so a
+    // search for e.g. a movie title finds every channel currently or soon showing it, which
+    // plain channel-name search can never do. Bounded to stopTimestamp >= :nowSec (nothing that
+    // already ended) so results stay actionable — a match from three days ago that already aired
+    // isn't useful to a "what can I watch" search. One row per (serverIndex, streamId) via
+    // GROUP BY, since the same channel can have many matching programs across its EPG window and
+    // the caller only cares about which channels to show, not every individual match.
+    @Query("""
+        SELECT * FROM epg_entries
+        WHERE stopTimestamp >= :nowSec
+        AND (title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%')
+        GROUP BY serverIndex, streamId
+        ORDER BY startTimestamp ASC
+        LIMIT 100
+    """)
+    suspend fun searchProgramsAcrossChannels(query: String, nowSec: Long = System.currentTimeMillis() / 1000): List<EpgEntity>
     @Upsert
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")

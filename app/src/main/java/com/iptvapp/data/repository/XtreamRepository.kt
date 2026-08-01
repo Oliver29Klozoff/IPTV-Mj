@@ -207,6 +207,29 @@ class XtreamRepository @Inject constructor(
     fun searchChannels(query: String): Flow<List<ChannelEntity>> =
         db.channelDao().searchChannels(query)
 
+    /** "What's airing" search result: one row per channel whose EPG has a program matching
+     * [query] in its title/description, still airing or upcoming (never something already
+     * ended). Resolves each matched (serverIndex, streamId) back to its real channel row —
+     * primary via ChannelDao, merged/secondary via MergedChannelDao — skipping any match whose
+     * channel no longer exists locally (e.g. removed from the provider's lineup since this
+     * program's EPG was cached). */
+    data class ProgramSearchMatch(
+        val channel: ChannelEntity?,
+        val mergedChannel: MergedChannelEntity?,
+        val programTitle: String
+    )
+
+    suspend fun searchProgramsAcrossChannels(query: String): List<ProgramSearchMatch> {
+        val matches = db.epgDao().searchProgramsAcrossChannels(query)
+        return matches.mapNotNull { epg ->
+            if (epg.serverIndex == -1) {
+                db.channelDao().getChannelById(epg.streamId)?.let { ProgramSearchMatch(it, null, epg.title) }
+            } else {
+                db.mergedChannelDao().getByIndexAndId(epg.serverIndex, epg.streamId)?.let { ProgramSearchMatch(null, it, epg.title) }
+            }
+        }
+    }
+
     fun getFavoriteChannels(): Flow<List<ChannelEntity>> =
         db.channelDao().getFavoriteChannels()
 

@@ -217,6 +217,24 @@
             android:textColor="#FFFFFF"
             android:textSize="11sp" />
 
+        <!-- Real-stream HDR/Dolby Vision badge — only shown once the video track actually
+             decodes as HDR (Format.colorInfo.isTransferHdr or Dolby Vision mimeType), unlike
+             ChannelQualityTag's SD/HD/FHD/4K tag elsewhere, which is just parsed from the
+             channel's name text and can't tell HDR from SDR at all. -->
+        <TextView
+            android:id="@+id/tvHdrBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/hdr_badge_bg"
+            android:fontFamily="sans-serif-medium"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="1dp"
+            android:textColor="#000000"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <!-- Cast button -->
