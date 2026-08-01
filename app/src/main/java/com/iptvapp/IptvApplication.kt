@@ -10,6 +10,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.util.LogSanitizer
+import com.iptvapp.util.versionCodeCompat
 import com.iptvapp.worker.ReminderWorker
 import com.google.android.gms.cast.framework.CastContext
 import com.google.firebase.crashlytics.FirebaseCrashlytics
@@ -57,7 +58,7 @@ class IptvApplication : Application(), Configuration.Provider {
         // restarted, which otherwise silently defeats any logging added in the new version.
         try {
             val v = packageManager.getPackageInfo(packageName, 0)
-            logPlaybackEvent(this, "APP STARTED: v${v.versionName} (${v.longVersionCode})")
+            logPlaybackEvent(this, "APP STARTED: v${v.versionName} (${v.versionCodeCompat})")
         } catch (_: Exception) {}
     }
 

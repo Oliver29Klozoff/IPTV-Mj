@@ -14,6 +14,7 @@ import com.iptvapp.ui.home.HomeActivity
 import com.iptvapp.ui.home.TvHomeActivity
 import com.iptvapp.ui.login.LoginActivity
 import com.iptvapp.util.isLargeScreenDevice
+import com.iptvapp.util.versionCodeCompat
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -55,7 +56,7 @@ class SplashActivity : AppCompatActivity() {
         try {
             val prefs = getSharedPreferences("mktv_prefs", MODE_PRIVATE)
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            val currentCode = pInfo.longVersionCode
+            val currentCode = pInfo.versionCodeCompat
             val lastCode = prefs.getLong("last_version_code", 0L)
             if (currentCode != lastCode) {
                 java.io.File(filesDir, "crash_log.txt").delete()

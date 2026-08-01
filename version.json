@@ -1,7 +1,7 @@
 {
-  "versionCode": 388,
-  "versionName": "5.50",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.50/MKTV.apk",
-  "apkSha256": "bd155a2ccd640e7e00f171a6ea83a62f2c350d5aa702f5508d76e2089c0ec045",
-  "changelog": "Lowered minimum Android version to support older Fire TV Stick 4K units; fixed stale provider nicknames on synced favorites; added primary provider label to Favorites."
+  "versionCode": 389,
+  "versionName": "5.51",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.51/MKTV.apk",
+  "apkSha256": "5c9fcd4367714ce0d60237a701a519bc87ac685332c5aedd950e9da727fbe232",
+  "changelog": "Fixed a real crash on launch for Android 7.1-8.1 devices (including Fire TV Stick 4K) introduced in v5.50's minSdk change."
 }

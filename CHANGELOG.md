@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.51 - 2026-07-31
+- **Fixed**: a real crash on launch on Android 7.1-8.1 devices (API 25-27, including the Fire TV
+  Stick 4K v5.50 was meant to fix) — `PackageInfo.getLongVersionCode()` requires API 28 and throws
+  `NoSuchMethodError` on older devices, which a plain try/catch didn't catch since it's an Error,
+  not an Exception. Confirmed fixed via live install on a Fire TV Stick 4K.
+
 ## v5.50 - 2026-07-31
 - **Fixed**: lowered minimum Android version from 8.0 to 7.1 (API 26 → 25) — some older Fire TV
   Stick 4K units (Fire OS 6 / Android 7.1) couldn't install the app at all ("problem parsing the

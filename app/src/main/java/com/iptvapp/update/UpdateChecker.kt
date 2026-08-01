@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.iptvapp.util.versionCodeCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -105,13 +106,7 @@ class UpdateChecker(
 
     private fun getInstalledVersionCode(): Long {
         return try {
-            val info = context.packageManager.getPackageInfo(context.packageName, 0)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                info.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                info.versionCode.toLong()
-            }
+            context.packageManager.getPackageInfo(context.packageName, 0).versionCodeCompat
         } catch (_: Exception) {
             0L
         }
