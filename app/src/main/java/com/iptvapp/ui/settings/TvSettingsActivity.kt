@@ -34,6 +34,7 @@ import com.iptvapp.IptvApplication
 import com.iptvapp.util.LogSanitizer
 import com.iptvapp.util.isForceTvModeEnabled
 import com.iptvapp.util.setForceTvModeEnabled
+import com.iptvapp.util.versionCodeCompat
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
@@ -375,7 +376,7 @@ class TvSettingsActivity : AppCompatActivity() {
         val primaryNick  = prefs.serverNickname.first().ifEmpty { creds.username }
         val versionInfo  = try {
             val pi = packageManager.getPackageInfo(packageName, 0)
-            "v${pi.versionName}  (build ${pi.longVersionCode})"
+            "v${pi.versionName}  (build ${pi.versionCodeCompat})"
         } catch (_: Exception) { "Unknown" }
 
         settingsItems.clear()
@@ -2104,7 +2105,7 @@ class TvSettingsActivity : AppCompatActivity() {
                 // but redact again here too in case anything else ever lands in this log.
                 val crashLog = LogSanitizer.redactCredentials(IptvApplication.getCrashLog(this@TvSettingsActivity))
                 val debugText = """
-                    App: v${pInfo.versionName} (${pInfo.longVersionCode})
+                    App: v${pInfo.versionName} (${pInfo.versionCodeCompat})
                     Device: ${Build.MANUFACTURER} ${Build.MODEL}
                     Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
                     Screen: $screen  Network: $netType

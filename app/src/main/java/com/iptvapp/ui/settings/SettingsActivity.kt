@@ -39,6 +39,7 @@ import com.iptvapp.IptvApplication
 import com.iptvapp.util.LogSanitizer
 import com.iptvapp.util.isForceTvModeEnabled
 import com.iptvapp.util.setForceTvModeEnabled
+import com.iptvapp.util.versionCodeCompat
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
@@ -1403,7 +1404,7 @@ class SettingsActivity : AppCompatActivity() {
                 // but redact again here too in case anything else ever lands in this log.
                 val crashLog = LogSanitizer.redactCredentials(IptvApplication.getCrashLog(this@SettingsActivity))
                 val debugText = """
-                    App: v${pInfo.versionName} (${pInfo.longVersionCode})
+                    App: v${pInfo.versionName} (${pInfo.versionCodeCompat})
                     Device: ${Build.MANUFACTURER} ${Build.MODEL}
                     Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
                     Screen: $screen
@@ -1547,7 +1548,7 @@ class SettingsActivity : AppCompatActivity() {
                 val latestName = obj.getString("versionName")
                 val apkUrl = obj.getString("apkUrl")
                 val apkSha256 = obj.optString("apkSha256", "").takeIf { it.isNotBlank() }
-                val installedCode = packageManager.getPackageInfo(packageName, 0).longVersionCode
+                val installedCode = packageManager.getPackageInfo(packageName, 0).versionCodeCompat
                 if (latestCode > installedCode) {
                     // version.json's "changelog" has always been published as a plain string,
                     // never a JSON array — optJSONArray() silently returns null for a string

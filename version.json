@@ -1,7 +1,7 @@
 {
-  "versionCode": 389,
-  "versionName": "5.51",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.51/MKTV.apk",
-  "apkSha256": "5c9fcd4367714ce0d60237a701a519bc87ac685332c5aedd950e9da727fbe232",
-  "changelog": "Fixed a real crash on launch for Android 7.1-8.1 devices (including Fire TV Stick 4K) introduced in v5.50's minSdk change."
+  "versionCode": 390,
+  "versionName": "5.52",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.52/MKTV.apk",
+  "apkSha256": "52a718bc5e69fe0cf218d33f21efcb5632d1ee5d35b32395c14b3db2b84e3890",
+  "changelog": "Fixed a crash when opening Settings on Android 7.1-8.1 devices (e.g. Fire TV Stick 4K), missed by v5.51's earlier fix for the same issue."
 }

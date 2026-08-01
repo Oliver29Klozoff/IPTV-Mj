@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.52 - 2026-07-31
+- **Fixed**: v5.51 fixed the launch crash on Android 7.1-8.1 devices but missed the same
+  `getLongVersionCode()` API-28 crash inside Settings (phone and TV) — tapping Settings on an
+  API 25-27 device (e.g. Fire TV Stick 4K) crashed immediately. Every remaining occurrence of the
+  unguarded call across the app has been swept and fixed. Confirmed fixed via live install.
+
 ## v5.51 - 2026-07-31
 - **Fixed**: a real crash on launch on Android 7.1-8.1 devices (API 25-27, including the Fire TV
   Stick 4K v5.50 was meant to fix) — `PackageInfo.getLongVersionCode()` requires API 28 and throws
