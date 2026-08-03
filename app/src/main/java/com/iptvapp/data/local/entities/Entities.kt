@@ -1,6 +1,7 @@
 package com.iptvapp.data.local.entities
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "channels")
@@ -163,7 +164,15 @@ data class ChannelReliabilityEntity(
 // provider's favorites so folder names stay one shared list. Preserved across every refresh the
 // same way ChannelEntity's isFavorite/favoriteFolderId are (see XtreamRepository.fetchLiveStreams
 // and refreshMergedChannels) — a wholesale re-fetch must not silently un-favorite everything.
-@Entity(tableName = "merged_channels", primaryKeys = ["serverIndex", "streamId"])
+// Indexed on (serverIndex, categoryId) — a real-world provider can have 30k-85k channels, and
+// every category switch runs a query filtered exactly on those two columns (getByServerAndCategory).
+// Without an index that's a full table scan per tap, which is what made switching categories in
+// the combined Live tab noticeably laggy for large merged providers.
+@Entity(
+    tableName = "merged_channels",
+    primaryKeys = ["serverIndex", "streamId"],
+    indices = [Index(value = ["serverIndex", "categoryId"])]
+)
 data class MergedChannelEntity(
     val serverIndex: Int,
     val streamId: Int,
@@ -188,7 +197,13 @@ data class MergedChannelEntity(
     val categoryName: String?,
     val isFavorite: Boolean = false,
     val favoriteFolderId: Int? = null,
-    val cachedAt: Long = System.currentTimeMillis()
+    val cachedAt: Long = System.currentTimeMillis(),
+    val isHidden: Boolean = false,
+    // Shares one flat ordering sequence with ChannelEntity.favOrder — Favorites' drag-reorder
+    // (HomeActivity's Reorder mode) assigns sequential values across BOTH tables at once when a
+    // drag is committed, so a primary channel and a merged channel can sit next to each other in
+    // any order the user actually dragged them into, not just "primary block, then merged block."
+    val favOrder: Int = 0
 )
 
 // Small aggregate row (not a persisted entity) for the server-picker and category-picker

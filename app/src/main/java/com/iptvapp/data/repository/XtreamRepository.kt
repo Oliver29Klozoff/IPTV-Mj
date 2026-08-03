@@ -269,6 +269,9 @@ class XtreamRepository @Inject constructor(
     suspend fun bulkClearFavorite(streamIds: List<Int>) =
         db.channelDao().bulkClearFavorite(streamIds)
 
+    suspend fun bulkHideChannels(streamIds: List<Int>) =
+        db.channelDao().bulkSetHidden(streamIds)
+
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>> =
         db.channelDao().getSimilarChannels(categoryId, excludeStreamId)
 
@@ -696,6 +699,22 @@ class XtreamRepository @Inject constructor(
     suspend fun saveFavOrder(orderedIds: List<Int>) {
         orderedIds.forEachIndexed { index, streamId ->
             db.channelDao().updateFavOrder(streamId, index)
+        }
+    }
+
+    /** Combined-Favorites drag-reorder commit — orderedIds are CombinedFavorite.id strings
+     * ("primary:$streamId" or "$serverIndex:$streamId"), dispatched to whichever table each one
+     * actually belongs to so a primary and a merged channel can share one flat favOrder sequence
+     * (see MergedChannelEntity.favOrder kdoc) instead of two separately-ordered blocks. */
+    suspend fun saveCombinedFavOrder(orderedIds: List<String>) {
+        orderedIds.forEachIndexed { index, id ->
+            if (id.startsWith("primary:")) {
+                val streamId = id.substringAfter("primary:").toIntOrNull() ?: return@forEachIndexed
+                db.channelDao().updateFavOrder(streamId, index)
+            } else {
+                val (serverIndex, streamId) = id.split(":", limit = 2).let { it[0].toInt() to it[1].toInt() }
+                db.mergedChannelDao().updateFavOrder(serverIndex, streamId, index)
+            }
         }
     }
 
@@ -1611,6 +1630,12 @@ class XtreamRepository @Inject constructor(
 
     fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().search(query)
+
+    fun getHiddenMergedChannels(): Flow<List<MergedChannelEntity>> = db.mergedChannelDao().getHidden()
+    suspend fun bulkHideMergedChannels(serverIndex: Int, streamIds: List<Int>) =
+        db.mergedChannelDao().bulkSetHidden(serverIndex, streamIds)
+    suspend fun unhideMergedChannel(serverIndex: Int, streamId: Int) =
+        db.mergedChannelDao().unhide(serverIndex, streamId)
 
     // Merged-channel favorites/folders — separate from the primary provider's Favorites tab
     // (see MergedChannelEntity kdoc), but reusing the same FavoriteFolderEntity rows so folder

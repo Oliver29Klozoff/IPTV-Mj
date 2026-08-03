@@ -523,6 +523,21 @@
             android:textColor="#34C759"
             android:textSize="12sp" />
 
+        <!-- Only shown for channel bulk-select modes (Live, Providers Live) — see
+             updateBulkSelectUi's Quadruple.hide kdoc for why Favorites/Series/VOD don't get this. -->
+        <TextView
+            android:id="@+id/btnBulkSelectHide"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Hide"
+            android:textColor="#FFA500"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/btnBulkSelectCancel"
             android:layout_width="wrap_content"

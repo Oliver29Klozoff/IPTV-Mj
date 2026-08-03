@@ -95,9 +95,12 @@
                 android:textSize="11sp"
                 android:visibility="gone" />
 
-            <!-- Combined Favorites tab only: which provider this channel came from, when it
-                 isn't the primary server. Same gray-uppercase-label style as item_merged_channel's
-                 tvServerNickname / the server tags in Settings > Servers. -->
+            <!-- Which provider this channel came from (when it isn't the primary server) and its
+                 category, e.g. "LEPTIS · SPORTS" — same gray-uppercase-label style as
+                 item_merged_channel's tvServerNickname / the server tags in Settings > Servers.
+                 Text is built as "$nickname · $category" (or just one half if the other is
+                 missing) rather than a second TextView, to avoid a layout/row-height change
+                 across every adapter that binds this view. -->
             <TextView
                 android:id="@+id/tvServerNickname"
                 android:layout_width="match_parent"

@@ -24,12 +24,27 @@ object FavoriteStarColors {
         if (serverIndex == -1) PRIMARY else OTHER_PROVIDERS[serverIndex.mod(OTHER_PROVIDERS.size)]
 }
 
+// Shared "PROVIDER · CATEGORY" tag builder for tvServerNickname across LiveChannelAdapter,
+// CombinedFavoriteAdapter, and MergedChannelAdapter — a channel row previously only showed which
+// provider it came from; the category makes it clear at a glance where in that provider's
+// listing it lives too, without needing to re-open the category picker to check.
+object ProviderTag {
+    fun format(serverNickname: String?, categoryName: String?): String? = when {
+        serverNickname != null && categoryName != null -> "$serverNickname · $categoryName"
+        serverNickname != null -> serverNickname
+        categoryName != null -> categoryName
+        else -> null
+    }
+}
+
 // Favorites-tab-only adapter over the display union CombinedFavorite (primary + Providers-tab
 // favorites shown together). Ported from ChannelAdapter's Glide/health-dot/double-click/
 // pressed-row-guard/bulk-select logic rather than sharing a base class, since some ChannelAdapter
-// features don't apply here: no drag-reorder (favOrder is primary-only and meaningless across
-// servers), no EPG progress bar (merged channels have no locally cached EPG entries to compute
-// progress from — only the short now/next text fetched per-row).
+// features don't apply here: no EPG progress bar (merged channels have no locally cached EPG
+// entries to compute progress from — only the short now/next text fetched per-row). Drag-reorder
+// (see showDragHandles/itemTouchHelper) restores the manual-order feature Favorites lost when it
+// became a combined primary+merged list — favOrder now lives on both underlying tables (see
+// MergedChannelEntity.favOrder kdoc) so a drag can freely mix channels from any provider.
 class CombinedFavoriteAdapter(
     private val onChannelClick: (CombinedFavorite) -> Unit,
     private val onChannelDoubleClick: (CombinedFavorite) -> Unit = {},
@@ -39,6 +54,31 @@ class CombinedFavoriteAdapter(
 
     var isTvMode: Boolean = false
     var onChannelFocused: ((CombinedFavorite) -> Unit)? = null
+
+    // Reorder mode — an ItemTouchHelper drives drag gestures started from the handle, moving
+    // rows directly via notifyItemMoved rather than going through ListAdapter's submitList/
+    // DiffUtil path, since diffing against a list that's changing every frame of the drag would
+    // fight the drag gesture instead of just reflecting it. currentList itself IS mutated here
+    // (via a private mutable copy), which is safe as long as nothing else calls submitList while
+    // reorder mode is active (see HomeActivity's reorder start/stop, which enforces exactly that).
+    var itemTouchHelper: androidx.recyclerview.widget.ItemTouchHelper? = null
+    var showDragHandles: Boolean = false
+    private var workingList: MutableList<CombinedFavorite> = mutableListOf()
+
+    fun beginReorder() {
+        workingList = currentList.toMutableList()
+    }
+
+    /** Current on-screen order once reorder mode ends — the caller persists this as the new
+     * favOrder sequence (see HomeActivity's exitReorderMode). */
+    fun currentOrder(): List<CombinedFavorite> = workingList.ifEmpty { currentList }
+
+    fun moveItem(fromPosition: Int, toPosition: Int) {
+        if (fromPosition == toPosition) return
+        val item = workingList.removeAt(fromPosition)
+        workingList.add(toPosition, item)
+        notifyItemMoved(fromPosition, toPosition)
+    }
 
     private var epgTextById: Map<String, String> = emptyMap()
     private var epgNextTextById: Map<String, String> = emptyMap()
@@ -118,7 +158,7 @@ class CombinedFavoriteAdapter(
             }
 
             if (item.serverNickname != null) {
-                binding.tvServerNickname?.text = item.serverNickname
+                binding.tvServerNickname?.text = ProviderTag.format(item.serverNickname, item.categoryName)
                 binding.tvServerNickname?.visibility = View.VISIBLE
             } else {
                 binding.tvServerNickname?.visibility = View.GONE
@@ -240,7 +280,14 @@ class CombinedFavoriteAdapter(
                 binding.viewHealthDot?.visibility = View.GONE
             }
 
-            binding.ivDragHandle?.visibility = View.GONE
+            binding.ivDragHandle?.visibility = if (showDragHandles) View.VISIBLE else View.GONE
+            @SuppressLint("ClickableViewAccessibility")
+            binding.ivDragHandle?.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    itemTouchHelper?.startDrag(this)
+                }
+                false
+            }
         }
     }
 
@@ -253,8 +300,12 @@ class CombinedFavoriteAdapter(
         return ViewHolder(binding)
     }
 
+    // While reordering, rows come from workingList (mutated directly by moveItem, bypassing
+    // DiffUtil — see the class kdoc for why) instead of ListAdapter's own submitList-managed list.
+    override fun getItemCount(): Int = if (showDragHandles) workingList.size else super.getItemCount()
+
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(if (showDragHandles) workingList[position] else getItem(position))
     }
 
     class DiffCallback : DiffUtil.ItemCallback<CombinedFavorite>() {

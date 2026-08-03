@@ -103,6 +103,14 @@ class HomeViewModel @Inject constructor(
     private val _combinedFavorites = MutableStateFlow<List<CombinedFavorite>>(emptyList())
     val combinedFavorites: StateFlow<List<CombinedFavorite>> = _combinedFavorites
 
+    // Interleaves primary + merged favorites by their shared favOrder value (see
+    // MergedChannelEntity.favOrder kdoc) instead of the old "primary block, then merged block"
+    // concatenation — lets a drag-reorder freely mix channels from any provider into one list.
+    private fun mergeByFavOrder(
+        primary: List<CombinedFavorite.Primary>,
+        merged: List<CombinedFavorite.Merged>
+    ): List<CombinedFavorite> = (primary + merged).sortedBy { it.favOrder }
+
     private val _vodCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val vodCategories: StateFlow<List<CategoryEntity>> = _vodCategories
 
@@ -161,8 +169,10 @@ class HomeViewModel @Inject constructor(
                 _channels.value = primary
                 val liveNicknames = repository.getMergedServerNicknames()
                 val primaryNickname = primaryNicknameLabel()
-                primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) } +
+                mergeByFavOrder(
+                    primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
                     merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
+                )
             }.collectLatest { _combinedFavorites.value = it }
         }
     }
@@ -345,13 +355,17 @@ class HomeViewModel @Inject constructor(
         // merge; this keeps them working exactly as before without duplicating their logic here.
         if (row.category != null) selectedLiveCategoryId = row.category.categoryId
         combinedLiveChannelsJob?.cancel()
+        // Every channel in this list belongs to the ONE category being browsed, so its display
+        // name is a single value known up front from the row that was tapped — not something
+        // each individual channel needs to resolve/carry separately.
+        val categoryName = row.category?.categoryName ?: row.mergedCategoryName
         combinedLiveChannelsJob = viewModelScope.launch {
             val flow = if (row.category != null) {
                 repository.getChannelsByCategory(row.category.categoryId)
-                    .map { list -> list.map { LiveChannelRow(channel = it) } }
+                    .map { list -> list.map { LiveChannelRow(channel = it, categoryName = categoryName) } }
             } else {
                 repository.getMergedChannelsByCategory(row.serverIndex, row.mergedCategoryId)
-                    .map { list -> list.map { LiveChannelRow(mergedChannel = it) } }
+                    .map { list -> list.map { LiveChannelRow(mergedChannel = it, categoryName = categoryName) } }
             }
             flow.collectLatest { rows ->
                 _combinedLiveChannels.value = applySortToLiveRows(rows)
@@ -1075,8 +1089,10 @@ class HomeViewModel @Inject constructor(
                     // see CombinedFavorite.Merged's kdoc for why.
                     val liveNicknames = repository.getMergedServerNicknames()
                     val primaryNickname = primaryNicknameLabel()
-                    primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) } +
+                    mergeByFavOrder(
+                        primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
                         merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
+                    )
                 }.collectLatest { _combinedFavorites.value = it }
             }
             launch {
@@ -1545,10 +1561,12 @@ class HomeViewModel @Inject constructor(
                 }
                 val liveNicknames = repository.getMergedServerNicknames()
                 val primaryNickname = primaryNicknameLabel()
-                primary.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
-                    .map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) } +
+                mergeByFavOrder(
+                    primary.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
+                        .map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
                     merged.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
                         .map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
+                )
             }.collectLatest { _combinedFavorites.value = it }
         }
     }
@@ -1890,6 +1908,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { repository.saveFavOrder(orderedIds) }
     }
 
+    // Combined-Favorites drag-reorder commit — see XtreamRepository.saveCombinedFavOrder kdoc.
+    fun saveCombinedFavOrder(orderedIds: List<String>) {
+        viewModelScope.launch { repository.saveCombinedFavOrder(orderedIds) }
+    }
+
     suspend fun getUpcomingEpg(streamId: Int): List<com.iptvapp.data.local.entities.EpgEntity> {
         val nowSec = System.currentTimeMillis() / 1000
         return repository.getEpgForStream(streamId).first()
@@ -2012,6 +2035,21 @@ class HomeViewModel @Inject constructor(
 
     fun bulkRemoveMergedFavorites(keys: Set<String>) {
         viewModelScope.launch { repository.bulkSetMergedChannelFavorite(keys, false) }
+    }
+
+    fun bulkHideChannels(streamIds: List<Int>) {
+        viewModelScope.launch { repository.bulkHideChannels(streamIds) }
+    }
+
+    // Grouped by serverIndex since bulkHideMergedChannels is a per-server DAO call (composite
+    // key, same reasoning as bulkHideMergedVod/bulkHideMergedSeries) — a bulk selection can span
+    // multiple merged providers' channels at once if the user selected across categories.
+    fun bulkHideMergedChannels(items: List<com.iptvapp.data.local.entities.MergedChannelEntity>) {
+        viewModelScope.launch {
+            items.groupBy { it.serverIndex }.forEach { (serverIndex, group) ->
+                repository.bulkHideMergedChannels(serverIndex, group.map { it.streamId })
+            }
+        }
     }
 
     // ─── Channels Like This ──────────────────────────────────────────────────

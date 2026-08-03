@@ -572,6 +572,34 @@
                     android:nextFocusUp="@id/tvBtnChanBack"
                     android:nextFocusDown="@id/tvRvContent"
                     android:nextFocusLeft="@id/tvBtnBulkSelectAll"
+                    android:nextFocusRight="@id/tvBtnBulkSelectHide" />
+
+                <!-- Only shown for channel bulk-select modes (Live/Providers) — VOD/Series bulk-
+                     select still use Done alone (Done already means Hide for those, no Favorite
+                     concept there), see updateTvBulkSelectUi's TvBulkState.hideAction. -->
+                <Button
+                    android:id="@+id/tvBtnBulkSelectHide"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/tv_sidebar_focus"
+                    android:text="Hide"
+                    android:textAllCaps="false"
+                    android:textColor="#FFA500"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:padding="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false"
+                    android:visibility="gone"
+                    android:nextFocusUp="@id/tvBtnChanBack"
+                    android:nextFocusDown="@id/tvRvContent"
+                    android:nextFocusLeft="@id/tvBtnBulkSelectDone"
                     android:nextFocusRight="@id/tvBtnBulkSelectCancel" />
 
                 <Button

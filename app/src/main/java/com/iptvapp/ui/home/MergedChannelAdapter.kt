@@ -103,7 +103,7 @@ class MergedChannelAdapter(
                 visibility = if (quality != null) View.VISIBLE else View.GONE
                 text = quality ?: ""
             }
-            binding.tvServerNickname.text = item.serverNickname
+            binding.tvServerNickname.text = ProviderTag.format(item.serverNickname, item.categoryName)
             val epg = epgTextByKey[key]
             binding.tvEpgNow.visibility = if (epg != null) View.VISIBLE else View.GONE
             binding.tvEpgNow.text = epg ?: ""

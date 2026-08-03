@@ -16,6 +16,9 @@ sealed class CombinedFavorite {
     abstract val categoryName: String?
     abstract val serverNickname: String?  // null = tag hidden entirely
     abstract val id: String               // stable string key for DiffUtil / EPG+health maps
+    // Shared flat ordering across primary AND merged favorites — see
+    // MergedChannelEntity.favOrder kdoc for why this needed to exist on both underlying tables.
+    abstract val favOrder: Int
 
     data class Primary(
         val channel: ChannelEntity,
@@ -25,6 +28,7 @@ sealed class CombinedFavorite {
         override val name get() = channel.name
         override val streamIcon get() = channel.streamIcon
         override val id get() = "primary:${channel.streamId}"
+        override val favOrder get() = channel.favOrder
     }
 
     // nicknameOverride defaults to the entity's own (possibly stale) column so every existing
@@ -40,5 +44,6 @@ sealed class CombinedFavorite {
         override val categoryName get() = channel.categoryName
         override val serverNickname get() = nicknameOverride ?: channel.serverNickname
         override val id get() = "${channel.serverIndex}:${channel.streamId}"
+        override val favOrder get() = channel.favOrder
     }
 }

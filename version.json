@@ -1,7 +1,7 @@
 {
-  "versionCode": 391,
-  "versionName": "5.53",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.53/MKTV.apk",
-  "apkSha256": "f2df381e8085c333be5865246f69474ed3609469530a9d396a6f355c104e2719",
-  "changelog": "Fixed USA Only Channels filter hiding an entire provider's categories; added EPG program search and a real HDR/Dolby Vision badge in the player."
+  "versionCode": 392,
+  "versionName": "5.54",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.54/MKTV.apk",
+  "apkSha256": "701f7258762d282886b57dd992d0d80905721a56acb8a4bd717db84a4394aba3",
+  "changelog": "Favorites drag-reorder is back; bulk-select can now Hide channels too; provider+category tag on channel rows; TV Favorites goes straight to the list with genre chips; fixed laggy category switching for large providers."
 }

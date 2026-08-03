@@ -65,6 +65,8 @@ interface ChannelDao {
     fun getFavoriteChannelsBlocking(): List<ChannelEntity>
     @Query("UPDATE channels SET isHidden = :hidden WHERE streamId = :streamId")
     suspend fun setHidden(streamId: Int, hidden: Boolean)
+    @Query("UPDATE channels SET isHidden = 1 WHERE streamId IN (:streamIds)")
+    suspend fun bulkSetHidden(streamIds: List<Int>)
     @Query("SELECT * FROM channels WHERE isHidden = 1 ORDER BY name ASC")
     fun getHiddenChannels(): Flow<List<ChannelEntity>>
     @Query("UPDATE channels SET isFavorite = 1 WHERE streamId IN (:streamIds)")
@@ -402,7 +404,7 @@ interface EpisodeWatchedDao {
 
 @Dao
 interface MergedChannelDao {
-    @Query("SELECT * FROM merged_channels ORDER BY serverIndex ASC, num ASC")
+    @Query("SELECT * FROM merged_channels WHERE isHidden = 0 ORDER BY serverIndex ASC, num ASC")
     fun getAll(): Flow<List<MergedChannelEntity>>
     @Upsert
     suspend fun upsertAll(channels: List<MergedChannelEntity>)
@@ -414,7 +416,7 @@ interface MergedChannelDao {
     @Query("DELETE FROM merged_channels WHERE serverIndex = :serverIndex")
     suspend fun clearForServer(serverIndex: Int)
 
-    @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
+    @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels WHERE isHidden = 0 GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
     fun getServerSummaries(): Flow<List<MergedServerSummary>>
 
     // Every channel for one server regardless of category — needed to resolve XMLTV channels
@@ -424,10 +426,10 @@ interface MergedChannelDao {
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex")
     suspend fun getAllForServer(serverIndex: Int): List<MergedChannelEntity>
 
-    @Query("SELECT categoryId, categoryName, COUNT(*) as channelCount FROM merged_channels WHERE serverIndex = :serverIndex GROUP BY categoryId, categoryName ORDER BY categoryName")
+    @Query("SELECT categoryId, categoryName, COUNT(*) as channelCount FROM merged_channels WHERE serverIndex = :serverIndex AND isHidden = 0 GROUP BY categoryId, categoryName ORDER BY categoryName")
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>>
 
-    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) ORDER BY num")
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY num")
     fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>>
 
     // Single-row lookup by composite key — used by recording retry to re-resolve a merged
@@ -437,7 +439,7 @@ interface MergedChannelDao {
 
     // Searches across every configured server at once (not scoped to a selected server/
     // category) — matches how search already works on every other tab in this app.
-    @Query("SELECT * FROM merged_channels WHERE name LIKE '%' || :query || '%' ORDER BY serverIndex, num")
+    @Query("SELECT * FROM merged_channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY serverIndex, num")
     fun search(query: String): Flow<List<MergedChannelEntity>>
 
     // Favorites/folders for merged channels, same shape as ChannelDao's — reuses the same
@@ -445,13 +447,15 @@ interface MergedChannelDao {
     // primary provider" applies here too, just scoped to this table.
     @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId FROM merged_channels")
     suspend fun getUserData(): List<MergedChannelUserData>
-    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getAllFavorites(): Flow<List<MergedChannelEntity>>
-    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND favoriteFolderId = :folderId ORDER BY name ASC")
+    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND favoriteFolderId = :folderId AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getFavoritesInFolder(folderId: Int): Flow<List<MergedChannelEntity>>
-    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND favoriteFolderId IS NULL ORDER BY name ASC")
+    @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND favoriteFolderId IS NULL AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getUnfiledFavorites(): Flow<List<MergedChannelEntity>>
-    @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM merged_channels WHERE isFavorite = 1 GROUP BY favoriteFolderId")
+    @Query("UPDATE merged_channels SET favOrder = :order WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun updateFavOrder(serverIndex: Int, streamId: Int, order: Int)
+    @Query("SELECT favoriteFolderId, COUNT(*) as channelCount FROM merged_channels WHERE isFavorite = 1 AND isHidden = 0 GROUP BY favoriteFolderId")
     fun getFavoriteCountsByFolder(): Flow<List<FavoriteFolderCount>>
     @Query("UPDATE merged_channels SET isFavorite = :favorite WHERE serverIndex = :serverIndex AND streamId = :streamId")
     suspend fun setFavorite(serverIndex: Int, streamId: Int, favorite: Boolean)
@@ -459,6 +463,13 @@ interface MergedChannelDao {
     suspend fun setFavoriteFolder(serverIndex: Int, streamId: Int, folderId: Int?)
     @Query("UPDATE merged_channels SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
     suspend fun clearFolderFromChannels(folderId: Int)
+    // Hide-individual-channel support, same shape as MergedVodDao's bulkSetHidden/getHidden.
+    @Query("UPDATE merged_channels SET isHidden = 1 WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)")
+    suspend fun bulkSetHidden(serverIndex: Int, streamIds: List<Int>)
+    @Query("SELECT * FROM merged_channels WHERE isHidden = 1 ORDER BY serverIndex ASC, name ASC")
+    fun getHidden(): Flow<List<MergedChannelEntity>>
+    @Query("UPDATE merged_channels SET isHidden = 0 WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun unhide(serverIndex: Int, streamId: Int)
 }
 
 data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)

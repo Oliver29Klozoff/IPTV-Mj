@@ -147,7 +147,13 @@ class HomeActivity : AppCompatActivity() {
                     Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
                     clearBulkSelection()
                 },
-                onUnselectAll = { clearBulkSelection() }
+                onUnselectAll = { clearBulkSelection() },
+                onHide = {
+                    val count = bulkSelectedIds.size
+                    viewModel.bulkHideChannels(bulkSelectedIds.toList())
+                    Toast.makeText(this, "$count channels hidden", Toast.LENGTH_SHORT).show()
+                    clearBulkSelection()
+                }
             )
         }
     }
@@ -164,7 +170,8 @@ class HomeActivity : AppCompatActivity() {
                     Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
                     clearBulkSelectionMerged()
                 },
-                onUnselectAll = { clearBulkSelectionMerged() }
+                onUnselectAll = { clearBulkSelectionMerged() },
+                onHide = { commitBulkHideMerged() }
             )
         }
     }
@@ -175,6 +182,17 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
         mergedChannelAdapter.submitBulkSelection(emptySet())
         updateBulkSelectUi()
+    }
+
+    private fun commitBulkHideMerged() {
+        val count = bulkSelectedMergedKeys.size
+        val items = bulkSelectedMergedKeys.mapNotNull { key ->
+            val (serverIndex, streamId) = key.split(":", limit = 2)
+            viewModel.mergedChannels.value.firstOrNull { it.serverIndex == serverIndex.toInt() && it.streamId == streamId.toInt() }
+        }
+        viewModel.bulkHideMergedChannels(items)
+        Toast.makeText(this, "$count channels hidden", Toast.LENGTH_SHORT).show()
+        clearBulkSelectionMerged()
     }
 
     // Live tab bulk-select (LiveChannelAdapter combines primary + every merged provider into
@@ -205,6 +223,22 @@ class HomeActivity : AppCompatActivity() {
     // there. Exactly one of these can be active at a time in practice (only one tab/list is ever
     // being interacted with), so first-match-wins is fine.
     private fun updateBulkSelectUi() {
+        // Reorder mode reuses the same bar (per explicit request) but doesn't fit Quadruple's
+        // shape at all — no selection count, no "select all," Cancel would mean "discard the
+        // drags," not "clear a selection set." Handled as its own early branch instead of forcing
+        // it through the bulk-select Quadruple mechanism below.
+        if (favoritesReorderMode) {
+            binding.btnProvidersSelectAll?.visibility = View.GONE
+            binding.bulkSelectBar?.visibility = View.VISIBLE
+            binding.tvBulkSelectCount?.text = "Reordering favorites"
+            binding.btnBulkSelectAll?.visibility = View.GONE
+            binding.btnBulkSelectHide?.visibility = View.GONE
+            binding.btnBulkSelectDone?.visibility = View.VISIBLE
+            binding.btnBulkSelectDone?.setOnClickListener { exitFavoritesReorderMode(save = true) }
+            binding.btnBulkSelectCancel?.setOnClickListener { exitFavoritesReorderMode(save = false) }
+            return
+        }
+        binding.btnBulkSelectAll?.visibility = View.VISIBLE
         binding.btnProvidersSelectAll?.visibility =
             if ((providersMode == ProvidersMode.LIVE && bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) ||
                 (providersMode == ProvidersMode.MOVIES && bulkSelectMergedVodMode && bulkSelectedMergedVodKeys.isNotEmpty()) ||
@@ -244,13 +278,20 @@ class HomeActivity : AppCompatActivity() {
                     Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
                     clearBulkSelection()
                 },
-                { clearBulkSelection() }
+                hide = {
+                    val count = bulkSelectedIds.size
+                    viewModel.bulkHideChannels(bulkSelectedIds.toList())
+                    Toast.makeText(this, "$count channels hidden", Toast.LENGTH_SHORT).show()
+                    clearBulkSelection()
+                },
+                cancel = { clearBulkSelection() }
             )
             bulkSelectLiveMode && bulkSelectedLiveIds.isNotEmpty() -> Quadruple(
                 bulkSelectedLiveIds.size,
                 { bulkSelectedLiveIds.addAll(liveChannelAdapter.currentList.map { it.id }); liveChannelAdapter.submitBulkSelection(bulkSelectedLiveIds.toSet()) },
                 { commitBulkLiveFavorites() },
-                { clearBulkSelectionLive() }
+                hide = { commitBulkLiveHide() },
+                cancel = { clearBulkSelectionLive() }
             )
             bulkSelectSeriesMode && bulkSelectedSeriesIds.isNotEmpty() -> Quadruple(
                 bulkSelectedSeriesIds.size,
@@ -296,15 +337,43 @@ class HomeActivity : AppCompatActivity() {
             updateBulkSelectUi()
         }
         binding.btnBulkSelectDone?.setOnClickListener { state.done() }
+        if (state.hide != null) {
+            binding.btnBulkSelectHide?.visibility = View.VISIBLE
+            binding.btnBulkSelectHide?.setOnClickListener { state.hide.invoke() }
+        } else {
+            binding.btnBulkSelectHide?.visibility = View.GONE
+        }
         binding.btnBulkSelectCancel?.setOnClickListener { state.cancel() }
     }
 
-    private data class Quadruple(val count: Int, val selectAll: () -> Unit, val done: () -> Unit, val cancel: () -> Unit)
+    // hide is only set for channel modes (primary/Live-tab) — see the button's own kdoc in
+    // activity_home.xml for why Favorites/Series/VOD bulk-select don't get a second action here.
+    // Kept last (with a default) so every existing 4-positional-arg call site (count, selectAll,
+    // done, cancel) still binds correctly without needing hide named at every call site.
+    private data class Quadruple(val count: Int, val selectAll: () -> Unit, val done: () -> Unit, val cancel: () -> Unit, val hide: (() -> Unit)? = null)
 
     private fun showBulkSelectIdlePrompt(
         count: Int, onMoveToFavorites: () -> Unit, onUnselectAll: () -> Unit,
-        itemLabel: String = "channel", actionLabel: String = "Move to Favorites"
+        itemLabel: String = "channel", actionLabel: String = "Move to Favorites",
+        onHide: (() -> Unit)? = null
     ) {
+        // Channel modes now offer Favorite AND Hide — a standard AlertDialog only has 3 button
+        // slots (positive/negative/neutral) and "Keep Selecting" already occupies one, so a 4th
+        // real action needs setItems instead of the positive/negative button pair VOD/Series
+        // (2 actions only) still use below.
+        if (onHide != null) {
+            AlertDialog.Builder(this)
+                .setTitle("$count $itemLabel${if (count == 1) "" else "s"} selected")
+                .setItems(arrayOf(actionLabel, "Hide Selected", "Unselect All", "Keep Selecting")) { _, which ->
+                    when (which) {
+                        0 -> onMoveToFavorites()
+                        1 -> onHide()
+                        2 -> onUnselectAll()
+                    }
+                }
+                .show()
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle("$count $itemLabel${if (count == 1) "" else "s"} selected")
             .setPositiveButton(actionLabel) { _, _ -> onMoveToFavorites() }
@@ -336,6 +405,26 @@ class HomeActivity : AppCompatActivity() {
         if (primaryIds.isNotEmpty()) viewModel.bulkAddFavorites(primaryIds)
         if (mergedKeys.isNotEmpty()) viewModel.bulkAddMergedFavorites(mergedKeys)
         Toast.makeText(this, "Added ${bulkSelectedLiveIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+        clearBulkSelectionLive()
+    }
+
+    private fun commitBulkLiveHide() {
+        val count = bulkSelectedLiveIds.size
+        val primaryIds = bulkSelectedLiveIds
+            .filter { it.startsWith("primary:") }
+            .mapNotNull { it.substringAfter("primary:").toIntOrNull() }
+        val mergedKeys = bulkSelectedLiveIds.filterNot { it.startsWith("primary:") }.toSet()
+        if (primaryIds.isNotEmpty()) viewModel.bulkHideChannels(primaryIds)
+        if (mergedKeys.isNotEmpty()) {
+            // LiveChannelRow already carries the full MergedChannelEntity (unlike the Providers
+            // tab's drilldown, viewModel.mergedChannels isn't populated here at all — this list
+            // comes from liveChannelAdapter's own currentList instead) so resolve keys against
+            // that, not the (wrong, silently-empty) viewModel.mergedChannels.value.
+            val items = liveChannelAdapter.currentList.mapNotNull { it.mergedChannel }
+                .filter { "${it.serverIndex}:${it.streamId}" in mergedKeys }
+            viewModel.bulkHideMergedChannels(items)
+        }
+        Toast.makeText(this, "$count channels hidden", Toast.LENGTH_SHORT).show()
         clearBulkSelectionLive()
     }
 
@@ -505,6 +594,53 @@ class HomeActivity : AppCompatActivity() {
         bulkSelectHandler.removeCallbacks(bulkSelectFavoritesIdleRunnable)
         combinedFavoriteAdapter.submitBulkSelection(emptySet())
         updateBulkSelectUi()
+    }
+
+    // Favorites drag-reorder — restores the manual-order feature Favorites lost when it became a
+    // combined primary+merged list (see MergedChannelEntity.favOrder kdoc). Only available from
+    // the unfiltered "All" genre view (activeFavoriteGenre == null): reordering a filtered subset
+    // would only be meaningful within that subset, which complicates what "position" even means
+    // once the filter is cleared — scoping to All keeps one flat order simple to reason about.
+    private lateinit var favoritesItemTouchHelper: ItemTouchHelper
+    private var favoritesReorderMode = false
+
+    private fun canReorderFavorites(): Boolean = activeFavoriteGenre == null
+
+    private fun enterFavoritesReorderMode() {
+        favoritesReorderMode = true
+        combinedFavoriteAdapter.beginReorder()
+        combinedFavoriteAdapter.showDragHandles = true
+        combinedFavoriteAdapter.notifyDataSetChanged()
+        updateBulkSelectUi()
+    }
+
+    private fun exitFavoritesReorderMode(save: Boolean) {
+        val newOrder = combinedFavoriteAdapter.currentOrder()
+        favoritesReorderMode = false
+        combinedFavoriteAdapter.showDragHandles = false
+        if (save) {
+            viewModel.saveCombinedFavOrder(newOrder.map { it.id })
+        }
+        combinedFavoriteAdapter.submitList(newOrder)
+        updateBulkSelectUi()
+    }
+
+    private class FavoritesReorderCallback(
+        private val adapter: CombinedFavoriteAdapter
+    ) : ItemTouchHelper.SimpleCallback(
+        ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+    ) {
+        override fun onMove(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            target: RecyclerView.ViewHolder
+        ): Boolean {
+            adapter.moveItem(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
+            return true
+        }
+
+        override fun isLongPressDragEnabled(): Boolean = false
+        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
     }
 
     private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -2026,6 +2162,9 @@ class HomeActivity : AppCompatActivity() {
                 showFavoriteActionsMenu(item)
             }
         )
+        favoritesItemTouchHelper = ItemTouchHelper(FavoritesReorderCallback(combinedFavoriteAdapter))
+        combinedFavoriteAdapter.itemTouchHelper = favoritesItemTouchHelper
+        favoritesItemTouchHelper.attachToRecyclerView(binding.rvChannels)
 
         liveCategoryAdapter = LiveCategoryAdapter(
             onCategoryClick = { row ->
@@ -3825,6 +3964,7 @@ class HomeActivity : AppCompatActivity() {
         )
         if (ch != null) options.add("Hide Channel")
         if (bulkSelectLiveMode && bulkSelectedLiveIds.isNotEmpty()) {
+            options.add(0, "✓ Hide ${bulkSelectedLiveIds.size} selected")
             options.add(0, "✓ Add ${bulkSelectedLiveIds.size} selected to favorites")
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -3857,7 +3997,10 @@ class HomeActivity : AppCompatActivity() {
                         viewModel.hideChannel(ch.streamId)
                         Toast.makeText(this, "${ch.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
                     }
-                    else -> if (options[i].startsWith("✓ Add")) commitBulkLiveFavorites()
+                    else -> {
+                        if (options[i].startsWith("✓ Add")) commitBulkLiveFavorites()
+                        else if (options[i].startsWith("✓ Hide")) commitBulkLiveHide()
+                    }
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -3875,6 +4018,7 @@ class HomeActivity : AppCompatActivity() {
             is CombinedFavorite.Merged -> "${item.channel.name} · ${item.channel.serverNickname}"
         }
         val options = mutableListOf("Remove from Favorites", "Select (bulk remove from favorites)")
+        if (canReorderFavorites()) options.add("Reorder Favorites")
         if (item is CombinedFavorite.Primary) options.add(0, "Set Reminder")
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
@@ -3893,6 +4037,10 @@ class HomeActivity : AppCompatActivity() {
                         Toast.makeText(this, "${bulkSelectedFavoriteIds.size} selected — tap more channels, or wait to remove them", Toast.LENGTH_SHORT).show()
                         bulkSelectHandler.removeCallbacks(bulkSelectFavoritesIdleRunnable)
                         bulkSelectHandler.postDelayed(bulkSelectFavoritesIdleRunnable, 8000)
+                    }
+                    "Reorder Favorites" -> {
+                        enterFavoritesReorderMode()
+                        Toast.makeText(this, "Drag the handles to reorder, then tap Done", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -3916,6 +4064,7 @@ class HomeActivity : AppCompatActivity() {
             "Channels Like This"
         )
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
+            options.add(0, "✓ Hide ${bulkSelectedIds.size} selected")
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -3949,6 +4098,11 @@ class HomeActivity : AppCompatActivity() {
                     else -> if (options[i].startsWith("✓ Add")) {
                         viewModel.bulkAddFavorites(bulkSelectedIds.toList())
                         Toast.makeText(this, "Added ${bulkSelectedIds.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                        clearBulkSelection()
+                    } else if (options[i].startsWith("✓ Hide")) {
+                        val count = bulkSelectedIds.size
+                        viewModel.bulkHideChannels(bulkSelectedIds.toList())
+                        Toast.makeText(this, "$count channels hidden", Toast.LENGTH_SHORT).show()
                         clearBulkSelection()
                     }
                 }
@@ -4019,6 +4173,7 @@ class HomeActivity : AppCompatActivity() {
         )
         if (channel.isFavorite) options.add("Move to Folder")
         if (bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) {
+            options.add(0, "✓ Hide ${bulkSelectedMergedKeys.size} selected")
             options.add(0, "✓ Add ${bulkSelectedMergedKeys.size} selected to favorites")
         }
         AlertDialog.Builder(this)
@@ -4061,6 +4216,9 @@ class HomeActivity : AppCompatActivity() {
                         viewModel.bulkAddMergedFavorites(bulkSelectedMergedKeys.toSet())
                         Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
                         clearBulkSelectionMerged()
+                    } else if (options[which].startsWith("✓ Hide")) {
+                        bulkSelectHandler.removeCallbacks(bulkSelectMergedIdleRunnable)
+                        commitBulkHideMerged()
                     }
                 }
             }

@@ -102,7 +102,7 @@ class LiveChannelAdapter(
 
             val nickname = item.mergedChannel?.serverNickname
             if (nickname != null) {
-                binding.tvServerNickname?.text = nickname
+                binding.tvServerNickname?.text = ProviderTag.format(nickname, item.categoryName)
                 binding.tvServerNickname?.visibility = View.VISIBLE
             } else {
                 binding.tvServerNickname?.visibility = View.GONE

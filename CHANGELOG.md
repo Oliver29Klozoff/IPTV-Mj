@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v5.54 - 2026-08-03
+- **Added**: Favorites drag-reorder is back — long-press a favorite, tap "Reorder Favorites,"
+  drag the handles to arrange them, then tap Done. Works across primary and other-provider
+  favorites mixed together in one list (only available from the unfiltered "All" genre view).
+- **Added**: bulk-select now offers a Hide option alongside Favorite, on Live, the combined Live
+  tab, and Providers channels — previously only single channels could be hidden one at a time.
+  Hiding a Providers/other-provider channel is new; only your main provider's channels could be
+  hidden before.
+- **Added**: channel rows now show the category a merged/other-provider channel came from, next
+  to the provider name (e.g. "LEPTIS · SPORTS"), on Live, Favorites, and Providers.
+- **Changed**: TV Favorites goes straight to your full favorites list with genre filter chips at
+  the top, matching the phone — no more picking a folder/genre tile first.
+- **Fixed**: switching categories for a merged/other-provider channel list could lag noticeably
+  for large providers — a missing database index meant every tap re-scanned the whole table.
+
 ## v5.53 - 2026-08-01
 - **Fixed**: "USA Only Channels" could reduce a provider's entire Live category list to zero —
   the filter only recognized an exact "US" tag (e.g. "US | ESPN"), but some providers tag their

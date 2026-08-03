@@ -41,7 +41,11 @@ data class LiveCategoryRow(
 
 data class LiveChannelRow(
     val channel: ChannelEntity? = null,
-    val mergedChannel: MergedChannelEntity? = null
+    val mergedChannel: MergedChannelEntity? = null,
+    // Every row in a given list belongs to the same one category being browsed, so this is set
+    // once by selectCombinedCategory from the LiveCategoryRow that was tapped, not resolved
+    // per-channel — ChannelEntity only carries categoryId, not the display name.
+    val categoryName: String? = null
 ) {
     val serverIndex: Int get() = mergedChannel?.serverIndex ?: -1
     val streamId: Int get() = channel?.streamId ?: mergedChannel!!.streamId

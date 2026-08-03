@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 29,
+    version = 32,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -353,6 +353,37 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Adds hide-individual-channel support to merged/other-provider channels — same isHidden
+        // pattern MIGRATION_22_23/23_24 already gave Series/VOD, filtered out of getAll/
+        // getByServerAndCategory/search/favorites the same way. Primary channels already had this
+        // (channels.isHidden since early on); this closes the one remaining gap so bulk-select's
+        // new Hide button works the same in Providers as it does in Live.
+        val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // Speeds up category switching in the combined Live tab for large merged providers —
+        // see MergedChannelEntity's indices kdoc. Index name matches Room's auto-generated
+        // convention (index_<table>_<col1>_<col2>) so Room's schema validation on next open
+        // recognizes it as already satisfying the @Index the entity now declares, instead of
+        // trying to create a duplicate.
+        val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_merged_channels_serverIndex_categoryId ON merged_channels(serverIndex, categoryId)")
+            }
+        }
+
+        // Restores Favorites drag-reorder — dropped when Favorites became a combined primary+
+        // merged list, since ChannelEntity.favOrder only ever applied to primary channels. This
+        // gives merged channels the same column so both share one flat ordering sequence.
+        val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN favOrder INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         // Single source of truth for "every migration this app has ever had" — AppModule's main
         // DB instance and WidgetChannelService's separate widget-process DB instance both need
         // the complete chain, and used to maintain two independently hand-typed copies of this
@@ -369,7 +400,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
-            MIGRATION_27_28, MIGRATION_28_29
+            MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32
         )
     }
 }
