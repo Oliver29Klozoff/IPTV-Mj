@@ -130,3 +130,50 @@ class VodAdapter(
         override fun areContentsTheSame(a: VodRow, b: VodRow): Boolean = a == b
     }
 }
+
+// Netflix-style poster grid for TvHomeActivity's full-screen Movies browse (see
+// item_tv_vod_poster.xml / showMoviesFullScreen). Separate from VodAdapter since a grid has no
+// use for VodAdapter's favorites-header row (that grouping doesn't need to survive the switch
+// from a list to a grid), and keeping this one plain-list-only avoids span-size handling for a
+// header that would need to stretch across every grid column.
+class TvVodPosterAdapter(
+    private val onVodClick: (VodEntity) -> Unit,
+    private val onVodLongClick: (VodEntity) -> Unit = {}
+) : ListAdapter<VodEntity, TvVodPosterAdapter.ViewHolder>(PosterDiffCallback()) {
+
+    inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvVodPosterBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+        fun bind(item: VodEntity) {
+            binding.tvVodName.text = item.name
+            binding.tvVodRating.text = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
+            Glide.with(binding.ivVodPoster)
+                .load(item.streamIcon)
+                .placeholder(android.R.drawable.ic_menu_gallery)
+                .error(android.R.drawable.ic_menu_gallery)
+                .into(binding.ivVodPoster)
+            // Non-interactive badge now — favoriting lives on VodDetailActivity's "Add to
+            // Favorites" button (long-press a poster to get there), see item_tv_vod_poster.xml.
+            binding.ivVodFavorite.visibility = if (item.isFavorite) android.view.View.VISIBLE else android.view.View.GONE
+            if (item.watchedMs > 0 && item.durationMs > 0) {
+                val pct = ((item.watchedMs * 100) / item.durationMs).coerceIn(0, 100).toInt()
+                binding.progressVod.progress = pct
+                binding.progressVod.visibility = android.view.View.VISIBLE
+            } else {
+                binding.progressVod.visibility = android.view.View.GONE
+            }
+            binding.root.setOnClickListener { onVodClick(item) }
+            binding.root.setOnLongClickListener { onVodLongClick(item); true }
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = ViewHolder(
+        com.iptvapp.databinding.ItemTvVodPosterBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+    )
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(getItem(position))
+
+    class PosterDiffCallback : DiffUtil.ItemCallback<VodEntity>() {
+        override fun areItemsTheSame(a: VodEntity, b: VodEntity) = a.streamId == b.streamId
+        override fun areContentsTheSame(a: VodEntity, b: VodEntity) = a == b
+    }
+}

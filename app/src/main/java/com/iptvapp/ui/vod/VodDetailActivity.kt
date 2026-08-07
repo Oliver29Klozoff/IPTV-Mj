@@ -48,17 +48,36 @@ class VodDetailActivity : AppCompatActivity() {
             .error(android.R.drawable.ic_menu_gallery)
             .into(binding.ivVodCover)
 
-        // No VOD favorite toggle exists anywhere in the app yet (the grid's own star button
-        // is a no-op) — out of scope here; this button just reflects/plays, doesn't favorite.
-        binding.btnFavorite.visibility = View.GONE
-
         binding.btnBack.setOnClickListener { finish() }
         binding.btnPlay.setOnClickListener { launchPlayer() }
+        // Without this, initial D-pad focus could land anywhere/nowhere on this screen (nothing
+        // requests it by default) — Play is the natural first stop, matching where the button
+        // chain (nextFocusDown/Up) starts from.
+        binding.btnPlay.requestFocus()
 
         if (streamId != -1) {
             loadVodInfo(streamId)
             loadResumeProgress(streamId)
+            loadFavoriteState(streamId)
         }
+    }
+
+    private fun loadFavoriteState(streamId: Int) {
+        lifecycleScope.launch {
+            val vod = repository.getVodByStreamId(streamId) ?: return@launch
+            renderFavoriteButton(vod.isFavorite)
+            binding.btnFavorite.setOnClickListener {
+                lifecycleScope.launch {
+                    val current = repository.getVodByStreamId(streamId) ?: return@launch
+                    repository.setVodFavorite(streamId, !current.isFavorite)
+                    renderFavoriteButton(!current.isFavorite)
+                }
+            }
+        }
+    }
+
+    private fun renderFavoriteButton(isFavorite: Boolean) {
+        binding.btnFavorite.text = if (isFavorite) "★  Remove from Favorites" else "☆  Add to Favorites"
     }
 
     private fun loadResumeProgress(streamId: Int) {

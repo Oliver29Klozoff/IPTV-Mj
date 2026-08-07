@@ -11,7 +11,8 @@ data class ChannelUserData(
     val viewCount: Int,
     val favOrder: Int,
     val isHidden: Boolean,
-    val favoriteFolderId: Int?
+    val favoriteFolderId: Int?,
+    val manualGenre: String?
 )
 
 data class WatchHistoryEntry(
@@ -75,7 +76,7 @@ interface ChannelDao {
     suspend fun bulkClearFavorite(streamIds: List<Int>)
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND streamId != :excludeStreamId AND isHidden = 0 ORDER BY viewCount DESC, name ASC LIMIT 20")
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
-    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden, favoriteFolderId FROM channels")
+    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden, favoriteFolderId, manualGenre FROM channels")
     suspend fun getUserData(): List<ChannelUserData>
     @Query("SELECT streamId, lastWatched, viewCount FROM channels WHERE lastWatched IS NOT NULL")
     suspend fun getWatchHistoryForBackup(): List<WatchHistoryEntry>
@@ -98,6 +99,8 @@ interface ChannelDao {
     suspend fun setFavoriteFolder(streamId: Int, folderId: Int?)
     @Query("UPDATE channels SET favoriteFolderId = NULL WHERE favoriteFolderId = :folderId")
     suspend fun clearFolderFromChannels(folderId: Int)
+    @Query("UPDATE channels SET manualGenre = :genre WHERE streamId IN (:streamIds)")
+    suspend fun bulkSetManualGenre(streamIds: List<Int>, genre: String?)
 }
 
 data class FavoriteFolderCount(val favoriteFolderId: Int?, val channelCount: Int)
@@ -130,10 +133,29 @@ interface CategoryDao {
 interface VodDao {
     @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC")
     fun getAllVod(): Flow<List<VodEntity>>
+    // Fast first paint for TvHomeActivity's full-screen Movies grid — getAllVod() above loads
+    // every row (176k+ on a large merged-provider catalog observed during testing, 15-25+
+    // seconds just to deserialize), leaving the grid blank that whole time on cold launch. This
+    // returns instantly with enough rows to fill the screen; showMoviesFullScreen submits this
+    // first, then the existing getAllVod() collector (already running for every other Movies
+    // consumer — phone, old TV Movies section, favorites) seamlessly replaces it once the full
+    // catalog finishes loading, with no separate loading path to maintain.
+    @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC LIMIT 100")
+    fun getVodFirstPage(): Flow<List<VodEntity>>
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY added DESC, name ASC")
     fun getVodByCategory(categoryId: String): Flow<List<VodEntity>>
+    // Backs the TV home landing screen's "Recently Added" row — same added-string ordering
+    // getAllVod already uses (Xtream's "added" field is a Unix-timestamp string; consistent
+    // digit-length means lexicographic ORDER BY already sorts newest-first correctly), just
+    // capped to a small row instead of the full catalog.
+    @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC LIMIT 20")
+    fun getRecentlyAddedVod(): Flow<List<VodEntity>>
     @Query("SELECT * FROM vod_streams WHERE isFavorite = 1 ORDER BY name ASC")
     fun getFavoriteVod(): Flow<List<VodEntity>>
+    // Single-row lookup for VodDetailActivity's favorite button — needs just this one movie's
+    // current isFavorite state to render/toggle correctly, not a live-updating Flow.
+    @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
+    suspend fun getVodByStreamId(streamId: Int): VodEntity?
     @Query("SELECT * FROM vod_streams WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchVod(query: String): Flow<List<VodEntity>>
     @Upsert
@@ -445,7 +467,7 @@ interface MergedChannelDao {
     // Favorites/folders for merged channels, same shape as ChannelDao's — reuses the same
     // FavoriteFolderEntity rows (shared folder names) so "the way favorites work for the
     // primary provider" applies here too, just scoped to this table.
-    @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId FROM merged_channels")
+    @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId, manualGenre FROM merged_channels")
     suspend fun getUserData(): List<MergedChannelUserData>
     @Query("SELECT * FROM merged_channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getAllFavorites(): Flow<List<MergedChannelEntity>>
@@ -470,9 +492,11 @@ interface MergedChannelDao {
     fun getHidden(): Flow<List<MergedChannelEntity>>
     @Query("UPDATE merged_channels SET isHidden = 0 WHERE serverIndex = :serverIndex AND streamId = :streamId")
     suspend fun unhide(serverIndex: Int, streamId: Int)
+    @Query("UPDATE merged_channels SET manualGenre = :genre WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)")
+    suspend fun bulkSetManualGenre(serverIndex: Int, streamIds: List<Int>, genre: String?)
 }
 
-data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?)
+data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?, val manualGenre: String?)
 
 // Movies-tab equivalent of MergedChannelDao — same shape throughout (per-server clear on
 // refresh, favorites/folders reusing FavoriteFolderEntity), see MergedVodEntity kdoc.
@@ -480,6 +504,12 @@ data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val is
 interface MergedVodDao {
     @Query("SELECT * FROM merged_vod WHERE isHidden = 0 ORDER BY serverIndex ASC, name ASC")
     fun getAll(): Flow<List<MergedVodEntity>>
+
+    // Cross-provider "Recently Added" for the TV home landing screen — same added-string
+    // ordering as VodDao.getRecentlyAddedVod, spanning every configured secondary provider at
+    // once rather than scoped to one serverIndex like getByServerAndCategory is.
+    @Query("SELECT * FROM merged_vod WHERE isHidden = 0 ORDER BY added DESC, name ASC LIMIT 20")
+    fun getRecentlyAdded(): Flow<List<MergedVodEntity>>
     @Upsert
     suspend fun upsertAll(vod: List<MergedVodEntity>)
     @Query("DELETE FROM merged_vod")

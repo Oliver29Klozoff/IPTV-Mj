@@ -1,5 +1,60 @@
 # IPTV App - Changelog
 
+## v5.57 - 2026-08-07
+- **Added**: refresh button on TV Movies (next to Back) — re-fetches the movie catalog without
+  a trip to Settings.
+- **Added**: "★ Favorites" folder chip on TV Movies, next to All — filters the grid to your
+  favorited movies.
+- **Fixed**: favoriting a movie on TV actually works now — long-press a poster to open its
+  detail screen, then use the real "Add to Favorites"/"Remove from Favorites" button there. The
+  poster grid's star icon is gone as a click target (it was a no-op) and now only shows as a
+  small badge on titles you've already favorited.
+- **Fixed**: the movie detail screen (opened via long-press) had no D-pad support at all — every
+  button (Play/Favorite/Watch Trailer/Clear Progress/Back) is now focusable with a visible
+  highlight ring and moves correctly with Up/Down.
+
+## v5.56 - 2026-08-07
+- **Changed**: TV navigation is back to the vertical sidebar (Favorites/Providers/Live/
+  Categories/Movies/Series/Guide/Recordings/Settings) — reverted the horizontal top-bar/Home-
+  screen redesign from v5.55.
+- **Added**: sidebar now shows item counts (Favorites, Categories) and a clear "you are here"
+  accent marker on the active section that stays visible even when D-pad focus moves elsewhere.
+- **Added**: Providers shows a warning badge if any configured provider failed its last refresh.
+- **Fixed**: pressing Left on the sidebar (e.g. from Providers) could exit all the way to the
+  Home screen instead of doing nothing.
+- **Changed**: TV Movies now opens full-screen — search bar, genre filter chips, and a large
+  poster grid across every movie at once, instead of the old category-list drilldown. Loads a
+  fast first page instantly instead of waiting on the full catalog.
+- **Fixed**: TV Movies could show foreign-language titles even with English-only Movies enabled
+  in Settings; search now waits for 2+ characters before filtering.
+- **Fixed**: VOD seek bar/elapsed-remaining time in the player now auto-hides with the other
+  controls instead of staying on screen the whole time.
+- **Fixed**: fast-forward/rewind (Left/Right) on a movie no longer opens the on-screen controls
+  first — it seeks directly. With controls open, Left/Right moves between buttons instead of
+  skipping the movie.
+- **Fixed**: player's bottom control buttons had no spacing between them; the seek bar and
+  channel title could render on top of the button row instead of stacking above it.
+
+## v5.55 - 2026-08-05
+- **Added**: new TV Home screen — a Netflix/Plex-style hero banner + horizontal rows (Continue
+  Watching, On Now, Favorites, Recently Added), replacing the old sidebar as the first thing you
+  see on TV. The mini player now overlays the hero as a small corner window instead of filling the
+  whole right side.
+- **Changed**: TV's Live/Providers/Categories/Movies/Series/Favorites navigation is a horizontal
+  top bar now instead of a full-height vertical sidebar — every section still works exactly the
+  same, just reachable without leaving the screen behind.
+- **Fixed**: Back button on TV now returns to the new Home screen from any section, instead of
+  requiring a second Back press to exit the app entirely (that behavior no longer made sense once
+  Home became a separate screen in front of it).
+- **Fixed**: D-pad navigation on TV could get stuck unable to reach the top nav bar, or silently
+  snap back to the previous screen after a few seconds, while browsing a category list.
+- **Fixed**: pinning a favorite channel to a genre (Pin to Genre) could silently revert back to
+  Unsorted after the app's periodic channel refresh — the pin wasn't being carried forward when
+  channel data resynced from the provider.
+- **Fixed**: Pin to Genre had no visible effect on a channel already filed in a custom chip/folder
+  — folder membership always took priority over the pin. Pin to Genre now clears the channel's
+  folder assignment too, so picking a genre actually moves it there.
+
 ## v5.54 - 2026-08-03
 - **Added**: Favorites drag-reorder is back — long-press a favorite, tap "Reorder Favorites,"
   drag the handles to arrange them, then tap Done. Works across primary and other-provider

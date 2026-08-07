@@ -7,6 +7,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.GZIPInputStream
 
 data class XmltvChannel(val id: String, val displayName: String)
@@ -25,6 +26,46 @@ object XmltvFetcher {
         "${serverUrl.trimEnd('/')}/xmltv.php?username=$username&password=$password"
 
     private const val TAG = "XmltvFetcher"
+
+    private const val MAX_FIELD_LEN = 4000
+
+    // A malformed/unescaped feed (a stray "&" is enough to confuse the entity parser, or a
+    // genuinely missing closing tag) can make KXmlParser's internal per-token StringBuilder
+    // accumulate an unbounded run — confirmed via TWO separate real OOM crashes, both inside
+    // KXmlParser.readValue/next itself (KXmlParser.kt:1389 and :1436). A whole-stream byte cap
+    // doesn't help: the runaway is a SINGLE token, and a legitimate 1.4M-entry feed can itself
+    // total well past any ceiling still tight enough to catch a bad token before it exhausts the
+    // heap. Instead PerTokenLimitStream resets its own counter every time parse()'s loop
+    // successfully consumes a parser.next() event (a real token boundary was reached) and throws
+    // if MORE bytes than this are read before the NEXT boundary — directly bounding the size of
+    // whatever single token KXmlParser is currently trying to build, independent of total
+    // document size. No legitimate channel name/programme title/description approaches this.
+    private const val MAX_TOKEN_BYTES = 2L * 1024 * 1024
+
+    // Backstop in case interrupting the watchdog thread doesn't unblock a stuck read in time —
+    // see parseWithTimeout's kdoc.
+    private const val PARSE_TIMEOUT_MS = 60_000L
+
+    private class PerTokenLimitStream(private val delegate: InputStream) : InputStream() {
+        private var sinceCheckpoint = 0L
+        fun checkpoint() { sinceCheckpoint = 0L }
+        private fun check(n: Int): Int {
+            if (n > 0) {
+                sinceCheckpoint += n
+                if (sinceCheckpoint > MAX_TOKEN_BYTES) {
+                    throw java.io.IOException("XMLTV token exceeded $MAX_TOKEN_BYTES bytes without a tag boundary — aborting to avoid OOM")
+                }
+            }
+            return n
+        }
+        override fun read(): Int {
+            val b = delegate.read()
+            if (b >= 0) check(1)
+            return b
+        }
+        override fun read(b: ByteArray, off: Int, len: Int): Int = check(delegate.read(b, off, len))
+        override fun close() = delegate.close()
+    }
 
     /** Returns (channels, programs). Empty pair on any network/parse error — never throws. */
     fun fetch(url: String): Pair<List<XmltvChannel>, List<XmltvProgram>> {
@@ -48,12 +89,41 @@ object XmltvFetcher {
             buffered.reset()
             val isGzip = b0 == 0x1f && b1 == 0x8b
             val stream: InputStream = if (isGzip) GZIPInputStream(buffered) else buffered
+            val limited = PerTokenLimitStream(stream.buffered())
 
-            stream.buffered().use { parse(it) }
+            // Primary defense is limited's per-token cap (throws IOException, caught below,
+            // before the runaway allocation happens). The wall-clock watchdog is a backstop for
+            // the case where interrupting doesn't apply (CPU-bound StringBuilder work between
+            // reads doesn't poll the interrupt flag) — the per-token cap is what actually fires
+            // in practice, well before this timeout would ever need to.
+            parseWithTimeout(limited)
         } catch (e: Exception) {
             android.util.Log.e(TAG, "fetch failed for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)}: ${e.javaClass.simpleName}: ${e.message}")
             Pair(emptyList(), emptyList())
         }
+    }
+
+    private fun parseWithTimeout(stream: PerTokenLimitStream): Pair<List<XmltvChannel>, List<XmltvProgram>> {
+        val result = AtomicReference<Pair<List<XmltvChannel>, List<XmltvProgram>>?>(null)
+        val error = AtomicReference<Throwable?>(null)
+        val worker = Thread({
+            try {
+                result.set(parse(stream))
+            } catch (e: Throwable) {
+                error.set(e)
+            }
+        }, "XmltvFetcher-parse")
+        worker.isDaemon = true
+        worker.start()
+        worker.join(PARSE_TIMEOUT_MS)
+        if (worker.isAlive) {
+            android.util.Log.e(TAG, "XMLTV parse exceeded ${PARSE_TIMEOUT_MS}ms — interrupting to avoid OOM")
+            worker.interrupt()
+            worker.join(5_000)
+            return Pair(emptyList(), emptyList())
+        }
+        error.get()?.let { throw it }
+        return result.get() ?: Pair(emptyList(), emptyList())
     }
 
     // SimpleDateFormat is explicitly documented as NOT thread-safe — a single shared instance
@@ -75,7 +145,7 @@ object XmltvFetcher {
         } catch (_: Exception) { 0L }
     }
 
-    private fun parse(stream: InputStream): Pair<List<XmltvChannel>, List<XmltvProgram>> {
+    private fun parse(stream: PerTokenLimitStream): Pair<List<XmltvChannel>, List<XmltvProgram>> {
         val channels  = mutableListOf<XmltvChannel>()
         val programs  = mutableListOf<XmltvProgram>()
 
@@ -124,10 +194,16 @@ object XmltvFetcher {
                 }
                 XmlPullParser.TEXT -> {
                     val t = parser.text ?: ""
+                    // Real-world feeds occasionally have a malformed/unescaped body (a stray "&"
+                    // is enough to confuse the entity parser into treating a huge chunk of the
+                    // document as one text run) that makes a single accumulating field balloon to
+                    // hundreds of MB and OOM-crash the whole app before it's ever used — display
+                    // names/titles/descriptions are only ever shown as short one-line UI text, so
+                    // capping well above any legitimate value is free insurance against that.
                     when {
-                        inDisplayName -> displayName += t
-                        inTitle       -> progTitle   += t
-                        inDesc        -> progDesc    += t
+                        inDisplayName -> if (displayName.length < MAX_FIELD_LEN) displayName += t
+                        inTitle       -> if (progTitle.length < MAX_FIELD_LEN) progTitle += t
+                        inDesc        -> if (progDesc.length < MAX_FIELD_LEN) progDesc += t
                     }
                 }
                 XmlPullParser.END_TAG -> when (parser.name) {
@@ -155,6 +231,11 @@ object XmltvFetcher {
                 }
             }
             event = parser.next()
+            // A token boundary was just reached successfully — reset the per-token byte counter
+            // so the NEXT token gets its own fresh budget, independent of how much of the
+            // document has been consumed so far. This is what lets MAX_TOKEN_BYTES stay tight
+            // (2MB) even though the whole feed can legitimately be hundreds of MB.
+            stream.checkpoint()
         }
 
         return Pair(channels, programs)

@@ -117,6 +117,12 @@ class HomeViewModel @Inject constructor(
     private val _vod = MutableStateFlow<List<VodEntity>>(emptyList())
     val vod: StateFlow<List<VodEntity>> = _vod
 
+    // Fast first paint for TvHomeActivity's full-screen Movies grid — see VodDao.getVodFirstPage's
+    // kdoc. Only ever read once by showMoviesFullScreen, as a placeholder shown until _vod's own
+    // full-catalog collector (already running, see loadAll below) replaces it.
+    private val _vodFirstPage = MutableStateFlow<List<VodEntity>>(emptyList())
+    val vodFirstPage: StateFlow<List<VodEntity>> = _vodFirstPage
+
     private val _series = MutableStateFlow<List<SeriesEntity>>(emptyList())
     val series: StateFlow<List<SeriesEntity>> = _series
 
@@ -128,6 +134,54 @@ class HomeViewModel @Inject constructor(
 
     private val _inProgressSeries = MutableStateFlow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>>(emptyList())
     val inProgressSeries: StateFlow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>> = _inProgressSeries
+
+    // Backs the TV home landing screen's "Recently Added" row and hero rotation — primary +
+    // every configured other provider's newest movies/series, each already sorted newest-first
+    // by its own DAO query (see VodDao.getRecentlyAddedVod/MergedVodDao.getRecentlyAdded kdocs).
+    private val _recentlyAddedVod = MutableStateFlow<List<VodEntity>>(emptyList())
+    val recentlyAddedVod: StateFlow<List<VodEntity>> = _recentlyAddedVod
+    private val _recentlyAddedMergedVod = MutableStateFlow<List<com.iptvapp.data.local.entities.MergedVodEntity>>(emptyList())
+    val recentlyAddedMergedVod: StateFlow<List<com.iptvapp.data.local.entities.MergedVodEntity>> = _recentlyAddedMergedVod
+
+    // Backs the TV home landing screen's "On Now" row — one entry per favorited channel that
+    // currently has a program airing, across primary and every configured other provider at
+    // once. Refreshed on demand (refreshOnNowFavorites) rather than kept perpetually live like
+    // combinedFavorites, since it depends on the current wall-clock time, not just favorites data.
+    data class OnNowFavorite(val favorite: CombinedFavorite, val programTitle: String, val progressPercent: Int)
+    private val _onNowFavorites = MutableStateFlow<List<OnNowFavorite>>(emptyList())
+    val onNowFavorites: StateFlow<List<OnNowFavorite>> = _onNowFavorites
+
+    fun refreshOnNowFavorites() {
+        viewModelScope.launch {
+            val favorites = combinedFavorites.value
+            val primaryIds = favorites.mapNotNull { (it as? CombinedFavorite.Primary)?.channel?.streamId }
+            val mergedPairs = favorites.mapNotNull { (it as? CombinedFavorite.Merged)?.channel }
+                .map { it.serverIndex to it.streamId }
+            val primaryEpg = if (primaryIds.isNotEmpty()) repository.getEpgForStreams(primaryIds).first() else emptyList()
+            val mergedEpg = if (mergedPairs.isNotEmpty()) repository.getEpgForServerStreams(mergedPairs).first() else emptyList()
+            val nowSecs = System.currentTimeMillis() / 1000
+            // getEpgForStreams/getEpgForServerStreamKeys return every cached program (past and
+            // future), not just what's airing right now — filter to the one program per
+            // channel whose window actually contains the current time, same "now" definition
+            // EpgDao.getCurrentlyAiring already uses for its single-server equivalent.
+            val nowByPrimaryStreamId = primaryEpg
+                .filter { it.startTimestamp <= nowSecs && it.stopTimestamp >= nowSecs }
+                .associateBy { it.streamId }
+            val nowByMergedKey = mergedEpg
+                .filter { it.startTimestamp <= nowSecs && it.stopTimestamp >= nowSecs }
+                .associateBy { "${it.serverIndex}:${it.streamId}" }
+            _onNowFavorites.value = favorites.mapNotNull { fav ->
+                val program = when (fav) {
+                    is CombinedFavorite.Primary -> nowByPrimaryStreamId[fav.channel.streamId]
+                    is CombinedFavorite.Merged -> nowByMergedKey["${fav.channel.serverIndex}:${fav.channel.streamId}"]
+                }
+                if (program == null) return@mapNotNull null
+                val total = program.stopTimestamp - program.startTimestamp
+                val pct = if (total > 0) (((nowSecs - program.startTimestamp) * 100L) / total).coerceIn(0, 100).toInt() else 0
+                OnNowFavorite(fav, program.title, pct)
+            }
+        }
+    }
 
     // User-created groups for organizing favorites (e.g. "Sports", "News") — same drill-down
     // shape as Live/Movies categories, but user-named instead of provider-supplied.
@@ -183,12 +237,27 @@ class HomeViewModel @Inject constructor(
 
     suspend fun createFavoriteFolderAndGetId(name: String): Int = repository.createFavoriteFolder(name)
 
+    // Waits for the live favoriteFolders StateFlow to actually reflect a just-created folder
+    // before returning it — createFavoriteFolderAndGetId's insert and this StateFlow's Room-Flow
+    // re-emission happen on different coroutines, so reading favoriteFolders.value immediately
+    // after insert can still be the pre-insert list. See HomeActivity's buildNewFolderChip kdoc.
+    suspend fun awaitFavoriteFoldersContaining(folderId: Int): List<com.iptvapp.data.local.entities.FavoriteFolderEntity> =
+        favoriteFolders.first { list -> list.any { it.id == folderId } }
+
     fun renameFavoriteFolder(id: Int, name: String) {
         viewModelScope.launch { repository.renameFavoriteFolder(id, name) }
     }
 
     fun deleteFavoriteFolder(id: Int) {
         viewModelScope.launch { repository.deleteFavoriteFolder(id) }
+    }
+
+    // Waits for the delete to actually land AND for favoriteFolders' Flow to catch up (same race
+    // as awaitFavoriteFoldersContaining, just the removal direction) before returning, so a
+    // caller re-rendering the chip row right after doesn't briefly show the just-deleted chip.
+    suspend fun deleteFavoriteFolderAndAwait(id: Int) {
+        repository.deleteFavoriteFolder(id)
+        favoriteFolders.first { list -> list.none { it.id == id } }
     }
 
     fun setChannelFavoriteFolder(streamId: Int, folderId: Int?) {
@@ -259,6 +328,10 @@ class HomeViewModel @Inject constructor(
                 if (errors.isNotEmpty()) {
                     _lastMergedChannelsRefreshError.value = errors.values.first()
                 }
+                // Only overwrite the count for a full refresh (targetServerIndex == null) — a
+                // single-server manual retry shouldn't zero out failures the last full pass
+                // already found for every OTHER server it didn't just re-check.
+                if (targetServerIndex == null) _providersDownCount.value = errors.size
                 prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
             } finally {
                 _syncProgress.value = null
@@ -370,6 +443,28 @@ class HomeViewModel @Inject constructor(
             flow.collectLatest { rows ->
                 _combinedLiveChannels.value = applySortToLiveRows(rows)
                 if (row.category != null) _channels.value = applySortToChannels(rows.mapNotNull { it.channel })
+            }
+        }
+    }
+
+    // Search for the combined Live/Categories tabs — these two tabs render from
+    // combinedLiveChannels (see selectCombinedCategory), not the plain primary-only _channels
+    // searchChannels() writes to, so dispatchSearch's old fallback to searchChannels() silently
+    // produced results nothing on screen was actually listening to. Same "search every configured
+    // server at once, respect USA Only" shape as searchMergedChannels.
+    fun searchCombinedLive(query: String) {
+        combinedLiveChannelsJob?.cancel()
+        combinedLiveChannelsJob = viewModelScope.launch {
+            combine(
+                repository.searchChannels(query),
+                repository.searchMergedChannels(query).combine(prefs.usaOnlyChannels) { channels, usaOnly ->
+                    if (usaOnly) channels.filter { isUsCategory(it.categoryName) } else channels
+                }
+            ) { primary, merged ->
+                primary.map { LiveChannelRow(channel = it) } + merged.map { LiveChannelRow(mergedChannel = it) }
+            }.collectLatest { rows ->
+                _combinedLiveChannels.value = applySortToLiveRows(rows)
+                _channels.value = applySortToChannels(rows.mapNotNull { it.channel })
             }
         }
     }
@@ -872,6 +967,14 @@ class HomeViewModel @Inject constructor(
     private val _lastMergedChannelsRefreshError = MutableStateFlow<String?>(null)
     val lastMergedChannelsRefreshError: StateFlow<String?> = _lastMergedChannelsRefreshError
 
+    // Count of configured providers that failed their last refreshMergedChannels() pass — the
+    // same errors map lastMergedChannelsRefreshError collapses to one string for a toast, kept
+    // here as a count for the TV sidebar's Providers badge (see TvHomeActivity). 0 means either
+    // "no configured providers failed" or "hasn't refreshed yet this session" — both read the
+    // same as "nothing to warn about", which is the right default before any check has run.
+    private val _providersDownCount = MutableStateFlow(0)
+    val providersDownCount: StateFlow<Int> = _providersDownCount
+
     /** Null when hidden. Pair of (status text, 0-100 percent) while a large catalog syncs. */
     private val _syncProgress = MutableStateFlow<Pair<String, Int>?>(null)
     val syncProgress: StateFlow<Pair<String, Int>?> = _syncProgress
@@ -1111,6 +1214,9 @@ class HomeViewModel @Inject constructor(
                 repository.getAllVod().collectLatest { _vod.value = it }
             }
             launch {
+                repository.getVodFirstPage().collectLatest { _vodFirstPage.value = it }
+            }
+            launch {
                 // Series has no per-category browsing UI (unlike VOD), so unlike the VOD
                 // categories filter above, this filters the series list directly using each
                 // series' own categoryId looked up against series categories' names.
@@ -1128,6 +1234,12 @@ class HomeViewModel @Inject constructor(
             }
             launch {
                 repository.getInProgressSeries().collectLatest { _inProgressSeries.value = it }
+            }
+            launch {
+                repository.getRecentlyAddedVod().collectLatest { _recentlyAddedVod.value = it }
+            }
+            launch {
+                repository.getRecentlyAddedMergedVod().collectLatest { _recentlyAddedMergedVod.value = it }
             }
             launch {
                 repository.getSeriesIdsWithProgress().collectLatest { seriesIdsWithProgress = it.toSet() }
@@ -1197,6 +1309,27 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchLiveCategories() }
                     launch { repository.fetchLiveStreams() }
                 }
+            } finally {
+                _loading.value = false
+            }
+        }
+    }
+
+    // Backs the refresh button on TvHomeActivity's full-screen Movies grid — same fetch pair
+    // TvSettingsActivity's "Show Movies Tab" row and phone Settings' btnRefreshMovies already use
+    // (fetchVodCategories + fetchVodStreams), just reachable from within Movies itself instead of
+    // requiring a trip to Settings. onDone reports the same "N titles"/failure outcome those two
+    // already show via a toast, so the caller doesn't need to know Resource's shape.
+    fun refreshMovies(onDone: (message: String) -> Unit) {
+        viewModelScope.launch {
+            _loading.value = true
+            try {
+                repository.fetchVodCategories()
+                val result = repository.fetchVodStreams()
+                val msg = if (result is com.iptvapp.util.Resource.Success)
+                    "Movies refreshed (${result.data?.size ?: 0} titles)"
+                else "Failed — server timeout or no content"
+                onDone(msg)
             } finally {
                 _loading.value = false
             }
@@ -1898,6 +2031,10 @@ class HomeViewModel @Inject constructor(
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)
 
+    // Live-playback failover — see XtreamRepository.findFailoverChannel kdoc.
+    suspend fun findFailoverChannel(name: String, excludeServerIndex: Int) =
+        repository.findFailoverChannel(name, excludeServerIndex)
+
     suspend fun getVodStreamUrl(streamId: Int, extension: String): String =
         repository.getVodStreamUrl(streamId, extension)
 
@@ -1911,6 +2048,14 @@ class HomeViewModel @Inject constructor(
     // Combined-Favorites drag-reorder commit — see XtreamRepository.saveCombinedFavOrder kdoc.
     fun saveCombinedFavOrder(orderedIds: List<String>) {
         viewModelScope.launch { repository.saveCombinedFavOrder(orderedIds) }
+    }
+
+    // Suspend variant so the caller can await the DB write finishing before re-enabling the live
+    // combinedFavorites collector — see HomeActivity.exitFavoritesReorderMode's kdoc for why:
+    // releasing reorder mode before the write lands lets that collector's still-stale (pre-save)
+    // data flash back in first, which read as "the order resets."
+    suspend fun saveCombinedFavOrderAndAwait(orderedIds: List<String>) {
+        repository.saveCombinedFavOrder(orderedIds)
     }
 
     suspend fun getUpcomingEpg(streamId: Int): List<com.iptvapp.data.local.entities.EpgEntity> {
@@ -2049,6 +2194,33 @@ class HomeViewModel @Inject constructor(
             items.groupBy { it.serverIndex }.forEach { (serverIndex, group) ->
                 repository.bulkHideMergedChannels(serverIndex, group.map { it.streamId })
             }
+        }
+    }
+
+    // Manually assigns/clears a favorite's genre-chip override (currently only ever "Other," see
+    // GenreClassifier.OTHER) — ids are CombinedFavorite.id strings, dispatched to whichever table
+    // each one actually belongs to, same "primary:" prefix convention as saveCombinedFavOrder.
+    // Pinning to a genre only has a visible effect if the favorite isn't already claimed by a
+    // custom folder — genreFilterFavorites (HomeActivity/TvHomeActivity) excludes any
+    // favoriteFolderId-assigned favorite from every built-in genre chip regardless of
+    // manualGenre, so a pin used to silently no-op while a folder assignment was still set. Pin
+    // to Genre now clears the folder too, so picking an actual genre (not "None/auto-classify")
+    // moves the favorite there visibly, matching what picking a genre implies to the user.
+    fun setCombinedFavoritesManualGenre(ids: List<String>, genre: String?) {
+        viewModelScope.launch {
+            val primaryIds = ids.filter { it.startsWith("primary:") }.mapNotNull { it.substringAfter("primary:").toIntOrNull() }
+            if (primaryIds.isNotEmpty()) {
+                repository.bulkSetChannelManualGenre(primaryIds, genre)
+                if (genre != null) primaryIds.forEach { repository.setChannelFavoriteFolder(it, null) }
+            }
+            ids.filterNot { it.startsWith("primary:") }
+                .mapNotNull { id -> id.split(":", limit = 2).let { if (it.size == 2) it[0].toIntOrNull() to it[1].toIntOrNull() else null } }
+                .filter { it.first != null && it.second != null }
+                .groupBy({ it.first!! }, { it.second!! })
+                .forEach { (serverIndex, streamIds) ->
+                    repository.bulkSetMergedChannelManualGenre(serverIndex, streamIds, genre)
+                    if (genre != null) streamIds.forEach { repository.setMergedChannelFolder(serverIndex, it, null) }
+                }
         }
     }
 

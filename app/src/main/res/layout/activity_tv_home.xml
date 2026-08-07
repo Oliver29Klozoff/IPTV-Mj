@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Root is a FrameLayout so tvMoviesFullScreen (see below) can overlay everything else — the
+     original single LinearLayout had no way for a sibling to cover the whole screen, since
+     LinearLayout children lay out side by side, not stacked. Everything that used to be the root
+     LinearLayout is now tvMainContent, the FrameLayout's first child. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout
+    android:id="@+id/tvMainContent"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#07090F"
@@ -25,8 +34,8 @@
             android:layout_height="match_parent"
             android:background="#0C0F1A"
             android:orientation="vertical"
-            android:paddingTop="20dp"
-            android:paddingBottom="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="12dp"
             android:elevation="4dp">
 
             <LinearLayout
@@ -93,114 +102,130 @@
             <Button
                 android:id="@+id/btnTvFavorites"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="FAVORITES"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="35dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvProviders"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="PROVIDERS"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="35dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvLive"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="LIVE"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="50dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvCategories"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="30dp"
+                android:paddingStart="22dp"
                 android:text="CATEGORIES"
                 android:textAllCaps="false"
                 android:textColor="#008CFF"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvMovies"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="MOVIES"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="45dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvSeries"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="SERIES"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="45dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvGuide"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="GUIDE"
                 android:textColor="#008CFF"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="48dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <Button
                 android:id="@+id/btnTvRecordings"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="44dp"
                 android:text="RECORDINGS"
                 android:textColor="#888888"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
-                android:paddingStart="28dp"
+                android:paddingStart="22dp"
                 android:background="@drawable/tv_sidebar_focus"
                 android:focusable="true"
-                android:focusableInTouchMode="false" />
+                android:focusableInTouchMode="false"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <!-- Hidden grid toggle kept for binding compatibility -->
             <Button
@@ -877,3 +902,118 @@
         android:visibility="gone" />
 
 </LinearLayout>
+
+    <!-- MOVIES FULL-SCREEN OVERLAY — see TvHomeActivity.showMoviesFullScreen/hideMoviesFullScreen.
+         Covers tvMainContent entirely (sidebar + mini player) while Movies is open: search bar
+         pinned at top, genre filter chips below it, then a large poster grid — a Netflix-style
+         browse experience instead of squeezing into the same 420dp drilled-in column every other
+         section uses. Back closes this and returns to the normal sidebar view (see
+         goBackOneLevel/dispatchKeyEvent's Back handling). Hidden by default; only Section.MOVIES
+         shows it. -->
+    <LinearLayout
+        android:id="@+id/tvMoviesFullScreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#07090F"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:background="#0C0F1A"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp">
+
+            <Button
+                android:id="@+id/tvBtnMoviesFsBack"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:text="←"
+                android:textSize="18sp"
+                android:textColor="#888888"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:nextFocusRight="@id/tvBtnMoviesFsRefresh" />
+
+            <Button
+                android:id="@+id/tvBtnMoviesFsRefresh"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="8dp"
+                android:text="⟳"
+                android:textSize="20sp"
+                android:textColor="#008CFF"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:nextFocusLeft="@id/tvBtnMoviesFsBack"
+                android:nextFocusRight="@id/tvEtMoviesFsSearch" />
+
+            <EditText
+                android:id="@+id/tvEtMoviesFsSearch"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/search_bg"
+                android:hint="Search Movies…"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:paddingHorizontal="14dp"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:textSize="15sp"
+                android:nextFocusLeft="@id/tvBtnMoviesFsRefresh"
+                android:nextFocusRight="@id/tvBtnMoviesFsClearSearch" />
+
+            <Button
+                android:id="@+id/tvBtnMoviesFsClearSearch"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:text="✕"
+                android:textColor="#888888"
+                android:textSize="14sp"
+                android:background="@drawable/tv_sidebar_focus"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:padding="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:nextFocusLeft="@id/tvEtMoviesFsSearch"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:id="@+id/tvGenreChipScrollFs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:paddingVertical="8dp"
+            android:background="#0A0D16">
+            <LinearLayout
+                android:id="@+id/tvGenreChipContainerFs"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp" />
+        </HorizontalScrollView>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/tvRvMoviesFsGrid"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:descendantFocusability="afterDescendants"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:paddingHorizontal="8dp"
+            android:paddingTop="8dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

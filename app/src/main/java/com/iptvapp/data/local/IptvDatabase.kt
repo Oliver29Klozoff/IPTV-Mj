@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 32,
+    version = 33,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -384,6 +384,16 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Lets a favorite be manually pinned to the Favorites "Other" genre chip (soon to be user-
+        // renameable), overriding keyword auto-classification entirely — see
+        // ChannelEntity.manualGenre / MergedChannelEntity.manualGenre kdocs.
+        val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE channels ADD COLUMN manualGenre TEXT")
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN manualGenre TEXT")
+            }
+        }
+
         // Single source of truth for "every migration this app has ever had" — AppModule's main
         // DB instance and WidgetChannelService's separate widget-process DB instance both need
         // the complete chain, and used to maintain two independently hand-typed copies of this
@@ -400,7 +410,8 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
-            MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32
+            MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
+            MIGRATION_32_33
         )
     }
 }

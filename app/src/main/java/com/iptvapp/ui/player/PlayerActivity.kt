@@ -83,6 +83,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnRecordDot.visibility = View.GONE
         binding.btnCast.visibility = View.GONE
         binding.bufferHealthBadge.visibility = View.GONE
+        // VOD's seek bar/elapsed-remaining time used to be deliberately exempt from auto-hide
+        // (see startSeekBarUpdater's original comment) so it stayed visible the whole time like
+        // some video apps do — explicitly asked to auto-hide with everything else instead, same
+        // as every other transient control here.
+        if (isVod) binding.vodSeekContainer.visibility = View.GONE
     }
 
     private val osdHandler = Handler(Looper.getMainLooper())
@@ -1395,6 +1400,59 @@ class PlayerActivity : AppCompatActivity() {
             )
             return
         }
+        // Live channels previously had no give-up path at all here — retry just kept ramping up
+        // to its ceiling and holding there forever, even against a genuinely dead provider. Before
+        // finally giving up, try failing over to the same real channel on another configured
+        // provider (matched by normalized name — see ChannelNameMatcher kdoc for why exact provider
+        // IDs can't be compared across panels) rather than just showing an error the user would
+        // have to manually work around by picking the other provider's copy themselves.
+        if (!isVod && retryCount >= maxRetries) {
+            retryJob?.cancel()
+            retryJob = lifecycleScope.launch {
+                val match = try {
+                    repository.findFailoverChannel(streamTitle, serverIndex)
+                } catch (_: Exception) { null }
+                if (match != null) {
+                    val (matchServerIndex, matchStreamId, matchName) = match
+                    com.iptvapp.IptvApplication.logPlaybackEvent(
+                        applicationContext,
+                        "FAILOVER: streamId=$streamId ($streamTitle) on serverIndex=$serverIndex -> " +
+                            "streamId=$matchStreamId ($matchName) on serverIndex=$matchServerIndex, after $maxRetries failed attempts"
+                    )
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "Switched provider for \"$matchName\" — the original had an error",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    serverIndex = matchServerIndex
+                    streamId = matchStreamId
+                    mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
+                    streamUrl = try {
+                        if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
+                        else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
+                    } catch (_: Exception) {
+                        binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
+                        binding.tvRetryStatus.visibility = View.VISIBLE
+                        return@launch
+                    }
+                    retryCount = 0
+                    binding.tvRetryStatus.visibility = View.GONE
+                    player?.let {
+                        it.setMediaItem(MediaItem.fromUri(streamUrl))
+                        it.prepare()
+                        it.playWhenReady = true
+                    }
+                } else {
+                    binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
+                    binding.tvRetryStatus.visibility = View.VISIBLE
+                    com.iptvapp.IptvApplication.logPlaybackEvent(
+                        applicationContext,
+                        "RETRY GIVE UP: isVod=$isVod streamId=$streamId url=$streamUrl attempts=$retryCount (no failover match for \"$streamTitle\")"
+                    )
+                }
+            }
+            return
+        }
         retryJob?.cancel()
         // Captured now, before the delay below — otherwise a paused/stalled player's
         // currentPosition could drift or reset by the time the retry actually reloads.
@@ -1690,6 +1748,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnGuide.visibility = View.VISIBLE
         binding.btnPlayPause.visibility = View.VISIBLE
         binding.bottomControls.visibility = View.VISIBLE
+        // Mirrors hideRunnable's isVod branch — the seek bar auto-hides with the rest of the
+        // transient controls now, so it needs to come back here too, not just once at playback
+        // start (startSeekBarUpdater already set it VISIBLE that one time, but every hide/show
+        // cycle after that needs to re-show it explicitly, same as every other control below).
+        if (isVod) binding.vodSeekContainer.visibility = View.VISIBLE
         if (!isVod) {
             binding.btnDvrRewind.visibility = View.VISIBLE
             binding.btnDvrLive.visibility = View.VISIBLE
@@ -1870,15 +1933,21 @@ class PlayerActivity : AppCompatActivity() {
                 !isVod -> { suppressOverlayOnReady = true; previousChannel(); showChannelOsd(); true }
                 else -> { showOverlay(); true }
             }
+            // Fast-forward/rewind only fires when the overlay is CLOSED (a bare Left/Right press
+            // with nothing else on screen, so it's unambiguous the user means "skip"). With the
+            // overlay open, Left/Right instead move focus freely between its buttons/seek bar,
+            // same as Up/Down already do above — explicitly requested, since seeking on every
+            // Left/Right while the overlay (and its own focusable seek bar) was open made it
+            // impossible to D-pad over to Back/CC/Stats without also skipping the movie.
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
-                !isOverlayVisible -> { showOverlay(); true }
+                isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - nextVodSkipAmountMs()).coerceAtLeast(0L)); true }
-                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
+                else -> { showOverlay(); true }
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
-                !isOverlayVisible -> { showOverlay(); true }
+                isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + nextVodSkipAmountMs()).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
-                else -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
+                else -> { showOverlay(); true }
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()

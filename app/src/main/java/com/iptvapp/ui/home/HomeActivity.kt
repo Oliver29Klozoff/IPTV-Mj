@@ -226,8 +226,11 @@ class HomeActivity : AppCompatActivity() {
         // Reorder mode reuses the same bar (per explicit request) but doesn't fit Quadruple's
         // shape at all — no selection count, no "select all," Cancel would mean "discard the
         // drags," not "clear a selection set." Handled as its own early branch instead of forcing
-        // it through the bulk-select Quadruple mechanism below.
-        if (favoritesReorderMode) {
+        // it through the bulk-select Quadruple mechanism below. Driven by the adapter's own
+        // showDragHandles (flipped immediately on Done/Cancel) rather than favoritesReorderMode
+        // (which stays true a little longer — see exitFavoritesReorderMode's kdoc) so the bar
+        // itself disappears right away even while the save is still finishing in the background.
+        if (combinedFavoriteAdapter.showDragHandles) {
             binding.btnProvidersSelectAll?.visibility = View.GONE
             binding.bulkSelectBar?.visibility = View.VISIBLE
             binding.tvBulkSelectCount?.text = "Reordering favorites"
@@ -597,14 +600,15 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // Favorites drag-reorder — restores the manual-order feature Favorites lost when it became a
-    // combined primary+merged list (see MergedChannelEntity.favOrder kdoc). Only available from
-    // the unfiltered "All" genre view (activeFavoriteGenre == null): reordering a filtered subset
-    // would only be meaningful within that subset, which complicates what "position" even means
-    // once the filter is cleared — scoping to All keeps one flat order simple to reason about.
+    // combined primary+merged list (see MergedChannelEntity.favOrder kdoc). Available from any
+    // genre/folder chip now, not just the unfiltered "All" view — dragging within a filtered
+    // subset reorders those items relative to each other, which exitFavoritesReorderMode then
+    // merges back into the full favOrder sequence (see its own kdoc for how "position within a
+    // filtered view" maps onto one global order).
     private lateinit var favoritesItemTouchHelper: ItemTouchHelper
     private var favoritesReorderMode = false
 
-    private fun canReorderFavorites(): Boolean = activeFavoriteGenre == null
+    private fun canReorderFavorites(): Boolean = true
 
     private fun enterFavoritesReorderMode() {
         favoritesReorderMode = true
@@ -614,15 +618,39 @@ class HomeActivity : AppCompatActivity() {
         updateBulkSelectUi()
     }
 
+    // Keeps favoritesReorderMode true (and the live combinedFavorites collector blocked) until
+    // the DB write actually lands, so that collector's next emission already reflects the new
+    // order instead of briefly re-showing the stale pre-save order — see its own kdoc for the
+    // full race this avoids. Shows the reordered list immediately via submitList in the meantime
+    // so Done doesn't look like it did nothing while the (usually sub-100ms) save is in flight.
     private fun exitFavoritesReorderMode(save: Boolean) {
         val newOrder = combinedFavoriteAdapter.currentOrder()
-        favoritesReorderMode = false
         combinedFavoriteAdapter.showDragHandles = false
-        if (save) {
-            viewModel.saveCombinedFavOrder(newOrder.map { it.id })
-        }
-        combinedFavoriteAdapter.submitList(newOrder)
+        // submitList's DiffUtil pass only compares CombinedFavorite data — it has no idea
+        // showDragHandles (an adapter-level flag, not part of the item) just changed, so a row
+        // whose content DiffUtil considers unchanged can be skipped for rebinding, leaving its
+        // checkbox visibly stuck on. notifyDataSetChanged right after forces every visible row to
+        // actually rebind against the new showDragHandles = false state.
+        combinedFavoriteAdapter.submitList(newOrder) { combinedFavoriteAdapter.notifyDataSetChanged() }
         updateBulkSelectUi()
+        if (save) {
+            // newOrder is whatever was on screen — the full list on "All", or just a genre/
+            // folder's filtered subset otherwise (see canReorderFavorites/genreFilterFavorites).
+            // saveCombinedFavOrder writes favOrder = index for exactly the ids passed in, so
+            // saving a filtered subset alone would silently renumber only those items down to
+            // 0..N and leave every favorite outside the filter with its old, now-colliding
+            // favOrder values. mergeReorderedSubsetIntoFullOrder splices newOrder's relative
+            // order back into the full list in place of the filtered items' old positions,
+            // leaving every other favorite's relative order untouched — so dragging within a
+            // genre chip still means something coherent globally once the filter is cleared.
+            val fullOrder = mergeReorderedSubsetIntoFullOrder(viewModel.combinedFavorites.value, newOrder)
+            lifecycleScope.launch {
+                viewModel.saveCombinedFavOrderAndAwait(fullOrder.map { it.id })
+                favoritesReorderMode = false
+            }
+        } else {
+            favoritesReorderMode = false
+        }
     }
 
     private class FavoritesReorderCallback(
@@ -641,6 +669,14 @@ class HomeActivity : AppCompatActivity() {
 
         override fun isLongPressDragEnabled(): Boolean = false
         override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+
+        // Called once the drag gesture actually ends (finger lifted, item settled) — the right
+        // moment to reshuffle a checked group as one block, see moveItem/finishGroupMoveIfNeeded's
+        // kdoc for why that can't safely happen mid-gesture.
+        override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+            super.clearView(recyclerView, viewHolder)
+            adapter.finishGroupMoveIfNeeded()
+        }
     }
 
     private val notifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -1365,7 +1401,40 @@ class HomeActivity : AppCompatActivity() {
                         val streamId = currentMiniStreamId
                         lifecycleScope.launch { viewModel.recordChannelOutcome(streamId, false) }
                     }
-                    if (miniRetryCount >= 5 || currentMiniUrl.isEmpty()) return
+                    if (currentMiniUrl.isEmpty()) return
+                    // Previously just silently stopped retrying here with no indication why — see
+                    // PlayerActivity.scheduleRetry's identical failover addition for the full
+                    // reasoning (name-matched cross-provider switch after retries are exhausted).
+                    if (miniRetryCount >= 5) {
+                        if (currentMiniIsVod) return
+                        val title = currentMiniTitle
+                        val fromServerIndex = currentMiniServerIndex
+                        miniPlayJob?.cancel()
+                        miniPlayJob = lifecycleScope.launch {
+                            val match = try {
+                                viewModel.findFailoverChannel(title, fromServerIndex)
+                            } catch (_: Exception) { null } ?: return@launch
+                            val (matchServerIndex, matchStreamId, matchName) = match
+                            val url = try {
+                                if (matchServerIndex == -1) viewModel.getLiveStreamUrl(matchStreamId)
+                                else viewModel.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
+                            } catch (_: Exception) { return@launch }
+                            Toast.makeText(this@HomeActivity, "Switched provider for \"$matchName\" — the original had an error", Toast.LENGTH_LONG).show()
+                            currentMiniServerIndex = matchServerIndex
+                            currentMiniStreamId = if (matchServerIndex == -1) matchStreamId else -1
+                            currentMiniMergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
+                            currentMiniTitle = matchName
+                            currentMiniUrl = url
+                            miniRetryCount = 0
+                            binding.tvMiniChannelName.text = matchName
+                            miniPlayer?.let {
+                                it.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+                                it.prepare()
+                                it.playWhenReady = true
+                            }
+                        }
+                        return
+                    }
                     miniRetryCount++
                     miniPlayJob?.cancel()
                     miniPlayJob = lifecycleScope.launch {
@@ -2637,6 +2706,21 @@ class HomeActivity : AppCompatActivity() {
         when (binding.tabLayout.selectedTabPosition) {
             TAB_MOVIES -> viewModel.searchVod(query)
             TAB_SERIES -> viewModel.searchSeries(query)
+            TAB_LIVE, TAB_CATEGORIES -> {
+                if (query.isBlank()) {
+                    // Back to whichever tab this actually is, not a dead end — Live and
+                    // Categories share combinedLiveChannels/liveChannelAdapter but have different
+                    // "no search" views (every category vs. just favorited ones).
+                    if (binding.tabLayout.selectedTabPosition == TAB_LIVE) showLive() else showFavCategories()
+                } else {
+                    // searchCombinedLive() writes into combinedLiveChannels, the same source
+                    // Live/Categories already render from via the always-running collector — no
+                    // adapter swap needed, liveChannelAdapter is already active for both tabs.
+                    viewModel.searchCombinedLive(query)
+                    landscapeShowChannelsMode()
+                    binding.rvCategories.visibility = View.GONE
+                }
+            }
             TAB_FAVORITES -> {
                 if (query.isBlank()) {
                     // Back to the genre-filtered view, not a dead end.
@@ -3414,6 +3498,7 @@ class HomeActivity : AppCompatActivity() {
     // tab is browse/play only now, same as the Providers tab always was for merged channels.
     private fun showFavorites() {
         activeFavoriteGenre = null
+        activeFavoriteFolder = null
         landscapeShowChannelsMode()
         setGenreFilterVisible(true)
         binding.rvCategories.visibility = View.GONE
@@ -3437,39 +3522,173 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    // Folder chips (existing Favorite Folders — see FavoriteFolderEntity kdoc) and genre chips are
+    // mutually exclusive filters — activeFavoriteFolder takes priority when set, since selecting
+    // a folder chip clears activeFavoriteGenre and vice versa (see buildFolderChip/
+    // buildFavoriteGenreChip's click handlers).
+    private var activeFavoriteFolder: Int? = null
+
     private fun genreFilterFavorites(favorites: List<CombinedFavorite>): List<CombinedFavorite> {
+        activeFavoriteFolder?.let { folderId -> return favorites.filter { it.favoriteFolderId == folderId } }
         val genre = activeFavoriteGenre ?: return favorites
-        return favorites.filter { GenreClassifier.matches(genre, it.categoryName) }
+        // A favorite moved into a custom folder ("Add to Chip") is claimed exclusively by that
+        // folder — it shouldn't keep showing under its built-in genre chip too, same "exclusive
+        // membership" rule manualGenre (Pin to Genre) already follows. "All" is unaffected: it's
+        // the one view where a folder-filed favorite is still supposed to be reachable.
+        return favorites.filter { it.favoriteFolderId == null && GenreClassifier.matches(genre, it.categoryName, it.manualGenre) }
     }
 
-    private fun updateFavoriteGenreChips(favorites: List<CombinedFavorite>) {
-        val favCategoryNames = favorites.mapNotNull { it.categoryName }
-        val detected = GenreClassifier.detectGenres(favCategoryNames)
+    // Splices a reordered filtered subset back into its place in the full favorites list —
+    // every position that held a member of reorderedSubset gets the next item from
+    // reorderedSubset in turn (so their new relative order is preserved), every other position
+    // keeps its original item untouched. On "All" (no filter active), reorderedSubset already
+    // equals fullList's own items, so this is a no-op pass-through.
+    private fun mergeReorderedSubsetIntoFullOrder(
+        fullList: List<CombinedFavorite>,
+        reorderedSubset: List<CombinedFavorite>
+    ): List<CombinedFavorite> {
+        val subsetIds = reorderedSubset.map { it.id }.toSet()
+        val replacement = reorderedSubset.iterator()
+        return fullList.map { if (it.id in subsetIds) replacement.next() else it }
+    }
+
+    // foldersOverride lets a caller that just created/deleted a folder pass the fresh list
+    // directly, instead of reading viewModel.favoriteFolders.value — that StateFlow is backed by
+    // a Room Flow collector running on a separate coroutine, so right after
+    // createFavoriteFolderAndGetId returns there's no guarantee it's already re-emitted with the
+    // new folder included. Reading it immediately after insert was a real race that made a newly
+    // created chip not show up until something else (e.g. tapping another chip) happened to
+    // trigger a later, now-caught-up re-render.
+    private fun updateFavoriteGenreChips(favorites: List<CombinedFavorite>, foldersOverride: List<com.iptvapp.data.local.entities.FavoriteFolderEntity>? = null) {
+        // A favorite with no category at all (null categoryName) still needs to count toward
+        // "does anything not fit a known genre" — mapNotNull alone would silently drop it from
+        // consideration and the Other chip would never appear despite it belonging there. See
+        // GenreClassifier.matches's OTHER case for how the actual filter step already treats null
+        // as automatically "unmatched." Favorites already claimed by a custom folder are excluded
+        // here too — otherwise a genre chip could keep showing (empty, once tapped) after every
+        // favorite that used to match it got moved into a folder.
+        val genreEligible = favorites.filter { it.favoriteFolderId == null }
+        val favCategoryNames = genreEligible.map { it.categoryName ?: "" }
+        val detected = GenreClassifier.detectGenres(favCategoryNames, genreEligible.map { it.manualGenre })
         val horizontalContainer = binding.genreChipContainer
         val verticalContainer = binding.root.findViewById<android.widget.LinearLayout?>(R.id.genreChipContainerVertical)
         horizontalContainer?.removeAllViews()
         verticalContainer?.removeAllViews()
-        if (detected.size <= 1) {
+        val folders = foldersOverride ?: viewModel.favoriteFolders.value
+        // Genre chips + folder chips + "+ New Folder" — folders always show (even with zero of
+        // them, so the "+" to create the first one is always reachable), unlike genre chips which
+        // hide entirely when there's nothing to distinguish (detected.size <= 1).
+        if (detected.size <= 1 && folders.isEmpty()) {
             setGenreFilterVisible(false)
             return
         }
         setGenreFilterVisible(true)
-        val selectedGenre = activeFavoriteGenre ?: "All"
-        for (genre in detected) {
-            val selected = (genre == selectedGenre)
-            horizontalContainer?.addView(buildFavoriteGenreChip(genre, selected))
-            verticalContainer?.addView(buildFavoriteGenreChip(genre, selected, vertical = true))
+        val selectedGenre = if (activeFavoriteFolder == null) (activeFavoriteGenre ?: "All") else null
+        // Unsorted (GenreClassifier.OTHER) is rendered last, right before "+" — everything you
+        // create yourself sits between the real keyword genres and the catch-all bucket, not
+        // after it, per explicit request.
+        if (detected.size > 1) {
+            for (genre in detected) {
+                if (genre == GenreClassifier.OTHER) continue
+                val selected = (genre == selectedGenre)
+                horizontalContainer?.addView(buildFavoriteGenreChip(genre, selected))
+                verticalContainer?.addView(buildFavoriteGenreChip(genre, selected, vertical = true))
+            }
         }
+        for (folder in folders) {
+            val selected = folder.id == activeFavoriteFolder
+            horizontalContainer?.addView(buildFolderChip(folder, selected, vertical = false))
+            verticalContainer?.addView(buildFolderChip(folder, selected, vertical = true))
+        }
+        if (GenreClassifier.OTHER in detected) {
+            val selected = (GenreClassifier.OTHER == selectedGenre)
+            horizontalContainer?.addView(buildFavoriteGenreChip(GenreClassifier.OTHER, selected))
+            verticalContainer?.addView(buildFavoriteGenreChip(GenreClassifier.OTHER, selected, vertical = true))
+        }
+        horizontalContainer?.addView(buildNewFolderChip(vertical = false))
+        verticalContainer?.addView(buildNewFolderChip(vertical = true))
     }
 
+    // GenreClassifier.OTHER's internal key stays "Other" (matching/filtering keys off it
+    // everywhere), only the displayed label changes — it's really the catch-all for favorites
+    // that don't match any other keyword genre, which reads clearer as "Unsorted."
+    private fun favoriteGenreLabel(genre: String) = if (genre == GenreClassifier.OTHER) "Unsorted" else genre
+
     private fun buildFavoriteGenreChip(genre: String, selected: Boolean, vertical: Boolean = false): View =
-        buildGenreChipView(genre, selected, vertical) {
+        buildGenreChipView(favoriteGenreLabel(genre), selected, vertical) {
             activeFavoriteGenre = if (genre == "All") null else genre
+            activeFavoriteFolder = null
             lifecycleScope.launch {
                 val favorites = viewModel.getCombinedFavoritesSnapshot()
                 updateFavoriteGenreChips(favorites)
                 combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
             }
+        }
+
+    // A Favorite Folder shown as its own chip — tapping filters to just that folder's channels,
+    // same as tapping a genre chip. Channels are assigned to a folder via the existing "Add to
+    // Chip" long-press action (showAddToChipDialog), which reuses the pre-existing folder-picker
+    // (showMoveToFolderDialog) rather than a new assignment UI. Long-pressing the CHIP itself
+    // (not a channel) instead offers to delete the chip/folder entirely.
+    private fun buildFolderChip(folder: com.iptvapp.data.local.entities.FavoriteFolderEntity, selected: Boolean, vertical: Boolean): View {
+        val chip = buildGenreChipView(folder.name, selected, vertical) {
+            activeFavoriteGenre = null
+            activeFavoriteFolder = folder.id
+            lifecycleScope.launch {
+                val favorites = viewModel.getCombinedFavoritesSnapshot()
+                updateFavoriteGenreChips(favorites)
+                combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
+            }
+        }
+        chip.setOnLongClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Delete \"${folder.name}\"?")
+                .setMessage("Channels in this chip go back to Unsorted — they stay in Favorites.")
+                .setPositiveButton("Delete") { _, _ ->
+                    if (activeFavoriteFolder == folder.id) activeFavoriteFolder = null
+                    lifecycleScope.launch {
+                        viewModel.deleteFavoriteFolderAndAwait(folder.id)
+                        val favorites = viewModel.getCombinedFavoritesSnapshot()
+                        updateFavoriteGenreChips(favorites)
+                        combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            true
+        }
+        return chip
+    }
+
+    // Permanent "+" chip at the end of the row — tapping prompts for a name and creates a new
+    // Favorite Folder, which immediately shows up as its own chip alongside the others.
+    private fun buildNewFolderChip(vertical: Boolean): View =
+        buildGenreChipView("+", selected = false, vertical) {
+            val et = EditText(this).apply { hint = "Chip name" }
+            AlertDialog.Builder(this)
+                .setTitle("New Chip")
+                .setView(et)
+                .setPositiveButton("Create") { _, _ ->
+                    val name = et.text.toString().trim()
+                    if (name.isNotEmpty()) {
+                        lifecycleScope.launch {
+                            val newId = viewModel.createFavoriteFolderAndGetId(name)
+                            activeFavoriteGenre = null
+                            activeFavoriteFolder = newId
+                            // viewModel.favoriteFolders is a StateFlow fed by a separate collector
+                            // coroutine — right after insert there's no guarantee it's already
+                            // re-emitted with the new folder, which is exactly what made a newly
+                            // created chip not appear until something else re-rendered the row
+                            // later. Wait for the Flow to actually catch up instead of racing it.
+                            val freshFolders = viewModel.awaitFavoriteFoldersContaining(newId)
+                            val favorites = viewModel.getCombinedFavoritesSnapshot()
+                            updateFavoriteGenreChips(favorites, foldersOverride = freshFolders)
+                            combinedFavoriteAdapter.submitList(genreFilterFavorites(favorites))
+                        }
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
     private fun scrollFavoritesToStreamId(streamId: Int) = scrollFavoritesToCombinedId("primary:$streamId")
@@ -3744,6 +3963,13 @@ class HomeActivity : AppCompatActivity() {
                 // anything useful in that context. Gate it behind the same tab check as
                 // everything else in this collector.
                 if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@collect
+                // Reorder mode owns the adapter's on-screen order via its own workingList/
+                // showDragHandles path (see CombinedFavoriteAdapter kdoc) — a submitList here
+                // while that's active would diff against stale data and fight the drag, which is
+                // exactly what caused rows to visibly vanish mid-drag and the order to look like
+                // it "reset" after Done (this collector immediately re-submitting the pre-reorder
+                // order it still had cached, before the DB write even lands).
+                if (favoritesReorderMode) return@collect
                 updateFavoriteGenreChips(favorites)
                 val filtered = genreFilterFavorites(favorites)
                 combinedFavoriteAdapter.submitList(filtered)
@@ -4017,7 +4243,7 @@ class HomeActivity : AppCompatActivity() {
             is CombinedFavorite.Primary -> item.channel.name
             is CombinedFavorite.Merged -> "${item.channel.name} · ${item.channel.serverNickname}"
         }
-        val options = mutableListOf("Remove from Favorites", "Select (bulk remove from favorites)")
+        val options = mutableListOf("Remove from Favorites", "Add to Chip", "Pin to Genre", "Select (bulk remove from favorites)")
         if (canReorderFavorites()) options.add("Reorder Favorites")
         if (item is CombinedFavorite.Primary) options.add(0, "Set Reminder")
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -4029,6 +4255,8 @@ class HomeActivity : AppCompatActivity() {
                         viewModel.toggleCombinedFavorite(item)
                         Toast.makeText(this, "Removed from favorites", Toast.LENGTH_SHORT).show()
                     }
+                    "Add to Chip" -> showAddToChipDialog(item)
+                    "Pin to Genre" -> showPinToGenreDialog(item)
                     "Select (bulk remove from favorites)" -> {
                         bulkSelectFavoritesMode = true
                         bulkSelectedFavoriteIds.add(item.id)
@@ -4040,9 +4268,42 @@ class HomeActivity : AppCompatActivity() {
                     }
                     "Reorder Favorites" -> {
                         enterFavoritesReorderMode()
-                        Toast.makeText(this, "Drag the handles to reorder, then tap Done", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Drag to reorder — check several to move them together, then tap Done", Toast.LENGTH_SHORT).show()
                     }
                 }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // Assigns a favorite to a Favorite Folder (now also browsable as a chip — see
+    // buildFolderChip) via the existing folder-picker, which already handles "+ New Folder"
+    // inline. Dispatches to whichever underlying table the favorite actually belongs to, same
+    // "primary vs. merged" split every other CombinedFavorite action here already makes.
+    private fun showAddToChipDialog(item: CombinedFavorite) {
+        showMoveToFolderDialog(item.name, onCancel = {}) { folderId ->
+            when (item) {
+                is CombinedFavorite.Primary -> viewModel.setChannelFavoriteFolder(item.channel.streamId, folderId)
+                is CombinedFavorite.Merged -> viewModel.setMergedChannelFolder(item.channel, folderId)
+            }
+            Toast.makeText(this, "Updated", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Manually forces a favorite into a built-in keyword genre chip (Sports/News/Movies/Kids/
+    // Entertainment/Other) regardless of what its real category name would otherwise
+    // auto-classify it as — see ChannelEntity.manualGenre kdoc. Separate from Add to Chip
+    // (Favorite Folders) since these are two independent systems: folders are purely
+    // user-created, genre chips are the provider-driven keyword set.
+    private fun showPinToGenreDialog(item: CombinedFavorite) {
+        val genres = GenreClassifier.GENRE_KEYWORDS.keys.filter { it != "All" }.toList()
+        val labels = listOf("None (auto-classify)") + genres.map { favoriteGenreLabel(it) }
+        AlertDialog.Builder(this)
+            .setTitle("Pin \"${item.name}\" to Genre")
+            .setItems(labels.toTypedArray()) { _, i ->
+                val genre = if (i == 0) null else genres[i - 1]
+                viewModel.setCombinedFavoritesManualGenre(listOf(item.id), genre)
+                Toast.makeText(this, "Updated", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
             .show()

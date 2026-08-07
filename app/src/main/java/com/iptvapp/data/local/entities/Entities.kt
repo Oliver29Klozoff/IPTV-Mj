@@ -21,7 +21,12 @@ data class ChannelEntity(
     val viewCount: Int = 0,
     val isHidden: Boolean = false,
     // Null = not in a folder (shows in "Unsorted"). Only meaningful when isFavorite is true.
-    val favoriteFolderId: Int? = null
+    val favoriteFolderId: Int? = null,
+    // Manually pins this favorite to one genre chip (currently only ever "Other," the sole
+    // user-manageable chip — see GenreClassifier.OTHER), overriding keyword auto-classification
+    // entirely so it shows ONLY under that chip instead of wherever its category would otherwise
+    // land it. Null = no manual override, auto-classify as before.
+    val manualGenre: String? = null
 )
 
 // User-created groups for organizing favorites (e.g. "Sports", "News", "Kids") — same
@@ -203,7 +208,9 @@ data class MergedChannelEntity(
     // (HomeActivity's Reorder mode) assigns sequential values across BOTH tables at once when a
     // drag is committed, so a primary channel and a merged channel can sit next to each other in
     // any order the user actually dragged them into, not just "primary block, then merged block."
-    val favOrder: Int = 0
+    val favOrder: Int = 0,
+    // Same manual genre-chip override as ChannelEntity.manualGenre — see its kdoc.
+    val manualGenre: String? = null
 )
 
 // Small aggregate row (not a persisted entity) for the server-picker and category-picker

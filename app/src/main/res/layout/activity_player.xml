@@ -248,7 +248,11 @@
         app:layout_constraintTop_toTopOf="parent" />
 
 
-    <!-- Bottom controls: Sleep | Play/Pause | CC -->
+    <!-- Bottom controls: Sleep | Play/Pause | CC — anchored to the very bottom; everything else
+         in this transient-overlay stack (vodSeekContainer, epgOverlay) is built to sit ABOVE this
+         row (layout_constraintBottom_toTopOf, see their own comments) instead of every element
+         independently pinning to parent's bottom, which used to leave the seek bar, the channel
+         title, and this button row all rendering in the same overlapping screen space. -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="wrap_content"
@@ -265,6 +269,7 @@
             android:id="@+id/btnSleep"
             android:layout_width="72dp"
             android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
             android:text="⏱"
             android:textColor="#AAAAAA"
             android:textSize="28sp"
@@ -278,6 +283,7 @@
             android:id="@+id/btnDvrRewind"
             android:layout_width="72dp"
             android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
             android:background="@drawable/tv_sidebar_focus"
             android:src="@android:drawable/ic_media_rew"
             android:nextFocusUp="@id/btnGuide"
@@ -290,6 +296,7 @@
             android:id="@+id/btnPlayPause"
             android:layout_width="72dp"
             android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
             android:background="@drawable/tv_sidebar_focus"
             android:src="@android:drawable/ic_media_pause"
             android:nextFocusUp="@id/btnGuide"
@@ -301,6 +308,7 @@
             android:id="@+id/btnDvrLive"
             android:layout_width="wrap_content"
             android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
             android:minWidth="72dp"
             android:text="● LIVE"
             android:textColor="#FF3B30"
@@ -315,6 +323,7 @@
             android:id="@+id/btnTracks"
             android:layout_width="72dp"
             android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
             android:text="CC"
             android:textColor="#008CFF"
             android:textSize="22sp"
@@ -329,6 +338,7 @@
             android:id="@+id/btnStats"
             android:layout_width="72dp"
             android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
             android:text="📊"
             android:textColor="#AAAAAA"
             android:textSize="24sp"
@@ -369,7 +379,55 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Bottom EPG/info overlay -->
+    <!-- VOD seek bar — not inside epgOverlay since it needs its own visibility toggling
+         (PlayerActivity.showOverlay/hideRunnable's isVod branches) independent of that view's
+         own show/hide calls. Auto-hides with the rest of the transient controls, same timing as
+         everything else. Sits directly above bottomControls (not independently pinned to
+         parent's bottom like every element here used to be) so the two don't render on top of
+         each other. -->
+    <RelativeLayout
+        android:id="@+id/vodSeekContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/bottomControls"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <SeekBar
+            android:id="@+id/seekBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="#008CFF"
+            android:thumbTint="#008CFF" />
+
+        <TextView
+            android:id="@+id/tvTimeElapsed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/seekBar"
+            android:layout_alignParentStart="true"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvTimeRemaining"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/seekBar"
+            android:layout_alignParentEnd="true"
+            android:textColor="#CCCCCC"
+            android:textSize="12sp" />
+    </RelativeLayout>
+
+    <!-- Bottom EPG/info overlay — for VOD this shows only the movie title (tvEpgNow/tvEpgNext
+         stay empty, see PlayerActivity.showOverlay's !isVod guard), sitting directly above
+         vodSeekContainer instead of overlapping it at the same bottom position like before. For
+         live TV, vodSeekContainer is never shown (GONE, zero height), so this still lands
+         correctly right above bottomControls in that case. -->
     <RelativeLayout
         android:id="@+id/epgOverlay"
         android:layout_width="0dp"
@@ -377,7 +435,7 @@
         android:background="@android:color/transparent"
         android:padding="12dp"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/vodSeekContainer"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
@@ -411,48 +469,6 @@
             android:textColor="#888888"
             android:textSize="12sp" />
 
-    </RelativeLayout>
-
-    <!-- Persistent VOD seek bar — deliberately NOT inside epgOverlay: that overlay auto-hides
-         a few seconds into playback, but a movie's scrub bar/time should stay visible the
-         whole time, the way every other video app behaves, not disappear with the rest of
-         the transient controls. -->
-    <RelativeLayout
-        android:id="@+id/vodSeekContainer"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="@android:color/transparent"
-        android:paddingHorizontal="12dp"
-        android:paddingBottom="12dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <SeekBar
-            android:id="@+id/seekBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:progressTint="#008CFF"
-            android:thumbTint="#008CFF" />
-
-        <TextView
-            android:id="@+id/tvTimeElapsed"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/seekBar"
-            android:layout_alignParentStart="true"
-            android:textColor="#CCCCCC"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/tvTimeRemaining"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/seekBar"
-            android:layout_alignParentEnd="true"
-            android:textColor="#CCCCCC"
-            android:textSize="12sp" />
     </RelativeLayout>
 
     <!-- Channel zones (click to switch) -->

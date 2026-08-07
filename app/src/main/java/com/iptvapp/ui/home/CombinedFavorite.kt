@@ -19,6 +19,12 @@ sealed class CombinedFavorite {
     // Shared flat ordering across primary AND merged favorites — see
     // MergedChannelEntity.favOrder kdoc for why this needed to exist on both underlying tables.
     abstract val favOrder: Int
+    // Manual genre-chip pin — see ChannelEntity.manualGenre kdoc.
+    abstract val manualGenre: String?
+    // User-created Favorite Folder this channel is filed under (see FavoriteFolderEntity) — now
+    // also browsable as its own chip on the Favorites tab (HomeActivity's folder-chip row),
+    // alongside the fixed genre chips. Null = not in a folder.
+    abstract val favoriteFolderId: Int?
 
     data class Primary(
         val channel: ChannelEntity,
@@ -29,6 +35,8 @@ sealed class CombinedFavorite {
         override val streamIcon get() = channel.streamIcon
         override val id get() = "primary:${channel.streamId}"
         override val favOrder get() = channel.favOrder
+        override val manualGenre get() = channel.manualGenre
+        override val favoriteFolderId get() = channel.favoriteFolderId
     }
 
     // nicknameOverride defaults to the entity's own (possibly stale) column so every existing
@@ -45,5 +53,7 @@ sealed class CombinedFavorite {
         override val serverNickname get() = nicknameOverride ?: channel.serverNickname
         override val id get() = "${channel.serverIndex}:${channel.streamId}"
         override val favOrder get() = channel.favOrder
+        override val manualGenre get() = channel.manualGenre
+        override val favoriteFolderId get() = channel.favoriteFolderId
     }
 }

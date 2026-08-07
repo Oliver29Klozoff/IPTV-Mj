@@ -165,6 +165,10 @@ class PreferencesManager @Inject constructor(
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
+        // Favorites' "Other" genre chip is user-renameable (long-press) — the internal genre
+        // key GenreClassifier.OTHER never changes (matching/filtering still keys off it), this
+        // just overrides the label shown on the chip itself.
+        val FAVORITE_OTHER_GENRE_LABEL = stringPreferencesKey("favorite_other_genre_label")
     }
 
     val silentSelfUpdateEnabled: Flow<Boolean> = context.dataStore.data
@@ -355,6 +359,11 @@ class PreferencesManager @Inject constructor(
 
     val usaOnlyChannels: Flow<Boolean> = context.dataStore.data
         .map { it[Keys.USA_ONLY_CHANNELS] ?: true }
+
+    val favoriteOtherGenreLabel: Flow<String> = context.dataStore.data
+        .map { it[Keys.FAVORITE_OTHER_GENRE_LABEL] ?: "Other" }
+    suspend fun setFavoriteOtherGenreLabel(label: String) =
+        context.dataStore.edit { it[Keys.FAVORITE_OTHER_GENRE_LABEL] = label }
 
     // Experimental — off by default since it depends entirely on the provider actually
     // tagging category names with an "EN" language prefix, which isn't guaranteed.

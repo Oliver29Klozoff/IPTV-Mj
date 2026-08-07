@@ -177,7 +177,8 @@ class XtreamRepository @Inject constructor(
                     viewCount = prev?.viewCount ?: 0,
                     favOrder = prev?.favOrder ?: 0,
                     isHidden = prev?.isHidden ?: false,
-                    favoriteFolderId = prev?.favoriteFolderId
+                    favoriteFolderId = prev?.favoriteFolderId,
+                    manualGenre = prev?.manualGenre
                 )
             })
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
@@ -271,6 +272,9 @@ class XtreamRepository @Inject constructor(
 
     suspend fun bulkHideChannels(streamIds: List<Int>) =
         db.channelDao().bulkSetHidden(streamIds)
+
+    suspend fun bulkSetChannelManualGenre(streamIds: List<Int>, genre: String?) =
+        db.channelDao().bulkSetManualGenre(streamIds, genre)
 
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>> =
         db.channelDao().getSimilarChannels(categoryId, excludeStreamId)
@@ -397,6 +401,10 @@ class XtreamRepository @Inject constructor(
         urlBuilder().vodStreamUrl(streamId, containerExtension)
 
     fun getAllVod(): Flow<List<VodEntity>> = db.vodDao().getAllVod()
+    fun getVodFirstPage(): Flow<List<VodEntity>> = db.vodDao().getVodFirstPage()
+
+    fun getRecentlyAddedVod(): Flow<List<VodEntity>> = db.vodDao().getRecentlyAddedVod()
+    fun getRecentlyAddedMergedVod(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getRecentlyAdded()
 
     fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(query)
 
@@ -449,6 +457,7 @@ class XtreamRepository @Inject constructor(
     suspend fun setSeriesFavorite(seriesId: Int, isFavorite: Boolean) = db.seriesDao().setFavorite(seriesId, isFavorite)
 
     suspend fun setVodFavorite(streamId: Int, isFavorite: Boolean) = db.vodDao().setFavorite(streamId, isFavorite)
+    suspend fun getVodByStreamId(streamId: Int) = db.vodDao().getVodByStreamId(streamId)
 
     suspend fun fetchSeriesCategories(): Resource<List<Category>> {
         val b = urlBuilder(); val c = creds()
@@ -746,13 +755,24 @@ class XtreamRepository @Inject constructor(
     fun getFavoriteCountsByFolder(): Flow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> =
         db.channelDao().getFavoriteCountsByFolder()
 
+    // GET + Range (not HEAD) with the same User-Agent PlayerActivity's ExoPlayer actually sends
+    // (see its OkHttpDataSource.Factory.setUserAgent) — a real, common false-red cause: some
+    // Xtream panels reject HEAD requests on live-stream endpoints outright, or 403 requests from
+    // an unrecognized User-Agent (OkHttp's bare default UA), while happily serving the exact same
+    // GET request a real player makes. Range asks for just the first byte so this doesn't
+    // download an actual live segment, just confirms the server will start responding at all.
     suspend fun checkStreamHealth(url: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val client = okhttp3.OkHttpClient.Builder()
                 .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
-            val request = okhttp3.Request.Builder().url(url).head().build()
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android) ExoPlayerLib/1.4.1")
+                .header("Range", "bytes=0-0")
+                .get()
+                .build()
             val code = client.newCall(request).execute().use { it.code }
             code in 200..499
         } catch (e: Exception) {
@@ -1117,7 +1137,8 @@ class XtreamRepository @Inject constructor(
                                     categoryName = it.categoryId?.let { id -> categoryNames[id] } ?: "Uncategorized",
                                     isFavorite = prev?.isFavorite ?: false,
                                     favoriteFolderId = prev?.favoriteFolderId,
-                                    epgChannelId = it.epgChannelId
+                                    epgChannelId = it.epgChannelId,
+                                    manualGenre = prev?.manualGenre
                                 )
                             })
                         }
@@ -1637,6 +1658,9 @@ class XtreamRepository @Inject constructor(
     suspend fun unhideMergedChannel(serverIndex: Int, streamId: Int) =
         db.mergedChannelDao().unhide(serverIndex, streamId)
 
+    suspend fun bulkSetMergedChannelManualGenre(serverIndex: Int, streamIds: List<Int>, genre: String?) =
+        db.mergedChannelDao().bulkSetManualGenre(serverIndex, streamIds, genre)
+
     // Merged-channel favorites/folders — separate from the primary provider's Favorites tab
     // (see MergedChannelEntity kdoc), but reusing the same FavoriteFolderEntity rows so folder
     // names are one shared list rather than two parallel systems.
@@ -1882,5 +1906,27 @@ class XtreamRepository @Inject constructor(
         val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
             ?: throw Exception("Server no longer configured")
         return XtreamUrlBuilder(server.serverUrl, server.username, server.password).liveStreamUrl(streamId, "ts")
+    }
+
+    /** Live-playback failover match, found by com.iptvapp.util.ChannelNameMatcher's normalized-
+     * name comparison — see its kdoc for why name comparison is the only cross-provider signal
+     * available at all (no shared per-channel ID exists across different Xtream panels). Excludes
+     * excludeServerIndex (the channel that just failed) so it never "fails over" back to the same
+     * dead provider. Checks primary first, then each configured extra provider in order, and
+     * returns the first hit — good enough for the common case (a handful of configured
+     * providers), not worth ranking/scoring multiple candidates for.
+     * @return (serverIndex, streamId, name) of the match, or null if no other provider has it. */
+    suspend fun findFailoverChannel(name: String, excludeServerIndex: Int): Triple<Int, Int, String>? {
+        val servers = allConfiguredServers().filter { it.serverIndex != excludeServerIndex }
+        for (server in servers) {
+            val candidates = if (server.serverIndex == -1) {
+                db.channelDao().getAllChannels().first().map { Triple(-1, it.streamId, it.name) }
+            } else {
+                db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
+            }
+            val hit = candidates.firstOrNull { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
+            if (hit != null) return hit
+        }
+        return null
     }
 }

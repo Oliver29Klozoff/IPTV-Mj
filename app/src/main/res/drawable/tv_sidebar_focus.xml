@@ -7,6 +7,20 @@
             <corners android:radius="6dp" />
         </shape>
     </item>
+    <!-- "This is the sidebar's currently active section" (see TvHomeActivity.selectSection) —
+         a left accent bar, distinct from the focus ring above so it stays visible once focus
+         moves elsewhere. Matches TvAccentHelper.buildFocusDrawable's themed equivalent, used
+         once an accent color from Settings has been applied at launch. -->
+    <item android:state_selected="true">
+        <layer-list>
+            <item>
+                <shape><solid android:color="#1A008CFF" /></shape>
+            </item>
+            <item android:width="3dp" android:gravity="start">
+                <shape><solid android:color="#008CFF" /></shape>
+            </item>
+        </layer-list>
+    </item>
     <item android:state_pressed="true">
         <shape>
             <solid android:color="#44008CFF" />

@@ -38,40 +38,63 @@
             android:text="▶  Play"
             android:textAllCaps="false"
             android:textColor="#000000"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusDown="@id/btnFavorite" />
 
+        <!-- D-pad focus support (focusable + tv_sidebar_focus ring + explicit nextFocus chain)
+             added to every button on this screen — previously none were focusable at all, so a
+             D-pad simply couldn't move around here; only touch worked. -->
         <Button
             android:id="@+id/btnFavorite"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
+            android:minHeight="44dp"
             android:layout_marginTop="8dp"
+            android:paddingVertical="8dp"
+            android:background="@drawable/tv_sidebar_focus"
             android:backgroundTint="#222222"
             android:text="☆  Add to Favorites"
             android:textAllCaps="false"
-            android:textColor="#FFFFFF" />
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusUp="@id/btnPlay"
+            android:nextFocusDown="@id/btnWatchTrailer" />
 
         <Button
             android:id="@+id/btnWatchTrailer"
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginTop="8dp"
+            android:background="@drawable/tv_sidebar_focus"
             android:backgroundTint="#222222"
             android:text="▶  Watch Trailer"
             android:textAllCaps="false"
             android:textColor="#FFFFFF"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusUp="@id/btnFavorite"
+            android:nextFocusDown="@id/btnClearProgress" />
 
         <Button
             android:id="@+id/btnClearProgress"
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:layout_marginTop="8dp"
-            android:background="@android:color/transparent"
+            android:background="@drawable/tv_sidebar_focus"
             android:text="✕  Clear Progress"
             android:textAllCaps="false"
             android:textColor="#888888"
             android:textSize="13sp"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusUp="@id/btnWatchTrailer"
+            android:nextFocusDown="@id/btnBack" />
 
         <View
             android:layout_width="match_parent"
@@ -84,8 +107,12 @@
             android:layout_height="40dp"
             android:text="← Back"
             android:textColor="#FFFFFF"
-            android:background="@android:color/transparent"
-            android:gravity="start|center_vertical" />
+            android:background="@drawable/tv_sidebar_focus"
+            android:gravity="start|center_vertical"
+            android:paddingStart="4dp"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusUp="@id/btnClearProgress" />
     </LinearLayout>
 
     <!-- Right: details -->

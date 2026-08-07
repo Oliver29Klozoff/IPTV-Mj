@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -18,6 +19,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -64,6 +66,7 @@ class TvHomeActivity : AppCompatActivity() {
     private lateinit var mergedSeriesAdapter: MergedSeriesAdapter
     private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
     private lateinit var vodAdapter: VodAdapter
+    private lateinit var tvVodPosterAdapter: TvVodPosterAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var epgGuideAdapter: TvEpgGuideAdapter
 
@@ -359,6 +362,7 @@ class TvHomeActivity : AppCompatActivity() {
         setupAdapters()
         setupSidebar()
         setupSearch()
+        setupMoviesFullScreen()
         setupMiniPlayer()
         observeViewModel()
         observeEpgGuide()
@@ -449,10 +453,14 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvMovies, binding.btnTvSeries, binding.btnTvGuide,
             binding.btnTvProviders
         ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
-        // The currently active section's button should stay accent-colored, not fall back
-        // to the dim grey applyToButton would otherwise leave every button in.
-        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
+        // The currently active section's button should stay accent-colored and keep its
+        // left-accent-bar marker (isSelected — see TvAccentHelper.buildFocusDrawable), not fall
+        // back to the dim grey/unselected state applyToButton's fresh drawable would otherwise
+        // leave every button in.
+        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
         activeSidebarButton().setTextColor(accent)
+        activeSidebarButton().isSelected = true
+        updateProvidersHealthBadge(lastProvidersDownCount)
 
         binding.tvMktvWordmark.setTextColor(accent)
         binding.tvEpgProgress.progressTintList = android.content.res.ColorStateList.valueOf(accent)
@@ -1088,6 +1096,40 @@ class TvHomeActivity : AppCompatActivity() {
             }
         )
 
+        // Full-screen Movies browse grid (see showMoviesFullScreen) — unlike vodAdapter above
+        // (which plays into the mini player, since it lives alongside one), this view has no
+        // mini player visible at all, so a tap plays straight into fullscreen PlayerActivity
+        // instead — the Netflix-style "tap a poster, it plays" pattern this screen is going for.
+        // Long-press still opens the same detail screen; short-press on the star still favorites
+        // without opening/playing anything.
+        tvVodPosterAdapter = TvVodPosterAdapter(
+            onVodClick = { vod ->
+                lifecycleScope.launch {
+                    try {
+                        val url = viewModel.getVodStreamUrl(vod.streamId, vod.containerExtension)
+                        startActivity(Intent(this@TvHomeActivity, com.iptvapp.ui.player.PlayerActivity::class.java).apply {
+                            putExtra("stream_url", url)
+                            putExtra("stream_title", vod.name)
+                            putExtra("stream_id", vod.streamId)
+                            putExtra("is_vod", true)
+                            putExtra("resume_ms", vod.watchedMs)
+                        })
+                    } catch (_: Exception) {
+                        Toast.makeText(this@TvHomeActivity, "Couldn't load this title", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onVodLongClick = { vod ->
+                startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
+                    putExtra("vod_stream_id", vod.streamId)
+                    putExtra("vod_name", vod.name)
+                    putExtra("vod_container_extension", vod.containerExtension)
+                    putExtra("vod_cover", vod.streamIcon)
+                    putExtra("vod_rating", vod.rating)
+                })
+            }
+        )
+
         seriesAdapter = SeriesAdapter(
             onSeriesClick = { series ->
                 startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
@@ -1127,6 +1169,9 @@ class TvHomeActivity : AppCompatActivity() {
         setContentAdapter(channelAdapter, isGrid = false)
         binding.tvRvEpgGuide.layoutManager = LinearLayoutManager(this)
         binding.tvRvEpgGuide.adapter = epgGuideAdapter
+
+        binding.tvRvMoviesFsGrid.layoutManager = GridLayoutManager(this, 5)
+        binding.tvRvMoviesFsGrid.adapter = tvVodPosterAdapter
     }
 
     // tvRvContent is shared across every TV section (Live, Providers channels/movies/series,
@@ -1437,10 +1482,52 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    // Appends a count to a sidebar button's label (e.g. "FAVORITES · 12") so the sidebar is
+    // scannable without opening each section — omitted entirely at 0 rather than showing "· 0",
+    // since an empty section reads more clearly from a bare label than a zero count.
+    private fun updateSidebarLabel(button: Button, baseLabel: String, count: Int) {
+        val newText = if (count > 0) "$baseLabel ($count)" else baseLabel
+        if (button.text == newText) return
+        button.text = newText
+        // computeSidebarContentWidth() measures button labels once and caches the result — a
+        // count arriving after that first measurement (favorites/categories load shortly after
+        // the sidebar itself) would otherwise leave the panel too narrow for the longer label.
+        sidebarContentWidthPx = 0
+        if (navState == NavState.SIDEBAR) resizeLeftPanel(expanded = false)
+    }
+
+    // Distinct from updateSidebarLabel's neutral "(count)" — a down provider is a warning, not
+    // just information, so it gets a "⚠" prefix and a red tint instead of the section's normal
+    // accent color, and clears back to the plain label + accent color once every provider is up
+    // again (see HomeViewModel.providersDownCount's kdoc for what "0" means here). Stored so
+    // selectSection()/applyAccent() — which otherwise unconditionally recolor every sidebar
+    // button, including this one — can re-run this instead of stomping the warning color with
+    // their own plain grey/accent when the active section or accent theme changes.
+    private var lastProvidersDownCount: Int = 0
+
+    private fun updateProvidersHealthBadge(downCount: Int) {
+        lastProvidersDownCount = downCount
+        val button = binding.btnTvProviders
+        val newText = if (downCount > 0) "⚠ PROVIDERS ($downCount)" else "PROVIDERS"
+        if (button.text != newText) {
+            button.text = newText
+            sidebarContentWidthPx = 0
+            if (navState == NavState.SIDEBAR) resizeLeftPanel(expanded = false)
+        }
+        val color = if (downCount > 0) 0xFFFF5252.toInt()
+            else if (currentSection == Section.PROVIDERS) currentAccent
+            else 0xFF888888.toInt()
+        button.setTextColor(color)
+    }
+
     private fun selectSection(section: Section) {
+        // Captured before currentSection is overwritten below — see preMoviesFsSection's kdoc.
+        if (section == Section.MOVIES && currentSection != Section.MOVIES) preMoviesFsSection = currentSection
         currentSection = section
-        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()) }
+        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
         activeSidebarButton().setTextColor(currentAccent)
+        activeSidebarButton().isSelected = true
+        updateProvidersHealthBadge(lastProvidersDownCount)
         binding.tvGenreChipScroll.visibility = View.GONE
 
         when (section) {
@@ -1452,10 +1539,7 @@ class TvHomeActivity : AppCompatActivity() {
             // still lands you in that category's channel list same as before.
             Section.LIVE -> { showLive(); showCategoryPanel("LIVE") }
             Section.CATEGORIES -> { showFavCategories(); showCategoryPanel("CATEGORIES") }
-            Section.MOVIES -> {
-                showMovies()
-                showCategoryPanel("MOVIES")
-            }
+            Section.MOVIES -> showMoviesFullScreen()
             Section.SERIES -> {
                 showSeries()
                 showChannelPanel("SERIES")
@@ -1836,6 +1920,20 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Movies full-screen browse (tvMoviesFullScreen) is a separate, simpler screen that
+        // doesn't participate in navState/tvLeftPanel/tvChanPanel at all — it's just a search
+        // bar, a chip row, and a grid, all of which default Android focus search already handles
+        // correctly (confirmed live: Up/Down/Left/Right between the grid's cells and up into the
+        // chips/search bar all work with zero custom handling). Only Back needs an explicit
+        // override here, to close the overlay instead of falling through to every other branch
+        // below (which all assume navState/tvChanPanel state this screen never sets).
+        if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK) {
+                hideMoviesFullScreen()
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
         if (event.action == KeyEvent.ACTION_DOWN) {
             // Any key activity while a panel is open resets the auto-collapse idle timer — this
             // used to only reset on D-pad navigation keys specifically, so typing into a search
@@ -1968,6 +2066,16 @@ class TvHomeActivity : AppCompatActivity() {
                         // being swallowed by the CATEGORIES/CHANNELS catch-all below.
                     } else if (navState == NavState.CATEGORIES || navState == NavState.CHANNELS) {
                         return true
+                    } else if (navState == NavState.SIDEBAR && binding.tvSidebar.hasFocus()) {
+                        // Focus is already on a sidebar button (e.g. right after tapping
+                        // Providers/Live/etc., before drilling into anything) — there is nothing
+                        // further left to move to, so this must be swallowed here. Previously it
+                        // fell through to super.dispatchKeyEvent(), whose default focus search
+                        // found nothing further left within the activity and escaped to the
+                        // launcher/Home screen instead of just doing nothing, which read as "Left
+                        // takes me back a whole screen" instead of "Left does nothing, I'm
+                        // already at the leftmost column."
+                        return true
                     }
                 }
                 // Back goes up one drill level. From the guide panel or a channel/movie/
@@ -2062,11 +2170,177 @@ class TvHomeActivity : AppCompatActivity() {
         else channelAdapter.submitList(emptyList())
     }
 
-    private fun showMovies() {
-        binding.tvRvCategories.adapter = categoryAdapter
-        setContentAdapter(vodAdapter, isGrid = false)
-        updateTvVodGenreChips(viewModel.vodCategories.value)
-        submitFilteredTvVodCategories(viewModel.vodCategories.value)
+    // ── Movies: full-screen Netflix-style browse (tvMoviesFullScreen) ─────────
+    //
+    // Replaces the old sidebar-drilldown Movies section (categories -> pick one -> flat list)
+    // with a single screen: search bar, genre filter chips, and one big poster grid across every
+    // movie at once — viewModel.vod (repository.getAllVod(), already English-only filtered by
+    // HomeViewModel) rather than category-by-category browsing via vodAdapter/tvChanPanel.
+    // Genre filtering here works directly off each VodEntity's own categoryId instead of
+    // GenreBuckets.bucketsFor(categoryName) + a separate "selected category" step, since there's
+    // no per-category drill-in left to select — see moviesFsGenreBucketFor.
+    private var activeMoviesFsGenre: String? = null
+    // "Favorites" chip — a separate axis from genre (mutually exclusive with it, like a second
+    // "folder" next to All/Comedy/Drama/... rather than a filter that combines with them), so
+    // picking Favorites clears any active genre and vice versa.
+    private var moviesFsFavoritesOnly: Boolean = false
+    private var moviesFsSearchQuery: String = ""
+    private var moviesFsSearchDebounceJob: kotlinx.coroutines.Job? = null
+
+    private fun setupMoviesFullScreen() {
+        binding.tvBtnMoviesFsBack.setOnClickListener { hideMoviesFullScreen() }
+        binding.tvBtnMoviesFsRefresh.setOnClickListener {
+            binding.tvBtnMoviesFsRefresh.isEnabled = false
+            binding.tvBtnMoviesFsRefresh.text = "…"
+            viewModel.refreshMovies { message ->
+                binding.tvBtnMoviesFsRefresh.isEnabled = true
+                binding.tvBtnMoviesFsRefresh.text = "⟳"
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
+        }
+        binding.tvBtnMoviesFsClearSearch.setOnClickListener {
+            binding.tvEtMoviesFsSearch.setText("")
+        }
+        binding.tvEtMoviesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val q = s.toString()
+                binding.tvBtnMoviesFsClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
+                // Same "wait for 2+ characters, or clearing back to empty" gate as the drilled-in
+                // search (setupSearch) — a single typed letter against ~176k titles matches too
+                // broadly to be useful and just churns the grid; skip filtering (and the debounce
+                // delay below) until there's enough to actually narrow results, but still react
+                // immediately to clearing the box back to empty (q.isEmpty()) so search doesn't
+                // stay stuck on a stale filter after a full delete.
+                if (q.length < 2 && q.isNotEmpty()) return
+                // Same debounce shape as the drilled-in search (setupSearch) — filtering the
+                // full movie list on every keystroke is cheap enough not to strictly need this,
+                // but debouncing avoids re-filtering+re-diffing a few hundred items per
+                // keystroke while the user is still mid-word.
+                moviesFsSearchDebounceJob?.cancel()
+                moviesFsSearchDebounceJob = lifecycleScope.launch {
+                    kotlinx.coroutines.delay(200)
+                    moviesFsSearchQuery = q
+                    submitFilteredMoviesFs(viewModel.vod.value)
+                }
+            }
+        })
+    }
+
+    // Whichever section was active right before Movies was opened — restored on close instead
+    // of hardcoding a section, so Back/the on-screen "←" returns to wherever the user actually
+    // came from (Favorites at cold boot, but could be any section reached by tapping Movies from
+    // elsewhere first).
+    private var preMoviesFsSection: Section = Section.FAVORITES
+
+    private fun showMoviesFullScreen() {
+        binding.tvMainContent.visibility = View.GONE
+        binding.tvMoviesFullScreen.visibility = View.VISIBLE
+        // viewModel.vod.value can still be empty this early on a large catalog (loading the full
+        // list takes real time — see VodDao.getVodFirstPage's kdoc) — fall back to the fast first
+        // page so the grid isn't blank on first open. The vod.collect observer (observeViewModel)
+        // submits over this the moment the full list actually arrives; harmless no-op if vod is
+        // already populated (first page is a subset, diffs to the same visible top rows).
+        val initial = viewModel.vod.value.ifEmpty { viewModel.vodFirstPage.value }
+        updateMoviesFsGenreChips(initial)
+        submitFilteredMoviesFs(initial)
+        binding.tvEtMoviesFsSearch.requestFocus()
+    }
+
+    private fun hideMoviesFullScreen() {
+        binding.tvMoviesFullScreen.visibility = View.GONE
+        binding.tvMainContent.visibility = View.VISIBLE
+        binding.tvEtMoviesFsSearch.setText("")
+        moviesFsSearchQuery = ""
+        selectSection(preMoviesFsSection)
+    }
+
+    // categoryId -> genre bucket, built fresh from the current vodCategories snapshot each time
+    // rather than cached — vodCategories is small (tens of rows) and can change (provider
+    // refresh, USA/English-only toggle), so a stale cache would silently mis-bucket movies whose
+    // category got renamed or removed since the last build.
+    private fun moviesFsCategoryGenreMap(): Map<String, String?> {
+        val cats = viewModel.vodCategories.value
+        return cats.associate { cat ->
+            val buckets = com.iptvapp.util.GenreBuckets.bucketsFor(listOf(cat.categoryName))
+            cat.categoryId to buckets.firstOrNull()
+        }
+    }
+
+    private fun submitFilteredMoviesFs(list: List<com.iptvapp.data.local.entities.VodEntity>) {
+        // viewModel.vod (list here) is every movie across every provider/category unfiltered —
+        // viewModel.vodCategories, by contrast, already respects the English-only-movies Settings
+        // toggle (see HomeViewModel.isEnglishCategory/loadAll's englishOnlyMovies combine). Movies
+        // whose categoryId isn't in that already-filtered set are foreign-language categories
+        // (e.g. "FR - ...", "GR - ...") that were slipping through here even with the toggle on,
+        // since this grid reads from the flat vod list instead of category-by-category like the
+        // old sidebar Movies section did. "NF" (Netflix, a source label, not a language) is
+        // unaffected since it's not one of isEnglishCategory's language tokens to begin with.
+        val allowedCategoryIds = viewModel.vodCategories.value.map { it.categoryId }.toSet()
+        val languageFiltered = if (allowedCategoryIds.isEmpty()) list
+            else list.filter { it.categoryId in allowedCategoryIds }
+        // Favorites and genre are mutually exclusive (see moviesFsFavoritesOnly's kdoc) — only
+        // one of these two filters is ever active at a time.
+        val favoritesFiltered = if (moviesFsFavoritesOnly) languageFiltered.filter { it.isFavorite } else languageFiltered
+        val genre = activeMoviesFsGenre
+        val genreMap = if (genre != null) moviesFsCategoryGenreMap() else null
+        val genreFiltered = if (genre == null) favoritesFiltered
+            else favoritesFiltered.filter { genreMap?.get(it.categoryId) == genre }
+        val searchFiltered = if (moviesFsSearchQuery.isBlank()) genreFiltered
+            else genreFiltered.filter { it.name.contains(moviesFsSearchQuery, ignoreCase = true) }
+        tvVodPosterAdapter.submitList(viewModel.applyVodSort(searchFiltered))
+    }
+
+    private fun updateMoviesFsGenreChips(list: List<com.iptvapp.data.local.entities.VodEntity>) {
+        val cats = viewModel.vodCategories.value
+        val genres = com.iptvapp.util.GenreBuckets.presentBuckets(cats.map { listOf(it.categoryName) })
+        if (activeMoviesFsGenre != null && genres.none { it.equals(activeMoviesFsGenre, ignoreCase = true) }) activeMoviesFsGenre = null
+        // A click rebuilds every chip from scratch below (removeAllViews + fresh addView calls),
+        // which destroys the View the user just clicked/focused — if nothing re-focuses the new
+        // one afterward, Android's focus system falls back to the nearest other focusable (the
+        // Back button, confirmed live), reading as "selecting a genre kicks focus away from the
+        // chip row entirely." Remember whether the row itself had focus before the rebuild so it
+        // can be restored after.
+        val hadFocus = binding.tvGenreChipContainerFs.hasFocus()
+        val container = binding.tvGenreChipContainerFs
+        container.removeAllViews()
+        var activeChip: View? = null
+        val allChip = buildTvGenreChip("All", !moviesFsFavoritesOnly && activeMoviesFsGenre == null) {
+            activeMoviesFsGenre = null
+            moviesFsFavoritesOnly = false
+            updateMoviesFsGenreChips(viewModel.vod.value)
+            submitFilteredMoviesFs(viewModel.vod.value)
+        }
+        container.addView(allChip)
+        if (!moviesFsFavoritesOnly && activeMoviesFsGenre == null) activeChip = allChip
+        val favoritesChip = buildTvGenreChip("★ Favorites", moviesFsFavoritesOnly) {
+            moviesFsFavoritesOnly = true
+            activeMoviesFsGenre = null
+            updateMoviesFsGenreChips(viewModel.vod.value)
+            submitFilteredMoviesFs(viewModel.vod.value)
+        }
+        container.addView(favoritesChip)
+        if (moviesFsFavoritesOnly) activeChip = favoritesChip
+        for (genre in genres) {
+            val selected = !moviesFsFavoritesOnly && activeMoviesFsGenre?.equals(genre, ignoreCase = true) == true
+            val chip = buildTvGenreChip(genre, selected) {
+                activeMoviesFsGenre = genre
+                moviesFsFavoritesOnly = false
+                updateMoviesFsGenreChips(viewModel.vod.value)
+                submitFilteredMoviesFs(viewModel.vod.value)
+            }
+            container.addView(chip)
+            if (selected) activeChip = chip
+        }
+        // XML's android:nextFocusDown can't target a dynamically-built child of
+        // tvGenreChipContainerFs (only real, statically-declared view IDs work there) — wired
+        // here instead, once the "All" chip (container.getChildAt(0)) actually exists. Without
+        // this, Down from the search bar fell through to default focus search, which picked an
+        // unrelated target (confirmed live: it jumped back up to the Back button) instead of
+        // dropping into the chip row right below.
+        allChip.id.let { firstChipId -> binding.tvEtMoviesFsSearch.nextFocusDownId = firstChipId }
+        if (hadFocus) activeChip?.requestFocus()
     }
 
     private fun showSeries() {
@@ -2139,11 +2413,24 @@ class TvHomeActivity : AppCompatActivity() {
 
     private fun buildTvGenreChip(label: String, selected: Boolean, onClick: () -> Unit): View {
         return android.widget.Button(this).apply {
+            // Generated IDs let code elsewhere (see updateMoviesFsGenreChips's nextFocusDownId
+            // wiring) target a specific dynamically-built chip — these buttons have no static
+            // XML id to reference otherwise.
+            id = View.generateViewId()
             text = label
             textSize = 12f
             isAllCaps = false
-            setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF888888.toInt())
-            setBackgroundResource(com.iptvapp.R.drawable.tv_sidebar_focus)
+            // isSelected drives the drawable's state_selected branch — the same persistent
+            // left-accent-bar + tint treatment the sidebar's active section uses
+            // (TvHomeActivity.selectSection), so a chosen genre reads as clearly "on" even once
+            // D-pad focus moves elsewhere, not just a slightly brighter text color. Built via
+            // TvAccentHelper (not the static tv_sidebar_focus drawable resource) so the accent
+            // bar/tint actually matches the user's chosen accent color from Settings, same as
+            // every sidebar button already does — sharing the static resource would leave every
+            // genre chip hardcoded blue regardless of theme.
+            isSelected = selected
+            setTextColor(if (selected) currentAccent else 0xFF888888.toInt())
+            background = com.iptvapp.util.TvAccentHelper.buildFocusDrawable(this@TvHomeActivity, currentAccent)
             setPadding(28, 0, 28, 0)
             layoutParams = android.view.ViewGroup.MarginLayoutParams(
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -2213,6 +2500,9 @@ class TvHomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            viewModel.providersDownCount.collect { downCount -> updateProvidersHealthBadge(downCount) }
+        }
+        lifecycleScope.launch {
             viewModel.liveCategories.collect { cats ->
                 if (currentSection == Section.LIVE) categoryAdapter.submitList(cats)
             }
@@ -2225,6 +2515,15 @@ class TvHomeActivity : AppCompatActivity() {
                     if (favs.isNotEmpty()) viewModel.selectFavCategory(favs.first().categoryId)
                     else channelAdapter.submitList(emptyList())
                 }
+                updateSidebarLabel(binding.btnTvCategories, "CATEGORIES", favs.size)
+            }
+        }
+        // Sidebar item counts (Favorites/Categories) — independent of currentSection so the
+        // count stays current even while looking at a different section, unlike the two
+        // collectors above whose submitList()/adapter work is gated on being the active section.
+        lifecycleScope.launch {
+            viewModel.combinedFavorites.collect { favs ->
+                updateSidebarLabel(binding.btnTvFavorites, "FAVORITES", favs.size)
             }
         }
         lifecycleScope.launch {
@@ -2271,16 +2570,16 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.vod.collect {
-                if (currentSection == Section.MOVIES) {
-                    val wantFocus = pendingContentFocus
-                    if (wantFocus) pendingContentFocus = false
-                    // applyVodSort also floats favorited/in-progress movies to the top — TV
-                    // never called this at all, so favoriting/resuming had no visible effect
-                    // here (phone already applies it, see HomeActivity.kt:2437).
-                    vodAdapter.submitPlainList(viewModel.applyVodSort(it)) {
-                        if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
-                    }
-                }
+                // Movies is the full-screen browse grid now (tvMoviesFullScreen, see
+                // showMoviesFullScreen) — re-filter+resubmit on every emission the same way
+                // submitFilteredMoviesFs already does for genre/search changes, so a background
+                // catalog refresh or a favorite/watch-progress change updates the grid live.
+                if (currentSection == Section.MOVIES) submitFilteredMoviesFs(it)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.vodCategories.collect {
+                if (currentSection == Section.MOVIES) updateMoviesFsGenreChips(viewModel.vod.value)
             }
         }
         lifecycleScope.launch {

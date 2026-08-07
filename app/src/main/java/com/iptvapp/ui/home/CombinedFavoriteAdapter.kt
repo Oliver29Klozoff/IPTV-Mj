@@ -65,19 +65,71 @@ class CombinedFavoriteAdapter(
     var showDragHandles: Boolean = false
     private var workingList: MutableList<CombinedFavorite> = mutableListOf()
 
+    // Reorder-mode-only checkbox selection — separate set from bulkSelectedIds (the Remove-from-
+    // Favorites bulk-select), since the two modes are mutually exclusive but share the checkbox
+    // visual. Checking rows marks them to move TOGETHER as one block on the next drag; dragging
+    // an unchecked row still just moves that single row, same as before this existed.
+    private var reorderSelectedIds: Set<String> = emptySet()
+
     fun beginReorder() {
         workingList = currentList.toMutableList()
+        reorderSelectedIds = emptySet()
+    }
+
+    fun toggleReorderSelection(id: String) {
+        reorderSelectedIds = if (id in reorderSelectedIds) reorderSelectedIds - id else reorderSelectedIds + id
+        val pos = workingList.indexOfFirst { it.id == id }
+        if (pos >= 0) notifyItemChanged(pos)
     }
 
     /** Current on-screen order once reorder mode ends — the caller persists this as the new
      * favOrder sequence (see HomeActivity's exitReorderMode). */
     fun currentOrder(): List<CombinedFavorite> = workingList.ifEmpty { currentList }
 
+    // Live drag always moves just the ONE row being dragged, via plain notifyItemMoved — trying
+    // to reshuffle a whole checked group DURING an active ItemTouchHelper gesture fought its own
+    // drag-state tracking (the dragged ViewHolder got invalidated out from under the gesture,
+    // which is what made rows appear to vanish mid-drag). The checked group is moved together as
+    // one block only once the drag finishes — see finishGroupMoveIfNeeded, called from
+    // FavoritesReorderCallback.clearView.
+    private var lastDropPosition: Int = -1
+
     fun moveItem(fromPosition: Int, toPosition: Int) {
         if (fromPosition == toPosition) return
         val item = workingList.removeAt(fromPosition)
         workingList.add(toPosition, item)
         notifyItemMoved(fromPosition, toPosition)
+        lastDropPosition = toPosition
+    }
+
+    /** Called once the drag gesture ends (finger lifted) — if the row that was actually dragged
+     * is part of a multi-row checked group, pulls the rest of that group out and reinserts it
+     * as one contiguous block right where the dragged row ended up, preserving the group's own
+     * relative order. A single notifyDataSetChanged here (after the gesture is already over) is
+     * safe, unlike doing this mid-drag. */
+    fun finishGroupMoveIfNeeded() {
+        val dropPosition = lastDropPosition
+        lastDropPosition = -1
+        if (dropPosition < 0 || dropPosition >= workingList.size) return
+        val draggedId = workingList[dropPosition].id
+        if (reorderSelectedIds.size <= 1 || draggedId !in reorderSelectedIds) return
+        // The dragged row's own id is always excluded from "remainder" below (it's part of the
+        // group being pulled out), so it can't be used as the anchor to reinsert next to. Anchor
+        // on whichever non-checked row ends up adjacent to the drop slot instead: prefer the next
+        // one after it (insert the group right before that row); if the drop landed at/past the
+        // last non-checked row, fall back to the previous one (insert the group right after it).
+        val group = workingList.filter { it.id in reorderSelectedIds }
+        val remainder = workingList.filterNot { it.id in reorderSelectedIds }
+        val nextAnchorId = workingList.drop(dropPosition + 1).firstOrNull { it.id !in reorderSelectedIds }?.id
+        val insertAt = if (nextAnchorId != null) {
+            remainder.indexOfFirst { it.id == nextAnchorId }.let { if (it < 0) remainder.size else it }
+        } else {
+            val prevAnchorId = workingList.take(dropPosition).lastOrNull { it.id !in reorderSelectedIds }?.id
+            if (prevAnchorId == null) remainder.size
+            else remainder.indexOfFirst { it.id == prevAnchorId }.let { if (it < 0) remainder.size else it + 1 }
+        }
+        workingList = (remainder.subList(0, insertAt) + group + remainder.subList(insertAt, remainder.size)).toMutableList()
+        notifyDataSetChanged()
     }
 
     private var epgTextById: Map<String, String> = emptyMap()
@@ -210,7 +262,15 @@ class CombinedFavoriteAdapter(
             )
 
             binding.root.isSelected = item.id == currentlyPlayingId
-            if (bulkSelectMode) {
+            if (showDragHandles) {
+                // Reorder mode's own checkbox selection (reorderSelectedIds) — checking several
+                // rows marks them to drag together as one block (see moveItem/moveGroupTo).
+                binding.cbBulkSelect?.visibility = View.VISIBLE
+                binding.cbBulkSelect?.isChecked = item.id in reorderSelectedIds
+                binding.root.setBackgroundColor(
+                    if (item.id in reorderSelectedIds) 0x33008CFF else 0x00000000
+                )
+            } else if (bulkSelectMode) {
                 binding.cbBulkSelect?.visibility = View.VISIBLE
                 binding.cbBulkSelect?.isChecked = bulkSelectedIds.contains(item.id)
                 binding.root.setBackgroundColor(
@@ -222,6 +282,10 @@ class CombinedFavoriteAdapter(
             }
 
             binding.root.setOnClickListener {
+                if (showDragHandles) {
+                    toggleReorderSelection(item.id)
+                    return@setOnClickListener
+                }
                 val now = System.currentTimeMillis()
                 if (now - lastClickTime < 400) {
                     onChannelDoubleClick(item)
