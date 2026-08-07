@@ -2213,7 +2213,20 @@ class TvHomeActivity : AppCompatActivity() {
                 // delay below) until there's enough to actually narrow results, but still react
                 // immediately to clearing the box back to empty (q.isEmpty()) so search doesn't
                 // stay stuck on a stale filter after a full delete.
-                if (q.length < 2 && q.isNotEmpty()) return
+                //
+                // Backspacing a multi-character query down to exactly 1 character used to hit
+                // this same early-return WITHOUT clearing moviesFsSearchQuery or resubmitting —
+                // the grid stayed frozen on the previous (longer) query's filtered results with
+                // no way to clear it short of deleting that last character too (confirmed live:
+                // "hunger" backspaced to "h" left the Hunger Games results on screen
+                // indefinitely). Below 2 characters the search should behave exactly like empty:
+                // no active filter, full grid restored.
+                if (q.length < 2) {
+                    moviesFsSearchDebounceJob?.cancel()
+                    moviesFsSearchQuery = ""
+                    submitFilteredMoviesFs(viewModel.vod.value)
+                    return
+                }
                 // Same debounce shape as the drilled-in search (setupSearch) — filtering the
                 // full movie list on every keystroke is cheap enough not to strictly need this,
                 // but debouncing avoids re-filtering+re-diffing a few hundred items per
@@ -2253,7 +2266,18 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvMainContent.visibility = View.VISIBLE
         binding.tvEtMoviesFsSearch.setText("")
         moviesFsSearchQuery = ""
-        selectSection(preMoviesFsSection)
+        // If a live channel is actively playing in the mini player, land back on Favorites
+        // instead of wherever the sidebar happened to be before Movies was opened —
+        // showFavoriteGenreChannels (Section.FAVORITES's own content function) already scrolls
+        // and focuses the currently-playing channel automatically when it finds a
+        // currentMiniCombinedFavoriteId match, so this is enough to land right on it, not just
+        // the right tab. Only applies to a live channel (!currentMiniIsVod) — a playing VOD
+        // title has no "tab it lives in" the same way a favorited channel does.
+        if (!currentMiniIsVod && currentMiniCombinedFavoriteId != null) {
+            selectSection(Section.FAVORITES)
+        } else {
+            selectSection(preMoviesFsSection)
+        }
     }
 
     // categoryId -> genre bucket, built fresh from the current vodCategories snapshot each time

@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.58 - 2026-08-07
+- **Fixed**: searching TV Movies could get stuck frozen on old results — backspacing a query
+  down to 1 character left the previous, longer search's filtered grid on screen indefinitely
+  instead of clearing back to the full list.
+- **Fixed**: Back from TV Movies now returns to Favorites (focused on the actual channel) when
+  a live channel is playing in the mini player, instead of landing on whatever section was open
+  before Movies regardless of what's currently playing.
+
 ## v5.57 - 2026-08-07
 - **Added**: refresh button on TV Movies (next to Back) — re-fetches the movie catalog without
   a trip to Settings.
