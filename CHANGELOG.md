@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.60 - 2026-08-07
+- **Fixed**: TV Series genre chips (Comedy/Drama/etc.) could get stuck showing only All and
+  Favorites, with no genres ever appearing — happened when the show catalog was still loading
+  the moment Series was opened; nothing rebuilt the chip row once the real data arrived.
+
 ## v5.59 - 2026-08-07
 - **Added**: TV Series now has the same full-screen Netflix-style browse Movies got — search
   bar, genre filter chips, a "★ Favorites" folder, refresh button, and a large poster grid.

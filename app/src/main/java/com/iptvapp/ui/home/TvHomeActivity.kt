@@ -2827,7 +2827,20 @@ class TvHomeActivity : AppCompatActivity() {
                 // selectSection anymore (Section.SERIES always routes to showSeriesFullScreen)
                 // but left in place since nothing else references currentSection == SERIES in a
                 // way that would make it actively wrong to keep.
-                if (currentSection == Section.SERIES) submitFilteredSeriesFs(it)
+                //
+                // updateSeriesFsGenreChips was previously only ever called from
+                // showSeriesFullScreen's own initial call and from inside the chip click
+                // handlers — if viewModel.series was still empty at that exact moment (cold-boot
+                // load race, same shape as Movies' vod/vodCategories race), presentBuckets on an
+                // empty list found no genres and the chip row was left permanently stuck on just
+                // All/Favorites, with nothing ever rebuilding it once the real data arrived
+                // (confirmed live: only All and Favorites showed, no Comedy/Drama/etc.). Movies
+                // has an equivalent vodCategories.collect{} observer for exactly this reason —
+                // Series never got one.
+                if (currentSection == Section.SERIES) {
+                    updateSeriesFsGenreChips(it)
+                    submitFilteredSeriesFs(it)
+                }
             }
         }
         // combinedFavoriteAdapter's EPG/health maps are string-keyed ("primary:<id>" or
