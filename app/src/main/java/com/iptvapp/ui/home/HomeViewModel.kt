@@ -1336,6 +1336,25 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // Same shape as refreshMovies — backs the refresh button on TvHomeActivity's full-screen
+    // Series grid, reusing the same fetchSeries() call TvSettingsActivity's "Show Series Tab"
+    // row and phone Settings already use (a single call handles both categories and streams for
+    // series, unlike Movies' fetchVodCategories/fetchVodStreams pair).
+    fun refreshSeries(onDone: (message: String) -> Unit) {
+        viewModelScope.launch {
+            _loading.value = true
+            try {
+                val result = repository.fetchSeries()
+                val msg = if (result is com.iptvapp.util.Resource.Success)
+                    "Series refreshed (${result.data?.size ?: 0} titles)"
+                else "Failed — server timeout or no content"
+                onDone(msg)
+            } finally {
+                _loading.value = false
+            }
+        }
+    }
+
     private suspend fun updateFavoriteCategories(categories: List<CategoryEntity>) {
         val favoriteIds = repository.getFavoriteLiveCategoryIds().first()
         _favoriteLiveCategories.value = categories.filter { it.categoryId in favoriteIds }

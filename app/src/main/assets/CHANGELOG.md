@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v5.59 - 2026-08-07
+- **Added**: TV Series now has the same full-screen Netflix-style browse Movies got — search
+  bar, genre filter chips, a "★ Favorites" folder, refresh button, and a large poster grid.
+  Favoriting moved to the series detail screen (long-press a poster), same as Movies, with
+  full D-pad support added there too.
+- **Added**: explicit Search button next to the search box on TV Movies/Series — some Fire TV
+  remotes don't reliably send the search keyboard's "Next" action, which read as the search box
+  being broken.
+- **Fixed**: picking a genre or typing a search on TV Movies could take several seconds to
+  render on a large catalog — filtering/sorting now runs off the main thread instead of
+  blocking the UI on every keystroke and chip tap.
+
 ## v5.58 - 2026-08-07
 - **Fixed**: searching TV Movies could get stuck frozen on old results — backspacing a query
   down to 1 character left the previous, longer search's filtered grid on screen indefinitely

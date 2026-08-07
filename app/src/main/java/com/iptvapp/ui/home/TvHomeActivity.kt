@@ -67,6 +67,7 @@ class TvHomeActivity : AppCompatActivity() {
     private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
     private lateinit var vodAdapter: VodAdapter
     private lateinit var tvVodPosterAdapter: TvVodPosterAdapter
+    private lateinit var tvSeriesPosterAdapter: TvSeriesPosterAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var epgGuideAdapter: TvEpgGuideAdapter
 
@@ -363,6 +364,7 @@ class TvHomeActivity : AppCompatActivity() {
         setupSidebar()
         setupSearch()
         setupMoviesFullScreen()
+        setupSeriesFullScreen()
         setupMiniPlayer()
         observeViewModel()
         observeEpgGuide()
@@ -1143,6 +1145,34 @@ class TvHomeActivity : AppCompatActivity() {
             }
         )
 
+        // Full-screen Series browse grid (see showSeriesFullScreen) — unlike seriesAdapter above,
+        // a series has no direct "play" the way a movie does (season/episode selection always
+        // comes first), so both a short click AND long-press here open the same detail screen —
+        // there's no separate destination to distinguish between, unlike Movies' click-plays/
+        // long-press-opens-detail split.
+        tvSeriesPosterAdapter = TvSeriesPosterAdapter(
+            onSeriesClick = { series ->
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                })
+            },
+            onSeriesLongClick = { series ->
+                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
+                    putExtra("series_id", series.seriesId)
+                    putExtra("series_name", series.name)
+                    putExtra("series_cover", series.cover)
+                    putExtra("series_genre", series.genre)
+                    putExtra("series_rating", series.rating)
+                    putExtra("series_plot", series.plot)
+                })
+            }
+        )
+
         epgGuideAdapter = TvEpgGuideAdapter(
             onChannelClick = { row ->
                 val primaryChannel = row.channel
@@ -1172,6 +1202,9 @@ class TvHomeActivity : AppCompatActivity() {
 
         binding.tvRvMoviesFsGrid.layoutManager = GridLayoutManager(this, 5)
         binding.tvRvMoviesFsGrid.adapter = tvVodPosterAdapter
+
+        binding.tvRvSeriesFsGrid.layoutManager = GridLayoutManager(this, 5)
+        binding.tvRvSeriesFsGrid.adapter = tvSeriesPosterAdapter
     }
 
     // tvRvContent is shared across every TV section (Live, Providers channels/movies/series,
@@ -1523,6 +1556,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun selectSection(section: Section) {
         // Captured before currentSection is overwritten below — see preMoviesFsSection's kdoc.
         if (section == Section.MOVIES && currentSection != Section.MOVIES) preMoviesFsSection = currentSection
+        if (section == Section.SERIES && currentSection != Section.SERIES) preSeriesFsSection = currentSection
         currentSection = section
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
         activeSidebarButton().setTextColor(currentAccent)
@@ -1540,10 +1574,7 @@ class TvHomeActivity : AppCompatActivity() {
             Section.LIVE -> { showLive(); showCategoryPanel("LIVE") }
             Section.CATEGORIES -> { showFavCategories(); showCategoryPanel("CATEGORIES") }
             Section.MOVIES -> showMoviesFullScreen()
-            Section.SERIES -> {
-                showSeries()
-                showChannelPanel("SERIES")
-            }
+            Section.SERIES -> showSeriesFullScreen()
             // Goes straight to every favorited channel, no genre-picker step — explicitly asked
             // for over the previous "always show genre tiles first" behavior, which added an
             // extra screen the user didn't want between the sidebar and their actual favorites.
@@ -1934,6 +1965,14 @@ class TvHomeActivity : AppCompatActivity() {
             }
             return super.dispatchKeyEvent(event)
         }
+        // Series full-screen browse (tvSeriesFullScreen) — exact mirror of the Movies guard above.
+        if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK) {
+                hideSeriesFullScreen()
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
         if (event.action == KeyEvent.ACTION_DOWN) {
             // Any key activity while a panel is open resets the auto-collapse idle timer — this
             // used to only reset on D-pad navigation keys specifically, so typing into a search
@@ -2201,6 +2240,11 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvBtnMoviesFsClearSearch.setOnClickListener {
             binding.tvEtMoviesFsSearch.setText("")
         }
+        // Search already filters live as you type — this button/action just skips the debounce
+        // and confirms "yes, searching" for remotes whose Next/search key doesn't reliably send
+        // the EditText's own actionSearch IME action (see tvBtnMoviesFsSearch's own kdoc).
+        binding.tvBtnMoviesFsSearch.setOnClickListener { commitMoviesFsSearchNow() }
+        binding.tvEtMoviesFsSearch.setOnEditorActionListener { _, _, _ -> commitMoviesFsSearchNow(); true }
         binding.tvEtMoviesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -2239,6 +2283,14 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    // Bypasses the debounce and applies whatever's currently typed immediately — used by both
+    // the explicit Search button and the keyboard's Next/search action.
+    private fun commitMoviesFsSearchNow() {
+        moviesFsSearchDebounceJob?.cancel()
+        moviesFsSearchQuery = binding.tvEtMoviesFsSearch.text.toString()
+        submitFilteredMoviesFs(viewModel.vod.value)
     }
 
     // Whichever section was active right before Movies was opened — restored on close instead
@@ -2292,28 +2344,51 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    // Guards against two overlapping filter passes racing (e.g. a genre chip clicked mid-search-
+    // debounce) — each call cancels whatever filter pass is still running before starting its
+    // own, so only the most recent filter state ever reaches submitList.
+    private var moviesFsFilterJob: kotlinx.coroutines.Job? = null
+
     private fun submitFilteredMoviesFs(list: List<com.iptvapp.data.local.entities.VodEntity>) {
-        // viewModel.vod (list here) is every movie across every provider/category unfiltered —
-        // viewModel.vodCategories, by contrast, already respects the English-only-movies Settings
-        // toggle (see HomeViewModel.isEnglishCategory/loadAll's englishOnlyMovies combine). Movies
-        // whose categoryId isn't in that already-filtered set are foreign-language categories
-        // (e.g. "FR - ...", "GR - ...") that were slipping through here even with the toggle on,
-        // since this grid reads from the flat vod list instead of category-by-category like the
-        // old sidebar Movies section did. "NF" (Netflix, a source label, not a language) is
-        // unaffected since it's not one of isEnglishCategory's language tokens to begin with.
-        val allowedCategoryIds = viewModel.vodCategories.value.map { it.categoryId }.toSet()
-        val languageFiltered = if (allowedCategoryIds.isEmpty()) list
-            else list.filter { it.categoryId in allowedCategoryIds }
-        // Favorites and genre are mutually exclusive (see moviesFsFavoritesOnly's kdoc) — only
-        // one of these two filters is ever active at a time.
-        val favoritesFiltered = if (moviesFsFavoritesOnly) languageFiltered.filter { it.isFavorite } else languageFiltered
-        val genre = activeMoviesFsGenre
-        val genreMap = if (genre != null) moviesFsCategoryGenreMap() else null
-        val genreFiltered = if (genre == null) favoritesFiltered
-            else favoritesFiltered.filter { genreMap?.get(it.categoryId) == genre }
-        val searchFiltered = if (moviesFsSearchQuery.isBlank()) genreFiltered
-            else genreFiltered.filter { it.name.contains(moviesFsSearchQuery, ignoreCase = true) }
-        tvVodPosterAdapter.submitList(viewModel.applyVodSort(searchFiltered))
+        // Filtering/sorting a ~176k-row catalog (a large merged-provider account, observed
+        // during testing) on the main thread was the actual cause of "picking a genre/typing a
+        // search takes forever to render" — four sequential full-list passes (language/
+        // favorites/genre/search) plus applyVodSort's partition+sort, all synchronous, blocking
+        // the UI thread for every keystroke and every chip tap. Moved to Dispatchers.Default so
+        // the heavy work happens off the main thread; only the final submitList (cheap) touches
+        // UI. moviesFsFilterJob cancellation keeps a stale in-flight pass (from the previous
+        // keystroke/chip) from clobbering a newer one once both finish.
+        moviesFsFilterJob?.cancel()
+        moviesFsFilterJob = lifecycleScope.launch {
+            val genre = activeMoviesFsGenre
+            val favoritesOnly = moviesFsFavoritesOnly
+            val query = moviesFsSearchQuery
+            val allowedCategoryIds = viewModel.vodCategories.value.map { it.categoryId }.toSet()
+            val genreMap = if (genre != null) moviesFsCategoryGenreMap() else null
+            val sorted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                // viewModel.vod (list here) is every movie across every provider/category
+                // unfiltered — viewModel.vodCategories, by contrast, already respects the
+                // English-only-movies Settings toggle (see HomeViewModel.isEnglishCategory/
+                // loadAll's englishOnlyMovies combine). Movies whose categoryId isn't in that
+                // already-filtered set are foreign-language categories (e.g. "FR - ...",
+                // "GR - ...") that were slipping through here even with the toggle on, since
+                // this grid reads from the flat vod list instead of category-by-category like
+                // the old sidebar Movies section did. "NF" (Netflix, a source label, not a
+                // language) is unaffected since it's not one of isEnglishCategory's language
+                // tokens to begin with.
+                val languageFiltered = if (allowedCategoryIds.isEmpty()) list
+                    else list.filter { it.categoryId in allowedCategoryIds }
+                // Favorites and genre are mutually exclusive (see moviesFsFavoritesOnly's kdoc)
+                // — only one of these two filters is ever active at a time.
+                val favoritesFiltered = if (favoritesOnly) languageFiltered.filter { it.isFavorite } else languageFiltered
+                val genreFiltered = if (genre == null) favoritesFiltered
+                    else favoritesFiltered.filter { genreMap?.get(it.categoryId) == genre }
+                val searchFiltered = if (query.isBlank()) genreFiltered
+                    else genreFiltered.filter { it.name.contains(query, ignoreCase = true) }
+                viewModel.applyVodSort(searchFiltered)
+            }
+            tvVodPosterAdapter.submitList(sorted)
+        }
     }
 
     private fun updateMoviesFsGenreChips(list: List<com.iptvapp.data.local.entities.VodEntity>) {
@@ -2364,6 +2439,145 @@ class TvHomeActivity : AppCompatActivity() {
         // unrelated target (confirmed live: it jumped back up to the Back button) instead of
         // dropping into the chip row right below.
         allChip.id.let { firstChipId -> binding.tvEtMoviesFsSearch.nextFocusDownId = firstChipId }
+        if (hadFocus) activeChip?.requestFocus()
+    }
+
+    // ── Series: full-screen Netflix-style browse (tvSeriesFullScreen) ─────────
+    //
+    // Exact mirror of the Movies full-screen block above — see its own kdoc for the full
+    // rationale. One simplification: unlike Movies, viewModel.series is ALREADY English-only
+    // filtered at the source (see HomeViewModel.loadAll's series-filtering combine, which
+    // filters directly against getSeriesCategories() rather than needing a separate
+    // categoryId cross-reference here), and genre bucketing works off each SeriesEntity's own
+    // genre string field (comma-separated tags) instead of a category-name lookup — so there's
+    // no seriesFsCategoryGenreMap equivalent to moviesFsCategoryGenreMap needed.
+    private var activeSeriesFsGenre: String? = null
+    private var seriesFsFavoritesOnly: Boolean = false
+    private var seriesFsSearchQuery: String = ""
+    private var seriesFsSearchDebounceJob: kotlinx.coroutines.Job? = null
+
+    private fun setupSeriesFullScreen() {
+        binding.tvBtnSeriesFsBack.setOnClickListener { hideSeriesFullScreen() }
+        binding.tvBtnSeriesFsRefresh.setOnClickListener {
+            binding.tvBtnSeriesFsRefresh.isEnabled = false
+            binding.tvBtnSeriesFsRefresh.text = "…"
+            viewModel.refreshSeries { message ->
+                binding.tvBtnSeriesFsRefresh.isEnabled = true
+                binding.tvBtnSeriesFsRefresh.text = "⟳"
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
+        }
+        binding.tvBtnSeriesFsClearSearch.setOnClickListener {
+            binding.tvEtSeriesFsSearch.setText("")
+        }
+        binding.tvBtnSeriesFsSearch.setOnClickListener { commitSeriesFsSearchNow() }
+        binding.tvEtSeriesFsSearch.setOnEditorActionListener { _, _, _ -> commitSeriesFsSearchNow(); true }
+        binding.tvEtSeriesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val q = s.toString()
+                binding.tvBtnSeriesFsClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
+                if (q.length < 2) {
+                    seriesFsSearchDebounceJob?.cancel()
+                    seriesFsSearchQuery = ""
+                    submitFilteredSeriesFs(viewModel.series.value)
+                    return
+                }
+                seriesFsSearchDebounceJob?.cancel()
+                seriesFsSearchDebounceJob = lifecycleScope.launch {
+                    kotlinx.coroutines.delay(200)
+                    seriesFsSearchQuery = q
+                    submitFilteredSeriesFs(viewModel.series.value)
+                }
+            }
+        })
+    }
+
+    private fun commitSeriesFsSearchNow() {
+        seriesFsSearchDebounceJob?.cancel()
+        seriesFsSearchQuery = binding.tvEtSeriesFsSearch.text.toString()
+        submitFilteredSeriesFs(viewModel.series.value)
+    }
+
+    private var preSeriesFsSection: Section = Section.FAVORITES
+
+    private fun showSeriesFullScreen() {
+        binding.tvMainContent.visibility = View.GONE
+        binding.tvSeriesFullScreen.visibility = View.VISIBLE
+        val initial = viewModel.series.value
+        updateSeriesFsGenreChips(initial)
+        submitFilteredSeriesFs(initial)
+        binding.tvEtSeriesFsSearch.requestFocus()
+    }
+
+    private fun hideSeriesFullScreen() {
+        binding.tvSeriesFullScreen.visibility = View.GONE
+        binding.tvMainContent.visibility = View.VISIBLE
+        binding.tvEtSeriesFsSearch.setText("")
+        seriesFsSearchQuery = ""
+        if (!currentMiniIsVod && currentMiniCombinedFavoriteId != null) {
+            selectSection(Section.FAVORITES)
+        } else {
+            selectSection(preSeriesFsSection)
+        }
+    }
+
+    private var seriesFsFilterJob: kotlinx.coroutines.Job? = null
+
+    private fun submitFilteredSeriesFs(list: List<com.iptvapp.data.local.entities.SeriesEntity>) {
+        seriesFsFilterJob?.cancel()
+        seriesFsFilterJob = lifecycleScope.launch {
+            val genre = activeSeriesFsGenre
+            val favoritesOnly = seriesFsFavoritesOnly
+            val query = seriesFsSearchQuery
+            val sorted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val favoritesFiltered = if (favoritesOnly) list.filter { it.isFavorite } else list
+                val genreFiltered = if (genre == null) favoritesFiltered
+                    else favoritesFiltered.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }
+                val searchFiltered = if (query.isBlank()) genreFiltered
+                    else genreFiltered.filter { it.name.contains(query, ignoreCase = true) }
+                viewModel.applySeriesSort(searchFiltered)
+            }
+            tvSeriesPosterAdapter.submitList(sorted)
+        }
+    }
+
+    private fun updateSeriesFsGenreChips(list: List<com.iptvapp.data.local.entities.SeriesEntity>) {
+        val genres = com.iptvapp.util.GenreBuckets.presentBuckets(list.map { it.genre?.split(",").orEmpty() })
+        if (activeSeriesFsGenre != null && genres.none { it.equals(activeSeriesFsGenre, ignoreCase = true) }) activeSeriesFsGenre = null
+        val hadFocus = binding.tvGenreChipContainerFsSeries.hasFocus()
+        val container = binding.tvGenreChipContainerFsSeries
+        container.removeAllViews()
+        var activeChip: View? = null
+        val allChip = buildTvGenreChip("All", !seriesFsFavoritesOnly && activeSeriesFsGenre == null) {
+            activeSeriesFsGenre = null
+            seriesFsFavoritesOnly = false
+            updateSeriesFsGenreChips(viewModel.series.value)
+            submitFilteredSeriesFs(viewModel.series.value)
+        }
+        container.addView(allChip)
+        if (!seriesFsFavoritesOnly && activeSeriesFsGenre == null) activeChip = allChip
+        val favoritesChip = buildTvGenreChip("★ Favorites", seriesFsFavoritesOnly) {
+            seriesFsFavoritesOnly = true
+            activeSeriesFsGenre = null
+            updateSeriesFsGenreChips(viewModel.series.value)
+            submitFilteredSeriesFs(viewModel.series.value)
+        }
+        container.addView(favoritesChip)
+        if (seriesFsFavoritesOnly) activeChip = favoritesChip
+        for (genre in genres) {
+            val selected = !seriesFsFavoritesOnly && activeSeriesFsGenre?.equals(genre, ignoreCase = true) == true
+            val chip = buildTvGenreChip(genre, selected) {
+                activeSeriesFsGenre = genre
+                seriesFsFavoritesOnly = false
+                updateSeriesFsGenreChips(viewModel.series.value)
+                submitFilteredSeriesFs(viewModel.series.value)
+            }
+            container.addView(chip)
+            if (selected) activeChip = chip
+        }
+        allChip.id.let { firstChipId -> binding.tvEtSeriesFsSearch.nextFocusDownId = firstChipId }
         if (hadFocus) activeChip?.requestFocus()
     }
 
@@ -2608,18 +2822,12 @@ class TvHomeActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             viewModel.series.collect {
-                if (currentSection == Section.SERIES) {
-                    val wantFocus = pendingContentFocus
-                    if (wantFocus) pendingContentFocus = false
-                    updateTvSeriesGenreChips(it)
-                    val genre = activeTvSeriesGenre
-                    val filtered = if (genre == null) it
-                        else it.filter { s -> genre in com.iptvapp.util.GenreBuckets.bucketsFor(s.genre?.split(",").orEmpty()) }
-                    // Same favorites/in-progress-first sort phone already applies (HomeActivity.kt:1717).
-                    seriesAdapter.submitPlainList(viewModel.applySeriesSort(filtered)) {
-                        if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
-                    }
-                }
+                // Series is the full-screen browse grid now (tvSeriesFullScreen, see
+                // showSeriesFullScreen) — the old sidebar-list branch below is unreachable via
+                // selectSection anymore (Section.SERIES always routes to showSeriesFullScreen)
+                // but left in place since nothing else references currentSection == SERIES in a
+                // way that would make it actively wrong to keep.
+                if (currentSection == Section.SERIES) submitFilteredSeriesFs(it)
             }
         }
         // combinedFavoriteAdapter's EPG/health maps are string-keyed ("primary:<id>" or

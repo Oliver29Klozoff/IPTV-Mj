@@ -140,3 +140,46 @@ class SeriesAdapter(
         override fun areContentsTheSame(a: SeriesRow, b: SeriesRow): Boolean = a == b
     }
 }
+
+// Netflix-style poster grid for TvHomeActivity's full-screen Series browse — exact mirror of
+// VodAdapter.kt's TvVodPosterAdapter (see its own kdoc for why this is a separate adapter from
+// the plain-list SeriesAdapter above rather than a second view type on it).
+class TvSeriesPosterAdapter(
+    private val onSeriesClick: (SeriesEntity) -> Unit,
+    private val onSeriesLongClick: (SeriesEntity) -> Unit = {}
+) : ListAdapter<SeriesEntity, TvSeriesPosterAdapter.ViewHolder>(PosterDiffCallback()) {
+
+    inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvSeriesPosterBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+        fun bind(item: SeriesEntity) {
+            binding.tvSeriesName.text = item.name
+            binding.tvSeriesRating.text = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
+            Glide.with(binding.ivSeriesPoster)
+                .load(item.cover)
+                .placeholder(android.R.drawable.ic_menu_gallery)
+                .error(android.R.drawable.ic_menu_gallery)
+                .into(binding.ivSeriesPoster)
+            binding.ivSeriesFavorite.visibility = if (item.isFavorite) android.view.View.VISIBLE else android.view.View.GONE
+            if (item.watchedMs > 0 && item.durationMs > 0) {
+                val pct = ((item.watchedMs * 100) / item.durationMs).coerceIn(0, 100).toInt()
+                binding.progressSeries.progress = pct
+                binding.progressSeries.visibility = android.view.View.VISIBLE
+            } else {
+                binding.progressSeries.visibility = android.view.View.GONE
+            }
+            binding.root.setOnClickListener { onSeriesClick(item) }
+            binding.root.setOnLongClickListener { onSeriesLongClick(item); true }
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = ViewHolder(
+        com.iptvapp.databinding.ItemTvSeriesPosterBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+    )
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(getItem(position))
+
+    class PosterDiffCallback : DiffUtil.ItemCallback<SeriesEntity>() {
+        override fun areItemsTheSame(a: SeriesEntity, b: SeriesEntity) = a.seriesId == b.seriesId
+        override fun areContentsTheSame(a: SeriesEntity, b: SeriesEntity) = a == b
+    }
+}

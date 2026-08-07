@@ -92,6 +92,10 @@ class SeriesDetailActivity : AppCompatActivity() {
             .into(binding.ivSeriesCover)
 
         binding.btnBack.setOnClickListener { finish() }
+        // See loadFavoriteState's kdoc — no favorite wiring exists yet for a merged/secondary
+        // provider's series, so the button is hidden rather than left visible-but-broken (no
+        // click listener at all) for that case.
+        binding.btnFavorite.visibility = if (serverIndexField != null) View.GONE else View.VISIBLE
 
         episodeAdapter = EpisodeAdapter { episode ->
             launchEpisode(episode)
@@ -99,7 +103,35 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.rvEpisodes.layoutManager = LinearLayoutManager(this)
         binding.rvEpisodes.adapter = episodeAdapter
 
-        if (seriesId != -1) loadSeriesInfo(seriesId)
+        if (seriesId != -1) {
+            loadSeriesInfo(seriesId)
+            loadFavoriteState(seriesId)
+        }
+    }
+
+    // No favorite toggle for a merged/secondary-provider series yet — MergedSeriesEntity's
+    // favorite flow lives entirely under Providers' own Series mode (see
+    // MergedSeriesDao.setFavorite), separate from this primary-provider seriesId lookup, and
+    // wiring both here would need a real serverIndex-aware favorite check to avoid silently
+    // toggling the wrong row. Scoped to primary series only for now, same boundary
+    // serverIndexField already draws for resume/watched tracking elsewhere in this file.
+    private fun loadFavoriteState(seriesId: Int) {
+        if (serverIndexField != null) return
+        lifecycleScope.launch {
+            val series = repository.getSeriesById(seriesId) ?: return@launch
+            renderFavoriteButton(series.isFavorite)
+            binding.btnFavorite.setOnClickListener {
+                lifecycleScope.launch {
+                    val current = repository.getSeriesById(seriesId) ?: return@launch
+                    repository.setSeriesFavorite(seriesId, !current.isFavorite)
+                    renderFavoriteButton(!current.isFavorite)
+                }
+            }
+        }
+    }
+
+    private fun renderFavoriteButton(isFavorite: Boolean) {
+        binding.btnFavorite.text = if (isFavorite) "★  Remove from Favorites" else "☆  Add to Favorites"
     }
 
     private fun loadSeriesInfo(seriesId: Int) {

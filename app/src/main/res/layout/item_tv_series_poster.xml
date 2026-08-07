@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Netflix-style poster tile for TvHomeActivity's full-screen Series grid — exact mirror of
+     item_tv_vod_poster.xml (see TvSeriesPosterAdapter / showSeriesFullScreen). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cardRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    android:background="@drawable/tv_sidebar_focus"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:background="#1A1A1A">
+
+        <ImageView
+            android:id="@+id/ivSeriesPoster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop" />
+
+        <!-- Non-interactive status badge — favoriting lives on SeriesDetailActivity's "Add to
+             Favorites" button, reached via long-press. See item_tv_vod_poster.xml's identical
+             badge for the full rationale. -->
+        <ImageView
+            android:id="@+id/ivSeriesFavorite"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="6dp"
+            android:src="@android:drawable/btn_star_big_on"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/progressSeries"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progress="0"
+            android:progressBackgroundTint="#33000000"
+            android:progressTint="#008CFF"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvSeriesName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvSeriesRating"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:textColor="#888888"
+        android:textSize="12sp" />
+
+</LinearLayout>
