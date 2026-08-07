@@ -2302,6 +2302,11 @@ class TvHomeActivity : AppCompatActivity() {
     private fun showMoviesFullScreen() {
         binding.tvMainContent.visibility = View.GONE
         binding.tvMoviesFullScreen.visibility = View.VISIBLE
+        // Movies is a full-screen takeover with no mini player visible at all — pausing here
+        // (not stop/clearMediaItems, which would lose the resume position and the "jump back to
+        // what's playing" state Favorites/Live's own auto-focus relies on) avoids audio from a
+        // channel still playing behind a screen that gives no indication it's still going.
+        miniPlayer?.pause()
         // viewModel.vod.value can still be empty this early on a large catalog (loading the full
         // list takes real time — see VodDao.getVodFirstPage's kdoc) — fall back to the fast first
         // page so the grid isn't blank on first open. The vod.collect observer (observeViewModel)
@@ -2318,18 +2323,18 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvMainContent.visibility = View.VISIBLE
         binding.tvEtMoviesFsSearch.setText("")
         moviesFsSearchQuery = ""
-        // If a live channel is actively playing in the mini player, land back on Favorites
-        // instead of wherever the sidebar happened to be before Movies was opened —
-        // showFavoriteGenreChannels (Section.FAVORITES's own content function) already scrolls
-        // and focuses the currently-playing channel automatically when it finds a
-        // currentMiniCombinedFavoriteId match, so this is enough to land right on it, not just
-        // the right tab. Only applies to a live channel (!currentMiniIsVod) — a playing VOD
-        // title has no "tab it lives in" the same way a favorited channel does.
-        if (!currentMiniIsVod && currentMiniCombinedFavoriteId != null) {
-            selectSection(Section.FAVORITES)
-        } else {
-            selectSection(preMoviesFsSection)
-        }
+        // Undo showMoviesFullScreen's pause() — Movies/Series are views inside this same
+        // Activity, not separate Activities, so onResume() (which already handles this exact
+        // "resume the mini player" job on a real app foreground) never fires just from hiding
+        // this overlay; has to be done explicitly here instead.
+        if (currentMiniUrl.isNotEmpty()) miniPlayer?.play()
+        // Back from Movies always returns to whichever section was active before Movies was
+        // opened — no longer special-cased to jump to Favorites when a channel happens to still
+        // be playing. That jump-to-the-playing-channel behavior still exists (showFavoriteGenre
+        // Channels/Section.LIVE already scroll-and-focus a currentMiniCombinedFavoriteId match),
+        // it's just triggered by normal sidebar navigation into Favorites/Live now, not forced
+        // here regardless of where the user actually came from.
+        selectSection(preMoviesFsSection)
     }
 
     // categoryId -> genre bucket, built fresh from the current vodCategories snapshot each time
@@ -2505,6 +2510,8 @@ class TvHomeActivity : AppCompatActivity() {
     private fun showSeriesFullScreen() {
         binding.tvMainContent.visibility = View.GONE
         binding.tvSeriesFullScreen.visibility = View.VISIBLE
+        // See showMoviesFullScreen's identical call for why.
+        miniPlayer?.pause()
         val initial = viewModel.series.value
         updateSeriesFsGenreChips(initial)
         submitFilteredSeriesFs(initial)
@@ -2516,11 +2523,9 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvMainContent.visibility = View.VISIBLE
         binding.tvEtSeriesFsSearch.setText("")
         seriesFsSearchQuery = ""
-        if (!currentMiniIsVod && currentMiniCombinedFavoriteId != null) {
-            selectSection(Section.FAVORITES)
-        } else {
-            selectSection(preSeriesFsSection)
-        }
+        // See hideMoviesFullScreen's identical logic for both of these.
+        if (currentMiniUrl.isNotEmpty()) miniPlayer?.play()
+        selectSection(preSeriesFsSection)
     }
 
     private var seriesFsFilterJob: kotlinx.coroutines.Job? = null

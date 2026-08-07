@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.61 - 2026-08-07
+- **Changed**: opening TV Movies/Series now pauses the mini player instead of leaving it playing
+  silently behind the full-screen browse view.
+- **Fixed**: Back from Movies/Series now always returns to whichever sidebar section you were on
+  before, instead of jumping to Favorites whenever a channel happened to still be playing in the
+  background. Playback resumes automatically when you back out.
+
 ## v5.60 - 2026-08-07
 - **Fixed**: TV Series genre chips (Comedy/Drama/etc.) could get stuck showing only All and
   Favorites, with no genres ever appearing — happened when the show catalog was still loading
