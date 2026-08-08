@@ -848,6 +848,7 @@
             </FrameLayout>
 
             <LinearLayout
+                android:id="@+id/tvMiniPlayerFooter"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="#0C0F1A"

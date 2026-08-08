@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v5.62 - 2026-08-07
+- **Changed**: Back from TV Movies/Series now lands on the bare sidebar (no section
+  auto-selected) instead of re-selecting whatever section was active before. Picking
+  Favorites from there still jumps straight to whatever channel is playing in the mini
+  player, same as always.
+- **Added**: on the TV sidebar/mini-player screen, going 1 minute without any D-pad input
+  hides the sidebar and lets the mini player fill the whole screen (video only, no
+  controls/overlay). Any key press brings the sidebar back.
+
 ## v5.61 - 2026-08-07
 - **Changed**: opening TV Movies/Series now pauses the mini player instead of leaving it playing
   silently behind the full-screen browse view.

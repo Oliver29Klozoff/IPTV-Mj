@@ -1265,6 +1265,41 @@ class TvHomeActivity : AppCompatActivity() {
         tvAutoCollapseHandler.removeCallbacks(tvAutoCollapseRunnable)
     }
 
+    // Screensaver-style idle expand: 1 minute with no D-pad input while at rest on the sidebar
+    // (navState == SIDEBAR — never fires mid-browse in a category/channel/guide list, only
+    // resetIdleExpandTimer's own gate below cares about that) hides the sidebar entirely and
+    // lets the mini player's column fill the whole screen, no controls/footer, just video —
+    // explicitly asked for as a "less TV chrome sitting on screen while just watching" mode. Any
+    // D-pad press (see dispatchKeyEvent) restores the sidebar and re-arms this same timer.
+    private val idleExpandHandler = Handler(Looper.getMainLooper())
+    private val idleExpandRunnable = Runnable { expandMiniPlayerFullScreen() }
+    private var miniPlayerExpanded = false
+
+    private fun resetIdleExpandTimer() {
+        idleExpandHandler.removeCallbacks(idleExpandRunnable)
+        if (miniPlayerExpanded) {
+            collapseMiniPlayerFromFullScreen()
+        }
+        if (navState == NavState.SIDEBAR) {
+            idleExpandHandler.postDelayed(idleExpandRunnable, 60_000L)
+        }
+    }
+
+    private fun expandMiniPlayerFullScreen() {
+        if (navState != NavState.SIDEBAR) return
+        miniPlayerExpanded = true
+        binding.tvLeftPanel.visibility = View.GONE
+        binding.tvMiniPlayerFooter.visibility = View.GONE
+        binding.tvEpgProgress.visibility = View.GONE
+    }
+
+    private fun collapseMiniPlayerFromFullScreen() {
+        miniPlayerExpanded = false
+        binding.tvLeftPanel.visibility = View.VISIBLE
+        binding.tvMiniPlayerFooter.visibility = View.VISIBLE
+        resetMiniPreviewToNowPlaying()
+    }
+
     private fun showSidebar() {
         cancelTvAutoCollapse()
         navState = NavState.SIDEBAR
@@ -1276,6 +1311,30 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvGuidePanel.visibility = View.GONE
         activeSidebarButton().requestFocus()
         resetMiniPreviewToNowPlaying()
+        resetIdleExpandTimer()
+    }
+
+    // Genuinely idle sidebar — no section highlighted, no content panel shown, just the nav list
+    // and the mini player. Deliberately does NOT touch currentSection (every other codepath here
+    // assumes it always names a real, currently-loaded section) — this is a purely visual "at
+    // rest" state that only ever gets left by the user picking a real section, at which point
+    // the normal selectSection(...) click handlers take over exactly as they always have. Used
+    // by hideMoviesFullScreen/hideSeriesFullScreen: Back from Movies/Series lands here instead of
+    // auto-selecting whichever section was active before, so the app doesn't presume what the
+    // user wants next.
+    private fun showBareSidebar() {
+        cancelTvAutoCollapse()
+        navState = NavState.SIDEBAR
+        navHasCategoryStep = false
+        resizeLeftPanel(expanded = false)
+        binding.tvSidebar.visibility = View.VISIBLE
+        binding.tvCatPanel.visibility = View.GONE
+        binding.tvChanPanel.visibility = View.GONE
+        binding.tvGuidePanel.visibility = View.GONE
+        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
+        binding.btnTvFavorites.requestFocus()
+        resetMiniPreviewToNowPlaying()
+        resetIdleExpandTimer()
     }
 
     /** Undoes the scroll-preview text left behind by channelAdapter.onChannelFocused, so the
@@ -1554,9 +1613,6 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun selectSection(section: Section) {
-        // Captured before currentSection is overwritten below — see preMoviesFsSection's kdoc.
-        if (section == Section.MOVIES && currentSection != Section.MOVIES) preMoviesFsSection = currentSection
-        if (section == Section.SERIES && currentSection != Section.SERIES) preSeriesFsSection = currentSection
         currentSection = section
         sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
         activeSidebarButton().setTextColor(currentAccent)
@@ -1982,6 +2038,11 @@ class TvHomeActivity : AppCompatActivity() {
             if (navState != NavState.SIDEBAR) {
                 scheduleTvAutoCollapse()
             }
+            // Screensaver-style idle expand — see resetIdleExpandTimer's own kdoc. Resets (and
+            // re-collapses an already-expanded mini player) on every key, same "any activity
+            // counts" reasoning as scheduleTvAutoCollapse above; the function itself only
+            // actually arms a new timer when at rest on the sidebar.
+            resetIdleExpandTimer()
             // Numeric channel jump (only in channel panel showing live/fav channels)
             val digit = when (event.keyCode) {
                 KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0 -> "0"
@@ -2293,12 +2354,6 @@ class TvHomeActivity : AppCompatActivity() {
         submitFilteredMoviesFs(viewModel.vod.value)
     }
 
-    // Whichever section was active right before Movies was opened — restored on close instead
-    // of hardcoding a section, so Back/the on-screen "←" returns to wherever the user actually
-    // came from (Favorites at cold boot, but could be any section reached by tapping Movies from
-    // elsewhere first).
-    private var preMoviesFsSection: Section = Section.FAVORITES
-
     private fun showMoviesFullScreen() {
         binding.tvMainContent.visibility = View.GONE
         binding.tvMoviesFullScreen.visibility = View.VISIBLE
@@ -2328,13 +2383,12 @@ class TvHomeActivity : AppCompatActivity() {
         // "resume the mini player" job on a real app foreground) never fires just from hiding
         // this overlay; has to be done explicitly here instead.
         if (currentMiniUrl.isNotEmpty()) miniPlayer?.play()
-        // Back from Movies always returns to whichever section was active before Movies was
-        // opened — no longer special-cased to jump to Favorites when a channel happens to still
-        // be playing. That jump-to-the-playing-channel behavior still exists (showFavoriteGenre
-        // Channels/Section.LIVE already scroll-and-focus a currentMiniCombinedFavoriteId match),
-        // it's just triggered by normal sidebar navigation into Favorites/Live now, not forced
-        // here regardless of where the user actually came from.
-        selectSection(preMoviesFsSection)
+        // Back from Movies lands on the bare sidebar now — no section auto-selected/no content
+        // panel shown, just the nav list itself. Explicitly asked for over re-selecting whatever
+        // was active before: picking a real section (e.g. tapping Favorites) still jumps to and
+        // focuses the currently-playing channel exactly as it always has, this just means Back
+        // itself doesn't force that jump or any other section's content to load first.
+        showBareSidebar()
     }
 
     // categoryId -> genre bucket, built fresh from the current vodCategories snapshot each time
@@ -2505,8 +2559,6 @@ class TvHomeActivity : AppCompatActivity() {
         submitFilteredSeriesFs(viewModel.series.value)
     }
 
-    private var preSeriesFsSection: Section = Section.FAVORITES
-
     private fun showSeriesFullScreen() {
         binding.tvMainContent.visibility = View.GONE
         binding.tvSeriesFullScreen.visibility = View.VISIBLE
@@ -2525,7 +2577,7 @@ class TvHomeActivity : AppCompatActivity() {
         seriesFsSearchQuery = ""
         // See hideMoviesFullScreen's identical logic for both of these.
         if (currentMiniUrl.isNotEmpty()) miniPlayer?.play()
-        selectSection(preSeriesFsSection)
+        showBareSidebar()
     }
 
     private var seriesFsFilterJob: kotlinx.coroutines.Job? = null
