@@ -884,11 +884,24 @@ class XtreamRepository @Inject constructor(
         db.recordingDao().getOverlapping(startMs, startMs + durationMs)
 
     /** streamId -> success percent, for channels with at least one recorded outcome — backs
-     * the "Most Reliable" sort option. */
-    suspend fun getAllReliabilityPercents(): Map<Int, Int> =
-        db.reliabilityDao().getAll()
-            .filter { it.outcomes.isNotEmpty() }
+     * the "Most Reliable" sort option. Reads in pages (see ReliabilityDao.getPage's kdoc) and
+     * swallows failures rather than crashing — losing "Most Reliable" sort data for one session
+     * is a fine trade against taking down the whole app on a memory-constrained device. */
+    suspend fun getAllReliabilityPercents(): Map<Int, Int> = try {
+        val all = mutableListOf<com.iptvapp.data.local.entities.ChannelReliabilityEntity>()
+        var offset = 0
+        val pageSize = 2000
+        while (true) {
+            val page = db.reliabilityDao().getPage(pageSize, offset)
+            all.addAll(page)
+            if (page.size < pageSize) break
+            offset += pageSize
+        }
+        all.filter { it.outcomes.isNotEmpty() }
             .associate { it.streamId to (it.outcomes.count { c -> c == '1' } * 100 / it.outcomes.length) }
+    } catch (e: Exception) {
+        emptyMap()
+    }
 
     suspend fun importM3uFromUrl(url: String): Resource<Int> = safeApiCall {
         val request = Request.Builder().url(url).build()

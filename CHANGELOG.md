@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.67 - 2026-08-08
+- **Fixed**: app could crash while browsing Favorites on memory-constrained devices with very
+  large catalogs (55k+ channels) — a "Most Reliable" sort query was loading the entire channel
+  reliability table in one go, which could exceed the database cursor's memory limit on
+  low-RAM sticks. Now reads in small batches and can no longer crash the app if it fails.
+
 ## v5.66 - 2026-08-08
 - **Added**: one-time backfill numbers every already-favorited US channel that didn't have one
   yet (including favorites pulled in via Sync) into the same cable-style genre blocks that new

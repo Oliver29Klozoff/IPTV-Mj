@@ -402,8 +402,15 @@ interface RecordingDao {
 interface ReliabilityDao {
     @Query("SELECT * FROM channel_reliability WHERE streamId = :streamId")
     suspend fun get(streamId: Int): ChannelReliabilityEntity?
-    @Query("SELECT * FROM channel_reliability")
-    suspend fun getAll(): List<ChannelReliabilityEntity>
+    // Paged instead of a single unbounded SELECT * — on a large catalog (tens of thousands of
+    // channels, each potentially with a reliability row) a full-table read in one cursor window
+    // was observed to throw CursorWindowAllocationException on a low-RAM device (crash log:
+    // Amazon AFTMM, 0.7GB free, 55k channels), even though this table's rows are individually
+    // tiny. Room's single-window cursor sizing doesn't scale with row count safely on constrained
+    // devices, so this reads in bounded chunks instead — see
+    // XtreamRepository.getAllReliabilityPercents for how they're stitched back together.
+    @Query("SELECT * FROM channel_reliability LIMIT :limit OFFSET :offset")
+    suspend fun getPage(limit: Int, offset: Int): List<ChannelReliabilityEntity>
     @Upsert
     suspend fun upsert(entity: ChannelReliabilityEntity)
 }

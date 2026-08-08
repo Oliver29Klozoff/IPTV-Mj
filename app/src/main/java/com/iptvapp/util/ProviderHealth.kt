@@ -32,7 +32,18 @@ object ProviderHealth {
         val nickname = prefs.serverNickname.first().ifEmpty { creds.username }
         val label = if (nickname.isNotBlank()) "$nickname — ${creds.serverUrl}" else creds.serverUrl
 
-        val reliability = db.reliabilityDao().getAll().filter { it.outcomes.isNotEmpty() }
+        // Paged, not a single SELECT * — see ReliabilityDao.getPage's kdoc for why (crashed
+        // outright on a low-RAM device with a large catalog).
+        val allReliability = mutableListOf<com.iptvapp.data.local.entities.ChannelReliabilityEntity>()
+        var offset = 0
+        val pageSize = 2000
+        while (true) {
+            val page = db.reliabilityDao().getPage(pageSize, offset)
+            allReliability.addAll(page)
+            if (page.size < pageSize) break
+            offset += pageSize
+        }
+        val reliability = allReliability.filter { it.outcomes.isNotEmpty() }
         val percentages = reliability.map { entity ->
             entity to (entity.outcomes.count { it == '1' } * 100 / entity.outcomes.length)
         }
