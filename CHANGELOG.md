@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.70 - 2026-08-08
+- **Fixed**: TV screensaver could kick in over the mini player while a channel was actively
+  playing on the sidebar/home screen — that screen never told the system to keep the display
+  awake during playback, unlike the fullscreen player. Screen now stays on while it's open.
+
 ## v5.69 - 2026-08-08
 - **Fixed**: in landscape, pressing Back closed the app immediately with a single press. Now
   requires pressing Back twice within 2 seconds to exit, matching the TV app's behavior.

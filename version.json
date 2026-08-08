@@ -1,7 +1,7 @@
 {
-  "versionCode": 407,
-  "versionName": "5.69",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.69/MKTV.apk",
-  "apkSha256": "9737a3db1c56452cbb78a465307637cc1266d981d5f0dab7a52207efffa5c376",
-  "changelog": "Fixed: in landscape, pressing Back closed the app immediately with a single press. Now requires pressing Back twice within 2 seconds to exit, matching the TV app's behavior."
+  "versionCode": 408,
+  "versionName": "5.70",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.70/MKTV.apk",
+  "apkSha256": "db60741d276e42e4c650409c73664c34552dea2b7191bc390749900fc1d03614",
+  "changelog": "Fixed: TV screensaver could kick in over the mini player while a channel was actively playing on the sidebar/home screen. Screen now stays on while it's open."
 }

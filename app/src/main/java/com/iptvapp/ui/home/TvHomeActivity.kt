@@ -359,6 +359,12 @@ class TvHomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityTvHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // This screen's mini player is playing live TV essentially the entire time it's on
+        // screen, same as the fullscreen PlayerActivity — without this, Fire TV's screensaver
+        // kicks in on its own idle timer regardless of active playback, since nothing here was
+        // telling Android the screen should stay awake (PlayerActivity/MultiViewActivity already
+        // had this; this screen didn't).
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         setupAdapters()
         setupSidebar()
