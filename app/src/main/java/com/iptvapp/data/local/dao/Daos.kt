@@ -35,6 +35,11 @@ interface ChannelDao {
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannels(): Flow<List<ChannelEntity>>
+    // One-shot list for the favorite-number backfill (see
+    // XtreamRepository.backfillFavoriteChannelNumbers's kdoc) — plain suspend fetch, not a Flow,
+    // since this only ever runs once as an imperative pass over already-favorited channels.
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 AND customNum IS NULL")
+    suspend fun getUnnumberedFavorites(): List<ChannelEntity>
     @Query("UPDATE channels SET favOrder = :order WHERE streamId = :streamId")
     suspend fun updateFavOrder(streamId: Int, order: Int)
     @Query("UPDATE channels SET customNum = :customNum WHERE streamId = :streamId")

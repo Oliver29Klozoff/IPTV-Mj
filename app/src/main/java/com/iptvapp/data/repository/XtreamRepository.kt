@@ -306,6 +306,29 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // One-time pass over channels favorited before the auto-numbering feature existed (v5.65) —
+    // toggleChannelFavorite only assigns a number at the moment of favoriting, so anything already
+    // favorited (including everything pulled in via Sync's Pull from Cloud) was sitting with no
+    // customNum at all. Gated by PreferencesManager.favoriteNumbersBackfilled so this only ever
+    // runs once; the caller (HomeViewModel.loadAll) checks that flag before calling this.
+    // Batches per-genre counters in memory instead of calling getMaxCustomNumInRange per channel
+    // (would be O(n) queries across n favorites, and races against itself within the same batch).
+    suspend fun backfillFavoriteChannelNumbers() {
+        val unnumbered = db.channelDao().getUnnumberedFavorites()
+        if (unnumbered.isEmpty()) return
+        val usOnly = unnumbered.filter { isUsCategory(it.categoryId) }
+        val nextInBlock = mutableMapOf<Int, Int>()
+        for (ch in usOnly) {
+            val categoryName = db.categoryDao().getCategoryById(ch.categoryId ?: "")?.categoryName
+            val blockStart = genreNumberBlockStart(categoryName)
+            val blockEnd = blockStart + 99
+            val floor = db.channelDao().getMaxCustomNumInRange(blockStart, blockEnd) ?: (blockStart - 1)
+            val next = maxOf(nextInBlock[blockStart] ?: (floor + 1), floor + 1)
+            db.channelDao().setCustomNum(ch.streamId, next)
+            nextInBlock[blockStart] = next + 1
+        }
+    }
+
     suspend fun markChannelWatched(streamId: Int) {
         db.channelDao().updateLastWatched(streamId)
         db.channelDao().incrementViewCount(streamId)

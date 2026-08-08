@@ -1383,6 +1383,14 @@ class HomeViewModel @Inject constructor(
             _channelSort.value = ChannelSort.values().getOrElse(saved) { ChannelSort.DEFAULT }
             if (_channelSort.value == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
         }
+        // One-time backfill for channels favorited before v5.65's auto-numbering existed — see
+        // XtreamRepository.backfillFavoriteChannelNumbers's kdoc. Flag ensures this never repeats.
+        viewModelScope.launch {
+            if (!prefs.favoriteNumbersBackfilled.first()) {
+                repository.backfillFavoriteChannelNumbers()
+                prefs.setFavoriteNumbersBackfilled(true)
+            }
+        }
     }
 
     fun cycleSort() {

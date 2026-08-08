@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.66 - 2026-08-08
+- **Added**: one-time backfill numbers every already-favorited US channel that didn't have one
+  yet (including favorites pulled in via Sync) into the same cable-style genre blocks that new
+  favorites get automatically. Runs once per device on first launch of this version.
+
 ## v5.65 - 2026-08-08
 - **Changed**: auto-assigned favorite channel numbers now use cable-style genre blocks instead
   of one running count — Basic TV starts at 2, Movies (HBO/Showtime/etc.) at 100, Sports at

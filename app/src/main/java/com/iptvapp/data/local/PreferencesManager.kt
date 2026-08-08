@@ -169,7 +169,15 @@ class PreferencesManager @Inject constructor(
         // key GenreClassifier.OTHER never changes (matching/filtering still keys off it), this
         // just overrides the label shown on the chip itself.
         val FAVORITE_OTHER_GENRE_LABEL = stringPreferencesKey("favorite_other_genre_label")
+        // One-time flag — see XtreamRepository.backfillFavoriteChannelNumbers's kdoc. Ensures the
+        // backfill runs exactly once per install rather than on every app start.
+        val FAVORITE_NUMBERS_BACKFILLED = booleanPreferencesKey("favorite_numbers_backfilled")
     }
+
+    val favoriteNumbersBackfilled: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.FAVORITE_NUMBERS_BACKFILLED] ?: false }
+    suspend fun setFavoriteNumbersBackfilled(v: Boolean) = context.dataStore.edit { it[Keys.FAVORITE_NUMBERS_BACKFILLED] = v }
 
     val silentSelfUpdateEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
