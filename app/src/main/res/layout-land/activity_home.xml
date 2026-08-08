@@ -536,6 +536,86 @@
 
     </LinearLayout>
 
+    <!-- BULK-SELECT BAR — landscape equivalent of activity_home.xml's bulkSelectBar. Was entirely
+         missing from this layout, so every bulkSelectBar/btnBulkSelectDone/btnBulkSelectCancel
+         reference in HomeActivity (all nullable view-binding lookups) silently no-opped in
+         landscape — Done/Cancel never appeared during Favorites reorder or any bulk-select mode,
+         with no way to confirm or back out short of leaving the screen. Overlaid across the
+         content area (elevated, pinned to top, spanning from topBar's end to parent's end) rather
+         than pushed into the vertical categoriesColumn flow, since it needs to stay visible and
+         reachable regardless of which column/list is currently showing. -->
+    <LinearLayout
+        android:id="@+id/bulkSelectBar"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:background="#1A1A1A"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:visibility="gone"
+        android:elevation="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/topBar"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/tvBulkSelectCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Select All"
+            android:textColor="#008CFF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectDone"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Done"
+            android:textColor="#34C759"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectHide"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Hide"
+            android:textColor="#FFA500"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/btnBulkSelectCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="✕"
+            android:textColor="#FF6B6B"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
     <!-- Hidden views required by binding but not shown in landscape -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"

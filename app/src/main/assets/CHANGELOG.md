@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v5.69 - 2026-08-08
+- **Fixed**: in landscape, pressing Back closed the app immediately with a single press. Now
+  requires pressing Back twice within 2 seconds to exit, matching the TV app's behavior.
+
+## v5.68 - 2026-08-08
+- **Fixed**: Favorites drag-reorder in landscape had no Done/Cancel button at all — the
+  landscape layout was missing that bar entirely, so there was no way to confirm or back out
+  of a reorder short of leaving the screen.
+- **Fixed**: in landscape, reordering Favorites could get interrupted by the channel list
+  auto-collapsing back to just the mini player after 10s idle, even mid-selection — the timer
+  is now paused for the whole time you're reordering.
+
 ## v5.67 - 2026-08-08
 - **Fixed**: app could crash while browsing Favorites on memory-constrained devices with very
   large catalogs (55k+ channels) — a "Most Reliable" sort query was loading the entire channel

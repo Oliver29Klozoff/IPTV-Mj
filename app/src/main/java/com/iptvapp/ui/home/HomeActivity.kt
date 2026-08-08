@@ -27,6 +27,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -616,6 +617,12 @@ class HomeActivity : AppCompatActivity() {
         combinedFavoriteAdapter.showDragHandles = true
         combinedFavoriteAdapter.notifyDataSetChanged()
         updateBulkSelectUi()
+        // In landscape, the channel-list column auto-collapses back to just the mini player 10s
+        // after picking something to play (scheduleContentAutoCollapse) — that timer keeps
+        // running regardless of what's on screen, so entering reorder mode right after playing a
+        // channel could have it fire mid-selection and yank the whole column away before Done was
+        // tapped. Cancelled for the duration of reorder; exitFavoritesReorderMode reschedules it.
+        cancelContentAutoCollapse()
     }
 
     // Keeps favoritesReorderMode true (and the live combinedFavorites collector blocked) until
@@ -651,6 +658,9 @@ class HomeActivity : AppCompatActivity() {
         } else {
             favoritesReorderMode = false
         }
+        // Resume the normal auto-collapse behavior now that reorder mode is done — see
+        // enterFavoritesReorderMode's kdoc for why it was cancelled.
+        if (isLandscapeMode() && !contentColumnCollapsed) scheduleContentAutoCollapse()
     }
 
     private class FavoritesReorderCallback(
@@ -1019,6 +1029,30 @@ class HomeActivity : AppCompatActivity() {
             FeatureTourDialog.showIfNeeded(this)
         }
         handleJumpToChannelExtra()
+
+        // Landscape has no drill-down back stack of its own (categories/channels/mini-player are
+        // a persistent 3-column layout, not a stack to pop) — Back fell straight through to the
+        // default Activity behavior and closed the whole app on a single press. Portrait wasn't
+        // affected (reported bug was landscape-specific), so this callback only engages there;
+        // in portrait the system default (finish on Back) still applies untouched.
+        var lastBackPressTime = 0L
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!isLandscapeMode()) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                    return
+                }
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressTime < 2000L) {
+                    finishAffinity()
+                } else {
+                    lastBackPressTime = now
+                    Toast.makeText(this@HomeActivity, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
     }
 
     // Lets other screens (currently: Settings' Provider Health "Play This Channel" action)

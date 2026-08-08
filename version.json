@@ -1,7 +1,7 @@
 {
-  "versionCode": 405,
-  "versionName": "5.67",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.67/MKTV.apk",
-  "apkSha256": "e4321e144c6cfb6e52ae4e4d85474691db9c49403abd3b17531e0bd9d2b1d1fb",
-  "changelog": "Fixed a crash browsing Favorites on low-RAM devices with very large catalogs. Favoriting a US channel now auto-assigns a cable-style number (Basic TV, Movies, Sports, News, Kids blocks) shown next to its name in the mini player; existing favorites were backfilled too. Added custom channel numbers (long-press a US channel), a 5-digit remote channel-jump, and a Restore from Backup File option on login. Back from TV Movies/Series now returns to the bare sidebar, and the sidebar auto-hides after 1 minute idle."
+  "versionCode": 407,
+  "versionName": "5.69",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.69/MKTV.apk",
+  "apkSha256": "9737a3db1c56452cbb78a465307637cc1266d981d5f0dab7a52207efffa5c376",
+  "changelog": "Fixed: in landscape, pressing Back closed the app immediately with a single press. Now requires pressing Back twice within 2 seconds to exit, matching the TV app's behavior."
 }
