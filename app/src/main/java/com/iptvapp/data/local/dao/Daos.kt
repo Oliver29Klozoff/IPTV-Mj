@@ -23,19 +23,25 @@ data class WatchHistoryEntry(
 
 @Dao
 interface ChannelDao {
-    @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY num ASC")
+    @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
     fun getAllChannels(): Flow<List<ChannelEntity>>
+    // customNum first (user override), falling back to the provider's own num when unset or when
+    // no channel has that as a custom number — see ChannelEntity.customNum's kdoc.
+    @Query("SELECT * FROM channels WHERE customNum = :num AND isHidden = 0 LIMIT 1")
+    suspend fun getChannelByCustomNumber(num: Int): ChannelEntity?
     @Query("SELECT * FROM channels WHERE num = :num AND isHidden = 0 LIMIT 1")
     suspend fun getChannelByNumber(num: Int): ChannelEntity?
-    @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY num ASC")
+    @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannels(): Flow<List<ChannelEntity>>
     @Query("UPDATE channels SET favOrder = :order WHERE streamId = :streamId")
     suspend fun updateFavOrder(streamId: Int, order: Int)
+    @Query("UPDATE channels SET customNum = :customNum WHERE streamId = :streamId")
+    suspend fun setCustomNum(streamId: Int, customNum: Int?)
     @Query("SELECT * FROM channels WHERE lastWatched IS NOT NULL AND isHidden = 0 ORDER BY lastWatched DESC LIMIT 30")
     fun getRecentChannels(): Flow<List<ChannelEntity>>
-    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY num ASC")
+    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
     fun searchChannels(query: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE streamId = :streamId")
     suspend fun getChannelById(streamId: Int): ChannelEntity?

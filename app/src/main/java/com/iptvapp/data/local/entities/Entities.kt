@@ -26,7 +26,13 @@ data class ChannelEntity(
     // user-manageable chip — see GenreClassifier.OTHER), overriding keyword auto-classification
     // entirely so it shows ONLY under that chip instead of wherever its category would otherwise
     // land it. Null = no manual override, auto-classify as before.
-    val manualGenre: String? = null
+    val manualGenre: String? = null,
+    // User-assigned channel number, overriding the provider's own `num` for sorting and for the
+    // TV remote's numeric channel-jump. Only ever set for US channels — some providers number
+    // their US block in the tens of thousands (e.g. 34783-46555), so those channels are
+    // otherwise unreachable by number entry and awkward to keep straight by number at all. Null
+    // = no override, use `num` as before.
+    val customNum: Int? = null
 )
 
 // User-created groups for organizing favorites (e.g. "Sports", "News", "Kids") — same

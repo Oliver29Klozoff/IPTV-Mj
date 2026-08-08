@@ -1131,7 +1131,10 @@ class HomeViewModel @Inject constructor(
     private var guideJob: Job? = null
     private var observerJob: Job? = null
 
-    private fun isUsCategory(name: String?): Boolean {
+    // Not private — TvHomeActivity needs this to decide whether a long-pressed channel is
+    // eligible for the "set custom channel number" dialog (US channels only, see
+    // ChannelEntity.customNum's kdoc for why).
+    fun isUsCategory(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
         // Different providers format the same "US" tag differently — some use "US|..." with
         // no spacing, others "US | ..." with spaces around the pipe. Collapsing whitespace
@@ -1928,6 +1931,13 @@ class HomeViewModel @Inject constructor(
             if (!wasAlreadyFavorite) {
                 repository.fetchEpg(streamId)
             }
+        }
+    }
+
+    // Null clears the override, reverting the channel to sorting/number-jump by its provider num.
+    fun setCustomChannelNumber(streamId: Int, customNum: Int?) {
+        viewModelScope.launch {
+            repository.setCustomChannelNumber(streamId, customNum)
         }
     }
 

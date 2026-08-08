@@ -1,5 +1,24 @@
 # IPTV App - Changelog
 
+## v5.63 - 2026-08-08
+- **Added**: custom channel numbers for US channels — long-press a US channel on TV to give it
+  your own number, overriding the provider's number for both sort order and the remote's
+  numeric channel-jump. Some providers number their US block in the tens of thousands
+  (34783-46555 on this one), way out of reach of typing digits on a remote; this lets you pick
+  memorable numbers of your own instead.
+- **Fixed**: the remote's numeric channel-jump only accepted 4 digits (max 9999), which meant it
+  could never reach a provider's US channels at all if they're numbered above that. Now accepts
+  5 digits.
+
+## v5.62 - 2026-08-07
+- **Changed**: Back from TV Movies/Series now lands on the bare sidebar (no section
+  auto-selected) instead of re-selecting whatever section was active before. Picking
+  Favorites from there still jumps straight to whatever channel is playing in the mini
+  player, same as always.
+- **Added**: on the TV sidebar/mini-player screen, going 1 minute without any D-pad input
+  hides the sidebar and lets the mini player fill the whole screen (video only, no
+  controls/overlay). Any key press brings the sidebar back.
+
 ## v5.61 - 2026-08-07
 - **Changed**: opening TV Movies/Series now pauses the mini player instead of leaving it playing
   silently behind the full-screen browse view.

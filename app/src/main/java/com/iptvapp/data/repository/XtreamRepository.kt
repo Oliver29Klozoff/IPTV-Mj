@@ -242,7 +242,14 @@ class XtreamRepository @Inject constructor(
 
     suspend fun getChannelById(streamId: Int) = db.channelDao().getChannelById(streamId)
 
-    suspend fun getChannelByNumber(num: Int) = db.channelDao().getChannelByNumber(num)
+    // Custom number takes priority — if the digits typed match someone's user-assigned number,
+    // that's what they meant; only falls back to the provider's raw num when no custom number
+    // matches (the common case for every channel that hasn't been given one).
+    suspend fun getChannelByNumber(num: Int) =
+        db.channelDao().getChannelByCustomNumber(num) ?: db.channelDao().getChannelByNumber(num)
+
+    suspend fun setCustomChannelNumber(streamId: Int, customNum: Int?) =
+        db.channelDao().setCustomNum(streamId, customNum)
 
     suspend fun isChannelFavorite(streamId: Int): Boolean {
         return db.channelDao().getChannelById(streamId)?.isFavorite ?: false

@@ -22,7 +22,7 @@ import com.iptvapp.data.local.entities.*
         MergedVodEntity::class,
         MergedSeriesEntity::class
     ],
-    version = 33,
+    version = 34,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -404,6 +404,16 @@ abstract class IptvDatabase : RoomDatabase() {
         // ChannelEntity/EpgEntity would have crashed the widget's RemoteViewsFactory outright.
         // Both call sites should always reference this array now instead of listing migrations
         // by hand.
+        // Custom channel numbers — user-assignable, overriding the provider's own `num` for
+        // sorting/number-jump. Primary channels table only: merged-provider channels are
+        // wholesale-refetched on every refresh (see MergedChannelEntity's own kdoc), so any
+        // override stored there would just get silently wiped on the next refresh.
+        val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE channels ADD COLUMN customNum INTEGER")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -411,7 +421,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
-            MIGRATION_32_33
+            MIGRATION_32_33, MIGRATION_33_34
         )
     }
 }

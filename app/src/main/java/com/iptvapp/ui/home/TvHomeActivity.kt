@@ -2064,7 +2064,9 @@ class TvHomeActivity : AppCompatActivity() {
             // "105" should always mean channel 105, regardless of what's currently filtered/
             // sorted/displayed.
             if (digit != null && currentFocus !== binding.tvEtSearch) {
-                if (channelNumberBuffer.length < 4) channelNumberBuffer += digit
+                // 5 digits, not 4 — this provider's US channels are numbered 34783-46555 (well
+                // past 9999), so a 4-digit cap made them entirely unreachable by number entry.
+                if (channelNumberBuffer.length < 5) channelNumberBuffer += digit
                 channelJumpJob?.cancel()
                 binding.tvChannelNumberEntry.text = channelNumberBuffer
                 binding.tvChannelNumberEntry.visibility = View.VISIBLE
@@ -3283,12 +3285,21 @@ class TvHomeActivity : AppCompatActivity() {
     // jump straight to the reminder flow (showTvReminderDialog), with no way to bulk-select
     // favorites, hide a channel, or see similar channels on TV at all.
     private fun showTvChannelActionsMenu(channel: ChannelEntity) {
+        // Custom numbering only offered for US channels — see ChannelEntity.customNum's kdoc for
+        // why (this provider's US block is numbered in the tens of thousands, out of reach of
+        // the 5-digit remote entry and awkward to keep straight by number at all).
+        val isUs = viewModel.isUsCategory(
+            viewModel.liveCategories.value.find { it.categoryId == channel.categoryId }?.categoryName
+        )
         val options = mutableListOf(
             "Set Reminder",
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
             "Hide Channel",
             "Channels Like This"
         )
+        if (isUs) {
+            options.add(if (channel.customNum != null) "Change Channel Number (${channel.customNum})" else "Set Channel Number")
+        }
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Hide ${bulkSelectedIds.size} selected")
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
@@ -3296,9 +3307,11 @@ class TvHomeActivity : AppCompatActivity() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(channel.name)
             .setItems(options.toTypedArray()) { _, i ->
-                when (options[i]) {
-                    "Set Reminder" -> showTvReminderDialog(channel)
-                    "Select (bulk add to favorites)" -> {
+                when {
+                    options[i] == "Set Reminder" -> showTvReminderDialog(channel)
+                    options[i].startsWith("Set Channel Number") || options[i].startsWith("Change Channel Number") ->
+                        showTvSetChannelNumberDialog(channel)
+                    options[i] == "Select (bulk add to favorites)" -> {
                         bulkSelectMode = true
                         bulkSelectedIds.add(channel.streamId)
                         channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
@@ -3307,7 +3320,7 @@ class TvHomeActivity : AppCompatActivity() {
                         bulkSelectHandler.postDelayed(bulkSelectIdleRunnable, 3000)
                         updateTvBulkSelectUi()
                     }
-                    "Deselect (bulk)" -> {
+                    options[i] == "Deselect (bulk)" -> {
                         bulkSelectedIds.remove(channel.streamId)
                         channelAdapter.submitBulkSelection(bulkSelectedIds.toSet())
                         if (bulkSelectedIds.isEmpty()) {
@@ -3316,11 +3329,11 @@ class TvHomeActivity : AppCompatActivity() {
                         }
                         updateTvBulkSelectUi()
                     }
-                    "Hide Channel" -> {
+                    options[i] == "Hide Channel" -> {
                         viewModel.hideChannel(channel.streamId)
                         Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
                     }
-                    "Channels Like This" -> showTvSimilarChannelsSheet(channel)
+                    options[i] == "Channels Like This" -> showTvSimilarChannelsSheet(channel)
                     else -> if (options[i].startsWith("✓ Add")) {
                         bulkSelectHandler.removeCallbacks(bulkSelectIdleRunnable)
                         viewModel.bulkAddFavorites(bulkSelectedIds.toList())
@@ -3337,6 +3350,36 @@ class TvHomeActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    // US channels only (see ChannelEntity.customNum's kdoc) — lets a channel be given its own
+    // number, overriding the provider's raw num for sorting and for the remote's number-jump.
+    private fun showTvSetChannelNumberDialog(channel: ChannelEntity) {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(channel.customNum?.toString() ?: "")
+            hint = "Channel number"
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Set Channel Number — ${channel.name}")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val num = input.text.toString().toIntOrNull()
+                viewModel.setCustomChannelNumber(channel.streamId, num)
+                Toast.makeText(
+                    this,
+                    if (num != null) "${channel.name} set to channel $num" else "Number cleared",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNeutralButton("Clear") { _, _ ->
+                viewModel.setCustomChannelNumber(channel.streamId, null)
+                Toast.makeText(this, "Number cleared", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dialog.show()
+        input.requestFocus()
     }
 
     private fun showTvSimilarChannelsSheet(channel: ChannelEntity) {
