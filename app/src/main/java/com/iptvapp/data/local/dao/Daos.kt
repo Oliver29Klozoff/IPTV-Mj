@@ -39,6 +39,16 @@ interface ChannelDao {
     suspend fun updateFavOrder(streamId: Int, order: Int)
     @Query("UPDATE channels SET customNum = :customNum WHERE streamId = :streamId")
     suspend fun setCustomNum(streamId: Int, customNum: Int?)
+    // Highest custom number assigned so far — the auto-favorite-numbering feature uses
+    // this + 1 (or 2 if null) as the next number to hand out, keeping the sequence compact
+    // rather than searching for gaps left by cleared/unfavorited channels.
+    @Query("SELECT MAX(customNum) FROM channels")
+    suspend fun getMaxCustomNum(): Int?
+    // Same idea, scoped to one genre's reserved number block (see
+    // XtreamRepository.genreNumberBlockStart's kdoc) — next number within [start, end], or start
+    // itself if the block is still empty.
+    @Query("SELECT MAX(customNum) FROM channels WHERE customNum BETWEEN :start AND :end")
+    suspend fun getMaxCustomNumInRange(start: Int, end: Int): Int?
     @Query("SELECT * FROM channels WHERE lastWatched IS NOT NULL AND isHidden = 0 ORDER BY lastWatched DESC LIMIT 30")
     fun getRecentChannels(): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
@@ -133,6 +143,8 @@ interface CategoryDao {
     suspend fun deleteCategoriesByType(type: String)
     @Query("DELETE FROM categories WHERE categoryId LIKE 'm3u_%'")
     suspend fun deleteM3uCategories()
+    @Query("SELECT * FROM categories WHERE categoryId = :categoryId LIMIT 1")
+    suspend fun getCategoryById(categoryId: String): CategoryEntity?
 }
 
 @Dao

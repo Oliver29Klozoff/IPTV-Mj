@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v5.65 - 2026-08-08
+- **Changed**: auto-assigned favorite channel numbers now use cable-style genre blocks instead
+  of one running count — Basic TV starts at 2, Movies (HBO/Showtime/etc.) at 100, Sports at
+  200, News at 300, Kids at 400. Genre is detected from the channel's own category name.
+- **Added**: the mini player now shows a channel's number next to its name (e.g. "5 · CBS
+  Miami") whenever it has one assigned, both while playing and while browsing past it.
+
+## v5.64 - 2026-08-08
+- **Added**: favoriting a US channel (any network, sports category, or movie channel like
+  HBO/Showtime) now automatically assigns it a short cable-style number, starting at 2 — no
+  more manually setting numbers one by one. Unfavoriting clears the number so it's free for
+  the next channel you favorite.
+- **Added**: "Restore from Backup File" on the login screen — pick a backup file and it logs
+  in using the credentials saved inside it directly, no typing required.
+
 ## v5.63 - 2026-08-08
 - **Added**: custom channel numbers for US channels — long-press a US channel on TV to give it
   your own number, overriding the provider's number for both sort order and the remote's

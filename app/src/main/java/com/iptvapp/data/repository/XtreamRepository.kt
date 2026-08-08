@@ -257,7 +257,53 @@ class XtreamRepository @Inject constructor(
 
     suspend fun toggleChannelFavorite(streamId: Int) {
         val ch = db.channelDao().getChannelById(streamId) ?: return
-        db.channelDao().setFavorite(streamId, !ch.isFavorite)
+        val nowFavorite = !ch.isFavorite
+        db.channelDao().setFavorite(streamId, nowFavorite)
+        // Auto-assign a cable-style number to newly-favorited US channels — see
+        // genreNumberBlockStart's kdoc for the block layout — and clear it again on unfavorite so
+        // the number is free for reuse by the next favorite in that genre instead of climbing
+        // forever. Scoped to US only: the vast majority of non-US categories already have small,
+        // usable provider numbers.
+        if (ch.customNum == null && nowFavorite && isUsCategory(ch.categoryId)) {
+            val categoryName = db.categoryDao().getCategoryById(ch.categoryId ?: "")?.categoryName
+            val blockStart = genreNumberBlockStart(categoryName)
+            val blockEnd = blockStart + 99
+            val next = (db.channelDao().getMaxCustomNumInRange(blockStart, blockEnd) ?: (blockStart - 1)) + 1
+            db.channelDao().setCustomNum(streamId, next)
+        } else if (!nowFavorite && ch.customNum != null) {
+            db.channelDao().setCustomNum(streamId, null)
+        }
+    }
+
+    // Same matching rules as HomeViewModel.isUsCategory (kept in sync manually — this lives here
+    // too since the repository can't depend on a ViewModel, and toggleChannelFavorite needs it
+    // for auto-numbering regardless of which screen the favorite came from).
+    private suspend fun isUsCategory(categoryId: String?): Boolean {
+        if (categoryId == null) return false
+        val name = db.categoryDao().getCategoryById(categoryId)?.categoryName?.trim()?.uppercase()
+            ?.replace(Regex("\\s*\\|\\s*"), "|") ?: return false
+        return name.startsWith("US|") || name.contains("|US|") ||
+            Regex("""(^|\|)USA\b""").containsMatchIn(name)
+    }
+
+    // Cable-style reserved blocks (100 numbers each) by genre, matched against the category name
+    // using the same keyword taxonomy as GenreClassifier (Favorites' genre chips) — explicitly
+    // requested layout: 2-99 Basic TV, 100s Movies, 200s Sports, 300s News, 400s Kids. Anything
+    // that doesn't match one of those falls into a general 500s block rather than being refused a
+    // number outright.
+    private fun genreNumberBlockStart(categoryName: String?): Int {
+        val name = categoryName?.lowercase() ?: return 500
+        val movies = listOf("movie", "film", "cinema", "hbo", "showtime", "starz", "amc", "fx movie")
+        val sports = listOf("sport", "espn", "nfl", "nba", "mlb", "nhl", "nascar", "tennis", "golf", "soccer", "football")
+        val news = listOf("news", "cnn", "cnbc", "msnbc", "bbc", "fox news", "abc news", "nbc news")
+        val kids = listOf("kid", "children", "child", "disney", "nickelodeon", "nick", "cartoon", "toon")
+        return when {
+            movies.any { name.contains(it) } -> 100
+            sports.any { name.contains(it) } -> 200
+            news.any { name.contains(it) } -> 300
+            kids.any { name.contains(it) } -> 400
+            else -> 2 // Basic TV / everything else, cable's traditional low-number range
+        }
     }
 
     suspend fun markChannelWatched(streamId: Int) {

@@ -604,15 +604,24 @@ class TvHomeActivity : AppCompatActivity() {
         // merged channel kept showing a primary channel instead.
     }
 
+    // "5 · CBS Miami" when the channel has a user-assigned custom number (see
+    // ChannelEntity.customNum's kdoc — auto-assigned on favoriting a US channel), otherwise just
+    // the plain name. Deliberately customNum only, not the provider's raw num — those are often
+    // huge/meaningless internal IDs on non-US channels too, not something worth surfacing.
+    // Shared by the mini player's now-playing footer and its scroll-preview so the number shows
+    // whether you're actively watching or just browsing past a numbered favorite.
+    private fun miniPlayerTitleFor(channel: ChannelEntity): String =
+        channel.customNum?.let { "$it · ${channel.name}" } ?: channel.name
+
     private fun playInMiniPlayer(channel: ChannelEntity) {
         lifecycleScope.launch {
             val url = viewModel.getLiveStreamUrl(channel.streamId)
             currentMiniUrl = url
-            currentMiniTitle = channel.name
+            currentMiniTitle = miniPlayerTitleFor(channel)
             currentMiniStreamId = channel.streamId
             currentMiniServerIndex = -1
             currentMiniIsVod = false
-            binding.tvTvChannelName.text = channel.name
+            binding.tvTvChannelName.text = currentMiniTitle
             miniPlayer?.let {
                 it.setMediaItem(MediaItem.fromUri(url))
                 it.prepare()
@@ -807,7 +816,7 @@ class TvHomeActivity : AppCompatActivity() {
         )
         channelAdapter.isTvMode = true
         channelAdapter.onChannelFocused = { channel ->
-            binding.tvTvChannelName.text = channel.name
+            binding.tvTvChannelName.text = miniPlayerTitleFor(channel)
             val epgText = viewModel.channelEpgText.value[channel.streamId]
             binding.tvTvEpg.text = epgText ?: ""
             val progress = viewModel.channelEpgProgress.value[channel.streamId] ?: 0

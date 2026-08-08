@@ -173,7 +173,49 @@ class LoginActivity : AppCompatActivity() {
         binding.btnLogin.setOnClickListener { attemptLogin() }
         binding.btnImportM3u.setOnClickListener { showM3uImportDialog() }
         binding.btnScanQr.setOnClickListener { scanQrClicked() }
+        binding.btnRestoreFromBackup.setOnClickListener { restoreFromBackupLauncher.launch(arrayOf("*/*")) }
     }
+
+    // Picks a backup file and logs in using ITS saved credentials directly — skips typing
+    // server/username/password by hand entirely, unlike restoreLauncher below which only ever
+    // runs after a manual login already succeeded. Falls back to showing an error if the file
+    // has no usable credentials (an old backup predating serverUrl/username being saved, or a
+    // non-MKTV file) rather than silently doing nothing.
+    private val restoreFromBackupLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            try {
+                val jsonText = contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() }
+                if (jsonText == null) {
+                    showError("Couldn't read that file")
+                    return@launch
+                }
+                val json = JSONObject(jsonText)
+                val serverUrl = json.optString("serverUrl", "")
+                val username = json.optString("username", "")
+                val password = json.optString("password", "")
+                if (serverUrl.isEmpty() || username.isEmpty()) {
+                    showError("This backup has no saved login — use Scan QR or enter credentials manually")
+                    return@launch
+                }
+                pendingBackupRestoreUri = uri
+                binding.etServerUrl.setText(serverUrl)
+                binding.etUsername.setText(username)
+                binding.etPassword.setText(password)
+                viewModel.login(serverUrl, username, password)
+            } catch (e: Exception) {
+                showError("Restore failed: ${e.message}")
+            }
+        }
+    }
+
+    // Set right before viewModel.login() fires from restoreFromBackupLauncher so
+    // observeLoginState's Resource.Success branch can finish the restore (favorites/settings/etc)
+    // with the same file instead of prompting askRestoreAfterLogin's separate file picker again.
+    private var pendingBackupRestoreUri: Uri? = null
 
     private fun showM3uImportDialog() {
         val options = arrayOf("Enter M3U URL", "Choose file")
@@ -238,10 +280,22 @@ class LoginActivity : AppCompatActivity() {
                         setLoading(false)
                         val epgUrl = binding.etEpgUrl?.text?.toString()?.trim().orEmpty()
                         if (epgUrl.isNotEmpty()) prefs.setEpgUrl(epgUrl)
-                        askRestoreAfterLogin()
+                        val backupUri = pendingBackupRestoreUri
+                        if (backupUri != null) {
+                            pendingBackupRestoreUri = null
+                            lifecycleScope.launch {
+                                try { restoreBackup(backupUri) } catch (e: Exception) {
+                                    android.util.Log.e("RESTORE", "Restore failed", e)
+                                }
+                                goToHome()
+                            }
+                        } else {
+                            askRestoreAfterLogin()
+                        }
                     }
                     is Resource.Error -> {
                         setLoading(false)
+                        pendingBackupRestoreUri = null
                         showError(state.message)
                         viewModel.resetState()
                     }
