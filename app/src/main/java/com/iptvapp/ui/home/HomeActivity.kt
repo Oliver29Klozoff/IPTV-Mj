@@ -327,6 +327,62 @@ class HomeActivity : AppCompatActivity() {
                 { commitBulkRemoveFavorites() },
                 { clearBulkSelectionFavorites() }
             )
+            // Providers' three merged bulk-select modes (Live/Movies/Series) previously had no
+            // Done/Cancel bar at all in either orientation — btnProvidersSelectAll's own
+            // visibility (below) was wired up, but nothing showed these three states here, so the
+            // only way to finish was the 8s idle popup (bulkSelectMergedIdleRunnable and friends)
+            // or manually deselecting everything. done maps to each mode's idle-popup primary
+            // action (Add to Favorites for channels, Hide for VOD/Series, matching what tapping
+            // "the" obvious button already did via the popup) so Done behaves the same as it
+            // always eventually would have, just without waiting 8 seconds for it.
+            bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty() -> Quadruple(
+                bulkSelectedMergedKeys.size,
+                {
+                    bulkSelectedMergedKeys.addAll(viewModel.mergedChannels.value.map { "${it.serverIndex}:${it.streamId}" })
+                    mergedChannelAdapter.submitBulkSelection(bulkSelectedMergedKeys.toSet())
+                },
+                {
+                    viewModel.bulkAddMergedFavorites(bulkSelectedMergedKeys.toSet())
+                    Toast.makeText(this, "Added ${bulkSelectedMergedKeys.size} channels to favorites", Toast.LENGTH_SHORT).show()
+                    clearBulkSelectionMerged()
+                },
+                { clearBulkSelectionMerged() },
+                hide = { commitBulkHideMerged() }
+            )
+            bulkSelectMergedVodMode && bulkSelectedMergedVodKeys.isNotEmpty() -> Quadruple(
+                bulkSelectedMergedVodKeys.size,
+                {
+                    bulkSelectedMergedVodKeys.addAll(viewModel.mergedVod.value.map { "${it.serverIndex}:${it.streamId}" })
+                    mergedVodAdapter.submitBulkSelection(bulkSelectedMergedVodKeys.toSet())
+                },
+                {
+                    val items = bulkSelectedMergedVodKeys.mapNotNull { key ->
+                        val (serverIndex, streamId) = key.split(":", limit = 2)
+                        viewModel.mergedVod.value.firstOrNull { it.serverIndex == serverIndex.toInt() && it.streamId == streamId.toInt() }
+                    }
+                    viewModel.bulkHideMergedVod(items)
+                    Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} movies hidden", Toast.LENGTH_SHORT).show()
+                    clearBulkSelectionMergedVod()
+                },
+                { clearBulkSelectionMergedVod() }
+            )
+            bulkSelectMergedSeriesMode && bulkSelectedMergedSeriesKeys.isNotEmpty() -> Quadruple(
+                bulkSelectedMergedSeriesKeys.size,
+                {
+                    bulkSelectedMergedSeriesKeys.addAll(viewModel.mergedSeries.value.map { "${it.serverIndex}:${it.seriesId}" })
+                    mergedSeriesAdapter.submitBulkSelection(bulkSelectedMergedSeriesKeys.toSet())
+                },
+                {
+                    val items = bulkSelectedMergedSeriesKeys.mapNotNull { key ->
+                        val (serverIndex, seriesId) = key.split(":", limit = 2)
+                        viewModel.mergedSeries.value.firstOrNull { it.serverIndex == serverIndex.toInt() && it.seriesId == seriesId.toInt() }
+                    }
+                    viewModel.bulkHideMergedSeries(items)
+                    Toast.makeText(this, "${bulkSelectedMergedSeriesKeys.size} shows hidden", Toast.LENGTH_SHORT).show()
+                    clearBulkSelectionMergedSeries()
+                },
+                { clearBulkSelectionMergedSeries() }
+            )
             else -> null
         }
         if (state == null) {
@@ -335,6 +391,12 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.bulkSelectBar?.visibility = View.VISIBLE
         binding.tvBulkSelectCount?.text = "${state.count} selected"
+        // btnBulkSelectAll would duplicate btnProvidersSelectAll for the three merged Providers
+        // modes (both would just call the same selectAll) — hidden here so only the
+        // Providers-specific one shows for those, keeping the original one-button-per-mode design
+        // instead of showing two "Select All"s side by side.
+        val isProvidersMergedMode = bulkSelectMergedMode || bulkSelectMergedVodMode || bulkSelectMergedSeriesMode
+        binding.btnBulkSelectAll?.visibility = if (isProvidersMergedMode) View.GONE else View.VISIBLE
         binding.btnBulkSelectAll?.setOnClickListener {
             state.selectAll()
             Toast.makeText(this, "Selected all", Toast.LENGTH_SHORT).show()

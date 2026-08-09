@@ -578,6 +578,26 @@
             android:textColor="#008CFF"
             android:textSize="12sp" />
 
+        <!-- Providers' own Select All (Live/Movies/Series bulk-select there, separate from
+             Favorites'/primary channels' btnBulkSelectAll above) — was entirely missing from
+             this layout like the rest of this bar, so binding.btnProvidersSelectAll's three
+             nullable references in HomeActivity silently no-opped in landscape. Placed on the
+             same shared bar rather than squeezed into the already-tight 150dp sidebar tab row
+             portrait puts it in (activity_home.xml has it inline next to the refresh icon,
+             where there's no equivalent free space here). -->
+        <TextView
+            android:id="@+id/btnProvidersSelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/focus_selector"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="Select All"
+            android:textColor="#008CFF"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/btnBulkSelectDone"
             android:layout_width="wrap_content"

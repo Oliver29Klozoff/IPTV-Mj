@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.71 - 2026-08-09
+- **Fixed**: landscape was missing the "Select All" button for Providers' Live/Movies/Series
+  bulk-select entirely.
+- **Fixed**: Providers' bulk-select (Live/Movies/Series) had no Done/Cancel bar in either
+  orientation — the only way to finish was waiting 8 seconds for an idle popup, or manually
+  deselecting everything. Now shows the same Done/Cancel bar as every other bulk-select mode.
+
 ## v5.70 - 2026-08-08
 - **Fixed**: TV screensaver could kick in over the mini player while a channel was actively
   playing on the sidebar/home screen — that screen never told the system to keep the display

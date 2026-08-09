@@ -1,7 +1,7 @@
 {
-  "versionCode": 408,
-  "versionName": "5.70",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.70/MKTV.apk",
-  "apkSha256": "db60741d276e42e4c650409c73664c34552dea2b7191bc390749900fc1d03614",
-  "changelog": "Fixed: TV screensaver could kick in over the mini player while a channel was actively playing on the sidebar/home screen. Screen now stays on while it's open."
+  "versionCode": 409,
+  "versionName": "5.71",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.71/MKTV.apk",
+  "apkSha256": "27ca524c1aeb35ea8db2d4136ef95cd65f268bf6832afd5be8acefccd2cb5473",
+  "changelog": "Fixed landscape's missing Providers Select All button and the missing Done/Cancel bar for Providers bulk-select (Live/Movies/Series) — previously the only way to finish was waiting 8 seconds for an idle popup."
 }
