@@ -1,7 +1,7 @@
 {
-  "versionCode": 410,
-  "versionName": "5.72",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.72/MKTV.apk",
-  "apkSha256": "e87e1b64ca4328aef6bfce5d68244d46457b781bd89738ec6fb53b3fcfd6ae52",
-  "changelog": "Added a \"What's On Now\" strip at the top of Favorites — horizontal cards showing your favorited channels' currently-airing shows with a progress bar, tap to play instantly."
+  "versionCode": 411,
+  "versionName": "5.73",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.73/MKTV.apk",
+  "apkSha256": "ffdc911a292ba572434ae834d6deeea1aa0c2253f269098270af9d0dbdbc3bd7",
+  "changelog": "Fixed: tapping a channel in Guide's list view opened fullscreen immediately instead of playing in the mini player first. Now matches What's On Now and the Grid guide view: tap plays in the mini player, a separate tap on the mini player goes fullscreen."
 }

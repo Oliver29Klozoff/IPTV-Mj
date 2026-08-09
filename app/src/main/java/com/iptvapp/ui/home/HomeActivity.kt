@@ -2555,13 +2555,11 @@ class HomeActivity : AppCompatActivity() {
                     // openPlayer wiring with serverIndex/mergedStreamId).
                     playMergedChannel(mergedCh)
                 } else {
-                    row.channel?.let { ch ->
-                        lifecycleScope.launch {
-                            playInMiniPlayer(ch)
-                            val url = viewModel.getLiveStreamUrl(ch.streamId)
-                            openPlayer(url, ch.name, ch.streamId)
-                        }
-                    }
+                    // Mini player only — was also immediately opening fullscreen right after,
+                    // which meant the mini-player step was invisible in practice. Matches
+                    // Favorites' What's On Now strip and every other list: tap plays in the mini
+                    // player, a separate tap on the mini player itself goes fullscreen.
+                    row.channel?.let { ch -> playInMiniPlayer(ch) }
                 }
             },
             onReplayClick = { row, program ->

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.73 - 2026-08-09
+- **Fixed**: tapping a channel in Guide's list view opened fullscreen immediately instead of
+  playing in the mini player first — it was starting the mini player then opening fullscreen
+  right after, in the same tap. Now matches What's On Now and the Grid guide view: tap plays
+  in the mini player, a separate tap on the mini player goes fullscreen.
+
 ## v5.72 - 2026-08-09
 - **Added**: "What's On Now" strip at the top of Favorites — horizontal cards showing your
   favorited channels' currently-airing shows with a progress bar, tap to play instantly.
