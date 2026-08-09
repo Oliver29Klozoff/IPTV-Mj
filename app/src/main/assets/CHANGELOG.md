@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.75 - 2026-08-09
+- **Fixed**: refreshing the EPG after v5.74's matching fix didn't actually clear old, wrong
+  guide data — the refresh only ever added/updated entries, so a channel that now resolves
+  differently (or not at all) kept showing its stale mismatched schedule from before. EPG
+  refresh now clears old data first, so a refresh actually reflects the corrected matching.
+
 ## v5.74 - 2026-08-09
 - **Fixed**: EPG guide data could show a completely different show/movie than what a channel
   was actually playing. A fuzzy substring name-matching fallback (used when a provider's XMLTV

@@ -606,6 +606,14 @@ class XtreamRepository @Inject constructor(
             byName[normalizeForMatch(ch.name)] = ch.streamId
         }
 
+        // Clear every existing primary-server EPG row before writing the fresh batch — see
+        // EpgDao.deleteAllForServer's kdoc for why upsert alone can leave stale, WRONG entries
+        // behind under an old streamId when a channel now resolves differently (or not at all)
+        // than it did on a previous fetch. This is why refreshing the EPG after the v5.74 matching
+        // fix didn't change anything you could see: the old mismatched rows were still sitting in
+        // the table, untouched by upsert.
+        db.epgDao().deleteAllForServer(-1)
+
         var totalCount = 0
         for (url in sources) {
             totalCount += try {
@@ -1901,6 +1909,12 @@ class XtreamRepository @Inject constructor(
                 android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): every source gave zero programs — provider may not offer XMLTV at these URLs, or the request failed silently (see XmltvFetcher.fetch, which swallows errors and returns empty)")
                 return@withContext 0
             }
+
+            // See EpgDao.deleteAllForServer's kdoc — upsert alone can leave stale, WRONG rows
+            // behind under an old streamId when re-matching resolves a channel differently than a
+            // previous fetch did. Placed after the empty-programs guard above so a failed/empty
+            // fetch doesn't wipe out this server's still-good previous data for nothing.
+            db.epgDao().deleteAllForServer(serverIndex)
 
             // Same byEpgId-first matching the primary provider's fetchXmltvFromUrl already used
             // (see MergedChannelEntity.epgChannelId kdoc for why this was missing here) — a

@@ -1,7 +1,7 @@
 {
-  "versionCode": 412,
-  "versionName": "5.74",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.74/MKTV.apk",
-  "apkSha256": "6b8a2c0db6a5a7c44624acf2a4fc78e8dd61b3aebd273909cb4b852de4fc773f",
-  "changelog": "Fixed EPG data showing the wrong show/movie for a channel — a fuzzy name-matching fallback could match XMLTV schedule data to the wrong channel on a large catalog. Removed; channels without an exact match now show no guide data instead of confidently wrong data."
+  "versionCode": 413,
+  "versionName": "5.75",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.75/MKTV.apk",
+  "apkSha256": "c6b319e8451eff7ccf739a9959257a88da504303ec349ea457ee0ccf8fce03e6",
+  "changelog": "Fixed: refreshing the EPG after v5.74's matching fix didn't actually clear old, wrong guide data. EPG refresh now clears old data first, so a refresh actually reflects the corrected matching."
 }

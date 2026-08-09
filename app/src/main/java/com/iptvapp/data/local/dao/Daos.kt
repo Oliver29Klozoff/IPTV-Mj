@@ -346,6 +346,15 @@ interface EpgDao {
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")
     suspend fun deleteExpiredEpg(before: Long = System.currentTimeMillis() / 1000)
+    // upsertEpg's id ("x_${xmltvChannelId}_${startSec}") is scoped to the XMLTV feed's OWN
+    // channel id, not the resolved local streamId — so when a re-fetch resolves an XMLTV channel
+    // to a DIFFERENT (now-correct, post name-matching-fix) local streamId than a previous fetch
+    // did, upsert just adds a new row under the new streamId; the old row under the old, wrong
+    // streamId is never touched and stays wrong forever. fetchXmltvEpg/fetchXmltvEpgForMergedServer
+    // call this right before writing a fresh batch, since both already fetch the complete current
+    // dataset — there's no partial-update case where keeping old rows around is correct.
+    @Query("DELETE FROM epg_entries WHERE serverIndex = :serverIndex")
+    suspend fun deleteAllForServer(serverIndex: Int = -1)
 }
 
 @Dao
