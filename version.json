@@ -1,7 +1,7 @@
 {
-  "versionCode": 411,
-  "versionName": "5.73",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.73/MKTV.apk",
-  "apkSha256": "ffdc911a292ba572434ae834d6deeea1aa0c2253f269098270af9d0dbdbc3bd7",
-  "changelog": "Fixed: tapping a channel in Guide's list view opened fullscreen immediately instead of playing in the mini player first. Now matches What's On Now and the Grid guide view: tap plays in the mini player, a separate tap on the mini player goes fullscreen."
+  "versionCode": 412,
+  "versionName": "5.74",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.74/MKTV.apk",
+  "apkSha256": "6b8a2c0db6a5a7c44624acf2a4fc78e8dd61b3aebd273909cb4b852de4fc773f",
+  "changelog": "Fixed EPG data showing the wrong show/movie for a channel — a fuzzy name-matching fallback could match XMLTV schedule data to the wrong channel on a large catalog. Removed; channels without an exact match now show no guide data instead of confidently wrong data."
 }

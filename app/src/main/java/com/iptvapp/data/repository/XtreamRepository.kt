@@ -624,22 +624,20 @@ class XtreamRepository @Inject constructor(
         if (xmlPrograms.isEmpty()) return 0
 
         // Resolve each distinct xmltv channel to a stream id once (not per-program —
-        // there can be thousands of programs but only a few hundred channels):
-        // 1) exact epg-channel-id match, 2) exact normalized-name match,
-        // 3) substring match on normalized names, which catches near-miss naming like
-        //    "ESPN2" vs "ESPN 2" or a provider adding/dropping a region suffix — this is
-        //    what was missing before, causing correctly-available EPG data to be
-        //    silently dropped as "no information" whenever names weren't byte-identical.
+        // there can be thousands of programs but only a few hundred channels): 1) exact
+        // epg-channel-id match, 2) exact normalized-name match. A previous third fallback —
+        // "first channel whose normalized name contains, or is contained by, the xmltv name" —
+        // was removed: on a catalog this size (tens of thousands of channels), that kind of
+        // substring match routinely matched the WRONG channel (e.g. "ESPN" as a substring of
+        // "ESPN2", "ESPN News", "ESPN Deportes", ...), silently writing one network's real
+        // schedule under a completely different channel's streamId — exactly the bug where the
+        // guide shows one show/movie but the channel is actually playing something else. Losing
+        // EPG data for a channel with an ambiguous/non-matching name is far better than showing
+        // confidently wrong data for it.
         val xmlChannelToStreamId = mutableMapOf<String, Int>()
         xmlChannels.forEach { xmlCh ->
             val normXml = normalizeForMatch(xmlCh.displayName)
-            val resolved = byEpgId[xmlCh.id.lowercase()]
-                ?: byName[normXml]
-                ?: if (normXml.isBlank()) null else {
-                    byName.entries.firstOrNull { (key, _) ->
-                        key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
-                    }?.value
-                }
+            val resolved = byEpgId[xmlCh.id.lowercase()] ?: byName[normXml]
             if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
         }
 
@@ -1909,16 +1907,15 @@ class XtreamRepository @Inject constructor(
             // stable provider-assigned ID match is far more reliable than fuzzy channel-name
             // matching, which previously could resolve XMLTV entries to entirely different local
             // channels than the ones actually favorited on a provider with a large/messy feed.
+            // The substring fallback that used to sit here (matching e.g. "ESPN" against
+            // "ESPN2"/"ESPN News"/"ESPN Deportes" and grabbing whichever happened to be first)
+            // is gone for the same reason as fetchXmltvFromUrl's: on a large catalog it routinely
+            // picked the wrong channel and silently wrote one network's schedule under a
+            // completely different channel's streamId.
             val xmlChannelToStreamIds = mutableMapOf<String, List<Int>>()
             xmlChannels.forEach { xmlCh ->
                 val normXml = normalizeForMatch(xmlCh.displayName)
-                val resolved = byEpgId[xmlCh.id.lowercase()]
-                    ?: byName[normXml]
-                    ?: if (normXml.isBlank()) null else {
-                        byName.entries.firstOrNull { (key, _) ->
-                            key.isNotBlank() && (key.contains(normXml) || normXml.contains(key))
-                        }?.value
-                    }
+                val resolved = byEpgId[xmlCh.id.lowercase()] ?: byName[normXml]
                 if (resolved != null) xmlChannelToStreamIds[xmlCh.id] = resolved
             }
             android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size}/${xmlChannels.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")

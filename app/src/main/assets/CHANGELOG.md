@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.74 - 2026-08-09
+- **Fixed**: EPG guide data could show a completely different show/movie than what a channel
+  was actually playing. A fuzzy substring name-matching fallback (used when a provider's XMLTV
+  feed and channel list names weren't byte-identical) could match the wrong channel entirely
+  on a large catalog — e.g. "ESPN" matching "ESPN2" or "ESPN Deportes" — silently writing one
+  network's schedule under a different channel. Removed; channels without an exact match now
+  simply show no guide data instead of confidently wrong data.
+
 ## v5.73 - 2026-08-09
 - **Fixed**: tapping a channel in Guide's list view opened fullscreen immediately instead of
   playing in the mini player first — it was starting the mini player then opening fullscreen
