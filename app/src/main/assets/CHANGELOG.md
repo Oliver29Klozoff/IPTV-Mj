@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.72 - 2026-08-09
+- **Added**: "What's On Now" strip at the top of Favorites — horizontal cards showing your
+  favorited channels' currently-airing shows with a progress bar, tap to play instantly.
+  Shows automatically whenever at least one favorited channel has live program data.
+
 ## v5.71 - 2026-08-09
 - **Fixed**: landscape was missing the "Select All" button for Providers' Live/Movies/Series
   bulk-select entirely.

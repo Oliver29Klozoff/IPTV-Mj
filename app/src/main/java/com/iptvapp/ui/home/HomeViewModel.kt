@@ -952,6 +952,40 @@ class HomeViewModel @Inject constructor(
     private val _channelEpgProgress = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val channelEpgProgress: StateFlow<Map<Int, Int>> = _channelEpgProgress
 
+    // Favorites' "What's On Now" strip — one entry per favorited primary channel that currently
+    // has a program airing (channels with no EPG data at all are omitted rather than shown with
+    // blank text, since a card with nothing to say isn't useful). Deliberately its own StateFlow
+    // rather than reusing channelEpgText/channelEpgProgress above: those are keyed by streamId
+    // for the currently-DISPLAYED channel list on any tab, so a card list needs its own ordered
+    // structure and needs to stay populated specifically while Favorites is the active tab,
+    // independent of whatever list happens to be showing underneath it.
+    data class WhatsOnNowEntry(val channel: ChannelEntity, val programTitle: String, val progressPercent: Int)
+
+    private val _whatsOnNow = MutableStateFlow<List<WhatsOnNowEntry>>(emptyList())
+    val whatsOnNow: StateFlow<List<WhatsOnNowEntry>> = _whatsOnNow
+
+    fun loadWhatsOnNow(channels: List<ChannelEntity>) {
+        viewModelScope.launch {
+            if (channels.isEmpty()) {
+                _whatsOnNow.value = emptyList()
+                return@launch
+            }
+            val ids = channels.map { it.streamId }
+            val epgEntries = ids.chunked(500).flatMap { chunk -> repository.getEpgForStreams(chunk).first() }
+            val epgByStream = epgEntries.groupBy { it.streamId }
+            val nowSecs = System.currentTimeMillis() / 1000
+            _whatsOnNow.value = channels.mapNotNull { channel ->
+                val now = epgByStream[channel.streamId]?.firstOrNull() ?: return@mapNotNull null
+                val progress = if (now.stopTimestamp > now.startTimestamp) {
+                    val elapsed = (nowSecs - now.startTimestamp).coerceAtLeast(0)
+                    val total = now.stopTimestamp - now.startTimestamp
+                    ((elapsed * 100L) / total).coerceIn(0, 100).toInt()
+                } else 0
+                WhatsOnNowEntry(channel, now.title, progress)
+            }
+        }
+    }
+
     private val _channelEpgNextText = MutableStateFlow<Map<Int, String>>(emptyMap())
     val channelEpgNextText: StateFlow<Map<Int, String>> = _channelEpgNextText
 

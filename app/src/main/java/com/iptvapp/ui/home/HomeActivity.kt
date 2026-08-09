@@ -917,6 +917,11 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var mergedVodAdapter: MergedVodAdapter
     private lateinit var mergedSeriesAdapter: MergedSeriesAdapter
     private lateinit var combinedFavoriteAdapter: CombinedFavoriteAdapter
+    // Favorites' "What's On Now" strip (see HomeViewModel.loadWhatsOnNow's kdoc) — built here
+    // rather than lazily since it needs to exist before setupAdapters' RecyclerView wiring runs.
+    private val whatsOnNowAdapter: WhatsOnNowAdapter by lazy {
+        WhatsOnNowAdapter(onClick = { entry -> playInMiniPlayer(entry.channel) })
+    }
     // Live tab now merges the primary provider with every configured secondary provider, same
     // shape as the Favorites tab's combinedFavoriteAdapter. categoryAdapter/channelAdapter stay
     // in use elsewhere (Categories/Movies reuse categoryAdapter; channelAdapter still backs the
@@ -2587,6 +2592,9 @@ class HomeActivity : AppCompatActivity() {
         binding.rvChannels.layoutManager = LinearLayoutManager(this)
         binding.rvChannels.adapter = channelAdapter
 
+        binding.rvWhatsOnNow?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        binding.rvWhatsOnNow?.adapter = whatsOnNowAdapter
+
         // Scrolling either list while it's showing (landscape) counts as active browsing —
         // resets the same idle timer picking a channel does, so actively scrolling a long
         // list for more than 10s doesn't get the column yanked away mid-browse.
@@ -2614,6 +2622,13 @@ class HomeActivity : AppCompatActivity() {
                     providersTabVisitedSinceTabSwitch = false
                     providersMode = ProvidersMode.LIVE
                     setProvidersModeButtonHighlight()
+                }
+                // Favorites-only — see HomeViewModel.loadWhatsOnNow's kdoc. showFavorites() below
+                // shows/populates it again on that tab; every other tab just hides it here rather
+                // than repeating a hide call in each individual show* function.
+                if (tab?.position != TAB_FAVORITES) {
+                    binding.tvWhatsOnNowHeader?.visibility = View.GONE
+                    binding.rvWhatsOnNow?.visibility = View.GONE
                 }
                 when (tab?.position) {
                     TAB_FAVORITES -> showFavorites()
@@ -3607,6 +3622,11 @@ class HomeActivity : AppCompatActivity() {
         viewModel.checkFavoritesHealth()
         viewModel.checkMergedFavoritesHealth()
         pendingScrollToCurrent = true
+        // Primary favorites only — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-
+        // provider favorites aren't included (no equivalent EPG fetch path exists for them yet).
+        viewModel.loadWhatsOnNow(
+            viewModel.combinedFavorites.value.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
+        )
         lifecycleScope.launch {
             val favorites = viewModel.getCombinedFavoritesSnapshot()
             if (!pendingScrollToCurrent) return@launch
@@ -4041,6 +4061,15 @@ class HomeActivity : AppCompatActivity() {
             viewModel.channels.collect { list ->
                 if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) return@collect
                 viewModel.loadEpgForChannels(list)
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.whatsOnNow.collect { entries ->
+                if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return@collect
+                val visible = entries.isNotEmpty()
+                binding.tvWhatsOnNowHeader?.visibility = if (visible) View.VISIBLE else View.GONE
+                binding.rvWhatsOnNow?.visibility = if (visible) View.VISIBLE else View.GONE
+                whatsOnNowAdapter.submitList(entries)
             }
         }
         lifecycleScope.launch {
