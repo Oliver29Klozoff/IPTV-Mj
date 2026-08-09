@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.76 - 2026-08-09
+- **Fixed**: EPG could still show the wrong channel's schedule after v5.74/v5.75 — name
+  matching strips region/country prefixes ("US:", "BR:", "NL:") along with HD/quality tags, so
+  two entirely different regional channels (e.g. "US: ESPN HD" and "BR: ESPN HD") could
+  normalize to the same key and silently share one channel's schedule. Names that match more
+  than one channel are now excluded from matching entirely instead of guessed.
+
 ## v5.75 - 2026-08-09
 - **Fixed**: refreshing the EPG after v5.74's matching fix didn't actually clear old, wrong
   guide data — the refresh only ever added/updated entries, so a channel that now resolves

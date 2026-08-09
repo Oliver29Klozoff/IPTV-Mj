@@ -1,7 +1,7 @@
 {
-  "versionCode": 413,
-  "versionName": "5.75",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.75/MKTV.apk",
-  "apkSha256": "c6b319e8451eff7ccf739a9959257a88da504303ec349ea457ee0ccf8fce03e6",
-  "changelog": "Fixed: refreshing the EPG after v5.74's matching fix didn't actually clear old, wrong guide data. EPG refresh now clears old data first, so a refresh actually reflects the corrected matching."
+  "versionCode": 414,
+  "versionName": "5.76",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.76/MKTV.apk",
+  "apkSha256": "3f5ff415e62f38142b3a242e87219402d7ef9c099ae1546520f22475916c37fb",
+  "changelog": "Fixed EPG still showing the wrong channel's schedule in some cases — region/country name prefixes (\"US:\", \"BR:\", \"NL:\") were being stripped during matching, so unrelated regional channels could collapse to the same key and share a schedule. Ambiguous names are now excluded from matching instead of guessed."
 }

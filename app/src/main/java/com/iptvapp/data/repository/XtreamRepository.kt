@@ -599,12 +599,25 @@ class XtreamRepository @Inject constructor(
         // supplied the program data.
         val allChannels = db.channelDao().getAllChannels().first()
         val byEpgId = mutableMapOf<String, Int>()
-        val byName  = mutableMapOf<String, Int>()
+        // Normalizing strips region/country prefixes ("US:", "BR:", "NL:") along with HD/quality
+        // tags, so two entirely different regional channels commonly collapse to the identical
+        // key — "US: ESPN HD" and "BR: ESPN HD" both normalize to "espn". A plain single-value map
+        // here meant whichever channel happened to be processed last in this forEach silently won
+        // that key, and every XMLTV program for "espn" got written against that one channel's
+        // streamId even when it was actually the other regional feed's schedule — exactly the
+        // "guide shows one channel's schedule, a different channel is playing" bug reported after
+        // v5.74/v5.75 (those fixed the substring-fallback and stale-data issues, but this
+        // exact-key collision was a separate, still-live cause of the same symptom). A name that
+        // maps to more than one channel is now treated as ambiguous and excluded entirely — see
+        // the null-out pass below — rather than resolved by silent last-write-wins.
+        val byNameRaw = mutableMapOf<String, MutableList<Int>>()
         allChannels.forEach { ch ->
             if (!ch.epgChannelId.isNullOrBlank())
                 byEpgId[ch.epgChannelId.lowercase()] = ch.streamId
-            byName[normalizeForMatch(ch.name)] = ch.streamId
+            val key = normalizeForMatch(ch.name)
+            if (key.isNotBlank()) byNameRaw.getOrPut(key) { mutableListOf() }.add(ch.streamId)
         }
+        val byName: Map<String, Int> = byNameRaw.filterValues { it.size == 1 }.mapValues { it.value[0] }
 
         // Clear every existing primary-server EPG row before writing the fresh batch — see
         // EpgDao.deleteAllForServer's kdoc for why upsert alone can leave stale, WRONG entries
@@ -1891,11 +1904,22 @@ class XtreamRepository @Inject constructor(
         // match — every earlier variant silently lost its EPG entirely. Both maps are one-to-many
         // so every variant gets the same programs.
         val byEpgId = mutableMapOf<String, MutableList<Int>>()
-        val byName = mutableMapOf<String, MutableList<Int>>()
+        // byEpgId above is deliberately one-to-many (see comment above it) — real HD/SD/EAST/
+        // WEST variants of one network sharing one provider-assigned id, a legitimate case where
+        // fanning EPG data out to every variant is correct. byName has no such ground truth: it's
+        // a fallback heuristic, and normalizing strips region/country prefixes ("US:", "BR:",
+        // "NL:") along with HD/quality tags, so two entirely UNRELATED regional channels commonly
+        // collapse to the identical key — "US: ESPN HD" and "BR: ESPN HD" both normalize to
+        // "espn". Applying one schedule to both (as a naive one-to-many byName would) is just as
+        // wrong as v5.74/v5.75's already-fixed substring-fallback and stale-data bugs, so any name
+        // that maps to more than one channel is excluded from byName entirely rather than guessed.
+        val byNameRaw = mutableMapOf<String, MutableList<Int>>()
         channels.forEach { ch ->
             if (!ch.epgChannelId.isNullOrBlank()) byEpgId.getOrPut(ch.epgChannelId.lowercase()) { mutableListOf() }.add(ch.streamId)
-            byName.getOrPut(normalizeForMatch(ch.name)) { mutableListOf() }.add(ch.streamId)
+            val key = normalizeForMatch(ch.name)
+            if (key.isNotBlank()) byNameRaw.getOrPut(key) { mutableListOf() }.add(ch.streamId)
         }
+        val byName: Map<String, List<Int>> = byNameRaw.filterValues { it.size == 1 }
 
         try {
             var xmlChannels = emptyList<com.iptvapp.util.XmltvChannel>()
