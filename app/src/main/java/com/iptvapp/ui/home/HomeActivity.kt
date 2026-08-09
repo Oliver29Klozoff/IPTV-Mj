@@ -960,6 +960,13 @@ class HomeActivity : AppCompatActivity() {
     private var lastReliabilityOutcomeStreamId: Int = -1
     private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
+    // What's On Now's data only ever loaded once, on entering/reselecting the Favorites tab — a
+    // card kept showing its stale program (and a progress bar computed against that stale
+    // program's own start/stop window, so it didn't line up with real time remaining either)
+    // until you left and came back to the tab, even long after the real show had ended. This
+    // re-runs loadWhatsOnNow every 60s while Favorites stays the active tab, self-terminating
+    // via the same while(true)+break-on-condition-change shape as startEpgRefreshLoop above.
+    private var whatsOnNowRefreshJob: kotlinx.coroutines.Job? = null
     private var isPipMode = false
     private var externalPlayerChoice = "internal"
     private var currentAccent: Int = android.graphics.Color.parseColor("#008CFF")
@@ -3622,9 +3629,19 @@ class HomeActivity : AppCompatActivity() {
         pendingScrollToCurrent = true
         // Primary favorites only — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-
         // provider favorites aren't included (no equivalent EPG fetch path exists for them yet).
-        viewModel.loadWhatsOnNow(
-            viewModel.combinedFavorites.value.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
-        )
+        fun refreshWhatsOnNow() {
+            viewModel.loadWhatsOnNow(
+                viewModel.combinedFavorites.value.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
+            )
+        }
+        refreshWhatsOnNow()
+        whatsOnNowRefreshJob?.cancel()
+        whatsOnNowRefreshJob = lifecycleScope.launch {
+            while (true) {
+                delay(60_000)
+                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) refreshWhatsOnNow() else break
+            }
+        }
         lifecycleScope.launch {
             val favorites = viewModel.getCombinedFavoritesSnapshot()
             if (!pendingScrollToCurrent) return@launch

@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v5.77 - 2026-08-09
+- **Fixed**: What's On Now cards could show a program that already ended (or hadn't started
+  yet) instead of what's actually airing, with a progress bar that didn't match real time
+  remaining — it was picking the earliest EPG entry in the database rather than checking which
+  program is actually current. Now explicitly matches the currently-airing window.
+- **Added**: What's On Now now refreshes automatically every 60 seconds while you're on the
+  Favorites tab, so a card updates on its own once a show ends instead of only refreshing when
+  you leave and come back to the tab.
+
 ## v5.76 - 2026-08-09
 - **Fixed**: EPG could still show the wrong channel's schedule after v5.74/v5.75 — name
   matching strips region/country prefixes ("US:", "BR:", "NL:") along with HD/quality tags, so

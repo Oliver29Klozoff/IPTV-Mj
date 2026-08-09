@@ -974,8 +974,18 @@ class HomeViewModel @Inject constructor(
             val epgEntries = ids.chunked(500).flatMap { chunk -> repository.getEpgForStreams(chunk).first() }
             val epgByStream = epgEntries.groupBy { it.streamId }
             val nowSecs = System.currentTimeMillis() / 1000
+            // Was epgByStream[id]?.firstOrNull() — getEpgForStreams orders by startTimestamp ASC
+            // (oldest first), so that grabbed whichever program happened to have the earliest
+            // start time in the table, not whatever's actually airing right now. A show that
+            // already ended (and hadn't been purged by deleteExpiredEpg yet) or a far-future
+            // entry could win outright, which is exactly why the card could show a program with
+            // no real relationship to the current time, and why its progress bar (computed
+            // against THAT program's start/stop window) didn't line up with anything real.
+            // Explicitly filtering to startTimestamp <= now < stopTimestamp fixes both at once.
             _whatsOnNow.value = channels.mapNotNull { channel ->
-                val now = epgByStream[channel.streamId]?.firstOrNull() ?: return@mapNotNull null
+                val now = epgByStream[channel.streamId]
+                    ?.firstOrNull { it.startTimestamp <= nowSecs && it.stopTimestamp > nowSecs }
+                    ?: return@mapNotNull null
                 val progress = if (now.stopTimestamp > now.startTimestamp) {
                     val elapsed = (nowSecs - now.startTimestamp).coerceAtLeast(0)
                     val total = now.stopTimestamp - now.startTimestamp
