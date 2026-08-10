@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.78 - 2026-08-09
+- **Added**: tapping a card in What's On Now now scrolls the Favorites list below to that
+  channel and highlights it, matching what happens when you tap a channel directly in the
+  list.
+
 ## v5.77 - 2026-08-09
 - **Fixed**: What's On Now cards could show a program that already ended (or hadn't started
   yet) instead of what's actually airing, with a progress bar that didn't match real time

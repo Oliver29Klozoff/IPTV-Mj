@@ -1,7 +1,7 @@
 {
-  "versionCode": 415,
-  "versionName": "5.77",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.77/MKTV.apk",
-  "apkSha256": "91cdb7ea95914c07a1031eb16ff43f58e0401b2e22684068243caf5c11e3dc86",
-  "changelog": "Fixed What's On Now cards showing a program that already ended (or hadn't started yet) with a mismatched progress bar — now explicitly matches the currently-airing window and refreshes automatically every 60 seconds while on the Favorites tab."
+  "versionCode": 416,
+  "versionName": "5.78",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.78/MKTV.apk",
+  "apkSha256": "7e74486b8a9196cef227e9fc6e1febf57652d7dd50c8b67ca867eb10a15602e0",
+  "changelog": "Added: tapping a card in What's On Now now scrolls the Favorites list below to that channel and highlights it, matching what happens when you tap a channel directly in the list."
 }

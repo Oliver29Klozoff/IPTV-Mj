@@ -920,7 +920,20 @@ class HomeActivity : AppCompatActivity() {
     // Favorites' "What's On Now" strip (see HomeViewModel.loadWhatsOnNow's kdoc) — built here
     // rather than lazily since it needs to exist before setupAdapters' RecyclerView wiring runs.
     private val whatsOnNowAdapter: WhatsOnNowAdapter by lazy {
-        WhatsOnNowAdapter(onClick = { entry -> playInMiniPlayer(entry.channel) })
+        WhatsOnNowAdapter(onClick = { entry ->
+            // Was just playInMiniPlayer alone — that's what actually starts playback, but the
+            // Favorites list row highlight (CombinedFavoriteAdapter.currentlyPlayingId) and its
+            // "scroll to what's playing" behavior are both driven by explicit calls at each row's
+            // own click handler (see Favorites' own onChannelClick above), not automatically
+            // inside playInMiniPlayer — so tapping a card played the channel but the Favorites
+            // list below never scrolled to it or lit it up as the CombinedFavorite.Primary id
+            // format ("primary:$streamId" — see CombinedFavorite.Primary.id) it actually is.
+            val combinedId = "primary:${entry.channel.streamId}"
+            currentMiniCombinedFavoriteId = combinedId
+            combinedFavoriteAdapter.setCurrentlyPlayingId(combinedId)
+            playInMiniPlayer(entry.channel)
+            scrollFavoritesToCombinedId(combinedId)
+        })
     }
     // Live tab now merges the primary provider with every configured secondary provider, same
     // shape as the Favorites tab's combinedFavoriteAdapter. categoryAdapter/channelAdapter stay
