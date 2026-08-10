@@ -428,15 +428,24 @@
             <!-- Drill-down replacement for rvCategories within the same column — tapping a
                  category (Live/Categories/Movies tabs) hides rvCategories and shows this
                  instead, in the same space; tapping the sidebar tab again goes back. Series/
-                 History/Favorites/Guide (no categories) show this directly. -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvChannels"
+                 History/Favorites/Guide (no categories) show this directly. Pull-to-refresh,
+                 Favorites-only for now — see portrait's swipeRefreshChannels for the same
+                 wrapper/reasoning. -->
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/swipeRefreshChannels"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:background="#141414"
-                android:visibility="gone"
-                android:paddingTop="8dp" />
+                android:visibility="gone">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvChannels"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#141414"
+                    android:paddingTop="8dp" />
+
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2A2A" />
 

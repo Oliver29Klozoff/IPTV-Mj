@@ -1,7 +1,7 @@
 {
-  "versionCode": 417,
-  "versionName": "5.79",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.79/MKTV.apk",
-  "apkSha256": "e8df507bf78485dc5f94c01e8a70e39330426f5c3878dceb629b2fda792a8cb5",
-  "changelog": "TV now has a What's On Now strip below the mini player's search/genre row (Favorites only) — tap to play and jump to that channel in the list. Phone's 60s Favorites auto-refresh now also updates each row's own now/next text, not just the strip."
+  "versionCode": 418,
+  "versionName": "5.80",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.80/MKTV.apk",
+  "apkSha256": "c4f2f712ffa6f07dd1c6cac8d7946a0870730f9a8394899239d6ee5645caa545",
+  "changelog": "Pull down to refresh on the Favorites tab (full re-sync + EPG/What's On Now reload). Settings > Stream & EPG: EPG Refresh section moved to the top of the list."
 }

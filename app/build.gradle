@@ -15,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 417
-        versionName "5.79"
+        versionCode 418
+        versionName "5.80"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -91,6 +91,7 @@ dependencies {
     ksp 'androidx.hilt:hilt-compiler:1.2.0'
    
     implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.fragment:fragment-ktx:1.6.2'
     implementation 'androidx.activity:activity-ktx:1.8.2'

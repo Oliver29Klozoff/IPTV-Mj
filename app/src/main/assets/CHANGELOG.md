@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.80 - 2026-08-10
+- **Added**: pull down to refresh on the Favorites tab — does a full re-sync from the server
+  and reloads EPG/What's On Now, same as tapping Refresh but from a swipe gesture. Other tabs
+  are unaffected.
+- **Changed**: Settings → Stream & EPG — the EPG Refresh section is now the first card at the
+  top, instead of being buried below the Player card.
+
 ## v5.79 - 2026-08-10
 - **Added**: TV now has the same What's On Now strip as phone — shows below the search/genre
   row only while Favorites is open, tap a card to play that channel directly and jump straight

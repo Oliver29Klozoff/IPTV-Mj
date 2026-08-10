@@ -665,12 +665,23 @@
                 android:layout_height="match_parent"
                 android:background="#2A2A2A" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvChannels"
+            <!-- Pull-to-refresh, Favorites-only for now (see HomeActivity's swipeRefreshLayout
+                 setup) — wraps just the channel list, not the categories sidebar next to it,
+                 since the gesture should only ever act on whatever list you're actually looking
+                 at and pulling down on. -->
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/swipeRefreshChannels"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:paddingTop="8dp" />
+                android:layout_weight="1">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvChannels"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:paddingTop="8dp" />
+
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
         </LinearLayout>
     </LinearLayout>

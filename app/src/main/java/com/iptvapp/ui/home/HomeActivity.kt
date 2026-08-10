@@ -1275,7 +1275,10 @@ class HomeActivity : AppCompatActivity() {
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.VISIBLE
-        binding.rvChannels.visibility = View.GONE
+        // Toggling the SwipeRefreshLayout wrapper, not just the RecyclerView inside it — GONE on
+        // the inner view alone would leave the (weighted, layout_height=0dp) wrapper still
+        // occupying its share of the column as blank space and still intercepting swipe gestures.
+        binding.swipeRefreshChannels?.visibility = View.GONE
         val cats = when (binding.tabLayout.selectedTabPosition) {
             TAB_LIVE -> viewModel.liveCategories.value
             TAB_CATEGORIES -> viewModel.favoriteLiveCategories.value
@@ -1292,7 +1295,7 @@ class HomeActivity : AppCompatActivity() {
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.GONE
-        binding.rvChannels.visibility = View.VISIBLE
+        binding.swipeRefreshChannels?.visibility = View.VISIBLE
         val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
         val params = col.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
         params.width = 0
@@ -1789,6 +1792,18 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMenu() {
+        binding.swipeRefreshChannels?.setOnRefreshListener {
+            if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) {
+                binding.swipeRefreshChannels?.isRefreshing = false
+            } else {
+                viewModel.refreshNow()
+                lifecycleScope.launch {
+                    viewModel.loading.first { !it }
+                    refreshFavoritesEpg()
+                    binding.swipeRefreshChannels?.isRefreshing = false
+                }
+            }
+        }
         binding.btnWhatsOnRow?.setOnClickListener { showWhatsOnNow() }
         binding.btnWhatsOnRow?.setOnLongClickListener { showUpNextTicker(); true }
         binding.btnRefresh?.setOnClickListener {
@@ -3627,6 +3642,17 @@ class HomeActivity : AppCompatActivity() {
     // here, tagged with its server name when it isn't the primary. Combining the two sources
     // means favOrder-based drag-reorder no longer applies (meaningless across servers) — this
     // tab is browse/play only now, same as the Providers tab always was for merged channels.
+    // Shared by the 60s auto-refresh loop (showFavorites) and the pull-to-refresh gesture
+    // (swipeRefreshChannels) — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-provider
+    // favorites aren't included in the strip.
+    private fun refreshFavoritesEpg() {
+        val current = viewModel.combinedFavorites.value
+        viewModel.loadWhatsOnNow(current.filterIsInstance<CombinedFavorite.Primary>().map { it.channel })
+        val filtered = genreFilterFavorites(current)
+        viewModel.loadEpgForChannels(filtered.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })
+        viewModel.loadEpgForMergedChannels(filtered.mapNotNull { (it as? CombinedFavorite.Merged)?.channel })
+    }
+
     private fun showFavorites() {
         activeFavoriteGenre = null
         activeFavoriteFolder = null
@@ -3649,13 +3675,6 @@ class HomeActivity : AppCompatActivity() {
         // favorites only — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-provider
         // favorites aren't included in the strip (no equivalent EPG fetch path exists for them
         // yet) — loadEpgForMergedChannels below still covers the list rows for those, unchanged.
-        fun refreshFavoritesEpg() {
-            val current = viewModel.combinedFavorites.value
-            viewModel.loadWhatsOnNow(current.filterIsInstance<CombinedFavorite.Primary>().map { it.channel })
-            val filtered = genreFilterFavorites(current)
-            viewModel.loadEpgForChannels(filtered.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })
-            viewModel.loadEpgForMergedChannels(filtered.mapNotNull { (it as? CombinedFavorite.Merged)?.channel })
-        }
         refreshFavoritesEpg()
         whatsOnNowRefreshJob?.cancel()
         whatsOnNowRefreshJob = lifecycleScope.launch {
