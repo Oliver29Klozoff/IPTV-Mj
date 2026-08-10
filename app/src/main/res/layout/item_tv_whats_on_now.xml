@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One card in TV's "What's On Now" strip below the mini player (see
+     TvHomeActivity.updateTvWhatsOnNowStrip) — same data as the long-press dialog's
+     item_whats_on.xml rows, laid out as a focusable horizontal card instead of a full-width list
+     row so it can sit in a D-pad-navigable HorizontalScrollView-style row. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="220dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="10dp"
+    android:background="@drawable/tv_sidebar_focus"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp">
+
+    <TextView
+        android:id="@+id/tvTvWonChannel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#008CFF"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvTvWonProgram"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:minLines="2"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp" />
+
+    <ProgressBar
+        android:id="@+id/tvPbWonProgress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:progress="0"
+        android:progressBackgroundTint="#33FFFFFF"
+        android:progressTint="#008CFF" />
+
+</LinearLayout>

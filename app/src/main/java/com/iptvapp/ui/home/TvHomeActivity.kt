@@ -70,6 +70,24 @@ class TvHomeActivity : AppCompatActivity() {
     private lateinit var tvSeriesPosterAdapter: TvSeriesPosterAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var epgGuideAdapter: TvEpgGuideAdapter
+    // Favorites-only "What's On Now" strip (see updateTvWhatsOnNowStrip's kdoc). Tapping a card
+    // plays that channel directly and scrolls/focuses it in the Favorites list below, same as
+    // phone's equivalent strip — no separate dialog, unlike the older long-press "What's On Now"
+    // ticker (showTvWhatsOnNow) this doesn't replace.
+    private val tvWhatsOnNowAdapter: TvWhatsOnNowAdapter by lazy {
+        TvWhatsOnNowAdapter(onClick = { entry ->
+            currentMiniCombinedFavoriteId = "primary:${entry.channel.streamId}"
+            lifecycleScope.launch {
+                playInMiniPlayer(entry.channel)
+                viewModel.markChannelWatched(entry.channel.streamId)
+                viewModel.setCurrentlyPlaying(entry.channel.streamId)
+            }
+            lifecycleScope.launch {
+                val favorites = genreFilterFavorites(activeFavoriteGenre, viewModel.getCombinedFavoritesSnapshot())
+                scrollAndFocusCombinedFavorite(favorites, "primary:${entry.channel.streamId}")
+            }
+        })
+    }
 
     private var preWarmEnabled = true
     private var preWarmJob: kotlinx.coroutines.Job? = null
@@ -1220,6 +1238,9 @@ class TvHomeActivity : AppCompatActivity() {
 
         binding.tvRvSeriesFsGrid.layoutManager = GridLayoutManager(this, 5)
         binding.tvRvSeriesFsGrid.adapter = tvSeriesPosterAdapter
+
+        binding.tvRvWhatsOnNow.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        binding.tvRvWhatsOnNow.adapter = tvWhatsOnNowAdapter
     }
 
     // tvRvContent is shared across every TV section (Live, Providers channels/movies/series,
@@ -1634,6 +1655,12 @@ class TvHomeActivity : AppCompatActivity() {
         activeSidebarButton().isSelected = true
         updateProvidersHealthBadge(lastProvidersDownCount)
         binding.tvGenreChipScroll.visibility = View.GONE
+        // Favorites-only — see updateTvWhatsOnNowStrip's kdoc. showFavoriteGenreChannels below
+        // shows/populates it again on that section; every other section just hides it here.
+        if (section != Section.FAVORITES) {
+            binding.tvWhatsOnNowHeader.visibility = View.GONE
+            binding.tvRvWhatsOnNow.visibility = View.GONE
+        }
 
         when (section) {
             // Used to jump straight into whatever category the currently-playing channel
@@ -1891,6 +1918,28 @@ class TvHomeActivity : AppCompatActivity() {
                 combinedFavoriteAdapter.submitList(favorites)
             }
         }
+        refreshTvWhatsOnNow()
+        tvWhatsOnNowRefreshJob?.cancel()
+        tvWhatsOnNowRefreshJob = lifecycleScope.launch {
+            while (true) {
+                delay(60_000)
+                if (currentSection == Section.FAVORITES) refreshTvWhatsOnNow() else break
+            }
+        }
+    }
+
+    private var tvWhatsOnNowRefreshJob: kotlinx.coroutines.Job? = null
+
+    // Favorites-only "What's On Now" strip below the search/genre row — same data/behavior as
+    // phone's Favorites tab strip (see HomeViewModel.loadWhatsOnNow's kdoc for the currently-
+    // airing matching and why merged-provider favorites aren't included). Auto-refreshes every
+    // 60s while Favorites stays the active section, same self-terminating loop shape as phone's
+    // whatsOnNowRefreshJob, so a card moves on once its show ends instead of only refreshing on
+    // next visit to the section.
+    private fun refreshTvWhatsOnNow() {
+        viewModel.loadWhatsOnNow(
+            viewModel.combinedFavorites.value.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
+        )
     }
 
     // Genre chips above the Favorites list — same GenreClassifier keyword bucketing the phone's
@@ -2806,6 +2855,15 @@ class TvHomeActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         lifecycleScope.launch {
+            viewModel.whatsOnNow.collect { entries ->
+                if (currentSection != Section.FAVORITES) return@collect
+                val visible = entries.isNotEmpty()
+                binding.tvWhatsOnNowHeader.visibility = if (visible) View.VISIBLE else View.GONE
+                binding.tvRvWhatsOnNow.visibility = if (visible) View.VISIBLE else View.GONE
+                tvWhatsOnNowAdapter.submitList(entries)
+            }
+        }
+        lifecycleScope.launch {
             viewModel.loading.collect { isLoading ->
                 binding.tvProgressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
                 if (!isLoading) binding.tvRvContent.visibility = View.VISIBLE
@@ -3462,11 +3520,18 @@ class TvHomeActivity : AppCompatActivity() {
                     .into(v.findViewById(com.iptvapp.R.id.ivWonLogo))
                 v.setOnClickListener {
                     dialog.dismiss()
+                    // Was just playInMiniPlayer + dismiss — matches phone's What's On Now fix:
+                    // also jump the sidebar to Favorites and scroll/focus the picked channel
+                    // there, instead of leaving you on whatever section you were on with no way
+                    // to see it land anywhere. currentMiniCombinedFavoriteId set first since
+                    // showFavoriteGenreChannels' scroll-to-current-channel logic reads it.
+                    currentMiniCombinedFavoriteId = "primary:${ch.streamId}"
                     lifecycleScope.launch {
                         playInMiniPlayer(ch)
                         viewModel.markChannelWatched(ch.streamId)
                         viewModel.setCurrentlyPlaying(ch.streamId)
                     }
+                    selectSection(Section.FAVORITES)
                 }
             }
         }

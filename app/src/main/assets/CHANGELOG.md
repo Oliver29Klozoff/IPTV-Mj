@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v5.79 - 2026-08-10
+- **Added**: TV now has the same What's On Now strip as phone — shows below the search/genre
+  row only while Favorites is open, tap a card to play that channel directly and jump straight
+  to it in the Favorites list below. Auto-refreshes every 60 seconds while on Favorites.
+- **Fixed**: TV's older long-press "What's On Now" dialog (Guide sidebar button) now also
+  jumps to Favorites and highlights the picked channel after playing it, instead of just
+  closing with no indication of where it landed.
+- **Changed**: on phone, the 60-second Favorites auto-refresh now also updates each row's own
+  "NOW: X • NEXT: Y" text, not just the What's On Now strip above the list — both stay in sync.
+
 ## v5.78 - 2026-08-09
 - **Added**: tapping a card in What's On Now now scrolls the Favorites list below to that
   channel and highlights it, matching what happens when you tap a channel directly in the

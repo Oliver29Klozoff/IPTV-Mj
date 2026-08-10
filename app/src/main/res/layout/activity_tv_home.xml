@@ -701,6 +701,36 @@
                     android:paddingHorizontal="8dp" />
             </HorizontalScrollView>
 
+            <!-- WHAT'S ON NOW — Favorites-only, same scope/behavior as phone's Favorites tab
+                 strip (see TvHomeActivity.updateTvWhatsOnNowStrip). Sits above tvRvContent so it
+                 doesn't compete with the channel list for the panel's own height, hidden whenever
+                 the panel is showing anything other than Favorites' unfiltered channel list. -->
+            <TextView
+                android:id="@+id/tvWhatsOnNowHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#0A0D16"
+                android:paddingHorizontal="12dp"
+                android:paddingTop="8dp"
+                android:text="WHAT'S ON NOW"
+                android:textColor="#888888"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvWhatsOnNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#0A0D16"
+                android:clipToPadding="false"
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="8dp"
+                android:visibility="gone"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/tvRvContent"
                 android:layout_width="match_parent"

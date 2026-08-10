@@ -973,12 +973,14 @@ class HomeActivity : AppCompatActivity() {
     private var lastReliabilityOutcomeStreamId: Int = -1
     private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
-    // What's On Now's data only ever loaded once, on entering/reselecting the Favorites tab — a
-    // card kept showing its stale program (and a progress bar computed against that stale
+    // Favorites' EPG data (both the What's On Now strip and each row's own "NOW: X • NEXT: Y"
+    // text) only ever loaded once, on entering/reselecting the tab — a card or row kept showing
+    // its stale program (and, for the strip, a progress bar computed against that stale
     // program's own start/stop window, so it didn't line up with real time remaining either)
     // until you left and came back to the tab, even long after the real show had ended. This
-    // re-runs loadWhatsOnNow every 60s while Favorites stays the active tab, self-terminating
-    // via the same while(true)+break-on-condition-change shape as startEpgRefreshLoop above.
+    // re-runs refreshFavoritesEpg every 60s while Favorites stays the active tab, self-
+    // terminating via the same while(true)+break-on-condition-change shape as
+    // startEpgRefreshLoop above.
     private var whatsOnNowRefreshJob: kotlinx.coroutines.Job? = null
     private var isPipMode = false
     private var externalPlayerChoice = "internal"
@@ -3640,19 +3642,26 @@ class HomeActivity : AppCompatActivity() {
         viewModel.checkFavoritesHealth()
         viewModel.checkMergedFavoritesHealth()
         pendingScrollToCurrent = true
-        // Primary favorites only — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-
-        // provider favorites aren't included (no equivalent EPG fetch path exists for them yet).
-        fun refreshWhatsOnNow() {
-            viewModel.loadWhatsOnNow(
-                viewModel.combinedFavorites.value.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
-            )
+        // Refreshes both the What's On Now strip AND the full list's own "NOW: X • NEXT: Y" row
+        // text together — previously only the strip auto-refreshed every 60s; the list's own EPG
+        // text was left stale (only ever reloaded when combinedFavorites itself re-emitted, e.g.
+        // switching back to this tab) until explicitly asked to keep both in sync. Primary
+        // favorites only — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-provider
+        // favorites aren't included in the strip (no equivalent EPG fetch path exists for them
+        // yet) — loadEpgForMergedChannels below still covers the list rows for those, unchanged.
+        fun refreshFavoritesEpg() {
+            val current = viewModel.combinedFavorites.value
+            viewModel.loadWhatsOnNow(current.filterIsInstance<CombinedFavorite.Primary>().map { it.channel })
+            val filtered = genreFilterFavorites(current)
+            viewModel.loadEpgForChannels(filtered.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })
+            viewModel.loadEpgForMergedChannels(filtered.mapNotNull { (it as? CombinedFavorite.Merged)?.channel })
         }
-        refreshWhatsOnNow()
+        refreshFavoritesEpg()
         whatsOnNowRefreshJob?.cancel()
         whatsOnNowRefreshJob = lifecycleScope.launch {
             while (true) {
                 delay(60_000)
-                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) refreshWhatsOnNow() else break
+                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) refreshFavoritesEpg() else break
             }
         }
         lifecycleScope.launch {
