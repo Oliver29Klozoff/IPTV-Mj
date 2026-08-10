@@ -1,7 +1,7 @@
 {
-  "versionCode": 418,
-  "versionName": "5.80",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.80/MKTV.apk",
-  "apkSha256": "c4f2f712ffa6f07dd1c6cac8d7946a0870730f9a8394899239d6ee5645caa545",
-  "changelog": "Pull down to refresh on the Favorites tab (full re-sync + EPG/What's On Now reload). Settings > Stream & EPG: EPG Refresh section moved to the top of the list."
+  "versionCode": 419,
+  "versionName": "5.81",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.81/MKTV.apk",
+  "apkSha256": "d85af925dbfbeff48a972fe048316192e0f1f304e68b84e6337b542277e134a4",
+  "changelog": "Fixed: Favorites list rows could show a program that already ended or hadn't started yet instead of what's actually airing, out of sync with the What's On Now strip. Now both agree."
 }

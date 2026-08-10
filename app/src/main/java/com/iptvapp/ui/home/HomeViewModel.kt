@@ -1643,9 +1643,9 @@ class HomeViewModel @Inject constructor(
         val progressMap = mutableMapOf<Int, Int>()
         val nextTextMap = mutableMapOf<Int, String>()
         _channelEpgText.value = channels.associate { channel ->
-            val programs = epgByStream[channel.streamId].orEmpty()
-            val now = programs.firstOrNull()
-            val next = programs.drop(1).firstOrNull()
+            val programs = epgByStream[channel.streamId].orEmpty().sortedBy { it.startTimestamp }
+            val now = programs.firstOrNull { it.startTimestamp <= nowSecs && it.stopTimestamp > nowSecs }
+            val next = programs.firstOrNull { it.startTimestamp > (now?.stopTimestamp ?: nowSecs) }
 
             // Compute progress 0-100 for the current program
             val prog = if (now != null && now.stopTimestamp > now.startTimestamp) {

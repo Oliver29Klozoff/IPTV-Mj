@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.81 - 2026-08-10
+- **Fixed**: Favorites list rows could show a "NOW playing" program that had already ended or
+  hadn't started yet, instead of what's actually airing — the row text picked the earliest EPG
+  entry in the database rather than the one currently in progress (the same bug the What's On
+  Now strip had, fixed in v5.77, but never applied to the row text itself). Now both agree.
+
 ## v5.80 - 2026-08-10
 - **Added**: pull down to refresh on the Favorites tab — does a full re-sync from the server
   and reloads EPG/What's On Now, same as tapping Refresh but from a swipe gesture. Other tabs
