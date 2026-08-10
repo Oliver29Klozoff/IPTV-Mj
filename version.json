@@ -1,7 +1,7 @@
 {
-  "versionCode": 419,
-  "versionName": "5.81",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.81/MKTV.apk",
-  "apkSha256": "d85af925dbfbeff48a972fe048316192e0f1f304e68b84e6337b542277e134a4",
-  "changelog": "Fixed: Favorites list rows could show a program that already ended or hadn't started yet instead of what's actually airing, out of sync with the What's On Now strip. Now both agree."
+  "versionCode": 420,
+  "versionName": "5.82",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.82/MKTV.apk",
+  "apkSha256": "543db4eda4561f4d86f582e37dc52ecf797c4638be87f7fb366a0cffe1f4aa01",
+  "changelog": "Changed: on phone landscape, the What's On Now strip now sits directly below the mini player instead of above the categories list."
 }

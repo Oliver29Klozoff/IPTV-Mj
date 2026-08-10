@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v5.82 - 2026-08-10
+- **Changed**: on phone landscape, the What's On Now strip now sits directly below the mini
+  player (under the currently-playing channel) instead of above the categories list.
+
 ## v5.81 - 2026-08-10
 - **Fixed**: Favorites list rows could show a "NOW playing" program that had already ended or
   hadn't started yet, instead of what's actually airing — the row text picked the earliest EPG
