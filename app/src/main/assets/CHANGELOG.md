@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v5.83 - 2026-08-10
+- **Added**: on phone landscape, the genre filter chip column (right side) can now be
+  collapsed down to just its toggle button, freeing up width for the mini player.
+
 ## v5.82 - 2026-08-10
 - **Changed**: on phone landscape, the What's On Now strip now sits directly below the mini
   player (under the currently-playing channel) instead of above the categories list.

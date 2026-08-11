@@ -1,7 +1,7 @@
 {
-  "versionCode": 420,
-  "versionName": "5.82",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.82/MKTV.apk",
-  "apkSha256": "543db4eda4561f4d86f582e37dc52ecf797c4638be87f7fb366a0cffe1f4aa01",
-  "changelog": "Changed: on phone landscape, the What's On Now strip now sits directly below the mini player instead of above the categories list."
+  "versionCode": 421,
+  "versionName": "5.83",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.83/MKTV.apk",
+  "apkSha256": "e50abd6da912014dae25e2a4c773043a14f19b425eee01c503c7ebb4fd4d5989",
+  "changelog": "Added: on phone landscape, the genre filter chip column (right side) can now be collapsed down to just its toggle button, freeing up width for the mini player."
 }

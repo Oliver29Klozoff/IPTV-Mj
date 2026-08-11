@@ -553,24 +553,45 @@
 
         <!-- Genre filter chips ("All Sports" etc.) — landscape-only, stacked vertically to
              the right of the channel list instead of the horizontal scroll row used on
-             portrait, so it doesn't eat into the categories column's height. -->
-        <ScrollView
+             portrait, so it doesn't eat into the categories column's height. Collapsible via
+             btnGenreFilterCollapse so it can be shrunk down to reclaim width for the mini
+             player when not needed — see HomeActivity's toggle handler. -->
+        <LinearLayout
             android:id="@+id/genreFilterColumn"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:background="#1A1A1A"
-            android:scrollbars="none"
+            android:orientation="vertical"
             android:visibility="gone">
 
-            <LinearLayout
-                android:id="@+id/genreChipContainerVertical"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingVertical="8dp"
-                android:paddingHorizontal="6dp" />
+            <ImageButton
+                android:id="@+id/btnGenreFilterCollapse"
+                android:layout_width="match_parent"
+                android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_media_previous"
+                android:tint="#888888"
+                android:padding="6dp"
+                android:contentDescription="Collapse genre filters" />
 
-        </ScrollView>
+            <ScrollView
+                android:id="@+id/genreFilterScrollColumn"
+                android:layout_width="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/genreChipContainerVertical"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingVertical="8dp"
+                    android:paddingHorizontal="6dp" />
+
+            </ScrollView>
+
+        </LinearLayout>
 
     </LinearLayout>
 

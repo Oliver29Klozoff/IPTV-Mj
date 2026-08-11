@@ -1792,6 +1792,10 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupMenu() {
+        binding.root.findViewById<android.widget.ImageButton?>(R.id.btnGenreFilterCollapse)?.setOnClickListener {
+            genreFilterColumnCollapsed = !genreFilterColumnCollapsed
+            applyGenreFilterColumnCollapsedState()
+        }
         binding.swipeRefreshChannels?.setOnRefreshListener {
             if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) {
                 binding.swipeRefreshChannels?.isRefreshing = false
@@ -2986,6 +2990,21 @@ class HomeActivity : AppCompatActivity() {
         binding.genreFilterScroll?.visibility = if (visible) View.VISIBLE else View.GONE
         binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility =
             if (visible) View.VISIBLE else View.GONE
+        if (visible) applyGenreFilterColumnCollapsedState()
+    }
+
+    // Landscape-only — the vertical genre chip column on the right can eat noticeable width
+    // from the mini player, so it's collapsible down to just its toggle button. Session-only
+    // (not persisted), reset on every fresh visibility pass via applyGenreFilterColumnCollapsedState.
+    private var genreFilterColumnCollapsed = false
+
+    private fun applyGenreFilterColumnCollapsedState() {
+        val scrollColumn = binding.root.findViewById<View?>(R.id.genreFilterScrollColumn) ?: return
+        val toggle = binding.root.findViewById<android.widget.ImageButton?>(R.id.btnGenreFilterCollapse) ?: return
+        scrollColumn.visibility = if (genreFilterColumnCollapsed) View.GONE else View.VISIBLE
+        toggle.setImageResource(
+            if (genreFilterColumnCollapsed) android.R.drawable.ic_media_next else android.R.drawable.ic_media_previous
+        )
     }
 
     private fun buildGenreChip(genre: String, selected: Boolean, vertical: Boolean): View {
