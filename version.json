@@ -1,7 +1,7 @@
 {
-  "versionCode": 422,
-  "versionName": "5.84",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.84/MKTV.apk",
-  "apkSha256": "d2b8893a8009127fa5275339705a605e49102725d24d458fe2c4ffb8285d6f02",
-  "changelog": "Fixed: on TV, Left/Right with the overlay hidden used to pop it open on Live TV, and could interrupt VOD rewind/fast-forward. Now only OK/Enter opens the overlay; Left/Right always seek on movies."
+  "versionCode": 423,
+  "versionName": "5.85",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.85/MKTV.apk",
+  "apkSha256": "2c6f0bacf8f902b9408018d9763daef788072025aaa66f9293c4d2a07028f960",
+  "changelog": "Added Watched History (pinned \"Watched\" row/chip in Movies and Series, phone + TV, independent of Trakt). Settings > Trakt now shows what was actually last sent, so a scrobble that misses Trakt's watched threshold is diagnosable instead of looking broken."
 }

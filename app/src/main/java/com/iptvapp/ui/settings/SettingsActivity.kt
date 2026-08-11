@@ -2426,10 +2426,14 @@ class SettingsActivity : AppCompatActivity() {
             val connected = traktManager.isConnected.first()
             if (connected) {
                 val lastError = traktManager.lastScrobbleError.value
-                binding.tvTraktStatus.text = if (lastError != null) {
-                    "✓ Connected — last scrobble failed: $lastError"
-                } else {
-                    "✓ Connected — scrobbling your watch activity"
+                val lastSent = traktManager.lastScrobbleSent.value
+                binding.tvTraktStatus.text = when {
+                    lastError != null -> "✓ Connected — last scrobble failed: $lastError"
+                    // A scrobble that "succeeded" but never crossed Trakt's own ~80% watched
+                    // threshold produces zero watched-history entries with no error anywhere —
+                    // showing what was actually sent makes that silent case diagnosable.
+                    lastSent != null -> "✓ Connected — last sent to Trakt: $lastSent"
+                    else -> "✓ Connected — scrobbling your watch activity"
                 }
                 binding.btnTraktConnect.visibility = View.GONE
                 binding.btnTraktDisconnect.visibility = View.VISIBLE

@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v5.85 - 2026-08-11
+- **Added**: Watched History — Movies now has a pinned "★ Watched" row (next to "★ Favorites")
+  and Series has a "Watched" filter chip, both on phone and TV, showing movies/episodes you've
+  actually finished (95%+ watched), independent of Trakt.
+- **Added**: Settings > Trakt now shows what was actually last sent to Trakt (title + progress
+  %), not just connection status — a scrobble can succeed with no error but still fall short of
+  Trakt's own ~80% "watched" threshold, which used to look identical to a broken sync. This
+  makes that case visible instead of a silent 0-matches result.
+
 ## v5.84 - 2026-08-10
 - **Fixed**: on TV, pressing Left/Right on a live channel with the overlay hidden used to pop
   the overlay open. Now only OK/Enter opens the overlay — Left/Right with it hidden do nothing

@@ -197,6 +197,11 @@ interface VodDao {
     suspend fun getDurationMs(streamId: Int): Long?
     @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 AND dismissedFromContinueWatching = 0 ORDER BY watchedMs DESC LIMIT 20")
     fun getInProgressVod(): Flow<List<VodEntity>>
+    // Watched History — the complement of getInProgressVod's 0.95 threshold, movies considered
+    // "finished" rather than still in progress. Not capped/limited like Continue Watching (that
+    // row only ever shows a handful of recents) — this is the full log, sorted most-recent-first.
+    @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs >= 0.95 ORDER BY lastWatchedAt DESC")
+    fun getWatchHistoryVod(): Flow<List<VodEntity>>
     @Query("UPDATE vod_streams SET dismissedFromContinueWatching = 1 WHERE streamId = :streamId")
     suspend fun dismissFromContinueWatching(streamId: Int)
     // Used by ContinueWatchingCleanupWorker — dismisses (doesn't delete the catalog row, just
@@ -461,7 +466,34 @@ interface EpisodeWatchedDao {
     // "watching/watched" series to the top of the main Series list.
     @Query("SELECT DISTINCT seriesId FROM episode_watched WHERE watchedAt > 0 OR watchedMs > 0")
     fun getSeriesIdsWithProgress(): kotlinx.coroutines.flow.Flow<List<Int>>
+
+    // Watched History (series) — one row per finished episode, joined to the parent series for
+    // its name/cover, most-recent-first. Uses the same 0.95 watchedMs/durationMs completion
+    // ratio as getInProgressVod/getInProgressSeries rather than watchedAt, since watchedAt is
+    // only ever set by Trakt import/cross-device sync (see SeriesDetailActivity's kdoc) — a
+    // user who's never connected Trakt would otherwise see an empty history despite having
+    // actually finished episodes locally. rowid stands in for "most recently watched" (no
+    // per-row timestamp exists for local completion), same convention getInProgressSeries uses.
+    @Query("""
+        SELECT ew.seriesId AS seriesId, s.name AS seriesName, s.cover AS seriesCover,
+               ew.season AS season, ew.episode AS episode, ew.rowid AS watchedAt
+        FROM episode_watched ew
+        INNER JOIN series s ON s.seriesId = ew.seriesId
+        WHERE ew.durationMs > 0 AND ew.watchedMs > 0
+          AND CAST(ew.watchedMs AS REAL) / ew.durationMs >= 0.95
+        ORDER BY ew.rowid DESC
+    """)
+    fun getWatchHistoryEpisodes(): kotlinx.coroutines.flow.Flow<List<WatchedEpisodeRow>>
 }
+
+data class WatchedEpisodeRow(
+    val seriesId: Int,
+    val seriesName: String,
+    val seriesCover: String?,
+    val season: Int,
+    val episode: Int,
+    val watchedAt: Long
+)
 
 @Dao
 interface MergedChannelDao {

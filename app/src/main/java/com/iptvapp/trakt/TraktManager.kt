@@ -61,6 +61,13 @@ class TraktManager @Inject constructor(
     private val _lastScrobbleError = MutableStateFlow<String?>(null)
     val lastScrobbleError: StateFlow<String?> = _lastScrobbleError
 
+    // Not surfaced anywhere before this — a scrobble that "succeeds" (no exception) but never
+    // crosses Trakt's ~80% watched threshold silently produces zero watched-history entries,
+    // which otherwise looks identical to a broken sync from the user's side. Session-only, same
+    // reasoning as lastScrobbleError.
+    private val _lastScrobbleSent = MutableStateFlow<String?>(null)
+    val lastScrobbleSent: StateFlow<String?> = _lastScrobbleSent
+
     fun parseTitle(raw: String): ParsedTitle {
         val m = Regex("""^(.*?)\s*\((\d{4})\)\s*$""").find(raw.trim())
         return if (m != null) ParsedTitle(m.groupValues[1].trim(), m.groupValues[2].toIntOrNull())
@@ -149,10 +156,15 @@ class TraktManager @Inject constructor(
         show: TraktShow? = null,
         episode: TraktEpisode? = null
     ) {
-        val token = validAccessToken() ?: return
+        val token = validAccessToken() ?: run {
+            _lastScrobbleError.value = "Not connected or token refresh failed"
+            return
+        }
+        val label = movie?.title ?: show?.title
         try {
             call("Bearer $token", TraktScrobbleRequest(movie = movie, show = show, episode = episode, progress = progress))
             _lastScrobbleError.value = null
+            _lastScrobbleSent.value = "$label — ${progress.toInt()}%"
         } catch (e: Exception) {
             Log.e("TraktManager", "Scrobble call failed: ${e.message}")
             _lastScrobbleError.value = e.message ?: "Unknown error"

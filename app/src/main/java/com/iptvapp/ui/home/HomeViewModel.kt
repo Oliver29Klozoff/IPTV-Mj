@@ -135,6 +135,12 @@ class HomeViewModel @Inject constructor(
     private val _inProgressSeries = MutableStateFlow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>>(emptyList())
     val inProgressSeries: StateFlow<List<com.iptvapp.data.local.dao.InProgressSeriesRow>> = _inProgressSeries
 
+    private val _watchHistoryVod = MutableStateFlow<List<VodEntity>>(emptyList())
+    val watchHistoryVod: StateFlow<List<VodEntity>> = _watchHistoryVod
+
+    private val _watchHistoryEpisodes = MutableStateFlow<List<com.iptvapp.data.local.dao.WatchedEpisodeRow>>(emptyList())
+    val watchHistoryEpisodes: StateFlow<List<com.iptvapp.data.local.dao.WatchedEpisodeRow>> = _watchHistoryEpisodes
+
     // Backs the TV home landing screen's "Recently Added" row and hero rotation — primary +
     // every configured other provider's newest movies/series, each already sorted newest-first
     // by its own DAO query (see VodDao.getRecentlyAddedVod/MergedVodDao.getRecentlyAdded kdocs).
@@ -1283,6 +1289,12 @@ class HomeViewModel @Inject constructor(
                 repository.getInProgressSeries().collectLatest { _inProgressSeries.value = it }
             }
             launch {
+                repository.getWatchHistoryVod().collectLatest { _watchHistoryVod.value = it }
+            }
+            launch {
+                repository.getWatchHistoryEpisodes().collectLatest { _watchHistoryEpisodes.value = it }
+            }
+            launch {
                 repository.getRecentlyAddedVod().collectLatest { _recentlyAddedVod.value = it }
             }
             launch {
@@ -1594,6 +1606,18 @@ class HomeViewModel @Inject constructor(
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             repository.getFavoriteVod().collectLatest {
+                _vod.value = it
+            }
+        }
+    }
+
+    // Pinned "★ Watched" entry alongside "★ Favorites" above — same mechanism, backed by
+    // watchHistoryVod (movies >=95% watched) instead of favorited movies.
+    fun selectVodWatched() {
+        selectedVodCategoryId = null
+        vodJob?.cancel()
+        vodJob = viewModelScope.launch {
+            watchHistoryVod.collectLatest {
                 _vod.value = it
             }
         }

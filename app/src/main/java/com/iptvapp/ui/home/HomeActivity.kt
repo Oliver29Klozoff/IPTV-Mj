@@ -2086,6 +2086,7 @@ class HomeActivity : AppCompatActivity() {
                     when (binding.tabLayout.selectedTabPosition) {
                         TAB_MOVIES -> {
                             if (category.categoryId == VOD_FAVORITES_SENTINEL) viewModel.selectVodFavorites()
+                            else if (category.categoryId == VOD_WATCHED_SENTINEL) viewModel.selectVodWatched()
                             else viewModel.selectVodCategory(category.categoryId)
                         }
                     }
@@ -3113,6 +3114,10 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private var activeSeriesGenre: String? = null
+    // "Watched" acts as its own pseudo-genre chip (not a real genre bucket) — selecting it
+    // filters to series with >=1 finished episode instead of a genre keyword match, so it's
+    // tracked separately and takes priority over activeSeriesGenre when both would apply.
+    private var showWatchedSeriesOnly = false
 
     private fun seriesBuckets(series: com.iptvapp.data.local.entities.SeriesEntity): List<String> =
         com.iptvapp.util.GenreBuckets.bucketsFor(series.genre?.split(",").orEmpty())
@@ -3120,7 +3125,13 @@ class HomeActivity : AppCompatActivity() {
     private fun seriesGenres(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<String> =
         com.iptvapp.util.GenreBuckets.presentBuckets(list.map { it.genre?.split(",").orEmpty() })
 
+    private fun watchedSeriesIds(): Set<Int> = viewModel.watchHistoryEpisodes.value.map { it.seriesId }.toSet()
+
     private fun seriesGenreFilter(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<com.iptvapp.data.local.entities.SeriesEntity> {
+        if (showWatchedSeriesOnly) {
+            val watchedIds = watchedSeriesIds()
+            return list.filter { it.seriesId in watchedIds }
+        }
         val genre = activeSeriesGenre ?: return list
         return list.filter { genre in seriesBuckets(it) }
     }
@@ -3135,19 +3146,25 @@ class HomeActivity : AppCompatActivity() {
         horizontalContainer?.removeAllViews()
         verticalContainer?.removeAllViews()
         val genres = seriesGenres(allSeries)
-        if (genres.isEmpty()) {
+        val hasWatched = viewModel.watchHistoryEpisodes.value.isNotEmpty()
+        if (genres.isEmpty() && !hasWatched) {
             setGenreFilterVisible(false)
             return
         }
         if (activeSeriesGenre != null && genres.none { it.equals(activeSeriesGenre, ignoreCase = true) }) {
             activeSeriesGenre = null
         }
+        if (!hasWatched) showWatchedSeriesOnly = false
         setGenreFilterVisible(true)
-        val allChip = buildSeriesGenreChip("All", activeSeriesGenre == null)
+        val allChip = buildSeriesGenreChip("All", !showWatchedSeriesOnly && activeSeriesGenre == null)
         horizontalContainer?.addView(allChip)
-        verticalContainer?.addView(buildSeriesGenreChip("All", activeSeriesGenre == null, vertical = true))
+        verticalContainer?.addView(buildSeriesGenreChip("All", !showWatchedSeriesOnly && activeSeriesGenre == null, vertical = true))
+        if (hasWatched) {
+            horizontalContainer?.addView(buildWatchedSeriesChip(showWatchedSeriesOnly))
+            verticalContainer?.addView(buildWatchedSeriesChip(showWatchedSeriesOnly, vertical = true))
+        }
         for (genre in genres) {
-            val selected = activeSeriesGenre?.equals(genre, ignoreCase = true) == true
+            val selected = !showWatchedSeriesOnly && activeSeriesGenre?.equals(genre, ignoreCase = true) == true
             horizontalContainer?.addView(buildSeriesGenreChip(genre, selected))
             verticalContainer?.addView(buildSeriesGenreChip(genre, selected, vertical = true))
         }
@@ -3156,6 +3173,15 @@ class HomeActivity : AppCompatActivity() {
     private fun buildSeriesGenreChip(genre: String, selected: Boolean, vertical: Boolean = false): View {
         return buildGenreChipView(genre, selected, vertical) {
             activeSeriesGenre = if (genre == "All") null else genre
+            showWatchedSeriesOnly = false
+            updateSeriesGenreChips(viewModel.series.value)
+            submitFilteredSeries(viewModel.series.value)
+        }
+    }
+
+    private fun buildWatchedSeriesChip(selected: Boolean, vertical: Boolean = false): View {
+        return buildGenreChipView("Watched", selected, vertical) {
+            showWatchedSeriesOnly = true
             updateSeriesGenreChips(viewModel.series.value)
             submitFilteredSeries(viewModel.series.value)
         }
@@ -3198,7 +3224,17 @@ class HomeActivity : AppCompatActivity() {
             parentId = 0,
             type = "vod_category"
         )
-        submitCategories(listOf(favoritesRow) + filtered)
+        val watchedRows = if (viewModel.watchHistoryVod.value.isNotEmpty()) {
+            listOf(
+                com.iptvapp.data.local.entities.CategoryEntity(
+                    categoryId = VOD_WATCHED_SENTINEL,
+                    categoryName = "★ Watched",
+                    parentId = 0,
+                    type = "vod_category"
+                )
+            )
+        } else emptyList()
+        submitCategories(listOf(favoritesRow) + watchedRows + filtered)
         if (!vodCategoriesAutoSelected && filtered.isNotEmpty()) {
             vodCategoriesAutoSelected = true
             viewModel.selectVodCategory(filtered.first().categoryId)
@@ -3446,6 +3482,10 @@ class HomeActivity : AppCompatActivity() {
     // category list — same concept as FAVORITES_SERVER_SENTINEL above, just for a flat
     // category list instead of a server picker (primary Movies has no server-picker step).
     private val VOD_FAVORITES_SENTINEL = "__vod_favorites__"
+    // Sentinel categoryId for the "★ Watched" row pinned alongside "★ Favorites" above — only
+    // shown once viewModel.watchHistoryVod is non-empty (unlike Favorites, which is user-curated
+    // and always shown even when empty).
+    private val VOD_WATCHED_SENTINEL = "__vod_watched__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
         val favoritesRow = CategoryEntity(
@@ -4297,6 +4337,21 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.tabLayout.selectedTabPosition == TAB_MOVIES) {
                     updateVodGenreChips(it)
                     submitFilteredVodCategories(it)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.watchHistoryVod.collect {
+                if (binding.tabLayout.selectedTabPosition == TAB_MOVIES) {
+                    submitFilteredVodCategories(viewModel.vodCategories.value)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.watchHistoryEpisodes.collect {
+                if (binding.tabLayout.selectedTabPosition == TAB_SERIES) {
+                    updateSeriesGenreChips(lastSeriesList)
+                    submitFilteredSeries(lastSeriesList)
                 }
             }
         }

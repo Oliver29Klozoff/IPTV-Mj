@@ -2350,6 +2350,10 @@ class TvHomeActivity : AppCompatActivity() {
     // "folder" next to All/Comedy/Drama/... rather than a filter that combines with them), so
     // picking Favorites clears any active genre and vice versa.
     private var moviesFsFavoritesOnly: Boolean = false
+    // "Watched" chip — same mutually-exclusive axis as Favorites above (see its kdoc), backed by
+    // viewModel.watchHistoryVod (movies >=95% watched) instead of favorited movies. Mirrors the
+    // phone Movies tab's "★ Watched" pinned category row (HomeActivity.VOD_WATCHED_SENTINEL).
+    private var moviesFsWatchedOnly: Boolean = false
     private var moviesFsSearchQuery: String = ""
     private var moviesFsSearchDebounceJob: kotlinx.coroutines.Job? = null
 
@@ -2487,9 +2491,11 @@ class TvHomeActivity : AppCompatActivity() {
         moviesFsFilterJob = lifecycleScope.launch {
             val genre = activeMoviesFsGenre
             val favoritesOnly = moviesFsFavoritesOnly
+            val watchedOnly = moviesFsWatchedOnly
             val query = moviesFsSearchQuery
             val allowedCategoryIds = viewModel.vodCategories.value.map { it.categoryId }.toSet()
             val genreMap = if (genre != null) moviesFsCategoryGenreMap() else null
+            val watchedIds = if (watchedOnly) viewModel.watchHistoryVod.value.map { it.streamId }.toSet() else null
             val sorted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 // viewModel.vod (list here) is every movie across every provider/category
                 // unfiltered — viewModel.vodCategories, by contrast, already respects the
@@ -2503,11 +2509,12 @@ class TvHomeActivity : AppCompatActivity() {
                 // tokens to begin with.
                 val languageFiltered = if (allowedCategoryIds.isEmpty()) list
                     else list.filter { it.categoryId in allowedCategoryIds }
-                // Favorites and genre are mutually exclusive (see moviesFsFavoritesOnly's kdoc)
-                // — only one of these two filters is ever active at a time.
+                // Favorites/Watched/genre are mutually exclusive (see moviesFsFavoritesOnly's
+                // kdoc) — only one of these filters is ever active at a time.
                 val favoritesFiltered = if (favoritesOnly) languageFiltered.filter { it.isFavorite } else languageFiltered
-                val genreFiltered = if (genre == null) favoritesFiltered
-                    else favoritesFiltered.filter { genreMap?.get(it.categoryId) == genre }
+                val watchedFiltered = if (watchedOnly) favoritesFiltered.filter { it.streamId in (watchedIds ?: emptySet()) } else favoritesFiltered
+                val genreFiltered = if (genre == null) watchedFiltered
+                    else watchedFiltered.filter { genreMap?.get(it.categoryId) == genre }
                 val searchFiltered = if (query.isBlank()) genreFiltered
                     else genreFiltered.filter { it.name.contains(query, ignoreCase = true) }
                 viewModel.applyVodSort(searchFiltered)
@@ -2530,27 +2537,44 @@ class TvHomeActivity : AppCompatActivity() {
         val container = binding.tvGenreChipContainerFs
         container.removeAllViews()
         var activeChip: View? = null
-        val allChip = buildTvGenreChip("All", !moviesFsFavoritesOnly && activeMoviesFsGenre == null) {
+        val noSpecialFilter = !moviesFsFavoritesOnly && !moviesFsWatchedOnly && activeMoviesFsGenre == null
+        val allChip = buildTvGenreChip("All", noSpecialFilter) {
             activeMoviesFsGenre = null
             moviesFsFavoritesOnly = false
+            moviesFsWatchedOnly = false
             updateMoviesFsGenreChips(viewModel.vod.value)
             submitFilteredMoviesFs(viewModel.vod.value)
         }
         container.addView(allChip)
-        if (!moviesFsFavoritesOnly && activeMoviesFsGenre == null) activeChip = allChip
+        if (noSpecialFilter) activeChip = allChip
         val favoritesChip = buildTvGenreChip("★ Favorites", moviesFsFavoritesOnly) {
             moviesFsFavoritesOnly = true
+            moviesFsWatchedOnly = false
             activeMoviesFsGenre = null
             updateMoviesFsGenreChips(viewModel.vod.value)
             submitFilteredMoviesFs(viewModel.vod.value)
         }
         container.addView(favoritesChip)
         if (moviesFsFavoritesOnly) activeChip = favoritesChip
+        if (viewModel.watchHistoryVod.value.isNotEmpty()) {
+            val watchedChip = buildTvGenreChip("★ Watched", moviesFsWatchedOnly) {
+                moviesFsWatchedOnly = true
+                moviesFsFavoritesOnly = false
+                activeMoviesFsGenre = null
+                updateMoviesFsGenreChips(viewModel.vod.value)
+                submitFilteredMoviesFs(viewModel.vod.value)
+            }
+            container.addView(watchedChip)
+            if (moviesFsWatchedOnly) activeChip = watchedChip
+        } else {
+            moviesFsWatchedOnly = false
+        }
         for (genre in genres) {
-            val selected = !moviesFsFavoritesOnly && activeMoviesFsGenre?.equals(genre, ignoreCase = true) == true
+            val selected = !moviesFsFavoritesOnly && !moviesFsWatchedOnly && activeMoviesFsGenre?.equals(genre, ignoreCase = true) == true
             val chip = buildTvGenreChip(genre, selected) {
                 activeMoviesFsGenre = genre
                 moviesFsFavoritesOnly = false
+                moviesFsWatchedOnly = false
                 updateMoviesFsGenreChips(viewModel.vod.value)
                 submitFilteredMoviesFs(viewModel.vod.value)
             }
@@ -2578,6 +2602,11 @@ class TvHomeActivity : AppCompatActivity() {
     // no seriesFsCategoryGenreMap equivalent to moviesFsCategoryGenreMap needed.
     private var activeSeriesFsGenre: String? = null
     private var seriesFsFavoritesOnly: Boolean = false
+    // "Watched" chip — mirrors moviesFsWatchedOnly, backed by viewModel.watchHistoryEpisodes
+    // (series with any episode >=95% watched) instead of favorited series. Same mutually
+    // exclusive axis as Favorites/genre. Matches the phone Series tab's "Watched" filter chip
+    // (HomeActivity.showWatchedSeriesOnly).
+    private var seriesFsWatchedOnly: Boolean = false
     private var seriesFsSearchQuery: String = ""
     private var seriesFsSearchDebounceJob: kotlinx.coroutines.Job? = null
 
@@ -2653,11 +2682,14 @@ class TvHomeActivity : AppCompatActivity() {
         seriesFsFilterJob = lifecycleScope.launch {
             val genre = activeSeriesFsGenre
             val favoritesOnly = seriesFsFavoritesOnly
+            val watchedOnly = seriesFsWatchedOnly
             val query = seriesFsSearchQuery
+            val watchedIds = if (watchedOnly) viewModel.watchHistoryEpisodes.value.map { it.seriesId }.toSet() else null
             val sorted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 val favoritesFiltered = if (favoritesOnly) list.filter { it.isFavorite } else list
-                val genreFiltered = if (genre == null) favoritesFiltered
-                    else favoritesFiltered.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }
+                val watchedFiltered = if (watchedOnly) favoritesFiltered.filter { it.seriesId in (watchedIds ?: emptySet()) } else favoritesFiltered
+                val genreFiltered = if (genre == null) watchedFiltered
+                    else watchedFiltered.filter { genre in com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }
                 val searchFiltered = if (query.isBlank()) genreFiltered
                     else genreFiltered.filter { it.name.contains(query, ignoreCase = true) }
                 viewModel.applySeriesSort(searchFiltered)
@@ -2673,27 +2705,44 @@ class TvHomeActivity : AppCompatActivity() {
         val container = binding.tvGenreChipContainerFsSeries
         container.removeAllViews()
         var activeChip: View? = null
-        val allChip = buildTvGenreChip("All", !seriesFsFavoritesOnly && activeSeriesFsGenre == null) {
+        val noSpecialFilter = !seriesFsFavoritesOnly && !seriesFsWatchedOnly && activeSeriesFsGenre == null
+        val allChip = buildTvGenreChip("All", noSpecialFilter) {
             activeSeriesFsGenre = null
             seriesFsFavoritesOnly = false
+            seriesFsWatchedOnly = false
             updateSeriesFsGenreChips(viewModel.series.value)
             submitFilteredSeriesFs(viewModel.series.value)
         }
         container.addView(allChip)
-        if (!seriesFsFavoritesOnly && activeSeriesFsGenre == null) activeChip = allChip
+        if (noSpecialFilter) activeChip = allChip
         val favoritesChip = buildTvGenreChip("★ Favorites", seriesFsFavoritesOnly) {
             seriesFsFavoritesOnly = true
+            seriesFsWatchedOnly = false
             activeSeriesFsGenre = null
             updateSeriesFsGenreChips(viewModel.series.value)
             submitFilteredSeriesFs(viewModel.series.value)
         }
         container.addView(favoritesChip)
         if (seriesFsFavoritesOnly) activeChip = favoritesChip
+        if (viewModel.watchHistoryEpisodes.value.isNotEmpty()) {
+            val watchedChip = buildTvGenreChip("Watched", seriesFsWatchedOnly) {
+                seriesFsWatchedOnly = true
+                seriesFsFavoritesOnly = false
+                activeSeriesFsGenre = null
+                updateSeriesFsGenreChips(viewModel.series.value)
+                submitFilteredSeriesFs(viewModel.series.value)
+            }
+            container.addView(watchedChip)
+            if (seriesFsWatchedOnly) activeChip = watchedChip
+        } else {
+            seriesFsWatchedOnly = false
+        }
         for (genre in genres) {
-            val selected = !seriesFsFavoritesOnly && activeSeriesFsGenre?.equals(genre, ignoreCase = true) == true
+            val selected = !seriesFsFavoritesOnly && !seriesFsWatchedOnly && activeSeriesFsGenre?.equals(genre, ignoreCase = true) == true
             val chip = buildTvGenreChip(genre, selected) {
                 activeSeriesFsGenre = genre
                 seriesFsFavoritesOnly = false
+                seriesFsWatchedOnly = false
                 updateSeriesFsGenreChips(viewModel.series.value)
                 submitFilteredSeriesFs(viewModel.series.value)
             }
@@ -2972,6 +3021,25 @@ class TvHomeActivity : AppCompatActivity() {
                 if (currentSection == Section.SERIES) {
                     updateSeriesFsGenreChips(it)
                     submitFilteredSeriesFs(it)
+                }
+            }
+        }
+        // Watched History — keeps the "★ Watched"/"Watched" chip (and its filtered results, if
+        // currently selected) live as movies/episodes cross the 95% completion threshold during
+        // playback, same "re-derive on every emission" shape as vodCategories/series above.
+        lifecycleScope.launch {
+            viewModel.watchHistoryVod.collect {
+                if (currentSection == Section.MOVIES) {
+                    updateMoviesFsGenreChips(viewModel.vod.value)
+                    submitFilteredMoviesFs(viewModel.vod.value)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            viewModel.watchHistoryEpisodes.collect {
+                if (currentSection == Section.SERIES) {
+                    updateSeriesFsGenreChips(viewModel.series.value)
+                    submitFilteredSeriesFs(viewModel.series.value)
                 }
             }
         }

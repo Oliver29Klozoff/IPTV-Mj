@@ -776,6 +776,9 @@ class XtreamRepository @Inject constructor(
     suspend fun dismissVodFromContinueWatching(streamId: Int) = db.vodDao().dismissFromContinueWatching(streamId)
     suspend fun dismissSeriesFromContinueWatching(seriesId: Int) = db.seriesDao().dismissFromContinueWatching(seriesId)
 
+    fun getWatchHistoryVod(): Flow<List<VodEntity>> = db.vodDao().getWatchHistoryVod()
+    fun getWatchHistoryEpisodes(): Flow<List<com.iptvapp.data.local.dao.WatchedEpisodeRow>> = db.episodeWatchedDao().getWatchHistoryEpisodes()
+
     suspend fun fetchSeriesInfo(seriesId: Int): Resource<SeriesInfo> {
         val b = urlBuilder(); val c = creds()
         return safeApiCall {

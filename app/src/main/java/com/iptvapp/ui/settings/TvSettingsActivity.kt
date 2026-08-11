@@ -605,6 +605,16 @@ class TvSettingsActivity : AppCompatActivity() {
             val traktConnected = traktManager.isConnected.first()
             if (traktConnected) {
                 settingsItems += TvSettingItem.Info("trakt_status", "✓ Connected — scrobbling your watch activity")
+                // Surfaces two things that used to be invisible: an outright failed scrobble
+                // call (network/auth error), and — the more common silent case — a scrobble
+                // that succeeded but never crossed Trakt's own ~80% "watched" threshold, so it
+                // shows up nowhere in Trakt's history despite the app doing everything right.
+                traktManager.lastScrobbleError.value?.let { err ->
+                    settingsItems += TvSettingItem.Info("trakt_last_error", "⚠ Last scrobble failed: $err")
+                }
+                traktManager.lastScrobbleSent.value?.let { sent ->
+                    settingsItems += TvSettingItem.Info("trakt_last_sent", "Last sent to Trakt: $sent")
+                }
                 settingsItems += TvSettingItem.Action("trakt_sync_history", "Sync Watched History from Trakt") {
                     setItemEnabled("trakt_sync_history", false)
                     setItemValue("trakt_sync_history", "Syncing…")
