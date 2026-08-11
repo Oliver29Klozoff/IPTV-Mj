@@ -189,8 +189,11 @@ interface VodDao {
     suspend fun getCount(): Int
     // Clears dismissedFromContinueWatching on every progress save — a dismissed movie should
     // reappear in Continue Watching once the user actually resumes it, not stay hidden forever.
+    // Returns the number of rows updated (0 if streamId isn't in the local catalog yet) — a
+    // cross-device sync pull for a movie this device hasn't cached the catalog row for used to
+    // silently no-op while still counting as "merged" (see SyncManager.pullFromCloud's kdoc).
     @Query("UPDATE vod_streams SET watchedMs = :watchedMs, durationMs = :durationMs, dismissedFromContinueWatching = 0, lastWatchedAt = :nowMs WHERE streamId = :streamId")
-    suspend fun updateWatchProgress(streamId: Int, watchedMs: Long, durationMs: Long, nowMs: Long = System.currentTimeMillis())
+    suspend fun updateWatchProgress(streamId: Int, watchedMs: Long, durationMs: Long, nowMs: Long = System.currentTimeMillis()): Int
     @Query("SELECT watchedMs FROM vod_streams WHERE streamId = :streamId")
     suspend fun getWatchedMs(streamId: Int): Long?
     @Query("SELECT durationMs FROM vod_streams WHERE streamId = :streamId")

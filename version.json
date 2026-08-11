@@ -1,7 +1,7 @@
 {
-  "versionCode": 423,
-  "versionName": "5.85",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.85/MKTV.apk",
-  "apkSha256": "2c6f0bacf8f902b9408018d9763daef788072025aaa66f9293c4d2a07028f960",
-  "changelog": "Added Watched History (pinned \"Watched\" row/chip in Movies and Series, phone + TV, independent of Trakt). Settings > Trakt now shows what was actually last sent, so a scrobble that misses Trakt's watched threshold is diagnosable instead of looking broken."
+  "versionCode": 424,
+  "versionName": "5.86",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.86/MKTV.apk",
+  "apkSha256": "a4d2277da6c685c087acc2c74ffb80e1791b8de9257ac6ee447d016cec116bc6",
+  "changelog": "Fixed cross-device sync's Pull from Cloud silently reporting watch progress as merged when the movie wasn't yet in this device's local catalog. Now honestly reports skipped titles instead of a false success."
 }

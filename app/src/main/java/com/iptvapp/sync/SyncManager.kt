@@ -265,14 +265,24 @@ class SyncManager @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             val remoteVodProgress = (doc.get("vodProgress") as? Map<String, Map<*, *>>) ?: emptyMap()
             var vodProgressMerged = 0
+            // Movies whose progress WOULD have merged (remote is further along) but this device
+            // has no local catalog row for yet — updateWatchProgress is a plain UPDATE, so these
+            // used to silently no-op while still counting toward "N watch progress updates" in
+            // the result toast (found via a real device: Shield's watched movie didn't appear on
+            // phone after a pull that claimed 3 updates — the movie just wasn't in the phone's
+            // VOD catalog cache yet). Surfaced so the count is honest instead of misleading.
+            var vodProgressSkippedUncached = 0
             remoteVodProgress.forEach { (streamIdStr, progress) ->
                 val streamId = streamIdStr.toIntOrNull() ?: return@forEach
                 val remoteWatched = progress["watchedMs"].asLong() ?: return@forEach
                 val remoteDuration = progress["durationMs"].asLong() ?: return@forEach
                 val localWatched = db.vodDao().getWatchedMs(streamId) ?: 0L
                 if (remoteWatched > localWatched) {
-                    db.vodDao().updateWatchProgress(streamId, remoteWatched, remoteDuration)
-                    vodProgressMerged++
+                    if (db.vodDao().updateWatchProgress(streamId, remoteWatched, remoteDuration) > 0) {
+                        vodProgressMerged++
+                    } else {
+                        vodProgressSkippedUncached++
+                    }
                 }
             }
 
@@ -498,9 +508,12 @@ class SyncManager @Inject constructor(
 
             prefs.setLastSyncTime(System.currentTimeMillis())
             val progressSuffix = if (vodProgressMerged > 0) " and $vodProgressMerged watch progress update${if (vodProgressMerged == 1) "" else "s"}" else ""
+            val skippedSuffix = if (vodProgressSkippedUncached > 0)
+                " ($vodProgressSkippedUncached movie${if (vodProgressSkippedUncached == 1) "" else "s"} skipped — not in this device's catalog yet)"
+            else ""
             val totalMergedFavorites = mergedFavoritesMerged + mergedVodFavoritesMerged + mergedSeriesFavoritesMerged
             val mergedSuffix = if (totalMergedFavorites > 0) " and $totalMergedFavorites other-provider favorite${if (totalMergedFavorites == 1) "" else "s"}" else ""
-            "Pulled ${merged.size} favorites$progressSuffix$mergedSuffix from $syncDevice ($dateStr)"
+            "Pulled ${merged.size} favorites$progressSuffix$mergedSuffix from $syncDevice ($dateStr)$skippedSuffix"
         } catch (e: Exception) {
             "Sync failed: ${e.message}"
         }

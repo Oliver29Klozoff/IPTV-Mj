@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v5.86 - 2026-08-11
+- **Fixed**: cross-device sync's "Pull from Cloud" could report watch progress as merged even
+  when the movie wasn't in this device's local catalog yet (nothing to attach the progress to),
+  making the pulled movie silently never show up in Continue Watching/Watched History despite
+  the sync reporting success. The result message now says "N movies skipped — not in this
+  device's catalog yet" when that happens, instead of claiming a false success.
+
 ## v5.85 - 2026-08-11
 - **Added**: Watched History — Movies now has a pinned "★ Watched" row (next to "★ Favorites")
   and Series has a "Watched" filter chip, both on phone and TV, showing movies/episodes you've
