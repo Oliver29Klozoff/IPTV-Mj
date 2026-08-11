@@ -1,7 +1,7 @@
 {
-  "versionCode": 421,
-  "versionName": "5.83",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.83/MKTV.apk",
-  "apkSha256": "e50abd6da912014dae25e2a4c773043a14f19b425eee01c503c7ebb4fd4d5989",
-  "changelog": "Added: on phone landscape, the genre filter chip column (right side) can now be collapsed down to just its toggle button, freeing up width for the mini player."
+  "versionCode": 422,
+  "versionName": "5.84",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.84/MKTV.apk",
+  "apkSha256": "d2b8893a8009127fa5275339705a605e49102725d24d458fe2c4ffb8285d6f02",
+  "changelog": "Fixed: on TV, Left/Right with the overlay hidden used to pop it open on Live TV, and could interrupt VOD rewind/fast-forward. Now only OK/Enter opens the overlay; Left/Right always seek on movies."
 }

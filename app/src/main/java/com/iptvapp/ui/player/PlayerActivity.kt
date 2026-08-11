@@ -1939,15 +1939,17 @@ class PlayerActivity : AppCompatActivity() {
             // same as Up/Down already do above — explicitly requested, since seeking on every
             // Left/Right while the overlay (and its own focusable seek bar) was open made it
             // impossible to D-pad over to Back/CC/Stats without also skipping the movie.
+            // For Live TV (not VOD), Left/Right never opens the overlay either — only OK/Enter
+            // does that; a bare Left/Right with the overlay hidden is simply swallowed.
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - nextVodSkipAmountMs()).coerceAtLeast(0L)); true }
-                else -> { showOverlay(); true }
+                else -> true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + nextVodSkipAmountMs()).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
-                else -> { showOverlay(); true }
+                else -> true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()

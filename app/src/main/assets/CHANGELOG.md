@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.84 - 2026-08-10
+- **Fixed**: on TV, pressing Left/Right on a live channel with the overlay hidden used to pop
+  the overlay open. Now only OK/Enter opens the overlay — Left/Right with it hidden do nothing
+  on Live TV, and always seek (never open the overlay) on movies/VOD.
+
 ## v5.83 - 2026-08-10
 - **Added**: on phone landscape, the genre filter chip column (right side) can now be
   collapsed down to just its toggle button, freeing up width for the mini player.
