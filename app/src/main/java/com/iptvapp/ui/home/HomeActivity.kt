@@ -1814,6 +1814,14 @@ class HomeActivity : AppCompatActivity() {
             viewModel.refreshNow()
             Toast.makeText(this, "Refreshing channels…", Toast.LENGTH_SHORT).show()
         }
+        // Same connection check Settings > Provider Speed Test already runs (which includes the
+        // primary at serverIndex -1 alongside every extra provider) — this is a quick-access
+        // shortcut to just the primary's own result, requested since Providers tab's server list
+        // structurally only ever holds extra providers (merged_channels table), not primary.
+        binding.btnRefresh?.setOnLongClickListener {
+            lifecycleScope.launch { showPrimaryProviderSpeedTest() }
+            true
+        }
         binding.btnRefreshProviders?.setOnClickListener {
             when (providersMode) {
                 ProvidersMode.MOVIES -> {
@@ -4967,6 +4975,23 @@ class HomeActivity : AppCompatActivity() {
             (resources.displayMetrics.widthPixels * 0.92).toInt(),
             (resources.displayMetrics.heightPixels * 0.75).toInt()
         )
+    }
+
+    // Long-press Refresh (Favorites) — quick primary-provider connection check, without opening
+    // Settings > Provider Speed Test. Reuses that same multi-provider test and just filters the
+    // result down to serverIndex -1 (primary), since Providers tab structurally can't show a
+    // primary row (its server list is sourced from merged_channels, extra providers only).
+    private suspend fun showPrimaryProviderSpeedTest() {
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Primary Provider")
+            .setMessage("Testing connection…")
+            .setPositiveButton("OK", null)
+            .show()
+        val result = viewModel.testPrimaryProviderSpeed()
+        val tcpStr = if (result.tcpAvgMs != null) "TCP Ping: ${result.tcpAvgMs}ms avg (${result.tcpSuccessCount}/3)" else "TCP Ping: failed"
+        val httpStr = if (result.httpMs != null) "HTTP Response: ${result.httpMs}ms" else "HTTP Response: failed"
+        val errorLine = result.error?.let { "\n$it" } ?: ""
+        dialog.setMessage("${result.nickname}\n$tcpStr\n$httpStr\nServer: ${result.host}$errorLine")
     }
 
     // Long-press "What's On" — a single chronological feed of what's airing next across every

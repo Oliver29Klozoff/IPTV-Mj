@@ -1,7 +1,7 @@
 {
-  "versionCode": 429,
-  "versionName": "5.91",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.91/MKTV.apk",
-  "apkSha256": "adde24691ac50b154fdd002b01f85c186f1863e4a8d06ca1683fb8644d431f60",
-  "changelog": "Fixed: offline downloads now refuse to start below 1GB free space, and an active download auto-cancels if free space drops that low mid-download."
+  "versionCode": 430,
+  "versionName": "5.92",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.92/MKTV.apk",
+  "apkSha256": "b303fd8bbf4f19550f5b013c128d8ac191bb0ec0fb562ba37fb0f03e08bf7e70",
+  "changelog": "Added: long-press Refresh on Favorites for a quick primary-provider connection check (TCP ping + HTTP response) without leaving Favorites."
 }

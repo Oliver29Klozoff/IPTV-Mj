@@ -1513,6 +1513,16 @@ class HomeViewModel @Inject constructor(
     fun yearFromTitle(name: String): Int? =
         Regex("""\((\d{4})\)\s*$""").find(name.trim())?.groupValues?.get(1)?.toIntOrNull()
 
+    // Quick-access primary-provider connection check (Favorites' long-press-Refresh) — reuses
+    // the exact same multi-provider test Settings > Provider Speed Test runs, just filtered to
+    // serverIndex -1. A dedicated single-server test wasn't worth building since the primary is
+    // already included in every runSpeedTestForAllProviders() call.
+    suspend fun testPrimaryProviderSpeed(): XtreamRepository.ProviderSpeedTestResult {
+        val results = repository.runSpeedTestForAllProviders()
+        return results.firstOrNull { it.serverIndex == -1 }
+            ?: XtreamRepository.ProviderSpeedTestResult(-1, "Primary", "", null, 0, null, "Not configured")
+    }
+
     // Favorited movies float to the very top (a favorite is a deliberate bookmark, so it
     // outranks "you happened to start watching this"), then movies with any watch progress
     // (started or finished), then everything else — the chosen sort only orders within each

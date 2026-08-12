@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.92 - 2026-08-12
+- **Added**: long-press the Refresh button on Favorites for a quick primary-provider connection
+  check (TCP ping + HTTP response time) — same test as Settings > Provider Speed Test, without
+  leaving the Favorites tab.
+
 ## v5.91 - 2026-08-12
 - **Fixed**: offline downloads had no storage-space safety net — a movie could fill a device's
   entire remaining storage with nothing to stop it. Downloads now refuse to start below 1GB
