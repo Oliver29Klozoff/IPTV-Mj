@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.89 - 2026-08-11
+- **Added**: Sort button (Rating, Year Newest/Oldest, Recently Added) to TV's Movies and Series
+  screens — the sort options already existed but had no button to open them on TV, only the
+  genre/Favorites/Watched filter chips were reachable.
+
 ## v5.88 - 2026-08-11
 - **Added**: "Because You Watched" recommendations on Movies (pinned row, next to Favorites and
   Watched) and Series (filter chip) — surfaces unwatched titles similar to what you've actually

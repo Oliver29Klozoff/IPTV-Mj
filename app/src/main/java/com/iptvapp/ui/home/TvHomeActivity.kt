@@ -1463,6 +1463,10 @@ class TvHomeActivity : AppCompatActivity() {
             .setTitle("Sort Movies")
             .setSingleChoiceItems(labels, current) { dialog, which ->
                 viewModel.setVodSort(options[which].first)
+                // setVodSort only updates the StateFlow — nothing observes it reactively on TV
+                // (unlike phone, which re-collects viewModel.vod), so the currently-visible grid
+                // needs an explicit re-submit or the picked sort has no visible effect.
+                submitFilteredMoviesFs(viewModel.vod.value)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -1483,6 +1487,9 @@ class TvHomeActivity : AppCompatActivity() {
             .setTitle("Sort Series")
             .setSingleChoiceItems(labels, current) { dialog, which ->
                 viewModel.setSeriesSort(options[which].first)
+                // Same reasoning as showTvVodSortDialog — nothing observes seriesSort
+                // reactively on TV, so an explicit re-submit is needed for the pick to show.
+                submitFilteredSeriesFs(viewModel.series.value)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -2383,6 +2390,7 @@ class TvHomeActivity : AppCompatActivity() {
         // and confirms "yes, searching" for remotes whose Next/search key doesn't reliably send
         // the EditText's own actionSearch IME action (see tvBtnMoviesFsSearch's own kdoc).
         binding.tvBtnMoviesFsSearch.setOnClickListener { commitMoviesFsSearchNow() }
+        binding.tvBtnMoviesFsSort.setOnClickListener { showTvVodSortDialog() }
         binding.tvEtMoviesFsSearch.setOnEditorActionListener { _, _, _ -> commitMoviesFsSearchNow(); true }
         binding.tvEtMoviesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -2661,6 +2669,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.tvEtSeriesFsSearch.setText("")
         }
         binding.tvBtnSeriesFsSearch.setOnClickListener { commitSeriesFsSearchNow() }
+        binding.tvBtnSeriesFsSort.setOnClickListener { showTvSeriesSortDialog() }
         binding.tvEtSeriesFsSearch.setOnEditorActionListener { _, _, _ -> commitSeriesFsSearchNow(); true }
         binding.tvEtSeriesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}

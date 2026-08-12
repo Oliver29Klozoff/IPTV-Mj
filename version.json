@@ -1,7 +1,7 @@
 {
-  "versionCode": 426,
-  "versionName": "5.88",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.88/MKTV.apk",
-  "apkSha256": "a04796f39688502d560886845120bc2c2985a5cb65b0048e878303ff1cc7961b",
-  "changelog": "Added Because You Watched recommendations (Movies/Series) and opt-in New Episode Notifications. Fixed TV mini player missing a focus ring."
+  "versionCode": 427,
+  "versionName": "5.89",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.89/MKTV.apk",
+  "apkSha256": "8faf64053e68a7fcbd0fb83d4b5bd3a2a63b74589f4d170faa5192873ec05847",
+  "changelog": "Added a Sort button to TV's Movies and Series screens (Rating, Year Newest/Oldest, Recently Added) — previously the sort options existed but had no way to reach them on TV."
 }
