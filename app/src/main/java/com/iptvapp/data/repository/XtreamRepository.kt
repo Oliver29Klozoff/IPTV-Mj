@@ -32,6 +32,24 @@ class XtreamRepository @Inject constructor(
 ) {
     private suspend fun creds() = prefs.credentials.first()
 
+    /** Converts a raw live-search query into FTS4 MATCH syntax: strips characters FTS4's query
+     * parser treats as syntax (quotes, *, -, parens) so a user typing e.g. `"news` or `a-team`
+     * doesn't throw a MATCH syntax error, then appends `*` to the last token for prefix-as-you-
+     * type matching (so "bat" matches "Batman" while it's still being typed, same live-search
+     * feel the old LIKE '%query%' had — see ChannelDao.searchChannels kdoc for the one real
+     * behavior change: FTS4 prefix matching is per-token, not a true substring match). */
+    private fun ftsQuery(raw: String): String {
+        val sanitized = raw.trim().replace(Regex("[\"*()\\-]"), " ")
+        val tokens = sanitized.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return "\"\""
+        // Appending '*' only once to the whole string (not per-token) made FTS4 treat every
+        // earlier word as a required EXACT match with only the last word prefix-matched —
+        // "walk" alone found nothing, and even "walking dea" found nothing, since only a
+        // fully-typed final word got the '*'. Prefixing every token keeps live search-as-you-
+        // type working per-word, the same way LIKE '%query%' effectively did.
+        return tokens.joinToString(" ") { "$it*" }
+    }
+
     private suspend fun urlBuilder(): XtreamUrlBuilder {
         val c = creds()
         return XtreamUrlBuilder(c.serverUrl, c.username, c.password)
@@ -206,7 +224,7 @@ class XtreamRepository @Inject constructor(
         db.channelDao().getChannelsByCategory(categoryId)
 
     fun searchChannels(query: String): Flow<List<ChannelEntity>> =
-        db.channelDao().searchChannels(query)
+        db.channelDao().searchChannels(ftsQuery(query))
 
     /** "What's airing" search result: one row per channel whose EPG has a program matching
      * [query] in its title/description, still airing or upcoming (never something already
@@ -482,9 +500,9 @@ class XtreamRepository @Inject constructor(
     fun getRecentlyAddedVod(): Flow<List<VodEntity>> = db.vodDao().getRecentlyAddedVod()
     fun getRecentlyAddedMergedVod(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getRecentlyAdded()
 
-    fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(query)
+    fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(ftsQuery(query))
 
-    fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(query)
+    fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(ftsQuery(query))
 
     suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {
         val b = urlBuilder(); val c = creds()

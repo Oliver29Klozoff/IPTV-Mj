@@ -37,6 +37,11 @@ import androidx.work.workDataOf
 import com.iptvapp.AppConstants
 import com.iptvapp.IptvApplication
 import com.iptvapp.util.LogSanitizer
+import com.iptvapp.util.DebugInfoCollector
+import com.iptvapp.util.LanExportServer
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import android.graphics.Bitmap
 import com.iptvapp.util.isForceTvModeEnabled
 import com.iptvapp.util.setForceTvModeEnabled
 import com.iptvapp.util.versionCodeCompat
@@ -1043,6 +1048,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnRestoreSettings.setOnClickListener { showRestoreDialog() }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
         binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
+        binding.btnLanExport.setOnClickListener { showLanExportDialog() }
         binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
 
         lifecycleScope.launch {
@@ -1393,6 +1399,53 @@ class SettingsActivity : AppCompatActivity() {
                     }
                 }
             }
+            .show()
+    }
+
+    /** Shows the LAN Export dialog: starts a local HTTP server serving the same debug bundle
+     * sendDebugReport() sends to Discord, and displays a QR code + raw URL for another device on
+     * the same WiFi to scan/type and download it in a browser. Server lifecycle is tied to the
+     * dialog — starts when the dialog opens, stops on dismiss (covers both the user tapping away
+     * and the Activity going down), whichever comes first. No timeout beyond that is needed since
+     * dismiss already guarantees cleanup. */
+    private fun showLanExportDialog() {
+        val server = LanExportServer()
+        val url = server.localUrl(this)
+        if (url == null) {
+            Toast.makeText(this, "No local network connection found — connect to WiFi and try again", Toast.LENGTH_LONG).show()
+            return
+        }
+        server.start {
+            // bundleProvider runs on the server's accept thread, not the UI thread — DebugInfoCollector
+            // itself needs a coroutine scope for its Flow.first() calls, so block here with runBlocking
+            // since this is already off the main thread.
+            kotlinx.coroutines.runBlocking { DebugInfoCollector.collect(this@SettingsActivity, db, prefs) }
+        }
+
+        val size = 500
+        val matrix = QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        for (x in 0 until size) for (y in 0 until size)
+            bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+        }
+        container.addView(android.widget.ImageView(this).apply { setImageBitmap(bitmap) })
+        container.addView(android.widget.TextView(this).apply {
+            text = url
+            setPadding(0, 24, 0, 0)
+            gravity = android.view.Gravity.CENTER
+            setTextIsSelectable(true)
+        })
+
+        AlertDialog.Builder(this)
+            .setTitle("LAN Export")
+            .setMessage("Scan this code on another device connected to the same WiFi network to download a diagnostics bundle (no credentials included).")
+            .setView(container)
+            .setPositiveButton("Done", null)
+            .setOnDismissListener { server.stop() }
             .show()
     }
 

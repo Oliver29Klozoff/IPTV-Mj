@@ -56,7 +56,18 @@ interface ChannelDao {
     suspend fun getMaxCustomNumInRange(start: Int, end: Int): Int?
     @Query("SELECT * FROM channels WHERE lastWatched IS NOT NULL AND isHidden = 0 ORDER BY lastWatched DESC LIMIT 30")
     fun getRecentChannels(): Flow<List<ChannelEntity>>
-    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
+    // FTS4 MATCH replaces the old LIKE '%query%' full-table scan (55k-112k+ row catalogs made
+    // that a real per-keystroke bottleneck). The caller appends '*' to the raw query for
+    // prefix-as-you-type matching (see XtreamRepository.searchChannels) — FTS4 MATCH with a
+    // trailing '*' is a per-token PREFIX match, not a substring match, so "atma" will no longer
+    // find "Batman" the way LIKE '%atma%' did; "bat*" still finds "Batman" fine. This is an
+    // inherent FTS4 tradeoff for the large speedup, not worked around with a LIKE fallback.
+    @Query("""
+        SELECT channels.* FROM channels
+        JOIN channels_fts ON channels.streamId = channels_fts.rowid
+        WHERE channels_fts.name MATCH :query AND channels.isHidden = 0
+        ORDER BY COALESCE(channels.customNum, channels.num) ASC
+    """)
     fun searchChannels(query: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE streamId = :streamId")
     suspend fun getChannelById(streamId: Int): ChannelEntity?
@@ -179,7 +190,14 @@ interface VodDao {
     // current isFavorite state to render/toggle correctly, not a live-updating Flow.
     @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getVodByStreamId(streamId: Int): VodEntity?
-    @Query("SELECT * FROM vod_streams WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    // See ChannelDao.searchChannels kdoc for the FTS4-vs-LIKE rationale and the prefix-vs-
+    // substring matching tradeoff (caller appends '*' for prefix-as-you-type).
+    @Query("""
+        SELECT vod_streams.* FROM vod_streams
+        JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
+        WHERE vod_streams_fts.name MATCH :query
+        ORDER BY vod_streams.name ASC
+    """)
     fun searchVod(query: String): Flow<List<VodEntity>>
     @Upsert
     suspend fun upsertVod(vod: List<VodEntity>)
@@ -230,7 +248,14 @@ interface SeriesDao {
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
     @Query("SELECT * FROM series WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getSeriesById(seriesId: Int): SeriesEntity?
-    @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY name ASC")
+    // See ChannelDao.searchChannels kdoc for the FTS4-vs-LIKE rationale and the prefix-vs-
+    // substring matching tradeoff (caller appends '*' for prefix-as-you-type).
+    @Query("""
+        SELECT series.* FROM series
+        JOIN series_fts ON series.seriesId = series_fts.rowid
+        WHERE series_fts.name MATCH :query AND series.isHidden = 0
+        ORDER BY series.name ASC
+    """)
     fun searchSeries(query: String): Flow<List<SeriesEntity>>
     @Upsert
     suspend fun upsertSeries(series: List<SeriesEntity>)

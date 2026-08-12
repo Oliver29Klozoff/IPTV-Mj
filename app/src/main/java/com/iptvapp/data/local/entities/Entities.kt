@@ -1,6 +1,7 @@
 package com.iptvapp.data.local.entities
 
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -34,6 +35,17 @@ data class ChannelEntity(
     // = no override, use `num` as before.
     val customNum: Int? = null
 )
+
+// FTS4 shadow table for channels.name, replacing the old `LIKE '%query%'` full-table-scan search
+// (a real bottleneck on 55k-112k+ row catalogs). Uses `contentEntity` ("external content") so Room
+// wires up SQLite triggers that keep this index in sync automatically on every insert/update/delete
+// through ChannelDao's existing @Upsert — no manual sync code needed. FTS5 is NOT available here:
+// Android's bundled SQLite build doesn't include it without a custom SQLite binary, so FTS4 is the
+// correct (not a downgraded) choice for this app. See ChannelDao.searchChannels for the MATCH query
+// and the substring-vs-prefix tradeoff this introduces.
+@Fts4(contentEntity = ChannelEntity::class)
+@Entity(tableName = "channels_fts")
+data class ChannelFts(val name: String)
 
 // User-created groups for organizing favorites (e.g. "Sports", "News", "Kids") — same
 // drill-down UX as Movies' categories, but user-named instead of provider-supplied.
@@ -74,6 +86,11 @@ data class VodEntity(
     val lastWatchedAt: Long = 0L
 )
 
+// See ChannelFts kdoc — same FTS4 external-content pattern, mirroring vod_streams.name.
+@Fts4(contentEntity = VodEntity::class)
+@Entity(tableName = "vod_streams_fts")
+data class VodFts(val name: String)
+
 @Entity(tableName = "series")
 data class SeriesEntity(
     @PrimaryKey val seriesId: Int,
@@ -91,6 +108,11 @@ data class SeriesEntity(
     val dismissedFromContinueWatching: Boolean = false,
     val lastWatchedAt: Long = 0L
 )
+
+// See ChannelFts kdoc — same FTS4 external-content pattern, mirroring series.name.
+@Fts4(contentEntity = SeriesEntity::class)
+@Entity(tableName = "series_fts")
+data class SeriesFts(val name: String)
 
 // serverIndex disambiguates which server this program listing belongs to — -1 = primary
 // provider, 0..N-1 = extraServers[i]. Two different servers can reuse the same numeric

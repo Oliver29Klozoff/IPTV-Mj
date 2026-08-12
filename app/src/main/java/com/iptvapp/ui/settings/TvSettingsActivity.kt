@@ -663,6 +663,7 @@ class TvSettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { doQrBackup() }
         }
         settingsItems += TvSettingItem.Action("backup_debug", "Send Debug Report") { sendDebugReport() }
+        settingsItems += TvSettingItem.Action("lan_export", "LAN Export (Show QR Code)") { showLanExportDialog() }
         settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
         settingsItems += TvSettingItem.Action("provider_speed_test", "Provider Speed Test") { showSpeedTestDialog() }
 
@@ -1739,6 +1740,47 @@ class TvSettingsActivity : AppCompatActivity() {
         } catch (_: Exception) {
             toast("Backup failed")
         }
+    }
+
+    /** Starts a local HTTP server (com.iptvapp.util.LanExportServer) serving the same debug bundle
+     * sendDebugReport() sends to Discord (via DebugInfoCollector), and shows a QR code + raw URL
+     * on the TV screen — easier for a phone in the same room to scan than to type the URL on a
+     * remote. Server lifecycle is tied to the dialog: starts on open, stops on dismiss (covers TV
+     * back-button dismiss too), matching the phone SettingsActivity's LAN Export behavior. */
+    private fun showLanExportDialog() {
+        val server = com.iptvapp.util.LanExportServer()
+        val url = server.localUrl(this)
+        if (url == null) {
+            toast("No local network connection found — connect to WiFi/Ethernet and try again")
+            return
+        }
+        server.start {
+            kotlinx.coroutines.runBlocking { com.iptvapp.util.DebugInfoCollector.collect(this@TvSettingsActivity, db, prefs) }
+        }
+
+        val size = 600
+        val matrix = QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        for (x in 0 until size) for (y in 0 until size)
+            bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+        }
+        container.addView(android.widget.ImageView(this).apply { setImageBitmap(bitmap) })
+        container.addView(android.widget.TextView(this).apply {
+            text = url
+            setPadding(0, 24, 0, 0)
+            gravity = android.view.Gravity.CENTER
+            setTextColor(Color.WHITE)
+        })
+        AlertDialog.Builder(this)
+            .setTitle("LAN Export")
+            .setMessage("Scan on a device on the same WiFi network to download a diagnostics bundle (no credentials included)")
+            .setView(container)
+            .setPositiveButton("Done", null)
+            .setOnDismissListener { server.stop() }
+            .show()
     }
 
     private fun showQrDialog(content: String) {

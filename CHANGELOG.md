@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.93 - 2026-08-12
+- **Added**: dual-stream Picture-in-Picture in Multi-View — watch one channel fullscreen with a
+  second playing as a small draggable tile; tap the tile to swap it to fullscreen, audio follows
+  whichever stream is fullscreen.
+- **Added**: much faster search across Channels, Movies, and Series — switched to an indexed
+  search instead of scanning the whole catalog on every keystroke, matters most on large
+  55k-100k+ channel catalogs.
+- **Added**: LAN Export in Settings > Diagnostics — shows a QR code + local URL so another
+  device on the same WiFi can pull a debug bundle in its browser, no cloud, no credentials
+  included. Server only runs while the dialog is open.
+
 ## v5.92 - 2026-08-12
 - **Added**: long-press the Refresh button on Favorites for a quick primary-provider connection
   check (TCP ping + HTTP response time) — same test as Settings > Provider Speed Test, without

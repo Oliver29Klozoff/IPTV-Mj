@@ -6,9 +6,11 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -85,7 +87,111 @@ class MultiViewActivity : AppCompatActivity() {
         }
         leftPlayer?.addListener(bufferListener(binding.progressLeft))
         rightPlayer?.addListener(bufferListener(binding.progressRight))
-        updateActiveSideUI()
+        setupTileDrag()
+        binding.root.post { updateActiveSideUI() } // wait for a layout pass so parent width/height are known
+    }
+
+    // ─── Fullscreen-primary + draggable PiP tile ────────────────────────────────
+
+    private var tileX = -1f // -1 = not yet positioned (defaults to bottom-right on first layout)
+    private var tileY = -1f
+
+    private fun tileContainer() = if (activeSide == 0) binding.containerRight else binding.containerLeft
+    private fun fullscreenContainer() = if (activeSide == 0) binding.containerLeft else binding.containerRight
+
+    private fun setupTileDrag() {
+        val listener = View.OnTouchListener { v, event ->
+            val parent = binding.root
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    dragStartRawX = event.rawX
+                    dragStartRawY = event.rawY
+                    dragStartTranslationX = v.translationX
+                    dragStartTranslationY = v.translationY
+                    dragDistance = 0f
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - dragStartRawX
+                    val dy = event.rawY - dragStartRawY
+                    dragDistance = maxOf(dragDistance, kotlin.math.hypot(dx, dy))
+                    val maxX = (parent.width - v.width).coerceAtLeast(0).toFloat()
+                    val maxY = (parent.height - v.height).coerceAtLeast(0).toFloat()
+                    v.translationX = (dragStartTranslationX + dx).coerceIn(0f, maxX)
+                    v.translationY = (dragStartTranslationY + dy).coerceIn(0f, maxY)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (dragDistance < TAP_SLOP_PX) {
+                        // Treated as a tap, not a drag: swap this tile to fullscreen.
+                        swapFullscreen()
+                    } else {
+                        tileX = v.translationX
+                        tileY = v.translationY
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+        binding.containerLeft.setOnTouchListener(listener)
+        binding.containerRight.setOnTouchListener(listener)
+    }
+
+    private var dragStartRawX = 0f
+    private var dragStartRawY = 0f
+    private var dragStartTranslationX = 0f
+    private var dragStartTranslationY = 0f
+    private var dragDistance = 0f
+
+    private val TAP_SLOP_PX get() = 10 * resources.displayMetrics.density
+
+    /** Swaps which side is fullscreen vs. the small floating tile; audio follows the new fullscreen side. */
+    private fun swapFullscreen() {
+        switchToSide(1 - activeSide)
+    }
+
+    private fun applyPipLayout() {
+        val root = binding.root
+        val full = fullscreenContainer()
+        val tile = tileContainer()
+
+        full.translationX = 0f
+        full.translationY = 0f
+        full.layoutParams = (full.layoutParams as FrameLayout.LayoutParams).apply {
+            width = ViewGroup.LayoutParams.MATCH_PARENT
+            height = ViewGroup.LayoutParams.MATCH_PARENT
+            gravity = Gravity.TOP or Gravity.START
+        }
+        full.bringToFront()
+
+        val density = resources.displayMetrics.density
+        val tileWidth = (140 * density).toInt()
+        val tileHeight = (90 * density).toInt()
+        tile.layoutParams = (tile.layoutParams as FrameLayout.LayoutParams).apply {
+            width = tileWidth
+            height = tileHeight
+            gravity = Gravity.TOP or Gravity.START
+        }
+        tile.bringToFront()
+        binding.controlsBar.bringToFront()
+        binding.channelPickerOverlay.bringToFront()
+
+        root.post {
+            val margin = (16 * density)
+            val maxX = (root.width - tileWidth).coerceAtLeast(0).toFloat()
+            val maxY = (root.height - tileHeight).coerceAtLeast(0).toFloat()
+            if (tileX < 0f) {
+                // First time positioning: default to bottom-right corner, PiP-style.
+                tileX = (root.width - tileWidth - margin).coerceIn(0f, maxX)
+                tileY = (root.height - tileHeight - margin).coerceIn(0f, maxY)
+            } else {
+                tileX = tileX.coerceIn(0f, maxX)
+                tileY = tileY.coerceIn(0f, maxY)
+            }
+            tile.translationX = tileX
+            tile.translationY = tileY
+        }
     }
 
     private fun bufferListener(indicator: View) = object : Player.Listener {
@@ -161,9 +267,8 @@ class MultiViewActivity : AppCompatActivity() {
 
     private fun switchToSide(side: Int) {
         activeSide = side
-        // Tapping a tile is how you'd naturally expect to "switch to watching/listening to
-        // that stream" — previously it only marked the tile active for the channel picker,
-        // leaving audio on whichever side it happened to already be on.
+        // Tapping/swapping a tile is how you'd naturally expect to "switch to watching/listening
+        // to that stream" — audio always follows whichever side is now fullscreen.
         audioSide = side
         leftPlayer?.volume = if (audioSide == 0) 1f else 0f
         rightPlayer?.volume = if (audioSide == 1) 1f else 0f
@@ -180,15 +285,17 @@ class MultiViewActivity : AppCompatActivity() {
     }
 
     private fun updateActiveSideUI() {
+        // The border marks which side is currently fullscreen/active rather than a fixed left/right side.
         binding.borderLeft.visibility = if (activeSide == 0) View.VISIBLE else View.GONE
         binding.borderRight.visibility = if (activeSide == 1) View.VISIBLE else View.GONE
+        applyPipLayout()
     }
 
     private fun setupButtons() {
         binding.btnMvBack.setOnClickListener { finish() }
         binding.btnMvAudio.setOnClickListener { toggleAudio() }
-        binding.containerLeft.setOnClickListener { switchToSide(0); showControls() }
-        binding.containerRight.setOnClickListener { switchToSide(1); showControls() }
+        // Tap-to-swap and drag are both handled by the OnTouchListener installed in setupTileDrag();
+        // plain click listeners here would double-fire the swap.
     }
 
     private fun showControls() {
@@ -202,11 +309,11 @@ class MultiViewActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (!channelPickerVisible) { switchToSide(0); showControls(); return true }
-                }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (!channelPickerVisible) { switchToSide(1); showControls(); return true }
+                // No spatial left/right tiles to navigate between anymore (one is fullscreen,
+                // the other a floating PiP tile) — D-pad left/right now swaps which side is
+                // fullscreen, mirroring the tap-the-tile gesture used on touch.
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (!channelPickerVisible) { swapFullscreen(); showControls(); return true }
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
                     if (!channelPickerVisible) { toggleAudio(); return true }

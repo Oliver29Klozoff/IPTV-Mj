@@ -1,7 +1,7 @@
 {
-  "versionCode": 430,
-  "versionName": "5.92",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.92/MKTV.apk",
-  "apkSha256": "b303fd8bbf4f19550f5b013c128d8ac191bb0ec0fb562ba37fb0f03e08bf7e70",
-  "changelog": "Added: long-press Refresh on Favorites for a quick primary-provider connection check (TCP ping + HTTP response) without leaving Favorites."
+  "versionCode": 431,
+  "versionName": "5.93",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.93/MKTV.apk",
+  "apkSha256": "3b0db8c259c96b6732d99761387bf07dcae01bc8e0abe6c875a05dd65aa148a0",
+  "changelog": "Added dual-stream Picture-in-Picture in Multi-View, much faster indexed search across Channels/Movies/Series, and LAN Export in Settings > Diagnostics (QR-code debug bundle over local WiFi, no cloud, no credentials)."
 }

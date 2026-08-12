@@ -21,9 +21,12 @@ import com.iptvapp.data.local.entities.*
         FavoriteFolderEntity::class,
         MergedVodEntity::class,
         MergedSeriesEntity::class,
-        DownloadedContentEntity::class
+        DownloadedContentEntity::class,
+        ChannelFts::class,
+        VodFts::class,
+        SeriesFts::class
     ],
-    version = 35,
+    version = 36,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -441,6 +444,29 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Adds FTS4 search indexes for channels/vod_streams/series, replacing the old
+        // `LIKE '%query%'` full-table-scan search (a real per-keystroke cost on 55k-112k+ row
+        // catalogs). `content=` external-content tables mirror the real table's rowid so Room's
+        // generated triggers keep them in sync on every future insert/update through the existing
+        // @Upsert DAOs — but that sync is trigger-based and only fires on FUTURE writes, so
+        // creation alone leaves the index empty for every row that already exists at migration
+        // time. The `INSERT INTO <fts>(<fts>) VALUES('rebuild')` command is FTS4's standard
+        // full-reindex-from-content-table command — without it, search would return nothing for
+        // any pre-existing catalog until the next full provider refresh re-upserts every row,
+        // which would be a real regression, not an improvement.
+        val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS channels_fts USING FTS4(content=`channels`, name)")
+                db.execSQL("INSERT INTO channels_fts(channels_fts) VALUES('rebuild')")
+
+                db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS vod_streams_fts USING FTS4(content=`vod_streams`, name)")
+                db.execSQL("INSERT INTO vod_streams_fts(vod_streams_fts) VALUES('rebuild')")
+
+                db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS series_fts USING FTS4(content=`series`, name)")
+                db.execSQL("INSERT INTO series_fts(series_fts) VALUES('rebuild')")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -448,7 +474,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
-            MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35
+            MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36
         )
     }
 }
