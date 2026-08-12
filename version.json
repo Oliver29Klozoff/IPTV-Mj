@@ -1,7 +1,7 @@
 {
-  "versionCode": 425,
-  "versionName": "5.87",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.87/MKTV.apk",
-  "apkSha256": "9df2eb1654e58b8005e7896ad8fecf108d542edc38f99cee80cf62f42f368081",
-  "changelog": "Fixed: the What's On Now strip on Favorites (phone and TV) didn't populate on a fresh app launch until switching tabs and back. Now waits for real data first."
+  "versionCode": 426,
+  "versionName": "5.88",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.88/MKTV.apk",
+  "apkSha256": "a04796f39688502d560886845120bc2c2985a5cb65b0048e878303ff1cc7961b",
+  "changelog": "Added Because You Watched recommendations (Movies/Series) and opt-in New Episode Notifications. Fixed TV mini player missing a focus ring."
 }

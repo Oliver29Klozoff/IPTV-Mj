@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.88 - 2026-08-11
+- **Added**: "Because You Watched" recommendations on Movies (pinned row, next to Favorites and
+  Watched) and Series (filter chip) — surfaces unwatched titles similar to what you've actually
+  finished, on both phone and TV.
+- **Added**: New Episode Notifications — an opt-in Settings toggle (off by default) that checks
+  your favorited series daily and sends a real notification when a new episode is available,
+  tapping it opens straight to that show.
+- **Fixed**: on TV, pressing Right from a Favorites channel row moved focus to the mini player
+  but gave no visual indication it was focused — now shows a blue focus ring around the player,
+  same as everywhere else in the app.
+
 ## v5.87 - 2026-08-11
 - **Fixed**: the What's On Now strip on Favorites (phone and TV) didn't populate on a fresh
   app launch — it read the favorites list before it had actually loaded yet, so the strip

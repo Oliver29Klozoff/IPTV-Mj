@@ -1623,6 +1623,54 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // "Because You Watched" — recommends unwatched movies sharing a provider category with
+    // whatever's in watch history, most-recently-watched category first. VodEntity has no
+    // separate genre field (unlike SeriesEntity), so categoryId is the closest available
+    // matching signal — two movies filed under the same provider category are the strongest
+    // "similar" signal actually available locally, without a network call. Pinned alongside
+    // "★ Favorites"/"★ Watched" the same way, only shown once there's real watch history to
+    // build recommendations from.
+    fun selectVodBecauseYouWatched() {
+        selectedVodCategoryId = null
+        vodJob?.cancel()
+        vodJob = viewModelScope.launch {
+            combine(watchHistoryVod, repository.getAllVod()) { history, catalog -> history to catalog }
+                .collectLatest { (history, catalog) ->
+                    _vod.value = computeBecauseYouWatchedVod(history, catalog)
+                }
+        }
+    }
+
+    // Not private — TvHomeActivity's Movies full-screen browse (a chip-filtered grid rather
+    // than phone's pinned-category-row UI) calls this directly with current snapshots to build
+    // its own "Because You Watched" chip, same as it already does for watchHistoryVod/Episodes.
+    fun computeBecauseYouWatchedVod(history: List<VodEntity>, catalog: List<VodEntity>): List<VodEntity> {
+        if (history.isEmpty()) return emptyList()
+        // Most-recently-watched category first (history is already ordered newest-first).
+        val watchedCategoryIds = history.mapNotNull { it.categoryId }.distinct()
+        val watchedStreamIds = history.map { it.streamId }.toSet()
+        if (watchedCategoryIds.isEmpty()) return emptyList()
+        val byCategory = catalog.filter { it.categoryId in watchedCategoryIds && it.streamId !in watchedStreamIds }
+            .groupBy { it.categoryId }
+        return watchedCategoryIds.flatMap { byCategory[it].orEmpty() }.distinctBy { it.streamId }
+    }
+
+    // Series equivalent — SeriesEntity DOES have a real "genre" field (comma-separated tags
+    // straight from the provider), so this uses GenreBuckets' keyword matching instead of raw
+    // categoryId equality, same as the Series tab's own genre chips already do.
+    fun computeBecauseYouWatchedSeries(): List<SeriesEntity> {
+        val watched = watchHistoryEpisodes.value
+        if (watched.isEmpty()) return emptyList()
+        val watchedSeriesIds = watched.map { it.seriesId }.toSet()
+        val watchedSeries = series.value.filter { it.seriesId in watchedSeriesIds }
+        val watchedBuckets = watchedSeries.flatMap { com.iptvapp.util.GenreBuckets.bucketsFor(it.genre?.split(",").orEmpty()) }.toSet()
+        if (watchedBuckets.isEmpty()) return emptyList()
+        return series.value.filter { s ->
+            s.seriesId !in watchedSeriesIds &&
+                com.iptvapp.util.GenreBuckets.bucketsFor(s.genre?.split(",").orEmpty()).any { it in watchedBuckets }
+        }
+    }
+
     fun loadEpgForChannels(channels: List<ChannelEntity>) {
         viewModelScope.launch {
             if (channels.isEmpty()) {

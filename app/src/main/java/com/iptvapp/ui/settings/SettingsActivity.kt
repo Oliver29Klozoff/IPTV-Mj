@@ -47,6 +47,7 @@ import com.iptvapp.databinding.ActivitySettingsBinding
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.worker.AutoBackupWorker
 import com.iptvapp.worker.EpgRefreshWorker
+import com.iptvapp.worker.NewEpisodeCheckWorker
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import dagger.hilt.android.AndroidEntryPoint
@@ -350,6 +351,12 @@ class SettingsActivity : AppCompatActivity() {
     private val openBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) lifecycleScope.launch { restoreBackupFromUri(uri) }
     }
+    // Requested when the New Episode Notifications switch is turned on (Android 13+ requires
+    // this at request time, not just declared in the manifest) — same
+    // ActivityResultContracts.RequestPermission() shape HomeActivity's notifPermLauncher already
+    // uses for EPG reminders, just scoped to this one toggle instead of fired unconditionally on
+    // every launch.
+    private val newEpisodeNotifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     private val sortLabels = listOf("Default", "A-Z", "Popular", "Recent")
     private var currentSortIndex = 0
@@ -1060,6 +1067,44 @@ class SettingsActivity : AppCompatActivity() {
                 updateAutoBackupPathLabel(isChecked)
             }
         }
+
+        lifecycleScope.launch {
+            binding.switchNewEpisodeNotifications.isChecked = prefs.newEpisodeNotificationsEnabled.first()
+        }
+        binding.switchNewEpisodeNotifications.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                prefs.setNewEpisodeNotificationsEnabled(isChecked)
+                if (isChecked) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        androidx.core.content.ContextCompat.checkSelfPermission(this@SettingsActivity, android.Manifest.permission.POST_NOTIFICATIONS)
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        newEpisodeNotifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    scheduleNewEpisodeCheck()
+                } else {
+                    cancelNewEpisodeCheck()
+                }
+            }
+        }
+    }
+
+    private fun scheduleNewEpisodeCheck() {
+        val request = PeriodicWorkRequestBuilder<NewEpisodeCheckWorker>(1, TimeUnit.DAYS)
+            .setConstraints(Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            NewEpisodeCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+        Toast.makeText(this, "New episode notifications scheduled daily", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun cancelNewEpisodeCheck() {
+        WorkManager.getInstance(this).cancelUniqueWork(NewEpisodeCheckWorker.WORK_NAME)
+        Toast.makeText(this, "New episode notifications disabled", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateAutoBackupPathLabel(enabled: Boolean) {

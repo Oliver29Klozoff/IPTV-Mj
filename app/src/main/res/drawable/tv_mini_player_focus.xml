@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Focus ring for tvMiniPlayerContainer — same accent color/width as tv_sidebar_focus, but
+     stroke-only (no translucent fill) so it doesn't tint the video underneath. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape>
+            <stroke android:width="3dp" android:color="#008CFF" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

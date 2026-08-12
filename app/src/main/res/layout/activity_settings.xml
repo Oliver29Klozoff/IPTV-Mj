@@ -1938,6 +1938,31 @@
                                 android:text="Manage Backups on This Device"
                                 android:textColor="#FFFFFF"
                                 android:textSize="12sp" />
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="New Episode Notifications"
+                                    android:textColor="#CCCCCC"
+                                    android:textSize="13sp" />
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchNewEpisodeNotifications"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Notifies you when a favorited show gets a new episode (checked daily)"
+                                android:textColor="#555555"
+                                android:textSize="11sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
                 </LinearLayout>

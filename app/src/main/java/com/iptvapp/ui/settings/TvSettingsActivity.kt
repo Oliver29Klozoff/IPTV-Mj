@@ -17,6 +17,7 @@ import android.view.KeyEvent
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -43,6 +44,7 @@ import com.iptvapp.sync.SyncManager
 import com.iptvapp.ui.login.LoginActivity
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.worker.EpgRefreshWorker
+import com.iptvapp.worker.NewEpisodeCheckWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -68,6 +70,11 @@ class TvSettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTvSettingsBinding
     private lateinit var workManager: WorkManager
     private lateinit var adapter: TvSettingsAdapter
+
+    // Same "just request it, no rationale UI" launcher HomeActivity/SettingsActivity's own
+    // POST_NOTIFICATIONS handling already uses — enabling the New Episode Notifications toggle
+    // below is the trigger on TV, same as it is on phone.
+    private val newEpisodeNotifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
@@ -658,6 +665,26 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Action("backup_debug", "Send Debug Report") { sendDebugReport() }
         settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
         settingsItems += TvSettingItem.Action("provider_speed_test", "Provider Speed Test") { showSpeedTestDialog() }
+
+        // ── NOTIFICATIONS ──
+        settingsItems += TvSettingItem.Header("Notifications")
+        settingsItems += TvSettingItem.Toggle("new_episode_notifications", "New Episode Notifications",
+            subtitle = "Notifies you when a favorited show gets a new episode (checked daily). Off by default.",
+            checked = prefs.newEpisodeNotificationsEnabled.first()) { c ->
+            lifecycleScope.launch {
+                prefs.setNewEpisodeNotificationsEnabled(c)
+                if (c) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        androidx.core.content.ContextCompat.checkSelfPermission(this@TvSettingsActivity, android.Manifest.permission.POST_NOTIFICATIONS)
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        newEpisodeNotifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    scheduleNewEpisodeCheck()
+                } else {
+                    cancelNewEpisodeCheck()
+                }
+            }
+        }
 
         // ── SERVERS ──
         settingsItems += TvSettingItem.Header("Providers")
@@ -1366,6 +1393,28 @@ class TvSettingsActivity : AppCompatActivity() {
         } catch (e: Exception) {
             toast("Backup failed: ${e.message}")
         }
+    }
+
+    // Mirrors SettingsActivity's identical scheduleNewEpisodeCheck/cancelNewEpisodeCheck
+    // (phone Settings) — same daily NewEpisodeCheckWorker, just triggered from the TV settings
+    // list's Toggle row instead of a SwitchMaterial.
+    private fun scheduleNewEpisodeCheck() {
+        val request = PeriodicWorkRequestBuilder<NewEpisodeCheckWorker>(1, TimeUnit.DAYS)
+            .setConstraints(androidx.work.Constraints.Builder()
+                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            NewEpisodeCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+        toast("New episode notifications scheduled daily")
+    }
+
+    private fun cancelNewEpisodeCheck() {
+        WorkManager.getInstance(this).cancelUniqueWork(NewEpisodeCheckWorker.WORK_NAME)
+        toast("New episode notifications disabled")
     }
 
     private fun showManageBackupsDialog() {

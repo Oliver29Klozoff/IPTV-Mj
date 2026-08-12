@@ -133,6 +133,12 @@ class PreferencesManager @Inject constructor(
         val DOH_PROVIDER = stringPreferencesKey("doh_provider")
         val CHANNEL_SORT_MODE = intPreferencesKey("channel_sort_mode")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
+        // New-episode push notifications — off by default (opt-in), same shape as
+        // AUTO_BACKUP_ENABLED. NEW_EPISODE_LAST_SEEN_COUNTS stores a JSON object
+        // {"<seriesId>": <lastKnownEpisodeCount>} — see getNewEpisodeLastSeenCounts/
+        // setNewEpisodeLastSeenCount below, same JSONObject-as-string convention EPG_URLS uses.
+        val NEW_EPISODE_NOTIFICATIONS_ENABLED = booleanPreferencesKey("new_episode_notifications_enabled")
+        val NEW_EPISODE_LAST_SEEN_COUNTS = stringPreferencesKey("new_episode_last_seen_counts")
         val LAST_CHANNELS_FETCH_TIME = longPreferencesKey("last_channels_fetch_time")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
@@ -508,6 +514,31 @@ class PreferencesManager @Inject constructor(
 
     val autoBackupEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.AUTO_BACKUP_ENABLED] ?: false }
     suspend fun setAutoBackupEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.AUTO_BACKUP_ENABLED] = enabled } }
+
+    val newEpisodeNotificationsEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.NEW_EPISODE_NOTIFICATIONS_ENABLED] ?: false }
+    suspend fun setNewEpisodeNotificationsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NEW_EPISODE_NOTIFICATIONS_ENABLED] = enabled }
+    }
+
+    /** Per-series "last known total episode count" marker NewEpisodeCheckWorker compares each
+     * favorited series' current provider episode count against — a jump means new episodes
+     * appeared since the last check. Keyed by seriesId, JSON-object-encoded like EPG_URLS. */
+    suspend fun getNewEpisodeLastSeenCounts(): Map<Int, Int> {
+        val json = context.dataStore.data.first()[Keys.NEW_EPISODE_LAST_SEEN_COUNTS] ?: "{}"
+        val obj = org.json.JSONObject(json)
+        val result = mutableMapOf<Int, Int>()
+        obj.keys().forEach { key -> key.toIntOrNull()?.let { result[it] = obj.getInt(key) } }
+        return result
+    }
+
+    suspend fun setNewEpisodeLastSeenCount(seriesId: Int, count: Int) {
+        context.dataStore.edit { prefs ->
+            val json = prefs[Keys.NEW_EPISODE_LAST_SEEN_COUNTS] ?: "{}"
+            val obj = org.json.JSONObject(json)
+            obj.put(seriesId.toString(), count)
+            prefs[Keys.NEW_EPISODE_LAST_SEEN_COUNTS] = obj.toString()
+        }
+    }
 
     val lastChannelsFetchTime: Flow<Long> = context.dataStore.data.map { it[Keys.LAST_CHANNELS_FETCH_TIME] ?: 0L }
     suspend fun setLastChannelsFetchTime(timeMs: Long) { context.dataStore.edit { it[Keys.LAST_CHANNELS_FETCH_TIME] = timeMs } }

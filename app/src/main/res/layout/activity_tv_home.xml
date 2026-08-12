@@ -841,6 +841,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:background="#000000"
+                android:foreground="@drawable/tv_mini_player_focus"
                 android:focusable="true"
                 android:focusableInTouchMode="false">
 

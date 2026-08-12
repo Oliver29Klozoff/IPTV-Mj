@@ -2087,6 +2087,7 @@ class HomeActivity : AppCompatActivity() {
                         TAB_MOVIES -> {
                             if (category.categoryId == VOD_FAVORITES_SENTINEL) viewModel.selectVodFavorites()
                             else if (category.categoryId == VOD_WATCHED_SENTINEL) viewModel.selectVodWatched()
+                            else if (category.categoryId == VOD_BECAUSE_YOU_WATCHED_SENTINEL) viewModel.selectVodBecauseYouWatched()
                             else viewModel.selectVodCategory(category.categoryId)
                         }
                     }
@@ -3118,6 +3119,10 @@ class HomeActivity : AppCompatActivity() {
     // filters to series with >=1 finished episode instead of a genre keyword match, so it's
     // tracked separately and takes priority over activeSeriesGenre when both would apply.
     private var showWatchedSeriesOnly = false
+    // "Because You Watched" — same pseudo-chip mechanism as showWatchedSeriesOnly, but filters
+    // to UNWATCHED series sharing a genre bucket with anything in watch history (computed by
+    // HomeViewModel.computeBecauseYouWatchedSeries). Mutually exclusive with the other two.
+    private var showBecauseYouWatchedSeries = false
 
     private fun seriesBuckets(series: com.iptvapp.data.local.entities.SeriesEntity): List<String> =
         com.iptvapp.util.GenreBuckets.bucketsFor(series.genre?.split(",").orEmpty())
@@ -3128,6 +3133,10 @@ class HomeActivity : AppCompatActivity() {
     private fun watchedSeriesIds(): Set<Int> = viewModel.watchHistoryEpisodes.value.map { it.seriesId }.toSet()
 
     private fun seriesGenreFilter(list: List<com.iptvapp.data.local.entities.SeriesEntity>): List<com.iptvapp.data.local.entities.SeriesEntity> {
+        if (showBecauseYouWatchedSeries) {
+            val recommendedIds = viewModel.computeBecauseYouWatchedSeries().map { it.seriesId }.toSet()
+            return list.filter { it.seriesId in recommendedIds }
+        }
         if (showWatchedSeriesOnly) {
             val watchedIds = watchedSeriesIds()
             return list.filter { it.seriesId in watchedIds }
@@ -3147,6 +3156,7 @@ class HomeActivity : AppCompatActivity() {
         verticalContainer?.removeAllViews()
         val genres = seriesGenres(allSeries)
         val hasWatched = viewModel.watchHistoryEpisodes.value.isNotEmpty()
+        val hasRecommendations = hasWatched && viewModel.computeBecauseYouWatchedSeries().isNotEmpty()
         if (genres.isEmpty() && !hasWatched) {
             setGenreFilterVisible(false)
             return
@@ -3155,16 +3165,22 @@ class HomeActivity : AppCompatActivity() {
             activeSeriesGenre = null
         }
         if (!hasWatched) showWatchedSeriesOnly = false
+        if (!hasRecommendations) showBecauseYouWatchedSeries = false
         setGenreFilterVisible(true)
-        val allChip = buildSeriesGenreChip("All", !showWatchedSeriesOnly && activeSeriesGenre == null)
+        val noPseudoChipSelected = !showWatchedSeriesOnly && !showBecauseYouWatchedSeries && activeSeriesGenre == null
+        val allChip = buildSeriesGenreChip("All", noPseudoChipSelected)
         horizontalContainer?.addView(allChip)
-        verticalContainer?.addView(buildSeriesGenreChip("All", !showWatchedSeriesOnly && activeSeriesGenre == null, vertical = true))
+        verticalContainer?.addView(buildSeriesGenreChip("All", noPseudoChipSelected, vertical = true))
         if (hasWatched) {
             horizontalContainer?.addView(buildWatchedSeriesChip(showWatchedSeriesOnly))
             verticalContainer?.addView(buildWatchedSeriesChip(showWatchedSeriesOnly, vertical = true))
         }
+        if (hasRecommendations) {
+            horizontalContainer?.addView(buildBecauseYouWatchedSeriesChip(showBecauseYouWatchedSeries))
+            verticalContainer?.addView(buildBecauseYouWatchedSeriesChip(showBecauseYouWatchedSeries, vertical = true))
+        }
         for (genre in genres) {
-            val selected = !showWatchedSeriesOnly && activeSeriesGenre?.equals(genre, ignoreCase = true) == true
+            val selected = !showWatchedSeriesOnly && !showBecauseYouWatchedSeries && activeSeriesGenre?.equals(genre, ignoreCase = true) == true
             horizontalContainer?.addView(buildSeriesGenreChip(genre, selected))
             verticalContainer?.addView(buildSeriesGenreChip(genre, selected, vertical = true))
         }
@@ -3174,6 +3190,7 @@ class HomeActivity : AppCompatActivity() {
         return buildGenreChipView(genre, selected, vertical) {
             activeSeriesGenre = if (genre == "All") null else genre
             showWatchedSeriesOnly = false
+            showBecauseYouWatchedSeries = false
             updateSeriesGenreChips(viewModel.series.value)
             submitFilteredSeries(viewModel.series.value)
         }
@@ -3182,6 +3199,16 @@ class HomeActivity : AppCompatActivity() {
     private fun buildWatchedSeriesChip(selected: Boolean, vertical: Boolean = false): View {
         return buildGenreChipView("Watched", selected, vertical) {
             showWatchedSeriesOnly = true
+            showBecauseYouWatchedSeries = false
+            updateSeriesGenreChips(viewModel.series.value)
+            submitFilteredSeries(viewModel.series.value)
+        }
+    }
+
+    private fun buildBecauseYouWatchedSeriesChip(selected: Boolean, vertical: Boolean = false): View {
+        return buildGenreChipView("Because You Watched", selected, vertical) {
+            showBecauseYouWatchedSeries = true
+            showWatchedSeriesOnly = false
             updateSeriesGenreChips(viewModel.series.value)
             submitFilteredSeries(viewModel.series.value)
         }
@@ -3229,6 +3256,12 @@ class HomeActivity : AppCompatActivity() {
                 com.iptvapp.data.local.entities.CategoryEntity(
                     categoryId = VOD_WATCHED_SENTINEL,
                     categoryName = "★ Watched",
+                    parentId = 0,
+                    type = "vod_category"
+                ),
+                com.iptvapp.data.local.entities.CategoryEntity(
+                    categoryId = VOD_BECAUSE_YOU_WATCHED_SENTINEL,
+                    categoryName = "Because You Watched",
                     parentId = 0,
                     type = "vod_category"
                 )
@@ -3486,6 +3519,9 @@ class HomeActivity : AppCompatActivity() {
     // shown once viewModel.watchHistoryVod is non-empty (unlike Favorites, which is user-curated
     // and always shown even when empty).
     private val VOD_WATCHED_SENTINEL = "__vod_watched__"
+    // Sentinel categoryId for the "Because You Watched" row pinned alongside "★ Watched" —
+    // same "only shown once there's real data to back it" rule as Watched.
+    private val VOD_BECAUSE_YOU_WATCHED_SENTINEL = "__vod_because_you_watched__"
 
     private fun mergedServersToSynthetic(list: List<com.iptvapp.data.local.entities.MergedServerSummary>): List<CategoryEntity> {
         val favoritesRow = CategoryEntity(
