@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.91 - 2026-08-12
+- **Fixed**: offline downloads had no storage-space safety net — a movie could fill a device's
+  entire remaining storage with nothing to stop it. Downloads now refuse to start below 1GB
+  free, and an active download auto-cancels if free space drops that low mid-download, with a
+  toast explaining why.
+
 ## v5.90 - 2026-08-12
 - **Added**: Offline downloads for Movies and Series — a Download button on every movie's
   detail page and a per-episode download icon on series pages (phone and TV). Shows live

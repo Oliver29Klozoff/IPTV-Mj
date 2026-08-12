@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadService
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.entities.DownloadStatus
 import kotlinx.coroutines.CoroutineScope
@@ -35,8 +36,19 @@ class DownloadProgressListener(
         scope.launch(Dispatchers.Main) {
             while (true) {
                 val active = downloadManager.currentDownloads.filter { it.state == Download.STATE_DOWNLOADING }
+                // Checked once per poll tick rather than per-download — a real on-device test
+                // showed a single download can consume several GB/min, so this is the same
+                // "check before it's too late" floor DownloadRepository.startDownload applies
+                // before a NEW download, just re-applied continuously to an already-running one
+                // (which the initial-only check can't protect against).
+                val lowSpace = active.isNotEmpty() && DownloadUtil.getFreeSpaceBytes(context) < DownloadUtil.MIN_FREE_SPACE_BYTES
                 for (d in active) {
                     val streamId = d.request.id.removePrefix("content_").toIntOrNull() ?: continue
+                    if (lowSpace) {
+                        DownloadService.sendRemoveDownload(context, MediaDownloadService::class.java, d.request.id, false)
+                        db.downloadedContentDao().deleteByStreamId(streamId)
+                        continue
+                    }
                     val percent = d.percentDownloaded.let { if (it.isNaN() || it < 0) 0 else it.toInt() }
                     db.downloadedContentDao().updateProgressAndBytes(
                         streamId, DownloadStatus.DOWNLOADING, percent, d.bytesDownloaded

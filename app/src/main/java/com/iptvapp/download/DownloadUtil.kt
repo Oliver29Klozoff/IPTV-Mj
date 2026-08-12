@@ -74,4 +74,15 @@ object DownloadUtil {
             notificationHelper = it
         }
     }
+
+    // Xtream never exposes a movie/episode's real file size upfront (providers frequently omit
+    // Content-Length entirely — see DownloadProgressListener's MB-fallback kdoc), so there's no
+    // way to know "will this fit" before starting. Instead this is a floor: refuse to even start
+    // a new download once free space is already this tight, and the same threshold is polled
+    // during an active download (DownloadProgressListener) to cancel before the device actually
+    // hits zero — found necessary after a real on-device test ate 8.8GB of a 8.9GB-free phone in
+    // under a minute with nothing to stop it.
+    const val MIN_FREE_SPACE_BYTES = 1_000L * 1024 * 1024 // 1 GB
+
+    fun getFreeSpaceBytes(context: Context): Long = getDownloadDirectory(context).usableSpace
 }

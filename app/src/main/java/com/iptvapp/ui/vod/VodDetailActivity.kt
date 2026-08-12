@@ -80,7 +80,14 @@ class VodDetailActivity : AppCompatActivity() {
                         binding.btnDownload.setOnClickListener {
                             lifecycleScope.launch {
                                 val url = repository.getVodStreamUrl(streamId, containerExtension)
-                                downloadRepository.startDownload(streamId, url, vodName, DownloadType.MOVIE)
+                                val started = downloadRepository.startDownload(streamId, url, vodName, DownloadType.MOVIE)
+                                if (!started) {
+                                    android.widget.Toast.makeText(
+                                        this@VodDetailActivity,
+                                        "Not enough free space to start this download",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             }
                         }
                     }
@@ -105,7 +112,14 @@ class VodDetailActivity : AppCompatActivity() {
                         binding.btnDownload.setOnClickListener {
                             lifecycleScope.launch {
                                 val url = repository.getVodStreamUrl(streamId, containerExtension)
-                                downloadRepository.startDownload(streamId, url, vodName, DownloadType.MOVIE)
+                                val started = downloadRepository.startDownload(streamId, url, vodName, DownloadType.MOVIE)
+                                if (!started) {
+                                    android.widget.Toast.makeText(
+                                        this@VodDetailActivity,
+                                        "Not enough free space to start this download",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             }
                         }
                     }

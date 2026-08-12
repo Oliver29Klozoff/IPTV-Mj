@@ -1,7 +1,7 @@
 {
-  "versionCode": 428,
-  "versionName": "5.90",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.90/MKTV.apk",
-  "apkSha256": "d1155ec8cb6ff9f1e5cb8564bbfe273a0cee6f42e99e55a31e9f34607b533e69",
-  "changelog": "Added offline downloads for Movies and Series — Download button on movie detail pages, per-episode icons on series pages (phone and TV). Live progress, tap to cancel, tap to delete when done. Downloaded titles play from the device with no connection needed."
+  "versionCode": 429,
+  "versionName": "5.91",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.91/MKTV.apk",
+  "apkSha256": "adde24691ac50b154fdd002b01f85c186f1863e4a8d06ca1683fb8644d431f60",
+  "changelog": "Fixed: offline downloads now refuse to start below 1GB free space, and an active download auto-cancels if free space drops that low mid-download."
 }

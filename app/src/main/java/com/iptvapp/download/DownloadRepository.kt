@@ -31,6 +31,9 @@ class DownloadRepository @Inject constructor(
 
     suspend fun getStatus(streamId: Int): DownloadedContentEntity? = dao.getByStreamId(streamId)
 
+    /** Returns false (and starts nothing) if free space is already below
+     * [DownloadUtil.MIN_FREE_SPACE_BYTES] — see that constant's kdoc for why this is a floor
+     * check rather than a real "will it fit" estimate (Xtream never reports file size upfront). */
     fun startDownload(
         streamId: Int,
         url: String,
@@ -39,7 +42,8 @@ class DownloadRepository @Inject constructor(
         seriesId: Int? = null,
         season: Int? = null,
         episode: Int? = null
-    ) {
+    ): Boolean {
+        if (DownloadUtil.getFreeSpaceBytes(context) < DownloadUtil.MIN_FREE_SPACE_BYTES) return false
         val downloadId = "content_$streamId"
         val request = DownloadRequest.Builder(downloadId, android.net.Uri.parse(url))
             .setData(title.toByteArray())
@@ -69,6 +73,7 @@ class DownloadRepository @Inject constructor(
         }
 
         DownloadService.sendAddDownload(context, MediaDownloadService::class.java, request, false)
+        return true
     }
 
     fun cancelOrDeleteDownload(streamId: Int) {

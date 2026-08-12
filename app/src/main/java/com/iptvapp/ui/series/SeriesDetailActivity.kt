@@ -292,10 +292,17 @@ class SeriesDetailActivity : AppCompatActivity() {
                                     val serverIndex = serverIndexField
                                     val url = if (serverIndex == null) repository.getSeriesEpisodeUrl(ep.id, ep.containerExtension)
                                         else repository.getMergedSeriesEpisodeUrl(serverIndex, ep.id, ep.containerExtension)
-                                    downloadRepository.startDownload(
+                                    val started = downloadRepository.startDownload(
                                         episodeStreamId, url, "S${ep.season}E${ep.episodeNum} ${ep.title}",
                                         DownloadType.EPISODE, seriesId = seriesIdField, season = ep.season, episode = ep.episodeNum
                                     )
+                                    if (!started) {
+                                        android.widget.Toast.makeText(
+                                            this@SeriesDetailActivity,
+                                            "Not enough free space to start this download",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             }
                         }
@@ -328,10 +335,17 @@ class SeriesDetailActivity : AppCompatActivity() {
                                     val serverIndex = serverIndexField
                                     val url = if (serverIndex == null) repository.getSeriesEpisodeUrl(ep.id, ep.containerExtension)
                                         else repository.getMergedSeriesEpisodeUrl(serverIndex, ep.id, ep.containerExtension)
-                                    downloadRepository.startDownload(
+                                    val started = downloadRepository.startDownload(
                                         episodeStreamId, url, "S${ep.season}E${ep.episodeNum} ${ep.title}",
                                         DownloadType.EPISODE, seriesId = seriesIdField, season = ep.season, episode = ep.episodeNum
                                     )
+                                    if (!started) {
+                                        android.widget.Toast.makeText(
+                                            this@SeriesDetailActivity,
+                                            "Not enough free space to start this download",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             }
                         }
