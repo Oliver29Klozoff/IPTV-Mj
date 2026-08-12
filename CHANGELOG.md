@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.87 - 2026-08-11
+- **Fixed**: the What's On Now strip on Favorites (phone and TV) didn't populate on a fresh
+  app launch — it read the favorites list before it had actually loaded yet, so the strip
+  stayed empty until switching to another tab and back. Now waits for real data first.
+
 ## v5.86 - 2026-08-11
 - **Fixed**: cross-device sync's "Pull from Cloud" could report watch progress as merged even
   when the movie wasn't in this device's local catalog yet (nothing to attach the progress to),

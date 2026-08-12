@@ -1918,7 +1918,7 @@ class TvHomeActivity : AppCompatActivity() {
                 combinedFavoriteAdapter.submitList(favorites)
             }
         }
-        refreshTvWhatsOnNow()
+        lifecycleScope.launch { refreshTvWhatsOnNow() }
         tvWhatsOnNowRefreshJob?.cancel()
         tvWhatsOnNowRefreshJob = lifecycleScope.launch {
             while (true) {
@@ -1936,10 +1936,13 @@ class TvHomeActivity : AppCompatActivity() {
     // 60s while Favorites stays the active section, same self-terminating loop shape as phone's
     // whatsOnNowRefreshJob, so a card moves on once its show ends instead of only refreshing on
     // next visit to the section.
-    private fun refreshTvWhatsOnNow() {
-        viewModel.loadWhatsOnNow(
-            viewModel.combinedFavorites.value.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
-        )
+    // Suspends for a real snapshot rather than reading combinedFavorites.value directly — on a
+    // true cold boot into Favorites that StateFlow hasn't received its first real emission yet,
+    // so a synchronous read here populated the strip with nothing and it stayed empty until some
+    // other tab switch happened to call this again (same bug/fix as phone's refreshFavoritesEpg).
+    private suspend fun refreshTvWhatsOnNow() {
+        val favorites = viewModel.getCombinedFavoritesSnapshot()
+        viewModel.loadWhatsOnNow(favorites.filterIsInstance<CombinedFavorite.Primary>().map { it.channel })
     }
 
     // Genre chips above the Favorites list — same GenreClassifier keyword bucketing the phone's

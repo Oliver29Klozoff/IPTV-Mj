@@ -3704,8 +3704,13 @@ class HomeActivity : AppCompatActivity() {
     // Shared by the 60s auto-refresh loop (showFavorites) and the pull-to-refresh gesture
     // (swipeRefreshChannels) — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-provider
     // favorites aren't included in the strip.
-    private fun refreshFavoritesEpg() {
-        val current = viewModel.combinedFavorites.value
+    // On a true cold boot, combinedFavorites' StateFlow hasn't received its first real emission
+    // yet — .value is still the empty initial default at this point, so a synchronous read here
+    // populated the strip with nothing and nothing ever re-triggered it until some other tab
+    // switch happened to call this again. Suspends for a real snapshot (same one the channel
+    // list itself already awaits below) instead of reading whatever's there right now.
+    private suspend fun refreshFavoritesEpg() {
+        val current = viewModel.getCombinedFavoritesSnapshot()
         viewModel.loadWhatsOnNow(current.filterIsInstance<CombinedFavorite.Primary>().map { it.channel })
         val filtered = genreFilterFavorites(current)
         viewModel.loadEpgForChannels(filtered.mapNotNull { (it as? CombinedFavorite.Primary)?.channel })
@@ -3734,7 +3739,7 @@ class HomeActivity : AppCompatActivity() {
         // favorites only — see HomeViewModel.loadWhatsOnNow's kdoc for why merged-provider
         // favorites aren't included in the strip (no equivalent EPG fetch path exists for them
         // yet) — loadEpgForMergedChannels below still covers the list rows for those, unchanged.
-        refreshFavoritesEpg()
+        lifecycleScope.launch { refreshFavoritesEpg() }
         whatsOnNowRefreshJob?.cancel()
         whatsOnNowRefreshJob = lifecycleScope.launch {
             while (true) {
