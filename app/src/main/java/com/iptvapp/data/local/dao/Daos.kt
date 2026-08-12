@@ -705,3 +705,40 @@ interface MergedSeriesDao {
 }
 
 data class MergedSeriesUserData(val serverIndex: Int, val seriesId: Int, val isFavorite: Boolean, val favoriteFolderId: Int?, val isHidden: Boolean = false)
+
+@Dao
+interface DownloadedContentDao {
+    // Drives the detail-page download icon/state reactively (Download / Downloading X% / Downloaded).
+    @Query("SELECT * FROM downloaded_content WHERE streamId = :streamId LIMIT 1")
+    fun observeByStreamId(streamId: Int): Flow<DownloadedContentEntity?>
+
+    @Query("SELECT * FROM downloaded_content WHERE streamId = :streamId LIMIT 1")
+    suspend fun getByStreamId(streamId: Int): DownloadedContentEntity?
+
+    @Query("SELECT * FROM downloaded_content WHERE status = 'COMPLETE'")
+    fun getAllCompleted(): Flow<List<DownloadedContentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: DownloadedContentEntity)
+
+    @Query("UPDATE downloaded_content SET status = :status, progressPercent = :progressPercent WHERE streamId = :streamId")
+    suspend fun updateProgress(streamId: Int, status: DownloadStatus, progressPercent: Int)
+
+    // Fed by DownloadProgressListener's poll loop (Media3 has no periodic progress callback —
+    // see that class's kdoc). bytesDownloaded doubles as the display value when the server
+    // sends no Content-Length and percentDownloaded stays unset.
+    @Query("UPDATE downloaded_content SET status = :status, progressPercent = :progressPercent, fileSizeBytes = :fileSizeBytes WHERE streamId = :streamId")
+    suspend fun updateProgressAndBytes(streamId: Int, status: DownloadStatus, progressPercent: Int, fileSizeBytes: Long)
+
+    @Query("UPDATE downloaded_content SET status = :status, progressPercent = :progressPercent, fileSizeBytes = :fileSizeBytes, downloadedAt = :downloadedAt WHERE streamId = :streamId")
+    suspend fun markComplete(streamId: Int, status: DownloadStatus, progressPercent: Int, fileSizeBytes: Long, downloadedAt: Long)
+
+    @Query("UPDATE downloaded_content SET status = :status WHERE streamId = :streamId")
+    suspend fun setStatus(streamId: Int, status: DownloadStatus)
+
+    @Query("SELECT downloadId FROM downloaded_content WHERE streamId = :streamId LIMIT 1")
+    suspend fun getDownloadId(streamId: Int): String?
+
+    @Query("DELETE FROM downloaded_content WHERE streamId = :streamId")
+    suspend fun deleteByStreamId(streamId: Int)
+}

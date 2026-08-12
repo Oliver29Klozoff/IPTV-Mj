@@ -152,6 +152,11 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <service
+            android:name=".download.MediaDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
                 <receiver
             android:name=".ui.recordings.RecordingAlarmReceiver"
             android:exported="false" />

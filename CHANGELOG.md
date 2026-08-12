@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.90 - 2026-08-12
+- **Added**: Offline downloads for Movies and Series — a Download button on every movie's
+  detail page and a per-episode download icon on series pages (phone and TV). Shows live
+  progress, tap to cancel mid-download, tap again when done to delete. Downloaded titles play
+  from the device automatically — no connection needed, same Play/Resume buttons as always.
+
 ## v5.89 - 2026-08-11
 - **Added**: Sort button (Rating, Year Newest/Oldest, Recently Added) to TV's Movies and Series
   screens — the sort options already existed but had no button to open them on TV, only the

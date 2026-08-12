@@ -6,9 +6,13 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import androidx.appcompat.app.AlertDialog
 import com.iptvapp.data.local.IptvDatabase
+import com.iptvapp.data.local.entities.DownloadStatus
+import com.iptvapp.data.local.entities.DownloadType
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityVodDetailBinding
+import com.iptvapp.download.DownloadRepository
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.util.Resource
 import dagger.hilt.android.AndroidEntryPoint
@@ -25,6 +29,7 @@ class VodDetailActivity : AppCompatActivity() {
 
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var db: IptvDatabase
+    @Inject lateinit var downloadRepository: DownloadRepository
 
     private var streamId: Int = -1
     private var vodName: String = ""
@@ -59,7 +64,63 @@ class VodDetailActivity : AppCompatActivity() {
             loadVodInfo(streamId)
             loadResumeProgress(streamId)
             loadFavoriteState(streamId)
+            observeDownloadState(streamId)
         }
+    }
+
+    // Drives btnDownload's three states (Download / Downloading X% tap-to-cancel / Downloaded
+    // tap-to-delete) off the same Room row DownloadProgressListener updates from Media3's own
+    // DownloadManager — see DownloadRepository/DownloadProgressListener kdocs.
+    private fun observeDownloadState(streamId: Int) {
+        lifecycleScope.launch {
+            downloadRepository.observeStatus(streamId).collect { entity ->
+                when (entity?.status) {
+                    null -> {
+                        binding.btnDownload.text = "⬇  Download"
+                        binding.btnDownload.setOnClickListener {
+                            lifecycleScope.launch {
+                                val url = repository.getVodStreamUrl(streamId, containerExtension)
+                                downloadRepository.startDownload(streamId, url, vodName, DownloadType.MOVIE)
+                            }
+                        }
+                    }
+                    DownloadStatus.QUEUED -> {
+                        binding.btnDownload.text = "⏳  Queued (tap to cancel)"
+                        binding.btnDownload.setOnClickListener { downloadRepository.cancelOrDeleteDownload(streamId) }
+                    }
+                    DownloadStatus.DOWNLOADING -> {
+                        // Percent stays 0 when the provider omits Content-Length (common for
+                        // Xtream VOD) — fall back to showing MB so progress is still visible.
+                        val progressLabel = if (entity.progressPercent > 0) "${entity.progressPercent}%"
+                            else "${entity.fileSizeBytes / (1024 * 1024)} MB"
+                        binding.btnDownload.text = "⏳  Downloading $progressLabel (tap to cancel)"
+                        binding.btnDownload.setOnClickListener { downloadRepository.cancelOrDeleteDownload(streamId) }
+                    }
+                    DownloadStatus.COMPLETE -> {
+                        binding.btnDownload.text = "✓  Downloaded (tap to delete)"
+                        binding.btnDownload.setOnClickListener { confirmDeleteDownload(streamId) }
+                    }
+                    DownloadStatus.FAILED -> {
+                        binding.btnDownload.text = "⚠  Download failed (tap to retry)"
+                        binding.btnDownload.setOnClickListener {
+                            lifecycleScope.launch {
+                                val url = repository.getVodStreamUrl(streamId, containerExtension)
+                                downloadRepository.startDownload(streamId, url, vodName, DownloadType.MOVIE)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun confirmDeleteDownload(streamId: Int) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete download?")
+            .setMessage("This removes the downloaded copy of \"$vodName\" from this device.")
+            .setPositiveButton("Delete") { _, _ -> downloadRepository.cancelOrDeleteDownload(streamId) }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun loadFavoriteState(streamId: Int) {

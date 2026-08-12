@@ -975,7 +975,24 @@ class PlayerActivity : AppCompatActivity() {
         // at all. Rewinding on live TV is now limited to the in-memory back buffer configured
         // above (setBackBuffer, ~2 minutes) rather than a disk-backed multi-minute window —
         // a real feature reduction, but a stuck live stream is worse than a shorter rewind.
-        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(upstreamDataSourceFactory)
+        // Transparently serves a completed offline download's bytes from Media3's own
+        // SimpleCache (keyed by the same source URL DownloadRepository.startDownload downloaded
+        // it under) instead of hitting the network, when one exists — CacheDataSource checks the
+        // cache first and only falls through to upstreamDataSourceFactory on a miss, so live
+        // channels and never-downloaded VOD/episodes are completely unaffected.
+        // setCacheWriteDataSinkFactory(null) is load-bearing, not optional: the Factory DEFAULTS
+        // to writing everything played back into the cache, and this cache uses NoOpCacheEvictor
+        // (downloads must never be LRU-evicted) — without the explicit null, every minute of
+        // live TV was teed onto disk and NOTHING ever deleted it (caught on-device: 102MB of
+        // live-playback garbage in files/downloads with zero downloads ever started). Writing
+        // during a real *download* is Media3's own job inside MediaDownloadService, not this
+        // playback path's.
+        val cacheDataSourceFactory = androidx.media3.datasource.cache.CacheDataSource.Factory()
+            .setCache(com.iptvapp.download.DownloadUtil.getDownloadCache(this))
+            .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
+            .setCacheWriteDataSinkFactory(null)
+            .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
 
         val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
         val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }

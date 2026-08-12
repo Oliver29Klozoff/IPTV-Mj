@@ -8,7 +8,9 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
+import com.iptvapp.download.DownloadProgressListener
 import com.iptvapp.util.LogSanitizer
 import com.iptvapp.util.versionCodeCompat
 import com.iptvapp.worker.ReminderWorker
@@ -36,6 +38,9 @@ class IptvApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var prefs: PreferencesManager
 
+    @Inject
+    lateinit var db: IptvDatabase
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -53,6 +58,9 @@ class IptvApplication : Application(), Configuration.Provider {
         applyCrashReportingPreference()
         createNotificationChannels()
         try { CastContext.getSharedInstance(this) } catch (_: Exception) {}
+        // Keeps downloaded_content in sync with Media3's own DownloadManager for the lifetime
+        // of the process — see DownloadProgressListener's kdoc.
+        try { DownloadProgressListener(db).register(this) } catch (_: Exception) {}
         // Marks which build is actually running the current process — an OTA update installs
         // the new APK but a process already alive keeps running the old code until it's fully
         // restarted, which otherwise silently defeats any logging added in the new version.
@@ -71,6 +79,13 @@ class IptvApplication : Application(), Configuration.Provider {
                     "EPG Reminders",
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply { description = "Alerts for upcoming TV programs you've bookmarked" }
+            )
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    com.iptvapp.download.DownloadUtil.CHANNEL_ID,
+                    "Downloads",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { description = "Progress for offline movie/episode downloads" }
             )
         }
     }

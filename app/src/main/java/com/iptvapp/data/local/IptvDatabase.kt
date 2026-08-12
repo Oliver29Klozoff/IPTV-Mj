@@ -20,9 +20,10 @@ import com.iptvapp.data.local.entities.*
         MergedChannelEntity::class,
         FavoriteFolderEntity::class,
         MergedVodEntity::class,
-        MergedSeriesEntity::class
+        MergedSeriesEntity::class,
+        DownloadedContentEntity::class
     ],
-    version = 34,
+    version = 35,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -38,6 +39,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun favoriteFolderDao(): FavoriteFolderDao
     abstract fun mergedVodDao(): MergedVodDao
     abstract fun mergedSeriesDao(): MergedSeriesDao
+    abstract fun downloadedContentDao(): DownloadedContentDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -414,6 +416,31 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Backs the offline-download feature (Movies/Series > download icon on the detail
+        // page) — mirrors Media3's own DownloadIndex for cheap Flow-driven UI queries. See
+        // DownloadedContentEntity's kdoc for why streamId doubles as the primary key for both
+        // movies and episodes.
+        val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS downloaded_content (
+                        streamId INTEGER NOT NULL PRIMARY KEY,
+                        type TEXT NOT NULL,
+                        seriesId INTEGER,
+                        season INTEGER,
+                        episode INTEGER,
+                        title TEXT NOT NULL,
+                        localFilePath TEXT NOT NULL,
+                        downloadId TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'QUEUED',
+                        progressPercent INTEGER NOT NULL DEFAULT 0,
+                        fileSizeBytes INTEGER NOT NULL DEFAULT 0,
+                        downloadedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -421,7 +448,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
-            MIGRATION_32_33, MIGRATION_33_34
+            MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35
         )
     }
 }

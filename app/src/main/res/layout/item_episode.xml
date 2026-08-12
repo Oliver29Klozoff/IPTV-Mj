@@ -43,6 +43,19 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/tvEpisodeDownload"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:padding="6dp"
+        android:textSize="16sp"
+        android:textColor="#AAAAAA"
+        android:focusable="true"
+        android:focusableInTouchMode="false"
+        android:background="@drawable/focus_selector"
+        android:text="⬇" />
+
     <ImageView
         android:layout_width="24dp"
         android:layout_height="24dp"

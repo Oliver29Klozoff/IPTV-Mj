@@ -278,3 +278,33 @@ data class MergedSeriesEntity(
 
 data class MergedSeriesServerSummary(val serverIndex: Int, val serverNickname: String, val seriesCount: Int)
 data class MergedSeriesCategorySummary(val categoryId: String?, val categoryName: String?, val seriesCount: Int)
+
+enum class DownloadType { MOVIE, EPISODE }
+enum class DownloadStatus { QUEUED, DOWNLOADING, COMPLETE, FAILED }
+
+// Tracks a Media3-managed offline download so the movie/episode detail pages can show
+// "Download / Downloading X% / Downloaded" and PlayerActivity can prefer a local file over the
+// network URL. Media3's own DownloadManager/DownloadIndex is the source of truth for the actual
+// download bytes/progress — this table mirrors it for cheap Flow-driven UI queries (a Room Flow
+// is far simpler to observe from an Activity than Media3's DownloadManager.DownloadListener).
+// For MOVIE, streamId is the VOD's own streamId. For EPISODE, streamId is the same
+// episode.id.hashCode() PlayerActivity already uses as its stream_id extra (see
+// SeriesDetailActivity.launchEpisode) — reused here as the primary key so both places identify
+// an episode the exact same way.
+@Entity(tableName = "downloaded_content")
+data class DownloadedContentEntity(
+    @PrimaryKey val streamId: Int,
+    val type: DownloadType,
+    val seriesId: Int? = null,
+    val season: Int? = null,
+    val episode: Int? = null,
+    val title: String,
+    val localFilePath: String,
+    // Media3's own DownloadRequest.id — needed to call DownloadService.sendRemoveDownload /
+    // look the download back up in Media3's DownloadIndex.
+    val downloadId: String,
+    val status: DownloadStatus = DownloadStatus.QUEUED,
+    val progressPercent: Int = 0,
+    val fileSizeBytes: Long = 0L,
+    val downloadedAt: Long = 0L
+)

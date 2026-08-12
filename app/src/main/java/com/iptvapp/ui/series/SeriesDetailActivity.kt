@@ -14,13 +14,17 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.appcompat.app.AlertDialog
 import com.bumptech.glide.Glide
 import com.google.android.material.tabs.TabLayout
 import com.iptvapp.R
 import com.iptvapp.data.api.Episode
+import com.iptvapp.data.local.entities.DownloadStatus
+import com.iptvapp.data.local.entities.DownloadType
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivitySeriesDetailBinding
 import com.iptvapp.databinding.ItemEpisodeBinding
+import com.iptvapp.download.DownloadRepository
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.util.Resource
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,6 +39,7 @@ class SeriesDetailActivity : AppCompatActivity() {
 
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
+    @Inject lateinit var downloadRepository: DownloadRepository
 
     private var allEpisodes: Map<String, List<Episode>> = emptyMap()
     private var currentSeasonEpisodes: List<Episode> = emptyList()
@@ -256,7 +261,11 @@ class SeriesDetailActivity : AppCompatActivity() {
         override fun areItemsTheSame(a: Episode, b: Episode) = a.id == b.id
         override fun areContentsTheSame(a: Episode, b: Episode) = a == b
     }) {
-        inner class VH(val binding: ItemEpisodeBinding) : RecyclerView.ViewHolder(binding.root)
+        inner class VH(val binding: ItemEpisodeBinding) : RecyclerView.ViewHolder(binding.root) {
+            // Cancelled/replaced on every rebind (see onViewRecycled) so a recycled row never
+            // keeps updating a since-reassigned holder's download button from a stale collector.
+            var downloadJob: kotlinx.coroutines.Job? = null
+        }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
             VH(ItemEpisodeBinding.inflate(LayoutInflater.from(parent.context), parent, false))
@@ -269,6 +278,71 @@ class SeriesDetailActivity : AppCompatActivity() {
             holder.binding.tvEpisodeAdded.text = ep.added ?: ""
             holder.binding.root.alpha = if (watched) 0.6f else 1f
             holder.binding.root.setOnClickListener { onEpisodeClick(ep) }
+
+            holder.downloadJob?.cancel()
+            val episodeStreamId = ep.id.hashCode()
+            holder.downloadJob = lifecycleScope.launch {
+                downloadRepository.observeStatus(episodeStreamId).collect { entity ->
+                    val tv = holder.binding.tvEpisodeDownload
+                    when (entity?.status) {
+                        null -> {
+                            tv.text = "⬇"
+                            tv.setOnClickListener {
+                                lifecycleScope.launch {
+                                    val serverIndex = serverIndexField
+                                    val url = if (serverIndex == null) repository.getSeriesEpisodeUrl(ep.id, ep.containerExtension)
+                                        else repository.getMergedSeriesEpisodeUrl(serverIndex, ep.id, ep.containerExtension)
+                                    downloadRepository.startDownload(
+                                        episodeStreamId, url, "S${ep.season}E${ep.episodeNum} ${ep.title}",
+                                        DownloadType.EPISODE, seriesId = seriesIdField, season = ep.season, episode = ep.episodeNum
+                                    )
+                                }
+                            }
+                        }
+                        DownloadStatus.QUEUED -> {
+                            tv.text = "⏳"
+                            tv.setOnClickListener { downloadRepository.cancelOrDeleteDownload(episodeStreamId) }
+                        }
+                        DownloadStatus.DOWNLOADING -> {
+                            // Same Content-Length fallback as VodDetailActivity's button — an
+                            // episode row only has room for the compact form.
+                            tv.text = if (entity.progressPercent > 0) "${entity.progressPercent}%"
+                                else "${entity.fileSizeBytes / (1024 * 1024)}MB"
+                            tv.setOnClickListener { downloadRepository.cancelOrDeleteDownload(episodeStreamId) }
+                        }
+                        DownloadStatus.COMPLETE -> {
+                            tv.text = "✓"
+                            tv.setOnClickListener {
+                                AlertDialog.Builder(this@SeriesDetailActivity)
+                                    .setTitle("Delete download?")
+                                    .setMessage("This removes the downloaded copy of \"S${ep.season}E${ep.episodeNum} ${ep.title}\" from this device.")
+                                    .setPositiveButton("Delete") { _, _ -> downloadRepository.cancelOrDeleteDownload(episodeStreamId) }
+                                    .setNegativeButton("Cancel", null)
+                                    .show()
+                            }
+                        }
+                        DownloadStatus.FAILED -> {
+                            tv.text = "⚠"
+                            tv.setOnClickListener {
+                                lifecycleScope.launch {
+                                    val serverIndex = serverIndexField
+                                    val url = if (serverIndex == null) repository.getSeriesEpisodeUrl(ep.id, ep.containerExtension)
+                                        else repository.getMergedSeriesEpisodeUrl(serverIndex, ep.id, ep.containerExtension)
+                                    downloadRepository.startDownload(
+                                        episodeStreamId, url, "S${ep.season}E${ep.episodeNum} ${ep.title}",
+                                        DownloadType.EPISODE, seriesId = seriesIdField, season = ep.season, episode = ep.episodeNum
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        override fun onViewRecycled(holder: VH) {
+            holder.downloadJob?.cancel()
+            holder.downloadJob = null
         }
     }
 }
