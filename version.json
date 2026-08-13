@@ -1,7 +1,7 @@
 {
-  "versionCode": 436,
-  "versionName": "5.98",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.98/MKTV.apk",
-  "apkSha256": "d548d4fd34a9c1d6204afd4e5428891520e08e1fcf10222e7210d068a58733b9",
-  "changelog": "Added Watch Party (synced group viewing via a short code, over the internet), Previously-on series recap, and per-provider data usage tracking in Settings."
+  "versionCode": 437,
+  "versionName": "5.99",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.99/MKTV.apk",
+  "apkSha256": "1ad3f3d280ab3e544aa86776a92b51af262b4342907f75da562d71059672a820",
+  "changelog": "Fixed Watch Party: clear message when a member's provider lacks the live channel the host switched to, and tightened drift-correction timing accuracy."
 }

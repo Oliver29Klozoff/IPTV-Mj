@@ -179,6 +179,12 @@ class WatchPartyManager @Inject constructor(
                 onUpdate(null)
                 return@addSnapshotListener
             }
+            // Skip snapshots from a write's local-cache echo — updatedAt (FieldValue.serverTimestamp())
+            // hasn't resolved yet on those, so toState() would fall back to this device's own clock
+            // for drift math instead of the server clock, causing a one-off bad correction. The
+            // server-acknowledged snapshot for the same write follows right behind with the real
+            // timestamp, so nothing is lost by ignoring the pending one.
+            if (snap.metadata.hasPendingWrites()) return@addSnapshotListener
             onUpdate(toState(code, snap))
         }
     }

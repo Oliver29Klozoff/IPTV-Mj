@@ -670,7 +670,16 @@ class PlayerActivity : AppCompatActivity() {
                             repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.mergedStreamId)
                         else repository.getLiveStreamUrl(state.content.streamId)
                         loadStream(url)
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                        // Most likely cause: this member's own provider doesn't carry the channel
+                        // the host switched to (Watch Party syncs channel identity, not a URL —
+                        // see WatchPartyContent kdoc). Surface it rather than silently freezing.
+                        Toast.makeText(
+                            this@PlayerActivity,
+                            "Couldn't follow host's channel — not available on your provider",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                     isApplyingRemoteUpdate = false
                 }
             }

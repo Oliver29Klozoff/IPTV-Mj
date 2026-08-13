@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v5.99 - 2026-08-13
+- **Fixed**: Watch Party now shows a clear message ("Couldn't follow host's channel — not
+  available on your provider") instead of silently freezing when a member's provider doesn't
+  carry the live channel the host switched to.
+- **Fixed**: Watch Party sync could occasionally use a device's own clock instead of the
+  server clock for one drift correction, right as the host's state update was still saving —
+  tightens up timing accuracy for members.
+
 ## v5.98 - 2026-08-13
 - **Added**: Watch Party — start a session on any channel, movie, or episode and share a short
   code, others enter it to join and stay synced with you in near-real-time (same content,
