@@ -1184,21 +1184,7 @@ class HomeViewModel @Inject constructor(
     // Not private — TvHomeActivity needs this to decide whether a long-pressed channel is
     // eligible for the "set custom channel number" dialog (US channels only, see
     // ChannelEntity.customNum's kdoc for why).
-    fun isUsCategory(name: String?): Boolean {
-        if (name.isNullOrBlank()) return false
-        // Different providers format the same "US" tag differently — some use "US|..." with
-        // no spacing, others "US | ..." with spaces around the pipe. Collapsing whitespace
-        // around every "|" before matching makes this work across both conventions instead of
-        // only the first provider's exact style.
-        val n = name.trim().uppercase().replace(Regex("\\s*\\|\\s*"), "|")
-        // One provider (confirmed: a category list that came back completely empty under "USA
-        // Only" despite genuinely being all-USA content) tags its USA categories "AM|USA GENERAL",
-        // "AM|USA SPORTS", etc. — USA as the first WORD of the segment after a pipe, not the
-        // whole segment on its own like "US|..." is. \b(...)\b keeps this from also matching
-        // something like "MUSA" or "USAGE" that merely contains the letters.
-        return n.startsWith("US|") || n.contains("|US|") ||
-            Regex("""(^|\|)USA\b""").containsMatchIn(n)
-    }
+    fun isUsCategory(name: String?): Boolean = com.iptvapp.util.CategoryFilters.isUsCategory(name)
 
     // Matched as a whole token (not just a prefix) — avoids matching category names that
     // merely start with those letters, like "ENTERTAINMENT", "ENCORE", or "USA NETWORK".

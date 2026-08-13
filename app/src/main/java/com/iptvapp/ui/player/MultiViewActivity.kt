@@ -37,6 +37,7 @@ class MultiViewActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMultiViewBinding
 
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private var leftPlayer: ExoPlayer? = null
     private var rightPlayer: ExoPlayer? = null
@@ -243,7 +244,16 @@ class MultiViewActivity : AppCompatActivity() {
 
     private fun loadChannels() {
         lifecycleScope.launch {
-            allChannels = repository.getAllChannels().first()
+            val channels = repository.getAllChannels().first()
+            // Honors Settings' "USA Only" toggle, same as every other channel list in the app —
+            // this screen's picker was pulling the raw unfiltered catalog with no regard for it.
+            val usaOnly = prefs.usaOnlyChannels.first()
+            allChannels = if (usaOnly) {
+                val categoryNames = repository.getLiveCategories().first().associate { it.categoryId to it.categoryName }
+                channels.filter { com.iptvapp.util.CategoryFilters.isUsCategory(categoryNames[it.categoryId]) }
+            } else {
+                channels
+            }
             filteredChannels = allChannels
             pickerAdapter.submitList(filteredChannels)
         }

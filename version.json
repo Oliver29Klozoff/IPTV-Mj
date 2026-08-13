@@ -1,7 +1,7 @@
 {
-  "versionCode": 433,
-  "versionName": "5.95",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.95/MKTV.apk",
-  "apkSha256": "eeb2effc135a8ba6cbad40e83c783b520ad36036dbfdbb519ae364692f20b890",
-  "changelog": "Fixed: Multi-View's channel picker was unreachable on phone. Added a Channels button to the controls bar."
+  "versionCode": 434,
+  "versionName": "5.96",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.96/MKTV.apk",
+  "apkSha256": "347ac784e98fed6d15ef63f793e8c65a54ff93a4ee66a5053fb227f6c5ec33cd",
+  "changelog": "Fixed: Multi-View's channel picker now honors the USA Only setting like every other channel list."
 }

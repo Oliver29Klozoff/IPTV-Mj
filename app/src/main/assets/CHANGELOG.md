@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v5.96 - 2026-08-12
+- **Fixed**: Multi-View's channel picker ignored the "USA Only" setting, showing every channel
+  from every category regardless of the toggle. Now honors it like every other channel list.
+
 ## v5.95 - 2026-08-12
 - **Fixed**: Multi-View's channel picker was completely unreachable on phone — it only opened
   via a TV remote's OK button, so every tile got permanently stuck on "Press OK to select
