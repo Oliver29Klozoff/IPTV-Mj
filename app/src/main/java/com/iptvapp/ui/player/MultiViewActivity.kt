@@ -101,6 +101,14 @@ class MultiViewActivity : AppCompatActivity() {
     private fun fullscreenContainer() = if (activeSide == 0) binding.containerLeft else binding.containerRight
 
     private fun setupTileDrag() {
+        // Only the (small, precisely-targetable) tile swaps to fullscreen on tap — the
+        // fullscreen container shares this same touch-handling shape (drag is a no-op there
+        // since it's already match_parent) but a tap on IT reveals the controls bar instead.
+        // Previously both containers used one identical listener where a tap on EITHER called
+        // swapFullscreen(), so there was no way to tap the (much larger) fullscreen area to
+        // bring controls back once the bar's 4s auto-hide timer elapsed — after picking the
+        // first channel, the only touch target left was the tiny tile, which swapped instead of
+        // revealing the Channels button, making the second stream unreachable.
         val listener = View.OnTouchListener { v, event ->
             val parent = binding.root
             when (event.action) {
@@ -124,8 +132,7 @@ class MultiViewActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (dragDistance < TAP_SLOP_PX) {
-                        // Treated as a tap, not a drag: swap this tile to fullscreen.
-                        swapFullscreen()
+                        if (v === tileContainer()) swapFullscreen() else showControls()
                     } else {
                         tileX = v.translationX
                         tileY = v.translationY
@@ -220,6 +227,13 @@ class MultiViewActivity : AppCompatActivity() {
                 binding.tvRightEpg.text = epgText
             }
             hideChannelPicker()
+            // The controls bar (holding the only way to reopen the picker on touch — see
+            // setupButtons' btnMvChannels) auto-hides on its own 4s timer from whenever it was
+            // last shown, which could easily have already elapsed by the time a channel is
+            // picked. With no other way to reveal it (the fullscreen area's only touch listener
+            // is drag/swap, not tap-to-reveal), the second stream became unreachable — picking
+            // channel 1 left no way to ever reach the picker again for channel 2.
+            showControls()
         }
     }
 

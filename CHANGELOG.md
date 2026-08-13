@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v5.97 - 2026-08-13
+- **Fixed**: Multi-View's Channels button vanished after picking the first channel, with no way
+  to bring it back — the controls bar auto-hides after a few seconds and there was no way to
+  reveal it again, making the second stream unreachable. Tapping the fullscreen area now brings
+  the controls back (tapping the small tile still swaps it to fullscreen, unchanged).
+
 ## v5.96 - 2026-08-12
 - **Fixed**: Multi-View's channel picker ignored the "USA Only" setting, showing every channel
   from every category regardless of the toggle. Now honors it like every other channel list.

@@ -1,7 +1,7 @@
 {
-  "versionCode": 434,
-  "versionName": "5.96",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.96/MKTV.apk",
-  "apkSha256": "347ac784e98fed6d15ef63f793e8c65a54ff93a4ee66a5053fb227f6c5ec33cd",
-  "changelog": "Fixed: Multi-View's channel picker now honors the USA Only setting like every other channel list."
+  "versionCode": 435,
+  "versionName": "5.97",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.97/MKTV.apk",
+  "apkSha256": "5305c322b5102cbe1e6bff6fc74c1974d51712cfe1cbbdad59562361e7793570",
+  "changelog": "Fixed: Multi-View's Channels button vanished after picking the first channel. Tapping the fullscreen area now brings controls back; tapping the small tile still swaps it to fullscreen."
 }
