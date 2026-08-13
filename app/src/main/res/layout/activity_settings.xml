@@ -2176,6 +2176,16 @@
                                 android:textColor="#008CFF"
                                 android:textSize="12sp" />
 
+                            <Button
+                                android:id="@+id/btnJoinWatchParty"
+                                android:layout_width="match_parent"
+                                android:layout_height="40dp"
+                                android:layout_marginTop="8dp"
+                                android:backgroundTint="#1E1E1E"
+                                android:text="Join Watch Party"
+                                android:textColor="#00CC66"
+                                android:textSize="12sp" />
+
                             <TextView
                                 android:id="@+id/tvSyncStatus"
                                 android:layout_width="match_parent"
@@ -2293,6 +2303,15 @@
                                     android:layout_marginTop="8dp"
                                     android:backgroundTint="#1A1A1A"
                                     android:text="LAN Export (Scan QR to Download)"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                                <Button
+                                    android:id="@+id/btnDataUsage"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#1A1A1A"
+                                    android:text="Data Usage"
                                     android:textColor="#FFFFFF"
                                     android:textSize="13sp" />
                             </LinearLayout>

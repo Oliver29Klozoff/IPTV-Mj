@@ -1,7 +1,7 @@
 {
-  "versionCode": 435,
-  "versionName": "5.97",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.97/MKTV.apk",
-  "apkSha256": "5305c322b5102cbe1e6bff6fc74c1974d51712cfe1cbbdad59562361e7793570",
-  "changelog": "Fixed: Multi-View's Channels button vanished after picking the first channel. Tapping the fullscreen area now brings controls back; tapping the small tile still swaps it to fullscreen."
+  "versionCode": 436,
+  "versionName": "5.98",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.98/MKTV.apk",
+  "apkSha256": "d548d4fd34a9c1d6204afd4e5428891520e08e1fcf10222e7210d068a58733b9",
+  "changelog": "Added Watch Party (synced group viewing via a short code, over the internet), Previously-on series recap, and per-provider data usage tracking in Settings."
 }

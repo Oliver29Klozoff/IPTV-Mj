@@ -342,6 +342,7 @@ class SettingsActivity : AppCompatActivity() {
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     @Inject lateinit var syncManager: com.iptvapp.sync.SyncManager
+    @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
     @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
     private var traktAuthJob: kotlinx.coroutines.Job? = null
 
@@ -1048,6 +1049,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnRestoreSettings.setOnClickListener { showRestoreDialog() }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
         binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
+        binding.btnDataUsage.setOnClickListener { showDataUsageDialog() }
         binding.btnLanExport.setOnClickListener { showLanExportDialog() }
         binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
 
@@ -1370,6 +1372,36 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             builder.show()
+        }
+    }
+
+    /** Shows this calendar month's network usage per provider — see BandwidthUsageEntity kdoc
+     * for how it's recorded. Only providers with an actual recorded row are listed (a provider
+     * never played this month has nothing to show, rather than a misleading "0 B" row). */
+    private fun showDataUsageDialog() {
+        lifecycleScope.launch {
+            val yearMonth = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
+            val usage = db.bandwidthUsageDao().getUsageForMonth(yearMonth)
+            if (usage.isEmpty()) {
+                AlertDialog.Builder(this@SettingsActivity)
+                    .setTitle("Data Usage — This Month")
+                    .setMessage("No playback recorded yet this month.")
+                    .setPositiveButton("Close", null)
+                    .show()
+                return@launch
+            }
+            val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
+            val extraNicks = prefs.getExtraServersWithNick().map { it.getOrElse(3) { "" } }
+            val message = usage.joinToString("\n") { row ->
+                val nick = if (row.serverIndex == -1) primaryNick
+                    else extraNicks.getOrNull(row.serverIndex).takeUnless { it.isNullOrBlank() } ?: "Provider ${row.serverIndex + 1}"
+                "$nick: ${com.iptvapp.util.RecordingFileUtils.formatBytes(row.bytesTransferred)}"
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Data Usage — This Month")
+                .setMessage(message)
+                .setPositiveButton("Close", null)
+                .show()
         }
     }
 
@@ -2611,6 +2643,7 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         binding.btnSavedPairingCodes.setOnClickListener { showSavedPairingCodesDialog() }
+        binding.btnJoinWatchParty.setOnClickListener { showJoinWatchPartyDialog() }
         binding.switchSyncEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSyncEnabled(enabled) }
@@ -2691,6 +2724,87 @@ class SettingsActivity : AppCompatActivity() {
                 .setNegativeButton("Manage") { _, _ -> showManagePairingCodesDialog(codes) }
                 .show()
         }
+    }
+
+    /** Resolves an entered watch-party code and launches PlayerActivity with the party doc's
+     * content extras plus watch_party_code, so PlayerActivity attaches the member listener in
+     * onCreate instead of starting a fresh unsynced playback. */
+    private fun showJoinWatchPartyDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. ab12cd34"
+            setPadding(48, 32, 48, 32)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Join Watch Party")
+            .setMessage("Enter the code shown on the host's screen.")
+            .setView(input)
+            .setPositiveButton("Join") { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isBlank()) return@setPositiveButton
+                lifecycleScope.launch {
+                    val state = watchPartyManager.joinParty(code)
+                    if (state == null) {
+                        Toast.makeText(this@SettingsActivity, "Party not found", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    launchPlayerForWatchParty(state)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private suspend fun launchPlayerForWatchParty(state: com.iptvapp.sync.WatchPartyState) {
+        val content = state.content
+        val intent = Intent(this@SettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java)
+        intent.putExtra("watch_party_code", state.code)
+        intent.putExtra("stream_title", content.title)
+        when (content.contentType) {
+            "LIVE" -> {
+                intent.putExtra("is_vod", false)
+                intent.putExtra("stream_id", content.streamId)
+                intent.putExtra("server_index", content.serverIndex)
+                intent.putExtra("merged_stream_id", content.mergedStreamId)
+                val url = try {
+                    if (content.serverIndex != -1) repository.getMergedLiveStreamUrl(content.serverIndex, content.mergedStreamId)
+                    else repository.getLiveStreamUrl(content.streamId)
+                } catch (e: Exception) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't load party's channel", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                intent.putExtra("stream_url", url)
+            }
+            "EPISODE" -> {
+                val url = try {
+                    repository.getSeriesEpisodeUrl(content.episodeId, content.containerExtension)
+                } catch (e: Exception) { null }
+                if (url == null || content.episodeId.isBlank()) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't load party's episode", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                intent.putExtra("is_vod", true)
+                intent.putExtra("stream_url", url)
+                intent.putExtra("series_id", content.seriesId)
+                intent.putExtra("season_num", content.seasonNum)
+                intent.putExtra("episode_num", content.episodeNum)
+            }
+            else -> { // VOD
+                intent.putExtra("is_vod", true)
+                intent.putExtra("stream_id", content.streamId)
+                intent.putExtra("server_index", content.serverIndex)
+                intent.putExtra("merged_stream_id", content.mergedStreamId)
+                val url = try {
+                    if (content.serverIndex != -1) repository.getMergedVodStreamUrl(content.serverIndex, content.mergedStreamId, content.containerExtension)
+                    else repository.getVodStreamUrl(content.streamId, content.containerExtension)
+                } catch (e: Exception) { null }
+                if (url == null) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't load party's movie", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                intent.putExtra("stream_url", url)
+            }
+        }
+        startActivity(intent)
     }
 
     private fun showManagePairingCodesDialog(codes: List<String>) {

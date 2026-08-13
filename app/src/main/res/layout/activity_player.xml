@@ -149,6 +149,27 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Persistent Watch Party badge — deliberately NOT part of the auto-hiding overlay group
+         (hideRunnable/showOverlay), same reasoning as PiP's always-visible affordances, since
+         "you're in a synced party" is state worth surfacing even with controls hidden. Tap
+         re-opens the party status/leave dialog, same handler as btnWatchParty. -->
+    <TextView
+        android:id="@+id/tvWatchPartyBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="80dp"
+        android:background="#AA000000"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:text="Watch Party"
+        android:textColor="#00CC66"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- Top right: Close -->
     <ImageButton
         android:id="@+id/btnBack"
@@ -328,6 +349,20 @@
             android:textColor="#008CFF"
             android:textSize="22sp"
             android:textStyle="bold"
+            android:background="@drawable/tv_sidebar_focus"
+            android:nextFocusUp="@id/btnBack"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+        <Button
+            android:id="@+id/btnWatchParty"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
+            android:text="👥"
+            android:textColor="#AAAAAA"
+            android:textSize="22sp"
             android:background="@drawable/tv_sidebar_focus"
             android:nextFocusUp="@id/btnBack"
             android:padding="0dp"

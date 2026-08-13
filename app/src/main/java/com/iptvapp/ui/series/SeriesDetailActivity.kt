@@ -180,6 +180,8 @@ class SeriesDetailActivity : AppCompatActivity() {
                         }
                     }
 
+                    if (serverIndex == null) maybeShowRecap(seriesId)
+
                     val seasons = allEpisodes.keys.sortedBy { it.toIntOrNull() ?: 0 }
                     if (seasons.isEmpty()) {
                         binding.tvEmpty.visibility = View.VISIBLE
@@ -222,7 +224,41 @@ class SeriesDetailActivity : AppCompatActivity() {
         }
     }
 
+    // "Previously on..." recap — only for a series the user has real progress on (lastWatchedAt >
+    // 0, set by SeriesDao.touchLastWatched on actual episode playback, not Trakt sync — see that
+    // DAO method's kdoc) and only after a 30+ day gap since that last playback. Uses the same
+    // completion-ratio + rowid-recency convention as getContinueSeriesTicker/getWatchHistoryEpisodes
+    // rather than episode_watched.watchedAt, which is only ever set by Trakt import/cross-device
+    // sync and would leave the recap empty for anyone who's never connected Trakt.
+    private fun maybeShowRecap(seriesId: Int) {
+        lifecycleScope.launch {
+            val series = repository.getSeriesById(seriesId) ?: return@launch
+            val gapMs = System.currentTimeMillis() - series.lastWatchedAt
+            val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
+            if (series.lastWatchedAt <= 0 || gapMs < thirtyDaysMs) return@launch
+
+            val recentRefs = db.episodeWatchedDao().getRecentlyCompletedEpisodes(seriesId, limit = 3)
+            if (recentRefs.isEmpty()) return@launch
+
+            val episodesByKey = allEpisodes.values.flatten().associateBy { it.season to it.episodeNum }
+            val lines = recentRefs.mapNotNull { ref ->
+                val ep = episodesByKey[ref.season to ref.episode] ?: return@mapNotNull null
+                val plot = ep.info?.plot?.trim()?.take(4000)
+                val header = "S${ep.season}E${ep.episodeNum} \"${ep.title}\""
+                if (plot.isNullOrBlank()) header
+                else "$header: ${plot.take(200)}${if (plot.length > 200) "..." else ""}"
+            }
+            if (lines.isEmpty()) return@launch
+
+            binding.tvRecapTitle.text = "Previously on $seriesNameField"
+            binding.tvRecapBody.text = lines.joinToString("\n\n")
+            binding.cardRecap.visibility = View.VISIBLE
+            binding.btnRecapDismiss.setOnClickListener { binding.cardRecap.visibility = View.GONE }
+        }
+    }
+
     fun launchEpisode(episode: Episode) {
+        binding.cardRecap.visibility = View.GONE
         val episodes = currentSeasonEpisodes.ifEmpty { return }
         val index = episodes.indexOfFirst { it.id == episode.id }.takeIf { it >= 0 } ?: return
         lifecycleScope.launch {

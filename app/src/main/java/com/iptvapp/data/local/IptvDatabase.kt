@@ -24,9 +24,10 @@ import com.iptvapp.data.local.entities.*
         DownloadedContentEntity::class,
         ChannelFts::class,
         VodFts::class,
-        SeriesFts::class
+        SeriesFts::class,
+        BandwidthUsageEntity::class
     ],
-    version = 36,
+    version = 37,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -43,6 +44,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun mergedVodDao(): MergedVodDao
     abstract fun mergedSeriesDao(): MergedSeriesDao
     abstract fun downloadedContentDao(): DownloadedContentDao
+    abstract fun bandwidthUsageDao(): BandwidthUsageDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -467,6 +469,22 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Backs per-provider bandwidth tracking (Settings > Data Usage) — one row per
+        // (serverIndex, yearMonth) so "how much has this provider used this month" is a cheap
+        // lookup instead of scanning raw transfer events. See BandwidthUsageEntity kdoc.
+        val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS bandwidth_usage (
+                        serverIndex INTEGER NOT NULL,
+                        yearMonth TEXT NOT NULL,
+                        bytesTransferred INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(serverIndex, yearMonth)
+                    )
+                """.trimIndent())
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -474,7 +492,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
-            MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36
+            MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37
         )
     }
 }

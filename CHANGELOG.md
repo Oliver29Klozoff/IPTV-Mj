@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v5.98 - 2026-08-13
+- **Added**: Watch Party — start a session on any channel, movie, or episode and share a short
+  code, others enter it to join and stay synced with you in near-real-time (same content,
+  same play/pause, same position — corrects for drift automatically). Works over the internet,
+  not just the same WiFi. Join from the player controls or Settings > Sync.
+- **Added**: "Previously on..." recap — opening a series you haven't watched in 30+ days now
+  shows a dismissible summary of the last couple episodes you finished, using each episode's
+  own plot when your provider includes it.
+- **Added**: per-provider data usage tracking in Settings — see how much streaming data each
+  configured provider has used this month.
+
 ## v5.97 - 2026-08-13
 - **Fixed**: Multi-View's Channels button vanished after picking the first channel, with no way
   to bring it back — the controls bar auto-hides after a few seconds and there was no way to

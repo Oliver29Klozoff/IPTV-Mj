@@ -133,7 +133,16 @@ data class Episode(
     @SerializedName("container_extension") val containerExtension: String,
     @SerializedName("added") val added: String?,
     @SerializedName("season") val season: Int,
-    @SerializedName("direct_source") val directSource: String?
+    @SerializedName("direct_source") val directSource: String?,
+    // Per-episode synopsis, nested by Xtream under episodes[season][index].info.plot — used by
+    // the "Previously on..." recap card (SeriesDetailActivity) to summarize recently-watched
+    // episodes. Not persisted anywhere (see SeriesInfo/episodes kdoc) — read fresh from this DTO
+    // each time the series detail screen fetches the season list.
+    @SerializedName("info") val info: EpisodeInfo? = null
+)
+
+data class EpisodeInfo(
+    @SerializedName("plot") val plot: String?
 )
 
 data class EpgResponse(

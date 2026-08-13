@@ -143,7 +143,7 @@ object RecordingFileUtils {
         -1L
     }
 
-    private fun formatBytes(bytes: Long): String {
+    fun formatBytes(bytes: Long): String {
         if (bytes <= 0) return "0 B"
         val units = arrayOf("B", "KB", "MB", "GB")
         var value = bytes.toDouble()

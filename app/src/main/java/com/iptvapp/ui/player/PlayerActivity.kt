@@ -154,6 +154,31 @@ class PlayerActivity : AppCompatActivity() {
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
+    @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
+    private var bandwidthTracker: BandwidthTracker? = null
+
+    // ─── Watch Party ────────────────────────────────────────────────────────
+    private var partyCode: String = ""
+    private var isPartyHost: Boolean = false
+    private var isPartyMember: Boolean = false
+    // Guards every programmatic seek/play/pause the party listener applies on a member's player,
+    // so the resulting Player.Listener callbacks (onIsPlayingChanged etc.) don't get mistaken
+    // for a fresh "real user action" and re-written back to Firestore — the classic sync
+    // feedback loop. Set true immediately before the call, cleared right after.
+    private var isApplyingRemoteUpdate: Boolean = false
+    private var partyListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
+    private var partyMemberCount: Int = 0
+    private val partyHeartbeatHandler = Handler(Looper.getMainLooper())
+    private var partyLaunchCode: String = ""
+    private val partyHeartbeatRunnable = object : Runnable {
+        override fun run() {
+            if (isPartyHost && partyCode.isNotEmpty() && player?.isPlaying == true) {
+                watchPartyManager.writeState(partyCode, true, player?.currentPosition ?: 0L)
+            }
+            partyHeartbeatHandler.postDelayed(this, 12_000L)
+        }
+    }
 
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
@@ -275,6 +300,10 @@ class PlayerActivity : AppCompatActivity() {
         traktSeason  = intent.getIntExtra("season_num", -1)
         traktEpisode = intent.getIntExtra("episode_num", -1)
         episodeSeriesId = intent.getIntExtra("series_id", -1)
+        partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
+
+        setupWatchPartyButton()
+        if (partyLaunchCode.isNotEmpty()) joinWatchParty(partyLaunchCode, showToast = false)
 
         setupChannelZones()
         setupGestureDetector()
@@ -482,6 +511,246 @@ class PlayerActivity : AppCompatActivity() {
             resetHideTimer()
         }
         binding.btnRecordDot.setOnClickListener { showRecordDialog() }
+    }
+
+    // ─── Watch Party ────────────────────────────────────────────────────────
+
+    private fun currentWatchPartyContent(): com.iptvapp.sync.WatchPartyContent {
+        // streamUrl's own extension is reused as the container extension for VOD/episode — it's
+        // exactly what this device requested playback with, and rebuilding the URL for a member
+        // on their own account just needs the same extension against their own credentials.
+        val ext = streamUrl.substringAfterLast('.', "mp4")
+        return when {
+            !isVod -> com.iptvapp.sync.WatchPartyContent(
+                contentType = "LIVE", streamId = streamId, serverIndex = serverIndex,
+                mergedStreamId = mergedStreamId, title = streamTitle
+            )
+            episodeSeriesId != -1 && traktSeason >= 0 && traktEpisode >= 0 -> com.iptvapp.sync.WatchPartyContent(
+                contentType = "EPISODE", seriesId = episodeSeriesId, seasonNum = traktSeason,
+                episodeNum = traktEpisode, title = streamTitle, containerExtension = ext,
+                episodeId = epIds.getOrNull(epIndex) ?: ""
+            )
+            else -> com.iptvapp.sync.WatchPartyContent(
+                contentType = "VOD", streamId = streamId, serverIndex = serverIndex,
+                mergedStreamId = mergedStreamId, title = streamTitle, containerExtension = ext
+            )
+        }
+    }
+
+    private fun setupWatchPartyButton() {
+        binding.btnWatchParty.setOnClickListener {
+            if (partyCode.isEmpty()) showStartOrJoinPartyDialog() else showPartyStatusDialog()
+            resetHideTimer()
+        }
+        binding.tvWatchPartyBadge.setOnClickListener {
+            if (partyCode.isNotEmpty()) showPartyStatusDialog()
+        }
+    }
+
+    private fun showStartOrJoinPartyDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Watch Party")
+            .setItems(arrayOf("Start Watch Party", "Join Watch Party")) { _, which ->
+                if (which == 0) startWatchParty() else showJoinPartyCodeDialog()
+            }
+            .show()
+    }
+
+    private fun showJoinPartyCodeDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. ab12cd34"
+            setPadding(32, 16, 32, 16)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Join Watch Party")
+            .setView(input)
+            .setPositiveButton("Join") { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isNotEmpty()) joinWatchParty(code)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun startWatchParty() {
+        lifecycleScope.launch {
+            try {
+                val code = watchPartyManager.startParty(currentWatchPartyContent())
+                partyCode = code
+                isPartyHost = true
+                isPartyMember = false
+                attachPartyListener(code)
+                startPartyHeartbeat()
+                updateWatchPartyBadge()
+                AlertDialog.Builder(this@PlayerActivity)
+                    .setTitle("Watch Party Started")
+                    .setMessage("Share this code with others:\n\n${code.uppercase()}")
+                    .setPositiveButton("Copy Code") { _, _ ->
+                        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("Watch Party Code", code.uppercase()))
+                        Toast.makeText(this@PlayerActivity, "Code copied", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) {
+                Toast.makeText(this@PlayerActivity, "Couldn't start Watch Party: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun joinWatchParty(code: String, showToast: Boolean = true) {
+        lifecycleScope.launch {
+            try {
+                val state = watchPartyManager.joinParty(code)
+                if (state == null) {
+                    if (showToast) Toast.makeText(this@PlayerActivity, "Party not found", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                partyCode = state.code
+                isPartyHost = false
+                isPartyMember = true
+                attachPartyListener(state.code)
+                updateWatchPartyBadge()
+                if (showToast) Toast.makeText(this@PlayerActivity, "Joined Watch Party", Toast.LENGTH_SHORT).show()
+                applyRemotePartyState(state)
+            } catch (e: Exception) {
+                if (showToast) Toast.makeText(this@PlayerActivity, "Couldn't join Watch Party: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun attachPartyListener(code: String) {
+        partyListenerReg?.remove()
+        partyListenerReg = watchPartyManager.listen(code) { state ->
+            if (state == null) {
+                // Host ended the party (doc deleted) — clear local party state either way.
+                if (isPartyMember) {
+                    runOnUiThread { Toast.makeText(this, "Watch Party ended", Toast.LENGTH_SHORT).show() }
+                }
+                clearWatchPartyState()
+                return@listen
+            }
+            partyMemberCount = state.memberCount
+            runOnUiThread { updateWatchPartyBadge() }
+            // Members apply the host's state; the host ignores its own echoed writes (it's the
+            // source of truth, not a follower).
+            if (isPartyMember && !isPartyHost) {
+                runOnUiThread { applyRemotePartyState(state) }
+            }
+        }
+    }
+
+    private fun startPartyHeartbeat() {
+        partyHeartbeatHandler.removeCallbacks(partyHeartbeatRunnable)
+        partyHeartbeatHandler.postDelayed(partyHeartbeatRunnable, 12_000L)
+    }
+
+    /** Member-side sync: drift-compensated seek + play/pause mirroring for VOD/EPISODE, or a
+     * fresh reload on channel change for LIVE. 2.5s tolerance — comfortably above normal
+     * network/Firestore round-trip jitter (typically well under a second) while still feeling
+     * "in sync" to a viewer; smaller would cause seek-fighting on every minor drift, much larger
+     * would let members visibly lag the host. */
+    private fun applyRemotePartyState(state: com.iptvapp.sync.WatchPartyState) {
+        val p = player ?: return
+        if (state.content.contentType == "LIVE") {
+            val sameChannel = if (state.content.serverIndex != -1)
+                state.content.serverIndex == serverIndex && state.content.mergedStreamId == mergedStreamId
+            else state.content.streamId == streamId
+            if (!sameChannel) {
+                isApplyingRemoteUpdate = true
+                streamId = state.content.streamId
+                bandwidthTracker?.updateServerIndex(state.content.serverIndex)
+                serverIndex = state.content.serverIndex
+                mergedStreamId = state.content.mergedStreamId
+                streamTitle = state.content.title
+                binding.tvChannelTitle.text = streamTitle
+                lifecycleScope.launch {
+                    try {
+                        val url = if (state.content.serverIndex != -1)
+                            repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.mergedStreamId)
+                        else repository.getLiveStreamUrl(state.content.streamId)
+                        loadStream(url)
+                    } catch (_: Exception) {}
+                    isApplyingRemoteUpdate = false
+                }
+            }
+            return
+        }
+
+        // VOD/EPISODE: drift-compensate position using server-clock elapsed time since the
+        // host's last write, then reconcile play/pause state.
+        val expectedPosition = if (state.isPlaying)
+            state.positionMs + (System.currentTimeMillis() - state.updatedAtMs)
+        else state.positionMs
+
+        isApplyingRemoteUpdate = true
+        if (kotlin.math.abs(p.currentPosition - expectedPosition) > 2500L) {
+            p.seekTo(expectedPosition.coerceAtLeast(0L))
+        }
+        if (p.isPlaying != state.isPlaying) {
+            if (state.isPlaying) p.play() else p.pause()
+            updatePlayPauseButton()
+        }
+        isApplyingRemoteUpdate = false
+    }
+
+    /** Host-only write hook — call at every real user-initiated seek/play/pause/channel-change
+     * site. No-ops for members and for the host's own remote-applied changes (isApplyingRemoteUpdate). */
+    private fun notifyPartyStateChange() {
+        if (!isPartyHost || partyCode.isEmpty() || isApplyingRemoteUpdate) return
+        val p = player ?: return
+        watchPartyManager.writeState(partyCode, p.isPlaying, p.currentPosition)
+    }
+
+    private fun notifyPartyChannelChange() {
+        if (!isPartyHost || partyCode.isEmpty() || isApplyingRemoteUpdate) return
+        watchPartyManager.writeChannelChange(partyCode, currentWatchPartyContent())
+    }
+
+    private fun updateWatchPartyBadge() {
+        if (partyCode.isEmpty()) {
+            binding.tvWatchPartyBadge.visibility = View.GONE
+            return
+        }
+        binding.tvWatchPartyBadge.visibility = View.VISIBLE
+        binding.tvWatchPartyBadge.text = "Watch Party (${partyMemberCount.coerceAtLeast(1)})"
+    }
+
+    private fun showPartyStatusDialog() {
+        val roleLabel = if (isPartyHost) "Hosting" else "Member"
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Watch Party")
+            .setMessage("$roleLabel — code ${partyCode.uppercase()}\n${partyMemberCount.coerceAtLeast(1)} watching")
+            .setNegativeButton("Close", null)
+        if (isPartyHost) {
+            builder.setPositiveButton("End Party") { _, _ -> endWatchParty() }
+        } else {
+            builder.setPositiveButton("Leave") { _, _ -> leaveWatchParty() }
+        }
+        builder.show()
+    }
+
+    private fun endWatchParty() {
+        val code = partyCode
+        lifecycleScope.launch { watchPartyManager.endParty(code) }
+        clearWatchPartyState()
+    }
+
+    private fun leaveWatchParty() {
+        val code = partyCode
+        lifecycleScope.launch { watchPartyManager.leaveParty(code) }
+        clearWatchPartyState()
+    }
+
+    private fun clearWatchPartyState() {
+        partyListenerReg?.remove()
+        partyListenerReg = null
+        partyHeartbeatHandler.removeCallbacks(partyHeartbeatRunnable)
+        partyCode = ""
+        isPartyHost = false
+        isPartyMember = false
+        partyMemberCount = 0
+        runOnUiThread { updateWatchPartyBadge() }
     }
 
     private var recordBlinkAnimator: android.animation.ObjectAnimator? = null
@@ -781,6 +1050,7 @@ class PlayerActivity : AppCompatActivity() {
             if (isVod) {
                 val pos = (player?.currentPosition ?: 0L) - nextVodSkipAmountMs()
                 player?.seekTo(pos.coerceAtLeast(0L))
+                notifyPartyStateChange()
                 updateSeekBar()
                 showOverlay()
             } else {
@@ -794,6 +1064,7 @@ class PlayerActivity : AppCompatActivity() {
                 val pos = (player?.currentPosition ?: 0L) + nextVodSkipAmountMs()
                 val duration = player?.duration ?: Long.MAX_VALUE
                 player?.seekTo(pos.coerceAtMost(duration))
+                notifyPartyStateChange()
                 updateSeekBar()
                 showOverlay()
             } else {
@@ -992,7 +1263,15 @@ class PlayerActivity : AppCompatActivity() {
             .setUpstreamDataSourceFactory(upstreamDataSourceFactory)
             .setCacheWriteDataSinkFactory(null)
             .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(cacheDataSourceFactory)
+        // Per-provider bandwidth tracking (Settings > Data Usage) — wraps the final factory so
+        // real network transfers (cache hits from offline downloads are excluded, see
+        // BandwidthTracker kdoc) get attributed to whichever provider serverIndex is currently set
+        // to. Re-created per buildPlayer() call since serverIndex can change (failover, channel
+        // switch reusing this same Activity).
+        bandwidthTracker?.stop()
+        bandwidthTracker = BandwidthTracker(db.bandwidthUsageDao(), serverIndex, lifecycleScope).also { it.startPeriodicFlush() }
+        val trackedDataSourceFactory = bandwidthTracker!!.wrap(cacheDataSourceFactory)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(trackedDataSourceFactory)
 
         val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
         val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }
@@ -1079,6 +1358,7 @@ class PlayerActivity : AppCompatActivity() {
                     val wasPlaying = exoPlayer.isPlaying
                     if (wasPlaying) exoPlayer.pause() else exoPlayer.play()
                     updatePlayPauseButton()
+                    notifyPartyStateChange()
                     resetHideTimer()
                     if (wasPlaying) traktScrobble(::scrobblePauseCall)
                     else if (traktScrobbleStarted) traktScrobble(::scrobbleStartCall)
@@ -1441,6 +1721,7 @@ class PlayerActivity : AppCompatActivity() {
                         "Switched provider for \"$matchName\" — the original had an error",
                         Toast.LENGTH_LONG
                     ).show()
+                    bandwidthTracker?.updateServerIndex(matchServerIndex)
                     serverIndex = matchServerIndex
                     streamId = matchStreamId
                     mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
@@ -1746,7 +2027,10 @@ class PlayerActivity : AppCompatActivity() {
         binding.vodSeekContainer.visibility = View.VISIBLE
         binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) player?.seekTo(progress.toLong())
+                if (fromUser) {
+                    player?.seekTo(progress.toLong())
+                    notifyPartyStateChange()
+                }
             }
             override fun onStartTrackingTouch(sb: android.widget.SeekBar) { hideHandler.removeCallbacks(hideRunnable) }
             override fun onStopTrackingTouch(sb: android.widget.SeekBar) { resetHideTimer() }
@@ -1862,6 +2146,7 @@ class PlayerActivity : AppCompatActivity() {
             val idx = channels.indexOfFirst { it.streamId == channel.streamId }
             if (idx >= 0) currentIndex = idx
             loadStream(url)
+            notifyPartyChannelChange()
         }
     }
 
@@ -1875,6 +2160,7 @@ class PlayerActivity : AppCompatActivity() {
             try {
                 val debounceMs = prefs.channelZapDebounceMs.first()
                 if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+                bandwidthTracker?.updateServerIndex(channel.serverIndex)
                 serverIndex = channel.serverIndex
                 mergedStreamId = channel.streamId
                 streamTitle = "${channel.name} · ${channel.serverNickname}"
@@ -1888,6 +2174,7 @@ class PlayerActivity : AppCompatActivity() {
                 val idx = mergedChannels.indexOfFirst { it.streamId == channel.streamId }
                 if (idx >= 0) mergedCurrentIndex = idx
                 loadStream(url)
+                notifyPartyChannelChange()
             } catch (_: Exception) {
                 Toast.makeText(this@PlayerActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
             }
@@ -1960,17 +2247,17 @@ class PlayerActivity : AppCompatActivity() {
             // does that; a bare Left/Right with the overlay hidden is simply swallowed.
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - nextVodSkipAmountMs()).coerceAtLeast(0L)); true }
+                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - nextVodSkipAmountMs()).coerceAtLeast(0L)); notifyPartyStateChange(); true }
                 else -> true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + nextVodSkipAmountMs()).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); true }
+                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + nextVodSkipAmountMs()).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); notifyPartyStateChange(); true }
                 else -> true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()
-                updatePlayPauseButton(); true
+                updatePlayPauseButton(); notifyPartyStateChange(); true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
                 if (!isOverlayVisible) { showOverlay(); true }
@@ -2182,6 +2469,12 @@ class PlayerActivity : AppCompatActivity() {
         if (!isChangingConfigurations) {
             player?.release()
             player = null
+            bandwidthTracker?.stop()
+            // Fire-and-forget on a process-wide scope: lifecycleScope may already be cancelling
+            // by the time onStop runs, same reasoning as the Trakt stop-scrobble call elsewhere
+            // in this Activity — a plain Room write from GlobalScope is safe here.
+            val tracker = bandwidthTracker
+            if (tracker != null) kotlinx.coroutines.GlobalScope.launch { tracker.flush() }
         }
     }
 
@@ -2206,6 +2499,18 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (!isChangingConfigurations) {
+            partyListenerReg?.remove()
+            partyHeartbeatHandler.removeCallbacks(partyHeartbeatRunnable)
+            val code = partyCode
+            if (code.isNotEmpty()) {
+                if (isPartyHost) {
+                    kotlinx.coroutines.GlobalScope.launch { watchPartyManager.endParty(code) }
+                } else if (isPartyMember) {
+                    kotlinx.coroutines.GlobalScope.launch { watchPartyManager.leaveParty(code) }
+                }
+            }
+        }
         if (!isVod && !isChangingConfigurations) {
             // Fire-and-forget: this Activity is finishing, so there's no lifecycleScope left to
             // await, but a plain DataStore write from a short-lived GlobalScope launch is safe.

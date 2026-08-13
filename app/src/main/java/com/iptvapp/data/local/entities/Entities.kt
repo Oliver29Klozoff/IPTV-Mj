@@ -330,3 +330,16 @@ data class DownloadedContentEntity(
     val fileSizeBytes: Long = 0L,
     val downloadedAt: Long = 0L
 )
+
+// Per-provider network usage, bucketed by calendar month, so Settings can show "how much data
+// has this provider used this month" — providers on metered/capped connections (common for
+// IPTV resellers) are the motivating case. yearMonth is "yyyy-MM" (e.g. "2026-08") so a plain
+// string PRIMARY KEY column sorts/filters correctly without a separate date type. Fed by
+// PlayerActivity's TransferListener via a debounced accumulator (see BandwidthTracker) rather
+// than a write per byte-transfer callback, which would fire far too often to hit Room directly.
+@Entity(tableName = "bandwidth_usage", primaryKeys = ["serverIndex", "yearMonth"])
+data class BandwidthUsageEntity(
+    val serverIndex: Int,
+    val yearMonth: String,
+    val bytesTransferred: Long = 0L
+)

@@ -512,7 +512,23 @@ interface EpisodeWatchedDao {
         ORDER BY ew.rowid DESC
     """)
     fun getWatchHistoryEpisodes(): kotlinx.coroutines.flow.Flow<List<WatchedEpisodeRow>>
+
+    // "Previously on..." recap card (SeriesDetailActivity) — last few COMPLETED episodes for one
+    // series, most recent first. Same 0.95 completion-ratio + rowid-recency convention as
+    // getWatchHistoryEpisodes/getInProgressSeries above, deliberately NOT watchedAt (only ever
+    // set by Trakt import/cross-device sync, see those kdocs — would leave the recap empty for
+    // anyone who's never connected Trakt despite having really finished episodes locally).
+    @Query("""
+        SELECT season, episode FROM episode_watched
+        WHERE seriesId = :seriesId AND durationMs > 0 AND watchedMs > 0
+          AND CAST(watchedMs AS REAL) / durationMs >= 0.95
+        ORDER BY rowid DESC
+        LIMIT :limit
+    """)
+    suspend fun getRecentlyCompletedEpisodes(seriesId: Int, limit: Int = 3): List<CompletedEpisodeRef>
 }
+
+data class CompletedEpisodeRef(val season: Int, val episode: Int)
 
 data class WatchedEpisodeRow(
     val seriesId: Int,
@@ -766,4 +782,20 @@ interface DownloadedContentDao {
 
     @Query("DELETE FROM downloaded_content WHERE streamId = :streamId")
     suspend fun deleteByStreamId(streamId: Int)
+}
+
+@Dao
+interface BandwidthUsageDao {
+    // Accumulates onto whatever's already recorded for this provider/month rather than
+    // overwriting — PlayerActivity's debounced flush calls this once per ~5-10s chunk of
+    // playback, not once per month total.
+    @Query("""
+        INSERT INTO bandwidth_usage (serverIndex, yearMonth, bytesTransferred)
+        VALUES (:serverIndex, :yearMonth, :bytes)
+        ON CONFLICT(serverIndex, yearMonth) DO UPDATE SET bytesTransferred = bytesTransferred + :bytes
+    """)
+    suspend fun addUsage(serverIndex: Int, yearMonth: String, bytes: Long)
+
+    @Query("SELECT * FROM bandwidth_usage WHERE yearMonth = :yearMonth AND bytesTransferred > 0 ORDER BY bytesTransferred DESC")
+    suspend fun getUsageForMonth(yearMonth: String): List<BandwidthUsageEntity>
 }
