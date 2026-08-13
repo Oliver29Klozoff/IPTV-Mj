@@ -1,7 +1,7 @@
 {
-  "versionCode": 431,
-  "versionName": "5.93",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.93/MKTV.apk",
-  "apkSha256": "3b0db8c259c96b6732d99761387bf07dcae01bc8e0abe6c875a05dd65aa148a0",
-  "changelog": "Added dual-stream Picture-in-Picture in Multi-View, much faster indexed search across Channels/Movies/Series, and LAN Export in Settings > Diagnostics (QR-code debug bundle over local WiFi, no cloud, no credentials)."
+  "versionCode": 432,
+  "versionName": "5.94",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.94/MKTV.apk",
+  "apkSha256": "62e663f71f9429defbd2e668215f3e0d8cb2b67a7fa741e73bfadb5ec03378bb",
+  "changelog": "Fixed: Multi-View (dual-stream PiP) had no button to open it on phone. Added a Multi-View icon to the top bar on both portrait and landscape."
 }

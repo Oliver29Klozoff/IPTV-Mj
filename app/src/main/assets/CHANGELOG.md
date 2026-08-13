@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.94 - 2026-08-12
+- **Fixed**: Multi-View (dual-stream Picture-in-Picture) had no way to open it on phone — the
+  screen worked but no button anywhere in the app actually launched it. Added a Multi-View icon
+  to the top bar on both portrait and landscape.
+
 ## v5.93 - 2026-08-12
 - **Added**: dual-stream Picture-in-Picture in Multi-View — watch one channel fullscreen with a
   second playing as a small draggable tile; tap the tile to swap it to fullscreen, audio follows
