@@ -294,6 +294,10 @@ class MultiViewActivity : AppCompatActivity() {
     private fun setupButtons() {
         binding.btnMvBack.setOnClickListener { finish() }
         binding.btnMvAudio.setOnClickListener { toggleAudio() }
+        // Only touch entry point into showChannelPicker() — the D-pad KEYCODE_DPAD_CENTER/ENTER
+        // path in dispatchKeyEvent has no touch equivalent otherwise, so on phone every tile was
+        // permanently stuck on its placeholder text with no way to actually pick a channel.
+        binding.btnMvChannels.setOnClickListener { if (!channelPickerVisible) showChannelPicker() }
         // Tap-to-swap and drag are both handled by the OnTouchListener installed in setupTileDrag();
         // plain click listeners here would double-fire the swap.
     }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v5.95 - 2026-08-12
+- **Fixed**: Multi-View's channel picker was completely unreachable on phone — it only opened
+  via a TV remote's OK button, so every tile got permanently stuck on "Press OK to select
+  channel" with no way to actually pick anything. Added a "Channels" button to the controls bar.
+
 ## v5.94 - 2026-08-12
 - **Fixed**: Multi-View (dual-stream Picture-in-Picture) had no way to open it on phone — the
   screen worked but no button anywhere in the app actually launched it. Added a Multi-View icon

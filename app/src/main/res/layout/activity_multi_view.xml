@@ -36,7 +36,7 @@
                 android:id="@+id/tvLeftChannel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Press OK to select channel"
+                android:text="Tap Channels to select"
                 android:textColor="#FFFFFF"
                 android:textSize="20sp"
                 android:textStyle="bold" />
@@ -100,7 +100,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:padding="4dp"
-            android:text="Press OK to select channel"
+            android:text="Tap Channels to select"
             android:textColor="#FFFFFF"
             android:textSize="11sp" />
 
@@ -186,9 +186,22 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="OK on tile = Swap Fullscreen  |  Drag tile to move  |  ▲ = Audio"
+            android:text="Tap tile = Swap Fullscreen  |  Drag tile to move  |  ▲ = Audio"
             android:textColor="#AAAAAA"
             android:textSize="14sp" />
+
+        <!-- Only reachable way to open the channel picker on touch — dispatchKeyEvent's
+             KEYCODE_DPAD_CENTER/ENTER path (TV remote "OK") never had a touch equivalent, so on
+             phone the picker was completely unreachable and every tile was stuck showing "Press
+             OK to select channel" forever. -->
+        <Button
+            android:id="@+id/btnMvChannels"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@android:color/transparent"
+            android:text="Channels"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
 
         <Button
             android:id="@+id/btnMvAudio"

@@ -1,7 +1,7 @@
 {
-  "versionCode": 432,
-  "versionName": "5.94",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.94/MKTV.apk",
-  "apkSha256": "62e663f71f9429defbd2e668215f3e0d8cb2b67a7fa741e73bfadb5ec03378bb",
-  "changelog": "Fixed: Multi-View (dual-stream PiP) had no button to open it on phone. Added a Multi-View icon to the top bar on both portrait and landscape."
+  "versionCode": 433,
+  "versionName": "5.95",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v5.95/MKTV.apk",
+  "apkSha256": "eeb2effc135a8ba6cbad40e83c783b520ad36036dbfdbb519ae364692f20b890",
+  "changelog": "Fixed: Multi-View's channel picker was unreachable on phone. Added a Channels button to the controls bar."
 }
