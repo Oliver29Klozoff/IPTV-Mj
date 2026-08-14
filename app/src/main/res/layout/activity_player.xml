@@ -369,6 +369,24 @@
             android:minWidth="0dp"
             android:minHeight="0dp" />
 
+        <!-- Time Capsule Rewatch Notes — VOD/EPISODE only, shown/hidden at runtime by
+             updateRewatchNotesButtonVisibility() in PlayerActivity since LIVE content never
+             shows it (gone by default here, matching btnDvrRewind's own runtime-toggle pattern). -->
+        <Button
+            android:id="@+id/btnRewatchNotes"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
+            android:text="📝"
+            android:textColor="#AAAAAA"
+            android:textSize="22sp"
+            android:background="@drawable/tv_sidebar_focus"
+            android:nextFocusUp="@id/btnBack"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/btnStats"
             android:layout_width="72dp"

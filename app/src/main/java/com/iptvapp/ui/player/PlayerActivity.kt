@@ -155,6 +155,7 @@ class PlayerActivity : AppCompatActivity() {
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
+    @Inject lateinit var rewatchNotesManager: com.iptvapp.sync.RewatchNotesManager
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     private var bandwidthTracker: BandwidthTracker? = null
 
@@ -179,6 +180,16 @@ class PlayerActivity : AppCompatActivity() {
             partyHeartbeatHandler.postDelayed(this, 12_000L)
         }
     }
+
+    // ─── Group Watch Voting ─────────────────────────────────────────────────
+    private var pollListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
+    private var pollAutoCloseJob: Job? = null
+    private var latestPollState: com.iptvapp.sync.PollState? = null
+    private var pollDialog: AlertDialog? = null
+
+    // ─── Time Capsule Rewatch Notes ─────────────────────────────────────────
+    private var rewatchNotesListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
+    private var latestRewatchNotes: List<com.iptvapp.sync.RewatchNote> = emptyList()
 
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
@@ -304,6 +315,7 @@ class PlayerActivity : AppCompatActivity() {
 
         setupWatchPartyButton()
         if (partyLaunchCode.isNotEmpty()) joinWatchParty(partyLaunchCode, showToast = false)
+        updateRewatchNotesButtonVisibility()
 
         setupChannelZones()
         setupGestureDetector()
@@ -511,6 +523,7 @@ class PlayerActivity : AppCompatActivity() {
             resetHideTimer()
         }
         binding.btnRecordDot.setOnClickListener { showRecordDialog() }
+        setupRewatchNotesButton()
     }
 
     // ─── Watch Party ────────────────────────────────────────────────────────
@@ -731,12 +744,138 @@ class PlayerActivity : AppCompatActivity() {
             .setTitle("Watch Party")
             .setMessage("$roleLabel — code ${partyCode.uppercase()}\n${partyMemberCount.coerceAtLeast(1)} watching")
             .setNegativeButton("Close", null)
+            .setNeutralButton("Vote: What's Next?") { _, _ -> startOrShowPoll() }
         if (isPartyHost) {
             builder.setPositiveButton("End Party") { _, _ -> endWatchParty() }
         } else {
             builder.setPositiveButton("Leave") { _, _ -> leaveWatchParty() }
         }
         builder.show()
+    }
+
+    // ─── Group Watch Voting ─────────────────────────────────────────────────
+
+    /** Entry point for the "Vote" button — any party member can trigger this. If a poll is
+     * already active on the party, just (re)opens the live results dialog instead of starting a
+     * second one. */
+    private fun startOrShowPoll() {
+        if (partyCode.isEmpty()) return
+        attachPollListener(partyCode)
+        if (latestPollState?.active == true) {
+            showPollDialog()
+            return
+        }
+        lifecycleScope.launch {
+            try {
+                watchPartyManager.startPoll(partyCode, currentWatchPartyContent())
+                showPollDialog()
+                schedulePollAutoClose()
+            } catch (e: Exception) {
+                Toast.makeText(this@PlayerActivity, "Couldn't start poll: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun attachPollListener(code: String) {
+        if (pollListenerReg != null) return
+        pollListenerReg = watchPartyManager.listenPoll(code) { state ->
+            latestPollState = state
+            if (state != null && state.active) {
+                runOnUiThread { refreshPollDialog() }
+            } else {
+                runOnUiThread { pollDialog?.dismiss(); pollDialog = null }
+            }
+        }
+    }
+
+    /** Fixed 20s auto-close timer — simpler and avoids needing extra host-only "close poll" UI.
+     * Only the member who actually started the poll schedules the close call, so it isn't raced
+     * by every device independently trying to close/tally the same poll. */
+    private fun schedulePollAutoClose() {
+        pollAutoCloseJob?.cancel()
+        pollAutoCloseJob = lifecycleScope.launch {
+            delay(20_000L)
+            val code = partyCode
+            if (code.isEmpty()) return@launch
+            try {
+                val winner = watchPartyManager.closePoll(code)
+                if (winner != null) {
+                    // Same content-switch mechanism a host's manual channel change already uses —
+                    // members' players auto-tune with no separate switch logic. Any member can
+                    // apply the winner here since Firestore rules (added externally) will govern
+                    // write access the same way a channel change would.
+                    watchPartyManager.writeChannelChange(code, winner)
+                    if (isPartyHost) {
+                        isApplyingRemoteUpdate = true
+                        applyRemotePartyState(
+                            com.iptvapp.sync.WatchPartyState(
+                                code = code, hostUid = "", content = winner, isPlaying = true,
+                                positionMs = 0L, updatedAtMs = System.currentTimeMillis(),
+                                memberCount = partyMemberCount, active = true
+                            )
+                        )
+                        isApplyingRemoteUpdate = false
+                    }
+                    runOnUiThread { Toast.makeText(this@PlayerActivity, "Poll closed — switching to \"${winner.title}\"", Toast.LENGTH_SHORT).show() }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun showPollDialog() {
+        if (pollDialog?.isShowing == true) { refreshPollDialog(); return }
+        val builder = AlertDialog.Builder(this)
+            .setTitle("What should we watch next?")
+            .setMessage("Loading…")
+            .setNegativeButton("Close", null)
+            .setNeutralButton("Propose Current") { _, _ -> proposeCurrentToPoll() }
+        pollDialog = builder.show()
+        refreshPollDialog()
+    }
+
+    private fun proposeCurrentToPoll() {
+        val code = partyCode
+        if (code.isEmpty()) return
+        lifecycleScope.launch {
+            try {
+                watchPartyManager.proposeOption(code, currentWatchPartyContent())
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun refreshPollDialog() {
+        val dialog = pollDialog ?: return
+        val state = latestPollState ?: return
+        val myUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        val sb = StringBuilder()
+        state.options.forEachIndexed { i, opt ->
+            val votes = state.votes.values.count { it == i }
+            val mine = if (state.votes[myUid] == i) " ✓ your vote" else ""
+            sb.append("${i + 1}. ${opt.content.title.ifBlank { "(untitled)" }} — $votes vote${if (votes == 1) "" else "s"}$mine\n")
+        }
+        if (state.options.isEmpty()) sb.append("No options yet.")
+        dialog.setMessage(sb.toString().trim())
+        // Positive button re-purposed as a numbered vote picker (avoids building a whole custom
+        // list-adapter dialog for what's normally 2-4 options) — tapping opens a simple item list.
+        if (state.options.isNotEmpty()) {
+            dialog.setButton(AlertDialog.BUTTON_POSITIVE, "Vote…") { _, _ -> showVotePicker(state) }
+        }
+    }
+
+    private fun showVotePicker(state: com.iptvapp.sync.PollState) {
+        val labels = state.options.map { it.content.title.ifBlank { "(untitled)" } }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Vote for")
+            .setItems(labels) { _, which ->
+                val code = partyCode
+                if (code.isEmpty()) return@setItems
+                lifecycleScope.launch {
+                    try { watchPartyManager.castVote(code, which) } catch (_: Exception) {}
+                }
+            }
+            .show()
     }
 
     private fun endWatchParty() {
@@ -755,11 +894,124 @@ class PlayerActivity : AppCompatActivity() {
         partyListenerReg?.remove()
         partyListenerReg = null
         partyHeartbeatHandler.removeCallbacks(partyHeartbeatRunnable)
+        pollListenerReg?.remove()
+        pollListenerReg = null
+        pollAutoCloseJob?.cancel()
+        pollDialog?.dismiss()
+        pollDialog = null
         partyCode = ""
         isPartyHost = false
         isPartyMember = false
         partyMemberCount = 0
         runOnUiThread { updateWatchPartyBadge() }
+    }
+
+    // ─── Time Capsule Rewatch Notes ─────────────────────────────────────────
+    // VOD/EPISODE only — leaving a timestamped note on a live channel doesn't make sense the
+    // same way a live broadcast has no fixed position to anchor a note to for a later viewer.
+
+    private fun updateRewatchNotesButtonVisibility() {
+        binding.btnRewatchNotes.visibility = if (isVod) View.VISIBLE else View.GONE
+    }
+
+    private fun setupRewatchNotesButton() {
+        binding.btnRewatchNotes.setOnClickListener {
+            showRewatchNotesSheet()
+            resetHideTimer()
+        }
+    }
+
+    private fun rewatchContentKey(): String = rewatchNotesManager.contentKeyFor(currentWatchPartyContent())
+
+    private fun showRewatchNotesSheet() {
+        if (!isVod) return
+        val key = rewatchContentKey()
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Rewatch Notes")
+            .setMessage("Loading…")
+            .setPositiveButton("Add Note Here") { _, _ -> showAddNoteDialog() }
+            .setNegativeButton("Close", null)
+            .show()
+        lifecycleScope.launch {
+            try {
+                val notes = rewatchNotesManager.getNotes(key)
+                latestRewatchNotes = notes
+                renderRewatchNotes(dialog, notes)
+            } catch (e: Exception) {
+                dialog.setMessage("Couldn't load notes: ${e.message}")
+            }
+        }
+        rewatchNotesListenerReg?.remove()
+        rewatchNotesListenerReg = rewatchNotesManager.listenNotes(key) { notes ->
+            latestRewatchNotes = notes
+            runOnUiThread { if (dialog.isShowing) renderRewatchNotes(dialog, notes) }
+        }
+        dialog.setOnDismissListener {
+            rewatchNotesListenerReg?.remove()
+            rewatchNotesListenerReg = null
+        }
+    }
+
+    private fun renderRewatchNotes(dialog: AlertDialog, notes: List<com.iptvapp.sync.RewatchNote>) {
+        if (notes.isEmpty()) {
+            dialog.setMessage("No notes yet — be the first to leave one.")
+            return
+        }
+        val sb = StringBuilder()
+        notes.forEachIndexed { i, n ->
+            val mm = (n.positionMs / 60000)
+            val ss = (n.positionMs / 1000) % 60
+            sb.append(String.format("%d. [%02d:%02d] %s: %s\n", i + 1, mm, ss, n.authorLabel, n.text))
+        }
+        dialog.setMessage(sb.toString().trim())
+        // Simple list-with-timestamps is the v1 here (no custom seek-bar marker rendering) — tap
+        // "Jump to Note" to pick one by number and seek, same "good enough v1" scope call the
+        // task spec calls out explicitly.
+        dialog.setButton(AlertDialog.BUTTON_NEUTRAL, "Jump to Note") { _, _ -> showJumpToNoteDialog(notes) }
+    }
+
+    private fun showJumpToNoteDialog(notes: List<com.iptvapp.sync.RewatchNote>) {
+        val labels = notes.map {
+            val mm = (it.positionMs / 60000)
+            val ss = (it.positionMs / 1000) % 60
+            String.format("[%02d:%02d] %s: %s", mm, ss, it.authorLabel, it.text)
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Jump to")
+            .setItems(labels) { _, which ->
+                player?.seekTo(notes[which].positionMs)
+                notifyPartyStateChange()
+            }
+            .show()
+    }
+
+    private fun showAddNoteDialog() {
+        val p = player ?: return
+        val positionMs = p.currentPosition
+        val input = android.widget.EditText(this).apply {
+            hint = "What's happening here?"
+            setPadding(32, 16, 32, 16)
+        }
+        val mm = (positionMs / 60000)
+        val ss = (positionMs / 1000) % 60
+        AlertDialog.Builder(this)
+            .setTitle(String.format("Note at %02d:%02d", mm, ss))
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val text = input.text.toString().trim()
+                if (text.isNotEmpty()) {
+                    val key = rewatchContentKey()
+                    lifecycleScope.launch {
+                        try {
+                            rewatchNotesManager.addNote(key, positionMs, text)
+                        } catch (e: Exception) {
+                            Toast.makeText(this@PlayerActivity, "Couldn't save note: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private var recordBlinkAnimator: android.animation.ObjectAnimator? = null
@@ -2511,6 +2763,9 @@ class PlayerActivity : AppCompatActivity() {
         if (!isChangingConfigurations) {
             partyListenerReg?.remove()
             partyHeartbeatHandler.removeCallbacks(partyHeartbeatRunnable)
+            pollListenerReg?.remove()
+            pollAutoCloseJob?.cancel()
+            rewatchNotesListenerReg?.remove()
             val code = partyCode
             if (code.isNotEmpty()) {
                 if (isPartyHost) {

@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v6.00 - 2026-08-13
+- **Added**: Group Watch Voting — during a Watch Party, any member can start a live "What
+  should we watch next?" poll. Others propose whatever's on their own screen, everyone votes
+  in real time, and after 20 seconds the winning option automatically becomes the whole
+  party's new content.
+- **Added**: Time Capsule Rewatch Notes — leave a timestamped note while watching a movie or
+  episode; anyone who watches that same title later can see notes pinned to the moments they
+  were left at, and jump straight to them.
+
 ## v5.99 - 2026-08-13
 - **Fixed**: Watch Party now shows a clear message ("Couldn't follow host's channel — not
   available on your provider") instead of silently freezing when a member's provider doesn't

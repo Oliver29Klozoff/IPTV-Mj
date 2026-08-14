@@ -47,6 +47,22 @@ data class WatchPartyState(
     val active: Boolean
 )
 
+/** One "propose what's on your screen" option in a Group Watch poll. */
+data class PollOption(
+    val proposedBy: String,
+    val content: WatchPartyContent
+)
+
+data class PollState(
+    val pollId: String,
+    val options: List<PollOption>,
+    /** uid -> option index voted for. */
+    val votes: Map<String, Int>,
+    val createdBy: String,
+    val createdAtMs: Long,
+    val active: Boolean
+)
+
 @Singleton
 class WatchPartyManager @Inject constructor(
     @ApplicationContext private val context: Context
@@ -200,5 +216,128 @@ class WatchPartyManager @Inject constructor(
             val uid = auth.currentUser?.uid ?: return@withContext
             parties.document(code).update("memberUids", FieldValue.arrayRemove(uid)).await()
         } catch (_: Exception) {}
+    }
+
+    // ─── Group Watch Voting ─────────────────────────────────────────────────
+    // Stored as a single "activePoll" map field directly on the party doc (not a subcollection) —
+    // a poll is short-lived (one fixed-timer round) and always 1:1 with its party, so a nested
+    // map keeps every poll read/write inside the same document the rest of Watch Party already
+    // uses instead of adding a second listener/collection round-trip for something this small.
+
+    private fun optionToMap(opt: PollOption): Map<String, Any> = hashMapOf(
+        "proposedBy" to opt.proposedBy,
+        "contentType" to opt.content.contentType,
+        "streamId" to opt.content.streamId,
+        "serverIndex" to opt.content.serverIndex,
+        "mergedStreamId" to opt.content.mergedStreamId,
+        "seriesId" to opt.content.seriesId,
+        "seasonNum" to opt.content.seasonNum,
+        "episodeNum" to opt.content.episodeNum,
+        "title" to opt.content.title,
+        "containerExtension" to opt.content.containerExtension,
+        "episodeId" to opt.content.episodeId
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun mapToOption(m: Map<String, Any?>): PollOption = PollOption(
+        proposedBy = m["proposedBy"] as? String ?: "",
+        content = WatchPartyContent(
+            contentType = m["contentType"] as? String ?: "LIVE",
+            streamId = ((m["streamId"] as? Long) ?: -1L).toInt(),
+            serverIndex = ((m["serverIndex"] as? Long) ?: -1L).toInt(),
+            mergedStreamId = ((m["mergedStreamId"] as? Long) ?: -1L).toInt(),
+            seriesId = ((m["seriesId"] as? Long) ?: -1L).toInt(),
+            seasonNum = ((m["seasonNum"] as? Long) ?: -1L).toInt(),
+            episodeNum = ((m["episodeNum"] as? Long) ?: -1L).toInt(),
+            title = m["title"] as? String ?: "",
+            containerExtension = m["containerExtension"] as? String ?: "",
+            episodeId = m["episodeId"] as? String ?: ""
+        )
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun toPollState(doc: com.google.firebase.firestore.DocumentSnapshot): PollState? {
+        val poll = doc.get("activePoll") as? Map<String, Any?> ?: return null
+        if (poll["active"] != true) return null
+        val optionMaps = poll["options"] as? List<Map<String, Any?>> ?: emptyList()
+        val options = optionMaps.map { mapToOption(it) }
+        val votesRaw = poll["votes"] as? Map<String, Any?> ?: emptyMap()
+        val votes = votesRaw.mapValues { (_, v) -> ((v as? Long) ?: -1L).toInt() }
+        val createdAt = (poll["createdAt"] as? com.google.firebase.Timestamp)?.toDate()?.time
+            ?: System.currentTimeMillis()
+        return PollState(
+            pollId = poll["pollId"] as? String ?: "",
+            options = options,
+            votes = votes,
+            createdBy = poll["createdBy"] as? String ?: "",
+            createdAtMs = createdAt,
+            active = true
+        )
+    }
+
+    /** Any party member (not just host) can start a poll, seeded with their own current content
+     * as the first option — "propose what's on your screen" is the whole option-picking UI, so
+     * no separate content-browser dialog is needed. Overwrites any prior poll on this party. */
+    suspend fun startPoll(code: String, proposerContent: WatchPartyContent): String = withContext(Dispatchers.IO) {
+        val user = signInIfNeeded()
+        val pollId = randomCode()
+        val poll = hashMapOf(
+            "pollId" to pollId,
+            "active" to true,
+            "createdBy" to user.uid,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "options" to listOf(optionToMap(PollOption(user.uid, proposerContent))),
+            "votes" to emptyMap<String, Int>()
+        )
+        parties.document(code).set(hashMapOf("activePoll" to poll), SetOptions.merge()).await()
+        pollId
+    }
+
+    /** Any member adds their own current-screen content as another option, if not already
+     * proposing (one option per uid keeps this simple and avoids duplicate/spam entries). */
+    suspend fun proposeOption(code: String, content: WatchPartyContent) = withContext(Dispatchers.IO) {
+        val user = signInIfNeeded()
+        val doc = parties.document(code).get().await()
+        val state = toPollState(doc) ?: return@withContext
+        if (state.options.any { it.proposedBy == user.uid }) return@withContext
+        val updated = state.options + PollOption(user.uid, content)
+        parties.document(code).update(
+            "activePoll.options", updated.map { optionToMap(it) }
+        ).await()
+    }
+
+    /** Casts/changes this device's vote for option index [optionIndex]. */
+    suspend fun castVote(code: String, optionIndex: Int) = withContext(Dispatchers.IO) {
+        val user = signInIfNeeded()
+        parties.document(code).update("activePoll.votes.${user.uid}", optionIndex).await()
+    }
+
+    /** Listens for poll changes on this party, same hasPendingWrites() echo-filter as listen(). */
+    fun listenPoll(code: String, onUpdate: (PollState?) -> Unit): ListenerRegistration {
+        return parties.document(code).addSnapshotListener { snap, _ ->
+            if (snap == null || !snap.exists()) {
+                onUpdate(null)
+                return@addSnapshotListener
+            }
+            if (snap.metadata.hasPendingWrites()) return@addSnapshotListener
+            onUpdate(toPollState(snap))
+        }
+    }
+
+    /** Closes the poll (marks inactive) and, if it had at least one option, returns the winning
+     * option's content so the caller can feed it straight into writeChannelChange/writeState —
+     * same content-switch mechanism a host's manual channel change already uses, so members'
+     * players auto-tune with no separate switch logic needed. Ties broken by whichever option
+     * was proposed first (i.e. lowest index — options list is append-only in proposal order). */
+    suspend fun closePoll(code: String): WatchPartyContent? = withContext(Dispatchers.IO) {
+        val doc = parties.document(code).get().await()
+        val state = toPollState(doc) ?: return@withContext null
+        parties.document(code).update("activePoll.active", false).await()
+        if (state.options.isEmpty()) return@withContext null
+        val tally = IntArray(state.options.size)
+        state.votes.values.forEach { idx -> if (idx in tally.indices) tally[idx]++ }
+        var winner = 0
+        for (i in 1 until tally.size) if (tally[i] > tally[winner]) winner = i
+        state.options[winner].content
     }
 }
