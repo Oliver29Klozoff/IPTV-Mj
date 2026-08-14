@@ -987,6 +987,7 @@ class HomeActivity : AppCompatActivity() {
     private var currentAccent: Int = android.graphics.Color.parseColor("#008CFF")
 
     @javax.inject.Inject lateinit var prefs: PreferencesManager
+    @javax.inject.Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
 
     private var activeGenre: String? = null
     // Favorites' own genre filter — kept separate from Live's activeGenre so switching tabs
@@ -2249,7 +2250,8 @@ class HomeActivity : AppCompatActivity() {
                 Toast.makeText(this, "${bulkSelectedMergedVodKeys.size} selected — tap more movies to hide", Toast.LENGTH_SHORT).show()
                 bulkSelectHandler.removeCallbacks(bulkSelectMergedVodIdleRunnable)
                 bulkSelectHandler.postDelayed(bulkSelectMergedVodIdleRunnable, 8000)
-            }
+            },
+            vodPreviewUrlProvider = { vod -> viewModel.getMergedVodPreviewUrl(vod) }
         )
 
         mergedSeriesAdapter = MergedSeriesAdapter(
@@ -2492,7 +2494,8 @@ class HomeActivity : AppCompatActivity() {
                     putExtra("vod_cover", vod.streamIcon)
                     putExtra("vod_rating", vod.rating)
                 })
-            }
+            },
+            vodPreviewUrlProvider = { vod -> viewModel.getVodPreviewUrl(vod) }
         )
 
         seriesAdapter = SeriesAdapter(

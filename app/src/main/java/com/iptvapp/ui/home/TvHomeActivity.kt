@@ -57,6 +57,7 @@ class TvHomeActivity : AppCompatActivity() {
     private val viewModel: HomeViewModel by viewModels()
 
     @javax.inject.Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @javax.inject.Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     @javax.inject.Inject lateinit var okHttpClient: okhttp3.OkHttpClient
 
     private lateinit var categoryAdapter: CategoryAdapter
@@ -1019,6 +1020,11 @@ class TvHomeActivity : AppCompatActivity() {
                     }
                     .setNegativeButton("Cancel", null)
                     .show()
+            },
+            // Feature A — see HomeViewModel.getMergedVodPreviewUrl kdoc for the Settings-toggle +
+            // Feature C budget-check gating (null return = skip preview, static poster stays).
+            vodPreviewUrlProvider = { vod ->
+                try { viewModel.getMergedVodPreviewUrl(vod) } catch (_: Exception) { null }
             }
         )
         mergedVodAdapter.isTvMode = true
@@ -1128,6 +1134,9 @@ class TvHomeActivity : AppCompatActivity() {
                     putExtra("vod_cover", vod.streamIcon)
                     putExtra("vod_rating", vod.rating)
                 })
+            },
+            vodPreviewUrlProvider = { vod ->
+                try { viewModel.getVodPreviewUrl(vod) } catch (_: Exception) { null }
             }
         )
 
@@ -1162,6 +1171,15 @@ class TvHomeActivity : AppCompatActivity() {
                     putExtra("vod_cover", vod.streamIcon)
                     putExtra("vod_rating", vod.rating)
                 })
+            },
+            // Feature A: Auto-Generated VOD Trailers — focus-preview wiring. Reuses the SAME
+            // stream-URL builder onVodClick above uses (HomeViewModel.getVodStreamUrl ->
+            // XtreamRepository.getVodStreamUrl -> XtreamUrlBuilder.vodStreamUrl), never a separate
+            // URL construction. Returns null (skip preview, static poster stays) when the Settings
+            // toggle is off or Feature C's warn-only budget check says the monthly cap is at/over
+            // 80% — BandwidthBudgetManager.isNearOrOverBudget is checked for real here, not stubbed.
+            vodPreviewUrlProvider = { vod ->
+                try { viewModel.getVodPreviewUrl(vod) } catch (_: Exception) { null }
             }
         )
 

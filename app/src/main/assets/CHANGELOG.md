@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v6.02 - 2026-08-14
+- **Added**: Auto-preview movie trailers — focus a movie or series poster (D-pad or touch) and
+  a short muted preview clip plays right on the tile after a moment, like browsing a streaming
+  service. Toggle it off in Settings ("Auto-preview movies on focus") if you'd rather not.
+- **Added**: EPG schedule change alerts — when a program on one of your favorite channels gets
+  rescheduled, replaced, or pulled, you'll see a short summary next time you open the Guide.
+- **Added**: Bandwidth Budget Mode — set a monthly data cap per provider in Settings and get a
+  one-time warning at 80% and 100% usage. Doesn't change stream quality, just keeps you informed.
+
 ## v6.01 - 2026-08-14
 - **Added**: Ghost Channel Radar — a small reliability dot now appears next to channels you've
   actually played before, based on your own device's playback history (no probing, no extra

@@ -360,3 +360,22 @@ data class ProviderHourlyStatsEntity(
     val eventCount: Int = 0,
     val sampleCount: Int = 0
 )
+
+// EPG Diff Alerts (Feature B) — one row per detected schedule change for a FAVORITED channel's
+// EPG, captured at the moment a get_short_epg refresh upserts new EpgEntity rows for that
+// channel. Two detected cases only: (1) a same-time-slot program whose title changed
+// (rescheduled/replaced) — newTitle is set, oldTitle is the previous title; (2) a program that
+// existed in the prior snapshot but is entirely missing from the new one (pulled) — newTitle is
+// null. `shown` starts false and is flipped true the next time the Guide/EPG screen (or app open)
+// displays/toasts it, so the same alert never surfaces twice.
+@Entity(tableName = "epg_diff_alerts")
+data class EpgDiffAlertEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val serverIndex: Int,
+    val streamId: Int,
+    val channelName: String,
+    val oldTitle: String,
+    val newTitle: String?, // null = the old program was pulled entirely, not replaced
+    val timestamp: Long,
+    val shown: Boolean = false
+)

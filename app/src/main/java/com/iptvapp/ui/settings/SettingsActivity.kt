@@ -1050,6 +1050,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
         binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
         binding.btnDataUsage.setOnClickListener { showDataUsageDialog() }
+        binding.btnBandwidthBudget.setOnClickListener { showBandwidthBudgetDialog() }
         binding.btnProviderWeather.setOnClickListener { showProviderWeatherDialog() }
         binding.btnLanExport.setOnClickListener { showLanExportDialog() }
         binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
@@ -1082,6 +1083,13 @@ class SettingsActivity : AppCompatActivity() {
                 if (isChecked) scheduleAutoBackup() else cancelAutoBackup()
                 updateAutoBackupPathLabel(isChecked)
             }
+        }
+
+        lifecycleScope.launch {
+            binding.switchVodAutoPreview.isChecked = prefs.vodAutoPreviewEnabled.first()
+        }
+        binding.switchVodAutoPreview.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setVodAutoPreviewEnabled(isChecked) }
         }
 
         lifecycleScope.launch {
@@ -1409,6 +1417,57 @@ class SettingsActivity : AppCompatActivity() {
                 .setTitle("Data Usage — This Month")
                 .setMessage(message)
                 .setPositiveButton("Close", null)
+                .show()
+        }
+    }
+
+    /** Feature C: Bandwidth Budget Mode — set (or clear) a single global monthly data cap in GB
+     * across every provider combined. Warn-only: see BandwidthBudgetManager kdoc, no bitrate/
+     * quality changes are ever made from this. 0/blank clears the cap. */
+    /** Feature C: per-provider monthly data cap (GB) — presents one provider at a time via a
+     * picker, then an EditText for that provider's cap, mirroring showDataUsageDialog's
+     * per-provider granularity (primaryNick/extraNicks lookup). Caps are stored under
+     * PreferencesManager's bandwidth_cap_gb_<serverIndex> key scheme; 0/blank disables the cap
+     * for that provider. WARN-ONLY — see BandwidthBudgetManager, never touches playback quality. */
+    private fun showBandwidthBudgetDialog() {
+        lifecycleScope.launch {
+            val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
+            val extraNicks = prefs.getExtraServersWithNick().map { it.getOrElse(3) { "" } }
+            val providers = buildList {
+                add(-1 to primaryNick)
+                extraNicks.forEachIndexed { i, nick ->
+                    add(i to (nick.takeUnless { it.isBlank() } ?: "Provider ${i + 1}"))
+                }
+            }
+            val labels = providers.map { it.second }.toTypedArray()
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Monthly Data Cap — Choose Provider")
+                .setItems(labels) { _, which ->
+                    val (serverIndex, nick) = providers[which]
+                    showBandwidthCapEditDialog(serverIndex, nick)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun showBandwidthCapEditDialog(serverIndex: Int, nickname: String) {
+        lifecycleScope.launch {
+            val current = prefs.getBandwidthCapGb(serverIndex)
+            val input = android.widget.EditText(this@SettingsActivity).apply {
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setText(if (current > 0) current.toString() else "")
+                hint = "e.g. 500"
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("$nickname — Monthly Data Cap (GB)")
+                .setMessage("Get warned at 80% and 100% of this cap for this provider only. This only shows a warning — video quality is never changed. Leave blank to disable.")
+                .setView(input)
+                .setPositiveButton("Save") { _, _ ->
+                    val gb = input.text.toString().trim().toIntOrNull() ?: 0
+                    lifecycleScope.launch { prefs.setBandwidthCapGb(serverIndex, gb) }
+                }
+                .setNegativeButton("Cancel", null)
                 .show()
         }
     }

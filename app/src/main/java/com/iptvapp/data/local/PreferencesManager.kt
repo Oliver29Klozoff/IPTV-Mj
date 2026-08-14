@@ -182,6 +182,20 @@ class PreferencesManager @Inject constructor(
         // One-time flag — see XtreamRepository.backfillFavoriteChannelNumbers's kdoc. Ensures the
         // backfill runs exactly once per install rather than on every app start.
         val FAVORITE_NUMBERS_BACKFILLED = booleanPreferencesKey("favorite_numbers_backfilled")
+
+        // Feature C: Bandwidth Budget Mode — WARN-ONLY, no bitrate/quality changes anywhere.
+        // Per-provider (keyed by serverIndex, -1 = primary), mirroring BandwidthUsageEntity's own
+        // per-provider granularity — see bandwidthCapGbKey/bandwidthWarnedKey below. 0/absent = no
+        // cap set for that provider.
+        fun bandwidthCapGbKey(serverIndex: Int) = intPreferencesKey("bandwidth_cap_gb_$serverIndex")
+        // "bandwidth_warned_80_<serverIndex>_<yearMonth>" / "..._100_..." — true once that
+        // threshold has already triggered a toast for that provider this month, so the caller
+        // only ever warns once per threshold crossing instead of on every single check.
+        fun bandwidthWarnedKey(serverIndex: Int, thresholdPercent: Int, yearMonth: String) =
+            booleanPreferencesKey("bandwidth_warned_${thresholdPercent}_${serverIndex}_${yearMonth}")
+
+        // Feature A: Auto-Generated VOD Trailers — default ON.
+        val VOD_AUTO_PREVIEW_ENABLED = booleanPreferencesKey("vod_auto_preview_enabled")
     }
 
     val favoriteNumbersBackfilled: Flow<Boolean> = context.dataStore.data
@@ -841,5 +855,30 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setLastSyncTime(timeMillis: Long) {
         context.dataStore.edit { it[Keys.LAST_SYNC_TIME] = timeMillis }
+    }
+
+    // ─── Feature C: Bandwidth Budget Mode ────────────────────────────────────
+
+    /** Monthly cap in GB for one provider (serverIndex, -1 = primary). 0 = no cap set. */
+    suspend fun getBandwidthCapGb(serverIndex: Int): Int =
+        context.dataStore.data.first()[Keys.bandwidthCapGbKey(serverIndex)] ?: 0
+    fun bandwidthCapGbFlow(serverIndex: Int): Flow<Int> =
+        context.dataStore.data.map { it[Keys.bandwidthCapGbKey(serverIndex)] ?: 0 }
+    suspend fun setBandwidthCapGb(serverIndex: Int, gb: Int) {
+        context.dataStore.edit { it[Keys.bandwidthCapGbKey(serverIndex)] = gb }
+    }
+
+    suspend fun hasWarnedThreshold(serverIndex: Int, yearMonth: String, thresholdPercent: Int): Boolean =
+        context.dataStore.data.first()[Keys.bandwidthWarnedKey(serverIndex, thresholdPercent, yearMonth)] ?: false
+
+    suspend fun markWarnedThreshold(serverIndex: Int, yearMonth: String, thresholdPercent: Int) {
+        context.dataStore.edit { it[Keys.bandwidthWarnedKey(serverIndex, thresholdPercent, yearMonth)] = true }
+    }
+
+    // ─── Feature A: Auto-Generated VOD Trailers ──────────────────────────────
+
+    val vodAutoPreviewEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.VOD_AUTO_PREVIEW_ENABLED] ?: true }
+    suspend fun setVodAutoPreviewEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.VOD_AUTO_PREVIEW_ENABLED] = enabled }
     }
 }

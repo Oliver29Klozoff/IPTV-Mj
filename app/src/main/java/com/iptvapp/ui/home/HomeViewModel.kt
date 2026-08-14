@@ -2,6 +2,7 @@ package com.iptvapp.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -10,6 +11,7 @@ import com.iptvapp.data.local.entities.SeriesEntity
 import com.iptvapp.data.local.entities.VodEntity
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.ui.guide.GuideRow
+import com.iptvapp.ui.player.BandwidthBudgetManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -69,8 +71,21 @@ sealed class GlobalSearchResult {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: XtreamRepository,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val db: IptvDatabase
 ) : ViewModel() {
+
+    private val bandwidthBudgetManager by lazy { BandwidthBudgetManager(db, prefs) }
+
+    /** Feature A gating: true only when the "Auto-preview movies on focus" Settings toggle is on
+     * AND BandwidthBudgetManager says this provider isn't near/over its monthly cap. VOD grid
+     * adapters call the url-provider lambda that wraps this (see HomeActivity/TvHomeActivity's
+     * adapter construction) before ever resolving a stream URL for a focus-preview. */
+    suspend fun shouldAutoPreviewVod(serverIndex: Int): Boolean {
+        if (!prefs.vodAutoPreviewEnabled.first()) return false
+        if (bandwidthBudgetManager.isNearOrOverBudget(serverIndex)) return false
+        return true
+    }
 
     // Plain fields, not StateFlow — this only needs to survive HomeActivity being recreated
     // on rotation (the ViewModel outlives that), not to be observed. HomeActivity reads this
@@ -2186,6 +2201,19 @@ class HomeViewModel @Inject constructor(
 
     suspend fun getVodStreamUrl(streamId: Int, extension: String): String =
         repository.getVodStreamUrl(streamId, extension)
+
+    /** Feature A: null if preview should be skipped entirely (toggle off, or this provider is
+     * near/over its bandwidth budget — see shouldAutoPreviewVod), otherwise the real playable
+     * stream URL for this VOD title's TilePreviewPlayer focus-preview. */
+    suspend fun getVodPreviewUrl(vod: VodEntity): String? {
+        if (!shouldAutoPreviewVod(-1)) return null
+        return repository.getVodStreamUrl(vod.streamId, vod.containerExtension)
+    }
+
+    suspend fun getMergedVodPreviewUrl(vod: com.iptvapp.data.local.entities.MergedVodEntity): String? {
+        if (!shouldAutoPreviewVod(vod.serverIndex)) return null
+        return repository.getMergedVodStreamUrl(vod.serverIndex, vod.streamId, vod.containerExtension)
+    }
 
     suspend fun getTimeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
         repository.getTimeshiftUrl(streamId, startTimestampSec, durationMinutes)

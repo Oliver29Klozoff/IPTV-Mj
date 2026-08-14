@@ -24,7 +24,12 @@ import java.util.concurrent.atomic.AtomicLong
 class BandwidthTracker(
     private val dao: BandwidthUsageDao,
     @Volatile private var serverIndex: Int,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    // Feature C hook — called (best-effort, on IO) after every successful flush so
+    // BandwidthBudgetManager.checkAndWarn can re-evaluate the monthly cap against freshly
+    // written usage totals. Optional so every pre-existing BandwidthTracker(...) call site
+    // that doesn't care about budget warnings keeps compiling unchanged.
+    private val onFlushed: (suspend () -> Unit)? = null
 ) {
     private val pendingBytes = AtomicLong(0L)
     private var flushJob: kotlinx.coroutines.Job? = null
@@ -92,6 +97,7 @@ class BandwidthTracker(
         val yearMonth = SimpleDateFormat("yyyy-MM", Locale.US).format(Date())
         try {
             dao.addUsage(targetServerIndex, yearMonth, bytes)
+            onFlushed?.invoke()
         } catch (_: Exception) {
             // Best-effort stat tracking — never worth crashing playback over.
         }

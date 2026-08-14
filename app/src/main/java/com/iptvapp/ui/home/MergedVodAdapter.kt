@@ -23,7 +23,9 @@ sealed class MergedVodRow {
 class MergedVodAdapter(
     private val onItemClick: (MergedVodEntity) -> Unit,
     private val onFavoriteClick: (MergedVodEntity) -> Unit = {},
-    private val onItemLongClick: (MergedVodEntity) -> Unit = {}
+    private val onItemLongClick: (MergedVodEntity) -> Unit = {},
+    // Feature A: see VodAdapter's matching parameter kdoc — null means preview unsupported here.
+    private val vodPreviewUrlProvider: (suspend (MergedVodEntity) -> String?)? = null
 ) : ListAdapter<MergedVodRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
@@ -125,6 +127,24 @@ class MergedVodAdapter(
             binding.ivVodFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener { onItemClick(item) }
             binding.root.setOnLongClickListener { onItemLongClick(item); true }
+
+            // Feature A: Auto-Generated VOD Trailers — see TilePreviewPlayer/VodAdapter kdoc.
+            // Keyed "serverIndex:streamId" since plain streamId isn't unique across providers.
+            val provider = vodPreviewUrlProvider
+            if (provider != null) {
+                binding.root.setOnFocusChangeListener { _, focused ->
+                    val key = "${item.serverIndex}:${item.streamId}"
+                    if (focused) {
+                        TilePreviewPlayer.onTileFocused(binding.root.context, key, binding.playerVodPreview) {
+                            provider(item)
+                        }
+                    } else {
+                        TilePreviewPlayer.onTileUnfocused(key)
+                    }
+                }
+            } else {
+                binding.root.onFocusChangeListener = null
+            }
         }
     }
 
@@ -140,6 +160,14 @@ class MergedVodAdapter(
         when (val row = getItem(position)) {
             is MergedVodRow.Header -> (holder as HeaderViewHolder).bind(row)
             is MergedVodRow.Item -> (holder as ViewHolder).bind(row.vod)
+        }
+    }
+
+    // See VodAdapter.onViewRecycled kdoc — same guarantee for this list's tiles.
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        if (holder is ViewHolder) {
+            TilePreviewPlayer.releaseIfHolding(holder.binding.playerVodPreview)
         }
     }
 

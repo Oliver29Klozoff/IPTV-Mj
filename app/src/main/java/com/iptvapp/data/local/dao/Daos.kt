@@ -819,4 +819,27 @@ interface BandwidthUsageDao {
 
     @Query("SELECT * FROM bandwidth_usage WHERE yearMonth = :yearMonth AND bytesTransferred > 0 ORDER BY bytesTransferred DESC")
     suspend fun getUsageForMonth(yearMonth: String): List<BandwidthUsageEntity>
+
+    @Query("SELECT bytesTransferred FROM bandwidth_usage WHERE serverIndex = :serverIndex AND yearMonth = :yearMonth")
+    suspend fun getUsageForServerMonth(serverIndex: Int, yearMonth: String): Long?
+
+    @Query("SELECT COALESCE(SUM(bytesTransferred), 0) FROM bandwidth_usage WHERE yearMonth = :yearMonth")
+    suspend fun getTotalUsageForMonth(yearMonth: String): Long
+}
+
+@Dao
+interface EpgDiffAlertDao {
+    @Insert
+    suspend fun insert(alert: EpgDiffAlertEntity)
+
+    @Query("SELECT * FROM epg_diff_alerts WHERE shown = 0 ORDER BY timestamp ASC")
+    suspend fun getUnshown(): List<EpgDiffAlertEntity>
+
+    @Query("UPDATE epg_diff_alerts SET shown = 1 WHERE id IN (:ids)")
+    suspend fun markShown(ids: List<Long>)
+
+    // Keeps the table from growing forever — only unshown rows and a short recent tail of
+    // already-shown ones are worth keeping around.
+    @Query("DELETE FROM epg_diff_alerts WHERE shown = 1 AND timestamp < :beforeMs")
+    suspend fun pruneShownOlderThan(beforeMs: Long)
 }

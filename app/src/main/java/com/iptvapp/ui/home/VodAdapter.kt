@@ -1,6 +1,7 @@
 package com.iptvapp.ui.home
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -22,7 +23,13 @@ sealed class VodRow {
 class VodAdapter(
     private val onVodClick: (VodEntity) -> Unit,
     private val onFavoriteClick: (VodEntity) -> Unit,
-    private val onVodLongClick: (VodEntity) -> Unit = {}
+    private val onVodLongClick: (VodEntity) -> Unit = {},
+    // Feature A: Auto-Generated VOD Trailers. Null (the default) means preview is unsupported by
+    // this particular RecyclerView instance/screen — leaving it off is always safe. When
+    // supplied, resolves the real playable stream URL for a VodEntity, returning null to skip
+    // preview entirely (e.g. Settings toggle off, or BandwidthBudgetManager.isNearOrOverBudget
+    // is true for this provider — see HomeActivity/TvHomeActivity's wiring of this lambda).
+    private val vodPreviewUrlProvider: (suspend (VodEntity) -> String?)? = null
 ) : ListAdapter<VodRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
@@ -103,6 +110,25 @@ class VodAdapter(
             binding.root.setOnClickListener { onVodClick(item) }
             binding.root.setOnLongClickListener { onVodLongClick(item); true }
             binding.ivVodFavorite.setOnClickListener { onFavoriteClick(item) }
+
+            // Feature A: Auto-Generated VOD Trailers — see TilePreviewPlayer kdoc. onFocusChange
+            // fires for both D-pad focus (TV) and touch-mode "focused" state (phone), so this one
+            // listener covers both without a TV/phone branch.
+            val provider = vodPreviewUrlProvider
+            if (provider != null) {
+                binding.root.setOnFocusChangeListener { _, focused ->
+                    val key = item.streamId.toString()
+                    if (focused) {
+                        TilePreviewPlayer.onTileFocused(binding.root.context, key, binding.playerVodPreview) {
+                            provider(item)
+                        }
+                    } else {
+                        TilePreviewPlayer.onTileUnfocused(key)
+                    }
+                }
+            } else {
+                binding.root.onFocusChangeListener = null
+            }
         }
     }
 
@@ -118,6 +144,16 @@ class VodAdapter(
         when (val row = getItem(position)) {
             is VodRow.Header -> (holder as HeaderViewHolder).bind(row)
             is VodRow.Item -> (holder as ViewHolder).bind(row.vod)
+        }
+    }
+
+    // Feature A: guarantees the shared preview player is detached the moment a tile is recycled
+    // (scrolled off / view reused for different data), not just on focus-loss — a tile can be
+    // recycled by the LayoutManager without ever receiving an onFocusChange(false) callback first.
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        if (holder is ViewHolder) {
+            TilePreviewPlayer.releaseIfHolding(holder.binding.playerVodPreview)
         }
     }
 
@@ -138,7 +174,9 @@ class VodAdapter(
 // header that would need to stretch across every grid column.
 class TvVodPosterAdapter(
     private val onVodClick: (VodEntity) -> Unit,
-    private val onVodLongClick: (VodEntity) -> Unit = {}
+    private val onVodLongClick: (VodEntity) -> Unit = {},
+    // See VodAdapter's matching parameter kdoc.
+    private val vodPreviewUrlProvider: (suspend (VodEntity) -> String?)? = null
 ) : ListAdapter<VodEntity, TvVodPosterAdapter.ViewHolder>(PosterDiffCallback()) {
 
     inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvVodPosterBinding) :
@@ -163,6 +201,24 @@ class TvVodPosterAdapter(
             }
             binding.root.setOnClickListener { onVodClick(item) }
             binding.root.setOnLongClickListener { onVodLongClick(item); true }
+
+            // Feature A: Auto-Generated VOD Trailers — this grid is D-pad-focus-driven (TV), the
+            // primary target case the feature spec describes.
+            val provider = vodPreviewUrlProvider
+            if (provider != null) {
+                binding.root.setOnFocusChangeListener { _, focused ->
+                    val key = item.streamId.toString()
+                    if (focused) {
+                        TilePreviewPlayer.onTileFocused(binding.root.context, key, binding.playerVodPreview) {
+                            provider(item)
+                        }
+                    } else {
+                        TilePreviewPlayer.onTileUnfocused(key)
+                    }
+                }
+            } else {
+                binding.root.onFocusChangeListener = null
+            }
         }
     }
 
@@ -171,6 +227,12 @@ class TvVodPosterAdapter(
     )
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(getItem(position))
+
+    // See VodAdapter.onViewRecycled kdoc — same guarantee for this grid's tiles.
+    override fun onViewRecycled(holder: ViewHolder) {
+        super.onViewRecycled(holder)
+        TilePreviewPlayer.releaseIfHolding(holder.binding.playerVodPreview)
+    }
 
     class PosterDiffCallback : DiffUtil.ItemCallback<VodEntity>() {
         override fun areItemsTheSame(a: VodEntity, b: VodEntity) = a.streamId == b.streamId

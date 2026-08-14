@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/mergedVodItemRoot"
     android:layout_width="match_parent"
     android:layout_height="80dp"
@@ -19,11 +20,23 @@
         android:focusable="false"
         android:visibility="gone" />
 
-    <ImageView
-        android:id="@+id/ivVodPoster"
+    <FrameLayout
+        android:id="@+id/vodPosterOverlay"
         android:layout_width="48dp"
-        android:layout_height="60dp"
-        android:scaleType="fitCenter" />
+        android:layout_height="60dp">
+        <ImageView
+            android:id="@+id/ivVodPoster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter" />
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/playerVodPreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            app:use_controller="false"
+            app:resize_mode="zoom" />
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"

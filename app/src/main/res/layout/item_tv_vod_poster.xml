@@ -3,6 +3,7 @@
      TvMoviesPosterAdapter / showMoviesFullScreen). match_parent width fills whatever cell width
      the GridLayoutManager assigns it. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/cardRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -14,6 +15,7 @@
     android:padding="8dp">
 
     <FrameLayout
+        android:id="@+id/frameVodPoster"
         android:layout_width="match_parent"
         android:layout_height="280dp"
         android:background="#1A1A1A">
@@ -23,6 +25,19 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerCrop" />
+
+        <!-- Feature A: Auto-Generated VOD Trailers — TilePreviewPlayer reattaches its single
+             shared, muted ExoPlayer here only while THIS tile is the currently D-pad-focused one
+             (after the debounce delay), and detaches immediately on focus loss or view recycling.
+             Hidden otherwise so the static poster above shows through — see TilePreviewPlayer
+             kdoc for the single-shared-instance safety design. -->
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/playerVodPreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            app:use_controller="false"
+            app:resize_mode="zoom" />
 
         <!-- Non-interactive status badge now (favoriting moved to VodDetailActivity's "Add to
              Favorites" button, reached via long-press) — only shown when the movie IS a

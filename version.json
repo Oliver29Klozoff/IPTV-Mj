@@ -1,7 +1,7 @@
 {
-  "versionCode": 439,
-  "versionName": "6.01",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.01/MKTV.apk",
-  "apkSha256": "45cd869d355a21f9be66f8b84e10fe55309c5f9900c26dd4701069f43c4f1daf",
-  "changelog": "Added Ghost Channel Radar (per-channel reliability dots from your own playback history), Provider Health Weather Map (24-hour reliability strip per provider in Settings), and an opt-in Community Stream Health Feed."
+  "versionCode": 440,
+  "versionName": "6.02",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.02/MKTV.apk",
+  "apkSha256": "45331e4a966fcc7258a820c8f15fb39cfb0dfc3bf5a51432be78692ef9960fc0",
+  "changelog": "Added auto-preview movie trailers on focus, EPG schedule change alerts for favorite channels, and Bandwidth Budget Mode (monthly data cap warnings per provider)."
 }

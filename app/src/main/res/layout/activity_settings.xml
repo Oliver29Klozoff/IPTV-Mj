@@ -1921,6 +1921,33 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content" />
                             </LinearLayout>
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Auto-preview movies on focus"
+                                    android:textColor="#CCCCCC"
+                                    android:textSize="13sp" />
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchVodAutoPreview"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <Button
+                                android:id="@+id/btnBandwidthBudget"
+                                style="?android:attr/buttonBarButtonStyle"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="Monthly Data Cap"
+                                android:textAllCaps="false"
+                                android:textColor="#008CFF" />
                             <TextView
                                 android:id="@+id/tvAutoBackupPath"
                                 android:layout_width="match_parent"

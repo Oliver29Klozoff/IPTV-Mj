@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.iptvapp.R
+import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.entities.EpgEntity
 import com.iptvapp.databinding.ActivityEpgTimelineBinding
 import com.iptvapp.ui.home.HomeViewModel
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class EpgTimelineActivity : AppCompatActivity() {
@@ -38,6 +40,8 @@ class EpgTimelineActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEpgTimelineBinding
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var adapter: TimelineAdapter
+
+    @Inject lateinit var db: IptvDatabase
 
     // 4dp per minute — 30min=120dp, 1hr=240dp
     private val dpPerMin = 4f
@@ -103,6 +107,32 @@ class EpgTimelineActivity : AppCompatActivity() {
         updateDayLabel()
         buildTimeHeader()
         observeGuide()
+        showEpgDiffAlerts()
+    }
+
+    /** Feature B: shows any pending (unshown) EPG diff alerts for favorite channels — schedule
+     * changes/pulls detected during the most recent EPG refresh(es), see
+     * XtreamRepository.recordFavoriteEpgDiffs. Surfaced here (the Guide/EPG screen) rather than
+     * as a push notification, per spec — a single combined toast per open, then every shown
+     * alert is marked so it never surfaces again. */
+    private fun showEpgDiffAlerts() {
+        lifecycleScope.launch {
+            val pending = try { db.epgDiffAlertDao().getUnshown() } catch (_: Exception) { emptyList() }
+            if (pending.isEmpty()) return@launch
+            val lines = pending.take(5).map { alert ->
+                if (alert.newTitle != null)
+                    "${alert.channelName}: \"${alert.oldTitle}\" changed to \"${alert.newTitle}\""
+                else
+                    "${alert.channelName}: \"${alert.oldTitle}\" was pulled from the schedule"
+            }
+            val extra = if (pending.size > 5) "\n+${pending.size - 5} more change(s)" else ""
+            AlertDialog.Builder(this@EpgTimelineActivity)
+                .setTitle("Guide Changes — Favorites")
+                .setMessage(lines.joinToString("\n") + extra)
+                .setPositiveButton("OK", null)
+                .show()
+            db.epgDiffAlertDao().markShown(pending.map { it.id })
+        }
     }
 
     private fun updateDayLabel() {

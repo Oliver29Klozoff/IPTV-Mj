@@ -1536,7 +1536,11 @@ class PlayerActivity : AppCompatActivity() {
         // to. Re-created per buildPlayer() call since serverIndex can change (failover, channel
         // switch reusing this same Activity).
         bandwidthTracker?.stop()
-        bandwidthTracker = BandwidthTracker(db.bandwidthUsageDao(), serverIndex, lifecycleScope).also { it.startPeriodicFlush() }
+        // Feature C: warn-only per-provider bandwidth budget check re-evaluated after every flush
+        // (~7s during active playback) — see BandwidthBudgetManager kdoc.
+        bandwidthTracker = BandwidthTracker(db.bandwidthUsageDao(), serverIndex, lifecycleScope) {
+            com.iptvapp.ui.player.BandwidthBudgetManager(db, prefs).checkAndWarn(this@PlayerActivity, serverIndex)
+        }.also { it.startPeriodicFlush() }
         val trackedDataSourceFactory = bandwidthTracker!!.wrap(cacheDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(trackedDataSourceFactory)
 

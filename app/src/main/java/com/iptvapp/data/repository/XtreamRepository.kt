@@ -587,8 +587,88 @@ class XtreamRepository @Inject constructor(
                     hasArchive = it.hasArchive
                 )
             }
+            val beforeSnapshot = snapshotFavoriteEpg(-1, listOf(streamId))
             db.epgDao().upsertEpg(entities)
+            recordFavoriteEpgDiffs(-1, beforeSnapshot)
             entities
+        }
+    }
+
+    /**
+     * Feature B (EPG Diff Alerts): snapshots the current epg_entries rows for the given
+     * streamIds, but ONLY for ones that are favorited — the task scope is "favorite/starred
+     * channels only". Called BEFORE an upsert that may replace/delete those rows, so the
+     * post-upsert comparison in recordFavoriteEpgDiffs has something to diff against. Returns an
+     * empty map (cheap no-op) when none of the given streamIds are favorited.
+     */
+    private suspend fun snapshotFavoriteEpg(serverIndex: Int, streamIds: List<Int>): Map<Int, List<EpgEntity>> {
+        if (streamIds.isEmpty()) return emptyMap()
+        val favoriteIds: Set<Int> = if (serverIndex == -1) {
+            db.channelDao().getFavoriteChannelIds().toSet()
+        } else {
+            db.mergedChannelDao().getAllForServer(serverIndex).filter { it.isFavorite }.map { it.streamId }.toSet()
+        }
+        val relevant = streamIds.filter { it in favoriteIds }
+        if (relevant.isEmpty()) return emptyMap()
+        return db.epgDao().getEpgForStreams(relevant, serverIndex).first()
+            .groupBy { it.streamId }
+    }
+
+    /**
+     * Feature B: compares each favorited channel's EPG snapshot (captured by snapshotFavoriteEpg
+     * right before the upsert that just ran) against what's in epg_entries now, and records
+     * exactly two kinds of change as a new EpgDiffAlertEntity row:
+     *  1) same time-slot (identical start+stop timestamp) but a different title -> program changed
+     *  2) a title that existed in the old snapshot but has no matching (start,stop,title) row in
+     *     the new set at all -> show pulled (newTitle = null)
+     * No-ops entirely if `before` is empty (nothing favorited was in this batch).
+     */
+    private suspend fun recordFavoriteEpgDiffs(serverIndex: Int, before: Map<Int, List<EpgEntity>>) {
+        if (before.isEmpty()) return
+        val now = System.currentTimeMillis()
+        before.forEach { (streamId, oldEntries) ->
+            val newEntries = db.epgDao().getEpgForStream(streamId, serverIndex).first()
+            val newBySlot = newEntries.associateBy { it.startTimestamp to it.stopTimestamp }
+            val newTitles = newEntries.map { it.title }.toSet()
+            val channelName = channelNameForDiff(serverIndex, streamId) ?: return@forEach
+
+            oldEntries.forEach { old ->
+                val sameSlot = newBySlot[old.startTimestamp to old.stopTimestamp]
+                when {
+                    sameSlot != null && sameSlot.title != old.title -> {
+                        db.epgDiffAlertDao().insert(
+                            EpgDiffAlertEntity(
+                                serverIndex = serverIndex,
+                                streamId = streamId,
+                                channelName = channelName,
+                                oldTitle = old.title,
+                                newTitle = sameSlot.title,
+                                timestamp = now
+                            )
+                        )
+                    }
+                    sameSlot == null && old.title !in newTitles -> {
+                        db.epgDiffAlertDao().insert(
+                            EpgDiffAlertEntity(
+                                serverIndex = serverIndex,
+                                streamId = streamId,
+                                channelName = channelName,
+                                oldTitle = old.title,
+                                newTitle = null,
+                                timestamp = now
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun channelNameForDiff(serverIndex: Int, streamId: Int): String? {
+        return if (serverIndex == -1) {
+            db.channelDao().getChannelById(streamId)?.name
+        } else {
+            db.mergedChannelDao().getAllForServer(serverIndex).firstOrNull { it.streamId == streamId }?.name
         }
     }
 
@@ -637,6 +717,11 @@ class XtreamRepository @Inject constructor(
         }
         val byName: Map<String, Int> = byNameRaw.filterValues { it.size == 1 }.mapValues { it.value[0] }
 
+        // Feature B: snapshot every favorited channel's current EPG BEFORE the delete+rebuild
+        // below wipes it out, so recordFavoriteEpgDiffs has the "old" side of the comparison.
+        val favoriteIds = db.channelDao().getFavoriteChannelIds()
+        val beforeSnapshot = snapshotFavoriteEpg(-1, favoriteIds)
+
         // Clear every existing primary-server EPG row before writing the fresh batch — see
         // EpgDao.deleteAllForServer's kdoc for why upsert alone can leave stale, WRONG entries
         // behind under an old streamId when a channel now resolves differently (or not at all)
@@ -651,6 +736,7 @@ class XtreamRepository @Inject constructor(
                 fetchXmltvFromUrl(url, byEpgId, byName)
             } catch (_: Exception) { 0 }
         }
+        recordFavoriteEpgDiffs(-1, beforeSnapshot)
         totalCount
     }
 
@@ -1888,7 +1974,9 @@ class XtreamRepository @Inject constructor(
                     hasArchive = it.hasArchive
                 )
             }
+            val beforeSnapshot = snapshotFavoriteEpg(serverIndex, listOf(streamId))
             db.epgDao().upsertEpg(entities)
+            recordFavoriteEpgDiffs(serverIndex, beforeSnapshot)
             entities
         } catch (_: Exception) {
             emptyList()
@@ -1964,6 +2052,11 @@ class XtreamRepository @Inject constructor(
                 return@withContext 0
             }
 
+            // Feature B: snapshot every favorited channel's current EPG on this server BEFORE the
+            // delete+rebuild below wipes it out — see snapshotFavoriteEpg/recordFavoriteEpgDiffs.
+            val favoriteStreamIds = channels.filter { it.isFavorite }.map { it.streamId }
+            val beforeSnapshot = snapshotFavoriteEpg(serverIndex, favoriteStreamIds)
+
             // See EpgDao.deleteAllForServer's kdoc — upsert alone can leave stale, WRONG rows
             // behind under an old streamId when re-matching resolves a channel differently than a
             // previous fetch did. Placed after the empty-programs guard above so a failed/empty
@@ -2008,6 +2101,7 @@ class XtreamRepository @Inject constructor(
             }
             android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): saving ${entities.size} EPG entries after channel-match filtering")
             entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
+            recordFavoriteEpgDiffs(serverIndex, beforeSnapshot)
             entities.size
         } catch (e: Exception) {
             android.util.Log.e(tag, "serverIndex=$serverIndex (${server.nickname}): failed", e)
