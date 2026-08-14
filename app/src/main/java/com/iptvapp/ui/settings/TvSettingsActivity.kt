@@ -2456,7 +2456,7 @@ class TvSettingsActivity : AppCompatActivity() {
                 intent.putExtra("server_index", content.serverIndex)
                 intent.putExtra("merged_stream_id", content.mergedStreamId)
                 val url = try {
-                    if (content.serverIndex != -1) repository.getMergedLiveStreamUrl(content.serverIndex, content.mergedStreamId)
+                    if (content.serverIndex != -1) repository.getMergedLiveStreamUrl(content.serverIndex, content.streamId)
                     else repository.getLiveStreamUrl(content.streamId)
                 } catch (e: Exception) {
                     toast("Couldn't load party's channel")
@@ -2484,7 +2484,7 @@ class TvSettingsActivity : AppCompatActivity() {
                 intent.putExtra("server_index", content.serverIndex)
                 intent.putExtra("merged_stream_id", content.mergedStreamId)
                 val url = try {
-                    if (content.serverIndex != -1) repository.getMergedVodStreamUrl(content.serverIndex, content.mergedStreamId, content.containerExtension)
+                    if (content.serverIndex != -1) repository.getMergedVodStreamUrl(content.serverIndex, content.streamId, content.containerExtension)
                     else repository.getVodStreamUrl(content.streamId, content.containerExtension)
                 } catch (e: Exception) { null }
                 if (url == null) {

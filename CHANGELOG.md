@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.05 - 2026-08-14
+- **Fixed**: the actual root cause of Watch Party getting stuck buffering on a secondary/merged
+  provider, for both live channels and movies/episodes — joining a party built the stream URL
+  with the wrong internal ID, so it looked connected (member count showed correctly) but never
+  loaded real video. Also fixed the same bug in the Settings-based "Join Watch Party" flow.
+
 ## v6.04 - 2026-08-14
 - **Fixed**: Watch Party for movies/episodes could get stuck buffering forever on a member's
   device — joining (or the host switching titles mid-party) never actually loaded the movie

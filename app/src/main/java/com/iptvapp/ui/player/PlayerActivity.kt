@@ -685,7 +685,7 @@ class PlayerActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     try {
                         val url = if (state.content.serverIndex != -1)
-                            repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.mergedStreamId)
+                            repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.streamId)
                         else repository.getLiveStreamUrl(state.content.streamId)
                         loadStream(url)
                     } catch (_: Exception) {
