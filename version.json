@@ -1,7 +1,7 @@
 {
-  "versionCode": 441,
-  "versionName": "6.03",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.03/MKTV.apk",
-  "apkSha256": "66e64d5b723543ff907b2a0eef6fc24010d589bafd6be9ae26551279275191a6",
-  "changelog": "Fixed auto-preview movie trailers on phone — now triggers from scroll-centering instead of D-pad focus, which phones don't have."
+  "versionCode": 442,
+  "versionName": "6.04",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.04/MKTV.apk",
+  "apkSha256": "8bbb45cec7a79672e457c605add387929e46516864f549b7dbf39b720e98890b",
+  "changelog": "Fixed Watch Party for movies/episodes getting stuck buffering forever on a member's device -- it now actually loads the title on your own provider when you join or the host switches."
 }

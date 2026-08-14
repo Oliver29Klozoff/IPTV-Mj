@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.04 - 2026-08-14
+- **Fixed**: Watch Party for movies/episodes could get stuck buffering forever on a member's
+  device — joining (or the host switching titles mid-party) never actually loaded the movie
+  on the member's own account, it only tried to seek/play a player with nothing loaded. Now
+  it resolves and loads the title on your own provider properly, just like Live TV already did.
+
 ## v6.03 - 2026-08-14
 - **Fixed**: Auto-preview movie trailers now actually work on phone — since phones have no
   D-pad focus, whichever poster is centered on screen highlights and previews automatically

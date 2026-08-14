@@ -704,8 +704,58 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
 
-        // VOD/EPISODE: drift-compensate position using server-clock elapsed time since the
-        // host's last write, then reconcile play/pause state.
+        // VOD/EPISODE: if this device isn't already playing the exact title the party is on
+        // (e.g. right after joinParty() calls this with nothing loaded yet, or the host changed
+        // titles mid-party), resolve and load it on THIS member's own account first — same
+        // "sync identity, not a URL" approach LIVE already uses above. Previously this branch
+        // only ever seeked/played-paused whatever the player already happened to have loaded,
+        // which is a no-op (stuck buffering forever) the moment a member joins with nothing
+        // loaded — this was a real bug, not the "different provider" case the LIVE toast covers.
+        val sameContent = if (state.content.contentType == "EPISODE") {
+            state.content.seriesId == episodeSeriesId && state.content.seasonNum == traktSeason &&
+                state.content.episodeNum == traktEpisode
+        } else {
+            if (state.content.serverIndex != -1)
+                state.content.serverIndex == serverIndex && state.content.mergedStreamId == mergedStreamId
+            else state.content.streamId == streamId
+        }
+        if (!sameContent) {
+            isApplyingRemoteUpdate = true
+            streamTitle = state.content.title
+            binding.tvChannelTitle.text = streamTitle
+            lifecycleScope.launch {
+                try {
+                    val url = if (state.content.contentType == "EPISODE") {
+                        episodeSeriesId = state.content.seriesId
+                        traktSeason = state.content.seasonNum
+                        traktEpisode = state.content.episodeNum
+                        repository.getSeriesEpisodeUrl(state.content.episodeId, state.content.containerExtension)
+                    } else {
+                        streamId = state.content.streamId
+                        serverIndex = state.content.serverIndex
+                        mergedStreamId = state.content.mergedStreamId
+                        if (state.content.serverIndex != -1)
+                            repository.getMergedVodStreamUrl(state.content.serverIndex, state.content.streamId, state.content.containerExtension)
+                        else repository.getVodStreamUrl(state.content.streamId, state.content.containerExtension)
+                    }
+                    loadStream(url)
+                    if (state.positionMs > 0L) player?.seekTo(state.positionMs)
+                } catch (_: Exception) {
+                    // Most likely cause: this member's own provider doesn't carry this title —
+                    // same reasoning as the LIVE branch's toast above.
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "Couldn't load \"${state.content.title}\" — not available on your provider",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                isApplyingRemoteUpdate = false
+            }
+            return
+        }
+
+        // Already on the right title — drift-compensate position using server-clock elapsed time
+        // since the host's last write, then reconcile play/pause state.
         val expectedPosition = if (state.isPlaying)
             state.positionMs + (System.currentTimeMillis() - state.updatedAtMs)
         else state.positionMs
