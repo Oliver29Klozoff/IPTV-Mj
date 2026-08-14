@@ -1,7 +1,7 @@
 {
-  "versionCode": 440,
-  "versionName": "6.02",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.02/MKTV.apk",
-  "apkSha256": "45331e4a966fcc7258a820c8f15fb39cfb0dfc3bf5a51432be78692ef9960fc0",
-  "changelog": "Added auto-preview movie trailers on focus, EPG schedule change alerts for favorite channels, and Bandwidth Budget Mode (monthly data cap warnings per provider)."
+  "versionCode": 441,
+  "versionName": "6.03",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.03/MKTV.apk",
+  "apkSha256": "66e64d5b723543ff907b2a0eef6fc24010d589bafd6be9ae26551279275191a6",
+  "changelog": "Fixed auto-preview movie trailers on phone — now triggers from scroll-centering instead of D-pad focus, which phones don't have."
 }

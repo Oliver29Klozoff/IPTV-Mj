@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.03 - 2026-08-14
+- **Fixed**: Auto-preview movie trailers now actually work on phone — since phones have no
+  D-pad focus, whichever poster is centered on screen highlights and previews automatically
+  as you scroll and settle, matching the same behavior TV already had.
+
 ## v6.02 - 2026-08-14
 - **Added**: Auto-preview movie trailers — focus a movie or series poster (D-pad or touch) and
   a short muted preview clip plays right on the tile after a moment, like browsing a streaming

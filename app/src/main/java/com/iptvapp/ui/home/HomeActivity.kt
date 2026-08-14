@@ -2657,6 +2657,86 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.rvCategories.addOnScrollListener(resetOnScroll)
         binding.rvChannels.addOnScrollListener(resetOnScroll)
+
+        // Feature A follow-up: phones have no D-pad focus traversal, so the Movies list (VodAdapter,
+        // shown in binding.rvChannels when its adapter is vodAdapter) never gets a real
+        // View.OnFocusChangeListener callback from touch scrolling — TilePreviewPlayer's TV-only
+        // wiring in VodAdapter.bind() sits unused on phone. This listener fakes an equivalent
+        // "focused tile" by picking whichever row is closest to rvChannels' vertical center once
+        // scrolling settles, and drives the exact same TilePreviewPlayer.onTileFocused/onTileUnfocused
+        // calls the D-pad path already makes — same urlProvider, same Settings toggle, same
+        // BandwidthBudgetManager gate (all inside viewModel.getVodPreviewUrl). Deliberately does NOT
+        // fire on every onScrolled pixel delta — only when the list stops moving (SCROLL_STATE_IDLE),
+        // matching Netflix-row-style settle-then-preview behavior instead of spamming focus churn.
+        binding.rvChannels.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    updateCenteredVodPreview(recyclerView)
+                }
+            }
+        })
+    }
+
+    private var centeredVodPreviewKey: String? = null
+
+    /** Finds the VodAdapter.ViewHolder row currently closest to rvChannels' vertical center and
+     * drives TilePreviewPlayer for it, matching the D-pad focus behavior VodAdapter already wires
+     * up for TV. No-op unless rvChannels' current adapter is vodAdapter (i.e. the Movies tab is the
+     * one actually showing) — every other tab/adapter this shared RecyclerView hosts is untouched. */
+    private fun updateCenteredVodPreview(recyclerView: RecyclerView) {
+        if (recyclerView.adapter !== vodAdapter) return
+        val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val first = lm.findFirstVisibleItemPosition()
+        val last = lm.findLastVisibleItemPosition()
+        if (first < 0 || last < 0) return
+
+        val rvCenter = recyclerView.top + recyclerView.height / 2
+        var bestPos = -1
+        var bestDist = Int.MAX_VALUE
+        for (pos in first..last) {
+            val child = lm.findViewByPosition(pos) ?: continue
+            val childCenter = child.top + child.height / 2
+            val dist = kotlin.math.abs(childCenter - (rvCenter - recyclerView.top))
+            if (dist < bestDist) {
+                bestDist = dist
+                bestPos = pos
+            }
+        }
+        if (bestPos < 0) return
+
+        val row = vodAdapter.currentList.getOrNull(bestPos) as? VodRow.Item ?: run {
+            // Centered row is a header (e.g. "★ Favorites") — no tile to preview; clear any stale highlight.
+            centeredVodPreviewKey?.let { TilePreviewPlayer.onTileUnfocused(it) }
+            centeredVodPreviewKey = null
+            clearVodCenteredHighlight(recyclerView)
+            return
+        }
+        val newKey = row.vod.streamId.toString()
+        if (newKey == centeredVodPreviewKey) return // already the centered/previewing tile
+
+        centeredVodPreviewKey?.let { TilePreviewPlayer.onTileUnfocused(it) }
+        clearVodCenteredHighlight(recyclerView)
+        centeredVodPreviewKey = newKey
+
+        val holder = recyclerView.findViewHolderForAdapterPosition(bestPos) as? VodAdapter.ViewHolder ?: return
+        holder.binding.root.isSelected = true
+        // Same call shape VodAdapter.ViewHolder.bind() already makes from its D-pad
+        // OnFocusChangeListener — reuses viewModel.getVodPreviewUrl, which itself re-checks the
+        // Settings "auto-preview" toggle and BandwidthBudgetManager.isNearOrOverBudget every call,
+        // so this phone trigger path gets both gates for free without reimplementing them here.
+        TilePreviewPlayer.onTileFocused(recyclerView.context, newKey, holder.binding.playerVodPreview) {
+            viewModel.getVodPreviewUrl(row.vod)
+        }
+    }
+
+    /** Clears the fake-focus highlight (View.isSelected, see focus_selector.xml's state_selected
+     * variant) from whichever VodAdapter row currently has it — RecyclerView may have recycled the
+     * view since it was set, so this scans currently-bound holders rather than keeping a View ref. */
+    private fun clearVodCenteredHighlight(recyclerView: RecyclerView) {
+        for (i in 0 until recyclerView.childCount) {
+            val child = recyclerView.getChildAt(i)
+            if (child.isSelected) child.isSelected = false
+        }
     }
 
     private fun setupTabs() {
