@@ -908,6 +908,15 @@ class XtreamRepository @Inject constructor(
         )
     }
 
+    /** Provider Health Weather Map — hour-of-day bucketed failure tracking, fed from the exact
+     * same PlayerActivity player-error/buffer-watchdog callsite as [recordChannelOutcome] (see
+     * ProviderHourlyStatsEntity kdoc). Uses the device's current local hour, since the point is
+     * "which hours of MY day has this provider been flaky", not a UTC-normalized global view. */
+    suspend fun recordProviderHourlyOutcome(serverIndex: Int, success: Boolean) {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        db.providerHourlyStatsDao().recordOutcome(serverIndex, hour, if (success) 0 else 1)
+    }
+
     /** e.g. "7/10 succeeded recently" — null if there's no history yet for this channel. */
     suspend fun getReliabilityLabel(streamId: Int): String? {
         val outcomes = db.reliabilityDao().get(streamId)?.outcomes ?: return null

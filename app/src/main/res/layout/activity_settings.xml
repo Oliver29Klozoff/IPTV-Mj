@@ -2270,6 +2270,31 @@
                                     android:text="Automatically sends crash details so bugs can be found and fixed without you needing to send a debug report. No account info is included."
                                     android:textColor="#777777"
                                     android:textSize="11sp" />
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:paddingBottom="8dp">
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="Share Anonymous Stream Health Data"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="13sp" />
+                                    <Switch
+                                        android:id="@+id/switchCommunityHealthSharing"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content" />
+                                </LinearLayout>
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginBottom="12dp"
+                                    android:text="Off by default. When on, a hashed (never the raw URL or your login) provider identifier plus the channel name and error type are shared anonymously so other users can see &quot;N people reported issues with this channel recently&quot;. No account info is included."
+                                    android:textColor="#777777"
+                                    android:textSize="11sp" />
                                 <Button
                                     android:id="@+id/btnSendDebugReport"
                                     android:layout_width="match_parent"
@@ -2312,6 +2337,15 @@
                                     android:layout_marginTop="8dp"
                                     android:backgroundTint="#1A1A1A"
                                     android:text="Data Usage"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                                <Button
+                                    android:id="@+id/btnProviderWeather"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#1A1A1A"
+                                    android:text="Provider Health Weather Map"
                                     android:textColor="#FFFFFF"
                                     android:textSize="13sp" />
                             </LinearLayout>

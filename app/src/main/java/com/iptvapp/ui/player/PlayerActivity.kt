@@ -123,6 +123,10 @@ class PlayerActivity : AppCompatActivity() {
     private var traktSeason: Int = -1
     private var traktEpisode: Int = -1
     private var traktScrobbleStarted = false
+    // Ghost Channel Radar / Provider Health Weather Map — reset in buildPlayer() (each fresh
+    // channel-start/retry is a new "attempt" worth recording once), guards STATE_READY so a
+    // mid-playback seek's READY doesn't get double-counted as a second success.
+    private var outcomeRecordedForThisPlayback = false
     private var suppressOverlayOnReady = false
     private val traktIoScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
@@ -156,6 +160,7 @@ class PlayerActivity : AppCompatActivity() {
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
     @Inject lateinit var rewatchNotesManager: com.iptvapp.sync.RewatchNotesManager
+    @Inject lateinit var communityHealthManager: com.iptvapp.sync.CommunityHealthManager
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     private var bandwidthTracker: BandwidthTracker? = null
 
@@ -1464,6 +1469,7 @@ class PlayerActivity : AppCompatActivity() {
     // ─── Player ─────────────────────────────────────────────────────────────
 
     private fun buildPlayer(): ExoPlayer {
+        outcomeRecordedForThisPlayback = false
         // Global (applies to every server, not per-provider) — trades a slower initial
         // load/seek for fewer mid-playback stalls, since some IPTV providers are slow or
         // inconsistent enough that the default buffer runs dry mid-stream.
@@ -1677,6 +1683,15 @@ class PlayerActivity : AppCompatActivity() {
                                 retryCount = 0
                                 binding.progressBuffering.visibility = View.GONE
                                 binding.tvRetryStatus.visibility = View.GONE
+                                // Ghost Channel Radar / Provider Health Weather Map — a real
+                                // successful playback start, recorded once per channel-start (not
+                                // re-fired on every READY, e.g. after a user seek) via the same
+                                // guard already used below for the Trakt scrobble-start call.
+                                if (!outcomeRecordedForThisPlayback) {
+                                    outcomeRecordedForThisPlayback = true
+                                    recordPlaybackOutcome(success = true)
+                                    maybeShowCommunityHealthBanner()
+                                }
                                 if (isVod) startSeekBarUpdater()
                                 if (isVod && epIds.isNotEmpty()) startSkipNextPoller()
                                 startHealthBadge()
@@ -1703,6 +1718,10 @@ class PlayerActivity : AppCompatActivity() {
                                 bufferWatchdog?.let { hideHandler.removeCallbacks(it) }
                                 bufferWatchdog = Runnable {
                                     if (player?.playbackState == Player.STATE_BUFFERING) {
+                                        if (!outcomeRecordedForThisPlayback) {
+                                            outcomeRecordedForThisPlayback = true
+                                            recordPlaybackOutcome(success = false)
+                                        }
                                         com.iptvapp.IptvApplication.logPlaybackEvent(
                                             applicationContext,
                                             "BUFFERING STALL: isVod=$isVod streamId=$streamId url=$streamUrl " +
@@ -1729,6 +1748,10 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     override fun onPlayerError(error: PlaybackException) {
                         binding.progressBuffering.visibility = View.GONE
+                        if (!outcomeRecordedForThisPlayback) {
+                            outcomeRecordedForThisPlayback = true
+                            recordPlaybackOutcome(success = false)
+                        }
                         com.iptvapp.IptvApplication.logPlaybackEvent(
                             applicationContext,
                             "PLAYER ERROR: isVod=$isVod streamId=$streamId errorCode=${error.errorCodeName} " +
@@ -1922,6 +1945,85 @@ class PlayerActivity : AppCompatActivity() {
             cm.registerDefaultNetworkCallback(callback)
         } catch (_: Exception) {
             networkCallback = null
+        }
+    }
+
+    // Ghost Channel Radar / Provider Health Weather Map — single shared recording point for both
+    // real playback attempts (STATE_READY = success) and failures (onPlayerError / the 20s
+    // buffer-stall watchdog, both of which funnel into scheduleRetry). Live-channel only for the
+    // per-channel radar (ChannelReliabilityEntity is meaningless for VOD/one-off content), but the
+    // per-provider hourly weather map records for both, since a flaky provider is just as flaky
+    // serving a movie as a live channel. Fire-and-forget on lifecycleScope — must never block or
+    // crash playback over a local DB write.
+    private fun recordPlaybackOutcome(success: Boolean) {
+        lifecycleScope.launch {
+            try {
+                if (!isVod && streamId != -1) {
+                    repository.recordChannelOutcome(streamId, success)
+                }
+                repository.recordProviderHourlyOutcome(serverIndex, success)
+            } catch (_: Exception) {
+                // best-effort, matches BandwidthTracker.flush()'s swallow-and-continue
+            }
+            // Community Stream Health Feed (opt-in, default OFF) — only a genuine failure is
+            // worth reporting to the crowd-sourced feed (a lone success tells other users
+            // nothing); gated on the toggle here so this is the one and only Firestore write
+            // call site, and it's a no-op with the toggle off.
+            if (!success && !isVod) {
+                reportCommunityHealthEventIfEnabled("PLAYBACK_ERROR")
+            }
+        }
+    }
+
+    /** Fire-and-forget, opt-in-gated write to the Community Stream Health Feed — see
+     * CommunityHealthManager kdoc. Every call site funnels through here so the
+     * communityHealthSharingEnabled check can never be forgotten at a new call site. */
+    private fun reportCommunityHealthEventIfEnabled(errorType: String) {
+        lifecycleScope.launch {
+            try {
+                if (!prefs.communityHealthSharingEnabled.first()) return@launch
+                val hostHash = communityHealthManager.hashProviderHost(resolveActiveServerUrl()) ?: return@launch
+                communityHealthManager.reportEvent(hostHash, streamTitle.ifBlank { "Unknown channel" }, errorType)
+            } catch (_: Exception) {
+                // fire-and-forget, never affects playback
+            }
+        }
+    }
+
+    /** Best-effort "N other users reported issues with this channel recently" banner — read-side
+     * of the Community Stream Health Feed, also opt-in-gated (no point reading if the user isn't
+     * opted into sharing, and it avoids a Firestore read for users who never touched the toggle).
+     * Informational only, never blocks or delays playback. */
+    private fun maybeShowCommunityHealthBanner() {
+        if (isVod || streamId == -1) return
+        lifecycleScope.launch {
+            try {
+                if (!prefs.communityHealthSharingEnabled.first()) return@launch
+                val hostHash = communityHealthManager.hashProviderHost(resolveActiveServerUrl()) ?: return@launch
+                val channelName = streamTitle.ifBlank { return@launch }
+                val count = communityHealthManager.recentEventCount(hostHash, channelName)
+                if (count > 0) {
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "$count other ${if (count == 1) "user" else "users"} reported issues with this channel recently",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (_: Exception) {
+                // informational only
+            }
+        }
+    }
+
+    /** The server URL of whichever provider is currently active (serverIndex == -1 -> primary,
+     * else the matching extra server) — same serverIndex convention used throughout the app
+     * (ChannelEntity/BandwidthUsageEntity/etc). Used only to derive a privacy-safe host hash,
+     * never uploaded itself. */
+    private suspend fun resolveActiveServerUrl(): String {
+        return if (serverIndex == -1) {
+            prefs.credentials.first().serverUrl
+        } else {
+            prefs.getExtraServersWithNick().getOrNull(serverIndex)?.getOrNull(0) ?: ""
         }
     }
 

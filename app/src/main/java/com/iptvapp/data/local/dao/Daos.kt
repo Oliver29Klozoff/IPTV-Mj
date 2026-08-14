@@ -458,6 +458,27 @@ interface ReliabilityDao {
 }
 
 @Dao
+interface ProviderHourlyStatsDao {
+    // Upsert-with-increment, same ON CONFLICT...DO UPDATE idiom as BandwidthUsageDao.addUsage —
+    // one row per (serverIndex, hourOfDay), incremented on every recorded playback outcome rather
+    // than read-modify-write from Kotlin (which would race under concurrent playback/retry calls).
+    @Query("""
+        INSERT INTO provider_hourly_stats (serverIndex, hourOfDay, eventCount, sampleCount)
+        VALUES (:serverIndex, :hourOfDay, :eventDelta, 1)
+        ON CONFLICT(serverIndex, hourOfDay) DO UPDATE SET
+            eventCount = eventCount + :eventDelta,
+            sampleCount = sampleCount + 1
+    """)
+    suspend fun recordOutcome(serverIndex: Int, hourOfDay: Int, eventDelta: Int)
+
+    @Query("SELECT * FROM provider_hourly_stats WHERE serverIndex = :serverIndex ORDER BY hourOfDay ASC")
+    suspend fun getForProvider(serverIndex: Int): List<ProviderHourlyStatsEntity>
+
+    @Query("SELECT DISTINCT serverIndex FROM provider_hourly_stats")
+    suspend fun getTrackedServerIndexes(): List<Int>
+}
+
+@Dao
 interface EpisodeWatchedDao {
     @Upsert
     suspend fun upsert(entity: EpisodeWatchedEntity)

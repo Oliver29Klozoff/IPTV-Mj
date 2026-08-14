@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v6.01 - 2026-08-14
+- **Added**: Ghost Channel Radar — a small reliability dot now appears next to channels you've
+  actually played before, based on your own device's playback history (no probing, no extra
+  network calls).
+- **Added**: Provider Health Weather Map — Settings now shows a 24-hour reliability strip per
+  provider, so you can see at a glance which hours a provider tends to have issues.
+- **Added**: Community Stream Health Feed (opt-in, off by default) — turn on "Share Anonymous
+  Stream Health Data" in Settings to see "X other users reported issues" banners for channels
+  with recent problems, and help others see the same. Never uploads your provider URL,
+  username, or password — only a one-way hash of the provider's host.
+
 ## v6.00 - 2026-08-13
 - **Added**: Group Watch Voting — during a Watch Party, any member can start a live "What
   should we watch next?" poll. Others propose whatever's on their own screen, everyone votes

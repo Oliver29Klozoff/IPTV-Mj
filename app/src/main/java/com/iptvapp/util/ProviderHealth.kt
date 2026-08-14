@@ -86,6 +86,86 @@ object ProviderHealth {
         return errorCount to retryCount
     }
 
+    /** One cell of the 24-hour weather-map strip. null percent = no samples yet for that hour
+     * (rendered grey by the caller) — distinct from a 0% failure rate (rendered green). */
+    data class HourCell(val hourOfDay: Int, val failurePercent: Int?, val sampleCount: Int)
+
+    data class WeatherMapProvider(val serverIndex: Int, val label: String, val hours: List<HourCell>)
+
+    /** Builds the 24-cell-per-provider weather map for every provider with at least one recorded
+     * sample — primary (serverIndex -1) and every configured extra server, matching the same
+     * label-resolution [ProviderHealth.build] and showDataUsageDialog already use. */
+    suspend fun buildWeatherMap(db: IptvDatabase, prefs: PreferencesManager): List<WeatherMapProvider> {
+        val tracked = db.providerHourlyStatsDao().getTrackedServerIndexes()
+        if (tracked.isEmpty()) return emptyList()
+        val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
+        val extraNicks = prefs.getExtraServersWithNick().map { it.getOrElse(3) { "" } }
+        return tracked.sorted().map { serverIndex ->
+            val label = if (serverIndex == -1) primaryNick
+                else extraNicks.getOrNull(serverIndex).takeUnless { it.isNullOrBlank() } ?: "Provider ${serverIndex + 1}"
+            val rows = db.providerHourlyStatsDao().getForProvider(serverIndex).associateBy { it.hourOfDay }
+            val hours = (0..23).map { hour ->
+                val row = rows[hour]
+                val pct = if (row == null || row.sampleCount == 0) null else (row.eventCount * 100 / row.sampleCount)
+                HourCell(hour, pct, row?.sampleCount ?: 0)
+            }
+            WeatherMapProvider(serverIndex, label, hours)
+        }
+    }
+
+    /** Builds the scrollable weather-map dialog body: one labeled row per provider, each a
+     * horizontal strip of 24 small colored cells (grey = no data, green = reliable, shading to
+     * red = frequent errors at that hour). Plain View/TextView cells rather than a charting
+     * library or custom-drawn View, per the feature's own "keep the rendering simple" design
+     * note. Shared between phone SettingsActivity and TvSettingsActivity so the two don't
+     * duplicate this view-building code. */
+    fun buildWeatherMapView(context: Context, providers: List<WeatherMapProvider>): android.view.View {
+        val density = context.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        val root = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        providers.forEach { provider ->
+            val label = android.widget.TextView(context).apply {
+                text = provider.label
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 13f
+                setPadding(0, dp(10), 0, dp(4))
+            }
+            root.addView(label)
+            val strip = android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+            }
+            provider.hours.forEach { cell ->
+                val color = when {
+                    cell.sampleCount == 0 -> android.graphics.Color.parseColor("#3A3A3A")
+                    cell.failurePercent == null || cell.failurePercent!! <= 10 -> android.graphics.Color.parseColor("#00CC66")
+                    cell.failurePercent!! <= 40 -> android.graphics.Color.parseColor("#FFAA00")
+                    else -> android.graphics.Color.parseColor("#FF4444")
+                }
+                val dot = android.view.View(context).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, dp(18), 1f).apply {
+                        marginEnd = dp(1)
+                    }
+                    setBackgroundColor(color)
+                    contentDescription = if (cell.sampleCount == 0) "${cell.hourOfDay}:00 — no data"
+                        else "${cell.hourOfDay}:00 — ${cell.failurePercent}% error rate (${cell.sampleCount} samples)"
+                }
+                strip.addView(dot)
+            }
+            root.addView(strip)
+            val hourLabels = android.widget.TextView(context).apply {
+                text = "12am" + " ".repeat(40) + "12pm" + " ".repeat(40) + "11pm"
+                setTextColor(android.graphics.Color.parseColor("#777777"))
+                textSize = 9f
+                setPadding(0, dp(2), 0, 0)
+            }
+            root.addView(hourLabels)
+        }
+        return root
+    }
+
     fun formatReport(report: Report): String {
         val sb = StringBuilder()
         sb.append("Server: ${report.serverLabel}\n\n")

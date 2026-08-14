@@ -1,7 +1,7 @@
 {
-  "versionCode": 438,
-  "versionName": "6.00",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.00/MKTV.apk",
-  "apkSha256": "86c3d8e37f803d0301254e007aa07d25e7aeebdc59481094430f8089f89cc165",
-  "changelog": "Added Group Watch Voting (live polls during a Watch Party that auto-switch everyone to the winner) and Time Capsule Rewatch Notes (timestamp-pinned notes on movies/episodes, visible when you rewatch later)."
+  "versionCode": 439,
+  "versionName": "6.01",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.01/MKTV.apk",
+  "apkSha256": "45cd869d355a21f9be66f8b84e10fe55309c5f9900c26dd4701069f43c4f1daf",
+  "changelog": "Added Ghost Channel Radar (per-channel reliability dots from your own playback history), Provider Health Weather Map (24-hour reliability strip per provider in Settings), and an opt-in Community Stream Health Feed."
 }

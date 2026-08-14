@@ -58,6 +58,10 @@ class PreferencesManager @Inject constructor(
         val EPG_AUTO_REFRESH_HOURS = intPreferencesKey("epg_auto_refresh_hours")
         val EPG_REFRESH_MISSING_ONLY = booleanPreferencesKey("epg_refresh_missing_only")
         val USA_ONLY_CHANNELS = booleanPreferencesKey("usa_only_channels")
+        // Community Stream Health Feed opt-in — OFF by default. Gates every single Firestore
+        // write CommunityHealthManager makes; see its kdoc for exactly what is/isn't uploaded
+        // (never raw provider URLs/credentials, only a hashed host + channel name + error type).
+        val COMMUNITY_HEALTH_SHARING_ENABLED = booleanPreferencesKey("community_health_sharing_enabled")
         val SHOW_MOVIES = booleanPreferencesKey("show_movies")
         val SHOW_SERIES = booleanPreferencesKey("show_series")
         val SHOW_WATCHING = booleanPreferencesKey("show_watching")
@@ -373,6 +377,12 @@ class PreferencesManager @Inject constructor(
 
     val usaOnlyChannels: Flow<Boolean> = context.dataStore.data
         .map { it[Keys.USA_ONLY_CHANNELS] ?: true }
+
+    val communityHealthSharingEnabled: Flow<Boolean> = context.dataStore.data
+        .map { it[Keys.COMMUNITY_HEALTH_SHARING_ENABLED] ?: false }
+    suspend fun setCommunityHealthSharingEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[Keys.COMMUNITY_HEALTH_SHARING_ENABLED] = enabled }
+    }
 
     val favoriteOtherGenreLabel: Flow<String> = context.dataStore.data
         .map { it[Keys.FAVORITE_OTHER_GENRE_LABEL] ?: "Other" }

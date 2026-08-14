@@ -343,3 +343,20 @@ data class BandwidthUsageEntity(
     val yearMonth: String,
     val bytesTransferred: Long = 0L
 )
+
+// Provider Health Weather Map (Settings) — rolling, all-time (not day-bucketed, to keep the
+// table tiny: 24 rows per provider forever, rather than growing one row-set per calendar day)
+// hour-of-day view of how often playback hit an error/rebuffer-stall vs. played cleanly for each
+// provider. Fed from the exact same PlayerActivity player-error/buffer-watchdog callsite that
+// already feeds ChannelReliabilityEntity (see XtreamRepository.recordChannelOutcome) — one
+// playback-outcome hook, two aggregations (per-channel there, per-provider-per-hour here).
+// sampleCount is every recorded outcome (success+failure) in that hour bucket; eventCount is only
+// the failures — so eventCount/sampleCount is directly a failure rate per hour-of-day, and a
+// bucket with sampleCount == 0 is "no data yet" (rendered grey) vs. a genuinely clean bucket.
+@Entity(tableName = "provider_hourly_stats", primaryKeys = ["serverIndex", "hourOfDay"])
+data class ProviderHourlyStatsEntity(
+    val serverIndex: Int,
+    val hourOfDay: Int, // 0-23, local device time — matches when the user actually watches
+    val eventCount: Int = 0,
+    val sampleCount: Int = 0
+)

@@ -159,4 +159,5 @@ object AppModule {
     @Provides fun provideFavoriteFolderDao(db: IptvDatabase) = db.favoriteFolderDao()
     @Provides fun provideMergedVodDao(db: IptvDatabase) = db.mergedVodDao()
     @Provides fun provideMergedSeriesDao(db: IptvDatabase) = db.mergedSeriesDao()
+    @Provides fun provideProviderHourlyStatsDao(db: IptvDatabase) = db.providerHourlyStatsDao()
 }

@@ -668,6 +668,12 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
         settingsItems += TvSettingItem.Action("provider_speed_test", "Provider Speed Test") { showSpeedTestDialog() }
         settingsItems += TvSettingItem.Action("data_usage", "Data Usage") { showDataUsageDialog() }
+        settingsItems += TvSettingItem.Action("provider_weather", "Provider Health Weather Map") { showProviderWeatherDialog() }
+        settingsItems += TvSettingItem.Toggle("community_health_sharing", "Share Anonymous Stream Health Data",
+            subtitle = "Off by default. When on, a hashed (never the raw URL or your login) provider identifier plus the channel name and error type are shared anonymously so other users can see \"N people reported issues with this channel recently\". No account info is included.",
+            checked = prefs.communityHealthSharingEnabled.first()) { c ->
+            lifecycleScope.launch { prefs.setCommunityHealthSharingEnabled(c) }
+        }
 
         // ── NOTIFICATIONS ──
         settingsItems += TvSettingItem.Header("Notifications")
@@ -1725,6 +1731,29 @@ class TvSettingsActivity : AppCompatActivity() {
             AlertDialog.Builder(this@TvSettingsActivity)
                 .setTitle("Data Usage — This Month")
                 .setMessage(message)
+                .setPositiveButton("Close", null)
+                .show()
+        }
+    }
+
+    /** TV equivalent of phone SettingsActivity's showProviderWeatherDialog. */
+    private fun showProviderWeatherDialog() {
+        lifecycleScope.launch {
+            val providers = com.iptvapp.util.ProviderHealth.buildWeatherMap(db, prefs)
+            if (providers.isEmpty()) {
+                AlertDialog.Builder(this@TvSettingsActivity)
+                    .setTitle("Provider Health Weather Map")
+                    .setMessage("No playback recorded yet — this fills in as you watch live TV.")
+                    .setPositiveButton("Close", null)
+                    .show()
+                return@launch
+            }
+            val scroll = android.widget.ScrollView(this@TvSettingsActivity).apply {
+                addView(com.iptvapp.util.ProviderHealth.buildWeatherMapView(this@TvSettingsActivity, providers))
+            }
+            AlertDialog.Builder(this@TvSettingsActivity)
+                .setTitle("Provider Health Weather Map")
+                .setView(scroll)
                 .setPositiveButton("Close", null)
                 .show()
         }

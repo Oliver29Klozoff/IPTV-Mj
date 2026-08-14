@@ -1050,6 +1050,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
         binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
         binding.btnDataUsage.setOnClickListener { showDataUsageDialog() }
+        binding.btnProviderWeather.setOnClickListener { showProviderWeatherDialog() }
         binding.btnLanExport.setOnClickListener { showLanExportDialog() }
         binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
 
@@ -1061,6 +1062,13 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.setCrashReportingEnabled(isChecked)
                 com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(isChecked)
             }
+        }
+
+        lifecycleScope.launch {
+            binding.switchCommunityHealthSharing.isChecked = prefs.communityHealthSharingEnabled.first()
+        }
+        binding.switchCommunityHealthSharing.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setCommunityHealthSharingEnabled(isChecked) }
         }
 
         lifecycleScope.launch {
@@ -1400,6 +1408,31 @@ class SettingsActivity : AppCompatActivity() {
             AlertDialog.Builder(this@SettingsActivity)
                 .setTitle("Data Usage — This Month")
                 .setMessage(message)
+                .setPositiveButton("Close", null)
+                .show()
+        }
+    }
+
+    /** Provider Health Weather Map — rolling hour-of-day view of playback error/rebuffer rate
+     * per provider, built from ProviderHourlyStatsEntity (fed by the same PlayerActivity hook
+     * that feeds Ghost Channel Radar's per-channel reliability). 100% local/Room, no Firestore. */
+    private fun showProviderWeatherDialog() {
+        lifecycleScope.launch {
+            val providers = com.iptvapp.util.ProviderHealth.buildWeatherMap(db, prefs)
+            if (providers.isEmpty()) {
+                AlertDialog.Builder(this@SettingsActivity)
+                    .setTitle("Provider Health Weather Map")
+                    .setMessage("No playback recorded yet — this fills in as you watch live TV.")
+                    .setPositiveButton("Close", null)
+                    .show()
+                return@launch
+            }
+            val scroll = android.widget.ScrollView(this@SettingsActivity).apply {
+                addView(com.iptvapp.util.ProviderHealth.buildWeatherMapView(this@SettingsActivity, providers))
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Provider Health Weather Map")
+                .setView(scroll)
                 .setPositiveButton("Close", null)
                 .show()
         }
