@@ -2526,10 +2526,12 @@ class TvSettingsActivity : AppCompatActivity() {
             launchWatchPartyVodMatch(partyCode, hostTitle, matches[0])
             return
         }
+        // setMessage + setItems on the same AlertDialog.Builder are mutually exclusive — Android
+        // silently drops the items list and shows only the message text when both are set. The
+        // match count goes in the title instead so setItems alone renders.
         val labels = matches.map { it.title }.toTypedArray()
         AlertDialog.Builder(this)
-            .setTitle("Which \"$hostTitle\"?")
-            .setMessage("The exact title wasn't found on your provider — found ${matches.size} close matches on your own catalog.")
+            .setTitle("Which \"$hostTitle\"? (${matches.size} matches)")
             .setItems(labels) { _, which -> launchWatchPartyVodMatch(partyCode, hostTitle, matches[which]) }
             .setNegativeButton("Cancel", null)
             .show()

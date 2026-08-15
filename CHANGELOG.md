@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.10 - 2026-08-15
+- **Fixed**: the Watch Party title-match picker showed "found N close matches" but no actual
+  list to choose from — a dialog it was built on can't show a message and a choice list at
+  the same time, so the list was silently getting dropped. The picker now shows properly.
+
 ## v6.09 - 2026-08-15
 - **Fixed**: Watch Party's v6.08 title matching missed titles with rating tags, quality tags,
   or a year in brackets (e.g. "(r) 22 Jump Street (2014) [1080p]") — those extra tags were
