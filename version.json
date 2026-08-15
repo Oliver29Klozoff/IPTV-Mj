@@ -1,7 +1,7 @@
 {
-  "versionCode": 446,
-  "versionName": "6.08",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.08/MKTV.apk",
-  "apkSha256": "742f72f7af821d3dd2389c12e9fe1b9eb584f51856dc2fc7e207e1a74072fcde",
-  "changelog": "Added Watch Party movie/episode title matching -- when a title isn't found under the host's exact catalog listing, MKTV now searches your own provider's catalog by title instead of giving up, with a picker if there's more than one close match."
+  "versionCode": 447,
+  "versionName": "6.09",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.09/MKTV.apk",
+  "apkSha256": "a34dcf91392dc832949214d76837a183e22c0440701c4e4358cf3c5af21e2c53",
+  "changelog": "Fixed Watch Party title matching missing titles with rating/quality tags or a bracketed year -- now strips all of that before searching, not just a leading language prefix."
 }

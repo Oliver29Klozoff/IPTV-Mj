@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.09 - 2026-08-15
+- **Fixed**: Watch Party's v6.08 title matching missed titles with rating tags, quality tags,
+  or a year in brackets (e.g. "(r) 22 Jump Street (2014) [1080p]") — those extra tags were
+  still part of the search, so a plainer listing on your own provider never matched. Now
+  strips all of that, not just a leading language prefix, before searching.
+
 ## v6.08 - 2026-08-14
 - **Added**: Watch Party movie/episode title matching — when a movie or episode isn't found
   under the host's exact catalog listing on your own provider, MKTV now searches your own

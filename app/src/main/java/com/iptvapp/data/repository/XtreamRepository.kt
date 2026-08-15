@@ -522,24 +522,24 @@ class XtreamRepository @Inject constructor(
         RegexOption.IGNORE_CASE
     )
 
-    /** Strips a known language/region prefix (see [vodTitlePrefixRegex]) — used for the FTS4-
-     * backed primary-catalog search (searchVod → ftsQuery), whose per-token prefix matching
-     * already tolerates trailing extras like a cast name or a differently-formatted year, so only
-     * the leading prefix needs removing here. */
-    fun normalizeVodTitleForSearch(rawTitle: String): String =
-        rawTitle.trim().replace(vodTitlePrefixRegex, "").trim()
-
-    // MergedVodDao.search is a plain SQL LIKE '%query%' against the WHOLE query string, not FTS4
-    // tokenized matching — passing it a normalized-but-still-"Title (Year)"-shaped string would
-    // only match a merged-provider row containing that *exact* substring (parens, spacing, and
-    // all), so "EN - Billy Madison (1995) ADAM SANDLER" would only be found by luck if it happens
-    // to contain the literal same "(1995)". Strip everything but the core title words instead —
-    // no parens/year/punctuation — so LIKE '%billy madison%' actually matches loosely the way
-    // FTS4's per-token search does for the primary catalog.
-    private fun coreTitleWordsForLikeSearch(rawTitle: String): String {
+    /** Reduces a VOD title down to just its real title words for cross-provider matching — used
+     * by BOTH the FTS4-backed primary search and the LIKE-backed merged search (see
+     * findWatchPartyVodMatches). Originally this only stripped the leading language prefix for
+     * the FTS4 path, on the assumption its per-token matching would tolerate the rest — but FTS4
+     * requires EVERY token in the query to prefix-match (see ftsQuery's own kdoc, it's AND
+     * semantics, not "any token"), so a title like "(r) 22 Jump Street (2014) [1080p]" produces
+     * tokens for "(r)"/"(2014)"/"[1080p]" that a provider's own plainer "22 Jump Street" listing
+     * has no corresponding tokens for at all — those extra tokens make the WHOLE query fail to
+     * match, not just narrow it down. Strips: a leading language/region prefix, any parenthesized
+     * or bracketed content anywhere in the title (ratings, years, quality tags, whatever a
+     * provider stuffs in there), and all punctuation — leaving just the bare title words either
+     * search backend can then match against loosely. */
+    fun normalizeVodTitleForSearch(rawTitle: String): String {
         val withoutPrefix = rawTitle.trim().replace(vodTitlePrefixRegex, "")
-        val withoutParens = withoutPrefix.replace(Regex("\\([^)]*\\)"), " ")
-        return withoutParens.replace(Regex("[^\\p{L}\\p{N} ]"), " ")
+        val withoutBracketed = withoutPrefix
+            .replace(Regex("\\([^)]*\\)"), " ")
+            .replace(Regex("\\[[^]]*]"), " ")
+        return withoutBracketed.replace(Regex("[^\\p{L}\\p{N} ]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
     }
@@ -548,13 +548,13 @@ class XtreamRepository @Inject constructor(
      * titles matching [hostTitle], for the Watch Party "different provider, same movie under a
      * different catalog id" fallback. One-shot (not a Flow) since this is a single lookup at join
      * time, not a live search list. Callers should pass the host's ORIGINAL title (not pre-
-     * normalized) — this function normalizes each catalog's search independently, since the two
-     * underlying searches (FTS4 vs LIKE) need differently-shaped queries. */
+     * normalized) — normalizeVodTitleForSearch is applied here for both search backends. */
     suspend fun findWatchPartyVodMatches(hostTitle: String): List<WatchPartyVodMatch> {
-        val local = searchVod(normalizeVodTitleForSearch(hostTitle)).first().map {
+        val query = normalizeVodTitleForSearch(hostTitle)
+        val local = searchVod(query).first().map {
             WatchPartyVodMatch(-1, it.streamId, it.name, it.containerExtension)
         }
-        val merged = searchMergedVod(coreTitleWordsForLikeSearch(hostTitle)).first().map {
+        val merged = searchMergedVod(query).first().map {
             WatchPartyVodMatch(it.serverIndex, it.streamId, it.name, it.containerExtension)
         }
         return local + merged
