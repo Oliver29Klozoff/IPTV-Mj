@@ -2490,26 +2490,72 @@ class TvSettingsActivity : AppCompatActivity() {
                 intent.putExtra("episode_num", content.episodeNum)
             }
             else -> { // VOD
-                intent.putExtra("is_vod", true)
-                intent.putExtra("stream_id", content.streamId)
-                intent.putExtra("server_index", content.serverIndex)
-                intent.putExtra("merged_stream_id", content.mergedStreamId)
                 val url = try {
                     if (content.serverIndex != -1) repository.getMergedVodStreamUrl(content.serverIndex, content.mergedStreamId, content.containerExtension)
                     else repository.getVodStreamUrl(content.streamId, content.containerExtension)
                 } catch (e: Exception) { null }
-                if (url == null) {
-                    toast("Couldn't load party's movie")
+                val healthy = url != null && repository.checkStreamHealth(url)
+                if (!healthy) {
+                    // See SettingsActivity's matching kdoc — fall back to a title search on this
+                    // device's own catalogs before giving up entirely.
+                    offerWatchPartyVodTitleFallback(state.code, content.title)
                     return
                 }
-                if (!repository.checkStreamHealth(url)) {
-                    toast("Couldn't join Watch Party — this movie isn't available on your provider")
-                    return
-                }
+                intent.putExtra("is_vod", true)
+                intent.putExtra("stream_id", content.streamId)
+                intent.putExtra("server_index", content.serverIndex)
+                intent.putExtra("merged_stream_id", content.mergedStreamId)
                 intent.putExtra("stream_url", url)
             }
         }
         startActivity(intent)
+    }
+
+    /** See SettingsActivity's matching kdoc. */
+    private suspend fun offerWatchPartyVodTitleFallback(partyCode: String, hostTitle: String) {
+        val matches = try {
+            repository.findWatchPartyVodMatches(hostTitle)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (matches.isEmpty()) {
+            toast("Couldn't join Watch Party — \"$hostTitle\" isn't available on your provider")
+            return
+        }
+        if (matches.size == 1) {
+            launchWatchPartyVodMatch(partyCode, hostTitle, matches[0])
+            return
+        }
+        val labels = matches.map { it.title }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Which \"$hostTitle\"?")
+            .setMessage("The exact title wasn't found on your provider — found ${matches.size} close matches on your own catalog.")
+            .setItems(labels) { _, which -> launchWatchPartyVodMatch(partyCode, hostTitle, matches[which]) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun launchWatchPartyVodMatch(partyCode: String, hostTitle: String, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
+        lifecycleScope.launch {
+            val url = try {
+                if (match.serverIndex != -1) repository.getMergedVodStreamUrl(match.serverIndex, match.streamId, match.containerExtension)
+                else repository.getVodStreamUrl(match.streamId, match.containerExtension)
+            } catch (e: Exception) { null }
+            if (url == null || !repository.checkStreamHealth(url)) {
+                toast("Couldn't load \"${match.title}\"")
+                return@launch
+            }
+            val intent = Intent(this@TvSettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java)
+            intent.putExtra("watch_party_code", partyCode)
+            intent.putExtra("watch_party_content_substituted", true)
+            intent.putExtra("stream_title", hostTitle)
+            intent.putExtra("is_vod", true)
+            intent.putExtra("stream_id", match.streamId)
+            intent.putExtra("server_index", match.serverIndex)
+            intent.putExtra("merged_stream_id", if (match.serverIndex != -1) match.streamId else -1)
+            intent.putExtra("stream_url", url)
+            startActivity(intent)
+        }
     }
 
     private fun scheduleAutoSync() {

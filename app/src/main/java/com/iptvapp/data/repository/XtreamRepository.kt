@@ -502,6 +502,64 @@ class XtreamRepository @Inject constructor(
 
     fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(ftsQuery(query))
 
+    /** Result of falling back to a title search on the joining member's own catalog, when a Watch
+     * Party's exact catalog id doesn't resolve there (see WatchPartyContent kdoc — VOD ids are
+     * per-provider and don't carry over). [serverIndex] is -1 for a primary-provider match. */
+    data class WatchPartyVodMatch(
+        val serverIndex: Int,
+        val streamId: Int,
+        val title: String,
+        val containerExtension: String
+    )
+
+    // IPTV catalogs commonly prefix VOD titles with a 2-3 letter language/region code and a
+    // separator (e.g. "EN - Billy Madison (1995)", "US - ..."), which is meaningless for matching
+    // the same movie across two different providers' catalogs — strip it before searching. Kept
+    // to a known list rather than stripping any leading uppercase word, since a title could
+    // legitimately start with an acronym that's part of the actual name.
+    private val vodTitlePrefixRegex = Regex(
+        "^(EN|US|UK|FR|DE|ES|IT|PT|AR|IN|CA|AU|NZ|MX|BR)\\s*[-|:]\\s*",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** Strips a known language/region prefix (see [vodTitlePrefixRegex]) — used for the FTS4-
+     * backed primary-catalog search (searchVod → ftsQuery), whose per-token prefix matching
+     * already tolerates trailing extras like a cast name or a differently-formatted year, so only
+     * the leading prefix needs removing here. */
+    fun normalizeVodTitleForSearch(rawTitle: String): String =
+        rawTitle.trim().replace(vodTitlePrefixRegex, "").trim()
+
+    // MergedVodDao.search is a plain SQL LIKE '%query%' against the WHOLE query string, not FTS4
+    // tokenized matching — passing it a normalized-but-still-"Title (Year)"-shaped string would
+    // only match a merged-provider row containing that *exact* substring (parens, spacing, and
+    // all), so "EN - Billy Madison (1995) ADAM SANDLER" would only be found by luck if it happens
+    // to contain the literal same "(1995)". Strip everything but the core title words instead —
+    // no parens/year/punctuation — so LIKE '%billy madison%' actually matches loosely the way
+    // FTS4's per-token search does for the primary catalog.
+    private fun coreTitleWordsForLikeSearch(rawTitle: String): String {
+        val withoutPrefix = rawTitle.trim().replace(vodTitlePrefixRegex, "")
+        val withoutParens = withoutPrefix.replace(Regex("\\([^)]*\\)"), " ")
+        return withoutParens.replace(Regex("[^\\p{L}\\p{N} ]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    /** Searches this device's own catalogs (primary + every merged/secondary provider) for VOD
+     * titles matching [hostTitle], for the Watch Party "different provider, same movie under a
+     * different catalog id" fallback. One-shot (not a Flow) since this is a single lookup at join
+     * time, not a live search list. Callers should pass the host's ORIGINAL title (not pre-
+     * normalized) — this function normalizes each catalog's search independently, since the two
+     * underlying searches (FTS4 vs LIKE) need differently-shaped queries. */
+    suspend fun findWatchPartyVodMatches(hostTitle: String): List<WatchPartyVodMatch> {
+        val local = searchVod(normalizeVodTitleForSearch(hostTitle)).first().map {
+            WatchPartyVodMatch(-1, it.streamId, it.name, it.containerExtension)
+        }
+        val merged = searchMergedVod(coreTitleWordsForLikeSearch(hostTitle)).first().map {
+            WatchPartyVodMatch(it.serverIndex, it.streamId, it.name, it.containerExtension)
+        }
+        return local + merged
+    }
+
     fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(ftsQuery(query))
 
     suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {

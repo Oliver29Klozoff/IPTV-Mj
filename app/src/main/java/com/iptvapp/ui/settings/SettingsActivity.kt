@@ -2897,26 +2897,78 @@ class SettingsActivity : AppCompatActivity() {
                 intent.putExtra("episode_num", content.episodeNum)
             }
             else -> { // VOD
-                intent.putExtra("is_vod", true)
-                intent.putExtra("stream_id", content.streamId)
-                intent.putExtra("server_index", content.serverIndex)
-                intent.putExtra("merged_stream_id", content.mergedStreamId)
                 val url = try {
                     if (content.serverIndex != -1) repository.getMergedVodStreamUrl(content.serverIndex, content.mergedStreamId, content.containerExtension)
                     else repository.getVodStreamUrl(content.streamId, content.containerExtension)
                 } catch (e: Exception) { null }
-                if (url == null) {
-                    Toast.makeText(this@SettingsActivity, "Couldn't load party's movie", Toast.LENGTH_SHORT).show()
+                val healthy = url != null && repository.checkStreamHealth(url)
+                if (!healthy) {
+                    // The host's exact catalog id doesn't exist on this device's own provider —
+                    // common when both accounts carry the same movie under a different id (e.g.
+                    // one provider prefixes titles with a language code the other doesn't, or one
+                    // has extra text appended). Fall back to searching this device's own catalogs
+                    // by title before giving up entirely.
+                    offerWatchPartyVodTitleFallback(state.code, content.title)
                     return
                 }
-                if (!repository.checkStreamHealth(url)) {
-                    Toast.makeText(this@SettingsActivity, "Couldn't join Watch Party — this movie isn't available on your provider", Toast.LENGTH_LONG).show()
-                    return
-                }
+                intent.putExtra("is_vod", true)
+                intent.putExtra("stream_id", content.streamId)
+                intent.putExtra("server_index", content.serverIndex)
+                intent.putExtra("merged_stream_id", content.mergedStreamId)
                 intent.putExtra("stream_url", url)
             }
         }
         startActivity(intent)
+    }
+
+    /** Watch Party VOD fallback: the host's exact catalog id isn't on this device's own provider,
+     * so search this device's own catalogs by (normalized) title instead. Shows a picker when more
+     * than one match comes back — e.g. the same movie exists on both a primary and a merged
+     * provider, or under a couple of near-duplicate listings — rather than guessing which to play. */
+    private suspend fun offerWatchPartyVodTitleFallback(partyCode: String, hostTitle: String) {
+        val matches = try {
+            repository.findWatchPartyVodMatches(hostTitle)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (matches.isEmpty()) {
+            Toast.makeText(this@SettingsActivity, "Couldn't join Watch Party — \"$hostTitle\" isn't available on your provider", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (matches.size == 1) {
+            launchWatchPartyVodMatch(partyCode, hostTitle, matches[0])
+            return
+        }
+        val labels = matches.map { it.title }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Which \"$hostTitle\"?")
+            .setMessage("The exact title wasn't found on your provider — found ${matches.size} close matches on your own catalog.")
+            .setItems(labels) { _, which -> launchWatchPartyVodMatch(partyCode, hostTitle, matches[which]) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun launchWatchPartyVodMatch(partyCode: String, hostTitle: String, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
+        lifecycleScope.launch {
+            val url = try {
+                if (match.serverIndex != -1) repository.getMergedVodStreamUrl(match.serverIndex, match.streamId, match.containerExtension)
+                else repository.getVodStreamUrl(match.streamId, match.containerExtension)
+            } catch (e: Exception) { null }
+            if (url == null || !repository.checkStreamHealth(url)) {
+                Toast.makeText(this@SettingsActivity, "Couldn't load \"${match.title}\"", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val intent = Intent(this@SettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java)
+            intent.putExtra("watch_party_code", partyCode)
+            intent.putExtra("watch_party_content_substituted", true)
+            intent.putExtra("stream_title", hostTitle)
+            intent.putExtra("is_vod", true)
+            intent.putExtra("stream_id", match.streamId)
+            intent.putExtra("server_index", match.serverIndex)
+            intent.putExtra("merged_stream_id", if (match.serverIndex != -1) match.streamId else -1)
+            intent.putExtra("stream_url", url)
+            startActivity(intent)
+        }
     }
 
     private fun showManagePairingCodesDialog(codes: List<String>) {

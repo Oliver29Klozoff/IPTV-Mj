@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.08 - 2026-08-14
+- **Added**: Watch Party movie/episode title matching — when a movie or episode isn't found
+  under the host's exact catalog listing on your own provider, MKTV now searches your own
+  catalog by title instead of giving up (e.g. the host's "EN - Billy Madison (1995)" now
+  matches your provider's own listing for the same movie, even under a different name or id).
+  If more than one close match is found, you'll get a quick picker to choose the right one.
+
 ## v6.07 - 2026-08-14
 - **Fixed**: found the real gap behind Watch Party joins silently never playing when a channel/
   movie isn't on your own provider — the "not available on your provider" message existed but

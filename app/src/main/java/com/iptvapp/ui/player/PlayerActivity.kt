@@ -175,6 +175,14 @@ class PlayerActivity : AppCompatActivity() {
     private var isApplyingRemoteUpdate: Boolean = false
     private var partyListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
     private var partyMemberCount: Int = 0
+    // Set true when this device is playing a title-search fallback match instead of the host's
+    // exact catalog id (see SettingsActivity/TvSettingsActivity's offerWatchPartyVodTitleFallback)
+    // — the host's content identity will then never match this device's own substituted
+    // streamId/serverIndex on any future Firestore update, which would otherwise make
+    // applyRemotePartyState treat every single heartbeat as "content changed, reload" and
+    // re-trigger the whole fallback/toast cycle in a loop. Only position/play-state sync applies
+    // while this is true; the content itself is intentionally left alone.
+    private var isPartyContentSubstituted: Boolean = false
     private val partyHeartbeatHandler = Handler(Looper.getMainLooper())
     private var partyLaunchCode: String = ""
     private val partyHeartbeatRunnable = object : Runnable {
@@ -317,6 +325,7 @@ class PlayerActivity : AppCompatActivity() {
         traktEpisode = intent.getIntExtra("episode_num", -1)
         episodeSeriesId = intent.getIntExtra("series_id", -1)
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
+        isPartyContentSubstituted = intent.getBooleanExtra("watch_party_content_substituted", false)
 
         setupWatchPartyButton()
         if (partyLaunchCode.isNotEmpty()) joinWatchParty(partyLaunchCode, showToast = false)
@@ -722,7 +731,13 @@ class PlayerActivity : AppCompatActivity() {
         // only ever seeked/played-paused whatever the player already happened to have loaded,
         // which is a no-op (stuck buffering forever) the moment a member joins with nothing
         // loaded — this was a real bug, not the "different provider" case the LIVE toast covers.
-        val sameContent = if (state.content.contentType == "EPISODE") {
+        // A title-search fallback match (see isPartyContentSubstituted kdoc) will never match the
+        // host's own catalog id on any future update — that's expected and correct here, not a
+        // real content change to chase. Treat it as "already on the right title" permanently for
+        // this session so only position/play-state syncs, the actual content is left alone.
+        val sameContent = if (isPartyContentSubstituted) {
+            true
+        } else if (state.content.contentType == "EPISODE") {
             state.content.seriesId == episodeSeriesId && state.content.seasonNum == traktSeason &&
                 state.content.episodeNum == traktEpisode
         } else {
@@ -754,12 +769,16 @@ class PlayerActivity : AppCompatActivity() {
                     // actual probe, not just a catch block, to catch the real "not on your
                     // provider" case instead of only genuine connection/config exceptions.
                     if (!repository.checkStreamHealth(url)) {
-                        Toast.makeText(
-                            this@PlayerActivity,
-                            "Couldn't load \"${state.content.title}\" — not available on your provider",
-                            Toast.LENGTH_LONG
-                        ).show()
                         isApplyingRemoteUpdate = false
+                        if (state.content.contentType == "VOD") {
+                            offerWatchPartyVodTitleFallback(state.content.title)
+                        } else {
+                            Toast.makeText(
+                                this@PlayerActivity,
+                                "Couldn't load \"${state.content.title}\" — not available on your provider",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                         return@launch
                     }
                     loadStream(url)
@@ -793,6 +812,58 @@ class PlayerActivity : AppCompatActivity() {
             updatePlayPauseButton()
         }
         isApplyingRemoteUpdate = false
+    }
+
+    /** In-player Watch Party VOD fallback — same reasoning/behavior as SettingsActivity's
+     * offerWatchPartyVodTitleFallback, just operating on the already-open player instead of
+     * launching a new PlayerActivity. Sets isPartyContentSubstituted so future Firestore updates
+     * don't keep re-triggering this (see that field's kdoc). */
+    private fun offerWatchPartyVodTitleFallback(hostTitle: String) {
+        lifecycleScope.launch {
+            val matches = try {
+                repository.findWatchPartyVodMatches(hostTitle)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            if (matches.isEmpty()) {
+                Toast.makeText(this@PlayerActivity, "Couldn't join Watch Party — \"$hostTitle\" isn't available on your provider", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (matches.size == 1) {
+                playWatchPartyVodMatch(hostTitle, matches[0])
+                return@launch
+            }
+            val labels = matches.map { it.title }.toTypedArray()
+            AlertDialog.Builder(this@PlayerActivity)
+                .setTitle("Which \"$hostTitle\"?")
+                .setMessage("The exact title wasn't found on your provider — found ${matches.size} close matches on your own catalog.")
+                .setItems(labels) { _, which -> playWatchPartyVodMatch(hostTitle, matches[which]) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun playWatchPartyVodMatch(hostTitle: String, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
+        lifecycleScope.launch {
+            val url = try {
+                if (match.serverIndex != -1) repository.getMergedVodStreamUrl(match.serverIndex, match.streamId, match.containerExtension)
+                else repository.getVodStreamUrl(match.streamId, match.containerExtension)
+            } catch (e: Exception) { null }
+            if (url == null || !repository.checkStreamHealth(url)) {
+                Toast.makeText(this@PlayerActivity, "Couldn't load \"${match.title}\"", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            isPartyContentSubstituted = true
+            isApplyingRemoteUpdate = true
+            isVod = true
+            streamId = match.streamId
+            serverIndex = match.serverIndex
+            mergedStreamId = if (match.serverIndex != -1) match.streamId else -1
+            streamTitle = hostTitle
+            binding.tvChannelTitle.text = streamTitle
+            loadStream(url)
+            isApplyingRemoteUpdate = false
+        }
     }
 
     /** Host-only write hook — call at every real user-initiated seek/play/pause/channel-change
