@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.06 - 2026-08-14
+- **Fixed**: reverted v6.05's stream-URL change, which was based on an incorrect assumption
+  and broke merged-provider streaming instead of fixing it. The actual issue: joining a movie
+  Watch Party where the host's title isn't in your own provider's catalog (a different account
+  than the host) would buffer silently for a while before quietly giving up. Now shows a clear
+  "not available on your provider" message right when it gives up, instead of a small
+  easy-to-miss status label.
+
 ## v6.05 - 2026-08-14
 - **Fixed**: the actual root cause of Watch Party getting stuck buffering on a secondary/merged
   provider, for both live channels and movies/episodes — joining a party built the stream URL

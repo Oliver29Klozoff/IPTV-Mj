@@ -1,7 +1,7 @@
 {
-  "versionCode": 443,
-  "versionName": "6.05",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.05/MKTV.apk",
-  "apkSha256": "eb55aeb90cb15da8675e202cfbc6ee01584f27db4eacbfa1e58b8756016c5588",
-  "changelog": "Fixed the root cause of Watch Party getting stuck buffering on a secondary/merged provider (wrong internal ID used to build the stream URL), for both live channels and movies/episodes, in both the in-player join flow and the Settings-based join flow."
+  "versionCode": 444,
+  "versionName": "6.06",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.06/MKTV.apk",
+  "apkSha256": "a2b349424c61f45cf971c223653cbed9e92881ae460f95f6857203091040eb25",
+  "changelog": "Reverted v6.05's incorrect stream-URL change. Watch Party now shows a clear message right away when a movie/episode isn't available on a member's own provider, instead of buffering silently."
 }

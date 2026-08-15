@@ -685,7 +685,7 @@ class PlayerActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     try {
                         val url = if (state.content.serverIndex != -1)
-                            repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.streamId)
+                            repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.mergedStreamId)
                         else repository.getLiveStreamUrl(state.content.streamId)
                         loadStream(url)
                     } catch (_: Exception) {
@@ -735,7 +735,7 @@ class PlayerActivity : AppCompatActivity() {
                         serverIndex = state.content.serverIndex
                         mergedStreamId = state.content.mergedStreamId
                         if (state.content.serverIndex != -1)
-                            repository.getMergedVodStreamUrl(state.content.serverIndex, state.content.streamId, state.content.containerExtension)
+                            repository.getMergedVodStreamUrl(state.content.serverIndex, state.content.mergedStreamId, state.content.containerExtension)
                         else repository.getVodStreamUrl(state.content.streamId, state.content.containerExtension)
                     }
                     loadStream(url)
@@ -2112,6 +2112,19 @@ class PlayerActivity : AppCompatActivity() {
                 applicationContext,
                 "RETRY GIVE UP: isVod=$isVod streamId=$streamId url=$streamUrl attempts=$retryCount"
             )
+            // A member's own provider not having this VOD/episode's catalog ID looks identical to
+            // any other dead-stream give-up here (getMergedVodStreamUrl/getVodStreamUrl just build
+            // a URL string with no upfront validation), so the generic status label above is the
+            // only signal — easy to miss, and it can take a while to appear since it's behind
+            // maxRetries attempts. Watch Party members deserve the same immediate, specific message
+            // the LIVE channel-follow path already shows on failure, not a silent multi-attempt wait.
+            if (isPartyMember && !isApplyingRemoteUpdate) {
+                Toast.makeText(
+                    this@PlayerActivity,
+                    "Couldn't load \"$streamTitle\" — not available on your provider",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             return
         }
         // Live channels previously had no give-up path at all here — retry just kept ramping up
