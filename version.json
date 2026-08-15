@@ -1,7 +1,7 @@
 {
-  "versionCode": 444,
-  "versionName": "6.06",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.06/MKTV.apk",
-  "apkSha256": "a2b349424c61f45cf971c223653cbed9e92881ae460f95f6857203091040eb25",
-  "changelog": "Reverted v6.05's incorrect stream-URL change. Watch Party now shows a clear message right away when a movie/episode isn't available on a member's own provider, instead of buffering silently."
+  "versionCode": 445,
+  "versionName": "6.07",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.07/MKTV.apk",
+  "apkSha256": "02b19b17743807a0e89153aa7581a8a3f127178852b0edf0f1385065b207211d",
+  "changelog": "Fixed the real gap behind Watch Party joins silently never playing on a different provider -- the failure message now actually triggers, via an active stream-health check instead of a catch block that could never fire."
 }

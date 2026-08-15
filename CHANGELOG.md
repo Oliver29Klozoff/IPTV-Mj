@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.07 - 2026-08-14
+- **Fixed**: found the real gap behind Watch Party joins silently never playing when a channel/
+  movie isn't on your own provider — the "not available on your provider" message existed but
+  could never actually trigger, since building a stream URL never fails for a nonexistent
+  catalog ID (it just silently sits buffering). Watch Party joins now actively check the
+  resolved stream works before playing it, so this message reliably shows up immediately
+  instead of a silent hang. Applies to joining via the player and via Settings, on phone and TV.
+
 ## v6.06 - 2026-08-14
 - **Fixed**: reverted v6.05's stream-URL change, which was based on an incorrect assumption
   and broke merged-provider streaming instead of fixing it. The actual issue: joining a movie

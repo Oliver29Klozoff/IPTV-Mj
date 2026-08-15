@@ -2864,6 +2864,18 @@ class SettingsActivity : AppCompatActivity() {
                     Toast.makeText(this@SettingsActivity, "Couldn't load party's channel", Toast.LENGTH_SHORT).show()
                     return
                 }
+                // Building a URL never fails for a catalog id that simply doesn't exist on this
+                // device's own provider (XtreamUrlBuilder is pure string construction, no upfront
+                // validation) -- launching PlayerActivity on a URL like that used to just sit in
+                // its generic buffering/retry loop with zero Watch-Party-specific error, since a
+                // request that keeps returning SOME response (even a provider error page) never
+                // hits a hard connection exception the retry ladder would treat as a give-up.
+                // checkStreamHealth actually probes the URL first so this is caught immediately,
+                // before ever launching a player that would otherwise just hang.
+                if (!repository.checkStreamHealth(url)) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't join Watch Party — this channel isn't available on your provider", Toast.LENGTH_LONG).show()
+                    return
+                }
                 intent.putExtra("stream_url", url)
             }
             "EPISODE" -> {
@@ -2872,6 +2884,10 @@ class SettingsActivity : AppCompatActivity() {
                 } catch (e: Exception) { null }
                 if (url == null || content.episodeId.isBlank()) {
                     Toast.makeText(this@SettingsActivity, "Couldn't load party's episode", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                if (!repository.checkStreamHealth(url)) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't join Watch Party — this episode isn't available on your provider", Toast.LENGTH_LONG).show()
                     return
                 }
                 intent.putExtra("is_vod", true)
@@ -2891,6 +2907,10 @@ class SettingsActivity : AppCompatActivity() {
                 } catch (e: Exception) { null }
                 if (url == null) {
                     Toast.makeText(this@SettingsActivity, "Couldn't load party's movie", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                if (!repository.checkStreamHealth(url)) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't join Watch Party — this movie isn't available on your provider", Toast.LENGTH_LONG).show()
                     return
                 }
                 intent.putExtra("stream_url", url)

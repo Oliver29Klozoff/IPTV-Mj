@@ -687,11 +687,22 @@ class PlayerActivity : AppCompatActivity() {
                         val url = if (state.content.serverIndex != -1)
                             repository.getMergedLiveStreamUrl(state.content.serverIndex, state.content.mergedStreamId)
                         else repository.getLiveStreamUrl(state.content.streamId)
-                        loadStream(url)
+                        // getMerged/LiveStreamUrl is pure string building against a catalog id that
+                        // may simply not exist on this device's own provider — it never throws for
+                        // that case, so the catch block below was structurally unable to ever catch
+                        // "not on your provider" (only a genuine connection/config exception).
+                        // checkStreamHealth actually probes the URL first so this member gets an
+                        // immediate, correct message instead of silently sitting on the old channel.
+                        if (!repository.checkStreamHealth(url)) {
+                            Toast.makeText(
+                                this@PlayerActivity,
+                                "Couldn't follow host's channel — not available on your provider",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            loadStream(url)
+                        }
                     } catch (_: Exception) {
-                        // Most likely cause: this member's own provider doesn't carry the channel
-                        // the host switched to (Watch Party syncs channel identity, not a URL —
-                        // see WatchPartyContent kdoc). Surface it rather than silently freezing.
                         Toast.makeText(
                             this@PlayerActivity,
                             "Couldn't follow host's channel — not available on your provider",
@@ -737,6 +748,19 @@ class PlayerActivity : AppCompatActivity() {
                         if (state.content.serverIndex != -1)
                             repository.getMergedVodStreamUrl(state.content.serverIndex, state.content.mergedStreamId, state.content.containerExtension)
                         else repository.getVodStreamUrl(state.content.streamId, state.content.containerExtension)
+                    }
+                    // Same reasoning as the LIVE branch above: URL building never throws for a
+                    // catalog id that doesn't exist on this member's own provider, so this needs an
+                    // actual probe, not just a catch block, to catch the real "not on your
+                    // provider" case instead of only genuine connection/config exceptions.
+                    if (!repository.checkStreamHealth(url)) {
+                        Toast.makeText(
+                            this@PlayerActivity,
+                            "Couldn't load \"${state.content.title}\" — not available on your provider",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        isApplyingRemoteUpdate = false
+                        return@launch
                     }
                     loadStream(url)
                     if (state.positionMs > 0L) player?.seekTo(state.positionMs)

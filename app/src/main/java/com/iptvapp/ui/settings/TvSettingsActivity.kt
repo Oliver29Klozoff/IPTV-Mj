@@ -2462,6 +2462,13 @@ class TvSettingsActivity : AppCompatActivity() {
                     toast("Couldn't load party's channel")
                     return
                 }
+                // See SettingsActivity's matching kdoc: checkStreamHealth catches a catalog id
+                // that doesn't exist on this device's own provider immediately, instead of
+                // launching a player that would just sit buffering with no clear error.
+                if (!repository.checkStreamHealth(url)) {
+                    toast("Couldn't join Watch Party — this channel isn't available on your provider")
+                    return
+                }
                 intent.putExtra("stream_url", url)
             }
             "EPISODE" -> {
@@ -2470,6 +2477,10 @@ class TvSettingsActivity : AppCompatActivity() {
                 } catch (e: Exception) { null }
                 if (url == null || content.episodeId.isBlank()) {
                     toast("Couldn't load party's episode")
+                    return
+                }
+                if (!repository.checkStreamHealth(url)) {
+                    toast("Couldn't join Watch Party — this episode isn't available on your provider")
                     return
                 }
                 intent.putExtra("is_vod", true)
@@ -2489,6 +2500,10 @@ class TvSettingsActivity : AppCompatActivity() {
                 } catch (e: Exception) { null }
                 if (url == null) {
                     toast("Couldn't load party's movie")
+                    return
+                }
+                if (!repository.checkStreamHealth(url)) {
+                    toast("Couldn't join Watch Party — this movie isn't available on your provider")
                     return
                 }
                 intent.putExtra("stream_url", url)
