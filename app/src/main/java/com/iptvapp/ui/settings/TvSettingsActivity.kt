@@ -2449,6 +2449,12 @@ class TvSettingsActivity : AppCompatActivity() {
         val intent = Intent(this@TvSettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java)
         intent.putExtra("watch_party_code", state.code)
         intent.putExtra("stream_title", content.title)
+        // See SettingsActivity's matching kdoc — a party can start paused, waiting for people to
+        // join before the host presses play.
+        if (content.contentType != "LIVE") {
+            intent.putExtra("resume_ms", state.positionMs)
+            intent.putExtra("watch_party_start_paused", !state.isPlaying)
+        }
         when (content.contentType) {
             "LIVE" -> {
                 intent.putExtra("is_vod", false)
@@ -2498,7 +2504,7 @@ class TvSettingsActivity : AppCompatActivity() {
                 if (!healthy) {
                     // See SettingsActivity's matching kdoc — fall back to a title search on this
                     // device's own catalogs before giving up entirely.
-                    offerWatchPartyVodTitleFallback(state.code, content.title)
+                    offerWatchPartyVodTitleFallback(state)
                     return
                 }
                 intent.putExtra("is_vod", true)
@@ -2512,7 +2518,8 @@ class TvSettingsActivity : AppCompatActivity() {
     }
 
     /** See SettingsActivity's matching kdoc. */
-    private suspend fun offerWatchPartyVodTitleFallback(partyCode: String, hostTitle: String) {
+    private suspend fun offerWatchPartyVodTitleFallback(state: com.iptvapp.sync.WatchPartyState) {
+        val hostTitle = state.content.title
         val matches = try {
             repository.findWatchPartyVodMatches(hostTitle)
         } catch (_: Exception) {
@@ -2523,7 +2530,7 @@ class TvSettingsActivity : AppCompatActivity() {
             return
         }
         if (matches.size == 1) {
-            launchWatchPartyVodMatch(partyCode, hostTitle, matches[0])
+            launchWatchPartyVodMatch(state, matches[0])
             return
         }
         // setMessage + setItems on the same AlertDialog.Builder are mutually exclusive — Android
@@ -2532,12 +2539,12 @@ class TvSettingsActivity : AppCompatActivity() {
         val labels = matches.map { it.title }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("Which \"$hostTitle\"? (${matches.size} matches)")
-            .setItems(labels) { _, which -> launchWatchPartyVodMatch(partyCode, hostTitle, matches[which]) }
+            .setItems(labels) { _, which -> launchWatchPartyVodMatch(state, matches[which]) }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun launchWatchPartyVodMatch(partyCode: String, hostTitle: String, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
+    private fun launchWatchPartyVodMatch(state: com.iptvapp.sync.WatchPartyState, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
         lifecycleScope.launch {
             val url = try {
                 if (match.serverIndex != -1) repository.getMergedVodStreamUrl(match.serverIndex, match.streamId, match.containerExtension)
@@ -2548,9 +2555,11 @@ class TvSettingsActivity : AppCompatActivity() {
                 return@launch
             }
             val intent = Intent(this@TvSettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java)
-            intent.putExtra("watch_party_code", partyCode)
+            intent.putExtra("watch_party_code", state.code)
             intent.putExtra("watch_party_content_substituted", true)
-            intent.putExtra("stream_title", hostTitle)
+            intent.putExtra("stream_title", state.content.title)
+            intent.putExtra("resume_ms", state.positionMs)
+            intent.putExtra("watch_party_start_paused", !state.isPlaying)
             intent.putExtra("is_vod", true)
             intent.putExtra("stream_id", match.streamId)
             intent.putExtra("server_index", match.serverIndex)

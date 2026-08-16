@@ -1,7 +1,7 @@
 {
-  "versionCode": 448,
-  "versionName": "6.10",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.10/MKTV.apk",
-  "apkSha256": "e5e85d7b1907addf62df37b5e88d5f000363561daeb3f161e08bd4eee4060774",
-  "changelog": "Fixed the Watch Party title-match picker showing a match count but no actual choice list -- it now shows the list properly."
+  "versionCode": 449,
+  "versionName": "6.11",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.11/MKTV.apk",
+  "apkSha256": "c72bb2686bdb56be50e6f469844d66e90265a429c0b20e752e20ad8d9a59e9df",
+  "changelog": "Added: Watch Party now starts paused so the host can wait for everyone to join before pressing play, starting from wherever the host currently is rather than always resetting to the beginning."
 }

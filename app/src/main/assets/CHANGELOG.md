@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.11 - 2026-08-15
+- **Added**: Watch Party now starts paused — the host can share the code and wait for everyone
+  to join before pressing play, instead of playback running ahead from the moment the party is
+  created. Starting a party partway through a movie also now begins everyone at that same
+  paused position, instead of resetting to the very start.
+
 ## v6.10 - 2026-08-15
 - **Fixed**: the Watch Party title-match picker showed "found N close matches" but no actual
   list to choose from — a dialog it was built on can't show a message and a choice list at

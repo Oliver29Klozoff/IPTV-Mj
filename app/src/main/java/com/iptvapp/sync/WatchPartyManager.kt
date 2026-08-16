@@ -81,8 +81,11 @@ class WatchPartyManager @Inject constructor(
 
     /** Creates a new party doc under a fresh, collision-checked 8-char code and returns it. This
      * device becomes the host. Same collision-retry shape SyncManager's short-code write uses
-     * (that one just never collides since it's a UID slice — a random per-party code actually can). */
-    suspend fun startParty(content: WatchPartyContent): String = withContext(Dispatchers.IO) {
+     * (that one just never collides since it's a UID slice — a random per-party code actually can).
+     * [startPositionMs] is the host's own current playback position for VOD/EPISODE content (0 for
+     * LIVE, where a seek position is meaningless) — a party started partway through a movie
+     * previously always began everyone at position 0 regardless of where the host actually was. */
+    suspend fun startParty(content: WatchPartyContent, startPositionMs: Long = 0L): String = withContext(Dispatchers.IO) {
         val user = signInIfNeeded()
         var code = ""
         repeat(6) { attempt ->
@@ -108,8 +111,13 @@ class WatchPartyManager @Inject constructor(
             "title" to content.title,
             "containerExtension" to content.containerExtension,
             "episodeId" to content.episodeId,
-            "isPlaying" to true,
-            "positionMs" to 0L,
+            // Starts paused, not playing — a party begun mid-scene with nobody else in it yet
+            // would already be minutes ahead by the time the host shares the code and anyone
+            // joins. The host presses play themselves once people are actually ready (see
+            // PlayerActivity.startWatchParty, which pauses the local player to match this at the
+            // same moment this doc is written).
+            "isPlaying" to false,
+            "positionMs" to startPositionMs,
             "updatedAt" to FieldValue.serverTimestamp(),
             "memberUids" to listOf(user.uid)
         )

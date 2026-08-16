@@ -185,6 +185,12 @@ class PlayerActivity : AppCompatActivity() {
     private var isPartyContentSubstituted: Boolean = false
     private val partyHeartbeatHandler = Handler(Looper.getMainLooper())
     private var partyLaunchCode: String = ""
+    // Set from the "watch_party_start_paused" intent extra — a party joined via a fresh
+    // PlayerActivity launch (SettingsActivity/TvSettingsActivity's launchPlayerForWatchParty)
+    // where the host hasn't pressed play yet (see WatchPartyManager.startParty's paused-start
+    // kdoc). onStart() always sets playWhenReady = true otherwise; this overrides that so the
+    // member doesn't watch a flash of playback before a later sync would correct it.
+    private var partyStartPaused: Boolean = false
     private val partyHeartbeatRunnable = object : Runnable {
         override fun run() {
             if (isPartyHost && partyCode.isNotEmpty() && player?.isPlaying == true) {
@@ -326,6 +332,7 @@ class PlayerActivity : AppCompatActivity() {
         episodeSeriesId = intent.getIntExtra("series_id", -1)
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
         isPartyContentSubstituted = intent.getBooleanExtra("watch_party_content_substituted", false)
+        partyStartPaused = intent.getBooleanExtra("watch_party_start_paused", false)
 
         setupWatchPartyButton()
         if (partyLaunchCode.isNotEmpty()) joinWatchParty(partyLaunchCode, showToast = false)
@@ -602,7 +609,17 @@ class PlayerActivity : AppCompatActivity() {
     private fun startWatchParty() {
         lifecycleScope.launch {
             try {
-                val code = watchPartyManager.startParty(currentWatchPartyContent())
+                // Party starts paused (see WatchPartyManager.startParty kdoc) — pause the host's
+                // own player to match, right at the same moment, so playback doesn't keep running
+                // ahead while the host is still sharing the code / waiting for people to join.
+                // isApplyingRemoteUpdate guards this so the pause itself doesn't get mistaken for
+                // a "real user action" and re-written back over the isPlaying=false already sent.
+                isApplyingRemoteUpdate = true
+                player?.pause()
+                updatePlayPauseButton()
+                isApplyingRemoteUpdate = false
+                val startPositionMs = if (isVod) player?.currentPosition ?: 0L else 0L
+                val code = watchPartyManager.startParty(currentWatchPartyContent(), startPositionMs)
                 partyCode = code
                 isPartyHost = true
                 isPartyMember = false
@@ -771,7 +788,7 @@ class PlayerActivity : AppCompatActivity() {
                     if (!repository.checkStreamHealth(url)) {
                         isApplyingRemoteUpdate = false
                         if (state.content.contentType == "VOD") {
-                            offerWatchPartyVodTitleFallback(state.content.title)
+                            offerWatchPartyVodTitleFallback(state)
                         } else {
                             Toast.makeText(
                                 this@PlayerActivity,
@@ -783,6 +800,14 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     loadStream(url)
                     if (state.positionMs > 0L) player?.seekTo(state.positionMs)
+                    // loadStream() always sets playWhenReady = true — if the party is actually
+                    // paused (e.g. the host just started it and hasn't pressed play yet), correct
+                    // that immediately instead of letting the member watch a moment of playback
+                    // before the trailing position/play-state sync below would otherwise catch it.
+                    if (!state.isPlaying) {
+                        player?.pause()
+                        updatePlayPauseButton()
+                    }
                 } catch (_: Exception) {
                     // Most likely cause: this member's own provider doesn't carry this title —
                     // same reasoning as the LIVE branch's toast above.
@@ -818,7 +843,8 @@ class PlayerActivity : AppCompatActivity() {
      * offerWatchPartyVodTitleFallback, just operating on the already-open player instead of
      * launching a new PlayerActivity. Sets isPartyContentSubstituted so future Firestore updates
      * don't keep re-triggering this (see that field's kdoc). */
-    private fun offerWatchPartyVodTitleFallback(hostTitle: String) {
+    private fun offerWatchPartyVodTitleFallback(state: com.iptvapp.sync.WatchPartyState) {
+        val hostTitle = state.content.title
         lifecycleScope.launch {
             val matches = try {
                 repository.findWatchPartyVodMatches(hostTitle)
@@ -830,7 +856,7 @@ class PlayerActivity : AppCompatActivity() {
                 return@launch
             }
             if (matches.size == 1) {
-                playWatchPartyVodMatch(hostTitle, matches[0])
+                playWatchPartyVodMatch(state, matches[0])
                 return@launch
             }
             // setMessage + setItems on the same AlertDialog.Builder are mutually exclusive —
@@ -839,13 +865,13 @@ class PlayerActivity : AppCompatActivity() {
             val labels = matches.map { it.title }.toTypedArray()
             AlertDialog.Builder(this@PlayerActivity)
                 .setTitle("Which \"$hostTitle\"? (${matches.size} matches)")
-                .setItems(labels) { _, which -> playWatchPartyVodMatch(hostTitle, matches[which]) }
+                .setItems(labels) { _, which -> playWatchPartyVodMatch(state, matches[which]) }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
     }
 
-    private fun playWatchPartyVodMatch(hostTitle: String, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
+    private fun playWatchPartyVodMatch(state: com.iptvapp.sync.WatchPartyState, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyVodMatch) {
         lifecycleScope.launch {
             val url = try {
                 if (match.serverIndex != -1) repository.getMergedVodStreamUrl(match.serverIndex, match.streamId, match.containerExtension)
@@ -861,9 +887,17 @@ class PlayerActivity : AppCompatActivity() {
             streamId = match.streamId
             serverIndex = match.serverIndex
             mergedStreamId = if (match.serverIndex != -1) match.streamId else -1
-            streamTitle = hostTitle
+            streamTitle = state.content.title
             binding.tvChannelTitle.text = streamTitle
             loadStream(url)
+            // Same reasoning as the exact-catalog-match path above — loadStream() always sets
+            // playWhenReady = true, so land on the party's actual current position/play-state
+            // instead of momentarily auto-playing from 0 before a later sync corrects it.
+            if (state.positionMs > 0L) player?.seekTo(state.positionMs)
+            if (!state.isPlaying) {
+                player?.pause()
+                updatePlayPauseButton()
+            }
             isApplyingRemoteUpdate = false
         }
     }
@@ -2977,10 +3011,12 @@ class PlayerActivity : AppCompatActivity() {
                 resumePositionMs = 0L
                 player?.setMediaItem(MediaItem.fromUri(streamUrl), startPos)
                 player?.prepare()
-                player?.playWhenReady = true
+                player?.playWhenReady = !partyStartPaused
             } else {
                 loadStream(streamUrl)
+                if (partyStartPaused) player?.pause()
             }
+            if (partyStartPaused) updatePlayPauseButton()
         }
     }
 
