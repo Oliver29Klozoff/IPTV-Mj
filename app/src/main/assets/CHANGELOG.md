@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.15 - 2026-08-15
+- **Added**: fall back to title search when a Watch Party VOD/episode isn't found under the
+  host's exact catalog id, not just movies — series episodes now search your own catalog by
+  show name and match the season/episode too, instead of failing with "couldn't load party's
+  episode."
+
 ## v6.14 - 2026-08-15
 - **Fixed**: found why the very first update attempt never seemed to do anything (a second try
   always worked) — on a device that hasn't yet granted MKTV permission to install updates, the

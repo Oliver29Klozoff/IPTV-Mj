@@ -2478,15 +2478,14 @@ class TvSettingsActivity : AppCompatActivity() {
                 intent.putExtra("stream_url", url)
             }
             "EPISODE" -> {
-                val url = try {
+                val url = if (content.episodeId.isBlank()) null else try {
                     repository.getSeriesEpisodeUrl(content.episodeId, content.containerExtension)
                 } catch (e: Exception) { null }
-                if (url == null || content.episodeId.isBlank()) {
-                    toast("Couldn't load party's episode")
-                    return
-                }
-                if (!repository.checkStreamHealth(url)) {
-                    toast("Couldn't join Watch Party — this episode isn't available on your provider")
+                val healthy = url != null && repository.checkStreamHealth(url)
+                if (!healthy) {
+                    // See SettingsActivity's matching kdoc — fall back to a series-name search
+                    // on this device's own catalog before giving up entirely.
+                    offerWatchPartyEpisodeTitleFallback(state)
                     return
                 }
                 intent.putExtra("is_vod", true)
@@ -2564,6 +2563,56 @@ class TvSettingsActivity : AppCompatActivity() {
             intent.putExtra("stream_id", match.streamId)
             intent.putExtra("server_index", match.serverIndex)
             intent.putExtra("merged_stream_id", if (match.serverIndex != -1) match.streamId else -1)
+            intent.putExtra("stream_url", url)
+            startActivity(intent)
+        }
+    }
+
+    /** See SettingsActivity's matching kdoc. */
+    private suspend fun offerWatchPartyEpisodeTitleFallback(state: com.iptvapp.sync.WatchPartyState) {
+        val content = state.content
+        val seriesName = content.seriesName.ifBlank { content.title }
+        val matches = try {
+            repository.findWatchPartyEpisodeMatch(seriesName, content.seasonNum, content.episodeNum)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (matches.isEmpty()) {
+            toast("Couldn't join Watch Party — \"$seriesName\" S${content.seasonNum}E${content.episodeNum} isn't available on your provider")
+            return
+        }
+        if (matches.size == 1) {
+            launchWatchPartyEpisodeMatch(state, matches[0])
+            return
+        }
+        val labels = matches.map { it.seriesTitle }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Which \"$seriesName\"? (${matches.size} matches)")
+            .setItems(labels) { _, which -> launchWatchPartyEpisodeMatch(state, matches[which]) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun launchWatchPartyEpisodeMatch(state: com.iptvapp.sync.WatchPartyState, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyEpisodeMatch) {
+        lifecycleScope.launch {
+            val url = try {
+                if (match.serverIndex != -1) repository.getMergedSeriesEpisodeUrl(match.serverIndex, match.episodeId, match.containerExtension)
+                else repository.getSeriesEpisodeUrl(match.episodeId, match.containerExtension)
+            } catch (e: Exception) { null }
+            if (url == null || !repository.checkStreamHealth(url)) {
+                toast("Couldn't load \"${match.seriesTitle}\"")
+                return@launch
+            }
+            val intent = Intent(this@TvSettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java)
+            intent.putExtra("watch_party_code", state.code)
+            intent.putExtra("watch_party_content_substituted", true)
+            intent.putExtra("stream_title", state.content.title)
+            intent.putExtra("resume_ms", state.positionMs)
+            intent.putExtra("watch_party_start_paused", !state.isPlaying)
+            intent.putExtra("is_vod", true)
+            intent.putExtra("series_id", match.seriesId)
+            intent.putExtra("season_num", state.content.seasonNum)
+            intent.putExtra("episode_num", state.content.episodeNum)
             intent.putExtra("stream_url", url)
             startActivity(intent)
         }

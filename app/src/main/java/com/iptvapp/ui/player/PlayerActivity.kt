@@ -562,7 +562,7 @@ class PlayerActivity : AppCompatActivity() {
             episodeSeriesId != -1 && traktSeason >= 0 && traktEpisode >= 0 -> com.iptvapp.sync.WatchPartyContent(
                 contentType = "EPISODE", seriesId = episodeSeriesId, seasonNum = traktSeason,
                 episodeNum = traktEpisode, title = streamTitle, containerExtension = ext,
-                episodeId = epIds.getOrNull(epIndex) ?: ""
+                episodeId = epIds.getOrNull(epIndex) ?: "", seriesName = traktSeriesName
             )
             else -> com.iptvapp.sync.WatchPartyContent(
                 contentType = "VOD", streamId = streamId, serverIndex = serverIndex,
@@ -787,10 +787,10 @@ class PlayerActivity : AppCompatActivity() {
                     // provider" case instead of only genuine connection/config exceptions.
                     if (!repository.checkStreamHealth(url)) {
                         isApplyingRemoteUpdate = false
-                        if (state.content.contentType == "VOD") {
-                            offerWatchPartyVodTitleFallback(state)
-                        } else {
-                            Toast.makeText(
+                        when (state.content.contentType) {
+                            "VOD" -> offerWatchPartyVodTitleFallback(state)
+                            "EPISODE" -> offerWatchPartyEpisodeTitleFallback(state)
+                            else -> Toast.makeText(
                                 this@PlayerActivity,
                                 "Couldn't load \"${state.content.title}\" — not available on your provider",
                                 Toast.LENGTH_LONG
@@ -893,6 +893,62 @@ class PlayerActivity : AppCompatActivity() {
             // Same reasoning as the exact-catalog-match path above — loadStream() always sets
             // playWhenReady = true, so land on the party's actual current position/play-state
             // instead of momentarily auto-playing from 0 before a later sync corrects it.
+            if (state.positionMs > 0L) player?.seekTo(state.positionMs)
+            if (!state.isPlaying) {
+                player?.pause()
+                updatePlayPauseButton()
+            }
+            isApplyingRemoteUpdate = false
+        }
+    }
+
+    /** Episode equivalent of offerWatchPartyVodTitleFallback/playWatchPartyVodMatch — see
+     * SettingsActivity's matching kdoc for the series-name-search + season/episode-lookup
+     * reasoning. */
+    private fun offerWatchPartyEpisodeTitleFallback(state: com.iptvapp.sync.WatchPartyState) {
+        val seriesName = state.content.seriesName.ifBlank { state.content.title }
+        lifecycleScope.launch {
+            val matches = try {
+                repository.findWatchPartyEpisodeMatch(seriesName, state.content.seasonNum, state.content.episodeNum)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            if (matches.isEmpty()) {
+                Toast.makeText(this@PlayerActivity, "Couldn't join Watch Party — \"$seriesName\" S${state.content.seasonNum}E${state.content.episodeNum} isn't available on your provider", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (matches.size == 1) {
+                playWatchPartyEpisodeMatch(state, matches[0])
+                return@launch
+            }
+            val labels = matches.map { it.seriesTitle }.toTypedArray()
+            AlertDialog.Builder(this@PlayerActivity)
+                .setTitle("Which \"$seriesName\"? (${matches.size} matches)")
+                .setItems(labels) { _, which -> playWatchPartyEpisodeMatch(state, matches[which]) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun playWatchPartyEpisodeMatch(state: com.iptvapp.sync.WatchPartyState, match: com.iptvapp.data.repository.XtreamRepository.WatchPartyEpisodeMatch) {
+        lifecycleScope.launch {
+            val url = try {
+                if (match.serverIndex != -1) repository.getMergedSeriesEpisodeUrl(match.serverIndex, match.episodeId, match.containerExtension)
+                else repository.getSeriesEpisodeUrl(match.episodeId, match.containerExtension)
+            } catch (e: Exception) { null }
+            if (url == null || !repository.checkStreamHealth(url)) {
+                Toast.makeText(this@PlayerActivity, "Couldn't load \"${match.seriesTitle}\"", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            isPartyContentSubstituted = true
+            isApplyingRemoteUpdate = true
+            isVod = true
+            episodeSeriesId = match.seriesId
+            traktSeason = state.content.seasonNum
+            traktEpisode = state.content.episodeNum
+            streamTitle = state.content.title
+            binding.tvChannelTitle.text = streamTitle
+            loadStream(url)
             if (state.positionMs > 0L) player?.seekTo(state.positionMs)
             if (!state.isPlaying) {
                 player?.pause()

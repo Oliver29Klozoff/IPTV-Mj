@@ -1,7 +1,7 @@
 {
-  "versionCode": 452,
-  "versionName": "6.14",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.14/MKTV.apk",
-  "apkSha256": "9372582f64fda45fe00621b99d11eba0f6e42089490be7a5bcf1023ee8876c2c",
-  "changelog": "Fixed the confusing first-update-attempt-does-nothing behavior -- now shows a clear dialog when MKTV needs install permission granted before it can download an update."
+  "versionCode": 453,
+  "versionName": "6.15",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.15/MKTV.apk",
+  "apkSha256": "5d40bf6f13040e4fdd2d1c290ee035685ca1ba59553ee225b097716e1170c9e4",
+  "changelog": "Added Watch Party episode title matching -- falls back to searching your own catalog by show name + season/episode when the host's exact episode isn't found on your provider."
 }

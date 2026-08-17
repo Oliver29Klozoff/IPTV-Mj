@@ -27,6 +27,12 @@ data class WatchPartyContent(
     val seasonNum: Int = -1,
     val episodeNum: Int = -1,
     val title: String = "",
+    // For EPISODE content, [title] is the episode's own title (e.g. "The One With..."), NOT the
+    // series name — PlayerActivity.currentWatchPartyContent() sets [title] to streamTitle, which
+    // is episode-specific. This is the actual show name (PlayerActivity's traktSeriesName),
+    // needed to search a joining member's own catalog by series when the host's exact seriesId
+    // doesn't exist there (see XtreamRepository.findWatchPartyEpisodeMatch).
+    val seriesName: String = "",
     // Container extension (mp4/mkv/m3u8/etc, NOT a URL) needed to rebuild a VOD/episode stream
     // URL via XtreamRepository's per-user URL builder — a raw stream URL itself is provider/
     // account-specific and useless to a different member's own credentials.
@@ -111,6 +117,7 @@ class WatchPartyManager @Inject constructor(
             "title" to content.title,
             "containerExtension" to content.containerExtension,
             "episodeId" to content.episodeId,
+            "seriesName" to content.seriesName,
             // Starts paused, not playing — a party begun mid-scene with nobody else in it yet
             // would already be minutes ahead by the time the host shares the code and anyone
             // joins. The host presses play themselves once people are actually ready (see
@@ -153,7 +160,8 @@ class WatchPartyManager @Inject constructor(
                 episodeNum = (doc.getLong("episodeNum") ?: -1L).toInt(),
                 title = doc.getString("title") ?: "",
                 containerExtension = doc.getString("containerExtension") ?: "",
-                episodeId = doc.getString("episodeId") ?: ""
+                episodeId = doc.getString("episodeId") ?: "",
+                seriesName = doc.getString("seriesName") ?: ""
             ),
             isPlaying = doc.getBoolean("isPlaying") ?: true,
             positionMs = doc.getLong("positionMs") ?: 0L,
@@ -243,7 +251,8 @@ class WatchPartyManager @Inject constructor(
         "episodeNum" to opt.content.episodeNum,
         "title" to opt.content.title,
         "containerExtension" to opt.content.containerExtension,
-        "episodeId" to opt.content.episodeId
+        "episodeId" to opt.content.episodeId,
+        "seriesName" to opt.content.seriesName
     )
 
     @Suppress("UNCHECKED_CAST")
@@ -259,7 +268,8 @@ class WatchPartyManager @Inject constructor(
             episodeNum = ((m["episodeNum"] as? Long) ?: -1L).toInt(),
             title = m["title"] as? String ?: "",
             containerExtension = m["containerExtension"] as? String ?: "",
-            episodeId = m["episodeId"] as? String ?: ""
+            episodeId = m["episodeId"] as? String ?: "",
+            seriesName = m["seriesName"] as? String ?: ""
         )
     )
 

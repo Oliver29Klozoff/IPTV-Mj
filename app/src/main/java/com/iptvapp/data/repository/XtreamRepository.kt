@@ -560,6 +560,47 @@ class XtreamRepository @Inject constructor(
         return local + merged
     }
 
+    /** Result of falling back to a series-name search + season/episode lookup, when a Watch
+     * Party episode's exact seriesId/episodeId doesn't resolve on the joining member's own
+     * provider. [serverIndex] is -1 for a primary-provider match. */
+    data class WatchPartyEpisodeMatch(
+        val serverIndex: Int,
+        val seriesId: Int,
+        val seriesTitle: String,
+        val episodeId: String,
+        val containerExtension: String
+    )
+
+    /** Searches this device's own catalogs for a series matching [seriesName], then for each
+     * series match found, fetches its episode list and looks for the specific [seasonNum]/
+     * [episodeNum] the party is on — same "different provider, same content under a different
+     * catalog id" problem findWatchPartyVodMatches solves for movies, adapted for series: an
+     * episode's identity can't be searched directly (there's no episode-level search index), so
+     * this has to go series → episode list → season/episode number, one fetchSeriesInfo/
+     * fetchMergedSeriesInfo call per series match. Bounded to the first few series matches (not
+     * every one FTS4/LIKE returns) since each one is a real network call, not a local query —
+     * unlike VOD matching, this can't stay a single cheap DB search. */
+    suspend fun findWatchPartyEpisodeMatch(seriesName: String, seasonNum: Int, episodeNum: Int): List<WatchPartyEpisodeMatch> {
+        val query = normalizeVodTitleForSearch(seriesName)
+        val localSeries = searchSeries(query).first().take(5)
+        val mergedSeries = searchMergedSeries(query).first().take(5)
+
+        val results = mutableListOf<WatchPartyEpisodeMatch>()
+        for (series in localSeries) {
+            val info = (fetchSeriesInfo(series.seriesId) as? Resource.Success)?.data ?: continue
+            val episode = info.episodes?.values?.flatten()
+                ?.firstOrNull { it.season == seasonNum && it.episodeNum == episodeNum } ?: continue
+            results += WatchPartyEpisodeMatch(-1, series.seriesId, series.name, episode.id, episode.containerExtension)
+        }
+        for (series in mergedSeries) {
+            val info = (fetchMergedSeriesInfo(series.serverIndex, series.seriesId) as? Resource.Success)?.data ?: continue
+            val episode = info.episodes?.values?.flatten()
+                ?.firstOrNull { it.season == seasonNum && it.episodeNum == episodeNum } ?: continue
+            results += WatchPartyEpisodeMatch(series.serverIndex, series.seriesId, series.name, episode.id, episode.containerExtension)
+        }
+        return results
+    }
+
     fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(ftsQuery(query))
 
     suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {
