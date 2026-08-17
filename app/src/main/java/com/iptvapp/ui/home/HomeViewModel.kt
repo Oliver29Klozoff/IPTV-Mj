@@ -1331,6 +1331,13 @@ class HomeViewModel @Inject constructor(
             if (!isEmpty && !isStale) return@launch
             if (isEmpty) _loading.value = true
             try {
+                // fetchLiveStreams/fetchLiveCategories/fetchVodCategories/fetchSeriesCategories
+                // are each a single unpaginated API call with no per-item progress callback (see
+                // fetchVodStreams/fetchSeries below, which DO report progress once their own
+                // fetch starts) — without this, _syncProgress stayed null for the whole channel-
+                // loading phase, so a user watching this bar saw nothing at all until the Movies
+                // fetch began, indistinguishable from the sync not having started/being stuck.
+                _syncProgress.value = "Loading channels…" to 0
                 coroutineScope {
                     launch { repository.fetchLiveCategories() }
                     launch { repository.fetchLiveStreams() }

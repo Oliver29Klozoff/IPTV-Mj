@@ -3178,6 +3178,21 @@ class TvHomeActivity : AppCompatActivity() {
                 binding.tvProvidersSyncProgressBar.progress = progress.second
             }
         }
+        // Same syncProgress source, but NOT section-gated — HomeViewModel.loadAll()'s cold-start
+        // VOD/series sync (and any stale-cache background refresh) fires regardless of which
+        // section the user is on, so this overlay stays visible from Live/Movies/Series/etc, not
+        // just Providers. See tvGlobalSyncProgressContainer's layout kdoc for the full reasoning.
+        lifecycleScope.launch {
+            viewModel.syncProgress.collect { progress ->
+                if (progress == null) {
+                    binding.tvGlobalSyncProgressContainer.visibility = View.GONE
+                    return@collect
+                }
+                binding.tvGlobalSyncProgressContainer.visibility = View.VISIBLE
+                binding.tvGlobalSyncStatus.text = progress.first
+                binding.tvGlobalSyncProgressBar.progress = progress.second
+            }
+        }
         lifecycleScope.launch {
             viewModel.mergedChannels.collect {
                 if (currentSection == Section.PROVIDERS && providersMode == ProvidersMode.CHANNELS) {

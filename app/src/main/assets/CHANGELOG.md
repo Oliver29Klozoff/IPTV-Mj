@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.12 - 2026-08-15
+- **Fixed**: on TV, the cold-boot loading progress bar (channels/movies/series syncing) only
+  ever showed while sitting on the Providers screen — it now shows from any section, matching
+  how it's always worked on phone.
+- **Added**: the loading bar now shows a "Loading channels…" status during the initial channel
+  sync too, instead of showing nothing until movies/series start downloading.
+
 ## v6.11 - 2026-08-15
 - **Added**: Watch Party now starts paused — the host can share the code and wait for everyone
   to join before pressing play, instead of playback running ahead from the moment the party is

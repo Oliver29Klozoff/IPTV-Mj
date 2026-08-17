@@ -935,6 +935,46 @@
 
 </LinearLayout>
 
+    <!-- COLD-START CATALOG SYNC PROGRESS — sibling of tvMainContent in the root FrameLayout so it
+         overlays the whole screen (both the left panel and mini player) instead of living inside
+         one section's own panel. The old tvProvidersSyncProgressContainer (still used for the
+         Providers screen's own manual-refresh button) only ever showed while the user happened to
+         be sitting on Section.PROVIDERS — but HomeViewModel.loadAll()'s cold-start VOD/series sync
+         fires regardless of which section is showing, so a user on Live/Movies/Series during their
+         very first sync (or a stale-cache refresh) saw no feedback at all, same silent-vs-stuck
+         ambiguity problem that container's own kdoc already called out for the Providers case.
+         Phone's equivalent (activity_home.xml's syncProgressContainer) is already top-level and
+         tab-independent for the same reason — this brings TV in line with that. -->
+    <LinearLayout
+        android:id="@+id/tvGlobalSyncProgressContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical"
+        android:background="#0C0F1A"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvGlobalSyncStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp" />
+
+        <ProgressBar
+            android:id="@+id/tvGlobalSyncProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progressTint="#4FC3F7" />
+
+    </LinearLayout>
+
     <!-- MOVIES FULL-SCREEN OVERLAY — see TvHomeActivity.showMoviesFullScreen/hideMoviesFullScreen.
          Covers tvMainContent entirely (sidebar + mini player) while Movies is open: search bar
          pinned at top, genre filter chips below it, then a large poster grid — a Netflix-style
