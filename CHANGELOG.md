@@ -1,5 +1,8 @@
 # IPTV App - Changelog
 
+## v6.13 - 2026-08-15
+- Version bump for OTA update testing — no functional changes.
+
 ## v6.12 - 2026-08-15
 - **Fixed**: on TV, the cold-boot loading progress bar (channels/movies/series syncing) only
   ever showed while sitting on the Providers screen — it now shows from any section, matching

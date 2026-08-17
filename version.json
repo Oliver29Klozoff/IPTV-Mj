@@ -1,7 +1,7 @@
 {
-  "versionCode": 450,
-  "versionName": "6.12",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.12/MKTV.apk",
-  "apkSha256": "c9a919a19477ae4ab221804bc503adcbb05c5605e06b202392b2be0217282373",
-  "changelog": "Fixed TV's cold-boot loading progress bar only showing on the Providers screen -- now shows from any section, plus a status for the initial channel sync too."
+  "versionCode": 451,
+  "versionName": "6.13",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.13/MKTV.apk",
+  "apkSha256": "116701cf82cf8f3c45e188278b77731a6cb2af97e2aee540ce58a0ebff26fd23",
+  "changelog": "Version bump for OTA update testing -- no functional changes."
 }
