@@ -1,7 +1,7 @@
 {
-  "versionCode": 451,
-  "versionName": "6.13",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.13/MKTV.apk",
-  "apkSha256": "116701cf82cf8f3c45e188278b77731a6cb2af97e2aee540ce58a0ebff26fd23",
-  "changelog": "Version bump for OTA update testing -- no functional changes."
+  "versionCode": 452,
+  "versionName": "6.14",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.14/MKTV.apk",
+  "apkSha256": "9372582f64fda45fe00621b99d11eba0f6e42089490be7a5bcf1023ee8876c2c",
+  "changelog": "Fixed the confusing first-update-attempt-does-nothing behavior -- now shows a clear dialog when MKTV needs install permission granted before it can download an update."
 }

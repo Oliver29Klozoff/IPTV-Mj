@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.14 - 2026-08-15
+- **Fixed**: found why the very first update attempt never seemed to do anything (a second try
+  always worked) — on a device that hasn't yet granted MKTV permission to install updates, the
+  first attempt just quietly redirects to a settings screen with no download happening at all,
+  shown before as an easy-to-miss toast. Now shows a clear dialog explaining what's happening
+  and that you'll need to come back and press Update again after granting the permission.
+
 ## v6.13 - 2026-08-15
 - Version bump for OTA update testing — no functional changes.
 

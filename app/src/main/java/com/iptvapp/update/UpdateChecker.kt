@@ -163,14 +163,29 @@ class UpdateChecker(
         if (!canInstallUnknownSources()) {
             val prefs = context.getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
             prefs.edit().putString("pending_apk_url", apkUrl).apply()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // This is the entire reason "the first update attempt never shows an install popup,
+            // but the second one works" — on a device that hasn't granted MKTV permission to
+            // install unknown apps yet, this branch doesn't download or install anything at all,
+            // it just redirects to a system settings screen. resumeCheck() (called from
+            // Activity.onResume) is what actually kicks off the real download once you come back
+            // with permission granted, which is why retrying "just works". A toast here was easy
+            // to miss/dismiss on a TV remote before the settings screen yanks focus away, so this
+            // is now a real dialog the user has to acknowledge, explaining what's about to happen
+            // and that they'll need to come back and press Update again afterward.
+            AlertDialog.Builder(context)
+                .setTitle("Permission needed")
+                .setMessage("MKTV needs permission to install updates. You'll be taken to a settings screen — turn on \"Allow from this source\", then come back here and press Update again.")
+                .setPositiveButton("Continue") { _, _ ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    }
                 }
-                context.startActivity(intent)
-            }
-            Toast.makeText(context, "Allow installing from unknown sources, then return to the app", Toast.LENGTH_LONG).show()
+                .setCancelable(false)
+                .show()
             return
         }
 
