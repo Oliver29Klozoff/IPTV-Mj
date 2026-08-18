@@ -1345,6 +1345,15 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvLeftPanel.visibility = View.GONE
         binding.tvMiniPlayerFooter.visibility = View.GONE
         binding.tvEpgProgress.visibility = View.GONE
+        // tvMiniPlayerContainer's tv_mini_player_focus drawable only ever draws while it's the
+        // D-pad-focused view — normally correct (it's the same accent-color ring every other
+        // focusable element on this screen uses), but with the sidebar/footer gone there's
+        // nothing else on screen to show it's focused relative to, so the ring just reads as an
+        // unwanted border around the whole fullscreen video. Nothing else is focusable in this
+        // idle mode anyway (any D-pad press exits it via dispatchKeyEvent), so it's safe to just
+        // drop focus outright rather than merely hiding a view that would still repaint the ring
+        // if focus ever moved back onto it while still expanded.
+        binding.tvMiniPlayerContainer.clearFocus()
     }
 
     private fun collapseMiniPlayerFromFullScreen() {
@@ -1352,6 +1361,10 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvLeftPanel.visibility = View.VISIBLE
         binding.tvMiniPlayerFooter.visibility = View.VISIBLE
         resetMiniPreviewToNowPlaying()
+        // Restore normal D-pad navigation now that the sidebar/footer are back — without this,
+        // focus stays wherever clearFocus() left it (nowhere), so the first arrow-key press after
+        // collapsing would need an extra press just to re-establish a focused view.
+        binding.tvMiniPlayerContainer.requestFocus()
     }
 
     private fun showSidebar() {

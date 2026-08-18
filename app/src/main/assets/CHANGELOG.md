@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.16 - 2026-08-18
+- **Fixed**: on TV, the idle fullscreen mini player (sidebar auto-hidden after a minute idle)
+  showed an unwanted blue focus border around the whole screen. It's now cleanly borderless in
+  that mode.
+
 ## v6.15 - 2026-08-15
 - **Added**: fall back to title search when a Watch Party VOD/episode isn't found under the
   host's exact catalog id, not just movies — series episodes now search your own catalog by
