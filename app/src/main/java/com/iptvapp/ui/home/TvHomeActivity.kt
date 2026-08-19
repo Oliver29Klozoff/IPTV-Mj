@@ -1349,10 +1349,13 @@ class TvHomeActivity : AppCompatActivity() {
         // D-pad-focused view — normally correct (it's the same accent-color ring every other
         // focusable element on this screen uses), but with the sidebar/footer gone there's
         // nothing else on screen to show it's focused relative to, so the ring just reads as an
-        // unwanted border around the whole fullscreen video. Nothing else is focusable in this
-        // idle mode anyway (any D-pad press exits it via dispatchKeyEvent), so it's safe to just
-        // drop focus outright rather than merely hiding a view that would still repaint the ring
-        // if focus ever moved back onto it while still expanded.
+        // unwanted border around the whole fullscreen video. clearFocus() alone doesn't actually
+        // work here: with android:focusable="true" still set and nothing else focusable on
+        // screen, the framework just re-grants focus back to this same view as the fallback
+        // focused descendant, so the ring never actually goes away — confirmed still showing
+        // after that fix on real hardware. Actually disabling focusability (not just nudging
+        // focus off it) is what prevents that fallback re-grant.
+        binding.tvMiniPlayerContainer.isFocusable = false
         binding.tvMiniPlayerContainer.clearFocus()
     }
 
@@ -1361,9 +1364,10 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvLeftPanel.visibility = View.VISIBLE
         binding.tvMiniPlayerFooter.visibility = View.VISIBLE
         resetMiniPreviewToNowPlaying()
-        // Restore normal D-pad navigation now that the sidebar/footer are back — without this,
-        // focus stays wherever clearFocus() left it (nowhere), so the first arrow-key press after
-        // collapsing would need an extra press just to re-establish a focused view.
+        // Restore normal D-pad navigation now that the sidebar/footer are back — re-enable
+        // focusability (see expandMiniPlayerFullScreen's kdoc for why it was turned off) before
+        // requesting focus, or requestFocus() below would silently no-op.
+        binding.tvMiniPlayerContainer.isFocusable = true
         binding.tvMiniPlayerContainer.requestFocus()
     }
 

@@ -1,7 +1,7 @@
 {
-  "versionCode": 454,
-  "versionName": "6.16",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.16/MKTV.apk",
-  "apkSha256": "26e6b13e9a8f2a34d988b22cd31bebe10629d545856951c796dab08b9a81b40c",
-  "changelog": "Fixed the unwanted blue focus border around the whole screen when the TV's idle fullscreen mini player is showing."
+  "versionCode": 455,
+  "versionName": "6.17",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.17/MKTV.apk",
+  "apkSha256": "23385dfd40d88d79b41e14f9b03aee888521974b2de139daf09f5102dd22d055",
+  "changelog": "Actually fixed the idle fullscreen mini player's blue focus border this time -- v6.16's clearFocus() alone wasn't enough since the system re-granted focus right back."
 }

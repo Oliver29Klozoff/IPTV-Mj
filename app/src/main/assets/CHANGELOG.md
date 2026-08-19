@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.17 - 2026-08-18
+- **Fixed**: v6.16's fix for the idle fullscreen mini player's blue focus border didn't
+  actually work — the border is back for real this time. Turns out just clearing focus wasn't
+  enough since the system was re-granting it right back; the mini player now stops being
+  focusable at all while idle-fullscreen, then goes back to normal once you press a key.
+
 ## v6.16 - 2026-08-18
 - **Fixed**: on TV, the idle fullscreen mini player (sidebar auto-hidden after a minute idle)
   showed an unwanted blue focus border around the whole screen. It's now cleanly borderless in
