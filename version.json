@@ -1,7 +1,7 @@
 {
-  "versionCode": 455,
-  "versionName": "6.17",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.17/MKTV.apk",
-  "apkSha256": "23385dfd40d88d79b41e14f9b03aee888521974b2de139daf09f5102dd22d055",
-  "changelog": "Actually fixed the idle fullscreen mini player's blue focus border this time -- v6.16's clearFocus() alone wasn't enough since the system re-granted focus right back."
+  "versionCode": 456,
+  "versionName": "6.18",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.18/MKTV.apk",
+  "apkSha256": "d6d6ec2cf1eb9c4c0acbf9eac4469d4efdec4499862cff72b6d88094708b7ec2",
+  "changelog": "Provider Speed Test now tests real playback with your credentials, not just whether the server responds -- catches account/subscription-level failures the old ping-only test missed."
 }

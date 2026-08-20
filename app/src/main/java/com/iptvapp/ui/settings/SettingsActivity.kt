@@ -3063,8 +3063,17 @@ class SettingsActivity : AppCompatActivity() {
             binding.tvSpeedTestResult.text = results.joinToString("\n\n") { r ->
                 val tcpStr = if (r.tcpAvgMs != null) "TCP Ping: ${r.tcpAvgMs}ms avg (${r.tcpSuccessCount}/3)" else "TCP Ping: failed"
                 val httpStr = if (r.httpMs != null) "HTTP Response: ${r.httpMs}ms" else "HTTP Response: failed"
+                // TCP/HTTP only prove the server itself answers — neither ever requests a real
+                // stream, so a provider can "ping" fine here while actual playback is broken
+                // (rate-limited account, blocked subscription, misconfigured stream endpoint).
+                // This line is the only one that actually tries to play something.
+                val streamStr = when (r.streamPlayable) {
+                    true -> "Stream Test: ✓ playable"
+                    false -> "Stream Test: ✗ NOT playable — server responds but streams don't work"
+                    null -> "Stream Test: no channel to test (catalog empty)"
+                }
                 val errorLine = r.error?.let { "\n$it" } ?: ""
-                "${r.nickname}\n$tcpStr\n$httpStr\nServer: ${r.host}$errorLine"
+                "${r.nickname}\n$tcpStr\n$httpStr\n$streamStr\nServer: ${r.host}$errorLine"
             }
         } catch (e: Exception) {
             binding.tvSpeedTestResult.text = "Error: ${e.message}"

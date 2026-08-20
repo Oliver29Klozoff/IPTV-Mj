@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.18 - 2026-08-18
+- **Added**: Provider Speed Test now actually tests real playback, not just whether the server
+  is reachable. Previously a provider could "ping" fine while streams didn't actually work
+  (account/subscription issues, blocked streaming endpoint) with no way to tell from this test
+  — it now tries a real channel with your credentials and tells you clearly if that fails.
+
 ## v6.17 - 2026-08-18
 - **Fixed**: v6.16's fix for the idle fullscreen mini player's blue focus border didn't
   actually work — the border is back for real this time. Turns out just clearing focus wasn't

@@ -1699,8 +1699,15 @@ class TvSettingsActivity : AppCompatActivity() {
                 val message = results.joinToString("\n\n") { r ->
                     val tcpStr = if (r.tcpAvgMs != null) "TCP Ping: ${r.tcpAvgMs}ms avg (${r.tcpSuccessCount}/3)" else "TCP Ping: failed"
                     val httpStr = if (r.httpMs != null) "HTTP Response: ${r.httpMs}ms" else "HTTP Response: failed"
+                    // See SettingsActivity's matching kdoc — TCP/HTTP only prove the server
+                    // itself answers, not that a real stream will actually play.
+                    val streamStr = when (r.streamPlayable) {
+                        true -> "Stream Test: ✓ playable"
+                        false -> "Stream Test: ✗ NOT playable — server responds but streams don't work"
+                        null -> "Stream Test: no channel to test (catalog empty)"
+                    }
                     val errorLine = r.error?.let { "\n$it" } ?: ""
-                    "${r.nickname}\n$tcpStr\n$httpStr\nServer: ${r.host}$errorLine"
+                    "${r.nickname}\n$tcpStr\n$httpStr\n$streamStr\nServer: ${r.host}$errorLine"
                 }
                 AlertDialog.Builder(this@TvSettingsActivity)
                     .setTitle("Provider Speed Test")

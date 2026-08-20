@@ -1318,7 +1318,11 @@ class XtreamRepository @Inject constructor(
         val tcpAvgMs: Long?,
         val tcpSuccessCount: Int,
         val httpMs: Long?,
-        val error: String?
+        val error: String?,
+        // Null = no channel available to test against (empty/never-synced catalog for this
+        // server) rather than "not tested" — distinct from streamPlayable being explicitly
+        // false, which means a real stream request was attempted and failed.
+        val streamPlayable: Boolean? = null
     )
 
     /** Settings' "Provider Speed Test" used to only ever test the primary server (hardcoded
@@ -1327,7 +1331,17 @@ class XtreamRepository @Inject constructor(
      * merged provider is skipped here exactly like everywhere else. Same TCP-connect-time +
      * HTTP-response-time methodology the original single-server test used, just per server and
      * run in parallel (each server's own 3x TCP probe + 1 HTTP fetch, capped by their own
-     * timeouts, so one slow/dead provider can't stall the others). */
+     * timeouts, so one slow/dead provider can't stall the others).
+     *
+     * TCP-reachable + a fast HTTP response from the bare panel URL both say nothing about
+     * whether an actual stream will play — a provider can happily answer both while your
+     * specific account is rate-limited, the streaming endpoint is misconfigured, or the account
+     * itself is blocked, all of which only show up once you request a real channel with real
+     * credentials (confirmed report: a provider "pinging" fine in this test while nothing
+     * actually played on either phone). checkStreamHealth already exists for exactly this —
+     * GET + Range against a real stream URL, tolerant of panels that reject bare HEAD requests
+     * or an unrecognized User-Agent — so this reuses it against one real channel per server
+     * instead of duplicating that probe logic. */
     suspend fun runSpeedTestForAllProviders(): List<ProviderSpeedTestResult> = coroutineScope {
         allConfiguredServers().map { server ->
             async(Dispatchers.IO) {
@@ -1359,8 +1373,23 @@ class XtreamRepository @Inject constructor(
                     null
                 }
 
-                val error = if (tcpTimes.isEmpty() && httpMs == null) "Unreachable" else null
-                ProviderSpeedTestResult(server.serverIndex, server.nickname, host, tcpAvg, tcpTimes.size, httpMs, error)
+                val streamPlayable = try {
+                    val streamUrl = if (server.serverIndex == -1) {
+                        val channel = db.channelDao().getFirstChannel()
+                        channel?.let { getLiveStreamUrl(it.streamId) }
+                    } else {
+                        val channel = db.mergedChannelDao().getFirstChannel(server.serverIndex)
+                        channel?.let { getMergedLiveStreamUrl(server.serverIndex, it.streamId) }
+                    }
+                    streamUrl?.let { checkStreamHealth(it) }
+                } catch (_: Exception) {
+                    null
+                }
+
+                val error = if (tcpTimes.isEmpty() && httpMs == null) "Unreachable"
+                    else if (streamPlayable == false) "Server reachable, but streams aren't playing — check your account/subscription"
+                    else null
+                ProviderSpeedTestResult(server.serverIndex, server.nickname, host, tcpAvg, tcpTimes.size, httpMs, error, streamPlayable)
             }
         }.awaitAll()
     }

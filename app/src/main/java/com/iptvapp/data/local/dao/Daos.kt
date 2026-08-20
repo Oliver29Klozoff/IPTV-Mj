@@ -25,6 +25,11 @@ data class WatchHistoryEntry(
 interface ChannelDao {
     @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
     fun getAllChannels(): Flow<List<ChannelEntity>>
+    // Picks any one real channel to test actual playback against — used by the Provider Speed
+    // Test's real-stream check (see XtreamRepository.checkStreamHealth call site), which needs a
+    // concrete streamId, not just "the server is reachable" the ping/HTTP checks already cover.
+    @Query("SELECT * FROM channels WHERE isHidden = 0 LIMIT 1")
+    suspend fun getFirstChannel(): ChannelEntity?
     // customNum first (user override), falling back to the provider's own num when unset or when
     // no channel has that as a custom number — see ChannelEntity.customNum's kdoc.
     @Query("SELECT * FROM channels WHERE customNum = :num AND isHidden = 0 LIMIT 1")
@@ -564,6 +569,9 @@ data class WatchedEpisodeRow(
 interface MergedChannelDao {
     @Query("SELECT * FROM merged_channels WHERE isHidden = 0 ORDER BY serverIndex ASC, num ASC")
     fun getAll(): Flow<List<MergedChannelEntity>>
+    // See ChannelDao.getFirstChannel's matching kdoc — same purpose, scoped to one server.
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND isHidden = 0 LIMIT 1")
+    suspend fun getFirstChannel(serverIndex: Int): MergedChannelEntity?
     @Upsert
     suspend fun upsertAll(channels: List<MergedChannelEntity>)
     @Query("DELETE FROM merged_channels")
