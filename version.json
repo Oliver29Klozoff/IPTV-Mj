@@ -1,7 +1,7 @@
 {
-  "versionCode": 457,
-  "versionName": "6.19",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.19/MKTV.apk",
-  "apkSha256": "6afa667ee49d24a126baf483a9223381b4e15dbd028e02f51683ee5fb005423a",
-  "changelog": "Phone landscape's collapsible categories panel now auto-collapses after 20s instead of 10, and the mini player's now-playing info collapses along with it."
+  "versionCode": 458,
+  "versionName": "6.20",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.20/MKTV.apk",
+  "apkSha256": "09c1792f8974307c4efd1a3f9b10ef70db9b15ecc74e1e1adbe25d702d80cd70",
+  "changelog": "The 20-second landscape auto-collapse (categories panel, genre sort column, mini player now-playing info) now only happens on the Favorites tab."
 }

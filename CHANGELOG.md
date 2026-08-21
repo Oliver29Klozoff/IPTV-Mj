@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v6.20 - 2026-08-21
+- **Changed**: the 20-second landscape auto-collapse (categories panel, genre sort column, and
+  the mini player's now-playing info) now only happens on the Favorites tab, not every tab.
+
 ## v6.19 - 2026-08-21
 - **Changed**: on phone landscape, the collapsible categories panel now auto-collapses after
   20 seconds instead of 10, and the mini player's now-playing info (channel name, what's-on

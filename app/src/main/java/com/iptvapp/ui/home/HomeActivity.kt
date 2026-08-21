@@ -1315,11 +1315,11 @@ class HomeActivity : AppCompatActivity() {
     // The inline channel list auto-collapses 20s after picking something to play, giving
     // the mini player the full row width — tapping the (already-selected) sidebar tab again
     // brings it straight back to the channel list (not categories), scrolled to whatever's
-    // currently playing, since that's what the user just came from. The mini player's own
-    // now-playing EPG overlay (channel name + what's-on-now text/progress) collapses at the
-    // same time, for the same "get the chrome out of the way once you've settled on something"
-    // reasoning — it only makes sense to strip that overlay away together with the categories
-    // column, not on its own separate timer.
+    // currently playing, since that's what the user just came from. Per explicit request, this
+    // whole 20s auto-collapse (categories column, its right-side genre-sort column, and the
+    // mini player's now-playing EPG overlay) only actually fires while the Favorites tab is
+    // selected — every other tab schedules the same timer (call sites are shared/unconditional)
+    // but collapseContentColumn below no-ops on any other tab, so nothing disappears there.
     private fun scheduleContentAutoCollapse() {
         contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
         contentAutoCollapseHandler.postDelayed(contentAutoCollapseRunnable, 20_000L)
@@ -1331,8 +1331,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun collapseContentColumn() {
         if (!isLandscapeMode()) return
+        if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.GONE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.GONE
+        binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility = View.GONE
         binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.GONE
         contentColumnCollapsed = true
     }
