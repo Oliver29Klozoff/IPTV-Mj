@@ -470,8 +470,11 @@
                         android:background="@drawable/hero_gradient_scrim" />
                 </androidx.media3.ui.PlayerView>
 
-                <!-- Channel name + EPG overlay -->
+                <!-- Channel name + EPG overlay — id'd so the whole group can be hidden together
+                     by the landscape content-column auto-collapse timer (see
+                     HomeActivity.collapseContentColumn), not just the categories column beside it. -->
                 <LinearLayout
+                    android:id="@+id/miniEpgOverlay"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="bottom"

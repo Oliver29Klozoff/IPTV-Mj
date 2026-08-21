@@ -1,7 +1,7 @@
 {
-  "versionCode": 456,
-  "versionName": "6.18",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.18/MKTV.apk",
-  "apkSha256": "d6d6ec2cf1eb9c4c0acbf9eac4469d4efdec4499862cff72b6d88094708b7ec2",
-  "changelog": "Provider Speed Test now tests real playback with your credentials, not just whether the server responds -- catches account/subscription-level failures the old ping-only test missed."
+  "versionCode": 457,
+  "versionName": "6.19",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.19/MKTV.apk",
+  "apkSha256": "6afa667ee49d24a126baf483a9223381b4e15dbd028e02f51683ee5fb005423a",
+  "changelog": "Phone landscape's collapsible categories panel now auto-collapses after 20s instead of 10, and the mini player's now-playing info collapses along with it."
 }

@@ -1275,6 +1275,7 @@ class HomeActivity : AppCompatActivity() {
         contentColumnCollapsed = false
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
+        binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.VISIBLE
         // Toggling the SwipeRefreshLayout wrapper, not just the RecyclerView inside it — GONE on
         // the inner view alone would leave the (weighted, layout_height=0dp) wrapper still
@@ -1295,6 +1296,7 @@ class HomeActivity : AppCompatActivity() {
         contentColumnCollapsed = false
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
+        binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.GONE
         binding.swipeRefreshChannels?.visibility = View.VISIBLE
         val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
@@ -1310,13 +1312,17 @@ class HomeActivity : AppCompatActivity() {
     private val contentAutoCollapseHandler = Handler(Looper.getMainLooper())
     private val contentAutoCollapseRunnable = Runnable { collapseContentColumn() }
 
-    // The inline channel list auto-collapses 10s after picking something to play, giving
+    // The inline channel list auto-collapses 20s after picking something to play, giving
     // the mini player the full row width — tapping the (already-selected) sidebar tab again
     // brings it straight back to the channel list (not categories), scrolled to whatever's
-    // currently playing, since that's what the user just came from.
+    // currently playing, since that's what the user just came from. The mini player's own
+    // now-playing EPG overlay (channel name + what's-on-now text/progress) collapses at the
+    // same time, for the same "get the chrome out of the way once you've settled on something"
+    // reasoning — it only makes sense to strip that overlay away together with the categories
+    // column, not on its own separate timer.
     private fun scheduleContentAutoCollapse() {
         contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
-        contentAutoCollapseHandler.postDelayed(contentAutoCollapseRunnable, 10_000L)
+        contentAutoCollapseHandler.postDelayed(contentAutoCollapseRunnable, 20_000L)
     }
 
     private fun cancelContentAutoCollapse() {
@@ -1327,6 +1333,7 @@ class HomeActivity : AppCompatActivity() {
         if (!isLandscapeMode()) return
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.GONE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.GONE
+        binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.GONE
         contentColumnCollapsed = true
     }
 

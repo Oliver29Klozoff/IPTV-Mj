@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.19 - 2026-08-21
+- **Changed**: on phone landscape, the collapsible categories panel now auto-collapses after
+  20 seconds instead of 10, and the mini player's now-playing info (channel name, what's-on
+  text/progress) collapses along with it, instead of staying on screen by itself.
+
 ## v6.18 - 2026-08-18
 - **Added**: Provider Speed Test now actually tests real playback, not just whether the server
   is reachable. Previously a provider could "ping" fine while streams didn't actually work
