@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.21 - 2026-08-21
+- **Changed**: reworked phone landscape's 20-second auto-collapse — the sidebar and the
+  now-playing EPG bar under the mini player now collapse together on every tab, not just
+  Favorites. Tapping the mini player once while collapsed brings both back; tap again to go
+  fullscreen, same as before. The right-side genre sort column now only ever appears on the
+  Favorites tab, regardless of collapse state.
+
 ## v6.20 - 2026-08-21
 - **Changed**: the 20-second landscape auto-collapse (categories panel, genre sort column, and
   the mini player's now-playing info) now only happens on the Favorites tab, not every tab.

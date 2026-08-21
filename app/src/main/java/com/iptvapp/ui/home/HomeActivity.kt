@@ -1312,14 +1312,14 @@ class HomeActivity : AppCompatActivity() {
     private val contentAutoCollapseHandler = Handler(Looper.getMainLooper())
     private val contentAutoCollapseRunnable = Runnable { collapseContentColumn() }
 
-    // The inline channel list auto-collapses 20s after picking something to play, giving
-    // the mini player the full row width — tapping the (already-selected) sidebar tab again
-    // brings it straight back to the channel list (not categories), scrolled to whatever's
-    // currently playing, since that's what the user just came from. Per explicit request, this
-    // whole 20s auto-collapse (categories column, its right-side genre-sort column, and the
-    // mini player's now-playing EPG overlay) only actually fires while the Favorites tab is
-    // selected — every other tab schedules the same timer (call sites are shared/unconditional)
-    // but collapseContentColumn below no-ops on any other tab, so nothing disappears there.
+    // The inline channel list (sidebar) auto-collapses 20s after picking something to play,
+    // giving the mini player the full row width — tapping the (already-selected) sidebar tab
+    // again brings it straight back to the channel list (not categories), scrolled to whatever's
+    // currently playing, since that's what the user just came from. The mini player's now-
+    // playing EPG overlay (channel name + what's-on-now text/progress) collapses at the same
+    // time, on every tab — not just Favorites; the right-side genre-sort column is the one
+    // Favorites-only exception, gated separately in setGenreFilterVisible instead of by this
+    // timer, since it should never show at all outside Favorites regardless of collapse state.
     private fun scheduleContentAutoCollapse() {
         contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
         contentAutoCollapseHandler.postDelayed(contentAutoCollapseRunnable, 20_000L)
@@ -1331,10 +1331,8 @@ class HomeActivity : AppCompatActivity() {
 
     private fun collapseContentColumn() {
         if (!isLandscapeMode()) return
-        if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) return
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.GONE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.GONE
-        binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility = View.GONE
         binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.GONE
         contentColumnCollapsed = true
     }
@@ -1585,6 +1583,15 @@ class HomeActivity : AppCompatActivity() {
             })
         }
         binding.miniPlayerView.setOnClickListener {
+            // While the sidebar/EPG bar are auto-collapsed (landscape only), the first tap just
+            // restores them and stops there — it does NOT also launch fullscreen. A second tap,
+            // now that the panels are back (contentColumnCollapsed is false again), falls through
+            // to the normal fullscreen-launch behavior below, matching the collapsed state's own
+            // request: "tap once to bring back the sidebar/EPG bar, tap again to go fullscreen."
+            if (isLandscapeMode() && contentColumnCollapsed) {
+                expandContentColumnToChannels()
+                return@setOnClickListener
+            }
             if (currentMiniUrl.isNotEmpty()) {
                 val currentPos = miniPlayer?.currentPosition ?: 0L
                 openPlayer(
@@ -3088,11 +3095,15 @@ class HomeActivity : AppCompatActivity() {
     // shows them in a vertical column to the right of the channel list instead (so they
     // don't eat into the categories column's height there) — both containers are filled
     // from the same detected-genre list, just laid out differently per orientation.
+    // Landscape's column is further gated to the Favorites tab only, per explicit request —
+    // every other tab's own setGenreFilterVisible(true) call sites are unchanged (portrait's
+    // row still shows for them exactly as before), this only narrows the landscape column.
     private fun setGenreFilterVisible(visible: Boolean) {
         binding.genreFilterScroll?.visibility = if (visible) View.VISIBLE else View.GONE
+        val showColumn = visible && isLandscapeMode() && binding.tabLayout.selectedTabPosition == TAB_FAVORITES
         binding.root.findViewById<View?>(R.id.genreFilterColumn)?.visibility =
-            if (visible) View.VISIBLE else View.GONE
-        if (visible) applyGenreFilterColumnCollapsedState()
+            if (showColumn) View.VISIBLE else View.GONE
+        if (showColumn) applyGenreFilterColumnCollapsedState()
     }
 
     // Landscape-only — the vertical genre chip column on the right can eat noticeable width

@@ -1,7 +1,7 @@
 {
-  "versionCode": 458,
-  "versionName": "6.20",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.20/MKTV.apk",
-  "apkSha256": "09c1792f8974307c4efd1a3f9b10ef70db9b15ecc74e1e1adbe25d702d80cd70",
-  "changelog": "The 20-second landscape auto-collapse (categories panel, genre sort column, mini player now-playing info) now only happens on the Favorites tab."
+  "versionCode": 459,
+  "versionName": "6.21",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.21/MKTV.apk",
+  "apkSha256": "803164fed36efef79d44c4c6a2e0b1c41290aefd0c305f29f73c8ce8a2c9f65e",
+  "changelog": "Reworked landscape auto-collapse: sidebar + now-playing EPG bar collapse together on every tab after 20s, tap once to restore both, tap again for fullscreen. Genre sort column now Favorites-only."
 }
