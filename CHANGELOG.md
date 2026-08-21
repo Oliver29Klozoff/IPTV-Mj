@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.22 - 2026-08-21
+- **Fixed**: the currently-playing channel name was disappearing along with the now-playing
+  EPG text after the 20-second landscape auto-collapse. It now stays visible at all times —
+  only the what's-on-now description and progress bar collapse.
+
 ## v6.21 - 2026-08-21
 - **Changed**: reworked phone landscape's 20-second auto-collapse — the sidebar and the
   now-playing EPG bar under the mini player now collapse together on every tab, not just

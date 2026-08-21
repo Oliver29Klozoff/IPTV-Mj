@@ -1275,7 +1275,7 @@ class HomeActivity : AppCompatActivity() {
         contentColumnCollapsed = false
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
-        binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.VISIBLE
+        binding.root.findViewById<View?>(R.id.miniEpgDetails)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.VISIBLE
         // Toggling the SwipeRefreshLayout wrapper, not just the RecyclerView inside it — GONE on
         // the inner view alone would leave the (weighted, layout_height=0dp) wrapper still
@@ -1296,7 +1296,7 @@ class HomeActivity : AppCompatActivity() {
         contentColumnCollapsed = false
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.VISIBLE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.VISIBLE
-        binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.VISIBLE
+        binding.root.findViewById<View?>(R.id.miniEpgDetails)?.visibility = View.VISIBLE
         binding.rvCategories.visibility = View.GONE
         binding.swipeRefreshChannels?.visibility = View.VISIBLE
         val col = binding.root.findViewById<View?>(R.id.categoriesColumn) ?: return
@@ -1333,7 +1333,11 @@ class HomeActivity : AppCompatActivity() {
         if (!isLandscapeMode()) return
         binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.GONE
         binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.GONE
-        binding.root.findViewById<View?>(R.id.miniEpgOverlay)?.visibility = View.GONE
+        // Only the what's-on-now text/progress collapses — tvMiniChannelName (the currently-
+        // playing channel's name, a sibling outside miniEpgDetails) stays visible at all times;
+        // an earlier version collapsed the whole miniEpgOverlay group including the channel
+        // name, which wasn't wanted.
+        binding.root.findViewById<View?>(R.id.miniEpgDetails)?.visibility = View.GONE
         contentColumnCollapsed = true
     }
 
