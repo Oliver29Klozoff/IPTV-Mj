@@ -548,6 +548,27 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         settingsItems += TvSettingItem.Action("display_channels_refresh", "Live Channels",
             actionLabel = "↻ Refresh", onAction = refreshLiveChannels, onClick = refreshLiveChannels)
+        // Explicit escape hatch requested after the automatic stale-channel sweep (v6.31) and the
+        // manual refresh above (v6.32) still weren't enough to clear a user's leftover favorites
+        // from an earlier provider switch — rather than debug further, just let them wipe every
+        // primary-provider favorite and re-pick manually. Scoped to channelDao.clearAllFavorites()
+        // only — never touches merged/secondary-provider favorites, folders, or VOD/series
+        // favorites, since those aren't part of this bug.
+        val clearFavoriteChannels: () -> Unit = {
+            AlertDialog.Builder(this)
+                .setTitle("Clear all favorited channels?")
+                .setMessage("This un-favorites every channel on your primary provider. Favorites on other providers, folders, and movie/series favorites are not affected. This can't be undone.")
+                .setPositiveButton("Clear") { _, _ ->
+                    lifecycleScope.launch {
+                        db.channelDao().clearAllFavorites()
+                        toast("Favorites cleared")
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+        settingsItems += TvSettingItem.Action("display_channels_clear_favorites", "Clear All Favorited Channels",
+            actionLabel = "Clear", onAction = clearFavoriteChannels, onClick = clearFavoriteChannels)
 
         // ── EPG ──
         settingsItems += TvSettingItem.Header("EPG")

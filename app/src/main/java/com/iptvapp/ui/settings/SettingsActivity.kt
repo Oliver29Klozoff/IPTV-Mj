@@ -599,6 +599,26 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // Explicit escape hatch requested after the automatic stale-channel sweep (v6.31) and
+        // the manual refresh button above (v6.33) still weren't enough to clear out a user's
+        // leftover favorites from an earlier provider switch — rather than debug further, just
+        // let them wipe every primary-provider favorite and re-pick manually. Scoped to
+        // channelDao.clearAllFavorites() only — never touches merged/secondary-provider
+        // favorites, folders, or VOD/series favorites, since those aren't part of this bug.
+        binding.btnClearFavoriteChannels.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Clear all favorited channels?")
+                .setMessage("This un-favorites every channel on your primary provider. Favorites on other providers, folders, and movie/series favorites are not affected. This can't be undone.")
+                .setPositiveButton("Clear") { _, _ ->
+                    lifecycleScope.launch {
+                        db.channelDao().clearAllFavorites()
+                        Toast.makeText(this@SettingsActivity, "Favorites cleared", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
         binding.rgAutoEpgRefresh.setOnCheckedChangeListener { _, checkedId ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch {

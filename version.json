@@ -1,7 +1,7 @@
 {
-  "versionCode": 471,
-  "versionName": "6.33",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.33/MKTV.apk",
-  "apkSha256": "bc7940e22eb4ab9a9716d84504d12608862385b37a17d8c417aaa88ce1d8c13c",
-  "changelog": "Added the Live Channels refresh button to phone Settings too (TV got it in v6.32) so you can force a sync from either device."
+  "versionCode": 472,
+  "versionName": "6.34",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.34/MKTV.apk",
+  "apkSha256": "869231137bb9baed2d2fb4e91a49b253a3c13d4d30a08063c676dc88d80a6f73",
+  "changelog": "Added a Clear All Favorited Channels button in Settings (phone and TV) to manually clear out stubborn stale favorites."
 }

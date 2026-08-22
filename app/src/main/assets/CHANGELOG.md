@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.34 - 2026-08-22
+- **Added**: A "Clear All Favorited Channels" button in Settings (phone and TV), for when the
+  automatic/manual channel-sync cleanup still leaves stale favorites behind. Un-favorites every
+  channel on your primary provider in one tap so you can re-pick them fresh — favorites on other
+  providers, folders, and movie/series favorites are untouched.
+
 ## v6.33 - 2026-08-22
 - **Added**: v6.32 added a "Live Channels" refresh button to TV Settings only — phone Settings now
   has the same one (next to the Movies/Series refresh buttons), so you can force a channel resync
