@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v6.24 - 2026-08-21
+- **Changed**: moved TV's "What's On Now" strip back to the top of the left panel (above the
+  channel list) — v6.23's bottom placement was harder to reach. Cards are noticeably smaller
+  now, and the strip collapses along with everything else during the idle fullscreen mini
+  player mode.
+- **Fixed**: D-pad left/right on the What's On Now strip was jumping to unrelated buttons
+  (fullscreen, channel list, back) instead of moving between cards — it now scrolls properly
+  within the strip, and up/down into and out of it goes where you'd expect.
+
 ## v6.23 - 2026-08-21
 - **Changed**: on TV, the "What's On Now" strip (Favorites tab) moved from the top of the
   channel list to a full-width bar at the very bottom of the screen, below the mini player.

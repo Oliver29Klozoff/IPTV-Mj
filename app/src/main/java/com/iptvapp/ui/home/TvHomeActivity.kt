@@ -2209,6 +2209,18 @@ class TvHomeActivity : AppCompatActivity() {
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
+                } else if (binding.tvRvWhatsOnNow.hasFocus()) {
+                    // Explicit hand-off out of the strip instead of trusting default focus
+                    // search — same "was unreliable, could bounce to something unrelated"
+                    // problem the channel-list Up/Down handling below already worked around.
+                    if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
+                        binding.tvGenreChipContainer.getChildAt(0).requestFocus()
+                    } else if (binding.tvRvContent.adapter?.itemCount ?: 0 > 0) {
+                        binding.tvRvContent.requestFocus()
+                    } else {
+                        binding.tvEtSearch.requestFocus()
+                    }
+                    return true
                 } else if (binding.tvRvContent.hasFocus()) {
                     if (moveChannelListFocus(up = false)) return true
                 }
@@ -2216,12 +2228,12 @@ class TvHomeActivity : AppCompatActivity() {
                 // mini player itself and pressing OK does what that button did instead) from
                 // wherever the cursor currently is: sidebar, a category/channel list, or the
                 // guide list.
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (binding.tvGenreChipContainer.hasFocus() || isProvidersModeRowFocused() || isTvBulkSelectBarFocused()) {
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (binding.tvGenreChipContainer.hasFocus() || isProvidersModeRowFocused() || isTvBulkSelectBarFocused() || binding.tvRvWhatsOnNow.hasFocus()) {
                     // Let default focus search move between sibling genre chips / Providers
-                    // Channels-Movies-Series buttons / bulk-select bar buttons instead of jumping
-                    // straight to the mini player or being swallowed by the CATEGORIES catch-all
-                    // below — these rows previously had every Left/Right press unconditionally
-                    // intercepted before it could reach their own buttons.
+                    // Channels-Movies-Series buttons / bulk-select bar buttons / What's On Now
+                    // cards instead of jumping straight to the mini player or being swallowed by
+                    // the CATEGORIES catch-all below — these rows previously had every Left/Right
+                    // press unconditionally intercepted before it could reach their own buttons.
                 } else when (navState) {
                     NavState.SIDEBAR -> {
                         navState = NavState.CHANNELS
@@ -2263,10 +2275,10 @@ class TvHomeActivity : AppCompatActivity() {
                             else -> showSidebar()
                         }
                         return true
-                    } else if (isProvidersModeRowFocused() || isTvBulkSelectBarFocused()) {
+                    } else if (isProvidersModeRowFocused() || isTvBulkSelectBarFocused() || binding.tvRvWhatsOnNow.hasFocus()) {
                         // See the RIGHT-key comment above — let default focus search move
-                        // between Channels/Movies/Series (or the bulk-select bar's own buttons)
-                        // instead of any of the branches below.
+                        // between Channels/Movies/Series (or the bulk-select bar's own buttons,
+                        // or What's On Now's own cards) instead of any of the branches below.
                     } else if (binding.tvRvContent.hasFocus() || binding.tvRvCategories.hasFocus()) {
                         // Deep in a long list, climbing back up to search/refresh/Back one Up
                         // press at a time was slow and unreliable — Left jumps straight there.
@@ -3423,7 +3435,13 @@ class TvHomeActivity : AppCompatActivity() {
         when {
             binding.tvGuidePanel.visibility == View.VISIBLE -> binding.tvBtnGuideBack.requestFocus()
             binding.tvChanPanel.visibility == View.VISIBLE -> {
-                if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
+                // Favorites' What's On Now strip sits above the genre chips/search bar now (top,
+                // right of the sidebar) — same "climbing Up out of the list lands on the topmost
+                // real content" reasoning as the genre-chip/search-bar fallback below it, just
+                // checked first since it's now the actual topmost row when visible.
+                if (binding.tvWhatsOnNowContainer.visibility == View.VISIBLE && binding.tvRvWhatsOnNow.childCount > 0) {
+                    binding.tvRvWhatsOnNow.getChildAt(0).requestFocus()
+                } else if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
                     binding.tvGenreChipContainer.getChildAt(0).requestFocus()
                 } else {
                     binding.tvEtSearch.requestFocus()
