@@ -701,42 +701,6 @@
                     android:paddingHorizontal="8dp" />
             </HorizontalScrollView>
 
-            <!-- WHAT'S ON NOW — Favorites-only. Moved back here (top of the left panel, above the
-                 channel list — v6.23 had briefly relocated this to a full-width bar at the very
-                 bottom of the screen, which was harder to reach; reverted per follow-up request).
-                 Visibility is toggled on tvWhatsOnNowContainer as a whole. -->
-            <LinearLayout
-                android:id="@+id/tvWhatsOnNowContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="#0A0D16"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/tvWhatsOnNowHeader"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="10dp"
-                    android:paddingTop="6dp"
-                    android:text="WHAT'S ON NOW"
-                    android:textColor="#888888"
-                    android:textSize="9sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.05" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/tvRvWhatsOnNow"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="6dp"
-                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
-            </LinearLayout>
-
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/tvRvContent"
                 android:layout_width="match_parent"
@@ -829,6 +793,44 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical">
+
+        <!-- WHAT'S ON NOW — Favorites-only, sits directly above the mini player in this same
+             right-hand column (moved here from inside the left panel's channel list per explicit
+             request — "to the right of the sidebar, not within it"). Visibility toggled on
+             tvWhatsOnNowContainer as a whole; unlike the left panel, this column is never hidden
+             by expandMiniPlayerFullScreen, so that function now hides this container directly
+             too (see its own updated kdoc) instead of getting the collapse for free. -->
+        <LinearLayout
+            android:id="@+id/tvWhatsOnNowContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#0A0D16"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvWhatsOnNowHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="10dp"
+                android:paddingTop="6dp"
+                android:text="WHAT'S ON NOW"
+                android:textColor="#888888"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/tvRvWhatsOnNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:orientation="horizontal"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="6dp"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+        </LinearLayout>
 
         <!-- MINI PLAYER ROW — fills the whole right panel now that the EPG guide has its
              own sidebar section instead of sharing this space. Channel name + now/next used

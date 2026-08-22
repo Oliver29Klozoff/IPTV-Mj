@@ -1,7 +1,7 @@
 {
-  "versionCode": 462,
-  "versionName": "6.24",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.24/MKTV.apk",
-  "apkSha256": "4d48d32b6b188fe196cf203e5d9bf3938898eb0dc1c286ea0c7432135171ab32",
-  "changelog": "Moved What's On Now back to the top of the left panel, made cards smaller, fixed D-pad scrolling, and it now collapses with the idle fullscreen mini player."
+  "versionCode": 463,
+  "versionName": "6.25",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.25/MKTV.apk",
+  "apkSha256": "f78703fa261bf23e8bacf0981a25ce2cec52c76212eb3dab68e197cc9821ee71",
+  "changelog": "What's On Now now sits to the right of the sidebar, directly above the mini player, instead of inside the channel list panel."
 }

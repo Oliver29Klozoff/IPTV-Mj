@@ -1345,6 +1345,10 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvLeftPanel.visibility = View.GONE
         binding.tvMiniPlayerFooter.visibility = View.GONE
         binding.tvEpgProgress.visibility = View.GONE
+        // tvWhatsOnNowContainer now lives in the right-hand column (above the mini player, not
+        // inside tvLeftPanel), so it no longer gets hidden for free by the tvLeftPanel.GONE above
+        // — needs its own explicit hide/restore here, same as the other chrome on this screen.
+        binding.tvWhatsOnNowContainer.visibility = View.GONE
         // tvMiniPlayerContainer's tv_mini_player_focus drawable only ever draws while it's the
         // D-pad-focused view — normally correct (it's the same accent-color ring every other
         // focusable element on this screen uses), but with the sidebar/footer gone there's
@@ -1363,6 +1367,13 @@ class TvHomeActivity : AppCompatActivity() {
         miniPlayerExpanded = false
         binding.tvLeftPanel.visibility = View.VISIBLE
         binding.tvMiniPlayerFooter.visibility = View.VISIBLE
+        // Mirrors the same Favorites-only + has-entries gate viewModel.whatsOnNow's own collector
+        // applies — restoring this unconditionally to VISIBLE would wrongly show it while sitting
+        // idle on a different section (idle-expand only ever fires at rest on the sidebar of
+        // WHICHEVER section is current, not just Favorites).
+        if (currentSection == Section.FAVORITES && tvWhatsOnNowAdapter.itemCount > 0) {
+            binding.tvWhatsOnNowContainer.visibility = View.VISIBLE
+        }
         resetMiniPreviewToNowPlaying()
         // Restore normal D-pad navigation now that the sidebar/footer are back — re-enable
         // focusability (see expandMiniPlayerFullScreen's kdoc for why it was turned off) before
@@ -2206,20 +2217,22 @@ class TvHomeActivity : AppCompatActivity() {
                     // trusting default focus search to climb out of the RecyclerView, which
                     // was unreliable and could leave Up simply doing nothing.
                     focusTopOfPanel(); return true
+                } else if (currentFocus === binding.tvMiniPlayerContainer &&
+                    binding.tvWhatsOnNowContainer.visibility == View.VISIBLE && binding.tvRvWhatsOnNow.childCount > 0
+                ) {
+                    // Same explicit-handoff reasoning as the channel-list case above — the strip
+                    // sits directly above the mini player now, Up climbs into it instead of
+                    // trusting default focus search to find it.
+                    binding.tvRvWhatsOnNow.getChildAt(0).requestFocus(); return true
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (navState == NavState.SIDEBAR) {
                     moveSidebarFocus(up = false); return true
                 } else if (binding.tvRvWhatsOnNow.hasFocus()) {
                     // Explicit hand-off out of the strip instead of trusting default focus
-                    // search — same "was unreliable, could bounce to something unrelated"
-                    // problem the channel-list Up/Down handling below already worked around.
-                    if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
-                        binding.tvGenreChipContainer.getChildAt(0).requestFocus()
-                    } else if (binding.tvRvContent.adapter?.itemCount ?: 0 > 0) {
-                        binding.tvRvContent.requestFocus()
-                    } else {
-                        binding.tvEtSearch.requestFocus()
-                    }
+                    // search — the strip now sits directly above the mini player (right column),
+                    // so Down from it goes straight there, same as Up from the mini player
+                    // (below) comes back up into the strip.
+                    binding.tvMiniPlayerContainer.requestFocus()
                     return true
                 } else if (binding.tvRvContent.hasFocus()) {
                     if (moveChannelListFocus(up = false)) return true
@@ -3435,13 +3448,7 @@ class TvHomeActivity : AppCompatActivity() {
         when {
             binding.tvGuidePanel.visibility == View.VISIBLE -> binding.tvBtnGuideBack.requestFocus()
             binding.tvChanPanel.visibility == View.VISIBLE -> {
-                // Favorites' What's On Now strip sits above the genre chips/search bar now (top,
-                // right of the sidebar) — same "climbing Up out of the list lands on the topmost
-                // real content" reasoning as the genre-chip/search-bar fallback below it, just
-                // checked first since it's now the actual topmost row when visible.
-                if (binding.tvWhatsOnNowContainer.visibility == View.VISIBLE && binding.tvRvWhatsOnNow.childCount > 0) {
-                    binding.tvRvWhatsOnNow.getChildAt(0).requestFocus()
-                } else if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
+                if (binding.tvGenreChipScroll.visibility == View.VISIBLE && binding.tvGenreChipContainer.childCount > 0) {
                     binding.tvGenreChipContainer.getChildAt(0).requestFocus()
                 } else {
                     binding.tvEtSearch.requestFocus()
