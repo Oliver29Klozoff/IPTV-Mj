@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.33 - 2026-08-22
+- **Added**: v6.32 added a "Live Channels" refresh button to TV Settings only — phone Settings now
+  has the same one (next to the Movies/Series refresh buttons), so you can force a channel resync
+  (and the v6.31 stale-channel cleanup) immediately from either device.
+
 ## v6.32 - 2026-08-22
 - **Added**: TV Settings now has a "Live Channels" refresh button. v6.31's automatic stale-channel
   cleanup only runs on a live-channel sync, and TV had no way to force one — it only ever

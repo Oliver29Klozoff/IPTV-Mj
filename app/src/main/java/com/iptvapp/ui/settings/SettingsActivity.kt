@@ -577,6 +577,28 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // TV Settings got this in v6.32, but phone had no way at all to force a primary-provider
+        // live-channel resync — it only ever ran automatically, gated behind a 4-hour
+        // cache-staleness check (HomeViewModel.init). That meant a channel added/removed on the
+        // provider's end (or a stale row left behind by a primary-provider swap, see
+        // XtreamRepository.fetchLiveStreams's stale-channel sweep) could sit wrong for hours with
+        // no way to force it sooner.
+        binding.btnRefreshChannels.setOnClickListener {
+            binding.btnRefreshChannels.isEnabled = false
+            binding.btnRefreshChannels.text = "Loading…"
+            lifecycleScope.launch {
+                val result = repository.fetchLiveStreams()
+                repository.fetchLiveCategories()
+                binding.btnRefreshChannels.isEnabled = true
+                binding.btnRefreshChannels.text = "↻ Refresh"
+                val msg = if (result is com.iptvapp.util.Resource.Success)
+                    "Channels refreshed (${result.data?.size ?: 0} channels)"
+                else
+                    "Failed — server timeout or no content"
+                Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
+            }
+        }
+
         binding.rgAutoEpgRefresh.setOnCheckedChangeListener { _, checkedId ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch {
