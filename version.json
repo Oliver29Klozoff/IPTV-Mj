@@ -1,7 +1,7 @@
 {
-  "versionCode": 467,
-  "versionName": "6.29",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.29/MKTV.apk",
-  "apkSha256": "81ee236e07795d0ebe72cee0503609b3712bc4711ea8687a6cae2f29b8566ebb",
-  "changelog": "TV's What's On Now strip now shows on every section (always Favorites data), hiding only on idle fullscreen. Cards are smaller too."
+  "versionCode": 468,
+  "versionName": "6.30",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.30/MKTV.apk",
+  "apkSha256": "b509a6f793f010062c249cd90846b233efc7363917a07ec16704555babe2d50e",
+  "changelog": "Fixed: editing the primary provider's login instead of using Switch Provider left stale channels/favorites from the old provider behind, causing broken playback."
 }

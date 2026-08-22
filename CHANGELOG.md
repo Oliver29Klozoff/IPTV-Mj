@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.30 - 2026-08-22
+- **Fixed**: Editing your primary provider's login (URL/username) in Settings — instead of using
+  "Switch Provider" — never cleared the old provider's cached channels. If the new provider didn't
+  have some of those channels, they stuck around as broken favorites that looked fine but wouldn't
+  play. Editing the primary provider with a different URL/username now properly clears the old
+  provider's channel data first, same as switching does.
+
 ## v6.29 - 2026-08-22
 - **Changed**: TV's What's On Now strip now shows on every section, not just Favorites — it's
   visible whenever the sidebar is in its normal state, and hides only when the mini player goes

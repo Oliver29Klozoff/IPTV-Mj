@@ -2059,6 +2059,13 @@ class TvSettingsActivity : AppCompatActivity() {
                 val nick = etNick.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
+                        // A URL/username change here means this is really a different provider,
+                        // not just a password fix — without clearing the OLD primary's
+                        // channels/categories/VOD/series/EPG, stale favorited channels from that
+                        // provider (wrong streamIds, wrong cached streamUrl) linger forever and
+                        // silently fail to play under the new primary's credentials.
+                        val isProviderSwap = url != creds.serverUrl || user != creds.username
+                        if (isProviderSwap) repository.clearPrimaryProviderData()
                         prefs.saveCredentials(url, user, pass)
                         prefs.setServerNickname(nick)
                         db.mergedChannelDao().clearAll()
