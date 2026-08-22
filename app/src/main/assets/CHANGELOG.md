@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.29 - 2026-08-22
+- **Changed**: TV's What's On Now strip now shows on every section, not just Favorites — it's
+  visible whenever the sidebar is in its normal state, and hides only when the mini player goes
+  fullscreen on idle. It always reflects your Favorites channels regardless of which section is
+  active. Cards are also a bit smaller.
+
 ## v6.28 - 2026-08-22
 - **Fixed**: What's On Now was popping back up on its own a while after collapsing with the
   sidebar, then staying stuck visible. A background refresh was re-showing it even after the

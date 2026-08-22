@@ -1,7 +1,7 @@
 {
-  "versionCode": 466,
-  "versionName": "6.28",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.28/MKTV.apk",
-  "apkSha256": "b3053bb51f8a231c60887b95f1a61d0c2b3a69a73e21b1a11578a7c5068008c6",
-  "changelog": "Fixed What's On Now popping back up on its own and getting stuck visible after the sidebar had already collapsed."
+  "versionCode": 467,
+  "versionName": "6.29",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.29/MKTV.apk",
+  "apkSha256": "81ee236e07795d0ebe72cee0503609b3712bc4711ea8687a6cae2f29b8566ebb",
+  "changelog": "TV's What's On Now strip now shows on every section (always Favorites data), hiding only on idle fullscreen. Cards are smaller too."
 }

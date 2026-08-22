@@ -71,10 +71,9 @@ class TvHomeActivity : AppCompatActivity() {
     private lateinit var tvSeriesPosterAdapter: TvSeriesPosterAdapter
     private lateinit var seriesAdapter: SeriesAdapter
     private lateinit var epgGuideAdapter: TvEpgGuideAdapter
-    // Favorites-only "What's On Now" strip (see updateTvWhatsOnNowStrip's kdoc). Tapping a card
-    // plays that channel directly and scrolls/focuses it in the Favorites list below, same as
-    // phone's equivalent strip — no separate dialog, unlike the older long-press "What's On Now"
-    // ticker (showTvWhatsOnNow) this doesn't replace.
+    // "What's On Now" strip, shown on every section (always sourced from Favorites channels).
+    // Tapping a card plays that channel directly, keeping focus on the card itself — unlike the
+    // older long-press "What's On Now" ticker (showTvWhatsOnNow) this doesn't replace.
     private val tvWhatsOnNowAdapter: TvWhatsOnNowAdapter by lazy {
         TvWhatsOnNowAdapter(onClick = { entry ->
             currentMiniCombinedFavoriteId = "primary:${entry.channel.streamId}"
@@ -1367,11 +1366,10 @@ class TvHomeActivity : AppCompatActivity() {
         miniPlayerExpanded = false
         binding.tvLeftPanel.visibility = View.VISIBLE
         binding.tvMiniPlayerFooter.visibility = View.VISIBLE
-        // Mirrors the same Favorites-only + has-entries gate viewModel.whatsOnNow's own collector
-        // applies — restoring this unconditionally to VISIBLE would wrongly show it while sitting
-        // idle on a different section (idle-expand only ever fires at rest on the sidebar of
-        // WHICHEVER section is current, not just Favorites).
-        if (currentSection == Section.FAVORITES && tvWhatsOnNowAdapter.itemCount > 0) {
+        // Mirrors the same has-entries gate viewModel.whatsOnNow's own collector applies (no
+        // longer Favorites-only — the strip now shows on every section whenever the sidebar is
+        // showing, per updated request).
+        if (tvWhatsOnNowAdapter.itemCount > 0) {
             binding.tvWhatsOnNowContainer.visibility = View.VISIBLE
         }
         resetMiniPreviewToNowPlaying()
@@ -1391,10 +1389,10 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.GONE
-        // What's On Now sits in the right column now (not inside tvChanPanel), so it didn't get
-        // collapsed for free by the panel hides above — per explicit request, it should disappear
-        // at the same moment the sidebar auto-collapses back to rest, not linger on its own.
-        binding.tvWhatsOnNowContainer.visibility = View.GONE
+        // What's On Now is no longer hidden here — per updated request, it should keep showing
+        // through the 10s sidebar auto-collapse (this function), only disappearing once the mini
+        // player goes fullscreen on idle (see observeViewModel's whatsOnNow collector, gated on
+        // miniPlayerExpanded now instead of navState/currentSection).
         activeSidebarButton().requestFocus()
         resetMiniPreviewToNowPlaying()
         resetIdleExpandTimer()
@@ -1712,11 +1710,7 @@ class TvHomeActivity : AppCompatActivity() {
         activeSidebarButton().isSelected = true
         updateProvidersHealthBadge(lastProvidersDownCount)
         binding.tvGenreChipScroll.visibility = View.GONE
-        // Favorites-only — see updateTvWhatsOnNowStrip's kdoc. showFavoriteGenreChannels below
-        // shows/populates it again on that section; every other section just hides it here.
-        if (section != Section.FAVORITES) {
-            binding.tvWhatsOnNowContainer.visibility = View.GONE
-        }
+        ensureTvWhatsOnNowRefreshLoop()
 
         when (section) {
             // Used to jump straight into whatever category the currently-playing channel
@@ -1974,24 +1968,26 @@ class TvHomeActivity : AppCompatActivity() {
                 combinedFavoriteAdapter.submitList(favorites)
             }
         }
-        lifecycleScope.launch { refreshTvWhatsOnNow() }
-        tvWhatsOnNowRefreshJob?.cancel()
-        tvWhatsOnNowRefreshJob = lifecycleScope.launch {
-            while (true) {
-                delay(60_000)
-                if (currentSection == Section.FAVORITES) refreshTvWhatsOnNow() else break
-            }
-        }
+        ensureTvWhatsOnNowRefreshLoop()
     }
 
     private var tvWhatsOnNowRefreshJob: kotlinx.coroutines.Job? = null
 
-    // Favorites-only "What's On Now" strip below the search/genre row — same data/behavior as
-    // phone's Favorites tab strip (see HomeViewModel.loadWhatsOnNow's kdoc for the currently-
-    // airing matching and why merged-provider favorites aren't included). Auto-refreshes every
-    // 60s while Favorites stays the active section, same self-terminating loop shape as phone's
-    // whatsOnNowRefreshJob, so a card moves on once its show ends instead of only refreshing on
-    // next visit to the section.
+    // "What's On Now" strip, shown above the mini player on every section (not just Favorites —
+    // always sourced from the user's Favorites channels regardless of which section is active,
+    // per explicit request). Auto-refreshes every 60s for as long as the Activity is alive, so a
+    // card moves on once its show ends. Started once (idempotent — cancels/replaces any prior
+    // job) rather than tied to a specific section, since the strip is no longer Favorites-only.
+    private fun ensureTvWhatsOnNowRefreshLoop() {
+        if (tvWhatsOnNowRefreshJob?.isActive == true) return
+        lifecycleScope.launch { refreshTvWhatsOnNow() }
+        tvWhatsOnNowRefreshJob = lifecycleScope.launch {
+            while (true) {
+                delay(60_000)
+                refreshTvWhatsOnNow()
+            }
+        }
+    }
     // Suspends for a real snapshot rather than reading combinedFavorites.value directly — on a
     // true cold boot into Favorites that StateFlow hasn't received its first real emission yet,
     // so a synchronous read here populated the strip with nothing and it stayed empty until some
@@ -3036,14 +3032,14 @@ class TvHomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             viewModel.whatsOnNow.collect { entries ->
                 tvWhatsOnNowAdapter.submitList(entries)
-                // currentSection alone isn't enough — showSidebar() (10s auto-collapse) never
-                // resets it by design (see its own kdoc), so the periodic 60s refresh loop
-                // (tvWhatsOnNowRefreshJob) kept re-emitting whatsOnNow and forcing this back
-                // VISIBLE well after the sidebar had already collapsed, with nothing to hide it
-                // again afterward — the bar would pop back up on its own and then stay stuck.
-                // navState == SIDEBAR means "at rest, panels collapsed" regardless of which
-                // section was last selected, so it's the right gate here, not currentSection.
-                if (currentSection != Section.FAVORITES || navState == NavState.SIDEBAR) {
+                // Per explicit request: show on every section (not just Favorites) whenever the
+                // normal sidebar/panel view is showing, hide only once the mini player goes
+                // fullscreen on idle. miniPlayerExpanded (the true idle-fullscreen flag) is the
+                // right gate here — NavState.SIDEBAR/CATEGORIES/CHANNELS are all "sidebar shown"
+                // states (SIDEBAR just means "at rest on the bare nav list", not hidden), so
+                // navState itself was the wrong signal for this and got fixed in v6.28 for the
+                // narrower Favorites-only behavior that request predates.
+                if (miniPlayerExpanded) {
                     binding.tvWhatsOnNowContainer.visibility = View.GONE
                     return@collect
                 }

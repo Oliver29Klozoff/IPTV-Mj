@@ -5,14 +5,14 @@
      row so it can sit in a D-pad-navigable HorizontalScrollView-style row. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="150dp"
+    android:layout_width="112dp"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="8dp"
+    android:layout_marginEnd="6dp"
     android:background="@drawable/tv_sidebar_focus"
     android:focusable="true"
     android:orientation="vertical"
-    android:paddingHorizontal="8dp"
-    android:paddingVertical="6dp">
+    android:paddingHorizontal="6dp"
+    android:paddingVertical="4dp">
 
     <TextView
         android:id="@+id/tvTvWonChannel"
@@ -21,25 +21,25 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="#008CFF"
-        android:textSize="10sp"
+        android:textSize="8sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tvTvWonProgram"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="1dp"
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="#FFFFFF"
-        android:textSize="10sp" />
+        android:textSize="8sp" />
 
     <ProgressBar
         android:id="@+id/tvPbWonProgress"
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:layout_width="match_parent"
         android:layout_height="2dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="3dp"
         android:max="100"
         android:progress="0"
         android:progressBackgroundTint="#33FFFFFF"
