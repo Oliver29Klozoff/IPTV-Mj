@@ -528,6 +528,26 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         settingsItems += TvSettingItem.Action("display_merged_series_refresh", "Merged Series",
             actionLabel = "↻ Refresh", onAction = refreshMergedSeries, onClick = refreshMergedSeries)
+        // TV had no way at all to force a primary-provider live-channel resync — it only ever
+        // ran automatically, gated behind a 4-hour cache-staleness check (HomeViewModel.init).
+        // That meant a channel added/removed on the provider's end (or a stale row left behind
+        // by a primary-provider swap, see fetchLiveStreams' stale-channel sweep) could sit wrong
+        // for hours with no way to force it sooner, unlike Movies/Series above which already had
+        // their own manual refresh.
+        val refreshLiveChannels: () -> Unit = {
+            setItemAction("display_channels_refresh", "Loading…", enabled = false)
+            lifecycleScope.launch {
+                val result = repository.fetchLiveStreams()
+                repository.fetchLiveCategories()
+                setItemAction("display_channels_refresh", "↻ Refresh", enabled = true)
+                val msg = if (result is com.iptvapp.util.Resource.Success)
+                    "Channels refreshed (${result.data?.size ?: 0} channels)"
+                else "Failed — server timeout or no content"
+                toast(msg)
+            }
+        }
+        settingsItems += TvSettingItem.Action("display_channels_refresh", "Live Channels",
+            actionLabel = "↻ Refresh", onAction = refreshLiveChannels, onClick = refreshLiveChannels)
 
         // ── EPG ──
         settingsItems += TvSettingItem.Header("EPG")

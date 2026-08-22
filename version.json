@@ -1,7 +1,7 @@
 {
-  "versionCode": 469,
-  "versionName": "6.31",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.31/MKTV.apk",
-  "apkSha256": "9a6f8a371df261348e5e10f2174990e90ffa540bdd84fb155c1a2118ddfd8cdd",
-  "changelog": "Every live-channel sync now sweeps out stale channels the server no longer returns, auto-cleaning up leftover broken favorites from an earlier provider switch."
+  "versionCode": 470,
+  "versionName": "6.32",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.32/MKTV.apk",
+  "apkSha256": "9b29a120a5be3095923bedf96a9969061e475f46a5aece74b380871ec529fbe2",
+  "changelog": "Added a Live Channels refresh button in TV Settings so you can force a sync (and the v6.31 stale-channel cleanup) immediately instead of waiting for the automatic 4-hour resync."
 }

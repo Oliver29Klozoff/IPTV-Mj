@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.32 - 2026-08-22
+- **Added**: TV Settings now has a "Live Channels" refresh button. v6.31's automatic stale-channel
+  cleanup only runs on a live-channel sync, and TV had no way to force one — it only ever
+  auto-synced after a 4-hour cache-staleness window, so leftover channels from a provider switch
+  could sit around for hours with no way to clear them sooner. Tap Refresh to force it immediately.
+
 ## v6.31 - 2026-08-22
 - **Fixed**: v6.30 stopped NEW stale channels from being left behind on a primary provider swap,
   but didn't clean up ones already stuck from before. Every live-channel sync now also sweeps out
