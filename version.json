@@ -1,7 +1,7 @@
 {
-  "versionCode": 464,
-  "versionName": "6.26",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.26/MKTV.apk",
-  "apkSha256": "38326833da05ef7adca4e4cdc46e47b1c08fcb6fc5c643c3614392ab1ac2cc71",
-  "changelog": "Fixed selecting a channel from What's On Now yanking focus down into the Favorites channel list -- focus now stays on the card you picked."
+  "versionCode": 465,
+  "versionName": "6.27",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.27/MKTV.apk",
+  "apkSha256": "913f73d7ccebd8b401bf3eceea6f009e84305933805739c505f3bfab6d479aff",
+  "changelog": "TV's What's On Now strip now disappears at the same moment the sidebar auto-collapses, instead of lingering on screen afterward."
 }

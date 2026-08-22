@@ -1391,6 +1391,10 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.GONE
+        // What's On Now sits in the right column now (not inside tvChanPanel), so it didn't get
+        // collapsed for free by the panel hides above — per explicit request, it should disappear
+        // at the same moment the sidebar auto-collapses back to rest, not linger on its own.
+        binding.tvWhatsOnNowContainer.visibility = View.GONE
         activeSidebarButton().requestFocus()
         resetMiniPreviewToNowPlaying()
         resetIdleExpandTimer()

@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v6.27 - 2026-08-22
+- **Fixed**: TV's What's On Now strip used to linger on screen well after the sidebar
+  auto-collapsed back to rest. It now disappears at the same moment as the sidebar collapse.
+
 ## v6.26 - 2026-08-22
 - **Fixed**: selecting a channel from TV's What's On Now strip was yanking focus down into the
   Favorites channel list. Focus now stays right on the card you picked.
