@@ -3035,10 +3035,19 @@ class TvHomeActivity : AppCompatActivity() {
     private fun observeViewModel() {
         lifecycleScope.launch {
             viewModel.whatsOnNow.collect { entries ->
-                if (currentSection != Section.FAVORITES) return@collect
-                val visible = entries.isNotEmpty()
-                binding.tvWhatsOnNowContainer.visibility = if (visible) View.VISIBLE else View.GONE
                 tvWhatsOnNowAdapter.submitList(entries)
+                // currentSection alone isn't enough — showSidebar() (10s auto-collapse) never
+                // resets it by design (see its own kdoc), so the periodic 60s refresh loop
+                // (tvWhatsOnNowRefreshJob) kept re-emitting whatsOnNow and forcing this back
+                // VISIBLE well after the sidebar had already collapsed, with nothing to hide it
+                // again afterward — the bar would pop back up on its own and then stay stuck.
+                // navState == SIDEBAR means "at rest, panels collapsed" regardless of which
+                // section was last selected, so it's the right gate here, not currentSection.
+                if (currentSection != Section.FAVORITES || navState == NavState.SIDEBAR) {
+                    binding.tvWhatsOnNowContainer.visibility = View.GONE
+                    return@collect
+                }
+                binding.tvWhatsOnNowContainer.visibility = if (entries.isNotEmpty()) View.VISIBLE else View.GONE
             }
         }
         lifecycleScope.launch {

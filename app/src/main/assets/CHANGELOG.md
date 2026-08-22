@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.28 - 2026-08-22
+- **Fixed**: What's On Now was popping back up on its own a while after collapsing with the
+  sidebar, then staying stuck visible. A background refresh was re-showing it even after the
+  sidebar had already collapsed — it now correctly stays hidden until you're back on Favorites.
+
 ## v6.27 - 2026-08-22
 - **Fixed**: TV's What's On Now strip used to linger on screen well after the sidebar
   auto-collapsed back to rest. It now disappears at the same moment as the sidebar collapse.

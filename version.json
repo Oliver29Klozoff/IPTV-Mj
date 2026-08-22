@@ -1,7 +1,7 @@
 {
-  "versionCode": 465,
-  "versionName": "6.27",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.27/MKTV.apk",
-  "apkSha256": "913f73d7ccebd8b401bf3eceea6f009e84305933805739c505f3bfab6d479aff",
-  "changelog": "TV's What's On Now strip now disappears at the same moment the sidebar auto-collapses, instead of lingering on screen afterward."
+  "versionCode": 466,
+  "versionName": "6.28",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.28/MKTV.apk",
+  "apkSha256": "b3053bb51f8a231c60887b95f1a61d0c2b3a69a73e21b1a11578a7c5068008c6",
+  "changelog": "Fixed What's On Now popping back up on its own and getting stuck visible after the sidebar had already collapsed."
 }
