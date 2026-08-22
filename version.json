@@ -1,7 +1,7 @@
 {
-  "versionCode": 463,
-  "versionName": "6.25",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.25/MKTV.apk",
-  "apkSha256": "f78703fa261bf23e8bacf0981a25ce2cec52c76212eb3dab68e197cc9821ee71",
-  "changelog": "What's On Now now sits to the right of the sidebar, directly above the mini player, instead of inside the channel list panel."
+  "versionCode": 464,
+  "versionName": "6.26",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.26/MKTV.apk",
+  "apkSha256": "38326833da05ef7adca4e4cdc46e47b1c08fcb6fc5c643c3614392ab1ac2cc71",
+  "changelog": "Fixed selecting a channel from What's On Now yanking focus down into the Favorites channel list -- focus now stays on the card you picked."
 }

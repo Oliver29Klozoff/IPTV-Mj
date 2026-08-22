@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v6.26 - 2026-08-22
+- **Fixed**: selecting a channel from TV's What's On Now strip was yanking focus down into the
+  Favorites channel list. Focus now stays right on the card you picked.
+
 ## v6.25 - 2026-08-21
 - **Changed**: TV's "What's On Now" strip now sits to the right of the sidebar, directly above
   the mini player, instead of inside the channel list panel. Still Favorites-only, still

@@ -83,10 +83,10 @@ class TvHomeActivity : AppCompatActivity() {
                 viewModel.markChannelWatched(entry.channel.streamId)
                 viewModel.setCurrentlyPlaying(entry.channel.streamId)
             }
-            lifecycleScope.launch {
-                val favorites = genreFilterFavorites(activeFavoriteGenre, viewModel.getCombinedFavoritesSnapshot())
-                scrollAndFocusCombinedFavorite(favorites, "primary:${entry.channel.streamId}")
-            }
+            // Previously also jumped focus down into the Favorites channel list, scrolled/
+            // highlighted to the row for whatever was just played (scrollAndFocusCombinedFavorite)
+            // — per explicit request, focus now stays on the card just selected in the strip
+            // instead of being yanked away from it.
         })
     }
 
