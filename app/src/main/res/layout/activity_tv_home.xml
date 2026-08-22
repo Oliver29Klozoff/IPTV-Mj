@@ -701,36 +701,6 @@
                     android:paddingHorizontal="8dp" />
             </HorizontalScrollView>
 
-            <!-- WHAT'S ON NOW — Favorites-only, same scope/behavior as phone's Favorites tab
-                 strip (see TvHomeActivity.updateTvWhatsOnNowStrip). Sits above tvRvContent so it
-                 doesn't compete with the channel list for the panel's own height, hidden whenever
-                 the panel is showing anything other than Favorites' unfiltered channel list. -->
-            <TextView
-                android:id="@+id/tvWhatsOnNowHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#0A0D16"
-                android:paddingHorizontal="12dp"
-                android:paddingTop="8dp"
-                android:text="WHAT'S ON NOW"
-                android:textColor="#888888"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05"
-                android:visibility="gone" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/tvRvWhatsOnNow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#0A0D16"
-                android:clipToPadding="false"
-                android:orientation="horizontal"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="8dp"
-                android:visibility="gone"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/tvRvContent"
                 android:layout_width="match_parent"
@@ -972,6 +942,46 @@
             android:layout_marginTop="4dp"
             android:max="100"
             android:progressTint="#4FC3F7" />
+
+    </LinearLayout>
+
+    <!-- WHAT'S ON NOW — Favorites-only, same scope/behavior as before (see
+         TvHomeActivity.updateTvWhatsOnNowStrip) but now a sibling of tvMainContent in the root
+         FrameLayout, pinned to the very bottom of the whole screen (below both the left panel
+         and the mini player) instead of living inside the left panel above the channel list —
+         moved here on request. Still only shown while Section.FAVORITES is active and the panel
+         is showing Favorites' unfiltered channel list, same visibility guard as before, just
+         toggled on this container instead of the two views that used to sit inline. -->
+    <LinearLayout
+        android:id="@+id/tvWhatsOnNowContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#0A0D16"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvWhatsOnNowHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="12dp"
+            android:paddingTop="8dp"
+            android:text="WHAT'S ON NOW"
+            android:textColor="#888888"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/tvRvWhatsOnNow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipToPadding="false"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="8dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
     </LinearLayout>
 

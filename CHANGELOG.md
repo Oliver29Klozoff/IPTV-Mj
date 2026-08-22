@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.23 - 2026-08-21
+- **Changed**: on TV, the "What's On Now" strip (Favorites tab) moved from the top of the
+  channel list to a full-width bar at the very bottom of the screen, below the mini player.
+  Still horizontally scrollable, still Favorites-only.
+
 ## v6.22 - 2026-08-21
 - **Fixed**: the currently-playing channel name was disappearing along with the now-playing
   EPG text after the 20-second landscape auto-collapse. It now stays visible at all times —

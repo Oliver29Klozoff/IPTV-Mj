@@ -1,7 +1,7 @@
 {
-  "versionCode": 460,
-  "versionName": "6.22",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.22/MKTV.apk",
-  "apkSha256": "1ce2cfc3992f9d5dcadff9fbe561da1574d03d862715fc9be05d66dc99483458",
-  "changelog": "Fixed the playing channel's name disappearing along with the EPG text after the landscape auto-collapse -- it now stays visible at all times."
+  "versionCode": 461,
+  "versionName": "6.23",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.23/MKTV.apk",
+  "apkSha256": "02bbdc84e46b48180c9b19e0853f60b8f4bc66c02efd1bdae77671c0c8d72e07",
+  "changelog": "TV's What's On Now strip moved to a full-width bar at the bottom of the screen, below the mini player -- still horizontally scrollable, still Favorites-only."
 }

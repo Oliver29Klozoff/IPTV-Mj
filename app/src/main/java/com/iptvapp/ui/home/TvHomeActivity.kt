@@ -1700,8 +1700,7 @@ class TvHomeActivity : AppCompatActivity() {
         // Favorites-only — see updateTvWhatsOnNowStrip's kdoc. showFavoriteGenreChannels below
         // shows/populates it again on that section; every other section just hides it here.
         if (section != Section.FAVORITES) {
-            binding.tvWhatsOnNowHeader.visibility = View.GONE
-            binding.tvRvWhatsOnNow.visibility = View.GONE
+            binding.tvWhatsOnNowContainer.visibility = View.GONE
         }
 
         when (section) {
@@ -3009,8 +3008,7 @@ class TvHomeActivity : AppCompatActivity() {
             viewModel.whatsOnNow.collect { entries ->
                 if (currentSection != Section.FAVORITES) return@collect
                 val visible = entries.isNotEmpty()
-                binding.tvWhatsOnNowHeader.visibility = if (visible) View.VISIBLE else View.GONE
-                binding.tvRvWhatsOnNow.visibility = if (visible) View.VISIBLE else View.GONE
+                binding.tvWhatsOnNowContainer.visibility = if (visible) View.VISIBLE else View.GONE
                 tvWhatsOnNowAdapter.submitList(entries)
             }
         }
