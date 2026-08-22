@@ -199,6 +199,15 @@ class XtreamRepository @Inject constructor(
                     manualGenre = prev?.manualGenre
                 )
             })
+            // Rows whose streamId the server no longer returns (channel removed upstream, or —
+            // before clearPrimaryProviderData() was wired into every credential-change path — a
+            // leftover from a DIFFERENT provider that used to be primary) never get touched by
+            // the upsert above and stick around forever, still marked isFavorite with a stale
+            // cached streamUrl that silently fails to play. Sweep them out on every sync so
+            // Favorites can never show a channel this provider doesn't actually have.
+            val freshIds = list.map { it.streamId }.toSet()
+            val staleIds = userData.keys - freshIds
+            if (staleIds.isNotEmpty()) db.channelDao().deleteChannelsByIds(staleIds.toList())
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
             applyPendingPrimaryFavorites()
             list

@@ -1,7 +1,7 @@
 {
-  "versionCode": 468,
-  "versionName": "6.30",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.30/MKTV.apk",
-  "apkSha256": "b509a6f793f010062c249cd90846b233efc7363917a07ec16704555babe2d50e",
-  "changelog": "Fixed: editing the primary provider's login instead of using Switch Provider left stale channels/favorites from the old provider behind, causing broken playback."
+  "versionCode": 469,
+  "versionName": "6.31",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.31/MKTV.apk",
+  "apkSha256": "9a6f8a371df261348e5e10f2174990e90ffa540bdd84fb155c1a2118ddfd8cdd",
+  "changelog": "Every live-channel sync now sweeps out stale channels the server no longer returns, auto-cleaning up leftover broken favorites from an earlier provider switch."
 }

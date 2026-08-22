@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.31 - 2026-08-22
+- **Fixed**: v6.30 stopped NEW stale channels from being left behind on a primary provider swap,
+  but didn't clean up ones already stuck from before. Every live-channel sync now also sweeps out
+  any channel the server no longer returns — so all the leftover broken favorites from an earlier
+  provider switch (not just one channel) get purged automatically on your next sync, no manual
+  unfavoriting needed.
+
 ## v6.30 - 2026-08-22
 - **Fixed**: Editing your primary provider's login (URL/username) in Settings — instead of using
   "Switch Provider" — never cleared the old provider's cached channels. If the new provider didn't

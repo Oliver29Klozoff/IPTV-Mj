@@ -121,6 +121,10 @@ interface ChannelDao {
     suspend fun restoreWatchHistory(streamId: Int, lastWatched: Long, viewCount: Int)
     @Query("DELETE FROM channels WHERE categoryId LIKE 'm3u_%'")
     suspend fun deleteM3uChannels()
+    // Sweeps rows the server no longer returns (see fetchLiveStreams's kdoc on why this matters
+    // for stale favorites left behind by a primary-provider swap).
+    @Query("DELETE FROM channels WHERE streamId IN (:streamIds)")
+    suspend fun deleteChannelsByIds(streamIds: List<Int>)
 
     @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 AND favoriteFolderId = :folderId ORDER BY favOrder ASC, name ASC")
     fun getFavoritesInFolder(folderId: Int): Flow<List<ChannelEntity>>
