@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.38 - 2026-08-26
+- **Fixed**: audited every other bulk-select action (hide/favorite on Live channels, Series,
+  Merged Channels/Movies/Series, and a Guide EPG lookup) for the same SQLite bulk-delete bug
+  fixed in v6.37 — "select all" on a large category could have hit the same silent failure.
+  All are now chunked the same way, before it ever happens instead of after.
+
 ## v6.37 - 2026-08-26
 - **Fixed**: found the real cause of "Live Channels" reporting "Failed — server timeout" —
   v6.31's stale-channel cleanup was deleting hundreds of leftover channels in a single database

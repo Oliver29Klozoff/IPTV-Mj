@@ -1,7 +1,7 @@
 {
-  "versionCode": 475,
-  "versionName": "6.37",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.37/MKTV.apk",
-  "apkSha256": "4c305bdf33d6a7b43d0473115e36239c6626d10fa61d9e5254ed9437a35e3be2",
-  "changelog": "Found the real cause of the Live Channels refresh error: the stale-channel cleanup was hitting SQLite's variable limit when deleting a large batch. Now runs in safe chunks."
+  "versionCode": 476,
+  "versionName": "6.38",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.38/MKTV.apk",
+  "apkSha256": "07b7789211dcbdf5f9da4f130695a7d15b580e967d6616f6b5ff3cd84eaed7ac",
+  "changelog": "Audited and chunked every other bulk-select action (hide/favorite on channels, series, and merged providers) for the same SQLite bulk-query bug fixed in v6.37."
 }

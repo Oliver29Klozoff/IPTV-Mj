@@ -375,17 +375,29 @@ class XtreamRepository @Inject constructor(
     fun getHiddenChannels(): Flow<List<ChannelEntity>> =
         db.channelDao().getHiddenChannels()
 
-    suspend fun bulkSetFavorite(streamIds: List<Int>) =
-        db.channelDao().bulkSetFavorite(streamIds)
+    // Unchunked at the DAO like the others below — no UI call site currently wires this up with
+    // a large id list, but chunk anyway so it can't reproduce the same SQLite bound-variable
+    // failure the moment it IS wired to a bulk-select action.
+    suspend fun bulkSetFavorite(streamIds: List<Int>) {
+        streamIds.chunked(500).forEach { db.channelDao().bulkSetFavorite(it) }
+    }
 
-    suspend fun bulkClearFavorite(streamIds: List<Int>) =
-        db.channelDao().bulkClearFavorite(streamIds)
+    suspend fun bulkClearFavorite(streamIds: List<Int>) {
+        streamIds.chunked(500).forEach { db.channelDao().bulkClearFavorite(it) }
+    }
 
-    suspend fun bulkHideChannels(streamIds: List<Int>) =
-        db.channelDao().bulkSetHidden(streamIds)
+    // Chunked the same way deleteChannelsByIds' stale-channel sweep had to be — bulkSelectedIds
+    // comes from bulk-select mode's selectAll(), which selects every channel currently shown for
+    // that view/category, easily hundreds+ on a large provider. An unchunked IN (...) here hits
+    // the same SQLite bound-variable ceiling (~999) that surfaced as a false "server timeout" on
+    // the live-channel refresh — this path would fail just as silently/confusingly.
+    suspend fun bulkHideChannels(streamIds: List<Int>) {
+        streamIds.chunked(500).forEach { db.channelDao().bulkSetHidden(it) }
+    }
 
-    suspend fun bulkSetChannelManualGenre(streamIds: List<Int>, genre: String?) =
-        db.channelDao().bulkSetManualGenre(streamIds, genre)
+    suspend fun bulkSetChannelManualGenre(streamIds: List<Int>, genre: String?) {
+        streamIds.chunked(500).forEach { db.channelDao().bulkSetManualGenre(it, genre) }
+    }
 
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>> =
         db.channelDao().getSimilarChannels(categoryId, excludeStreamId)
@@ -661,7 +673,11 @@ class XtreamRepository @Inject constructor(
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
     fun getHiddenSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getHiddenSeries()
-    suspend fun bulkHideSeries(seriesIds: List<Int>) = db.seriesDao().bulkSetHidden(seriesIds)
+    // Same selectAll()-driven bulk-select shape as bulkHideChannels above — chunked for the same
+    // reason.
+    suspend fun bulkHideSeries(seriesIds: List<Int>) {
+        seriesIds.chunked(500).forEach { db.seriesDao().bulkSetHidden(it) }
+    }
     suspend fun unhideSeries(seriesId: Int) = db.seriesDao().setUnhidden(seriesId)
 
     suspend fun setSeriesFavorite(seriesId: Int, isFavorite: Boolean) = db.seriesDao().setFavorite(seriesId, isFavorite)
@@ -726,7 +742,10 @@ class XtreamRepository @Inject constructor(
         }
         val relevant = streamIds.filter { it in favoriteIds }
         if (relevant.isEmpty()) return emptyMap()
-        return db.epgDao().getEpgForStreams(relevant, serverIndex).first()
+        // Chunked at 900 to stay under SQLite's bound-variable limit — matches
+        // getEpgForStreams(streamIds: List<Int>)'s own chunking below, which this bypassed by
+        // calling the raw DAO method with serverIndex directly instead.
+        return relevant.chunked(900).flatMap { chunk -> db.epgDao().getEpgForStreams(chunk, serverIndex).first() }
             .groupBy { it.streamId }
     }
 
@@ -1863,8 +1882,12 @@ class XtreamRepository @Inject constructor(
     }
 
     fun getHiddenMergedVod(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getHidden()
-    suspend fun bulkHideMergedVod(serverIndex: Int, streamIds: List<Int>) =
-        db.mergedVodDao().bulkSetHidden(serverIndex, streamIds)
+    // Chunked for the same reason as bulkHideChannels — merged VOD catalogs are the largest in
+    // the app (100k+ items on some providers), so a selectAll()-driven bulk hide here is the
+    // highest-scale case for the SQLite bound-variable ceiling.
+    suspend fun bulkHideMergedVod(serverIndex: Int, streamIds: List<Int>) {
+        streamIds.chunked(500).forEach { db.mergedVodDao().bulkSetHidden(serverIndex, it) }
+    }
 
     suspend fun saveMergedVodProgress(serverIndex: Int, streamId: Int, watchedMs: Long, durationMs: Long) {
         db.mergedVodDao().updateWatchProgress(serverIndex, streamId, watchedMs, durationMs)
@@ -1982,8 +2005,10 @@ class XtreamRepository @Inject constructor(
     }
 
     fun getHiddenMergedSeries(): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().getHidden()
-    suspend fun bulkHideMergedSeries(serverIndex: Int, seriesIds: List<Int>) =
-        db.mergedSeriesDao().bulkSetHidden(serverIndex, seriesIds)
+    // Chunked for the same reason as bulkHideChannels.
+    suspend fun bulkHideMergedSeries(serverIndex: Int, seriesIds: List<Int>) {
+        seriesIds.chunked(500).forEach { db.mergedSeriesDao().bulkSetHidden(serverIndex, it) }
+    }
     suspend fun unhideMergedSeries(serverIndex: Int, seriesId: Int) =
         db.mergedSeriesDao().setUnhidden(serverIndex, seriesId)
 
@@ -2022,13 +2047,16 @@ class XtreamRepository @Inject constructor(
         db.mergedChannelDao().search(query)
 
     fun getHiddenMergedChannels(): Flow<List<MergedChannelEntity>> = db.mergedChannelDao().getHidden()
-    suspend fun bulkHideMergedChannels(serverIndex: Int, streamIds: List<Int>) =
-        db.mergedChannelDao().bulkSetHidden(serverIndex, streamIds)
+    // Chunked for the same reason as bulkHideChannels.
+    suspend fun bulkHideMergedChannels(serverIndex: Int, streamIds: List<Int>) {
+        streamIds.chunked(500).forEach { db.mergedChannelDao().bulkSetHidden(serverIndex, it) }
+    }
     suspend fun unhideMergedChannel(serverIndex: Int, streamId: Int) =
         db.mergedChannelDao().unhide(serverIndex, streamId)
 
-    suspend fun bulkSetMergedChannelManualGenre(serverIndex: Int, streamIds: List<Int>, genre: String?) =
-        db.mergedChannelDao().bulkSetManualGenre(serverIndex, streamIds, genre)
+    suspend fun bulkSetMergedChannelManualGenre(serverIndex: Int, streamIds: List<Int>, genre: String?) {
+        streamIds.chunked(500).forEach { db.mergedChannelDao().bulkSetManualGenre(serverIndex, it, genre) }
+    }
 
     // Merged-channel favorites/folders — separate from the primary provider's Favorites tab
     // (see MergedChannelEntity kdoc), but reusing the same FavoriteFolderEntity rows so folder
