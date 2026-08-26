@@ -207,7 +207,15 @@ class XtreamRepository @Inject constructor(
             // Favorites can never show a channel this provider doesn't actually have.
             val freshIds = list.map { it.streamId }.toSet()
             val staleIds = userData.keys - freshIds
-            if (staleIds.isNotEmpty()) db.channelDao().deleteChannelsByIds(staleIds.toList())
+            // SQLite caps bound variables per statement (~999) — a single IN (...) with
+            // thousands of stale ids (exactly the case this sweep exists for: hundreds/
+            // thousands of leftover channels from an old primary provider) threw
+            // "too many SQL variables", which surfaced as a false "server timeout" failure on
+            // an otherwise-successful sync (the HTTP call and upsert above had already
+            // succeeded). Chunk well under the limit so this scales to any leftover count.
+            if (staleIds.isNotEmpty()) {
+                staleIds.chunked(500).forEach { db.channelDao().deleteChannelsByIds(it) }
+            }
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
             applyPendingPrimaryFavorites()
             list

@@ -1,7 +1,7 @@
 {
-  "versionCode": 474,
-  "versionName": "6.36",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.36/MKTV.apk",
-  "apkSha256": "c176adcff7ac4e82bba532727d504112c34edd067cd3a851eb6e823e490783b7",
-  "changelog": "Fixed Live Channels refresh reporting a false timeout on a brief DNS blip; DNS lookups now share results and the refresh retries once."
+  "versionCode": 475,
+  "versionName": "6.37",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.37/MKTV.apk",
+  "apkSha256": "4c305bdf33d6a7b43d0473115e36239c6626d10fa61d9e5254ed9437a35e3be2",
+  "changelog": "Found the real cause of the Live Channels refresh error: the stale-channel cleanup was hitting SQLite's variable limit when deleting a large batch. Now runs in safe chunks."
 }

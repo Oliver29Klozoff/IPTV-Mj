@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.37 - 2026-08-26
+- **Fixed**: found the real cause of "Live Channels" reporting "Failed — server timeout" —
+  v6.31's stale-channel cleanup was deleting hundreds of leftover channels in a single database
+  statement, which silently hit SQLite's variable limit and threw, even though the actual server
+  request had already succeeded. The cleanup now runs in safe batches, so a large leftover count
+  from an earlier provider switch can no longer break a normal refresh.
+
 ## v6.36 - 2026-08-26
 - **Fixed**: "Live Channels" refresh could report "Failed — server timeout" on a brief WiFi/router
   DNS blip, even though the provider itself was fine moments later — a single hiccup was getting
