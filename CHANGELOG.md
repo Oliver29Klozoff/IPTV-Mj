@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.35 - 2026-08-26
+- **Changed**: Live-channel failover (when a channel dies mid-watch) now picks the most reliable
+  matching copy on another configured provider, using the same reliability data already shown in
+  Settings' provider health view — instead of just switching to whichever provider happened to be
+  checked first.
+
 ## v6.34 - 2026-08-22
 - **Added**: A "Clear All Favorited Channels" button in Settings (phone and TV), for when the
   automatic/manual channel-sync cleanup still leaves stale favorites behind. Un-favorites every

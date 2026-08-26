@@ -1,7 +1,7 @@
 {
-  "versionCode": 472,
-  "versionName": "6.34",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.34/MKTV.apk",
-  "apkSha256": "869231137bb9baed2d2fb4e91a49b253a3c13d4d30a08063c676dc88d80a6f73",
-  "changelog": "Added a Clear All Favorited Channels button in Settings (phone and TV) to manually clear out stubborn stale favorites."
+  "versionCode": 473,
+  "versionName": "6.35",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.35/MKTV.apk",
+  "apkSha256": "ea1dbc00bac9618e14f6a07cfca1d00f76b44ca8558d29ecc4796edad7948bb6",
+  "changelog": "Live-channel failover now picks the most reliable matching copy on another provider instead of just the first one checked."
 }

@@ -2297,21 +2297,41 @@ class XtreamRepository @Inject constructor(
      * name comparison — see its kdoc for why name comparison is the only cross-provider signal
      * available at all (no shared per-channel ID exists across different Xtream panels). Excludes
      * excludeServerIndex (the channel that just failed) so it never "fails over" back to the same
-     * dead provider. Checks primary first, then each configured extra provider in order, and
-     * returns the first hit — good enough for the common case (a handful of configured
-     * providers), not worth ranking/scoring multiple candidates for.
-     * @return (serverIndex, streamId, name) of the match, or null if no other provider has it. */
+     * dead provider.
+     *
+     * Collects every name match across all other configured servers (not just the first one
+     * found), then ranks primary-server (serverIndex -1) candidates by their existing
+     * channel_reliability score — see ProviderHealth's inline percent calc for the same formula
+     * (successes / total outcome chars * 100) — so a flaky primary-server duplicate doesn't win
+     * just because its provider happened to be checked first. channel_reliability is only ever
+     * populated for the primary provider's own ChannelEntity rows (no equivalent tracking exists
+     * for merged/secondary providers yet), so merged candidates have no score to rank by and are
+     * only used as a fallback, in original server-config order, when no scored primary candidate
+     * exists or every primary candidate has no reliability history at all.
+     * @return (serverIndex, streamId, name) of the best match, or null if no other provider has it. */
     suspend fun findFailoverChannel(name: String, excludeServerIndex: Int): Triple<Int, Int, String>? {
         val servers = allConfiguredServers().filter { it.serverIndex != excludeServerIndex }
+        val primaryMatches = mutableListOf<Triple<Int, Int, String>>()
+        val mergedMatches = mutableListOf<Triple<Int, Int, String>>()
         for (server in servers) {
             val candidates = if (server.serverIndex == -1) {
                 db.channelDao().getAllChannels().first().map { Triple(-1, it.streamId, it.name) }
             } else {
                 db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
             }
-            val hit = candidates.firstOrNull { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
-            if (hit != null) return hit
+            val hits = candidates.filter { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
+            if (server.serverIndex == -1) primaryMatches += hits else mergedMatches += hits
         }
-        return null
+        if (primaryMatches.isNotEmpty()) {
+            val scores = db.reliabilityDao().getForStreamIds(primaryMatches.map { it.second })
+                .filter { it.outcomes.isNotEmpty() }
+                .associate { it.streamId to (it.outcomes.count { c -> c == '1' } * 100 / it.outcomes.length) }
+            val best = primaryMatches.maxByOrNull { scores[it.second] ?: -1 }
+            // Only trust the ranking if at least one candidate actually has reliability history —
+            // otherwise every candidate ties at -1 and maxByOrNull's pick is arbitrary, not a
+            // deliberate "best" choice, so fall through to the original first-match behavior.
+            if (best != null && scores.containsKey(best.second)) return best
+        }
+        return primaryMatches.firstOrNull() ?: mergedMatches.firstOrNull()
     }
 }

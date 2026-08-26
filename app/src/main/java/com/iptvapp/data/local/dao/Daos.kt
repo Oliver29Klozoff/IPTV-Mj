@@ -462,6 +462,10 @@ interface ReliabilityDao {
     // XtreamRepository.getAllReliabilityPercents for how they're stitched back together.
     @Query("SELECT * FROM channel_reliability LIMIT :limit OFFSET :offset")
     suspend fun getPage(limit: Int, offset: Int): List<ChannelReliabilityEntity>
+    // Bounded to a handful of candidate ids (failover matches) rather than a table scan — safe to
+    // use unpaged since callers only ever pass a small in-memory list.
+    @Query("SELECT * FROM channel_reliability WHERE streamId IN (:streamIds)")
+    suspend fun getForStreamIds(streamIds: List<Int>): List<ChannelReliabilityEntity>
     @Upsert
     suspend fun upsert(entity: ChannelReliabilityEntity)
 }
