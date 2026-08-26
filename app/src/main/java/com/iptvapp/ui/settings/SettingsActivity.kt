@@ -587,7 +587,13 @@ class SettingsActivity : AppCompatActivity() {
             binding.btnRefreshChannels.isEnabled = false
             binding.btnRefreshChannels.text = "Loading…"
             lifecycleScope.launch {
-                val result = repository.fetchLiveStreams()
+                // A brief WiFi/router DNS blip at the exact moment of a manual refresh — real,
+                // observed case — showed as an outright "Failed" even though the provider itself
+                // was fine seconds later. One quiet retry (no extra toast/UI state) absorbs a
+                // transient blip without asking the user to notice the failure and tap Refresh
+                // again themselves.
+                var result = repository.fetchLiveStreams()
+                if (result !is com.iptvapp.util.Resource.Success) result = repository.fetchLiveStreams()
                 repository.fetchLiveCategories()
                 binding.btnRefreshChannels.isEnabled = true
                 binding.btnRefreshChannels.text = "↻ Refresh"

@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.36 - 2026-08-26
+- **Fixed**: "Live Channels" refresh could report "Failed — server timeout" on a brief WiFi/router
+  DNS blip, even though the provider itself was fine moments later — a single hiccup was getting
+  amplified into a burst of duplicate failures by every in-flight request re-resolving DNS
+  independently. DNS lookups now share results across concurrent requests for the same host, and
+  the refresh button quietly retries once before reporting failure.
+
 ## v6.35 - 2026-08-26
 - **Changed**: Live-channel failover (when a channel dies mid-watch) now picks the most reliable
   matching copy on another configured provider, using the same reliability data already shown in
