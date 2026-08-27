@@ -1,7 +1,7 @@
 {
-  "versionCode": 476,
-  "versionName": "6.38",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.38/MKTV.apk",
-  "apkSha256": "07b7789211dcbdf5f9da4f130695a7d15b580e967d6616f6b5ff3cd84eaed7ac",
-  "changelog": "Audited and chunked every other bulk-select action (hide/favorite on channels, series, and merged providers) for the same SQLite bulk-query bug fixed in v6.37."
+  "versionCode": 477,
+  "versionName": "6.39",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.39/MKTV.apk",
+  "apkSha256": "03f8126219f93b51e43d781a94a59a8c3aa68ed36b562e234e9b7e41942aaad7",
+  "changelog": "Movies and TV episodes now fail over to another configured provider when a stream is dead, the same way live channels already did."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.39 - 2026-08-27
+- **Added**: Movies and TV episodes now fail over to another configured provider when a stream is
+  dead, the same way live channels already did — if the exact same title exists elsewhere under a
+  different catalog id, it switches automatically instead of just giving up after retrying.
+
 ## v6.38 - 2026-08-26
 - **Fixed**: audited every other bulk-select action (hide/favorite on Live channels, Series,
   Merged Channels/Movies/Series, and a Guide EPG lookup) for the same SQLite bulk-delete bug

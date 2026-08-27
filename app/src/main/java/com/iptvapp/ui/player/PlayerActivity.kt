@@ -902,6 +902,62 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /** VOD/series failover on plain (non-party) retry exhaustion — the movie/episode equivalent
+     * of the live-channel by-name failover a few lines up. Reuses findWatchPartyVodMatches /
+     * findWatchPartyEpisodeMatch (title-normalized search across every provider this device is
+     * configured for) even though this isn't a party — that machinery already does exactly "find
+     * this same title under a different catalog id elsewhere", the Watch Party framing was
+     * incidental. Silently no-ops (leaves the existing "Stream unavailable" status showing) if no
+     * match is found or the match itself doesn't play — a failed failover shouldn't look like a
+     * separate second failure to the user. */
+    private fun attemptVodFailover() {
+        lifecycleScope.launch {
+            val isEpisode = episodeSeriesId != -1 && traktSeason >= 0 && traktEpisode >= 0
+            if (isEpisode) {
+                val seriesName = traktSeriesName.ifBlank { streamTitle }
+                val match = try {
+                    repository.findWatchPartyEpisodeMatch(seriesName, traktSeason, traktEpisode).firstOrNull()
+                } catch (_: Exception) { null } ?: return@launch
+                val url = try {
+                    if (match.serverIndex != -1) repository.getMergedSeriesEpisodeUrl(match.serverIndex, match.episodeId, match.containerExtension)
+                    else repository.getSeriesEpisodeUrl(match.episodeId, match.containerExtension)
+                } catch (_: Exception) { null }
+                if (url == null || !repository.checkStreamHealth(url)) return@launch
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "VOD FAILOVER: episode seriesId=$episodeSeriesId ($seriesName) S${traktSeason}E$traktEpisode -> " +
+                        "seriesId=${match.seriesId} on serverIndex=${match.serverIndex}, after $maxRetries failed attempts"
+                )
+                Toast.makeText(this@PlayerActivity, "Switched provider for \"${match.seriesTitle}\" — the original had an error", Toast.LENGTH_LONG).show()
+                episodeSeriesId = match.seriesId
+                retryCount = 0
+                binding.tvRetryStatus.visibility = View.GONE
+                loadStream(url)
+            } else {
+                val match = try {
+                    repository.findWatchPartyVodMatches(streamTitle).firstOrNull()
+                } catch (_: Exception) { null } ?: return@launch
+                val url = try {
+                    if (match.serverIndex != -1) repository.getMergedVodStreamUrl(match.serverIndex, match.streamId, match.containerExtension)
+                    else repository.getVodStreamUrl(match.streamId, match.containerExtension)
+                } catch (_: Exception) { null }
+                if (url == null || !repository.checkStreamHealth(url)) return@launch
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "VOD FAILOVER: streamId=$streamId ($streamTitle) on serverIndex=$serverIndex -> " +
+                        "streamId=${match.streamId} on serverIndex=${match.serverIndex}, after $maxRetries failed attempts"
+                )
+                Toast.makeText(this@PlayerActivity, "Switched provider for \"${match.title}\" — the original had an error", Toast.LENGTH_LONG).show()
+                streamId = match.streamId
+                serverIndex = match.serverIndex
+                mergedStreamId = if (match.serverIndex != -1) match.streamId else -1
+                retryCount = 0
+                binding.tvRetryStatus.visibility = View.GONE
+                loadStream(url)
+            }
+        }
+    }
+
     /** Episode equivalent of offerWatchPartyVodTitleFallback/playWatchPartyVodMatch — see
      * SettingsActivity's matching kdoc for the series-name-search + season/episode-lookup
      * reasoning. */
@@ -2311,7 +2367,17 @@ class PlayerActivity : AppCompatActivity() {
                     "Couldn't load \"$streamTitle\" — not available on your provider",
                     Toast.LENGTH_LONG
                 ).show()
+                return
             }
+            // Live channels already fail over to another configured provider by name match (see
+            // below) — VOD/series had no equivalent at all, they just gave up outright even when
+            // the exact same title exists under a different catalog id on another provider this
+            // device is already logged into. Reuses the same title-search machinery Watch Party's
+            // "different provider, same movie" fallback already relies on
+            // (findWatchPartyVodMatches/findWatchPartyEpisodeMatch) — that's genuinely just a
+            // by-name cross-catalog lookup with a party-flavored name; nothing here is party-
+            // specific, so a solo give-up gets the identical benefit for free.
+            attemptVodFailover()
             return
         }
         // Live channels previously had no give-up path at all here — retry just kept ramping up
