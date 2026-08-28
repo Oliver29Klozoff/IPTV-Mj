@@ -1,7 +1,7 @@
 {
-  "versionCode": 478,
-  "versionName": "6.40",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.40/MKTV.apk",
-  "apkSha256": "bb81e6ed9864e14d09f8b8a9bda6dd2b1c5c9f4152979a94a0095c8c064ccc02",
-  "changelog": "Added cross-device live TV handoff — start watching on one device, resume on a paired device with a Continue Watching prompt."
+  "versionCode": 479,
+  "versionName": "6.41",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.41/MKTV.apk",
+  "apkSha256": "5a4a96824b96718aec0781d44c5c590bffeed9379112b19d030862e1623774cf",
+  "changelog": "Provider Speed Test now measures real download speed (Mbps), not just whether a stream responds."
 }

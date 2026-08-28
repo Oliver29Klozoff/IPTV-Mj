@@ -3127,8 +3127,13 @@ class SettingsActivity : AppCompatActivity() {
                     false -> "Stream Test: ✗ NOT playable — server responds but streams don't work"
                     null -> "Stream Test: no channel to test (catalog empty)"
                 }
+                // Only present when streamPlayable was true (see measureStreamThroughputMbps's
+                // call site kdoc) — a real download-speed measurement in addition to the above
+                // "does it respond at all" checks, which say nothing about whether it's fast
+                // enough to actually stream without buffering.
+                val speedStr = r.throughputMbps?.let { "\nDownload Speed: ${"%.1f".format(it)} Mbps" } ?: ""
                 val errorLine = r.error?.let { "\n$it" } ?: ""
-                "${r.nickname}\n$tcpStr\n$httpStr\n$streamStr\nServer: ${r.host}$errorLine"
+                "${r.nickname}\n$tcpStr\n$httpStr\n$streamStr$speedStr\nServer: ${r.host}$errorLine"
             }
         } catch (e: Exception) {
             binding.tvSpeedTestResult.text = "Error: ${e.message}"

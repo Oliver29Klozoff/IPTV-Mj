@@ -1358,8 +1358,62 @@ class XtreamRepository @Inject constructor(
         // Null = no channel available to test against (empty/never-synced catalog for this
         // server) rather than "not tested" — distinct from streamPlayable being explicitly
         // false, which means a real stream request was attempted and failed.
-        val streamPlayable: Boolean? = null
+        val streamPlayable: Boolean? = null,
+        // Real measured throughput in Mbps from actually downloading stream data (see
+        // measureStreamThroughputMbps) — null when streamPlayable is null/false, since there's
+        // nothing to measure a rate against. Distinct from streamPlayable/checkStreamHealth,
+        // which only ever fetch 1 byte (Range: bytes=0-0) to confirm the server responds at all;
+        // a provider can pass that instantly while still being too slow to actually stream.
+        val throughputMbps: Double? = null
     )
+
+    /** Downloads real stream bytes for up to [maxDurationMs] (or until [maxBytes], whichever
+     * comes first) and returns the measured throughput in Mbps — the one thing checkStreamHealth's
+     * single-byte Range probe deliberately never measures (see its own kdoc). Capped on both axes
+     * so this can never turn into an accidental multi-minute/multi-hundred-MB download on a fast
+     * connection or a provider that ignores Range and serves indefinitely. Returns null on any
+     * failure or if literally zero bytes came back (a fast failure looks identical to "instant
+     * empty response" from a raw byte count alone, so null keeps that ambiguity out of the UI
+     * rather than reporting a misleading 0.0 Mbps). */
+    private suspend fun measureStreamThroughputMbps(
+        url: String,
+        maxDurationMs: Long = 4000L,
+        maxBytes: Long = 4L * 1024 * 1024
+    ): Double? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout((maxDurationMs + 3000L), java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android) ExoPlayerLib/1.4.1")
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body ?: return@withContext null
+                val start = System.currentTimeMillis()
+                var totalBytes = 0L
+                val buffer = ByteArray(64 * 1024)
+                body.byteStream().use { stream ->
+                    while (true) {
+                        val elapsed = System.currentTimeMillis() - start
+                        if (elapsed >= maxDurationMs || totalBytes >= maxBytes) break
+                        val read = stream.read(buffer)
+                        if (read == -1) break
+                        totalBytes += read
+                    }
+                }
+                val elapsedMs = (System.currentTimeMillis() - start).coerceAtLeast(1L)
+                if (totalBytes <= 0L) return@withContext null
+                // bytes -> bits (*8), ms -> seconds (/1000), bits/s -> Mbps (/1_000_000)
+                (totalBytes * 8.0) / (elapsedMs / 1000.0) / 1_000_000.0
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     /** Settings' "Provider Speed Test" used to only ever test the primary server (hardcoded
      * read of prefs.credentials) — extended to loop every currently-active provider, same
@@ -1409,23 +1463,33 @@ class XtreamRepository @Inject constructor(
                     null
                 }
 
-                val streamPlayable = try {
-                    val streamUrl = if (server.serverIndex == -1) {
+                val resolvedStreamUrl = try {
+                    if (server.serverIndex == -1) {
                         val channel = db.channelDao().getFirstChannel()
                         channel?.let { getLiveStreamUrl(it.streamId) }
                     } else {
                         val channel = db.mergedChannelDao().getFirstChannel(server.serverIndex)
                         channel?.let { getMergedLiveStreamUrl(server.serverIndex, it.streamId) }
                     }
-                    streamUrl?.let { checkStreamHealth(it) }
                 } catch (_: Exception) {
                     null
                 }
+                val streamPlayable = try {
+                    resolvedStreamUrl?.let { checkStreamHealth(it) }
+                } catch (_: Exception) {
+                    null
+                }
+                // Only worth measuring real throughput once the stream has already proven
+                // playable — downloading several seconds of data from a stream that's already
+                // known dead/unplayable would just add latency to the test for no signal.
+                val throughputMbps = if (streamPlayable == true && resolvedStreamUrl != null) {
+                    measureStreamThroughputMbps(resolvedStreamUrl)
+                } else null
 
                 val error = if (tcpTimes.isEmpty() && httpMs == null) "Unreachable"
                     else if (streamPlayable == false) "Server reachable, but streams aren't playing — check your account/subscription"
                     else null
-                ProviderSpeedTestResult(server.serverIndex, server.nickname, host, tcpAvg, tcpTimes.size, httpMs, error, streamPlayable)
+                ProviderSpeedTestResult(server.serverIndex, server.nickname, host, tcpAvg, tcpTimes.size, httpMs, error, streamPlayable, throughputMbps)
             }
         }.awaitAll()
     }

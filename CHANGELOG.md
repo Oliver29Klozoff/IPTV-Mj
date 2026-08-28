@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.41 - 2026-08-28
+- **Added**: Provider Speed Test now measures real download speed (Mbps), not just whether a
+  stream responds. Previously it only confirmed a stream would play at all — now it also reports
+  how fast, so you can tell a slow provider from a broken one.
+
 ## v6.40 - 2026-08-28
 - **Added**: Cross-device live TV handoff — start watching a live channel on one device, and a
   paired device (same Sync Code you already use for favorites) shows a "Continue Watching?" prompt
