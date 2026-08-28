@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.40 - 2026-08-28
+- **Added**: Cross-device live TV handoff — start watching a live channel on one device, and a
+  paired device (same Sync Code you already use for favorites) shows a "Continue Watching?" prompt
+  on next launch to pick it up right where you left off. Works phone and TV. No setup beyond the
+  sync code you may already have paired.
+
 ## v6.39 - 2026-08-27
 - **Added**: Movies and TV episodes now fail over to another configured provider when a stream is
   dead, the same way live channels already did — if the exact same title exists elsewhere under a

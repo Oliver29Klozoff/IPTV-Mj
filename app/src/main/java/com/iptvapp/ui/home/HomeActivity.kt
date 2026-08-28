@@ -911,6 +911,7 @@ class HomeActivity : AppCompatActivity() {
     }
     private val viewModel: HomeViewModel by viewModels()
     @Inject lateinit var okHttpClient: okhttp3.OkHttpClient
+    @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
@@ -1064,6 +1065,11 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.refreshMergedChannels()
             }
         }
+        // Cross-device live-TV handoff (see PlaybackHandoffManager kdoc) — only on a genuine cold
+        // launch (savedInstanceState == null), never on an orientation-triggered recreate, or
+        // rotating the phone while sitting on Home would re-show a prompt the user may have just
+        // dismissed a second ago for no reason.
+        if (savedInstanceState == null) checkPlaybackHandoff()
         observeTabVisibility()
         // HomeActivity has no configChanges for orientation (unlike PlayerActivity), so
         // rotating the phone fully destroys and recreates it — this used to always force
@@ -4133,6 +4139,35 @@ class HomeActivity : AppCompatActivity() {
         binding.btnGuideRefreshRow?.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
             viewModel.loadGuide(forceRefresh = true)
+        }
+    }
+
+    /** Cross-device live-TV handoff prompt — "Continue watching [channel] from your [device]?"
+     * See PlaybackHandoffManager kdoc for the pairing model (reuses the existing favorites-sync
+     * pairing, no separate setup). Silently no-ops if unpaired or no fresh session — the whole
+     * point is this never demands attention when there's nothing to offer. */
+    private fun checkPlaybackHandoff() {
+        lifecycleScope.launch {
+            val session = playbackHandoffManager.checkPartnerSession() ?: return@launch
+            AlertDialog.Builder(this@HomeActivity)
+                .setTitle("Continue Watching?")
+                .setMessage("\"${session.title}\" is playing on ${session.deviceName}")
+                .setPositiveButton("Watch Here") { _, _ ->
+                    lifecycleScope.launch {
+                        val url = try {
+                            if (session.serverIndex != -1)
+                                viewModel.getMergedLiveStreamUrl(session.serverIndex, session.streamId)
+                            else viewModel.getLiveStreamUrl(session.streamId)
+                        } catch (_: Exception) { null } ?: return@launch
+                        openPlayer(
+                            url, session.title, session.streamId,
+                            serverIndex = session.serverIndex,
+                            mergedStreamId = if (session.serverIndex != -1) session.mergedStreamId else -1
+                        )
+                    }
+                }
+                .setNegativeButton("Dismiss", null)
+                .show()
         }
     }
 

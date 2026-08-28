@@ -159,6 +159,7 @@ class PlayerActivity : AppCompatActivity() {
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
+    @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
     @Inject lateinit var rewatchNotesManager: com.iptvapp.sync.RewatchNotesManager
     @Inject lateinit var communityHealthManager: com.iptvapp.sync.CommunityHealthManager
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
@@ -347,6 +348,7 @@ class PlayerActivity : AppCompatActivity() {
         if (!isVod) {
             lifecycleScope.launch { prefs.setLivePlaybackActive(serverIndex) }
             lifecycleScope.launch { liveReconnectSpeed = prefs.liveReconnectSpeed.first() }
+            reportLiveChannelForHandoff()
         }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
@@ -1025,6 +1027,19 @@ class PlayerActivity : AppCompatActivity() {
     private fun notifyPartyChannelChange() {
         if (!isPartyHost || partyCode.isEmpty() || isApplyingRemoteUpdate) return
         watchPartyManager.writeChannelChange(partyCode, currentWatchPartyContent())
+    }
+
+    // Cross-device live-TV handoff (see PlaybackHandoffManager kdoc) — completely independent of
+    // Watch Party (no code, no party membership required), so this fires unconditionally for
+    // every live-channel tune-in, not gated on isPartyHost/partyCode like the two functions
+    // above. Live channels only, matching the scope this feature was built for — VOD/episode
+    // playback already has its own cross-device concept (Continue Watching's watchedMs/durationMs
+    // sync via SyncManager) that a live "position" wouldn't map onto anyway.
+    private fun reportLiveChannelForHandoff() {
+        if (isVod) return
+        lifecycleScope.launch {
+            playbackHandoffManager.reportLiveChannel(streamId, serverIndex, mergedStreamId, streamTitle)
+        }
     }
 
     private fun updateWatchPartyBadge() {
@@ -2830,6 +2845,7 @@ class PlayerActivity : AppCompatActivity() {
             if (idx >= 0) currentIndex = idx
             loadStream(url)
             notifyPartyChannelChange()
+            reportLiveChannelForHandoff()
         }
     }
 
@@ -2858,6 +2874,7 @@ class PlayerActivity : AppCompatActivity() {
                 if (idx >= 0) mergedCurrentIndex = idx
                 loadStream(url)
                 notifyPartyChannelChange()
+            reportLiveChannelForHandoff()
             } catch (_: Exception) {
                 Toast.makeText(this@PlayerActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
             }
@@ -3152,6 +3169,12 @@ class PlayerActivity : AppCompatActivity() {
         skipNextHandler.removeCallbacks(skipNextRunnable)
         stopHealthBadge()
         if (!isChangingConfigurations) {
+            // Best-effort — a stopped/backgrounded live session shouldn't keep dangling as a
+            // "continue watching" prompt on another paired device once this device is done with
+            // it. Fire-and-forget on a process-wide scope for the same reason the bandwidth
+            // tracker flush below is — lifecycleScope may already be cancelling by the time
+            // onStop runs.
+            if (!isVod) kotlinx.coroutines.GlobalScope.launch { playbackHandoffManager.clearOwnSession() }
             player?.release()
             player = null
             bandwidthTracker?.stop()

@@ -59,6 +59,7 @@ class TvHomeActivity : AppCompatActivity() {
     @javax.inject.Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @javax.inject.Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     @javax.inject.Inject lateinit var okHttpClient: okhttp3.OkHttpClient
+    @javax.inject.Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
 
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
@@ -442,6 +443,39 @@ class TvHomeActivity : AppCompatActivity() {
         UpdateChecker(this).check(lifecycleScope)
         lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
         rescheduleEpgRefreshIfNeeded()
+        // Cross-device live-TV handoff (see PlaybackHandoffManager kdoc) — only a prompt, never
+        // auto-plays, so it doesn't fight with the cold-boot resume block above (which already
+        // may have started this device's own last-played channel by the time this dialog shows;
+        // the user explicitly opts in via "Watch Here" if they want the OTHER device's channel
+        // instead). Same savedInstanceState == null guard as phone's HomeActivity — only a true
+        // cold launch, never an orientation/config-change recreate.
+        if (savedInstanceState == null) checkPlaybackHandoff()
+    }
+
+    /** TV equivalent of HomeActivity.checkPlaybackHandoff — see its kdoc. */
+    private fun checkPlaybackHandoff() {
+        lifecycleScope.launch {
+            val session = playbackHandoffManager.checkPartnerSession() ?: return@launch
+            androidx.appcompat.app.AlertDialog.Builder(this@TvHomeActivity)
+                .setTitle("Continue Watching?")
+                .setMessage("\"${session.title}\" is playing on ${session.deviceName}")
+                .setPositiveButton("Watch Here") { _, _ ->
+                    lifecycleScope.launch {
+                        if (session.serverIndex != -1) {
+                            val channel = viewModel.getMergedChannelByIndexAndId(session.serverIndex, session.streamId)
+                            if (channel != null) {
+                                playMergedChannel(channel)
+                                selectSection(Section.PROVIDERS)
+                            }
+                        } else {
+                            val channel = viewModel.getChannelById(session.streamId)
+                            if (channel != null) playInMiniPlayer(channel)
+                        }
+                    }
+                }
+                .setNegativeButton("Dismiss", null)
+                .show()
+        }
     }
 
     // Android (and TV-box "clear background apps" utilities especially) can force-stop
