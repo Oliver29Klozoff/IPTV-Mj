@@ -1346,21 +1346,27 @@ class HomeActivity : AppCompatActivity() {
         cancelIdleFullscreenExpand()
     }
 
-    // Screensaver-style idle-expand, mirroring TV's own 60s "sitting idle -> go fullscreen"
-    // behavior (see TvHomeActivity.resetIdleExpandTimer's kdoc) but at phone's request: 30s
-    // instead of 60s, and landscape-only (phone's Home screen isn't usable single-handed portrait
-    // the way TV's remote is, so this only makes sense once the mini player already has real
-    // screen real estate to grow from). Live channels only, matching TV's own scope and
-    // scheduleContentAutoCollapse's neighboring VOD exclusion — a VOD title mid-playback in the
-    // mini player going fullscreen on its own would be a much more disruptive surprise than a
-    // live channel doing the same. Reset alongside the exact same interaction signals
+    // Screensaver-style idle-expand, mirroring TV's own 60s "sitting idle -> hide chrome, mini
+    // player fills the screen" behavior (see TvHomeActivity.expandMiniPlayerFullScreen's kdoc) —
+    // NOT a PlayerActivity launch (that was the first cut of this, corrected per explicit
+    // follow-up request: "I don't want to open the full screen. I just want the mini player to
+    // expand to full screen"). Stays on HomeActivity, just hides the sidebar/categories column
+    // the same way TV hides its left panel/footer, letting the existing mini player fill the
+    // freed space. 30s (phone's own request, vs. TV's 60s) and landscape-only (phone's Home
+    // screen isn't usable single-handed portrait the way TV's remote is, so this only makes
+    // sense once the mini player already has real screen real estate to grow into). Live
+    // channels only, matching TV's own scope and scheduleContentAutoCollapse's neighboring VOD
+    // exclusion — a VOD title mid-playback expanding on its own would be a much bigger surprise
+    // than a live channel doing the same. Reset alongside the exact same interaction signals
     // scheduleContentAutoCollapse already resets on, so both timers share one "user is actively
     // doing something" definition instead of drifting into two different notions of idle.
     private val idleFullscreenHandler = Handler(Looper.getMainLooper())
-    private val idleFullscreenRunnable = Runnable { expandMiniPlayerToFullscreenIfIdle() }
+    private val idleFullscreenRunnable = Runnable { expandMiniPlayerFullScreen() }
+    private var miniPlayerExpandedFullScreen = false
 
     private fun scheduleIdleFullscreenExpand() {
         idleFullscreenHandler.removeCallbacks(idleFullscreenRunnable)
+        if (miniPlayerExpandedFullScreen) collapseMiniPlayerFromFullScreen()
         if (isLandscapeMode() && !currentMiniIsVod && currentMiniUrl.isNotEmpty()) {
             idleFullscreenHandler.postDelayed(idleFullscreenRunnable, 30_000L)
         }
@@ -1370,13 +1376,31 @@ class HomeActivity : AppCompatActivity() {
         idleFullscreenHandler.removeCallbacks(idleFullscreenRunnable)
     }
 
-    private fun expandMiniPlayerToFullscreenIfIdle() {
+    // Hides the sidebar and categories column, same idea as collapseContentColumn but going all
+    // the way — that function still leaves the vertical nav sidebar (topBar) on screen, this
+    // hides it too so the mini player is the only thing showing, edge to edge. A single tap
+    // anywhere on the mini player while expanded just restores the chrome (see
+    // miniPlayerView's click listener) rather than launching PlayerActivity — going fullscreen
+    // in the separate-Activity sense is still available via the explicit Fullscreen button, this
+    // is purely a "less chrome while idle" mode like TV's.
+    private fun expandMiniPlayerFullScreen() {
         if (!isLandscapeMode() || currentMiniIsVod || currentMiniUrl.isEmpty()) return
-        val currentPos = miniPlayer?.currentPosition ?: 0L
-        openPlayer(
-            currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = false, resumeMs = currentPos,
-            serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
-        )
+        miniPlayerExpandedFullScreen = true
+        binding.topBar.visibility = View.GONE
+        binding.root.findViewById<View?>(R.id.categoriesColumn)?.visibility = View.GONE
+        binding.root.findViewById<View?>(R.id.categoriesDivider)?.visibility = View.GONE
+        binding.root.findViewById<View?>(R.id.miniEpgDetails)?.visibility = View.GONE
+    }
+
+    private fun collapseMiniPlayerFromFullScreen() {
+        if (!miniPlayerExpandedFullScreen) return
+        miniPlayerExpandedFullScreen = false
+        binding.topBar.visibility = View.VISIBLE
+        // Restoring through the normal channels-mode path (not just flipping categoriesColumn
+        // back to VISIBLE directly) so the column's own weight/adapter state comes back exactly
+        // as landscapeShowChannelsMode/collapseContentColumn already manage it, rather than a
+        // second, parallel restore path that could drift out of sync with those over time.
+        expandContentColumnToChannels()
     }
 
     private fun collapseContentColumn() {
@@ -1637,6 +1661,15 @@ class HomeActivity : AppCompatActivity() {
             })
         }
         binding.miniPlayerView.setOnClickListener {
+            // Idle-expanded (sidebar/categories hidden, mini player filling the screen — see
+            // expandMiniPlayerFullScreen's kdoc) — a tap here just restores the chrome and stops,
+            // explicitly NOT falling through to a PlayerActivity launch, same as the
+            // auto-collapsed case right below it.
+            if (miniPlayerExpandedFullScreen) {
+                collapseMiniPlayerFromFullScreen()
+                scheduleContentAutoCollapse()
+                return@setOnClickListener
+            }
             // While the sidebar/EPG bar are auto-collapsed (landscape only), the first tap just
             // restores them and stops there — it does NOT also launch fullscreen. A second tap,
             // now that the panels are back (contentColumnCollapsed is false again), falls through

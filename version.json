@@ -1,7 +1,7 @@
 {
-  "versionCode": 480,
-  "versionName": "6.42",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.42/MKTV.apk",
-  "apkSha256": "5bd294ab7e713767853ea8e17463930b38a7ce9e9c1b5683a4aa6367f76531b4",
-  "changelog": "Phone landscape: What's On Now strip highlights/scrolls to the tapped channel, and the mini player auto-expands to fullscreen after 30s idle on a live channel."
+  "versionCode": 481,
+  "versionName": "6.43",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.43/MKTV.apk",
+  "apkSha256": "01525e932824c0041545006eef4f5406f85820c16e95cdf3d522ef96e904a0ab",
+  "changelog": "Fixed phone landscape idle-fullscreen: mini player now expands in place (sidebar hidden) instead of launching a separate fullscreen screen; a tap just brings the sidebar back."
 }

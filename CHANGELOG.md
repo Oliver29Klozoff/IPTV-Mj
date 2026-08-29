@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.43 - 2026-08-29
+- **Fixed**: v6.42's phone landscape idle-fullscreen was launching a separate fullscreen player
+  screen after 30s idle — instead, the mini player now expands in place (sidebar/categories hidden,
+  same as TV's idle-fullscreen), and a single tap just brings the sidebar back.
+
 ## v6.42 - 2026-08-29
 - **Changed**: Phone landscape's What's On Now strip now highlights the card you tapped and
   auto-scrolls to keep it in view, matching the "now playing" highlight the Favorites list below
