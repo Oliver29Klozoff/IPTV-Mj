@@ -932,8 +932,14 @@ class HomeActivity : AppCompatActivity() {
             val combinedId = "primary:${entry.channel.streamId}"
             currentMiniCombinedFavoriteId = combinedId
             combinedFavoriteAdapter.setCurrentlyPlayingId(combinedId)
+            // The strip itself never showed which of its own cards was playing, only the
+            // separate Favorites list below — highlight it here too so tapping a card in the
+            // strip is visually confirmed right where you tapped, not just further down the
+            // screen. See WhatsOnNowAdapter.setCurrentlyPlayingStreamId's kdoc.
+            whatsOnNowAdapter.setCurrentlyPlayingStreamId(entry.channel.streamId)
             playInMiniPlayer(entry.channel)
             scrollFavoritesToCombinedId(combinedId)
+            scrollWhatsOnNowToStreamId(entry.channel.streamId)
         })
     }
     // Live tab now merges the primary provider with every configured secondary provider, same
@@ -1329,10 +1335,48 @@ class HomeActivity : AppCompatActivity() {
     private fun scheduleContentAutoCollapse() {
         contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
         contentAutoCollapseHandler.postDelayed(contentAutoCollapseRunnable, 20_000L)
+        // Same "user just did something" signal drives both timers — see
+        // scheduleIdleFullscreenExpand's own kdoc for why this reuses this call site instead of
+        // being wired in separately everywhere.
+        scheduleIdleFullscreenExpand()
     }
 
     private fun cancelContentAutoCollapse() {
         contentAutoCollapseHandler.removeCallbacks(contentAutoCollapseRunnable)
+        cancelIdleFullscreenExpand()
+    }
+
+    // Screensaver-style idle-expand, mirroring TV's own 60s "sitting idle -> go fullscreen"
+    // behavior (see TvHomeActivity.resetIdleExpandTimer's kdoc) but at phone's request: 30s
+    // instead of 60s, and landscape-only (phone's Home screen isn't usable single-handed portrait
+    // the way TV's remote is, so this only makes sense once the mini player already has real
+    // screen real estate to grow from). Live channels only, matching TV's own scope and
+    // scheduleContentAutoCollapse's neighboring VOD exclusion — a VOD title mid-playback in the
+    // mini player going fullscreen on its own would be a much more disruptive surprise than a
+    // live channel doing the same. Reset alongside the exact same interaction signals
+    // scheduleContentAutoCollapse already resets on, so both timers share one "user is actively
+    // doing something" definition instead of drifting into two different notions of idle.
+    private val idleFullscreenHandler = Handler(Looper.getMainLooper())
+    private val idleFullscreenRunnable = Runnable { expandMiniPlayerToFullscreenIfIdle() }
+
+    private fun scheduleIdleFullscreenExpand() {
+        idleFullscreenHandler.removeCallbacks(idleFullscreenRunnable)
+        if (isLandscapeMode() && !currentMiniIsVod && currentMiniUrl.isNotEmpty()) {
+            idleFullscreenHandler.postDelayed(idleFullscreenRunnable, 30_000L)
+        }
+    }
+
+    private fun cancelIdleFullscreenExpand() {
+        idleFullscreenHandler.removeCallbacks(idleFullscreenRunnable)
+    }
+
+    private fun expandMiniPlayerToFullscreenIfIdle() {
+        if (!isLandscapeMode() || currentMiniIsVod || currentMiniUrl.isEmpty()) return
+        val currentPos = miniPlayer?.currentPosition ?: 0L
+        openPlayer(
+            currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = false, resumeMs = currentPos,
+            serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+        )
     }
 
     private fun collapseContentColumn() {
@@ -4093,6 +4137,20 @@ class HomeActivity : AppCompatActivity() {
                 (binding.rvChannels.layoutManager as? LinearLayoutManager)
                     ?.scrollToPositionWithOffset(pos, 0)
             }
+        }
+    }
+
+    // Companion to scrollFavoritesToCombinedId above, for the strip itself — tapping a card near
+    // either edge of the horizontal strip could leave it partially clipped by the strip's own
+    // bounds even though the Favorites list below scrolled to show it fine. smoothScrollToPosition
+    // (not scrollToPositionWithOffset like the Favorites list) since this row is short enough that
+    // an animated scroll reads as a deliberate "here's your selection" cue rather than a jarring
+    // jump, and there's no meaningful "offset" concept for a horizontal strip the way there is for
+    // the taller vertical Favorites list.
+    private fun scrollWhatsOnNowToStreamId(streamId: Int) {
+        binding.rvWhatsOnNow?.post {
+            val pos = whatsOnNowAdapter.currentList.indexOfFirst { it.channel.streamId == streamId }
+            if (pos >= 0) binding.rvWhatsOnNow?.smoothScrollToPosition(pos)
         }
     }
 

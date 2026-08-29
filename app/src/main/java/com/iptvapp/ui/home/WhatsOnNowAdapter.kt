@@ -13,11 +13,26 @@ class WhatsOnNowAdapter(
     private val onClick: (HomeViewModel.WhatsOnNowEntry) -> Unit
 ) : ListAdapter<HomeViewModel.WhatsOnNowEntry, WhatsOnNowAdapter.ViewHolder>(DiffCallback()) {
 
+    // The strip itself never showed which of its own cards was actually playing — only the
+    // separate Favorites list below did (CombinedFavoriteAdapter.setCurrentlyPlayingId). Same
+    // isSelected-driven focus_selector state that adapter already uses, keyed by streamId since
+    // this strip is Favorites-primary-only (see HomeViewModel.loadWhatsOnNow's kdoc).
+    private var currentlyPlayingStreamId: Int = -1
+
+    fun setCurrentlyPlayingStreamId(streamId: Int) {
+        val old = currentlyPlayingStreamId
+        currentlyPlayingStreamId = streamId
+        currentList.forEachIndexed { index, entry ->
+            if (entry.channel.streamId == old || entry.channel.streamId == streamId) notifyItemChanged(index)
+        }
+    }
+
     inner class ViewHolder(val binding: ItemWhatsOnNowBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(entry: HomeViewModel.WhatsOnNowEntry) {
             binding.tvWhatsOnChannelName.text = entry.channel.name
             binding.tvWhatsOnProgramTitle.text = entry.programTitle
             binding.whatsOnProgress.progress = entry.progressPercent
+            binding.root.isSelected = entry.channel.streamId == currentlyPlayingStreamId
             binding.root.setOnClickListener { onClick(entry) }
         }
     }

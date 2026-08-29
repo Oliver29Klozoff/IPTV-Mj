@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.42 - 2026-08-29
+- **Changed**: Phone landscape's What's On Now strip now highlights the card you tapped and
+  auto-scrolls to keep it in view, matching the "now playing" highlight the Favorites list below
+  it already had.
+- **Added**: Phone landscape mini player now auto-expands to fullscreen after 30 seconds idle on a
+  live channel, mirroring TV's own idle-fullscreen behavior.
+
 ## v6.41 - 2026-08-28
 - **Added**: Provider Speed Test now measures real download speed (Mbps), not just whether a
   stream responds. Previously it only confirmed a stream would play at all — now it also reports

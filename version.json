@@ -1,7 +1,7 @@
 {
-  "versionCode": 479,
-  "versionName": "6.41",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.41/MKTV.apk",
-  "apkSha256": "5a4a96824b96718aec0781d44c5c590bffeed9379112b19d030862e1623774cf",
-  "changelog": "Provider Speed Test now measures real download speed (Mbps), not just whether a stream responds."
+  "versionCode": 480,
+  "versionName": "6.42",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.42/MKTV.apk",
+  "apkSha256": "5bd294ab7e713767853ea8e17463930b38a7ce9e9c1b5683a4aa6367f76531b4",
+  "changelog": "Phone landscape: What's On Now strip highlights/scrolls to the tapped channel, and the mini player auto-expands to fullscreen after 30s idle on a live channel."
 }
