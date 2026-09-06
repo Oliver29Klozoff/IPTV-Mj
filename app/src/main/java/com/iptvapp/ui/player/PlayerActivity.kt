@@ -104,6 +104,16 @@ class PlayerActivity : AppCompatActivity() {
     // See onCreate's intent-extra reads for the full explanation of these two fields.
     private var serverIndex: Int = -1
     private var mergedStreamId: Int = -1
+    // "Last Channel" recall (like a cable remote's LAST/RECALL button) — a single previous-
+    // channel slot, snapshotted right before playChannel/playMergedChannel overwrite the current
+    // identity. Deliberately in-memory only (not persisted to PreferencesManager like
+    // LAST_PLAYED_STREAM_ID/SERVER_INDEX) — recall only makes sense within a live session; a
+    // stale previous channel surviving a cold app restart would be confusing, not useful. Only
+    // ever set for LIVE channel changes (playChannel/playMergedChannel), never VOD — recalling
+    // "back to the movie you were watching" doesn't fit the same button as channel-surfing.
+    private var previousServerIndex: Int = -1
+    private var previousStreamId: Int = -1
+    private var previousTitle: String = ""
     private var isVod: Boolean = false
     // A locally recorded file played back from the Recordings screen — always launched with
     // is_vod=true too (a finished recording behaves like VOD: seekable, no live-edge concept, and
@@ -1726,6 +1736,22 @@ class PlayerActivity : AppCompatActivity() {
                 return true
             }
 
+            // Phone has no hardware LAST/RECALL button the way a TV remote does (KEYCODE_LAST_
+            // CHANNEL in onKeyDown) — double-tap the middle third of the screen as the touch
+            // equivalent, since that zone is otherwise idle (the brightness/volume swipe zones
+            // are the left/right thirds, and this is a tap gesture, not a scroll, so it can't
+            // collide with those anyway). Live channels only, matching recallLastChannel's own
+            // scope — a double-tap during VOD playback already means something else common
+            // elsewhere in apps like this (nothing currently bound here, but reserving it for
+            // recall only where it makes sense avoids future ambiguity).
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                if (isVod || isOverlayVisible) return false
+                val w = binding.root.width.toFloat()
+                if (e.x < w * 0.35f || e.x > w * 0.65f) return false
+                recallLastChannel()
+                return true
+            }
+
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
                 val w = binding.root.width.toFloat()
                 val h = binding.root.height.toFloat()
@@ -2831,6 +2857,14 @@ class PlayerActivity : AppCompatActivity() {
             // network resolve + player reload instead of firing one per press.
             val debounceMs = prefs.channelZapDebounceMs.first()
             if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+            // Snapshot the outgoing channel as the new recall target — after the guard below
+            // (skip if this "change" is actually just re-selecting the same channel already
+            // playing, which would otherwise make LAST just toggle in place doing nothing).
+            if (streamId != channel.streamId || serverIndex != -1) {
+                previousServerIndex = serverIndex
+                previousStreamId = streamId
+                previousTitle = streamTitle
+            }
             streamId = channel.streamId
             streamTitle = channel.name
             // Zapping via the channel changer (D-pad/on-screen zones) previously never updated
@@ -2859,6 +2893,12 @@ class PlayerActivity : AppCompatActivity() {
             try {
                 val debounceMs = prefs.channelZapDebounceMs.first()
                 if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+                // Same recall-snapshot guard as playChannel — see its own kdoc.
+                if (serverIndex != channel.serverIndex || mergedStreamId != channel.streamId) {
+                    previousServerIndex = serverIndex
+                    previousStreamId = if (serverIndex == -1) streamId else mergedStreamId
+                    previousTitle = streamTitle
+                }
                 bandwidthTracker?.updateServerIndex(channel.serverIndex)
                 serverIndex = channel.serverIndex
                 mergedStreamId = channel.streamId
@@ -2891,6 +2931,55 @@ class PlayerActivity : AppCompatActivity() {
         if (channels.isEmpty() || currentIndex < 0) return
         currentIndex = (currentIndex + 1) % channels.size
         playChannel(channels[currentIndex])
+    }
+
+    /** LAST/RECALL — jumps straight to whatever was playing immediately before the current
+     * channel, the same "flip back and forth between two channels" behavior a cable box's LAST
+     * button gives you. Deliberately resolves the target fresh via the repository rather than
+     * requiring it to still be present in the currently-loaded channels/mergedChannels list —
+     * the previous channel could be on a different provider, or a category the current list
+     * isn't even showing, so an index-based lookup (like nextChannel/previousChannel use) isn't
+     * enough here. No-ops silently if there's nothing to recall yet (fresh launch, or the
+     * previous channel no longer resolves) rather than showing an error — a LAST press with
+     * nothing to go back to should just do nothing, same as a real remote. */
+    private fun recallLastChannel() {
+        if (isVod || previousStreamId == -1) return
+        val targetServerIndex = previousServerIndex
+        val targetStreamId = previousStreamId
+        val targetTitle = previousTitle
+        channelSwitchJob?.cancel()
+        channelSwitchJob = lifecycleScope.launch {
+            val url = try {
+                if (targetServerIndex == -1) repository.getLiveStreamUrl(targetStreamId)
+                else repository.getMergedLiveStreamUrl(targetServerIndex, targetStreamId)
+            } catch (_: Exception) {
+                Toast.makeText(this@PlayerActivity, "Couldn't load the previous channel", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            // Swap current <-> previous (rather than just overwriting previous with the OLD
+            // current) so a second LAST press flips right back, matching a real remote's
+            // toggle-between-two-channels behavior instead of only ever going back once.
+            previousServerIndex = serverIndex
+            previousStreamId = if (serverIndex == -1) streamId else mergedStreamId
+            previousTitle = streamTitle
+            serverIndex = targetServerIndex
+            streamId = if (targetServerIndex == -1) targetStreamId else -1
+            mergedStreamId = if (targetServerIndex == -1) -1 else targetStreamId
+            streamTitle = targetTitle
+            bandwidthTracker?.updateServerIndex(targetServerIndex)
+            binding.tvChannelTitle.text = streamTitle
+            if (targetServerIndex == -1) {
+                val idx = channels.indexOfFirst { it.streamId == targetStreamId }
+                if (idx >= 0) currentIndex = idx
+            } else {
+                val idx = mergedChannels.indexOfFirst { it.streamId == targetStreamId }
+                if (idx >= 0) mergedCurrentIndex = idx
+            }
+            loadStream(url)
+            notifyPartyChannelChange()
+            reportLiveChannelForHandoff()
+            showChannelOsd()
+        }
     }
 
     private fun previousChannel() {
@@ -2964,6 +3053,11 @@ class PlayerActivity : AppCompatActivity() {
                 else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             KeyEvent.KEYCODE_GUIDE -> { if (!isOverlayVisible) showOverlay(); true }
+            // Real remotes' dedicated LAST/RECALL button — see recallLastChannel's kdoc. The OSD
+            // is shown from inside recallLastChannel itself (after its async swap actually
+            // updates streamTitle/streamId), not here — calling showChannelOsd() synchronously
+            // right after would race the coroutine and show the OUTGOING channel's title.
+            KeyEvent.KEYCODE_LAST_CHANNEL -> { if (!isOverlayVisible) recallLastChannel(); true }
             // Yellow / X / F key cycles aspect ratio without opening the overlay
             KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_BUTTON_X,
             KeyEvent.KEYCODE_PROG_YELLOW, KeyEvent.KEYCODE_F -> { cycleResizeMode(); true }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.44 - 2026-09-06
+- **Added**: "Last Channel" recall during live TV playback — jump straight back to whatever
+  channel was playing before the current one, like a cable remote's LAST button. Works via a
+  remote's dedicated LAST/RECALL key, or double-tapping the middle of the screen on phone.
+  Pressing it again flips right back, same as a real remote.
+
 ## v6.43 - 2026-08-29
 - **Fixed**: v6.42's phone landscape idle-fullscreen was launching a separate fullscreen player
   screen after 30s idle — instead, the mini player now expands in place (sidebar/categories hidden,

@@ -1,7 +1,7 @@
 {
-  "versionCode": 481,
-  "versionName": "6.43",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.43/MKTV.apk",
-  "apkSha256": "01525e932824c0041545006eef4f5406f85820c16e95cdf3d522ef96e904a0ab",
-  "changelog": "Fixed phone landscape idle-fullscreen: mini player now expands in place (sidebar hidden) instead of launching a separate fullscreen screen; a tap just brings the sidebar back."
+  "versionCode": 482,
+  "versionName": "6.44",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.44/MKTV.apk",
+  "apkSha256": "0437ee0a6afac71b03ca13f2e0362ec553e5d549d9f8236e1b606f2eb737f2c9",
+  "changelog": "Added Last Channel recall for live TV — jump back to the previous channel via a remote's LAST key or double-tapping the screen on phone."
 }
