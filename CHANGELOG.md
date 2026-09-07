@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.46 - 2026-09-07
+- **Fixed**: Live Preview on Focus didn't actually work on phone — a plain touch tap never grants
+  Android focus without an extra flag this row didn't set, so the feature was TV/D-pad-only despite
+  shipping as if it worked everywhere. Phone now triggers the preview with a press-and-hold instead.
+
 ## v6.45 - 2026-09-07
 - **Added**: Live Preview on Focus — an opt-in Settings toggle (Stream section, off by default)
   that plays a small muted preview of the highlighted channel after a brief pause while browsing

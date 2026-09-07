@@ -1,7 +1,7 @@
 {
-  "versionCode": 483,
-  "versionName": "6.45",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.45/MKTV.apk",
-  "apkSha256": "8846881c02da6bc79a1c5ff97e26529c38ff3497838b1febcaadd62f9b633776",
-  "changelog": "Added Live Preview on Focus — an opt-in Settings toggle (off by default) that plays a small muted preview of the highlighted channel while browsing."
+  "versionCode": 484,
+  "versionName": "6.46",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.46/MKTV.apk",
+  "apkSha256": "b5c50b2cc93f7b05f47a2b6ce1b08e46844e93d24738604a05baeed6930ce6d6",
+  "changelog": "Fixed Live Preview not working on phone — a plain tap never grants Android focus, so it was TV-only. Phone now triggers it with a press-and-hold instead."
 }

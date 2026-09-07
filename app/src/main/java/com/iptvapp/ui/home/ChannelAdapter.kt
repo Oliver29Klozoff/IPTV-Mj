@@ -18,13 +18,15 @@ class ChannelAdapter(
     private val onChannelDoubleClick: (ChannelEntity) -> Unit = {},
     private val onFavoriteClick: (ChannelEntity) -> Unit,
     private val onChannelLongClick: ((ChannelEntity) -> Unit)? = null,
-    // Live focus-preview (see LiveChannelPreviewPlayer) — null unless the caller has already
+    // Live preview-on-pause (see LiveChannelPreviewPlayer) — null unless the caller has already
     // confirmed the opt-in setting is on (HomeActivity/TvHomeActivity check
     // shouldPreviewLiveChannel before ever constructing/updating this). Kept separate from
     // onChannelFocused below rather than piggybacking on it — that field only fires on focus
-    // GAIN and only in TV mode (it drives the EPG "next" text reveal), whereas preview needs
-    // both focus gain AND loss, in both TV and touch mode, same dual-mode shape VodAdapter's own
-    // preview listener already uses.
+    // GAIN and only in TV mode (it drives the EPG "next" text reveal). This uses a genuinely
+    // different trigger per platform: real D-pad focus gain/loss on TV, vs. a press-and-hold
+    // (ACTION_DOWN/UP/CANCEL) on phone — a plain touch tap never grants Android focus at all
+    // without focusableInTouchMode="true" (which this row deliberately doesn't set), so an
+    // onFocusChangeListener alone would silently never fire in touch mode.
     private val livePreviewUrlProvider: (suspend (ChannelEntity) -> String?)? = null
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
@@ -150,14 +152,14 @@ class ChannelAdapter(
                 binding.root.nextFocusRightId = binding.ivFavorite.id
                 binding.ivFavorite.nextFocusLeftId = binding.root.id
             } else {
-                // Preview still needs a focus signal on phone/touch mode (hover/hold isn't a
-                // thing here, but Android still grants "focused" state via touch-mode focus on
-                // some launchers/keyboards, and this keeps the listener shape consistent with
-                // VOD's own dual-mode preview hookup) — only the EPG-next-text/onChannelFocused
-                // behavior above is genuinely TV-only.
-                binding.root.onFocusChangeListener = if (livePreviewUrlProvider != null) {
-                    View.OnFocusChangeListener { _, focused -> onLivePreviewFocusChange(item, focused) }
-                } else null
+                // Phone has no focus/hover concept on a plain touch tap — a tapped View without
+                // focusableInTouchMode="true" (this row doesn't set it, deliberately, to keep
+                // normal scroll/tap behavior) never actually receives Android focus, so an
+                // onFocusChangeListener here would simply never fire. This was wrongly assumed
+                // to already work in the initial version of this feature; the real touch
+                // equivalent of "pause on something" is a press-and-hold, driven directly from
+                // the ACTION_DOWN/UP/CANCEL touch listener below rather than focus at all.
+                binding.root.onFocusChangeListener = null
                 binding.ivFavorite.isFocusable = false
             }
 
@@ -216,9 +218,21 @@ class ChannelAdapter(
             @SuppressLint("ClickableViewAccessibility")
             binding.root.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> pressedStreamId = item.streamId
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    MotionEvent.ACTION_DOWN -> {
+                        pressedStreamId = item.streamId
+                        // Touch equivalent of TV's D-pad focus for live preview — see
+                        // onLivePreviewFocusChange's kdoc. Android's default long-press fires
+                        // around 500ms and would open the actions menu / toggle favorite first
+                        // (unchanged, still bound below); the preview's own 1800ms settle delay
+                        // means a genuine long-press always wins the race, and this ACTION_UP/
+                        // CANCEL branch cancels the pending preview the instant the finger lifts
+                        // regardless of which one fired.
+                        if (!isTvMode) onLivePreviewFocusChange(item, focused = true)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         if (pressedStreamId == item.streamId) pressedStreamId = null
+                        if (!isTvMode) onLivePreviewFocusChange(item, focused = false)
+                    }
                 }
                 v.onTouchEvent(event)
             }

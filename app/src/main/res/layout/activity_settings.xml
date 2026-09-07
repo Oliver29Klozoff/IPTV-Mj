@@ -2003,7 +2003,7 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
-                                    android:text="Live preview on focus (uses a real connection per preview — off by default)"
+                                    android:text="Live preview on press-and-hold (uses a real connection per preview — off by default)"
                                     android:textColor="#CCCCCC"
                                     android:textSize="13sp" />
                                 <com.google.android.material.switchmaterial.SwitchMaterial
