@@ -87,6 +87,28 @@ class HomeViewModel @Inject constructor(
         return true
     }
 
+    /** Live-channel focus-preview gating — same shape as shouldAutoPreviewVod, opt-in setting
+     * (default off, see PreferencesManager.liveChannelPreviewEnabled's kdoc) plus the same
+     * bandwidth-budget check. Channel list adapters call the url-provider lambda that wraps this
+     * before ever resolving a live stream URL for LiveChannelPreviewPlayer. */
+    suspend fun shouldPreviewLiveChannel(serverIndex: Int): Boolean {
+        if (!prefs.liveChannelPreviewEnabled.first()) return false
+        if (bandwidthBudgetManager.isNearOrOverBudget(serverIndex)) return false
+        return true
+    }
+
+    /** Real playable stream URL for a live channel's focus-preview, or null if preview should be
+     * skipped (toggle off, bandwidth budget). Mirrors getVodPreviewUrl/getMergedVodPreviewUrl. */
+    suspend fun getLiveChannelPreviewUrl(channel: ChannelEntity): String? {
+        if (!shouldPreviewLiveChannel(-1)) return null
+        return repository.getLiveStreamUrl(channel.streamId)
+    }
+
+    suspend fun getMergedLiveChannelPreviewUrl(channel: com.iptvapp.data.local.entities.MergedChannelEntity): String? {
+        if (!shouldPreviewLiveChannel(channel.serverIndex)) return null
+        return repository.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
+    }
+
     // Plain fields, not StateFlow — this only needs to survive HomeActivity being recreated
     // on rotation (the ViewModel outlives that), not to be observed. HomeActivity reads this
     // once in onCreate to restore what was in the mini player, and writes it in onPause

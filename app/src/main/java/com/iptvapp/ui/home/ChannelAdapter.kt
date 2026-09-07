@@ -17,7 +17,15 @@ class ChannelAdapter(
     private val onChannelClick: (ChannelEntity) -> Unit,
     private val onChannelDoubleClick: (ChannelEntity) -> Unit = {},
     private val onFavoriteClick: (ChannelEntity) -> Unit,
-    private val onChannelLongClick: ((ChannelEntity) -> Unit)? = null
+    private val onChannelLongClick: ((ChannelEntity) -> Unit)? = null,
+    // Live focus-preview (see LiveChannelPreviewPlayer) — null unless the caller has already
+    // confirmed the opt-in setting is on (HomeActivity/TvHomeActivity check
+    // shouldPreviewLiveChannel before ever constructing/updating this). Kept separate from
+    // onChannelFocused below rather than piggybacking on it — that field only fires on focus
+    // GAIN and only in TV mode (it drives the EPG "next" text reveal), whereas preview needs
+    // both focus gain AND loss, in both TV and touch mode, same dual-mode shape VodAdapter's own
+    // preview listener already uses.
+    private val livePreviewUrlProvider: (suspend (ChannelEntity) -> String?)? = null
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
     var itemTouchHelper: ItemTouchHelper? = null
@@ -132,6 +140,7 @@ class ChannelAdapter(
                     } else {
                         binding.tvEpgNext?.visibility = View.GONE
                     }
+                    onLivePreviewFocusChange(item, focused)
                 }
                 // D-pad right from the row moves focus onto the star so OK favorites directly,
                 // instead of requiring a held-OK long-press to reach the actions menu. Left (or
@@ -141,7 +150,14 @@ class ChannelAdapter(
                 binding.root.nextFocusRightId = binding.ivFavorite.id
                 binding.ivFavorite.nextFocusLeftId = binding.root.id
             } else {
-                binding.root.onFocusChangeListener = null
+                // Preview still needs a focus signal on phone/touch mode (hover/hold isn't a
+                // thing here, but Android still grants "focused" state via touch-mode focus on
+                // some launchers/keyboards, and this keeps the listener shape consistent with
+                // VOD's own dual-mode preview hookup) — only the EPG-next-text/onChannelFocused
+                // behavior above is genuinely TV-only.
+                binding.root.onFocusChangeListener = if (livePreviewUrlProvider != null) {
+                    View.OnFocusChangeListener { _, focused -> onLivePreviewFocusChange(item, focused) }
+                } else null
                 binding.ivFavorite.isFocusable = false
             }
 
@@ -248,6 +264,24 @@ class ChannelAdapter(
                 false
             }
         }
+
+        // See LiveChannelPreviewPlayer kdoc — settle-delayed, single-connection focus preview.
+        // playerChannelPreview is nullable in the binding only because item_merged_channel.xml
+        // (which shares no layout with item_channel.xml) doesn't declare this id — this adapter
+        // only ever binds ItemChannelBinding though, so it's always present here in practice;
+        // the null-safety is just defensive against a future shared-binding refactor.
+        fun onLivePreviewFocusChange(item: ChannelEntity, focused: Boolean) {
+            val provider = livePreviewUrlProvider ?: return
+            val previewView = binding.playerChannelPreview ?: return
+            val key = item.streamId.toString()
+            if (focused) {
+                LiveChannelPreviewPlayer.onChannelFocused(binding.root.context, key, previewView) {
+                    provider(item)
+                }
+            } else {
+                LiveChannelPreviewPlayer.onChannelUnfocused(key)
+            }
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -261,6 +295,15 @@ class ChannelAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
+    }
+
+    // Guarantees the shared live preview player is detached the moment a row is recycled
+    // (scrolled off / reused for different data), not just on focus-loss — a row can be
+    // recycled without ever receiving an onFocusChange(false) first. See VodAdapter's matching
+    // onViewRecycled override for the same reasoning.
+    override fun onViewRecycled(holder: ViewHolder) {
+        super.onViewRecycled(holder)
+        holder.binding.playerChannelPreview?.let { LiveChannelPreviewPlayer.releaseIfHolding(it) }
     }
 
     class DiffCallback : DiffUtil.ItemCallback<ChannelEntity>() {

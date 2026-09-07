@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.45 - 2026-09-07
+- **Added**: Live Preview on Focus — an opt-in Settings toggle (Stream section, off by default)
+  that plays a small muted preview of the highlighted channel after a brief pause while browsing
+  the channel list, before you commit to tuning in. Off by default since each preview opens a real
+  connection to your provider, and some providers cap simultaneous streams per account.
+
 ## v6.44 - 2026-09-06
 - **Added**: "Last Channel" recall during live TV playback — jump straight back to whatever
   channel was playing before the current one, like a cable remote's LAST button. Works via a

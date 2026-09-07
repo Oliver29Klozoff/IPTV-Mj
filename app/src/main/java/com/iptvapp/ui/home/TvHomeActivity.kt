@@ -870,7 +870,11 @@ class TvHomeActivity : AppCompatActivity() {
                 val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             },
-            onChannelLongClick = { channel -> showTvChannelActionsMenu(channel) }
+            onChannelLongClick = { channel -> showTvChannelActionsMenu(channel) },
+            // Opt-in only (default off) — see PreferencesManager.liveChannelPreviewEnabled's
+            // kdoc. Independent of preWarmChannel below (a HEAD-only DNS/TCP warm, no video) —
+            // this actually decodes and shows a muted preview once focus settles.
+            livePreviewUrlProvider = { channel -> viewModel.getLiveChannelPreviewUrl(channel) }
         )
         channelAdapter.isTvMode = true
         channelAdapter.onChannelFocused = { channel ->

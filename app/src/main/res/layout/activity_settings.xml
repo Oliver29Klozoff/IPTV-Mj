@@ -1993,6 +1993,24 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content" />
                             </LinearLayout>
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Live preview on focus (uses a real connection per preview — off by default)"
+                                    android:textColor="#CCCCCC"
+                                    android:textSize="13sp" />
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchLiveChannelPreview"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
                             <Button
                                 android:id="@+id/btnBandwidthBudget"
                                 style="?android:attr/buttonBarButtonStyle"

@@ -1141,6 +1141,13 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
+            binding.switchLiveChannelPreview.isChecked = prefs.liveChannelPreviewEnabled.first()
+        }
+        binding.switchLiveChannelPreview.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setLiveChannelPreviewEnabled(isChecked) }
+        }
+
+        lifecycleScope.launch {
             binding.switchNewEpisodeNotifications.isChecked = prefs.newEpisodeNotificationsEnabled.first()
         }
         binding.switchNewEpisodeNotifications.setOnCheckedChangeListener { _, isChecked ->

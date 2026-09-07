@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/channelItemRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -26,14 +27,30 @@
             android:focusable="false"
             android:visibility="gone" />
 
-        <ImageView
-            android:id="@+id/ivChannelLogo"
+        <!-- Live preview-on-focus (see LiveChannelPreviewPlayer) — same "small overlay PlayerView
+             on top of the static logo/poster" pattern item_vod.xml already uses for VOD's own
+             focus preview, just wrapping the channel logo instead of a poster. Stays View.GONE
+             until a real preview actually starts. -->
+        <FrameLayout
+            android:id="@+id/channelLogoOverlay"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_marginEnd="12dp"
-            android:background="#222222"
-            android:padding="4dp"
-            android:scaleType="fitCenter" />
+            android:layout_marginEnd="12dp">
+            <ImageView
+                android:id="@+id/ivChannelLogo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#222222"
+                android:padding="4dp"
+                android:scaleType="fitCenter" />
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerChannelPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                app:use_controller="false"
+                app:resize_mode="zoom" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"

@@ -364,6 +364,7 @@ class TvSettingsActivity : AppCompatActivity() {
         val creds        = prefs.credentials.first()
         val format       = prefs.preferredFormat.first()
         val preWarm      = prefs.preWarmOnFocus.first()
+        val livePreview  = prefs.liveChannelPreviewEnabled.first()
         val usaOnly      = prefs.usaOnlyChannels.first()
         val showMovies   = prefs.showMovies.first()
         val showSeries   = prefs.showSeries.first()
@@ -402,6 +403,14 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Toggle("stream_prewarm", "Pre-warm Streams on Focus",
             subtitle = "Starts resolving a stream URL when a channel tile receives focus, before you press play",
             checked = preWarm) { c -> lifecycleScope.launch { prefs.setPreWarmOnFocus(c) } }
+        // Off by default, unlike the VOD equivalent ("auto-preview movies on focus") — every
+        // live preview opens a brand-new real connection to the provider (no "buffer once, loop
+        // cheaply" the way VOD's does), and Xtream providers commonly cap concurrent connections
+        // per account. Scanning through a channel list with this on could burn through that
+        // limit without the user realizing why, so this needs an explicit opt-in.
+        settingsItems += TvSettingItem.Toggle("stream_live_preview", "Live Preview on Focus",
+            subtitle = "Plays a muted preview of the highlighted channel after a brief pause — uses a real connection per preview, so only turn this on if your provider allows several simultaneous streams",
+            checked = livePreview) { c -> lifecycleScope.launch { prefs.setLiveChannelPreviewEnabled(c) } }
         settingsItems += TvSettingItem.SubHeader("stream_sub_decoder", "Decoder") { toggleSubHeader("Stream", "stream_sub_decoder") }
         settingsItems += TvSettingItem.Info("stream_decoder_note",
             "Hardware (device) decoders are always used — this build has no software decoder fallback to prefer against.")

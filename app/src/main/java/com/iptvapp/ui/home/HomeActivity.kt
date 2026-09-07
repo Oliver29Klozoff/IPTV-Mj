@@ -2262,7 +2262,12 @@ class HomeActivity : AppCompatActivity() {
                 val msg = if (channel.isFavorite) "Removed from favorites" else "Added to favorites"
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             },
-            onChannelLongClick = { channel -> showChannelActionsMenu(channel) }
+            onChannelLongClick = { channel -> showChannelActionsMenu(channel) },
+            // Opt-in only (default off) — see PreferencesManager.liveChannelPreviewEnabled's
+            // kdoc for why. getLiveChannelPreviewUrl itself re-checks the setting before
+            // resolving a URL, so this stays correct even if the toggle changes mid-session
+            // without needing to rebuild the adapter.
+            livePreviewUrlProvider = { channel -> viewModel.getLiveChannelPreviewUrl(channel) }
         )
 
         mergedChannelAdapter = MergedChannelAdapter(

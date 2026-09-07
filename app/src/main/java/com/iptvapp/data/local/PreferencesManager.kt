@@ -196,6 +196,13 @@ class PreferencesManager @Inject constructor(
 
         // Feature A: Auto-Generated VOD Trailers — default ON.
         val VOD_AUTO_PREVIEW_ENABLED = booleanPreferencesKey("vod_auto_preview_enabled")
+        // Live-channel focus preview (LiveChannelPreviewPlayer) — default OFF, unlike VOD's
+        // equivalent above. Every VOD preview reuses a stream the app is about to buffer/loop
+        // cheaply; every live preview is a brand-new real connection to the provider, and
+        // Xtream providers commonly cap concurrent connections per account — an unaware user
+        // scanning through a long channel list could otherwise burn through that limit without
+        // realizing why. Opt-in only.
+        val LIVE_CHANNEL_PREVIEW_ENABLED = booleanPreferencesKey("live_channel_preview_enabled")
     }
 
     val favoriteNumbersBackfilled: Flow<Boolean> = context.dataStore.data
@@ -880,5 +887,12 @@ class PreferencesManager @Inject constructor(
     val vodAutoPreviewEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.VOD_AUTO_PREVIEW_ENABLED] ?: true }
     suspend fun setVodAutoPreviewEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.VOD_AUTO_PREVIEW_ENABLED] = enabled }
+    }
+
+    // Live-channel focus preview — see Keys.LIVE_CHANNEL_PREVIEW_ENABLED's kdoc for why this
+    // defaults to false, unlike vodAutoPreviewEnabled above.
+    val liveChannelPreviewEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.LIVE_CHANNEL_PREVIEW_ENABLED] ?: false }
+    suspend fun setLiveChannelPreviewEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.LIVE_CHANNEL_PREVIEW_ENABLED] = enabled }
     }
 }

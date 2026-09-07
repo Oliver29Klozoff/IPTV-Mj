@@ -1,7 +1,7 @@
 {
-  "versionCode": 482,
-  "versionName": "6.44",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.44/MKTV.apk",
-  "apkSha256": "0437ee0a6afac71b03ca13f2e0362ec553e5d549d9f8236e1b606f2eb737f2c9",
-  "changelog": "Added Last Channel recall for live TV — jump back to the previous channel via a remote's LAST key or double-tapping the screen on phone."
+  "versionCode": 483,
+  "versionName": "6.45",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.45/MKTV.apk",
+  "apkSha256": "8846881c02da6bc79a1c5ff97e26529c38ff3497838b1febcaadd62f9b633776",
+  "changelog": "Added Live Preview on Focus — an opt-in Settings toggle (off by default) that plays a small muted preview of the highlighted channel while browsing."
 }
