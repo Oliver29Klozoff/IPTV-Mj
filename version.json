@@ -1,7 +1,7 @@
 {
-  "versionCode": 485,
-  "versionName": "6.47",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.47/MKTV.apk",
-  "apkSha256": "501ca7889fa8e1ff38a98cf7937b9017adc0d0f932a376237e75fcd86c60265e",
-  "changelog": "Fixed Live Preview still not showing on phone — it was racing the existing long-press actions menu and losing every time. Now scoped to the channel logo thumbnail so the two gestures don't collide."
+  "versionCode": 486,
+  "versionName": "6.48",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.48/MKTV.apk",
+  "apkSha256": "eb45ad21089fb94be2a2179597800997ccd2ec4d12e677606d0539637211fed0",
+  "changelog": "Fixed the Live Preview toggle being impossible to find on phone — it was misfiled under Settings > Backup & Restore instead of Stream. Moved it to Stream next to the other live-playback toggles."
 }

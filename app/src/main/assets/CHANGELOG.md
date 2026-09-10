@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.48 - 2026-09-10
+- **Fixed**: The "Live Preview on Press-and-Hold" toggle was impossible to find on phone — it had
+  been placed inside Settings' Backup & Restore section (alongside Auto Backup) instead of Stream,
+  despite the v6.45 changelog claiming it lived there. Moved it into the Stream section, next to
+  the other live-playback toggles (Allow Picture-in-Picture, Live Reconnect Speed).
+
 ## v6.47 - 2026-09-10
 - **Fixed**: Live Preview on phone still didn't actually show up on press-and-hold — v6.46 bound it
   to the same gesture as the existing channel actions menu (Set Reminder/Hide Channel/etc.), and
