@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.49 - 2026-09-10
+- **Fixed**: Live Preview still didn't work on the Favorites tab or the combined Live tab, even
+  with the toggle on and holding the right spot — it turns out the app renders channel rows with
+  three separate, independently-built adapter classes (a plain channel list, the combined Live
+  tab, and Favorites), and the preview feature had only ever been wired into the first one. Wired
+  it into the Live tab and Favorites tab too, on both phone and TV, so it now works everywhere
+  channel rows show up (except the History tab, not yet covered).
+
 ## v6.48 - 2026-09-10
 - **Fixed**: The "Live Preview on Press-and-Hold" toggle was impossible to find on phone — it had
   been placed inside Settings' Backup & Restore section (alongside Auto Backup) instead of Stream,

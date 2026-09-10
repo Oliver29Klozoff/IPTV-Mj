@@ -2491,6 +2491,12 @@ class HomeActivity : AppCompatActivity() {
                     return@onChannelLongClick
                 }
                 showFavoriteActionsMenu(item)
+            },
+            livePreviewUrlProvider = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> viewModel.getLiveChannelPreviewUrl(item.channel)
+                    is CombinedFavorite.Merged -> viewModel.getMergedLiveChannelPreviewUrl(item.channel)
+                }
             }
         )
         favoritesItemTouchHelper = ItemTouchHelper(FavoritesReorderCallback(combinedFavoriteAdapter))
@@ -2562,7 +2568,16 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.toggleLiveRowFavorite(row)
                 Toast.makeText(this, if (row.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
             },
-            onChannelLongClick = { row -> showLiveRowActionsMenu(row) }
+            onChannelLongClick = { row -> showLiveRowActionsMenu(row) },
+            livePreviewUrlProvider = { row ->
+                val ch = row.channel
+                val merged = row.mergedChannel
+                when {
+                    ch != null -> viewModel.getLiveChannelPreviewUrl(ch)
+                    merged != null -> viewModel.getMergedLiveChannelPreviewUrl(merged)
+                    else -> null
+                }
+            }
         )
 
         vodAdapter = VodAdapter(

@@ -19,7 +19,10 @@ class LiveChannelAdapter(
     private val onChannelClick: (LiveChannelRow) -> Unit,
     private val onChannelDoubleClick: (LiveChannelRow) -> Unit = {},
     private val onFavoriteClick: (LiveChannelRow) -> Unit,
-    private val onChannelLongClick: ((LiveChannelRow) -> Unit)? = null
+    private val onChannelLongClick: ((LiveChannelRow) -> Unit)? = null,
+    // Live preview-on-press (see LiveChannelPreviewPlayer / ChannelAdapter's identical wiring) —
+    // null unless the caller has already confirmed the opt-in setting is on.
+    private val livePreviewUrlProvider: (suspend (LiveChannelRow) -> String?)? = null
 ) : ListAdapter<LiveChannelRow, LiveChannelAdapter.ViewHolder>(DiffCallback()) {
 
     var isTvMode: Boolean = false
@@ -83,6 +86,7 @@ class LiveChannelAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         private var lastClickTime = 0L
+        private var isPreviewTouch = false
 
         fun bind(item: LiveChannelRow) {
             binding.tvChannelName.text = item.name
@@ -116,6 +120,7 @@ class LiveChannelAdapter(
                     } else {
                         binding.tvEpgNext?.visibility = View.GONE
                     }
+                    onLivePreviewFocusChange(item, focused)
                 }
                 binding.root.isFocusable = true
                 binding.ivFavorite.isFocusable = true
@@ -177,9 +182,34 @@ class LiveChannelAdapter(
             @SuppressLint("ClickableViewAccessibility")
             binding.root.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> pressedId = item.id
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    MotionEvent.ACTION_DOWN -> {
+                        pressedId = item.id
+                        // See ChannelAdapter's identical touch listener kdoc — preview is scoped
+                        // to the logo thumbnail specifically so it doesn't race the row's
+                        // existing long-press-for-menu gesture.
+                        val logoOverlay = binding.channelLogoOverlay
+                        isPreviewTouch = !isTvMode && livePreviewUrlProvider != null &&
+                            logoOverlay != null && isWithinView(logoOverlay, binding.root, event.x, event.y)
+                        if (isPreviewTouch) {
+                            onLivePreviewFocusChange(item, focused = true)
+                            return@setOnTouchListener true
+                        }
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (isPreviewTouch) return@setOnTouchListener true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         if (pressedId == item.id) pressedId = null
+                        if (isPreviewTouch) {
+                            val wasShowing = LiveChannelPreviewPlayer.isActive(item.id)
+                            onLivePreviewFocusChange(item, focused = false)
+                            isPreviewTouch = false
+                            if (event.actionMasked == MotionEvent.ACTION_UP && !wasShowing) {
+                                v.performClick()
+                            }
+                            return@setOnTouchListener true
+                        }
+                    }
                 }
                 v.onTouchEvent(event)
             }
@@ -216,6 +246,26 @@ class LiveChannelAdapter(
 
             binding.ivDragHandle?.visibility = View.GONE
         }
+
+        fun onLivePreviewFocusChange(item: LiveChannelRow, focused: Boolean) {
+            val provider = livePreviewUrlProvider ?: return
+            val previewView = binding.playerChannelPreview ?: return
+            if (focused) {
+                LiveChannelPreviewPlayer.onChannelFocused(binding.root.context, item.id, previewView) {
+                    provider(item)
+                }
+            } else {
+                LiveChannelPreviewPlayer.onChannelUnfocused(item.id)
+            }
+        }
+    }
+
+    /** See ChannelAdapter's identical helper kdoc. */
+    private fun isWithinView(view: View, root: View, x: Float, y: Float): Boolean {
+        if (root !is ViewGroup) return false
+        val rect = android.graphics.Rect(0, 0, view.width, view.height)
+        root.offsetDescendantRectToMyCoords(view, rect)
+        return rect.contains(x.toInt(), y.toInt())
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -229,6 +279,10 @@ class LiveChannelAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
+    }
+
+    override fun onViewRecycled(holder: ViewHolder) {
+        holder.binding.playerChannelPreview?.let { LiveChannelPreviewPlayer.releaseIfHolding(it) }
     }
 
     class DiffCallback : DiffUtil.ItemCallback<LiveChannelRow>() {

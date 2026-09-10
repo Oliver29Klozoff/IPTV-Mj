@@ -1,7 +1,7 @@
 {
-  "versionCode": 486,
-  "versionName": "6.48",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.48/MKTV.apk",
-  "apkSha256": "eb45ad21089fb94be2a2179597800997ccd2ec4d12e677606d0539637211fed0",
-  "changelog": "Fixed the Live Preview toggle being impossible to find on phone — it was misfiled under Settings > Backup & Restore instead of Stream. Moved it to Stream next to the other live-playback toggles."
+  "versionCode": 487,
+  "versionName": "6.49",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.49/MKTV.apk",
+  "apkSha256": "5556336c7ea67573ef2944fb6aecdcfddbf3e00ba12ce15f4c327abeceb28827",
+  "changelog": "Fixed Live Preview not working on the Favorites tab or the combined Live tab — those use separate adapter classes from the one the feature was originally wired into. Now works on both, on phone and TV."
 }

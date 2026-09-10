@@ -1140,7 +1140,13 @@ class TvHomeActivity : AppCompatActivity() {
         combinedFavoriteAdapter = CombinedFavoriteAdapter(
             onChannelClick = ::onCombinedFavoriteClick,
             onFavoriteClick = ::onCombinedFavoriteStarClick,
-            onChannelLongClick = ::onCombinedFavoriteLongClick
+            onChannelLongClick = ::onCombinedFavoriteLongClick,
+            livePreviewUrlProvider = { item ->
+                when (item) {
+                    is CombinedFavorite.Primary -> viewModel.getLiveChannelPreviewUrl(item.channel)
+                    is CombinedFavorite.Merged -> viewModel.getMergedLiveChannelPreviewUrl(item.channel)
+                }
+            }
         )
         combinedFavoriteAdapter.isTvMode = true
         combinedFavoriteAdapter.onChannelFocused = ::onCombinedFavoriteFocused
