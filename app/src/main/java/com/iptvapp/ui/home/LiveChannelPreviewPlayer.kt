@@ -101,6 +101,11 @@ object LiveChannelPreviewPlayer {
         }
     }
 
+    /** True if [key]'s preview has actually started playing (settle delay already elapsed),
+     * as opposed to still pending. Lets a caller distinguish "held long enough to see a preview"
+     * from "tapped and released before the settle delay" without its own separate timer. */
+    fun isActive(key: String): Boolean = activeKey == key
+
     private fun startPreview(context: Context, key: String, playerView: PlayerView, url: String) {
         stopActive()
         val exo = ensurePlayer(context)

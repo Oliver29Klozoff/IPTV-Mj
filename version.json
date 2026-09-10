@@ -1,7 +1,7 @@
 {
-  "versionCode": 484,
-  "versionName": "6.46",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.46/MKTV.apk",
-  "apkSha256": "b5c50b2cc93f7b05f47a2b6ce1b08e46844e93d24738604a05baeed6930ce6d6",
-  "changelog": "Fixed Live Preview not working on phone — a plain tap never grants Android focus, so it was TV-only. Phone now triggers it with a press-and-hold instead."
+  "versionCode": 485,
+  "versionName": "6.47",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.47/MKTV.apk",
+  "apkSha256": "501ca7889fa8e1ff38a98cf7937b9017adc0d0f932a376237e75fcd86c60265e",
+  "changelog": "Fixed Live Preview still not showing on phone — it was racing the existing long-press actions menu and losing every time. Now scoped to the channel logo thumbnail so the two gestures don't collide."
 }

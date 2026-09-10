@@ -23,10 +23,12 @@ class ChannelAdapter(
     // shouldPreviewLiveChannel before ever constructing/updating this). Kept separate from
     // onChannelFocused below rather than piggybacking on it — that field only fires on focus
     // GAIN and only in TV mode (it drives the EPG "next" text reveal). This uses a genuinely
-    // different trigger per platform: real D-pad focus gain/loss on TV, vs. a press-and-hold
-    // (ACTION_DOWN/UP/CANCEL) on phone — a plain touch tap never grants Android focus at all
-    // without focusableInTouchMode="true" (which this row deliberately doesn't set), so an
-    // onFocusChangeListener alone would silently never fire in touch mode.
+    // different trigger per platform: real D-pad focus gain/loss on TV, vs. a press-and-hold on
+    // the channel logo thumbnail specifically on phone (see onLivePreviewFocusChange's call site
+    // in the touch listener for why it's scoped to the thumbnail rather than the whole row) — a
+    // plain touch tap never grants Android focus at all without focusableInTouchMode="true"
+    // (which this row deliberately doesn't set), so an onFocusChangeListener alone would
+    // silently never fire in touch mode.
     private val livePreviewUrlProvider: (suspend (ChannelEntity) -> String?)? = null
 ) : ListAdapter<ChannelEntity, ChannelAdapter.ViewHolder>(DiffCallback()) {
 
@@ -117,6 +119,10 @@ class ChannelAdapter(
         // this holder almost immediately) — a local var inside bind() reset to 0 every time,
         // which meant the second click of a double-click was never within the window.
         private var lastClickTime = 0L
+
+        // Set for the duration of a touch gesture that started on the logo thumbnail (live
+        // preview zone) rather than the row generally — see the ACTION_DOWN branch below.
+        private var isPreviewTouch = false
 
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
@@ -220,18 +226,40 @@ class ChannelAdapter(
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         pressedStreamId = item.streamId
-                        // Touch equivalent of TV's D-pad focus for live preview — see
-                        // onLivePreviewFocusChange's kdoc. Android's default long-press fires
-                        // around 500ms and would open the actions menu / toggle favorite first
-                        // (unchanged, still bound below); the preview's own 1800ms settle delay
-                        // means a genuine long-press always wins the race, and this ACTION_UP/
-                        // CANCEL branch cancels the pending preview the instant the finger lifts
-                        // regardless of which one fired.
-                        if (!isTvMode) onLivePreviewFocusChange(item, focused = true)
+                        // Live preview is scoped to the logo thumbnail specifically, not the
+                        // whole row. It used to share the row's existing long-press gesture
+                        // (which opens the actions menu below), but Android fires that long-
+                        // click at ~500ms — well before the preview's 1800ms settle delay — and
+                        // the actions dialog opening sends this row an ACTION_CANCEL, killing
+                        // the pending preview before it ever got a chance to show. Hit-testing
+                        // the thumbnail keeps the two gestures on separate zones so neither one
+                        // interrupts the other.
+                        val logoOverlay = binding.channelLogoOverlay
+                        isPreviewTouch = !isTvMode && livePreviewUrlProvider != null &&
+                            logoOverlay != null && isWithinView(logoOverlay, binding.root, event.x, event.y)
+                        if (isPreviewTouch) {
+                            onLivePreviewFocusChange(item, focused = true)
+                            return@setOnTouchListener true
+                        }
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (isPreviewTouch) return@setOnTouchListener true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         if (pressedStreamId == item.streamId) pressedStreamId = null
-                        if (!isTvMode) onLivePreviewFocusChange(item, focused = false)
+                        if (isPreviewTouch) {
+                            val key = item.streamId.toString()
+                            val wasShowing = LiveChannelPreviewPlayer.isActive(key)
+                            onLivePreviewFocusChange(item, focused = false)
+                            isPreviewTouch = false
+                            if (event.actionMasked == MotionEvent.ACTION_UP && !wasShowing) {
+                                // Released before the settle delay elapsed — just a quick tap on
+                                // the thumbnail, not a real hold-to-peek. Fall through to the
+                                // row's normal tap action instead of silently eating the touch.
+                                v.performClick()
+                            }
+                            return@setOnTouchListener true
+                        }
                     }
                 }
                 v.onTouchEvent(event)
@@ -296,6 +324,17 @@ class ChannelAdapter(
                 LiveChannelPreviewPlayer.onChannelUnfocused(key)
             }
         }
+    }
+
+    /** Whether the point ([x], [y]), in [root]'s own local coordinate space (i.e. as received by
+     * an OnTouchListener attached directly to [root]), falls within [view] — a descendant of
+     * [root] at any nesting depth. Used to scope the live-preview gesture to the logo thumbnail
+     * without hand-walking intermediate parent offsets. */
+    private fun isWithinView(view: View, root: View, x: Float, y: Float): Boolean {
+        if (root !is ViewGroup) return false
+        val rect = android.graphics.Rect(0, 0, view.width, view.height)
+        root.offsetDescendantRectToMyCoords(view, rect)
+        return rect.contains(x.toInt(), y.toInt())
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {

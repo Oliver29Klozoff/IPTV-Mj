@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.47 - 2026-09-10
+- **Fixed**: Live Preview on phone still didn't actually show up on press-and-hold — v6.46 bound it
+  to the same gesture as the existing channel actions menu (Set Reminder/Hide Channel/etc.), and
+  that menu's dialog opens at Android's ~500ms long-press threshold, well before the preview's
+  1800ms settle delay, cancelling the pending preview every time before it could appear. The
+  preview gesture is now scoped to the channel logo thumbnail specifically, separate from the
+  row's long-press-for-menu gesture, so the two no longer race each other.
+
 ## v6.46 - 2026-09-07
 - **Fixed**: Live Preview on Focus didn't actually work on phone — a plain touch tap never grants
   Android focus without an extra flag this row didn't set, so the feature was TV/D-pad-only despite
