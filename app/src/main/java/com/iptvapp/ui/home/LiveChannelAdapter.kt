@@ -87,6 +87,9 @@ class LiveChannelAdapter(
 
         private var lastClickTime = 0L
         private var isPreviewTouch = false
+        // See ChannelAdapter's identical field kdoc — guards against a mid-gesture rebind
+        // (background EPG/health refresh) causing release to act on the wrong channel.
+        private var heldPreviewKey: String? = null
 
         fun bind(item: LiveChannelRow) {
             binding.tvChannelName.text = item.name
@@ -191,6 +194,7 @@ class LiveChannelAdapter(
                         isPreviewTouch = !isTvMode && livePreviewUrlProvider != null &&
                             logoOverlay != null && isWithinView(logoOverlay, binding.root, event.x, event.y)
                         if (isPreviewTouch) {
+                            heldPreviewKey = item.id
                             onLivePreviewFocusChange(item, focused = true)
                             return@setOnTouchListener true
                         }
@@ -201,10 +205,16 @@ class LiveChannelAdapter(
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         if (pressedId == item.id) pressedId = null
                         if (isPreviewTouch) {
-                            val wasShowing = LiveChannelPreviewPlayer.isActive(item.id)
-                            onLivePreviewFocusChange(item, focused = false)
+                            val key = heldPreviewKey
+                            val rebound = key != null && key != item.id
+                            val wasShowing = key != null && LiveChannelPreviewPlayer.isActive(key)
+                            if (key != null) {
+                                if (isTvMode) LiveChannelPreviewPlayer.onChannelUnfocused(key)
+                                else LiveChannelPreviewPlayer.onChannelUnfocusedBubble(key)
+                            }
                             isPreviewTouch = false
-                            if (event.actionMasked == MotionEvent.ACTION_UP && !wasShowing) {
+                            heldPreviewKey = null
+                            if (event.actionMasked == MotionEvent.ACTION_UP && !wasShowing && !rebound) {
                                 v.performClick()
                             }
                             return@setOnTouchListener true
@@ -247,15 +257,24 @@ class LiveChannelAdapter(
             binding.ivDragHandle?.visibility = View.GONE
         }
 
+        // See ChannelAdapter's identical kdoc — TV embeds into the row, phone floats a bubble.
         fun onLivePreviewFocusChange(item: LiveChannelRow, focused: Boolean) {
             val provider = livePreviewUrlProvider ?: return
-            val previewView = binding.playerChannelPreview ?: return
             if (focused) {
-                LiveChannelPreviewPlayer.onChannelFocused(binding.root.context, item.id, previewView) {
-                    provider(item)
+                if (isTvMode) {
+                    val previewView = binding.playerChannelPreview ?: return
+                    LiveChannelPreviewPlayer.onChannelFocused(binding.root.context, item.id, previewView) {
+                        provider(item)
+                    }
+                } else {
+                    val anchor = binding.channelLogoOverlay ?: binding.root
+                    LiveChannelPreviewPlayer.onChannelFocusedBubble(binding.root.context, item.id, anchor) {
+                        provider(item)
+                    }
                 }
             } else {
-                LiveChannelPreviewPlayer.onChannelUnfocused(item.id)
+                if (isTvMode) LiveChannelPreviewPlayer.onChannelUnfocused(item.id)
+                else LiveChannelPreviewPlayer.onChannelUnfocusedBubble(item.id)
             }
         }
     }
@@ -282,6 +301,8 @@ class LiveChannelAdapter(
     }
 
     override fun onViewRecycled(holder: ViewHolder) {
+        // See ChannelAdapter's identical kdoc — the bubble deliberately survives its row
+        // recycling, to outlast the post-release linger window.
         holder.binding.playerChannelPreview?.let { LiveChannelPreviewPlayer.releaseIfHolding(it) }
     }
 

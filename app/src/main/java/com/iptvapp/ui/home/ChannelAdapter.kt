@@ -123,6 +123,12 @@ class ChannelAdapter(
         // Set for the duration of a touch gesture that started on the logo thumbnail (live
         // preview zone) rather than the row generally — see the ACTION_DOWN branch below.
         private var isPreviewTouch = false
+        // Captured at ACTION_DOWN so release logic always acts on the channel that was actually
+        // held, even if this ViewHolder gets rebound to different content mid-gesture (the
+        // Favorites/Live lists rebind rows in the background for EPG/health updates — a hold
+        // lasting several seconds has a real chance of overlapping one). Comparing this against
+        // item.streamId at release time is what catches a rebind; see its ACTION_UP/CANCEL use.
+        private var heldPreviewKey: String? = null
 
         fun bind(item: ChannelEntity) {
             binding.tvChannelName.text = item.name
@@ -238,6 +244,7 @@ class ChannelAdapter(
                         isPreviewTouch = !isTvMode && livePreviewUrlProvider != null &&
                             logoOverlay != null && isWithinView(logoOverlay, binding.root, event.x, event.y)
                         if (isPreviewTouch) {
+                            heldPreviewKey = item.streamId.toString()
                             onLivePreviewFocusChange(item, focused = true)
                             return@setOnTouchListener true
                         }
@@ -248,11 +255,19 @@ class ChannelAdapter(
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         if (pressedStreamId == item.streamId) pressedStreamId = null
                         if (isPreviewTouch) {
-                            val key = item.streamId.toString()
-                            val wasShowing = LiveChannelPreviewPlayer.isActive(key)
-                            onLivePreviewFocusChange(item, focused = false)
+                            val key = heldPreviewKey
+                            val rebound = key != null && key != item.streamId.toString()
+                            val wasShowing = key != null && LiveChannelPreviewPlayer.isActive(key)
+                            // Tear down by the ORIGINAL captured key, not item's (possibly now
+                            // different, if rebound) id — using item here would unfocus/query the
+                            // wrong channel entirely.
+                            if (key != null) {
+                                if (isTvMode) LiveChannelPreviewPlayer.onChannelUnfocused(key)
+                                else LiveChannelPreviewPlayer.onChannelUnfocusedBubble(key)
+                            }
                             isPreviewTouch = false
-                            if (event.actionMasked == MotionEvent.ACTION_UP && !wasShowing) {
+                            heldPreviewKey = null
+                            if (event.actionMasked == MotionEvent.ACTION_UP && !wasShowing && !rebound) {
                                 // Released before the settle delay elapsed — just a quick tap on
                                 // the thumbnail, not a real hold-to-peek. Fall through to the
                                 // row's normal tap action instead of silently eating the touch.
@@ -308,20 +323,28 @@ class ChannelAdapter(
         }
 
         // See LiveChannelPreviewPlayer kdoc — settle-delayed, single-connection focus preview.
-        // playerChannelPreview is nullable in the binding only because item_merged_channel.xml
-        // (which shares no layout with item_channel.xml) doesn't declare this id — this adapter
-        // only ever binds ItemChannelBinding though, so it's always present here in practice;
-        // the null-safety is just defensive against a future shared-binding refactor.
+        // TV embeds directly into the row's own playerChannelPreview (D-pad focus never
+        // physically obstructs the screen); phone renders into a floating bubble instead (see
+        // LiveChannelPreviewBubble kdoc — the touched thumbnail is exactly where the finger is,
+        // so a preview embedded there would be invisible for the whole hold).
         fun onLivePreviewFocusChange(item: ChannelEntity, focused: Boolean) {
             val provider = livePreviewUrlProvider ?: return
-            val previewView = binding.playerChannelPreview ?: return
             val key = item.streamId.toString()
             if (focused) {
-                LiveChannelPreviewPlayer.onChannelFocused(binding.root.context, key, previewView) {
-                    provider(item)
+                if (isTvMode) {
+                    val previewView = binding.playerChannelPreview ?: return
+                    LiveChannelPreviewPlayer.onChannelFocused(binding.root.context, key, previewView) {
+                        provider(item)
+                    }
+                } else {
+                    val anchor = binding.channelLogoOverlay ?: binding.root
+                    LiveChannelPreviewPlayer.onChannelFocusedBubble(binding.root.context, key, anchor) {
+                        provider(item)
+                    }
                 }
             } else {
-                LiveChannelPreviewPlayer.onChannelUnfocused(key)
+                if (isTvMode) LiveChannelPreviewPlayer.onChannelUnfocused(key)
+                else LiveChannelPreviewPlayer.onChannelUnfocusedBubble(key)
             }
         }
     }
@@ -356,6 +379,9 @@ class ChannelAdapter(
     // onViewRecycled override for the same reasoning.
     override fun onViewRecycled(holder: ViewHolder) {
         super.onViewRecycled(holder)
+        // Bubble is deliberately NOT dismissed here (unlike the TV-embedded releaseIfHolding
+        // below) — it's meant to survive its owning row scrolling off-screen during the post-
+        // release linger window (see LiveChannelPreviewPlayer.BUBBLE_LINGER_MS).
         holder.binding.playerChannelPreview?.let { LiveChannelPreviewPlayer.releaseIfHolding(it) }
     }
 

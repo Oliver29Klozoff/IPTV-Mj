@@ -1,5 +1,24 @@
 # IPTV App - Changelog
 
+## v6.50 - 2026-09-13
+- **Fixed**: Live Preview on phone was fundamentally unusable even once it started working — the
+  preview rendered directly under the thumbnail you were pressing, so your own finger covered the
+  entire video and it vanished the instant you lifted up to look. It now shows in a larger,
+  PIP-style floating bubble positioned above the row you're holding, clear of your finger, and
+  keeps playing for a few seconds after you release instead of cutting off instantly — confirmed
+  working with real video on-device.
+- **Fixed**: A related bug found while fixing the above — holding a row for several seconds could
+  occasionally cause the wrong channel to start playing on release, if that row happened to get
+  refreshed in the background (EPG/health updates) partway through the hold. Release now always
+  acts on the channel you actually started holding, never whatever the row was refreshed to
+  mid-gesture.
+- **Fixed**: Cold app launch on TV always re-fetched and re-parsed every configured provider's
+  entire channel/VOD/series list from the network, regardless of how recently it last succeeded —
+  the phone side already skipped this when the cache was under 6 hours old, but the TV side never
+  had that check at all. This is very likely why loading channels on Shield has "always" felt
+  slow: a large multi-provider account (100k+ channels) was being fully re-downloaded and
+  re-written to the database on every single launch instead of only every 6 hours.
+
 ## v6.49 - 2026-09-10
 - **Fixed**: Live Preview still didn't work on the Favorites tab or the combined Live tab, even
   with the toggle on and holding the right spot — it turns out the app renders channel rows with

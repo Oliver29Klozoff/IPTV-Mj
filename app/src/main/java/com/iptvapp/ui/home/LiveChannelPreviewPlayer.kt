@@ -41,10 +41,16 @@ import kotlinx.coroutines.launch
  */
 object LiveChannelPreviewPlayer {
     private const val SETTLE_DELAY_MS = 1800L
+    // Phone-bubble-only: how long the preview keeps playing after you lift your finger, so
+    // release doesn't feel like it cuts the peek off mid-thought. Not used for TV's embedded
+    // focus-preview — there, "unfocus" means the D-pad moved to browse something else, and the
+    // eager-teardown-on-focus-move behavior below is deliberate (see class kdoc).
+    private const val BUBBLE_LINGER_MS = 8000L
 
     private val scope: CoroutineScope = MainScope()
     private var player: ExoPlayer? = null
     private var pendingJob: Job? = null
+    private var lingerJob: Job? = null
     private var activeView: PlayerView? = null
     private var activeKey: String? = null
 
@@ -58,12 +64,13 @@ object LiveChannelPreviewPlayer {
         return p
     }
 
-    /** Call when a live-channel row gains focus/hover. [key] uniquely identifies the channel
-     * (e.g. "streamId" or "serverIndex:streamId") so a redundant re-focus of the same still-
-     * active row is a no-op. [playerView] is that row's own (normally `View.GONE`) PlayerView.
-     * [urlProvider] is a suspend lambda resolving the real stream URL — it only runs after the
-     * settle delay elapses, and its result is discarded if the row is no longer focused by then
-     * (the same "did focus move on already" guard VOD's onTileFocused uses). */
+    /** Call when a live-channel row gains focus/hover (TV D-pad) — embeds directly into that
+     * row's own (normally `View.GONE`) PlayerView, since D-pad focus never physically obstructs
+     * the screen the way a touch hold does. [key] uniquely identifies the channel (e.g.
+     * "streamId" or "serverIndex:streamId") so a redundant re-focus of the same still-active row
+     * is a no-op. [urlProvider] is a suspend lambda resolving the real stream URL — it only runs
+     * after the settle delay elapses, and its result is discarded if the row is no longer focused
+     * by then (the same "did focus move on already" guard VOD's onTileFocused uses). */
     fun onChannelFocused(
         context: Context,
         key: String,
@@ -79,6 +86,31 @@ object LiveChannelPreviewPlayer {
         }
     }
 
+    /** Phone press-and-hold equivalent of [onChannelFocused] — renders into a floating bubble
+     * positioned above [anchorView] (see LiveChannelPreviewBubble kdoc for why: the touched
+     * thumbnail itself is exactly where the finger is, so a preview embedded there is invisible
+     * for the entire hold). */
+    fun onChannelFocusedBubble(
+        context: Context,
+        key: String,
+        anchorView: View,
+        urlProvider: suspend () -> String?
+    ) {
+        // Cancel any linger-teardown left over from a just-released hold BEFORE the early return
+        // below — re-holding the same channel while it's still lingering (or holding a different
+        // one) must never let that stale timer fire later and cut off what's now an active hold.
+        lingerJob?.cancel()
+        lingerJob = null
+        if (key == activeKey) return
+        cancelPending()
+        pendingJob = scope.launch {
+            delay(SETTLE_DELAY_MS)
+            val url = urlProvider() ?: return@launch
+            val playerView = LiveChannelPreviewBubble.playerViewFor(context, anchorView)
+            startPreview(context, key, playerView, url)
+        }
+    }
+
     /** Call when a row loses focus/hover. Cancels any not-yet-started pending preview for this
      * key, and if this row is the one currently playing, stops and detaches the shared player
      * immediately — unlike VOD (where a brief lingering connection while scrolling away is
@@ -87,6 +119,28 @@ object LiveChannelPreviewPlayer {
     fun onChannelUnfocused(key: String) {
         if (activeKey == key) {
             stopActive()
+        } else {
+            cancelPending()
+        }
+    }
+
+    /** Phone press-and-hold equivalent of [onChannelUnfocused] — but does NOT tear down
+     * immediately. A deliberate one-off hold-then-release isn't the same rapid-scanning risk the
+     * class kdoc warns about for TV's D-pad focus, so instead of cutting the peek off the instant
+     * you lift your finger, it keeps playing for BUBBLE_LINGER_MS and only then stops and
+     * dismisses the popup — unless a new hold (same channel or a different one) cancels this
+     * first via onChannelFocusedBubble. Still guarantees at most one connection open: a switch to
+     * a different channel tears this one down immediately via startPreview's own stopActive(). */
+    fun onChannelUnfocusedBubble(key: String) {
+        if (activeKey == key) {
+            lingerJob?.cancel()
+            lingerJob = scope.launch {
+                delay(BUBBLE_LINGER_MS)
+                if (activeKey == key) {
+                    stopActive()
+                    LiveChannelPreviewBubble.dismiss()
+                }
+            }
         } else {
             cancelPending()
         }
@@ -121,6 +175,8 @@ object LiveChannelPreviewPlayer {
 
     private fun stopActive() {
         cancelPending()
+        lingerJob?.cancel()
+        lingerJob = null
         player?.apply {
             stop()
             clearMediaItems()

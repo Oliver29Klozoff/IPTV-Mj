@@ -397,9 +397,18 @@ class TvHomeActivity : AppCompatActivity() {
         viewModel.loadAll()
         // Same cold-start auto-refresh as the phone: the merged "All Providers" cache used to
         // sit empty until the user manually hit Refresh, even on a device with providers
-        // already configured.
+        // already configured. Gated on staleness (>6h since the last successful refresh) same
+        // as HomeActivity's identical block — this was previously missing here entirely, meaning
+        // every single cold launch on TV re-fetched and re-parsed every configured provider's
+        // full channel/VOD/series list from the network regardless of how recently it last
+        // succeeded, which is exactly what made "always slow to load channels" Shield-specific
+        // (the phone was already gated, TV never was).
         lifecycleScope.launch {
-            if (prefs.getExtraServersWithNick().isNotEmpty()) viewModel.refreshMergedChannels()
+            val staleMs = 6 * 60 * 60 * 1000L
+            val sinceLastRefresh = System.currentTimeMillis() - prefs.lastMergedChannelsRefresh.first()
+            if (prefs.getExtraServersWithNick().isNotEmpty() && sinceLastRefresh >= staleMs) {
+                viewModel.refreshMergedChannels()
+            }
         }
         // Same LAST_PLAYED_* cold-boot resume phone's HomeActivity does — TV previously always
         // cold-booted straight to an empty sidebar with nothing auto-playing at all, unlike
