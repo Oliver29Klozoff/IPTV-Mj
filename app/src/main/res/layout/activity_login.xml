@@ -213,6 +213,22 @@
                 app:cornerRadius="8dp"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
+            <!-- No IPTV account needed — a friend/family member with nothing configured can land
+                 here, tap this, and receive whatever someone else casts to them (see
+                 CastRelayManager kdoc) without ever touching the login form above. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnReceiveCast"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="Receive a Cast (no account needed)"
+                android:textSize="14sp"
+                app:backgroundTint="#1A3A6A"
+                app:strokeColor="#008CFF"
+                app:strokeWidth="1dp"
+                app:cornerRadius="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
             <ProgressBar
                 android:id="@+id/progressBar"
                 android:layout_width="wrap_content"

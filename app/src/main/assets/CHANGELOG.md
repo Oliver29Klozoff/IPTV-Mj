@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v6.51 - 2026-09-19
+- **Added**: Cast to a Device — send whatever's currently playing to someone else's TV or phone
+  even if they have no IPTV account and aren't on your network. From the player, Watch Party menu
+  now has a "Cast to a Device" option that scans a QR code the other device shows (via a new
+  "Receive a Cast" button on the login screen — no account or setup needed there at all). Your
+  real Xtream stream URL never leaves this device: it's swapped for an opaque, time-limited link
+  through a Cloudflare Worker you deploy yourself first (see cloudflare/cast-proxy-worker.js for
+  setup), so the receiving device never sees your actual username/password. Casting shows a clear
+  "not set up yet" message until that worker is deployed and configured in local.properties.
+
 ## v6.50 - 2026-09-13
 - **Fixed**: Live Preview on phone was fundamentally unusable even once it started working — the
   preview rendered directly under the thumbnail you were pressing, so your own finger covered the

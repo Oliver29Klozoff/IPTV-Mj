@@ -15,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 488
-        versionName "6.50"
+        versionCode 489
+        versionName "6.51"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -29,6 +29,12 @@ android {
         // proxy (see cloudflare/trakt-proxy-worker.js) so it can't be extracted from the APK.
         buildConfigField "String", "TRAKT_CLIENT_ID", "\"${localProps['TRAKT_CLIENT_ID'] ?: ''}\""
         buildConfigField "String", "TRAKT_PROXY_URL", "\"${localProps['TRAKT_PROXY_URL'] ?: ''}\""
+        // Cast-to-device stream proxy (see cloudflare/cast-proxy-worker.js) — CAST_APP_KEY here
+        // just stops a stranger who finds the worker's URL from minting cast links for free; the
+        // thing that actually protects your real Xtream credentials is CAST_PROXY_KEY, which
+        // lives only in the worker's own environment and is never compiled into the APK.
+        buildConfigField "String", "CAST_PROXY_URL", "\"${localProps['CAST_PROXY_URL'] ?: ''}\""
+        buildConfigField "String", "CAST_APP_KEY", "\"${localProps['CAST_APP_KEY'] ?: ''}\""
     }
     signingConfigs {
         release {

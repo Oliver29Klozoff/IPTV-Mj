@@ -20,7 +20,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -49,6 +51,8 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -169,6 +173,22 @@ class PlayerActivity : AppCompatActivity() {
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
+    @Inject lateinit var castRelay: com.iptvapp.sync.CastRelayManager
+
+    // Cast-to-device (see CastRelayManager kdoc) — separate scan launcher from anything Watch
+    // Party uses (that's a typed-code dialog, not a QR scan) and from LoginActivity's own QR
+    // scanner (that one's for restoring a backup, a different payload/purpose entirely).
+    private val castScanLauncher = registerForActivityResult(ScanContract()) { result ->
+        val code = result.contents ?: return@registerForActivityResult
+        sendCastToScannedCode(code)
+    }
+    private val castCameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) launchCastScanner() else {
+            Toast.makeText(this, "Camera permission is required to cast", Toast.LENGTH_LONG).show()
+        }
+    }
     @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
     @Inject lateinit var rewatchNotesManager: com.iptvapp.sync.RewatchNotesManager
     @Inject lateinit var communityHealthManager: com.iptvapp.sync.CommunityHealthManager
@@ -596,10 +616,53 @@ class PlayerActivity : AppCompatActivity() {
     private fun showStartOrJoinPartyDialog() {
         AlertDialog.Builder(this)
             .setTitle("Watch Party")
-            .setItems(arrayOf("Start Watch Party", "Join Watch Party")) { _, which ->
-                if (which == 0) startWatchParty() else showJoinPartyCodeDialog()
+            .setItems(arrayOf("Start Watch Party", "Join Watch Party", "Cast to a Device")) { _, which ->
+                when (which) {
+                    0 -> startWatchParty()
+                    1 -> showJoinPartyCodeDialog()
+                    2 -> castToDeviceClicked()
+                }
             }
             .show()
+    }
+
+    // Cast to a device with no IPTV account (see CastRelayManager kdoc) — unlike Watch Party
+    // (which needs the other side to have its own account to resolve a shared content identity
+    // against), this hands the receiving device an already-playable link, proxied through the
+    // user's own Cloudflare Worker so their real Xtream credentials never leave this device.
+    private fun castToDeviceClicked() {
+        val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) launchCastScanner() else castCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+    }
+
+    private fun launchCastScanner() {
+        castScanLauncher.launch(ScanOptions().apply {
+            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            setPrompt("Scan the \"Receive a Cast\" QR code on the other device")
+            setBeepEnabled(false)
+            setOrientationLocked(true)
+        })
+    }
+
+    private fun sendCastToScannedCode(code: String) {
+        if (streamUrl.isBlank()) {
+            Toast.makeText(this, "Nothing playing to cast", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, "Casting...", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            when (castRelay.send(code, streamUrl, streamTitle)) {
+                is com.iptvapp.sync.CastSendResult.Sent ->
+                    Toast.makeText(this@PlayerActivity, "Cast sent", Toast.LENGTH_SHORT).show()
+                is com.iptvapp.sync.CastSendResult.InvalidCode ->
+                    Toast.makeText(this@PlayerActivity, "That code doesn't match a waiting device", Toast.LENGTH_LONG).show()
+                is com.iptvapp.sync.CastSendResult.ProxyNotConfigured ->
+                    Toast.makeText(this@PlayerActivity, "Cast isn't set up yet — see cloudflare/cast-proxy-worker.js", Toast.LENGTH_LONG).show()
+                is com.iptvapp.sync.CastSendResult.ProxyError ->
+                    Toast.makeText(this@PlayerActivity, "Couldn't reach the cast proxy — try again", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun showJoinPartyCodeDialog() {

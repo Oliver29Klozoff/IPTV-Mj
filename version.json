@@ -1,7 +1,7 @@
 {
-  "versionCode": 488,
-  "versionName": "6.50",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.50/MKTV.apk",
-  "apkSha256": "3e29cab16ec5ab4d3e645e309d0ade3002c8bb67bbaee582a04379db99832620",
-  "changelog": "Live Preview now shows in a bigger floating bubble that lingers after release instead of vanishing under your finger. Also fixed cold launch on TV always re-fetching every provider's full channel list instead of caching for 6 hours like phone does."
+  "versionCode": 489,
+  "versionName": "6.51",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.51/MKTV.apk",
+  "apkSha256": "4f7e085b43e16903faddeb83a7fb27e53cc7f87eff575a05732006da06ab8953",
+  "changelog": "Added Cast to a Device — send what's playing to someone with no IPTV account via QR code, using a Cloudflare Worker proxy so your real credentials never leave your device. See cloudflare/cast-proxy-worker.js for one-time setup."
 }

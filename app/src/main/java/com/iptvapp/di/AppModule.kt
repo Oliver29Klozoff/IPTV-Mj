@@ -140,6 +140,21 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideCastProxyApiService(okHttpClient: OkHttpClient): com.iptvapp.data.api.CastProxyApiService {
+        // Points at the user's own Cloudflare Worker (cloudflare/cast-proxy-worker.js), same
+        // "unconfigured until local.properties is set" fallback as the Trakt proxy above.
+        val base = com.iptvapp.BuildConfig.CAST_PROXY_URL.ifBlank { "https://unconfigured.invalid/" }
+        val normalizedBase = if (base.endsWith("/")) base else "$base/"
+        val retrofit = Retrofit.Builder()
+            .baseUrl(normalizedBase)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+        return retrofit.create(com.iptvapp.data.api.CastProxyApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideDatabase(@ApplicationContext context: Context): IptvDatabase =
         Room.databaseBuilder(
             context,

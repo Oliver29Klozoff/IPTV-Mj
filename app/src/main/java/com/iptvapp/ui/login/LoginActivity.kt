@@ -40,6 +40,11 @@ class LoginActivity : AppCompatActivity() {
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var castRelay: com.iptvapp.sync.CastRelayManager
+
+    private var castListenerRegistration: com.google.firebase.firestore.ListenerRegistration? = null
+    private var castSessionCode: String? = null
+    private var castConsumed = false
 
     private val m3uFileLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -174,6 +179,73 @@ class LoginActivity : AppCompatActivity() {
         binding.btnImportM3u.setOnClickListener { showM3uImportDialog() }
         binding.btnScanQr.setOnClickListener { scanQrClicked() }
         binding.btnRestoreFromBackup.setOnClickListener { restoreFromBackupLauncher.launch(arrayOf("*/*")) }
+        binding.btnReceiveCast.setOnClickListener { showReceiveCastDialog() }
+    }
+
+    // No account needed on this device at all — see CastRelayManager kdoc. Creates a fresh
+    // session, shows its code as a QR (same manual QRCodeWriter pixel-painting TvSettingsActivity
+    // already uses for its own QR dialogs), and waits for a sender elsewhere to scan it and push
+    // a stream. castConsumed distinguishes "dialog dismissed because playback started" (session
+    // already ending on its own terms) from "dialog dismissed by the user backing out" (session
+    // never got used, clean it up) so the abandon-cleanup below doesn't double-delete.
+    private fun showReceiveCastDialog() {
+        castConsumed = false
+        lifecycleScope.launch {
+            val code = try {
+                castRelay.createSession()
+            } catch (e: Exception) {
+                Snackbar.make(binding.root, "Couldn't start: ${e.message}", Snackbar.LENGTH_LONG).show()
+                return@launch
+            }
+            castSessionCode = code
+
+            val size = 480
+            val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(
+                code, com.google.zxing.BarcodeFormat.QR_CODE, size, size
+            )
+            val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            for (x in 0 until size) for (y in 0 until size) {
+                bitmap.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+
+            val statusText = android.widget.TextView(this@LoginActivity).apply {
+                text = "Waiting for a stream to be cast here..."
+                setPadding(0, 24, 0, 0)
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.WHITE)
+            }
+            val container = android.widget.LinearLayout(this@LoginActivity).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(32, 32, 32, 32)
+                addView(android.widget.ImageView(this@LoginActivity).apply { setImageBitmap(bitmap) })
+                addView(statusText)
+            }
+
+            val dialog = MaterialAlertDialogBuilder(this@LoginActivity)
+                .setTitle("Receive a Cast")
+                .setView(container)
+                .setNegativeButton("Cancel", null)
+                .setOnDismissListener {
+                    castListenerRegistration?.remove()
+                    castListenerRegistration = null
+                    if (!castConsumed) {
+                        val abandonedCode = castSessionCode
+                        castSessionCode = null
+                        if (abandonedCode != null) lifecycleScope.launch { castRelay.endSession(abandonedCode) }
+                    }
+                }
+                .show()
+
+            castListenerRegistration = castRelay.listen(code) { payload ->
+                castConsumed = true
+                startActivity(Intent(this@LoginActivity, com.iptvapp.ui.player.PlayerActivity::class.java).apply {
+                    putExtra("stream_url", payload.url)
+                    putExtra("stream_title", payload.title)
+                })
+                dialog.dismiss()
+                lifecycleScope.launch { castRelay.endSession(code) }
+            }
+        }
     }
 
     // Picks a backup file and logs in using ITS saved credentials directly — skips typing
