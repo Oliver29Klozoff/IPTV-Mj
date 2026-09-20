@@ -195,6 +195,17 @@ class PlayerActivity : AppCompatActivity() {
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     private var bandwidthTracker: BandwidthTracker? = null
 
+    // ─── Cast to a Device (see CastRelayManager kdoc) ──────────────────────────
+    // Set when THIS Activity instance is the RECEIVER (launched off a scanned cast, not by the
+    // user tuning in normally) — lets the same QR/session keep delivering channel changes instead
+    // of being single-use, so casting a second channel doesn't require generating and rescanning
+    // a brand new QR code every time.
+    private var castSessionCode: String = ""
+    private var castSessionListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
+    // Sender-side: the last code this device successfully cast to, so "Cast to a Device" can
+    // offer resending to the same receiver without opening the camera again.
+    private var lastCastCode: String? = null
+
     // ─── Watch Party ────────────────────────────────────────────────────────
     private var partyCode: String = ""
     private var isPartyHost: Boolean = false
@@ -361,6 +372,8 @@ class PlayerActivity : AppCompatActivity() {
         traktSeason  = intent.getIntExtra("season_num", -1)
         traktEpisode = intent.getIntExtra("episode_num", -1)
         episodeSeriesId = intent.getIntExtra("series_id", -1)
+        castSessionCode = intent.getStringExtra("cast_session_code") ?: ""
+        if (castSessionCode.isNotEmpty()) attachCastSessionListener()
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
         isPartyContentSubstituted = intent.getBooleanExtra("watch_party_content_substituted", false)
         partyStartPaused = intent.getBooleanExtra("watch_party_start_paused", false)
@@ -630,7 +643,24 @@ class PlayerActivity : AppCompatActivity() {
     // (which needs the other side to have its own account to resolve a shared content identity
     // against), this hands the receiving device an already-playable link, proxied through the
     // user's own Cloudflare Worker so their real Xtream credentials never leave this device.
+    // Offers resending to the same already-connected device (its session stays open — see
+    // attachCastSessionListener) so changing the channel being cast doesn't mean generating and
+    // rescanning a brand new QR code every single time.
     private fun castToDeviceClicked() {
+        val remembered = lastCastCode
+        if (remembered != null) {
+            AlertDialog.Builder(this)
+                .setTitle("Cast to a Device")
+                .setItems(arrayOf("Cast to same device", "Scan a different device")) { _, which ->
+                    if (which == 0) sendCastToScannedCode(remembered) else requestCastCameraAndScan()
+                }
+                .show()
+        } else {
+            requestCastCameraAndScan()
+        }
+    }
+
+    private fun requestCastCameraAndScan() {
         val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) launchCastScanner() else castCameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
@@ -653,10 +683,18 @@ class PlayerActivity : AppCompatActivity() {
         Toast.makeText(this, "Casting...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             when (castRelay.send(code, streamUrl, streamTitle)) {
-                is com.iptvapp.sync.CastSendResult.Sent ->
+                is com.iptvapp.sync.CastSendResult.Sent -> {
+                    lastCastCode = code
                     Toast.makeText(this@PlayerActivity, "Cast sent", Toast.LENGTH_SHORT).show()
-                is com.iptvapp.sync.CastSendResult.InvalidCode ->
+                }
+                is com.iptvapp.sync.CastSendResult.InvalidCode -> {
+                    // The receiver's session is gone (closed the waiting screen, or it's simply a
+                    // stale remembered code from an earlier receiver) — forget it so the next tap
+                    // on "Cast to a Device" offers scanning fresh instead of repeating the same
+                    // dead code.
+                    if (lastCastCode == code) lastCastCode = null
                     Toast.makeText(this@PlayerActivity, "That code doesn't match a waiting device", Toast.LENGTH_LONG).show()
+                }
                 is com.iptvapp.sync.CastSendResult.ProxyNotConfigured ->
                     Toast.makeText(this@PlayerActivity, "Cast isn't set up yet — see cloudflare/cast-proxy-worker.js", Toast.LENGTH_LONG).show()
                 is com.iptvapp.sync.CastSendResult.ProxyError ->
@@ -755,6 +793,24 @@ class PlayerActivity : AppCompatActivity() {
             // source of truth, not a follower).
             if (isPartyMember && !isPartyHost) {
                 runOnUiThread { applyRemotePartyState(state) }
+            }
+        }
+    }
+
+    /** Only attached when this Activity instance is a cast RECEIVER (see castSessionCode kdoc).
+     * The very first payload is what launched this Activity (its url == streamUrl already), so
+     * that delivery is a no-op here — only a LATER, different url (the sender casting a new
+     * channel to the same still-open session) actually swaps playback. Reuses loadStream() so a
+     * live Chromecast session on this receiving device (unlikely but not impossible) is handled
+     * the same way any other channel change here already is. */
+    private fun attachCastSessionListener() {
+        castSessionListenerReg?.remove()
+        castSessionListenerReg = castRelay.listen(castSessionCode) { payload ->
+            if (payload.url == streamUrl) return@listen
+            runOnUiThread {
+                streamTitle = payload.title
+                binding.tvChannelTitle.text = streamTitle
+                loadStream(payload.url)
             }
         }
     }
@@ -3370,6 +3426,11 @@ class PlayerActivity : AppCompatActivity() {
             pollListenerReg?.remove()
             pollAutoCloseJob?.cancel()
             rewatchNotesListenerReg?.remove()
+            castSessionListenerReg?.remove()
+            if (castSessionCode.isNotEmpty()) {
+                val cCode = castSessionCode
+                kotlinx.coroutines.GlobalScope.launch { castRelay.endSession(cCode) }
+            }
             val code = partyCode
             if (code.isNotEmpty()) {
                 if (isPartyHost) {

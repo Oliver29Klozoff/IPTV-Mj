@@ -241,9 +241,12 @@ class LoginActivity : AppCompatActivity() {
                 startActivity(Intent(this@LoginActivity, com.iptvapp.ui.player.PlayerActivity::class.java).apply {
                     putExtra("stream_url", payload.url)
                     putExtra("stream_title", payload.title)
+                    // Session stays open — PlayerActivity attaches its own listener (see
+                    // attachCastSessionListener) so casting a different channel later doesn't
+                    // require a brand new QR code, and owns ending the session on its own exit.
+                    putExtra("cast_session_code", code)
                 })
                 dialog.dismiss()
-                lifecycleScope.launch { castRelay.endSession(code) }
             }
         }
     }

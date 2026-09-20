@@ -2452,6 +2452,15 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="13sp" />
                                 <Button
+                                    android:id="@+id/btnReceiveCast"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="44dp"
+                                    android:layout_marginTop="8dp"
+                                    android:backgroundTint="#1A1A1A"
+                                    android:text="Receive a Cast"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="13sp" />
+                                <Button
                                     android:id="@+id/btnDataUsage"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"

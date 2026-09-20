@@ -80,6 +80,8 @@ class TvSettingsActivity : AppCompatActivity() {
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var syncManager: SyncManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
+    @Inject lateinit var castRelay: com.iptvapp.sync.CastRelayManager
+    private var castListenerRegistration: com.google.firebase.firestore.ListenerRegistration? = null
     @Inject lateinit var traktManager: com.iptvapp.trakt.TraktManager
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     private var traktAuthJob: kotlinx.coroutines.Job? = null
@@ -721,6 +723,7 @@ class TvSettingsActivity : AppCompatActivity() {
         }
         settingsItems += TvSettingItem.Action("backup_debug", "Send Debug Report") { sendDebugReport() }
         settingsItems += TvSettingItem.Action("lan_export", "LAN Export (Show QR Code)") { showLanExportDialog() }
+        settingsItems += TvSettingItem.Action("receive_cast", "Receive a Cast") { showReceiveCastDialog() }
         settingsItems += TvSettingItem.Action("provider_health", "Provider Health") { showProviderHealthDialog() }
         settingsItems += TvSettingItem.Action("provider_speed_test", "Provider Speed Test") { showSpeedTestDialog() }
         settingsItems += TvSettingItem.Action("data_usage", "Data Usage") { showDataUsageDialog() }
@@ -1961,6 +1964,70 @@ class TvSettingsActivity : AppCompatActivity() {
             .setPositiveButton("Done", null)
             .setOnDismissListener { server.stop() }
             .show()
+    }
+
+    /** Same "Receive a Cast" flow LoginActivity offers before login, and phone SettingsActivity
+     * offers post-login (see CastRelayManager kdoc) — works across networks, unlike LAN Export
+     * above. castConsumed distinguishes "dialog dismissed because playback started" from
+     * "dismissed by backing out" so the abandon-cleanup in setOnDismissListener doesn't delete a
+     * session that's already mid-use. */
+    private fun showReceiveCastDialog() {
+        var castConsumed = false
+        var sessionCode: String? = null
+        lifecycleScope.launch {
+            val code = try {
+                castRelay.createSession()
+            } catch (e: Exception) {
+                toast("Couldn't start: ${e.message}")
+                return@launch
+            }
+            sessionCode = code
+
+            val size = 600
+            val matrix = QRCodeWriter().encode(code, BarcodeFormat.QR_CODE, size, size)
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            for (x in 0 until size) for (y in 0 until size)
+                bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+            val container = LinearLayout(this@TvSettingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(32, 32, 32, 32)
+            }
+            container.addView(android.widget.ImageView(this@TvSettingsActivity).apply { setImageBitmap(bitmap) })
+            container.addView(android.widget.TextView(this@TvSettingsActivity).apply {
+                text = "Waiting for a stream to be cast here..."
+                setPadding(0, 24, 0, 0)
+                gravity = android.view.Gravity.CENTER
+                setTextColor(Color.WHITE)
+            })
+
+            val dialog = AlertDialog.Builder(this@TvSettingsActivity)
+                .setTitle("Receive a Cast")
+                .setView(container)
+                .setNegativeButton("Cancel", null)
+                .setOnDismissListener {
+                    castListenerRegistration?.remove()
+                    castListenerRegistration = null
+                    if (!castConsumed) {
+                        val abandonedCode = sessionCode
+                        sessionCode = null
+                        if (abandonedCode != null) lifecycleScope.launch { castRelay.endSession(abandonedCode) }
+                    }
+                }
+                .show()
+
+            castListenerRegistration = castRelay.listen(code) { payload ->
+                castConsumed = true
+                startActivity(Intent(this@TvSettingsActivity, com.iptvapp.ui.player.PlayerActivity::class.java).apply {
+                    putExtra("stream_url", payload.url)
+                    putExtra("stream_title", payload.title)
+                    // Session stays open — PlayerActivity attaches its own listener (see
+                    // attachCastSessionListener) so casting a different channel later doesn't
+                    // require a brand new QR code, and owns ending the session on its own exit.
+                    putExtra("cast_session_code", code)
+                })
+                dialog.dismiss()
+            }
+        }
     }
 
     private fun showQrDialog(content: String) {

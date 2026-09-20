@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v6.52 - 2026-09-19
+- **Added**: "Receive a Cast" is now also in Settings (Backup & Restore section, both phone and
+  TV), not just the pre-login screen — an already-logged-in device (like your own phone or Shield)
+  never saw that pre-login screen again, so there was previously no way to actually use or test
+  the receiving side without logging out first.
+- **Fixed**: Casting to a device was single-use — switching to a different channel meant the
+  receiver had to generate a brand new QR code and the sender had to rescan it every single time.
+  A cast session now stays open after the first channel arrives, so "Cast to a Device" from the
+  player offers "Cast to same device" to send a new channel instantly, no rescanning needed,
+  until the receiving device actually stops playback.
+
 ## v6.51 - 2026-09-19
 - **Added**: Cast to a Device — send whatever's currently playing to someone else's TV or phone
   even if they have no IPTV account and aren't on your network. From the player, Watch Party menu

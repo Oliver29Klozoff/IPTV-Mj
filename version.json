@@ -1,7 +1,7 @@
 {
-  "versionCode": 489,
-  "versionName": "6.51",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.51/MKTV.apk",
-  "apkSha256": "4f7e085b43e16903faddeb83a7fb27e53cc7f87eff575a05732006da06ab8953",
-  "changelog": "Added Cast to a Device — send what's playing to someone with no IPTV account via QR code, using a Cloudflare Worker proxy so your real credentials never leave your device. See cloudflare/cast-proxy-worker.js for one-time setup."
+  "versionCode": 490,
+  "versionName": "6.52",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.52/MKTV.apk",
+  "apkSha256": "a3a1c29f55a58b9a0586b1643f3306ef560de28c8a38ec95a888a2af31726b66",
+  "changelog": "Receive a Cast is now in Settings too (not just pre-login), and casting a new channel to an already-connected device no longer requires a fresh QR code every time."
 }
