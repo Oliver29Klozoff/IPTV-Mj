@@ -202,9 +202,6 @@ class PlayerActivity : AppCompatActivity() {
     // a brand new QR code every time.
     private var castSessionCode: String = ""
     private var castSessionListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
-    // Sender-side: the last code this device successfully cast to, so "Cast to a Device" can
-    // offer resending to the same receiver without opening the camera again.
-    private var lastCastCode: String? = null
 
     // ─── Watch Party ────────────────────────────────────────────────────────
     private var partyCode: String = ""
@@ -647,7 +644,7 @@ class PlayerActivity : AppCompatActivity() {
     // attachCastSessionListener) so changing the channel being cast doesn't mean generating and
     // rescanning a brand new QR code every single time.
     private fun castToDeviceClicked() {
-        val remembered = lastCastCode
+        val remembered = castRelay.lastSentCode
         if (remembered != null) {
             AlertDialog.Builder(this)
                 .setTitle("Cast to a Device")
@@ -684,7 +681,7 @@ class PlayerActivity : AppCompatActivity() {
         lifecycleScope.launch {
             when (castRelay.send(code, streamUrl, streamTitle)) {
                 is com.iptvapp.sync.CastSendResult.Sent -> {
-                    lastCastCode = code
+                    castRelay.lastSentCode = code
                     Toast.makeText(this@PlayerActivity, "Cast sent", Toast.LENGTH_SHORT).show()
                 }
                 is com.iptvapp.sync.CastSendResult.InvalidCode -> {
@@ -692,7 +689,7 @@ class PlayerActivity : AppCompatActivity() {
                     // stale remembered code from an earlier receiver) — forget it so the next tap
                     // on "Cast to a Device" offers scanning fresh instead of repeating the same
                     // dead code.
-                    if (lastCastCode == code) lastCastCode = null
+                    if (castRelay.lastSentCode == code) castRelay.lastSentCode = null
                     Toast.makeText(this@PlayerActivity, "That code doesn't match a waiting device", Toast.LENGTH_LONG).show()
                 }
                 is com.iptvapp.sync.CastSendResult.ProxyNotConfigured ->

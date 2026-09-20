@@ -1,7 +1,7 @@
 {
-  "versionCode": 490,
-  "versionName": "6.52",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.52/MKTV.apk",
-  "apkSha256": "a3a1c29f55a58b9a0586b1643f3306ef560de28c8a38ec95a888a2af31726b66",
-  "changelog": "Receive a Cast is now in Settings too (not just pre-login), and casting a new channel to an already-connected device no longer requires a fresh QR code every time."
+  "versionCode": 491,
+  "versionName": "6.53",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.53/MKTV.apk",
+  "apkSha256": "246f06e09329c46ee7648ff32dc62bd9b4dc8b3bf76320e92d4830748415974e",
+  "changelog": "Fixed Cast to same device not actually remembering the last-cast receiver across different channels — it now correctly survives backing out and casting something else."
 }

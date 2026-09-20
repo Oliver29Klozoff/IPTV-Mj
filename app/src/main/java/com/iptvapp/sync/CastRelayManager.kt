@@ -50,6 +50,14 @@ sealed class CastSendResult {
 class CastRelayManager @Inject constructor(
     private val castProxyApi: CastProxyApiService
 ) {
+    /** The last session code this device successfully cast to, so switching to a different
+     * channel and casting again can resend to the same receiver without rescanning — kept here
+     * (a singleton that outlives any one screen) rather than on PlayerActivity itself, since
+     * backing out of one channel and opening another creates a brand new PlayerActivity instance
+     * that would otherwise have no memory of what was just cast. Cleared whenever a send turns
+     * out to target a session that no longer exists (see PlayerActivity's InvalidCode handling). */
+    var lastSentCode: String? = null
+
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
     private val sessions get() = firestore.collection("cast_sessions")

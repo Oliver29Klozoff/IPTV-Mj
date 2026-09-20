@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.53 - 2026-09-19
+- **Fixed**: "Cast to same device" from v6.52 didn't actually stick around — backing out of a cast
+  channel and opening a different one lost all memory of who you'd just cast to, since it was
+  stored on the player screen itself rather than anywhere that survives switching channels.
+  Casting a channel, going back, and casting a different channel now correctly offers "Cast to
+  same device" instead of forcing a rescan.
+
 ## v6.52 - 2026-09-19
 - **Added**: "Receive a Cast" is now also in Settings (Backup & Restore section, both phone and
   TV), not just the pre-login screen — an already-logged-in device (like your own phone or Shield)
