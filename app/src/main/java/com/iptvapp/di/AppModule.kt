@@ -138,20 +138,10 @@ object AppModule {
         return retrofit.create(com.iptvapp.data.api.TraktProxyApiService::class.java)
     }
 
-    @Provides
-    @Singleton
-    fun provideCastProxyApiService(okHttpClient: OkHttpClient): com.iptvapp.data.api.CastProxyApiService {
-        // Points at the user's own Cloudflare Worker (cloudflare/cast-proxy-worker.js), same
-        // "unconfigured until local.properties is set" fallback as the Trakt proxy above.
-        val base = com.iptvapp.BuildConfig.CAST_PROXY_URL.ifBlank { "https://unconfigured.invalid/" }
-        val normalizedBase = if (base.endsWith("/")) base else "$base/"
-        val retrofit = Retrofit.Builder()
-            .baseUrl(normalizedBase)
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        return retrofit.create(com.iptvapp.data.api.CastProxyApiService::class.java)
-    }
+    // A provideCastProxyApiService used to sit here. Casting no longer proxies the video at all:
+    // the IPTV provider refuses traffic from Cloudflare's network, so every proxied stream came
+    // back 502 while the same URL fetched from home was fine. The stream URL is now sealed
+    // end-to-end to the receiver instead and played direct — see CastRelayManager.
 
     @Provides
     @Singleton

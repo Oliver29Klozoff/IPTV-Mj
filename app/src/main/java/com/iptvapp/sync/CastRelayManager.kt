@@ -5,25 +5,28 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
-import com.iptvapp.BuildConfig
-import com.iptvapp.data.api.CastProxyApiService
-import com.iptvapp.data.api.CastWrapRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
 
-/** What actually gets handed to the receiving device — an opaque proxied URL (see [send]), not
- * the sender's real Xtream stream URL. */
+/** What a receiver ends up with after opening the sealed box (see [send]) — the real stream URL,
+ * which is why the box is what travels and this never is. */
 data class CastPayload(val url: String, val title: String)
 
 sealed class CastSendResult {
     object Sent : CastSendResult()
     object InvalidCode : CastSendResult()
-    object ProxyNotConfigured : CastSendResult()
-    object ProxyError : CastSendResult()
+
+    /** The scanned QR carried no session key, so the receiver is running a build from before
+     * the sealed box existed. Refused rather than downgraded: the only way to serve such a
+     * receiver is to put the credential-bearing URL into Firestore in the clear. */
+    object ReceiverTooOld : CastSendResult()
+
+    object SendFailed : CastSendResult()
 }
 
 /**
@@ -34,12 +37,18 @@ sealed class CastSendResult {
  * identity against.
  *
  * The naive fix — hand over the sender's own already-resolved stream URL directly — would also
- * hand over their live Xtream username/password, since those are embedded in the URL's path.
- * [send] never does that: it first asks the user's own Cloudflare Worker (see
- * cloudflare/cast-proxy-worker.js) to swap the real URL for an opaque, encrypted, time-limited
- * token, and only THAT proxied URL is what reaches Firestore and, from there, the receiving
- * device. The real URL is sent to exactly one place — the sender's own self-hosted worker over
- * HTTPS — never to Firestore, never to the receiver.
+ * hand over their live Xtream username/password to Firestore, since those are embedded in the
+ * URL's path. [send] never does that: it encrypts the URL under a one-time key that the RECEIVER
+ * generated and displayed in its QR code, so the key reaches this device across the air gap
+ * between that screen and this camera and never travels the network at all. Firestore therefore
+ * stores nothing but ciphertext (see [CastBox]), and only the device that drew the QR can read it.
+ *
+ * An earlier design relayed the video itself through a Cloudflare Worker. That is gone, and the
+ * reason is worth recording: the IPTV provider refuses traffic from Cloudflare's network, so
+ * every proxied stream came back 502 while the identical URL fetched from a home connection
+ * returned fine. Nothing proxies video now — the receiver streams straight from the provider, so
+ * there is no datacenter in the media path to be blocked, and casting works off-WiFi to a device
+ * with no account of its own.
  *
  * Kept as its own Firestore collection/class rather than folding into WatchPartyManager — the
  * lifecycle is different (one fire-and-forget delivery per session, not an ongoing multi-member
@@ -47,15 +56,17 @@ sealed class CastSendResult {
  * have its own provider account, unlike every Watch Party member).
  */
 @Singleton
-class CastRelayManager @Inject constructor(
-    private val castProxyApi: CastProxyApiService
-) {
-    /** The last session code this device successfully cast to, so switching to a different
-     * channel and casting again can resend to the same receiver without rescanning — kept here
-     * (a singleton that outlives any one screen) rather than on PlayerActivity itself, since
-     * backing out of one channel and opening another creates a brand new PlayerActivity instance
-     * that would otherwise have no memory of what was just cast. Cleared whenever a send turns
-     * out to target a session that no longer exists (see PlayerActivity's InvalidCode handling). */
+class CastRelayManager @Inject constructor() {
+    /** The last QR payload this device successfully cast to, so switching to a different channel
+     * and casting again can resend to the same receiver without rescanning — kept here (a
+     * singleton that outlives any one screen) rather than on PlayerActivity itself, since backing
+     * out of one channel and opening another creates a brand new PlayerActivity instance that
+     * would otherwise have no memory of what was just cast. Cleared whenever a send turns out to
+     * target a session that no longer exists (see PlayerActivity's InvalidCode handling).
+     *
+     * This holds the WHOLE scanned payload, session key included, not just the code — a resend
+     * has to re-seal, and there is nowhere else to recover the key from once the QR is off screen.
+     * It therefore stays in memory only; persisting it would put the key on disk for no gain. */
     var lastSentCode: String? = null
 
     private val auth = FirebaseAuth.getInstance()
@@ -70,8 +81,13 @@ class CastRelayManager @Inject constructor(
     private val codeChars = "abcdefghijklmnopqrstuvwxyz0123456789"
     private fun randomCode(): String = (1..8).map { codeChars[Random.nextInt(codeChars.length)] }.joinToString("")
 
-    /** Receiver side: creates a fresh, empty session and returns its code to show as a QR —
-     * same collision-retry shape WatchPartyManager.startParty uses. */
+    /** Receiver side: creates a fresh, empty session and returns the payload to show as a QR —
+     * same collision-retry shape WatchPartyManager.startParty uses.
+     *
+     * The returned string is "<code>.<base64url key>", not a bare code: the key half is generated
+     * here and must reach the sender ONLY by being photographed off this screen. Callers should
+     * put it in the QR and pass it back to [listen] and [endSession] unchanged — never display it
+     * as text for someone to read out, which would defeat the point of not transmitting it. */
     suspend fun createSession(): String = withContext(Dispatchers.IO) {
         signInIfNeeded()
         var code = ""
@@ -86,63 +102,83 @@ class CastRelayManager @Inject constructor(
         sessions.document(code).set(
             hashMapOf(
                 "createdAt" to FieldValue.serverTimestamp(),
+                "box" to null,
                 "url" to null,
                 "title" to null
             )
         ).await()
-        code
+
+        val key = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        "$code.${CastBox.b64uEncode(key)}"
     }
 
-    /** Sender side: wraps [rawUrl] into an opaque proxied link via the user's own Cloudflare
-     * Worker, then pushes ONLY that proxied link into the scanned session code — [rawUrl] itself
-     * never goes anywhere else. Distinguishes "code doesn't exist" from "proxy isn't set up" from
-     * "proxy call failed" so the caller can show a specific, actionable message instead of a
-     * generic failure. */
-    suspend fun send(code: String, rawUrl: String, title: String): CastSendResult = withContext(Dispatchers.IO) {
-        if (BuildConfig.CAST_PROXY_URL.isBlank() || BuildConfig.CAST_APP_KEY.isBlank()) {
-            return@withContext CastSendResult.ProxyNotConfigured
-        }
+    /** Sender side: seals [rawUrl] under the session key from the scanned QR and pushes ONLY the
+     * ciphertext into that session — [rawUrl] itself never leaves this device.
+     *
+     * [scanned] is the raw QR contents, "<code>.<base64url key>"; pass the same string back on a
+     * resend so the key comes with it (that is why [lastSentCode] holds the whole payload rather
+     * than the bare code). Distinguishes "code doesn't exist" from "receiver predates encryption"
+     * from "the write failed" so the caller can say something specific. */
+    suspend fun send(scanned: String, rawUrl: String, title: String): CastSendResult = withContext(Dispatchers.IO) {
+        val target = CastBox.parseScanned(scanned)
+        val key = target.key ?: return@withContext CastSendResult.ReceiverTooOld
+
         signInIfNeeded()
-        val normalized = code.trim().lowercase()
-        val doc = sessions.document(normalized).get().await()
+        val doc = sessions.document(target.code).get().await()
         if (!doc.exists()) return@withContext CastSendResult.InvalidCode
 
-        val proxiedUrl = try {
-            val response = castProxyApi.wrap(BuildConfig.CAST_APP_KEY, CastWrapRequest(rawUrl))
-            val token = response.takeIf { it.isSuccessful }?.body()?.token ?: return@withContext CastSendResult.ProxyError
-            val base = BuildConfig.CAST_PROXY_URL.trimEnd('/')
-            "$base/stream/$token"
+        // The title rides inside the box too — on its own it would leak what is being watched to
+        // anyone who could read the session document.
+        val box = try {
+            CastBox.seal(key, JSONObject().put("url", rawUrl).put("title", title).toString())
         } catch (_: Exception) {
-            return@withContext CastSendResult.ProxyError
+            return@withContext CastSendResult.SendFailed
         }
 
-        sessions.document(normalized).set(
-            hashMapOf(
-                "url" to proxiedUrl,
-                "title" to title,
-                "updatedAt" to FieldValue.serverTimestamp()
-            ),
-            SetOptions.merge()
-        ).await()
+        try {
+            sessions.document(target.code).set(
+                hashMapOf(
+                    "box" to box,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                ),
+                SetOptions.merge()
+            ).await()
+        } catch (_: Exception) {
+            return@withContext CastSendResult.SendFailed
+        }
         CastSendResult.Sent
     }
 
-    /** Receiver side: listens for the sender's (already-proxied) URL to arrive. Same
-     * pending-write echo-filter WatchPartyManager.listen uses, for the same reason. */
-    fun listen(code: String, onReceived: (CastPayload) -> Unit): ListenerRegistration {
-        return sessions.document(code).addSnapshotListener { snap, _ ->
+    /** Receiver side: listens for a sealed box to arrive and opens it. [scanned] is the payload
+     * [createSession] returned. Same pending-write echo-filter WatchPartyManager.listen uses, for
+     * the same reason. */
+    fun listen(scanned: String, onReceived: (CastPayload) -> Unit): ListenerRegistration {
+        val target = CastBox.parseScanned(scanned)
+        return sessions.document(target.code).addSnapshotListener { snap, _ ->
             if (snap == null || !snap.exists()) return@addSnapshotListener
             if (snap.metadata.hasPendingWrites()) return@addSnapshotListener
+
+            val box = snap.getString("box")
+            if (box != null && target.key != null) {
+                // A box that won't open is a stale QR or someone writing junk into the session.
+                // Drop it silently; never fall through to the unauthenticated fields below.
+                val plain = CastBox.open(target.key, box) ?: return@addSnapshotListener
+                val obj = try { JSONObject(plain) } catch (_: Exception) { return@addSnapshotListener }
+                val url = obj.optString("url").takeIf { it.isNotBlank() } ?: return@addSnapshotListener
+                onReceived(CastPayload(url, obj.optString("title").ifBlank { "Cast" }))
+                return@addSnapshotListener
+            }
+
+            // Plaintext shape from a sender that predates the sealed box.
             val url = snap.getString("url") ?: return@addSnapshotListener
-            val title = snap.getString("title") ?: "Cast"
-            onReceived(CastPayload(url, title))
+            onReceived(CastPayload(url, snap.getString("title") ?: "Cast"))
         }
     }
 
     /** Sessions are single-use — deletes the doc once consumed (receiver started playback) or
      * abandoned (receiver closed the waiting screen), so Firestore doesn't accumulate dead
      * sessions from every cast anyone's ever done. */
-    suspend fun endSession(code: String) = withContext(Dispatchers.IO) {
-        try { sessions.document(code).delete().await() } catch (_: Exception) {}
+    suspend fun endSession(scanned: String) = withContext(Dispatchers.IO) {
+        try { sessions.document(CastBox.parseScanned(scanned).code).delete().await() } catch (_: Exception) {}
     }
 }

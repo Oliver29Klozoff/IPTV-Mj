@@ -692,10 +692,14 @@ class PlayerActivity : AppCompatActivity() {
                     if (castRelay.lastSentCode == code) castRelay.lastSentCode = null
                     Toast.makeText(this@PlayerActivity, "That code doesn't match a waiting device", Toast.LENGTH_LONG).show()
                 }
-                is com.iptvapp.sync.CastSendResult.ProxyNotConfigured ->
-                    Toast.makeText(this@PlayerActivity, "Cast isn't set up yet — see cloudflare/cast-proxy-worker.js", Toast.LENGTH_LONG).show()
-                is com.iptvapp.sync.CastSendResult.ProxyError ->
-                    Toast.makeText(this@PlayerActivity, "Couldn't reach the cast proxy — try again", Toast.LENGTH_LONG).show()
+                is com.iptvapp.sync.CastSendResult.ReceiverTooOld -> {
+                    // Its QR carried no session key, so there is no way to send without putting
+                    // the credential-bearing URL into Firestore in the clear. Refuse and say so.
+                    if (castRelay.lastSentCode == code) castRelay.lastSentCode = null
+                    Toast.makeText(this@PlayerActivity, "Update the app on that device before casting to it", Toast.LENGTH_LONG).show()
+                }
+                is com.iptvapp.sync.CastSendResult.SendFailed ->
+                    Toast.makeText(this@PlayerActivity, "Couldn't send the cast — try again", Toast.LENGTH_LONG).show()
             }
         }
     }
