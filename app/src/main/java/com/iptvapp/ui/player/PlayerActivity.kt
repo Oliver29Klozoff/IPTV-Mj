@@ -186,7 +186,9 @@ class PlayerActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) launchCastScanner() else {
-            Toast.makeText(this, "Camera permission is required to cast", Toast.LENGTH_LONG).show()
+            // No camera is no longer a dead end — the words on the receiver's screen work too.
+            Toast.makeText(this, "No camera access — use \"Enter code manually\" instead", Toast.LENGTH_LONG).show()
+            showManualCastCodeDialog()
         }
     }
     @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
@@ -638,23 +640,67 @@ class PlayerActivity : AppCompatActivity() {
 
     // Cast to a device with no IPTV account (see CastRelayManager kdoc) — unlike Watch Party
     // (which needs the other side to have its own account to resolve a shared content identity
-    // against), this hands the receiving device an already-playable link, proxied through the
-    // user's own Cloudflare Worker so their real Xtream credentials never leave this device.
+    // against), this seals an already-playable link to a key the receiver showed on its screen,
+    // so the real Xtream credentials never leave this device.
     // Offers resending to the same already-connected device (its session stays open — see
-    // attachCastSessionListener) so changing the channel being cast doesn't mean generating and
-    // rescanning a brand new QR code every single time.
+    // attachCastSessionListener) so changing the channel being cast doesn't mean pairing with a
+    // brand new code every single time.
     private fun castToDeviceClicked() {
         val remembered = castRelay.lastSentCode
         if (remembered != null) {
             AlertDialog.Builder(this)
                 .setTitle("Cast to a Device")
-                .setItems(arrayOf("Cast to same device", "Scan a different device")) { _, which ->
-                    if (which == 0) sendCastToScannedCode(remembered) else requestCastCameraAndScan()
+                .setItems(arrayOf("Cast to same device", "Scan a QR code", "Enter code manually")) { _, which ->
+                    when (which) {
+                        0 -> sendCastToScannedCode(remembered)
+                        1 -> requestCastCameraAndScan()
+                        else -> showManualCastCodeDialog()
+                    }
                 }
                 .show()
         } else {
-            requestCastCameraAndScan()
+            AlertDialog.Builder(this)
+                .setTitle("Cast to a Device")
+                .setItems(arrayOf("Scan a QR code", "Enter code manually")) { _, which ->
+                    if (which == 0) requestCastCameraAndScan() else showManualCastCodeDialog()
+                }
+                .show()
         }
+    }
+
+    /** Typing the words shown on the receiver, for when the camera won't focus on a TV screen
+     * (glare, distance, or a set too big to get the whole code in frame). The words ARE the
+     * shared secret for this path — see CastBox — so they're checked for plausibility here
+     * rather than silently sealing a box no receiver can open. */
+    private fun showManualCastCodeDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. wobbly pickle ninja toast"
+            setSingleLine(true)
+            // The receiver shows the words in caps, but they're matched case-insensitively;
+            // autocorrect would happily "fix" them into something else, so it's turned off.
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val wrap = android.widget.FrameLayout(this).apply {
+            setPadding(pad * 2, pad, pad * 2, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Enter cast code")
+            .setMessage("Type the words shown on the other device.")
+            .setView(wrap)
+            .setPositiveButton("Cast") { _, _ ->
+                val typed = input.text.toString()
+                val normalized = com.iptvapp.sync.CastBox.normalizePhrase(typed)
+                if (normalized.isEmpty() || !normalized.contains('-')) {
+                    Toast.makeText(this, "Enter all the words shown on the other device", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                sendCastToScannedCode(com.iptvapp.sync.CastBox.manualPayload(typed))
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun requestCastCameraAndScan() {

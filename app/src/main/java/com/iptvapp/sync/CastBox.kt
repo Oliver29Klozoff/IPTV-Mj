@@ -133,6 +133,57 @@ object CastBox {
         return String(ByteArray(ct.size) { (ct[it].toInt() xor ks[it].toInt()).toByte() }, Charsets.UTF_8)
     }
 
+    // ─── pairing by typed phrase ───
+    //
+    // The QR carries 256 bits; someone typing on a phone cannot. The manual path instead uses
+    // the short funny-word phrase shown on the receiver's screen, stretched with PBKDF2 and
+    // salted with the session id. Everything here must match MKCrypto in the TV app exactly —
+    // CastBoxTest pins it against fixtures generated there.
+
+    private const val PBKDF2_ITERATIONS = 4096
+    private const val ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+    /** Accepts whatever spacing and case the user typed: "Wobbly Pickle Ninja Toast",
+     * "wobbly-pickle-ninja-toast" and "WOBBLY  PICKLE NINJA TOAST" are the same phrase. */
+    fun normalizePhrase(s: String): String {
+        val sb = StringBuilder()
+        var lastWasSep = true
+        for (ch in s.lowercase()) {
+            if (ch in 'a'..'z' || ch in '0'..'9') {
+                sb.append(ch); lastWasSep = false
+            } else if (!lastWasSep) {
+                sb.append('-'); lastWasSep = true
+            }
+        }
+        return sb.toString().trimEnd('-')
+    }
+
+    /** PBKDF2-HMAC-SHA256, single 32-byte output block. Written out rather than using
+     * SecretKeyFactory so it is line-for-line comparable with the TV's ES5 version. */
+    fun pbkdf2(phrase: String, salt: String, iterations: Int = PBKDF2_ITERATIONS): ByteArray {
+        val pw = normalizePhrase(phrase).toByteArray(Charsets.UTF_8)
+        var u = hmac(pw, salt.toByteArray(Charsets.UTF_8) + byteArrayOf(0, 0, 0, 1))
+        val out = u.copyOf()
+        for (i in 1 until iterations) {
+            u = hmac(pw, u)
+            for (j in out.indices) out[j] = (out[j].toInt() xor u[j].toInt()).toByte()
+        }
+        return out
+    }
+
+    /** The session's Firestore document id, derived from the phrase so the phrase alone is
+     * enough to find the session — there is no second code to read off the screen. */
+    fun idFromPhrase(phrase: String): String {
+        val h = MessageDigest.getInstance("SHA-256")
+            .digest("mktv-cast-id-v1:${normalizePhrase(phrase)}".toByteArray(Charsets.UTF_8))
+        val sb = StringBuilder()
+        for (i in 0 until 8) sb.append(ID_CHARS[(h[i].toInt() and 0xff) % ID_CHARS.length])
+        return sb.toString()
+    }
+
+    fun keyFromPhrase(phrase: String): ByteArray =
+        pbkdf2(phrase, "mktv-cast-v1:${idFromPhrase(phrase)}")
+
     /**
      * Splits a scanned QR payload into its session code and session key.
      *
@@ -150,8 +201,24 @@ object CastBox {
         override fun hashCode(): Int = 31 * code.hashCode() + (key?.contentHashCode() ?: 0)
     }
 
+    /** Marks a payload as a typed phrase rather than a scanned QR, so the whole thing stays a
+     * single string and everything downstream ([CastRelayManager.send], lastSentCode, resends)
+     * needs no second code path. */
+    const val PHRASE_PREFIX = "phrase:"
+
+    fun manualPayload(phrase: String): String = PHRASE_PREFIX + normalizePhrase(phrase)
+
     fun parseScanned(scanned: String): ScannedTarget {
         val trimmed = scanned.trim()
+
+        if (trimmed.startsWith(PHRASE_PREFIX, ignoreCase = true)) {
+            val phrase = normalizePhrase(trimmed.substring(PHRASE_PREFIX.length))
+            // An empty or one-word phrase is a typo, not a session — deriving a key from it
+            // would just produce a box no receiver can open. Refuse it as keyless.
+            if (phrase.isEmpty() || !phrase.contains('-')) return ScannedTarget("", null)
+            return ScannedTarget(idFromPhrase(phrase), keyFromPhrase(phrase))
+        }
+
         val dot = trimmed.indexOf('.')
         if (dot <= 0) return ScannedTarget(trimmed.lowercase(), null)
         val code = trimmed.substring(0, dot).lowercase()
