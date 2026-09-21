@@ -7,7 +7,7 @@
     "ghcr.io/devcontainers/features/sshd:1": {}
   },
   "containerEnv": {
-    "GRADLE_OPTS": "-Dorg.gradle.java.home=${containerEnv:JAVA_HOME}"
+    "GRADLE_OPTS": "-Dorg.gradle.java.home=/usr/local/sdkman/candidates/java/current"
   },
   "customizations": {
     "vscode": {
