@@ -70,6 +70,26 @@
       },
       "presentation": { "reveal": "always", "panel": "shared" },
       "problemMatcher": []
+    },
+    {
+      "label": "codex-review-last-commit",
+      "type": "shell",
+      "windows": {
+        "command": "powershell",
+        "args": ["-File", "${workspaceFolder}/.vscode/scripts/codex-review.ps1"]
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "codex-review-uncommitted",
+      "type": "shell",
+      "windows": {
+        "command": "powershell",
+        "args": ["-File", "${workspaceFolder}/.vscode/scripts/codex-review.ps1", "-Uncommitted"]
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
     }
   ]
 }

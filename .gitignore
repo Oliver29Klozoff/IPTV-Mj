@@ -22,6 +22,14 @@ crash.txt
 *.rollbackbak
 write_tv_layout.ps1
 
+# .vscode: keep only real editor config; ignore ad-hoc debug dumps (screenshots,
+# uiautomator xml, build logs, etc.) that pile up directly in this folder
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/scripts/
+.vscode/scripts/codex-review-latest.md
+
 # IDE state (machine-specific)
 .claude/settings.json
 .claude/settings.local.json
