@@ -1,0 +1,110 @@
+rules_version = '2';
+
+// Firestore security rules for the mktv-apk project.
+//
+// Written after finding that an anonymous client could LIST /cast_sessions and read
+// every document in it, including old ones still holding a plaintext stream URL from
+// before casts were encrypted.
+//
+// The split between `get` and `list` is the whole point. `allow read` grants both.
+// Granting list is what lets a stranger enumerate every active cast and walk off with
+// the sealed boxes to crack offline at their leisure; with list denied, they must
+// already know the session code — which IS the secret — before they can fetch
+// anything, and guessing it becomes an online game against Firestore rather than an
+// offline one against a GPU. That single change is worth far more than making the
+// code longer.
+//
+// Collections here were taken from every `.collection("…")` in the app. Only
+// community_health/*/events and rewatch_notes/*/notes are read as collections; every
+// other access is by document id, so denying list on them costs nothing.
+//
+// NOTE: there is deliberately no catch-all `match /{document=**} { deny }` at the
+// bottom. It is good practice, but a wrong deny silently breaks a feature, and these
+// rules have not been exercised against the live app yet. Add it once you have
+// confirmed nothing else touches Firestore.
+//
+// Deploy:  firebase deploy --only firestore:rules
+//          (or paste into Firebase console -> Firestore -> Rules)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── cast sessions ───────────────────────────────────────────────────────
+    // One short-lived document per "Receive a cast" screen, holding `box`: the stream
+    // URL sealed to a one-time key that only ever appeared on the receiver's screen
+    // (the QR, or the typed name-and-number). The server never sees that key.
+    match /cast_sessions/{code} {
+      allow get: if request.auth != null
+                 && request.time < resource.data.createdAt + duration.value(30, 'm');
+      allow list: if false;
+
+      // Receiver creates the session; sender merges the sealed box in. Both are
+      // anonymous clients with no owner to compare against — knowing the code is the
+      // capability. The field allow-list and size cap stop the collection being used
+      // as free storage by anyone who finds the project id.
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly(
+                         ['createdAt', 'updatedAt', 'box', 'url', 'title']);
+
+      allow update: if request.auth != null
+                    && request.time < resource.data.createdAt + duration.value(30, 'm')
+                    && request.resource.data.keys().hasOnly(
+                         ['createdAt', 'updatedAt', 'box', 'url', 'title'])
+                    && (!('box' in request.resource.data)
+                        || (request.resource.data.box is string
+                            && request.resource.data.box.size() < 8000));
+
+      // Single-use: both ends delete when done. Anything missed is unreadable after
+      // the 30 minute window above regardless.
+      allow delete: if request.auth != null;
+    }
+
+    // ─── sync: phone -> TV favourites and watch state ────────────────────────
+    // Same reasoning. The TV resolves codes/<code> to a uid and then reads that
+    // user's document, so `get` has to stay open to any authenticated client — but
+    // listing would hand over every sync code and every user's library at once.
+    match /codes/{shortCode} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow write: if request.auth != null;
+    }
+
+    match /users/{uid} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow write: if request.auth != null;
+    }
+
+    // ─── watch party / handoff ───────────────────────────────────────────────
+    // Joined by knowing the party code; never enumerated.
+    match /watch_parties/{party} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow write: if request.auth != null;
+    }
+
+    match /playback_sessions/{session} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow write: if request.auth != null;
+    }
+
+    // ─── collections that are genuinely read as collections ──────────────────
+    // These two ARE queried by the app (CommunityHealthManager orders and filters
+    // events; RewatchNotesManager reads a content key's notes), so list must stay
+    // allowed or those features break.
+    match /community_health/{providerHash} {
+      allow read, write: if request.auth != null;
+      match /events/{event} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    match /rewatch_notes/{contentKey} {
+      allow read, write: if request.auth != null;
+      match /notes/{note} {
+        allow read, write: if request.auth != null;
+      }
+    }
+  }
+}
