@@ -1,5 +1,25 @@
 # IPTV App - Changelog
 
+## v6.54 - 2026-09-21
+- **Fixed**: Casting to a device never worked. It routed the video through a Cloudflare Worker,
+  and the provider refuses traffic from Cloudflare's network — so every cast came back as a
+  server error while the exact same stream played fine from home. Nothing is proxied any more:
+  the receiving device is handed the stream directly, so there is no middleman left to block.
+- **Added**: Your stream address is now encrypted end-to-end to the device you're casting to.
+  The receiver shows a one-time key in its QR code, so the key travels from its screen to your
+  camera and never over the internet. Only that device can read what you send.
+- **Added**: "Enter code manually" for casting, for when a camera won't focus on a TV screen.
+  The receiver shows a short code like `PICKLE 481926`; type it however you like — spaced, run
+  together, or the digits in chunks — and it finds the same device.
+- **Added**: Casting a channel no longer stops it playing on your own device. Both IPTV accounts
+  allow only one stream at a time, so handing the receiver your own stream used to knock you off.
+  The app now asks the provider what it allows, and where the same channel exists on your other
+  provider it casts that copy instead, leaving yours untouched.
+- **Fixed**: Playback errors used to say "unknown". They now name the cause — an account already
+  streaming elsewhere, an expired account, a provider outage, a channel your TV can't decode —
+  and stop retrying when retrying cannot possibly help.
+
+
 ## v6.53 - 2026-09-19
 - **Fixed**: "Cast to same device" from v6.52 didn't actually stick around — backing out of a cast
   channel and opening a different one lost all memory of who you'd just cast to, since it was
