@@ -1,7 +1,7 @@
 {
-  "versionCode": 492,
-  "versionName": "6.54",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.54/MKTV.apk",
-  "apkSha256": "ad17eac571d31697e8f800c246e32a990314f83369a49a43c1e32c3569a37c1c",
-  "changelog": "Casting to a device actually works now — it used to route the video through a proxy the provider blocks, so it always failed. The stream address is encrypted end-to-end to the receiving device, there is a manual code to type when a camera will not scan the QR, and casting a channel no longer knocks you off your own stream. Playback errors now name the cause instead of saying unknown."
+  "versionCode": 493,
+  "versionName": "6.55",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.55/MKTV.apk",
+  "apkSha256": "b14a901d915f863d892ad3c0675dfc708b3f4aad86e33f0af1cf20a1f3eacc48",
+  "changelog": "Whoever you cast to can now change channels themselves instead of being stuck on what you sent — your favourites travel with the cast, so they can flip through them with CH+/CH- on their own remote."
 }

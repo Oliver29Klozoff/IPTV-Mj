@@ -736,7 +736,16 @@ class PlayerActivity : AppCompatActivity() {
      * cross-provider lookup — with a warning, because that's the case where the user's own
      * playback is about to stop.
      */
+    /** Which provider the LAST resolveCastUrl() decided to cast through, so the channel pack
+     * can be built from that same provider. Set by resolveCastUrl, read straight after. */
+    private var lastCastServerIndex: Int = -1
+
+    /** How many favourites travel with a cast. Bounded because every entry is a full URL inside
+     * the sealed box, and the whole thing has to fit comfortably in one Firestore document. */
+    private val CAST_PACK_LIMIT = 40
+
     private suspend fun resolveCastUrl(): Pair<String, String?> {
+        lastCastServerIndex = serverIndex
         // Ask the provider what it actually allows rather than assuming. An account with room
         // for a second stream can cast its own URL — same quality, no name-matching guesswork.
         // Only a single-connection account needs the cross-provider dance. Unknown counts as
@@ -760,6 +769,10 @@ class PlayerActivity : AppCompatActivity() {
         return try {
             val url = if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
                       else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
+            // The channel pack must be built from whichever provider the cast actually goes out
+            // on, or the receiver could change channel back onto the account this device is
+            // using and knock itself off.
+            lastCastServerIndex = matchServerIndex
             com.iptvapp.IptvApplication.logPlaybackEvent(
                 applicationContext,
                 "CAST: \"$streamTitle\" on serverIndex=$serverIndex sent as \"$matchName\" " +
@@ -771,6 +784,49 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * The channel pack that travels with a cast, so the receiver can change channel instead of
+     * being stuck on whatever was sent. Built from favourites: a curated, bounded set, which
+     * beats dumping a whole category of thousands.
+     *
+     * [viaServerIndex] is the provider the cast itself is going out on. When that differs from
+     * the one being watched (the single-connection case — see resolveCastUrl), the pack has to
+     * come from that same provider too, or the receiver would change channel straight back onto
+     * the account this device is using and knock itself off. Resolving those in bulk matters:
+     * one scan of the other catalogue rather than one per favourite.
+     *
+     * Returns empty when nothing can be built, which simply means the receiver gets the single
+     * channel and no list — the old behaviour.
+     */
+    private suspend fun buildCastChannelPack(viaServerIndex: Int): List<com.iptvapp.sync.CastRelayManager.CastChannel> {
+        return try {
+            val favs = db.channelDao().getFavoriteChannelsBlocking().take(CAST_PACK_LIMIT)
+            if (favs.isEmpty()) return emptyList()
+
+            if (viaServerIndex == serverIndex) {
+                // Same provider we're watching on: its own URLs are already correct.
+                favs.mapNotNull { ch ->
+                    val url = try { repository.getLiveStreamUrl(ch.streamId) } catch (_: Exception) { null }
+                    url?.let { com.iptvapp.sync.CastRelayManager.CastChannel(ch.name, it) }
+                }
+            } else {
+                val matches = repository.findFailoverChannels(favs.map { it.name }, serverIndex)
+                favs.mapNotNull { ch ->
+                    val m = matches[com.iptvapp.util.ChannelNameMatcher.normalize(ch.name)]
+                        ?: return@mapNotNull null
+                    val (idx, sid, name) = m
+                    val url = try {
+                        if (idx == -1) repository.getLiveStreamUrl(sid)
+                        else repository.getMergedLiveStreamUrl(idx, sid)
+                    } catch (_: Exception) { null }
+                    url?.let { com.iptvapp.sync.CastRelayManager.CastChannel(name, it) }
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     private fun sendCastToScannedCode(code: String) {
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "Nothing playing to cast", Toast.LENGTH_SHORT).show()
@@ -779,7 +835,8 @@ class PlayerActivity : AppCompatActivity() {
         Toast.makeText(this, "Casting...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val (castUrl, warning) = resolveCastUrl()
-            when (castRelay.send(code, castUrl, streamTitle)) {
+            val pack = if (isVod) emptyList() else buildCastChannelPack(lastCastServerIndex)
+            when (castRelay.send(code, castUrl, streamTitle, pack)) {
                 is com.iptvapp.sync.CastSendResult.Sent -> {
                     castRelay.lastSentCode = code
                     // The warning, when there is one, IS the success message — it says the cast

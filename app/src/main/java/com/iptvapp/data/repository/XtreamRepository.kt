@@ -2449,6 +2449,47 @@ class XtreamRepository @Inject constructor(
         return XtreamUrlBuilder(server.serverUrl, server.username, server.password).liveStreamUrl(streamId, "ts")
     }
 
+    /**
+     * Bulk version of [findFailoverChannel], for when a whole set of channels has to be
+     * re-pointed at another provider at once — building the channel pack that goes with a cast,
+     * for instance.
+     *
+     * Calling findFailoverChannel once per name would rescan every other provider's entire
+     * catalogue each time; these catalogues run to tens of thousands of rows, so forty channels
+     * would mean forty full scans. This scans once, indexes by normalized name, and then answers
+     * each name from the map.
+     *
+     * Returns normalized-name -> (serverIndex, streamId, name), keeping the FIRST match for each
+     * name so provider order decides ties, exactly as the single-channel version does when it
+     * has no reliability history to rank by.
+     */
+    suspend fun findFailoverChannels(
+        names: List<String>,
+        excludeServerIndex: Int
+    ): Map<String, Triple<Int, Int, String>> = withContext(Dispatchers.IO) {
+        val wanted = names.mapNotNull { n ->
+            com.iptvapp.util.ChannelNameMatcher.normalize(n).takeIf { it.isNotEmpty() }
+        }.toSet()
+        if (wanted.isEmpty()) return@withContext emptyMap()
+
+        val out = mutableMapOf<String, Triple<Int, Int, String>>()
+        for (server in allConfiguredServers().filter { it.serverIndex != excludeServerIndex }) {
+            val candidates = if (server.serverIndex == -1) {
+                db.channelDao().getAllChannels().first().map { Triple(-1, it.streamId, it.name) }
+            } else {
+                db.mergedChannelDao().getAllForServer(server.serverIndex)
+                    .map { Triple(it.serverIndex, it.streamId, it.name) }
+            }
+            for (c in candidates) {
+                val n = com.iptvapp.util.ChannelNameMatcher.normalize(c.third)
+                if (n.isEmpty() || n !in wanted) continue
+                if (n !in out) out[n] = c
+            }
+            if (out.size == wanted.size) break     // every name placed; no point scanning further
+        }
+        out
+    }
+
     /** Live-playback failover match, found by com.iptvapp.util.ChannelNameMatcher's normalized-
      * name comparison — see its kdoc for why name comparison is the only cross-provider signal
      * available at all (no shared per-channel ID exists across different Xtream panels). Excludes

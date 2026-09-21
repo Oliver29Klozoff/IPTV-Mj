@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.55 - 2026-09-21
+- **Added**: Whoever you cast to can now change channels themselves, instead of being stuck on
+  whatever you sent. Your favourites travel with the cast, so they can flip through them with
+  CH+/CH- on their own remote — no account, no app, no messages back to your phone. If your
+  account only allows one stream at a time and the cast went out on your other provider, the
+  channel list comes from that provider too, so they still can't knock you off your own stream.
+
+
 ## v6.54 - 2026-09-21
 - **Fixed**: Casting to a device never worked. It routed the video through a Cloudflare Worker,
   and the provider refuses traffic from Cloudflare's network — so every cast came back as a

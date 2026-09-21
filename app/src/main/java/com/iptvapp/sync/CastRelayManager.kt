@@ -119,7 +119,15 @@ class CastRelayManager @Inject constructor() {
      * resend so the key comes with it (that is why [lastSentCode] holds the whole payload rather
      * than the bare code). Distinguishes "code doesn't exist" from "receiver predates encryption"
      * from "the write failed" so the caller can say something specific. */
-    suspend fun send(scanned: String, rawUrl: String, title: String): CastSendResult = withContext(Dispatchers.IO) {
+    /** One entry in the channel pack that travels with a cast — see [send]. */
+    data class CastChannel(val name: String, val url: String)
+
+    suspend fun send(
+        scanned: String,
+        rawUrl: String,
+        title: String,
+        channels: List<CastChannel> = emptyList()
+    ): CastSendResult = withContext(Dispatchers.IO) {
         val target = CastBox.parseScanned(scanned)
         val key = target.key ?: return@withContext CastSendResult.ReceiverTooOld
 
@@ -129,8 +137,21 @@ class CastRelayManager @Inject constructor() {
 
         // The title rides inside the box too — on its own it would leak what is being watched to
         // anyone who could read the session document.
+        //
+        // `channels` is the optional pack that lets the receiver change channel on its own.
+        // It has to be a list of ready-made URLs rather than ids: the receiving device has no
+        // account to resolve an id against, which is the whole premise of casting. Everything is
+        // inside the sealed box, so the extra URLs are no more exposed than the one being played
+        // — but it IS more credential-bearing material on that device, which is why the pack is
+        // opt-in per cast rather than always sent.
         val box = try {
-            CastBox.seal(key, JSONObject().put("url", rawUrl).put("title", title).toString())
+            val payload = JSONObject().put("url", rawUrl).put("title", title)
+            if (channels.isNotEmpty()) {
+                val arr = org.json.JSONArray()
+                channels.forEach { arr.put(JSONObject().put("n", it.name).put("u", it.url)) }
+                payload.put("channels", arr)
+            }
+            CastBox.seal(key, payload.toString())
         } catch (_: Exception) {
             return@withContext CastSendResult.SendFailed
         }
