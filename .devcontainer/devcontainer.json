@@ -3,7 +3,8 @@
   "image": "mcr.microsoft.com/devcontainers/java:1-17-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {}
   },
   "containerEnv": {
     "GRADLE_OPTS": "-Dorg.gradle.java.home=${containerEnv:JAVA_HOME}"
