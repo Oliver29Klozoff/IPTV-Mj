@@ -674,10 +674,10 @@ class PlayerActivity : AppCompatActivity() {
      * rather than silently sealing a box no receiver can open. */
     private fun showManualCastCodeDialog() {
         val input = android.widget.EditText(this).apply {
-            hint = "e.g. wobbly pickle ninja toast"
+            hint = "e.g. pickle 481926"
             setSingleLine(true)
-            // The receiver shows the words in caps, but they're matched case-insensitively;
-            // autocorrect would happily "fix" them into something else, so it's turned off.
+            // The receiver shows it in caps, but it's matched case-insensitively; autocorrect
+            // would happily "fix" the name into a real word, so suggestions are turned off.
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         }
@@ -688,13 +688,13 @@ class PlayerActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Enter cast code")
-            .setMessage("Type the words shown on the other device.")
+            .setMessage("Type the name and number shown on the other device.")
             .setView(wrap)
             .setPositiveButton("Cast") { _, _ ->
                 val typed = input.text.toString()
                 val normalized = com.iptvapp.sync.CastBox.normalizePhrase(typed)
-                if (normalized.isEmpty() || !normalized.contains('-')) {
-                    Toast.makeText(this, "Enter all the words shown on the other device", Toast.LENGTH_LONG).show()
+                if (!com.iptvapp.sync.CastBox.looksLikeCode(normalized)) {
+                    Toast.makeText(this, "Enter the full code, name and number", Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
                 sendCastToScannedCode(com.iptvapp.sync.CastBox.manualPayload(typed))

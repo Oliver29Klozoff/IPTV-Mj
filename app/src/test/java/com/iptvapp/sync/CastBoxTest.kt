@@ -168,75 +168,95 @@ class CastBoxTest {
 
     @Test
     fun `phrase normalization matches receiver`() {
+        // However the number gets typed — spaced, run together, or read off the screen in
+        // chunks — it has to land on the same session, or the cast silently never arrives.
+        assertEquals("pickle-481926", CastBox.normalizePhrase("PICKLE 481926"))
+        assertEquals("pickle-481926", CastBox.normalizePhrase("pickle481926"))
+        assertEquals("pickle-481926", CastBox.normalizePhrase("pickle-481926"))
+        assertEquals("pickle-481926", CastBox.normalizePhrase("Pickle 48 19 26"))
+        assertEquals("pickle-481926", CastBox.normalizePhrase("  PICKLE--48-19-26  "))
+        // Four-word codes from an older receiver must still normalize unchanged.
         assertEquals("wobbly-pickle-ninja-toast", CastBox.normalizePhrase("Wobbly Pickle Ninja Toast"))
-        assertEquals("wobbly-pickle-ninja-toast", CastBox.normalizePhrase("  WOBBLY--pickle  NINJA_toast "))
-        assertEquals("wobbly-pickle-ninja-toast", CastBox.normalizePhrase("wobbly-pickle-ninja-toast"))
         assertEquals("", CastBox.normalizePhrase("   "))
         assertEquals("", CastBox.normalizePhrase("---"))
     }
 
     @Test
     fun `pbkdf2 matches receiver`() {
-        val ph = "wobbly-pickle-ninja-toast"
-        assertEquals("921bdc2dca798ccb03aa5bd84f37ca00921751b3f2baabd14dae5980361d9cc1",
+        val ph = "pickle-481926"
+        assertEquals("46cb2f3ae4d7c1268ec68e6dbec6904a53827c7fda1e4ac4d98ab894a7709baa",
             hex(CastBox.pbkdf2(ph, "salt", 1)))
         // Two iterations pins the XOR-accumulate step, where an off-by-one hides.
-        assertEquals("176e119ec159c56344dde6961eb1fb4f9677e922362d121500d01f37ddb4313a",
+        assertEquals("9c5899ef1b48c28117e34c69c94e98f7451b0891f175b2214512caad616036fa",
             hex(CastBox.pbkdf2(ph, "salt", 2)))
     }
 
     @Test
     fun `session id and key derived from phrase match receiver`() {
-        val ph = "wobbly-pickle-ninja-toast"
-        assertEquals("r8ntzp3z", CastBox.idFromPhrase(ph))
-        assertEquals("e3120018ab16614dab45aed6f8f338ea46e8ae81d9b0e8bb4d1038ac9ad9946a",
+        val ph = "pickle-481926"
+        assertEquals("b4z5fmgv", CastBox.idFromPhrase(ph))
+        assertEquals("09f49aacf5569cbc070d4f81a3ed8de4b49c18df3b2560c8fcb986ec564c24b0",
             hex(CastBox.keyFromPhrase(ph)))
         // Whatever the user types, however spaced or cased, must land on the same session.
-        assertEquals("r8ntzp3z", CastBox.idFromPhrase("Wobbly Pickle Ninja Toast"))
-        assertEquals("r8ntzp3z", CastBox.idFromPhrase("  WOBBLY--pickle  NINJA_toast "))
+        assertEquals("b4z5fmgv", CastBox.idFromPhrase("PICKLE 481926"))
+        assertEquals("b4z5fmgv", CastBox.idFromPhrase("pickle481926"))
+        assertEquals("b4z5fmgv", CastBox.idFromPhrase("Pickle 48 19 26"))
     }
 
     @Test
     fun `opens a phrase-sealed box from the receiver`() {
-        val sealed = "P4m6l7BVlkOA9Pvgm4UH7Q.6X_JHF8-XGSor71vlZCppFqlnGq-oqubkpwUeneX1kV1ICtSJKdwWbA_31QLEylV" +
-            "zSgea1ouJIWWfu3VNDUPviez-YD_eLhclpStt60.UZ8e5OsaG8TzwcxMoOXVPaONkcu2alBL2JHgqHZN1jo"
+        val sealed = "P4m6l7BVlkOA9Pvgm4UH7Q.Qng0nNdGRorKkDdalU2TkBL-5dOHOByXQsg28OcaKDWXZNXZZhjbcqtKjKOBTFkY" +
+            "EK0kXuJofPOpNAOO-4816-cYKdfQPhco-7AuyiI.22Rhv2EsB3vDJM-lAR0NzLmpoufFdCPJN_aqQ7911Y0"
         assertEquals(
             """{"url":"http://line.example.xyz/live/user/pass/777.ts","title":"Manual Pair"}""",
-            CastBox.open(CastBox.keyFromPhrase("wobbly-pickle-ninja-toast"), sealed)
+            CastBox.open(CastBox.keyFromPhrase("pickle-481926"), sealed)
         )
     }
 
     @Test
-    fun `a one-word typo does not derive a different session`() {
-        // Getting a word wrong must fail to open, not quietly pair with something else.
-        val right = CastBox.keyFromPhrase("wobbly-pickle-ninja-toast")
-        val wrong = CastBox.keyFromPhrase("wobbly-pickle-ninja-waffle")
+    fun `a single wrong digit does not derive a different session`() {
+        // One digit off must fail to open, not quietly pair with something else.
+        val right = CastBox.keyFromPhrase("pickle-481926")
+        val wrong = CastBox.keyFromPhrase("pickle-481927")
         val sealed = CastBox.seal(right, """{"url":"http://h/1.ts"}""")
         assertNull(CastBox.open(wrong, sealed))
-        assertNotEquals(CastBox.idFromPhrase("wobbly-pickle-ninja-toast"),
-            CastBox.idFromPhrase("wobbly-pickle-ninja-waffle"))
+        assertNotEquals(CastBox.idFromPhrase("pickle-481926"), CastBox.idFromPhrase("pickle-481927"))
+        // and a wrong name, likewise
+        assertNotEquals(CastBox.idFromPhrase("pickle-481926"), CastBox.idFromPhrase("waffle-481926"))
     }
 
     @Test
     fun `manual payload round trips through parseScanned`() {
-        val t = CastBox.parseScanned(CastBox.manualPayload("Wobbly Pickle Ninja Toast"))
-        assertEquals("r8ntzp3z", t.code)
-        assertArrayEquals(CastBox.keyFromPhrase("wobbly-pickle-ninja-toast"), t.key)
+        val t = CastBox.parseScanned(CastBox.manualPayload("PICKLE 481926"))
+        assertEquals("b4z5fmgv", t.code)
+        assertArrayEquals(CastBox.keyFromPhrase("pickle-481926"), t.key)
     }
 
     @Test
     fun `manual payload accepts whatever spacing the user typed`() {
-        val a = CastBox.parseScanned("phrase:WOBBLY  pickle -- Ninja_toast")
-        assertEquals("r8ntzp3z", a.code)
-        assertArrayEquals(CastBox.keyFromPhrase("wobbly-pickle-ninja-toast"), a.key)
+        for (typed in listOf("phrase:PICKLE 481926", "phrase:pickle481926", "phrase:Pickle 48 19 26")) {
+            val a = CastBox.parseScanned(typed)
+            assertEquals("b4z5fmgv", a.code)
+            assertArrayEquals(CastBox.keyFromPhrase("pickle-481926"), a.key)
+        }
     }
 
     @Test
-    fun `an empty or single-word phrase is refused, not keyed`() {
-        // Otherwise a stray tap would seal a box addressed to a session nobody is watching.
+    fun `a partial code is refused, not keyed`() {
+        // Otherwise a half-typed code would seal a box addressed to a session nobody watches.
         assertNull(CastBox.parseScanned("phrase:").key)
         assertNull(CastBox.parseScanned("phrase:   ").key)
-        assertNull(CastBox.parseScanned("phrase:wobbly").key)
+        assertNull(CastBox.parseScanned("phrase:pickle").key)      // name but no number
+        assertNull(CastBox.parseScanned("phrase:481926").key)      // number but no name
+    }
+
+    @Test
+    fun `code shape check accepts both receiver formats`() {
+        assertTrue(CastBox.looksLikeCode("pickle-481926"))
+        assertTrue(CastBox.looksLikeCode("wobbly-pickle-ninja-toast"))   // older receivers
+        assertTrue(!CastBox.looksLikeCode("pickle"))
+        assertTrue(!CastBox.looksLikeCode("481926"))
+        assertTrue(!CastBox.looksLikeCode(""))
     }
 
     // ─── QR payload parsing ───

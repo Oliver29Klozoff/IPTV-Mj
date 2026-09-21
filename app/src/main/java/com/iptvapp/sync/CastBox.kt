@@ -150,12 +150,30 @@ object CastBox {
         var lastWasSep = true
         for (ch in s.lowercase()) {
             if (ch in 'a'..'z' || ch in '0'..'9') {
+                // A letter-to-digit boundary counts as a separator in its own right, so
+                // "PICKLE481926" run together is the same code as "pickle-481926". Without
+                // this the two derive different sessions and the cast just never arrives.
+                val prev = if (sb.isNotEmpty()) sb.last() else ' '
+                if (prev != ' ' && prev != '-' && prev.isDigit() != ch.isDigit()) sb.append('-')
                 sb.append(ch); lastWasSep = false
             } else if (!lastWasSep) {
                 sb.append('-'); lastWasSep = true
             }
         }
-        return sb.toString().trimEnd('-')
+        val trimmed = sb.toString().trimEnd('-')
+
+        // Drop separators sitting between two digits, so someone reading the number off the
+        // screen in chunks — "pickle 48 19 26" — lands on the same session as "pickle 481926".
+        // The code is one name and one run of digits, so a gap inside the number is always the
+        // reader's, never the code's.
+        val joined = StringBuilder()
+        for (i in trimmed.indices) {
+            if (trimmed[i] == '-' && i > 0 && i < trimmed.length - 1 &&
+                trimmed[i - 1].isDigit() && trimmed[i + 1].isDigit()
+            ) continue
+            joined.append(trimmed[i])
+        }
+        return joined.toString()
     }
 
     /** PBKDF2-HMAC-SHA256, single 32-byte output block. Written out rather than using
@@ -206,6 +224,14 @@ object CastBox {
      * needs no second code path. */
     const val PHRASE_PREFIX = "phrase:"
 
+    /** Whether an already-normalized phrase has the shape the receiver generates: a name, a
+     * separator, then digits. Checked before sealing so a half-typed code fails in front of the
+     * user instead of silently addressing a session nobody is watching. Kept deliberately loose
+     * about the digit count so a receiver that changes it doesn't need a new app build. */
+    fun looksLikeCode(normalized: String): Boolean =
+        Regex("^[a-z]+(-[0-9]+)+$").matches(normalized) ||
+            Regex("^[a-z]+(-[a-z]+)+$").matches(normalized)   // older four-word receivers
+
     fun manualPayload(phrase: String): String = PHRASE_PREFIX + normalizePhrase(phrase)
 
     fun parseScanned(scanned: String): ScannedTarget {
@@ -213,9 +239,9 @@ object CastBox {
 
         if (trimmed.startsWith(PHRASE_PREFIX, ignoreCase = true)) {
             val phrase = normalizePhrase(trimmed.substring(PHRASE_PREFIX.length))
-            // An empty or one-word phrase is a typo, not a session — deriving a key from it
-            // would just produce a box no receiver can open. Refuse it as keyless.
-            if (phrase.isEmpty() || !phrase.contains('-')) return ScannedTarget("", null)
+            // A partial code is a typo, not a session — deriving a key from it would just
+            // produce a box no receiver can open. Refuse it as keyless.
+            if (!looksLikeCode(phrase)) return ScannedTarget("", null)
             return ScannedTarget(idFromPhrase(phrase), keyFromPhrase(phrase))
         }
 
