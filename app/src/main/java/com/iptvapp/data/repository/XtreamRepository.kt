@@ -1287,6 +1287,62 @@ class XtreamRepository @Inject constructor(
 
     data class ConnectionTestResult(val reachable: Boolean, val responseMs: Long?, val error: String?)
 
+    /** What a provider says about the account behind it: how many streams it may run at once,
+     * how many are running now, and whether it is still active.
+     *
+     * This logic existed only inside testProviderConnection — a manual Settings button — so the
+     * app knew about connection limits in exactly the one place they didn't matter. Both
+     * configured accounts report max_connections=1, which is why casting a channel knocked this
+     * device off its own stream: the receiver opened a second connection on the same account.
+     * Anything about to open a second stream should ask here first.
+     *
+     * Cached briefly rather than per-call: activeConnections changes minute to minute, so a
+     * stale reading is worse than none, but asking the panel on every channel change is rude. */
+    data class AccountLimits(
+        val status: String?,
+        val maxConnections: Int?,      // null = the panel didn't say; NOT "unlimited"
+        val activeConnections: Int?,
+        val fetchedAt: Long
+    ) {
+        val isActive get() = status.equals("Active", ignoreCase = true)
+        val isSingleConnection get() = maxConnections == 1
+        val atLimit get() = maxConnections != null && activeConnections != null &&
+            activeConnections!! >= maxConnections!!
+    }
+
+    private val accountLimitsCache = mutableMapOf<Int, AccountLimits>()
+
+    /** [serverIndex] follows the usual convention: -1 primary, 0..N-1 extra providers.
+     * Returns null when the panel can't be reached — callers must treat that as "unknown",
+     * never as "no limit". */
+    suspend fun accountLimits(serverIndex: Int, forceRefresh: Boolean = false): AccountLimits? =
+        withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            if (!forceRefresh) {
+                accountLimitsCache[serverIndex]?.let {
+                    if (now - it.fetchedAt < 60_000L) return@withContext it
+                }
+            }
+            val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+                ?: return@withContext null
+            try {
+                val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+                val response = api.authenticate(b.apiUrl(), server.username, server.password)
+                if (!response.isSuccessful) return@withContext null
+                val info = response.body()?.userInfo ?: return@withContext null
+                val limits = AccountLimits(
+                    status = info.status,
+                    maxConnections = info.maxConnections.toIntOrNull(),
+                    activeConnections = info.activeCons.toIntOrNull(),
+                    fetchedAt = now
+                )
+                accountLimitsCache[serverIndex] = limits
+                limits
+            } catch (_: Exception) {
+                null
+            }
+        }
+
     /** Raw credentials in, reachability out — doesn't require the server to be saved/configured
      * yet, unlike checkAllProviderHealth() below (which only knows about servers already in
      * prefs.getExtraServersWithNick()). This is what the Add/Edit Provider dialogs' "Test

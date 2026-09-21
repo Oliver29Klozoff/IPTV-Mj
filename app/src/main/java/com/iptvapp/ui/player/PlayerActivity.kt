@@ -737,13 +737,24 @@ class PlayerActivity : AppCompatActivity() {
      * playback is about to stop.
      */
     private suspend fun resolveCastUrl(): Pair<String, String?> {
+        // Ask the provider what it actually allows rather than assuming. An account with room
+        // for a second stream can cast its own URL — same quality, no name-matching guesswork.
+        // Only a single-connection account needs the cross-provider dance. Unknown counts as
+        // "might be limited": the panel not answering is not permission to assume headroom.
+        val limits = try { repository.accountLimits(serverIndex, forceRefresh = true) } catch (_: Exception) { null }
+        val needsOtherProvider = limits == null || limits.isSingleConnection || limits.atLimit
+
+        if (!needsOtherProvider) {
+            return streamUrl to null
+        }
+
         if (isVod) {
-            return streamUrl to "Cast sent — this is the same account, so playback here may stop"
+            return streamUrl to "Cast sent — this account allows one stream at a time, so playback here will stop"
         }
         val match = try {
             repository.findFailoverChannel(streamTitle, serverIndex)
         } catch (_: Exception) { null }
-            ?: return streamUrl to "Cast sent — no other provider has this channel, so playback here may stop"
+            ?: return streamUrl to "Cast sent — no other provider has this channel, so playback here will stop"
 
         val (matchServerIndex, matchStreamId, matchName) = match
         return try {
