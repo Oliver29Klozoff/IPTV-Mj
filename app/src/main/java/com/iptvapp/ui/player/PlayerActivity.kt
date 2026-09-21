@@ -718,6 +718,48 @@ class PlayerActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * Which URL to hand the receiver, and what (if anything) to warn about.
+     *
+     * A cast normally sends this device's own stream URL, which means the receiver opens a
+     * second connection on the SAME Xtream account. Both configured accounts report
+     * max_connections=1, so that second connection either gets refused or knocks this device
+     * off — casting a channel would end your own viewing of it.
+     *
+     * So when another configured provider carries the same channel, cast THAT copy instead:
+     * two providers, one connection each, both play at once. The match is the same
+     * normalized-name lookup live failover already uses (see XtreamRepository
+     * .findFailoverChannel — no shared channel ID exists across Xtream panels, so the name is
+     * the only cross-provider signal there is).
+     *
+     * Falls back to this device's own URL when there's no match, or for VOD, which has no
+     * cross-provider lookup — with a warning, because that's the case where the user's own
+     * playback is about to stop.
+     */
+    private suspend fun resolveCastUrl(): Pair<String, String?> {
+        if (isVod) {
+            return streamUrl to "Cast sent — this is the same account, so playback here may stop"
+        }
+        val match = try {
+            repository.findFailoverChannel(streamTitle, serverIndex)
+        } catch (_: Exception) { null }
+            ?: return streamUrl to "Cast sent — no other provider has this channel, so playback here may stop"
+
+        val (matchServerIndex, matchStreamId, matchName) = match
+        return try {
+            val url = if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
+                      else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext,
+                "CAST: \"$streamTitle\" on serverIndex=$serverIndex sent as \"$matchName\" " +
+                    "(streamId=$matchStreamId) on serverIndex=$matchServerIndex, to keep both streams alive"
+            )
+            url to null
+        } catch (_: Exception) {
+            streamUrl to "Cast sent — couldn't use your other provider, so playback here may stop"
+        }
+    }
+
     private fun sendCastToScannedCode(code: String) {
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "Nothing playing to cast", Toast.LENGTH_SHORT).show()
@@ -725,10 +767,17 @@ class PlayerActivity : AppCompatActivity() {
         }
         Toast.makeText(this, "Casting...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
-            when (castRelay.send(code, streamUrl, streamTitle)) {
+            val (castUrl, warning) = resolveCastUrl()
+            when (castRelay.send(code, castUrl, streamTitle)) {
                 is com.iptvapp.sync.CastSendResult.Sent -> {
                     castRelay.lastSentCode = code
-                    Toast.makeText(this@PlayerActivity, "Cast sent", Toast.LENGTH_SHORT).show()
+                    // The warning, when there is one, IS the success message — it says the cast
+                    // went out and that this screen is the one about to lose the stream.
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        warning ?: "Cast sent — using your other provider, so this keeps playing",
+                        if (warning != null) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                    ).show()
                 }
                 is com.iptvapp.sync.CastSendResult.InvalidCode -> {
                     // The receiver's session is gone (closed the waiting screen, or it's simply a
