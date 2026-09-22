@@ -2024,6 +2024,8 @@ class TvSettingsActivity : AppCompatActivity() {
                     // attachCastSessionListener) so casting a different channel later doesn't
                     // require a brand new QR code, and owns ending the session on its own exit.
                     putExtra("cast_session_code", code)
+                    // Carry the channel pack so the receiver can change channel on its own.
+                    putExtra("cast_channels", com.iptvapp.sync.CastRelayManager.encodePack(payload.channels))
                 })
                 dialog.dismiss()
             }

@@ -14,8 +14,16 @@ import javax.inject.Singleton
 import kotlin.random.Random
 
 /** What a receiver ends up with after opening the sealed box (see [send]) — the real stream URL,
- * which is why the box is what travels and this never is. */
-data class CastPayload(val url: String, val title: String)
+ * which is why the box is what travels and this never is.
+ *
+ * [channels] is the optional pack that lets the receiver change channel on its own. Empty means
+ * the sender didn't include one (or predates the feature), in which case the receiver plays the
+ * single channel exactly as before. */
+data class CastPayload(
+    val url: String,
+    val title: String,
+    val channels: List<CastRelayManager.CastChannel> = emptyList()
+)
 
 sealed class CastSendResult {
     object Sent : CastSendResult()
@@ -122,6 +130,33 @@ class CastRelayManager @Inject constructor() {
     /** One entry in the channel pack that travels with a cast — see [send]. */
     data class CastChannel(val name: String, val url: String)
 
+    companion object {
+        /** The pack has to cross an Intent to reach PlayerActivity, which can't carry a typed
+         * list — so it travels as the same {n,u} JSON used on the wire. Shared here so the
+         * encode and decode can't drift apart in two Activities. */
+        fun encodePack(channels: List<CastChannel>): String {
+            val arr = org.json.JSONArray()
+            channels.forEach { arr.put(JSONObject().put("n", it.name).put("u", it.url)) }
+            return arr.toString()
+        }
+
+        fun decodePack(json: String?): List<CastChannel> {
+            if (json.isNullOrBlank()) return emptyList()
+            return try {
+                val arr = org.json.JSONArray(json)
+                val out = mutableListOf<CastChannel>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val u = o.optString("u").takeIf { it.isNotBlank() } ?: continue
+                    out += CastChannel(o.optString("n").ifBlank { "Channel ${i + 1}" }, u)
+                }
+                out
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+    }
+
     suspend fun send(
         scanned: String,
         rawUrl: String,
@@ -186,7 +221,19 @@ class CastRelayManager @Inject constructor() {
                 val plain = CastBox.open(target.key, box) ?: return@addSnapshotListener
                 val obj = try { JSONObject(plain) } catch (_: Exception) { return@addSnapshotListener }
                 val url = obj.optString("url").takeIf { it.isNotBlank() } ?: return@addSnapshotListener
-                onReceived(CastPayload(url, obj.optString("title").ifBlank { "Cast" }))
+
+                // The optional channel pack. A malformed entry is skipped rather than failing
+                // the whole cast — arriving with one playable channel beats arriving with none.
+                val pack = mutableListOf<CastChannel>()
+                obj.optJSONArray("channels")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        val u = o.optString("u").takeIf { it.isNotBlank() } ?: continue
+                        pack += CastChannel(o.optString("n").ifBlank { "Channel ${i + 1}" }, u)
+                    }
+                }
+
+                onReceived(CastPayload(url, obj.optString("title").ifBlank { "Cast" }, pack))
                 return@addSnapshotListener
             }
 

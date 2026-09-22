@@ -1,7 +1,7 @@
 {
-  "versionCode": 493,
-  "versionName": "6.55",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.55/MKTV.apk",
-  "apkSha256": "b14a901d915f863d892ad3c0675dfc708b3f4aad86e33f0af1cf20a1f3eacc48",
-  "changelog": "Whoever you cast to can now change channels themselves instead of being stuck on what you sent — your favourites travel with the cast, so they can flip through them with CH+/CH- on their own remote."
+  "versionCode": 494,
+  "versionName": "6.56",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.56/MKTV.apk",
+  "apkSha256": "7f8a90c027ff145ce1afbe691074d84b853afaf5427a76a589c71ed4eed71aac",
+  "changelog": "Fixes the channel list from v6.55 when casting to another Android device — CH+/CH- on the receiving device now walks the sender favourites there too, not just on a TV."
 }

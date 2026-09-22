@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.56 - 2026-09-21
+- **Fixed**: The channel list added in v6.55 only worked when casting to a TV running the MKTV
+  TV app — casting to another Android device (a Shield, or another phone) still left the
+  receiver stuck on the single channel that was sent, because the Android receiving side never
+  read the list at all. It does now: CH+/CH- on the receiving device walks the sender's
+  favourites, the same as on a TV.
+
+
 ## v6.55 - 2026-09-21
 - **Added**: Whoever you cast to can now change channels themselves, instead of being stuck on
   whatever you sent. Your favourites travel with the cast, so they can flip through them with

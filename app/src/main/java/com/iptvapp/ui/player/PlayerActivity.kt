@@ -205,6 +205,12 @@ class PlayerActivity : AppCompatActivity() {
     private var castSessionCode: String = ""
     private var castSessionListenerReg: com.google.firebase.firestore.ListenerRegistration? = null
 
+    /** The channel pack that came with a received cast, and where we are in it. Only non-empty
+     * when THIS device is the receiver — see castZap for why a receiver can't use the normal
+     * channel lists. */
+    private var castChannels: List<com.iptvapp.sync.CastRelayManager.CastChannel> = emptyList()
+    private var castIndex: Int = 0
+
     // ─── Watch Party ────────────────────────────────────────────────────────
     private var partyCode: String = ""
     private var isPartyHost: Boolean = false
@@ -372,6 +378,9 @@ class PlayerActivity : AppCompatActivity() {
         traktEpisode = intent.getIntExtra("episode_num", -1)
         episodeSeriesId = intent.getIntExtra("series_id", -1)
         castSessionCode = intent.getStringExtra("cast_session_code") ?: ""
+        // The pack that lets a RECEIVER change channel without an account of its own.
+        castChannels = com.iptvapp.sync.CastRelayManager.decodePack(intent.getStringExtra("cast_channels"))
+        castIndex = castChannels.indexOfFirst { it.url == streamUrl }.takeIf { it >= 0 } ?: 0
         if (castSessionCode.isNotEmpty()) attachCastSessionListener()
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
         isPartyContentSubstituted = intent.getBooleanExtra("watch_party_content_substituted", false)
@@ -974,6 +983,12 @@ class PlayerActivity : AppCompatActivity() {
             runOnUiThread {
                 streamTitle = payload.title
                 binding.tvChannelTitle.text = streamTitle
+                // A later cast can carry a fresh pack (the sender's favourites may have changed,
+                // or it may now be going out on a different provider) — take it, but never let
+                // an absent one wipe a pack we already have.
+                if (payload.channels.isNotEmpty()) castChannels = payload.channels
+                castIndex = castChannels.indexOfFirst { it.url == payload.url }
+                    .takeIf { it >= 0 } ?: 0
                 loadStream(payload.url)
             }
         }
@@ -3204,7 +3219,34 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Channel changing for a device that is RECEIVING a cast.
+     *
+     * The normal paths resolve a stream URL from this device's own account, which a cast
+     * receiver does not have — that is the whole premise of casting. So the sender's pack
+     * carries ready-made URLs and zapping just walks them (see CastRelayManager.send).
+     *
+     * Returns true when it handled the change, so nextChannel/previousChannel can fall through
+     * to their normal behaviour on a device that IS logged in.
+     */
+    private fun castZap(delta: Int): Boolean {
+        if (castChannels.isEmpty()) return false
+        castIndex = ((castIndex + delta) % castChannels.size + castChannels.size) % castChannels.size
+        val ch = castChannels[castIndex]
+        streamTitle = ch.name
+        binding.tvChannelTitle.text = ch.name
+        channelSwitchJob?.cancel()
+        channelSwitchJob = lifecycleScope.launch {
+            // Same debounce as playChannel, so holding the button settles on one load.
+            val debounceMs = prefs.channelZapDebounceMs.first()
+            if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+            loadStream(ch.url)
+        }
+        return true
+    }
+
     private fun nextChannel() {
+        if (castZap(1)) return
         if (serverIndex != -1) {
             if (mergedChannels.isEmpty() || mergedCurrentIndex < 0) return
             mergedCurrentIndex = (mergedCurrentIndex + 1) % mergedChannels.size
@@ -3266,6 +3308,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun previousChannel() {
+        if (castZap(-1)) return
         if (serverIndex != -1) {
             if (mergedChannels.isEmpty() || mergedCurrentIndex < 0) return
             mergedCurrentIndex = if (mergedCurrentIndex == 0) mergedChannels.lastIndex else mergedCurrentIndex - 1
