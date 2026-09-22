@@ -23,19 +23,35 @@ rules_version = '2';
 // rules have not been exercised against the live app yet. Add it once you have
 // confirmed nothing else touches Firestore.
 //
-// Deploy:  firebase deploy --only firestore:rules
+// Test first — firestore-tests/rules.test.js runs these against the emulator, and the
+// first version of this file failed it in four ways that would each have broken casting.
+//
+// Deploy:  firebase deploy --only firestore:rules --project mktv-apk
 //          (or paste into Firebase console -> Firestore -> Rules)
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─── cast sessions ───────────────────────────────────────────────────────
-    // One short-lived document per "Receive a cast" screen, holding `box`: the stream
-    // URL sealed to a one-time key that only ever appeared on the receiver's screen
-    // (the QR, or the typed name-and-number). The server never sees that key.
+    // One document per "Receive a cast" screen, holding `box`: the stream URL (and
+    // optional channel pack and mini-guide) sealed to a key that only ever appeared
+    // on the receiver's screen — the QR, or the typed code. The server never sees it.
+    //
+    // A session lives as long as someone is watching: the receiver polls it, and the
+    // sender re-casts into it when changing channel. So the window below is a
+    // viewing session, not a handshake. An earlier 30-minute window would have cut
+    // live sessions off mid-evening — and the TV answers a denied read by signing in
+    // anonymously again, so it would have minted a new Firebase account on every
+    // poll, every 2.5 seconds, for as long as it stayed on.
     match /cast_sessions/{code} {
+
+      // resource == null is a read of a document that doesn't exist yet. Both the TV
+      // and the phone create a session by first reading a random code to check it is
+      // free, expecting "not found" — without this clause that check is denied and no
+      // session can ever be created. It reveals nothing: there is nothing there.
       allow get: if request.auth != null
-                 && request.time < resource.data.createdAt + duration.value(30, 'm');
+                 && (resource == null
+                     || request.time < resource.data.createdAt + duration.value(12, 'h'));
       allow list: if false;
 
       // Receiver creates the session; sender merges the sealed box in. Both are
@@ -46,16 +62,21 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly(
                          ['createdAt', 'updatedAt', 'box', 'url', 'title']);
 
+      // senderVersion / packSize are written in the clear on every send for
+      // diagnostics (see CastRelayManager.send) — they must be allowed or every cast
+      // fails. The box cap sits under Firestore's 1 MiB document limit; a real pack
+      // is ~28KB, or ~90KB with a mini-guide (200 channels, measured).
       allow update: if request.auth != null
-                    && request.time < resource.data.createdAt + duration.value(30, 'm')
+                    && request.time < resource.data.createdAt + duration.value(12, 'h')
                     && request.resource.data.keys().hasOnly(
-                         ['createdAt', 'updatedAt', 'box', 'url', 'title'])
+                         ['createdAt', 'updatedAt', 'box', 'url', 'title',
+                          'senderVersion', 'packSize'])
                     && (!('box' in request.resource.data)
                         || (request.resource.data.box is string
-                            && request.resource.data.box.size() < 8000));
+                            && request.resource.data.box.size() < 900000));
 
-      // Single-use: both ends delete when done. Anything missed is unreadable after
-      // the 30 minute window above regardless.
+      // Both ends delete when done. Anything missed becomes unreadable once the
+      // window above passes.
       allow delete: if request.auth != null;
     }
 
