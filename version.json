@@ -1,7 +1,7 @@
 {
-  "versionCode": 496,
-  "versionName": "6.58",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.58/MKTV.apk",
-  "apkSha256": "24d821bbb8015762599de4e948d3b863f000c62f490ce210cc794e8f0653a318",
-  "changelog": "Fixes the cast channel list not travelling with a cast, and typed cast codes never working when casting to another Android device."
+  "versionCode": 497,
+  "versionName": "6.59",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.59/MKTV.apk",
+  "apkSha256": "1023ad2615ef51f774f07f59d777b9b342cbacc5272e342f97adb5f82eda9e63",
+  "changelog": "A cast now carries up to 200 channels instead of 40, centred on what you are watching."
 }

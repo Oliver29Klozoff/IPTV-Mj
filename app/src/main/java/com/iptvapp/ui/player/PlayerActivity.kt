@@ -749,9 +749,16 @@ class PlayerActivity : AppCompatActivity() {
      * can be built from that same provider. Set by resolveCastUrl, read straight after. */
     private var lastCastServerIndex: Int = -1
 
-    /** How many favourites travel with a cast. Bounded because every entry is a full URL inside
-     * the sealed box, and the whole thing has to fit comfortably in one Firestore document. */
-    private val CAST_PACK_LIMIT = 40
+    /** How many channels travel with a cast.
+     *
+     * Bounded by what the RECEIVER can afford, not by Firestore: a document can hold 1MiB and
+     * 200 channels seal to roughly 27KB, so there is plenty of headroom there. The real limit is
+     * that a 2015 TV decrypts in interpreted ES5, and decryption cost scales with the pack — 200
+     * is around half a second on that hardware, paid once when the cast arrives (the receiver
+     * caches the result rather than re-decrypting the same box on every poll).
+     *
+     * Raise it if you want more; just remember it is the oldest receiver that pays. */
+    private val CAST_PACK_LIMIT = 200
 
     private suspend fun resolveCastUrl(): Pair<String, String?> {
         lastCastServerIndex = serverIndex
@@ -878,21 +885,22 @@ class PlayerActivity : AppCompatActivity() {
 
             if (viaServerIndex == serverIndex) {
                 // Same provider we're watching on: its own URLs are already correct.
+                val urls = repository.buildLiveStreamUrls(serverIndex, favs.map { it.streamId })
                 favs.mapNotNull { ch ->
-                    val url = try { repository.getLiveStreamUrl(ch.streamId) } catch (_: Exception) { null }
-                    url?.let { com.iptvapp.sync.CastRelayManager.CastChannel(ch.name, it) }
+                    urls[ch.streamId]?.let { com.iptvapp.sync.CastRelayManager.CastChannel(ch.name, it) }
                 }
             } else {
                 val matches = repository.findFailoverChannels(favs.map { it.name }, serverIndex)
-                favs.mapNotNull { ch ->
-                    val m = matches[com.iptvapp.util.ChannelNameMatcher.normalize(ch.name)]
-                        ?: return@mapNotNull null
-                    val (idx, sid, name) = m
-                    val url = try {
-                        if (idx == -1) repository.getLiveStreamUrl(sid)
-                        else repository.getMergedLiveStreamUrl(idx, sid)
-                    } catch (_: Exception) { null }
-                    url?.let { com.iptvapp.sync.CastRelayManager.CastChannel(name, it) }
+                // Group by the provider each match landed on, so each one's credentials are
+                // resolved once rather than once per channel.
+                val hits = favs.mapNotNull { ch ->
+                    matches[com.iptvapp.util.ChannelNameMatcher.normalize(ch.name)]
+                }
+                val urlsByServer = hits.groupBy { it.first }
+                    .mapValues { (idx, list) -> repository.buildLiveStreamUrls(idx, list.map { it.second }) }
+                hits.mapNotNull { (idx, sid, name) ->
+                    urlsByServer[idx]?.get(sid)
+                        ?.let { com.iptvapp.sync.CastRelayManager.CastChannel(name, it) }
                 }
             }
         } catch (_: Exception) {

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.59 - 2026-09-22
+- **Changed**: A cast now carries up to 200 channels instead of 40, centred on whatever you're
+  watching, so there's a lot more for the other end to flip through.
+
+
 ## v6.58 - 2026-09-22
 - **Fixed**: The channel list still wasn't travelling with casts. The lists it was built from are
   loaded in the background when the player opens, and casting before that finished sent nothing —

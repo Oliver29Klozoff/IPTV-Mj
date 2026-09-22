@@ -2450,6 +2450,28 @@ class XtreamRepository @Inject constructor(
     }
 
     /**
+     * Live-stream URLs for many channels on ONE provider, resolving that provider's credentials
+     * a single time.
+     *
+     * getLiveStreamUrl/getMergedLiveStreamUrl each re-read the configured servers (and so the
+     * preferences store) per call, which is unnoticeable for one channel and wasteful for a
+     * couple of hundred — which is exactly what building a cast's channel pack does.
+     *
+     * Returns a streamId -> URL map; ids whose URL cannot be built are simply absent.
+     */
+    suspend fun buildLiveStreamUrls(serverIndex: Int, streamIds: List<Int>): Map<Int, String> =
+        withContext(Dispatchers.IO) {
+            if (streamIds.isEmpty()) return@withContext emptyMap()
+            val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+                ?: return@withContext emptyMap()
+            // The primary provider honours the user's preferred container; merged providers are
+            // .ts everywhere else in this class, so match that rather than inventing a third rule.
+            val format = if (serverIndex == -1) prefs.preferredFormat.first() else "ts"
+            val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
+            streamIds.associateWith { b.liveStreamUrl(it, format) }
+        }
+
+    /**
      * Bulk version of [findFailoverChannel], for when a whole set of channels has to be
      * re-pointed at another provider at once — building the channel pack that goes with a cast,
      * for instance.
