@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.60 - 2026-09-22
+- **Fixed**: A cast only carried as many channels as the category you happened to be in — browsing
+  a 55-channel category meant the other end got 55 and nothing more, even though there was room
+  for 200. It now tops the list up: the category you're in first, then your favourites, then
+  whatever else is on the provider, until it reaches 200.
+
+
 ## v6.59 - 2026-09-22
 - **Changed**: A cast now carries up to 200 channels instead of 40, centred on whatever you're
   watching, so there's a lot more for the other end to flip through.

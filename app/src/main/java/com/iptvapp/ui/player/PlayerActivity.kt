@@ -823,6 +823,35 @@ class PlayerActivity : AppCompatActivity() {
             return list.subList(start, start + CAST_PACK_LIMIT)
         }
 
+        // Fill a pack up to the limit, in order of how relevant each source is, skipping
+        // anything already included. Without this a small category sent a small pack — browsing
+        // a 55-channel category meant the other end got 55 channels and nothing else, even
+        // though there was room for 200.
+        suspend fun topUp(seed: List<PackSource>): List<PackSource> {
+            val out = seed.toMutableList()
+            val seen = out.mapTo(mutableSetOf()) { it.streamId }
+            if (out.size >= CAST_PACK_LIMIT) return out.take(CAST_PACK_LIMIT)
+
+            // Favourites first — the most likely thing anyone would want next.
+            try {
+                for (f in db.channelDao().getFavoriteChannelsBlocking()) {
+                    if (out.size >= CAST_PACK_LIMIT) break
+                    if (seen.add(f.streamId)) out += PackSource(f.streamId, f.name)
+                }
+            } catch (_: Exception) { /* keep whatever we have */ }
+
+            // Then anything else on the provider being cast from, to fill the remainder.
+            if (out.size < CAST_PACK_LIMIT) {
+                try {
+                    for (c in repository.getAllChannels().first()) {
+                        if (out.size >= CAST_PACK_LIMIT) break
+                        if (seen.add(c.streamId)) out += PackSource(c.streamId, c.name)
+                    }
+                } catch (_: Exception) { /* keep whatever we have */ }
+            }
+            return out
+        }
+
         // 1. The list being browsed, if it has finished loading.
         val browsing: List<PackSource> = if (serverIndex != -1) {
             mergedChannels.map { PackSource(it.streamId, it.name) }
@@ -830,7 +859,10 @@ class PlayerActivity : AppCompatActivity() {
             channels.map { PackSource(it.streamId, it.name) }
         }
         if (browsing.isNotEmpty()) {
-            return window(browsing, if (serverIndex != -1) mergedCurrentIndex else currentIndex)
+            val win = window(browsing, if (serverIndex != -1) mergedCurrentIndex else currentIndex)
+            // Only top up from the primary provider's channels — a merged-provider cast would
+            // otherwise be padded with channels from the wrong account entirely.
+            return if (serverIndex == -1) topUp(win) else win
         }
 
         // 2. Those lists are filled by a coroutine started in onCreate, so casting before it

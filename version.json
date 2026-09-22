@@ -1,7 +1,7 @@
 {
-  "versionCode": 497,
-  "versionName": "6.59",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.59/MKTV.apk",
-  "apkSha256": "1023ad2615ef51f774f07f59d777b9b342cbacc5272e342f97adb5f82eda9e63",
-  "changelog": "A cast now carries up to 200 channels instead of 40, centred on what you are watching."
+  "versionCode": 498,
+  "versionName": "6.60",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.60/MKTV.apk",
+  "apkSha256": "792010259068f9d0bbfbc2975e1adc036fd5d6c9bbf4c8f9f6a5fe252bf59c47",
+  "changelog": "A cast now fills its channel list to 200 instead of stopping at whatever your current category held."
 }
