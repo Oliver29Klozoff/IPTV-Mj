@@ -1,7 +1,7 @@
 {
-  "versionCode": 494,
-  "versionName": "6.56",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.56/MKTV.apk",
-  "apkSha256": "7f8a90c027ff145ce1afbe691074d84b853afaf5427a76a589c71ed4eed71aac",
-  "changelog": "Fixes the channel list from v6.55 when casting to another Android device — CH+/CH- on the receiving device now walks the sender favourites there too, not just on a TV."
+  "versionCode": 495,
+  "versionName": "6.57",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.57/MKTV.apk",
+  "apkSha256": "709819617ab716aefd5543ddd43327b42bc7e0521a55bc6f81c50b8aec395864",
+  "changelog": "The cast code is back to a short code of letters and numbers, and the channel list now actually travels with the cast — it was only being built from favourites, so it was usually empty."
 }

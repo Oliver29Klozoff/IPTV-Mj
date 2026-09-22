@@ -141,39 +141,15 @@ object CastBox {
     // CastBoxTest pins it against fixtures generated there.
 
     private const val PBKDF2_ITERATIONS = 4096
-    private const val ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
 
-    /** Accepts whatever spacing and case the user typed: "Wobbly Pickle Ninja Toast",
-     * "wobbly-pickle-ninja-toast" and "WOBBLY  PICKLE NINJA TOAST" are the same phrase. */
+    /** Accepts whatever spacing and case the user typed: "K3M9 X7QP", "k3m9-x7qp" and
+     * "K3M9X7QP" are all the same code. Everything non-alphanumeric is simply dropped. */
     fun normalizePhrase(s: String): String {
         val sb = StringBuilder()
-        var lastWasSep = true
         for (ch in s.lowercase()) {
-            if (ch in 'a'..'z' || ch in '0'..'9') {
-                // A letter-to-digit boundary counts as a separator in its own right, so
-                // "PICKLE481926" run together is the same code as "pickle-481926". Without
-                // this the two derive different sessions and the cast just never arrives.
-                val prev = if (sb.isNotEmpty()) sb.last() else ' '
-                if (prev != ' ' && prev != '-' && prev.isDigit() != ch.isDigit()) sb.append('-')
-                sb.append(ch); lastWasSep = false
-            } else if (!lastWasSep) {
-                sb.append('-'); lastWasSep = true
-            }
+            if (ch in 'a'..'z' || ch in '0'..'9') sb.append(ch)
         }
-        val trimmed = sb.toString().trimEnd('-')
-
-        // Drop separators sitting between two digits, so someone reading the number off the
-        // screen in chunks — "pickle 48 19 26" — lands on the same session as "pickle 481926".
-        // The code is one name and one run of digits, so a gap inside the number is always the
-        // reader's, never the code's.
-        val joined = StringBuilder()
-        for (i in trimmed.indices) {
-            if (trimmed[i] == '-' && i > 0 && i < trimmed.length - 1 &&
-                trimmed[i - 1].isDigit() && trimmed[i + 1].isDigit()
-            ) continue
-            joined.append(trimmed[i])
-        }
-        return joined.toString()
+        return sb.toString()
     }
 
     /** PBKDF2-HMAC-SHA256, single 32-byte output block. Written out rather than using
@@ -189,15 +165,11 @@ object CastBox {
         return out
     }
 
-    /** The session's Firestore document id, derived from the phrase so the phrase alone is
-     * enough to find the session — there is no second code to read off the screen. */
-    fun idFromPhrase(phrase: String): String {
-        val h = MessageDigest.getInstance("SHA-256")
-            .digest("mktv-cast-id-v1:${normalizePhrase(phrase)}".toByteArray(Charsets.UTF_8))
-        val sb = StringBuilder()
-        for (i in 0 until 8) sb.append(ID_CHARS[(h[i].toInt() and 0xff) % ID_CHARS.length])
-        return sb.toString()
-    }
+    /** The session's Firestore document id IS the code, normalized — the code is already a
+     * random alphanumeric string, which is exactly the shape a document id needs, so there is
+     * nothing to derive. The id isn't what protects a cast; the sealed box is, keyed from the
+     * same code below. */
+    fun idFromPhrase(phrase: String): String = normalizePhrase(phrase)
 
     fun keyFromPhrase(phrase: String): ByteArray =
         pbkdf2(phrase, "mktv-cast-v1:${idFromPhrase(phrase)}")
@@ -224,13 +196,12 @@ object CastBox {
      * needs no second code path. */
     const val PHRASE_PREFIX = "phrase:"
 
-    /** Whether an already-normalized phrase has the shape the receiver generates: a name, a
-     * separator, then digits. Checked before sealing so a half-typed code fails in front of the
-     * user instead of silently addressing a session nobody is watching. Kept deliberately loose
-     * about the digit count so a receiver that changes it doesn't need a new app build. */
+    /** Whether an already-normalized code has the shape a receiver generates: a short run of
+     * letters and digits. Checked before sealing so a half-typed code fails in front of the
+     * user instead of silently addressing a session nobody is watching. The length range is
+     * deliberately loose so a receiver that changes it doesn't need a new app build. */
     fun looksLikeCode(normalized: String): Boolean =
-        Regex("^[a-z]+(-[0-9]+)+$").matches(normalized) ||
-            Regex("^[a-z]+(-[a-z]+)+$").matches(normalized)   // older four-word receivers
+        Regex("^[a-z0-9]{6,16}$").matches(normalized)
 
     fun manualPayload(phrase: String): String = PHRASE_PREFIX + normalizePhrase(phrase)
 

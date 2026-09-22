@@ -683,7 +683,7 @@ class PlayerActivity : AppCompatActivity() {
      * rather than silently sealing a box no receiver can open. */
     private fun showManualCastCodeDialog() {
         val input = android.widget.EditText(this).apply {
-            hint = "e.g. pickle 481926"
+            hint = "e.g. k3m9x7qp"
             setSingleLine(true)
             // The receiver shows it in caps, but it's matched case-insensitively; autocorrect
             // would happily "fix" the name into a real word, so suggestions are turned off.
@@ -697,13 +697,13 @@ class PlayerActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Enter cast code")
-            .setMessage("Type the name and number shown on the other device.")
+            .setMessage("Type the code shown on the other device.")
             .setView(wrap)
             .setPositiveButton("Cast") { _, _ ->
                 val typed = input.text.toString()
                 val normalized = com.iptvapp.sync.CastBox.normalizePhrase(typed)
                 if (!com.iptvapp.sync.CastBox.looksLikeCode(normalized)) {
-                    Toast.makeText(this, "Enter the full code, name and number", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Enter the whole code shown on the other device", Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
                 sendCastToScannedCode(com.iptvapp.sync.CastBox.manualPayload(typed))
@@ -793,23 +793,61 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /** Name and stream id of a channel destined for a cast pack, independent of which of the
+     * two entity types it came from. */
+    private data class PackSource(val streamId: Int, val name: String)
+
+    /**
+     * Which channels go in the pack.
+     *
+     * Originally this was favourites only, which turned out to be the wrong default: a sender
+     * with nothing favourited produced an empty pack, and the receiver reported "no channel list
+     * to zap through" with nothing to explain why. The list you are ALREADY browsing is both the
+     * more intuitive answer and almost always populated, so it comes first and favourites are
+     * the fallback.
+     *
+     * Windowed around the current channel rather than truncated from the top — a category can
+     * run to thousands, and the useful forty are the ones either side of what is playing.
+     */
+    private suspend fun pickCastPackSource(): List<PackSource> {
+        val browsing: List<PackSource> = if (serverIndex != -1) {
+            mergedChannels.map { PackSource(it.streamId, it.name) }
+        } else {
+            channels.map { PackSource(it.streamId, it.name) }
+        }
+        val idx = if (serverIndex != -1) mergedCurrentIndex else currentIndex
+
+        if (browsing.isNotEmpty()) {
+            if (browsing.size <= CAST_PACK_LIMIT) return browsing
+            val start = (idx - CAST_PACK_LIMIT / 2).coerceIn(0, browsing.size - CAST_PACK_LIMIT)
+            return browsing.subList(start, start + CAST_PACK_LIMIT)
+        }
+
+        return try {
+            db.channelDao().getFavoriteChannelsBlocking()
+                .take(CAST_PACK_LIMIT)
+                .map { PackSource(it.streamId, it.name) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     /**
      * The channel pack that travels with a cast, so the receiver can change channel instead of
-     * being stuck on whatever was sent. Built from favourites: a curated, bounded set, which
-     * beats dumping a whole category of thousands.
+     * being stuck on whatever was sent. See [pickCastPackSource] for where the channels come from.
      *
      * [viaServerIndex] is the provider the cast itself is going out on. When that differs from
      * the one being watched (the single-connection case — see resolveCastUrl), the pack has to
      * come from that same provider too, or the receiver would change channel straight back onto
      * the account this device is using and knock itself off. Resolving those in bulk matters:
-     * one scan of the other catalogue rather than one per favourite.
+     * one scan of the other catalogue rather than one per channel.
      *
-     * Returns empty when nothing can be built, which simply means the receiver gets the single
-     * channel and no list — the old behaviour.
+     * Returns empty when nothing can be built, which means the receiver gets the single channel
+     * and no list — the caller says so out loud rather than leaving it a mystery.
      */
     private suspend fun buildCastChannelPack(viaServerIndex: Int): List<com.iptvapp.sync.CastRelayManager.CastChannel> {
         return try {
-            val favs = db.channelDao().getFavoriteChannelsBlocking().take(CAST_PACK_LIMIT)
+            val favs = pickCastPackSource()
             if (favs.isEmpty()) return emptyList()
 
             if (viaServerIndex == serverIndex) {
@@ -850,10 +888,16 @@ class PlayerActivity : AppCompatActivity() {
                     castRelay.lastSentCode = code
                     // The warning, when there is one, IS the success message — it says the cast
                     // went out and that this screen is the one about to lose the stream.
+                    // An empty pack is worth saying out loud too: otherwise the only clue is the
+                    // receiver complaining it has no channel list, with nothing to connect it to.
+                    val msg = warning
+                        ?: if (pack.isEmpty() && !isVod)
+                            "Cast sent — but no channel list went with it, so they can't change channel"
+                        else "Cast sent — ${pack.size} channels they can flip through"
                     Toast.makeText(
                         this@PlayerActivity,
-                        warning ?: "Cast sent — using your other provider, so this keeps playing",
-                        if (warning != null) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                        msg,
+                        if (warning != null || pack.isEmpty()) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
                     ).show()
                 }
                 is com.iptvapp.sync.CastSendResult.InvalidCode -> {

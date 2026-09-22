@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v6.57 - 2026-09-21
+- **Changed**: The cast code is back to a short code of letters and numbers (like `K3M9X7QP`)
+  instead of a word and a six-digit number. Shorter to read off a TV and type — and, as it
+  happens, harder to guess: eight characters from thirty-six is more combinations than the
+  longer code it replaces.
+- **Fixed**: The channel list often didn't travel with a cast at all, leaving the receiving
+  device saying it had no channels to flip through. It was built only from favourites, so a
+  sender with nothing favourited sent nothing. It now uses the list you're actually browsing,
+  falling back to favourites, and tells you how many channels went with the cast — or says
+  plainly when none did.
+
+
 ## v6.56 - 2026-09-21
 - **Fixed**: The channel list added in v6.55 only worked when casting to a TV running the MKTV
   TV app — casting to another Android device (a Shield, or another phone) still left the
