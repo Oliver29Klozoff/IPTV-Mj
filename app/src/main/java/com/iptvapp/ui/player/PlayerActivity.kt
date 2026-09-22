@@ -810,19 +810,45 @@ class PlayerActivity : AppCompatActivity() {
      * run to thousands, and the useful forty are the ones either side of what is playing.
      */
     private suspend fun pickCastPackSource(): List<PackSource> {
+        fun window(list: List<PackSource>, around: Int): List<PackSource> {
+            if (list.size <= CAST_PACK_LIMIT) return list
+            val start = (around - CAST_PACK_LIMIT / 2).coerceIn(0, list.size - CAST_PACK_LIMIT)
+            return list.subList(start, start + CAST_PACK_LIMIT)
+        }
+
+        // 1. The list being browsed, if it has finished loading.
         val browsing: List<PackSource> = if (serverIndex != -1) {
             mergedChannels.map { PackSource(it.streamId, it.name) }
         } else {
             channels.map { PackSource(it.streamId, it.name) }
         }
-        val idx = if (serverIndex != -1) mergedCurrentIndex else currentIndex
-
         if (browsing.isNotEmpty()) {
-            if (browsing.size <= CAST_PACK_LIMIT) return browsing
-            val start = (idx - CAST_PACK_LIMIT / 2).coerceIn(0, browsing.size - CAST_PACK_LIMIT)
-            return browsing.subList(start, start + CAST_PACK_LIMIT)
+            return window(browsing, if (serverIndex != -1) mergedCurrentIndex else currentIndex)
         }
 
+        // 2. Those lists are filled by a coroutine started in onCreate, so casting before it
+        //    finishes would silently send an empty pack — the receiver then reports it has no
+        //    channels and there is nothing on screen to connect that to. Ask the repository
+        //    directly rather than trusting a field that may not be populated yet.
+        try {
+            val fromDb = if (serverIndex != -1) {
+                val current = repository.getMergedChannelByIndexAndId(serverIndex, mergedStreamId)
+                if (current != null) {
+                    repository.getMergedChannelsByCategory(serverIndex, current.categoryId).first()
+                        .map { PackSource(it.streamId, it.name) }
+                } else emptyList()
+            } else {
+                repository.getAllChannels().first().map { PackSource(it.streamId, it.name) }
+            }
+            if (fromDb.isNotEmpty()) {
+                val here = fromDb.indexOfFirst {
+                    it.streamId == (if (serverIndex != -1) mergedStreamId else streamId)
+                }
+                return window(fromDb, if (here >= 0) here else 0)
+            }
+        } catch (_: Exception) { /* fall through to favourites */ }
+
+        // 3. Last resort.
         return try {
             db.channelDao().getFavoriteChannelsBlocking()
                 .take(CAST_PACK_LIMIT)

@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v6.58 - 2026-09-22
+- **Fixed**: The channel list still wasn't travelling with casts. The lists it was built from are
+  loaded in the background when the player opens, and casting before that finished sent nothing —
+  silently. It now asks the database directly rather than trusting a list that may not have
+  arrived yet.
+- **Fixed**: Casting to another Android device by typing the code (rather than scanning the QR)
+  never worked — the receiver only ever tried the QR's key, so a typed cast was quietly ignored.
+  It now tries both, the same way the TV app always has.
+- **Fixed**: The session code a receiving Android device generates now comes from a secure random
+  source. It used to be a plain random number, which was harmless when the code was only an
+  identifier but not once typing it derives the encryption key.
+
+
 ## v6.57 - 2026-09-21
 - **Changed**: The cast code is back to a short code of letters and numbers (like `K3M9X7QP`)
   instead of a word and a six-digit number. Shorter to read off a TV and type — and, as it

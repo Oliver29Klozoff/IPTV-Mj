@@ -1,6 +1,7 @@
 package com.iptvapp.sync
 
 import com.google.firebase.auth.FirebaseAuth
+import com.iptvapp.BuildConfig
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -87,7 +88,25 @@ class CastRelayManager @Inject constructor() {
     }
 
     private val codeChars = "abcdefghijklmnopqrstuvwxyz0123456789"
-    private fun randomCode(): String = (1..8).map { codeChars[Random.nextInt(codeChars.length)] }.joinToString("")
+
+    /** kotlin.random.Random was fine when this code was only a Firestore document id. It is not
+     * fine now: a sender who types the code instead of scanning derives the encryption key from
+     * it, so the code IS a secret, and a predictable one hands over every session this device
+     * will ever show. Rejection sampling keeps all 36 characters equally likely — 256 is not a
+     * multiple of 36, so a plain modulo would quietly favour the first four. */
+    private val secureRng = java.security.SecureRandom()
+
+    private fun randomCode(): String {
+        val sb = StringBuilder(8)
+        val buf = ByteArray(1)
+        while (sb.length < 8) {
+            secureRng.nextBytes(buf)
+            val v = buf[0].toInt() and 0xff
+            if (v >= 252) continue          // 252 = 36 * 7
+            sb.append(codeChars[v % codeChars.length])
+        }
+        return sb.toString()
+    }
 
     /** Receiver side: creates a fresh, empty session and returns the payload to show as a QR —
      * same collision-retry shape WatchPartyManager.startParty uses.
@@ -120,13 +139,6 @@ class CastRelayManager @Inject constructor() {
         "$code.${CastBox.b64uEncode(key)}"
     }
 
-    /** Sender side: seals [rawUrl] under the session key from the scanned QR and pushes ONLY the
-     * ciphertext into that session — [rawUrl] itself never leaves this device.
-     *
-     * [scanned] is the raw QR contents, "<code>.<base64url key>"; pass the same string back on a
-     * resend so the key comes with it (that is why [lastSentCode] holds the whole payload rather
-     * than the bare code). Distinguishes "code doesn't exist" from "receiver predates encryption"
-     * from "the write failed" so the caller can say something specific. */
     /** One entry in the channel pack that travels with a cast — see [send]. */
     data class CastChannel(val name: String, val url: String)
 
@@ -157,6 +169,13 @@ class CastRelayManager @Inject constructor() {
         }
     }
 
+    /** Sender side: seals [rawUrl] under the session key from the scanned QR and pushes ONLY the
+     * ciphertext into that session — [rawUrl] itself never leaves this device.
+     *
+     * [scanned] is the raw QR contents, "<code>.<base64url key>"; pass the same string back on a
+     * resend so the key comes with it (that is why [lastSentCode] holds the whole payload rather
+     * than the bare code). Distinguishes "code doesn't exist" from "receiver predates encryption"
+     * from "the write failed" so the caller can say something specific. */
     suspend fun send(
         scanned: String,
         rawUrl: String,
@@ -195,6 +214,13 @@ class CastRelayManager @Inject constructor() {
             sessions.document(target.code).set(
                 hashMapOf(
                     "box" to box,
+                    // Plain, deliberately: "did the sender include a channel pack, and what
+                    // version sent it" is the question that comes up every time a cast
+                    // misbehaves, and it cannot be answered from the outside once everything
+                    // interesting is encrypted. Neither field is sensitive — the APK and its
+                    // version are public — and the stream URL stays inside the box.
+                    "senderVersion" to BuildConfig.VERSION_NAME,
+                    "packSize" to channels.size,
                     "updatedAt" to FieldValue.serverTimestamp()
                 ),
                 SetOptions.merge()
@@ -218,7 +244,14 @@ class CastRelayManager @Inject constructor() {
             if (box != null && target.key != null) {
                 // A box that won't open is a stale QR or someone writing junk into the session.
                 // Drop it silently; never fall through to the unauthenticated fields below.
-                val plain = CastBox.open(target.key, box) ?: return@addSnapshotListener
+                // Two keys can open this: the 256-bit one from the QR, and the one stretched
+                // from the typed code. A sender who typed the code instead of scanning sealed
+                // with the second, and this used to try only the first — so a manual cast to an
+                // Android receiver silently never arrived. The MAC decides which is right, so
+                // trying both is safe. The TV receiver has always done this.
+                val plain = CastBox.open(target.key, box)
+                    ?: CastBox.open(CastBox.keyFromPhrase(target.code), box)
+                    ?: return@addSnapshotListener
                 val obj = try { JSONObject(plain) } catch (_: Exception) { return@addSnapshotListener }
                 val url = obj.optString("url").takeIf { it.isNotBlank() } ?: return@addSnapshotListener
 
