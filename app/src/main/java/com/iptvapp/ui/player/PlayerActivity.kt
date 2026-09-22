@@ -804,6 +804,46 @@ class PlayerActivity : AppCompatActivity() {
      * two entity types it came from. */
     private data class PackSource(val streamId: Int, val name: String)
 
+    /** How many programmes per channel ride along with a cast. The receiver can't fetch a guide
+     * of its own, so this is all it will ever have — but every extra programme is paid for on
+     * every channel, and it goes stale anyway, so it stays a short window rather than a day. */
+    private val CAST_EPG_PER_CHANNEL = 3
+
+    /**
+     * Now-and-next for the channels in a cast pack, in one query rather than one per channel.
+     *
+     * Only programmes that haven't finished are included: sending the morning's schedule to
+     * someone watching in the evening is worse than sending nothing, because the receiver would
+     * confidently show the wrong thing. Timestamps are normalised to epoch milliseconds —
+     * providers return seconds or milliseconds depending on the panel, and the receiver compares
+     * them against its own clock.
+     */
+    private suspend fun castEpgFor(
+        serverIdx: Int,
+        streamIds: List<Int>
+    ): Map<Int, List<com.iptvapp.sync.CastRelayManager.CastProgramme>> {
+        if (streamIds.isEmpty()) return emptyMap()
+        return try {
+            val now = System.currentTimeMillis()
+            fun ms(v: Long) = if (v < 100_000_000_000L) v * 1000L else v
+            db.epgDao().getEpgForStreams(streamIds, serverIdx).first()
+                .filter { ms(it.stopTimestamp) > now }
+                .groupBy { it.streamId }
+                .mapValues { (_, rows) ->
+                    rows.sortedBy { ms(it.startTimestamp) }
+                        .take(CAST_EPG_PER_CHANNEL)
+                        .map {
+                            com.iptvapp.sync.CastRelayManager.CastProgramme(
+                                it.title, ms(it.startTimestamp), ms(it.stopTimestamp)
+                            )
+                        }
+                }
+        } catch (_: Exception) {
+            // A cast with no guide is still a working cast.
+            emptyMap()
+        }
+    }
+
     /**
      * Which channels go in the pack.
      *
@@ -918,8 +958,13 @@ class PlayerActivity : AppCompatActivity() {
             if (viaServerIndex == serverIndex) {
                 // Same provider we're watching on: its own URLs are already correct.
                 val urls = repository.buildLiveStreamUrls(serverIndex, favs.map { it.streamId })
+                val guide = castEpgFor(serverIndex, favs.map { it.streamId })
                 favs.mapNotNull { ch ->
-                    urls[ch.streamId]?.let { com.iptvapp.sync.CastRelayManager.CastChannel(ch.name, it) }
+                    urls[ch.streamId]?.let {
+                        com.iptvapp.sync.CastRelayManager.CastChannel(
+                            ch.name, it, guide[ch.streamId].orEmpty()
+                        )
+                    }
                 }
             } else {
                 val matches = repository.findFailoverChannels(favs.map { it.name }, serverIndex)
@@ -930,9 +975,16 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 val urlsByServer = hits.groupBy { it.first }
                     .mapValues { (idx, list) -> repository.buildLiveStreamUrls(idx, list.map { it.second }) }
+                // The guide has to come from the provider the cast is going out on — the other
+                // provider's stream ids are its own, and its schedule can differ.
+                val guideByServer = hits.groupBy { it.first }
+                    .mapValues { (idx, list) -> castEpgFor(idx, list.map { it.second }) }
                 hits.mapNotNull { (idx, sid, name) ->
-                    urlsByServer[idx]?.get(sid)
-                        ?.let { com.iptvapp.sync.CastRelayManager.CastChannel(name, it) }
+                    urlsByServer[idx]?.get(sid)?.let {
+                        com.iptvapp.sync.CastRelayManager.CastChannel(
+                            name, it, guideByServer[idx]?.get(sid).orEmpty()
+                        )
+                    }
                 }
             }
         } catch (_: Exception) {

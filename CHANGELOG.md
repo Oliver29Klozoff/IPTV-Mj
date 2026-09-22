@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.61 - 2026-09-22
+- **Added**: Casts now carry a small guide. Where you have EPG for a channel, the next few
+  programmes travel with it, so whoever you cast to sees what's on and what's next as they flip
+  channels — on a device with no account, which can't fetch a guide of its own. Only programmes
+  that haven't finished are sent, and once they run out the other end shows nothing rather than
+  something out of date.
+
+
 ## v6.60 - 2026-09-22
 - **Fixed**: A cast only carried as many channels as the category you happened to be in — browsing
   a 55-channel category meant the other end got 55 and nothing more, even though there was room

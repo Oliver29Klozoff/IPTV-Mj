@@ -139,16 +139,58 @@ class CastRelayManager @Inject constructor() {
         "$code.${CastBox.b64uEncode(key)}"
     }
 
-    /** One entry in the channel pack that travels with a cast — see [send]. */
-    data class CastChannel(val name: String, val url: String)
+    /** One programme in a cast channel's mini-guide. Times are epoch milliseconds, absolute
+     * rather than relative, so the receiver decides what is "now" by its own clock — a cast can
+     * sit on a waiting screen for a while before anyone watches it. */
+    data class CastProgramme(val title: String, val startMs: Long, val stopMs: Long)
+
+    /** One entry in the channel pack that travels with a cast — see [send].
+     *
+     * [epg] is the next few programmes, where the sender has them. A receiver has no account to
+     * fetch a guide with, so whatever it shows has to have been sent. It is deliberately a short
+     * window: a full schedule would dwarf the URLs, and anything captured at cast time goes stale
+     * anyway — the receiver shows nothing rather than something wrong once it runs out. */
+    data class CastChannel(
+        val name: String,
+        val url: String,
+        val epg: List<CastProgramme> = emptyList()
+    )
 
     companion object {
         /** The pack has to cross an Intent to reach PlayerActivity, which can't carry a typed
          * list — so it travels as the same {n,u} JSON used on the wire. Shared here so the
          * encode and decode can't drift apart in two Activities. */
+        /** Short keys throughout: this is repeated per channel inside a sealed box that the
+         * oldest receiver has to decrypt, so the field names are a real fraction of its size.
+         * n=name u=url e=epg, and within a programme t=title s=start x=end. */
+        fun encodeChannel(c: CastChannel): JSONObject {
+            val o = JSONObject().put("n", c.name).put("u", c.url)
+            if (c.epg.isNotEmpty()) {
+                val e = org.json.JSONArray()
+                c.epg.forEach { p ->
+                    e.put(JSONObject().put("t", p.title).put("s", p.startMs).put("x", p.stopMs))
+                }
+                o.put("e", e)
+            }
+            return o
+        }
+
+        fun decodeChannel(o: JSONObject, fallbackIndex: Int): CastChannel? {
+            val u = o.optString("u").takeIf { it.isNotBlank() } ?: return null
+            val epg = mutableListOf<CastProgramme>()
+            o.optJSONArray("e")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val p = arr.optJSONObject(i) ?: continue
+                    val t = p.optString("t").takeIf { it.isNotBlank() } ?: continue
+                    epg += CastProgramme(t, p.optLong("s"), p.optLong("x"))
+                }
+            }
+            return CastChannel(o.optString("n").ifBlank { "Channel ${fallbackIndex + 1}" }, u, epg)
+        }
+
         fun encodePack(channels: List<CastChannel>): String {
             val arr = org.json.JSONArray()
-            channels.forEach { arr.put(JSONObject().put("n", it.name).put("u", it.url)) }
+            channels.forEach { arr.put(encodeChannel(it)) }
             return arr.toString()
         }
 
@@ -159,8 +201,7 @@ class CastRelayManager @Inject constructor() {
                 val out = mutableListOf<CastChannel>()
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
-                    val u = o.optString("u").takeIf { it.isNotBlank() } ?: continue
-                    out += CastChannel(o.optString("n").ifBlank { "Channel ${i + 1}" }, u)
+                    decodeChannel(o, i)?.let { out += it }
                 }
                 out
             } catch (_: Exception) {
@@ -202,7 +243,7 @@ class CastRelayManager @Inject constructor() {
             val payload = JSONObject().put("url", rawUrl).put("title", title)
             if (channels.isNotEmpty()) {
                 val arr = org.json.JSONArray()
-                channels.forEach { arr.put(JSONObject().put("n", it.name).put("u", it.url)) }
+                channels.forEach { arr.put(encodeChannel(it)) }
                 payload.put("channels", arr)
             }
             CastBox.seal(key, payload.toString())
@@ -261,8 +302,7 @@ class CastRelayManager @Inject constructor() {
                 obj.optJSONArray("channels")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val o = arr.optJSONObject(i) ?: continue
-                        val u = o.optString("u").takeIf { it.isNotBlank() } ?: continue
-                        pack += CastChannel(o.optString("n").ifBlank { "Channel ${i + 1}" }, u)
+                        decodeChannel(o, i)?.let { pack += it }
                     }
                 }
 

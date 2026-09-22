@@ -1,7 +1,7 @@
 {
-  "versionCode": 498,
-  "versionName": "6.60",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.60/MKTV.apk",
-  "apkSha256": "792010259068f9d0bbfbc2975e1adc036fd5d6c9bbf4c8f9f6a5fe252bf59c47",
-  "changelog": "A cast now fills its channel list to 200 instead of stopping at whatever your current category held."
+  "versionCode": 499,
+  "versionName": "6.61",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.61/MKTV.apk",
+  "apkSha256": "428d73fba7541f36260fca815ebeb6b29113ba0720c7fd21024b76d6cf61f9c0",
+  "changelog": "Casts now carry a small guide, so whoever you cast to can see what is on as they flip channels."
 }
