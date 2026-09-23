@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.62 - 2026-09-23
+- **Added**: A cast icon on the portrait mini player. Tap it to cast whatever the mini player is
+  playing: scan the receiver's QR, type its code by hand, or "Cast to same device" if you've
+  already cast this session. Portrait only.
+- **Changed**: The "Cast to a Device" QR scanner now supports pinch-to-zoom (CameraX + ML Kit
+  instead of zxing), so a small or distant QR code on a TV is much easier to read. Backup-restore
+  QR scanning on the login screen is unchanged.
+
 ## v6.61 - 2026-09-22
 - **Added**: Casts now carry a small guide. Where you have EPG for a channel, the next few
   programmes travel with it, so whoever you cast to sees what's on and what's next as they flip

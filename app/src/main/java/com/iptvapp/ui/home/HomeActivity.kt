@@ -4,6 +4,11 @@ import com.iptvapp.R
 import com.iptvapp.util.enableTvFocusHighlight
 import com.iptvapp.util.isLargeScreenDevice
 import androidx.appcompat.app.AlertDialog
+import com.iptvapp.data.repository.XtreamRepository
+import com.iptvapp.sync.CastBox
+import com.iptvapp.sync.CastRelayManager
+import com.iptvapp.sync.CastSendResult
+import com.iptvapp.ui.player.CastQrScanActivity
 import javax.inject.Inject
 
 import android.app.Activity
@@ -867,6 +872,144 @@ class HomeActivity : AppCompatActivity() {
     // whatever movie/show was actually in the mini player.
     private var restoredMiniState: HomeViewModel.MiniPlayerState? = null
 
+    // Cast-to-device from the mini player (see CastRelayManager kdoc) - same scanner PlayerActivity
+    // uses, sending whatever the mini player currently has open instead of a full-player stream.
+    private val castScanLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val code = result.data?.getStringExtra(CastQrScanActivity.EXTRA_CODE) ?: return@registerForActivityResult
+        sendMiniCastToScannedCode(code)
+    }
+    private val castCameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) launchMiniCastScanner() else {
+            Toast.makeText(this, "No camera access — use \"Enter code manually\" instead", Toast.LENGTH_LONG).show()
+            showManualMiniCastCodeDialog()
+        }
+    }
+
+    /** Same chooser PlayerActivity's Watch Party menu offers for "Cast to a Device" - scanning
+     * isn't the only path once camera permission is granted, so this stays reachable even when
+     * a scan gets cancelled or the receiver's QR won't focus. */
+    private fun showMiniCastMenu() {
+        val remembered = castRelay.lastSentCode
+        if (remembered != null) {
+            AlertDialog.Builder(this)
+                .setTitle("Cast to a Device")
+                .setItems(arrayOf("Cast to same device", "Scan a QR code", "Enter code manually")) { _, which ->
+                    when (which) {
+                        0 -> sendMiniCastToScannedCode(remembered)
+                        1 -> requestMiniCastCameraAndScan()
+                        else -> showManualMiniCastCodeDialog()
+                    }
+                }
+                .show()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Cast to a Device")
+                .setItems(arrayOf("Scan a QR code", "Enter code manually")) { _, which ->
+                    if (which == 0) requestMiniCastCameraAndScan() else showManualMiniCastCodeDialog()
+                }
+                .show()
+        }
+    }
+
+    private fun requestMiniCastCameraAndScan() {
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) launchMiniCastScanner() else castCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    private fun launchMiniCastScanner() {
+        castScanLauncher.launch(Intent(this, CastQrScanActivity::class.java))
+    }
+
+    private fun showManualMiniCastCodeDialog() {
+        val input = EditText(this).apply {
+            hint = "e.g. k3m9x7qp"
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val wrap = android.widget.FrameLayout(this).apply {
+            setPadding(pad * 2, pad, pad * 2, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Enter cast code")
+            .setMessage("Type the code shown on the other device.")
+            .setView(wrap)
+            .setPositiveButton("Cast") { _, _ ->
+                val typed = input.text.toString()
+                val normalized = CastBox.normalizePhrase(typed)
+                if (!CastBox.looksLikeCode(normalized)) {
+                    Toast.makeText(this, "Enter the whole code shown on the other device", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                sendMiniCastToScannedCode(CastBox.manualPayload(typed))
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Same account-limits/failover dance as PlayerActivity.resolveCastUrl (see its kdoc) - the
+     * mini player has no EPG/channel-pack plumbing of its own, so a mini-player cast always sends
+     * just the one stream, with no channel list the receiver could flip through. */
+    private suspend fun resolveMiniCastUrl(): Pair<String, String?> {
+        val idx = currentMiniServerIndex
+        val limits = try { repository.accountLimits(idx, forceRefresh = true) } catch (_: Exception) { null }
+        val needsOtherProvider = limits == null || limits.isSingleConnection || limits.atLimit
+        if (!needsOtherProvider) return currentMiniUrl to null
+
+        if (currentMiniIsVod) {
+            return currentMiniUrl to "Cast sent — this account allows one stream at a time, so playback here will stop"
+        }
+        val match = try {
+            repository.findFailoverChannel(currentMiniTitle, idx)
+        } catch (_: Exception) { null }
+            ?: return currentMiniUrl to "Cast sent — no other provider has this channel, so playback here will stop"
+
+        val (matchServerIndex, matchStreamId, _) = match
+        return try {
+            val url = if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
+                      else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
+            url to null
+        } catch (_: Exception) {
+            currentMiniUrl to "Cast sent — couldn't use your other provider, so playback here may stop"
+        }
+    }
+
+    private fun sendMiniCastToScannedCode(code: String) {
+        if (currentMiniUrl.isBlank()) {
+            Toast.makeText(this, "Nothing playing to cast", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, "Casting...", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val (castUrl, warning) = resolveMiniCastUrl()
+            when (castRelay.send(code, castUrl, currentMiniTitle)) {
+                is CastSendResult.Sent -> {
+                    castRelay.lastSentCode = code
+                    val msg = warning
+                        ?: "Cast sent — but no channel list went with it, so they can't change channel"
+                    Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
+                }
+                is CastSendResult.InvalidCode -> {
+                    if (castRelay.lastSentCode == code) castRelay.lastSentCode = null
+                    Toast.makeText(this@HomeActivity, "That code doesn't match a waiting device", Toast.LENGTH_LONG).show()
+                }
+                is CastSendResult.ReceiverTooOld -> {
+                    if (castRelay.lastSentCode == code) castRelay.lastSentCode = null
+                    Toast.makeText(this@HomeActivity, "Update the app on that device before casting to it", Toast.LENGTH_LONG).show()
+                }
+                is CastSendResult.SendFailed ->
+                    Toast.makeText(this@HomeActivity, "Couldn't send the cast — try again", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@registerForActivityResult
@@ -912,6 +1055,8 @@ class HomeActivity : AppCompatActivity() {
     private val viewModel: HomeViewModel by viewModels()
     @Inject lateinit var okHttpClient: okhttp3.OkHttpClient
     @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
+    @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var castRelay: CastRelayManager
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var mergedChannelAdapter: MergedChannelAdapter
@@ -1694,6 +1839,13 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
                     serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
                 )
+            }
+        }
+        binding.btnCastMini?.setOnClickListener {
+            if (currentMiniUrl.isBlank()) {
+                Toast.makeText(this, "Nothing playing to cast", Toast.LENGTH_SHORT).show()
+            } else {
+                showMiniCastMenu()
             }
         }
         restoredMiniState?.let { state ->

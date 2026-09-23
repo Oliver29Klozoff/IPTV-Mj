@@ -1,7 +1,7 @@
 {
-  "versionCode": 499,
-  "versionName": "6.61",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.61/MKTV.apk",
-  "apkSha256": "428d73fba7541f36260fca815ebeb6b29113ba0720c7fd21024b76d6cf61f9c0",
-  "changelog": "Casts now carry a small guide, so whoever you cast to can see what is on as they flip channels."
+  "versionCode": 500,
+  "versionName": "6.62",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.62/MKTV.apk",
+  "apkSha256": "2726e1670e53ba7945549d28ac48be06384a24402e9f64394c87fa115bcbcab7",
+  "changelog": "Cast icon on the portrait mini player, and a pinch-to-zoom QR scanner so a small or distant TV QR code is easier to read."
 }

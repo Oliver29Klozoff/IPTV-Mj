@@ -104,6 +104,11 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|density|uiMode|keyboard|navigation|fontScale" />
 
         <activity
+            android:name=".ui.player.CastQrScanActivity"
+            android:theme="@style/Theme.IptvApp.Fullscreen"
+            android:exported="false" />
+
+        <activity
             android:name=".ui.player.MultiViewActivity"
             android:theme="@style/Theme.IptvApp.Fullscreen"
             android:exported="false"

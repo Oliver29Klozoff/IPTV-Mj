@@ -51,8 +51,6 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityPlayerBinding
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -177,9 +175,12 @@ class PlayerActivity : AppCompatActivity() {
 
     // Cast-to-device (see CastRelayManager kdoc) — separate scan launcher from anything Watch
     // Party uses (that's a typed-code dialog, not a QR scan) and from LoginActivity's own QR
-    // scanner (that one's for restoring a backup, a different payload/purpose entirely).
-    private val castScanLauncher = registerForActivityResult(ScanContract()) { result ->
-        val code = result.contents ?: return@registerForActivityResult
+    // scanner (that one's for restoring a backup, a different payload/purpose entirely, and
+    // stays on zxing - see CastQrScanActivity kdoc for why this one moved off it).
+    private val castScanLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val code = result.data?.getStringExtra(CastQrScanActivity.EXTRA_CODE) ?: return@registerForActivityResult
         sendCastToScannedCode(code)
     }
     private val castCameraPermissionLauncher = registerForActivityResult(
@@ -719,12 +720,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun launchCastScanner() {
-        castScanLauncher.launch(ScanOptions().apply {
-            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            setPrompt("Scan the \"Receive a Cast\" QR code on the other device")
-            setBeepEnabled(false)
-            setOrientationLocked(true)
-        })
+        castScanLauncher.launch(Intent(this, CastQrScanActivity::class.java))
     }
 
     /**

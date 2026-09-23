@@ -166,6 +166,16 @@
             android:layout_height="match_parent"
             android:background="@drawable/hero_gradient_scrim" />
 
+        <ImageButton
+            android:id="@+id/btnCastMini"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Cast to a Device"
+            android:src="@drawable/ic_cast_mini" />
+
         <!-- Hero info panel -->
         <LinearLayout
             android:layout_width="match_parent"

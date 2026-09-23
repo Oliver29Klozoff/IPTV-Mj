@@ -41,3 +41,6 @@ S4MK3/
 .vscode/.firebaserc
 .firebaserc
 
+
+# Firestore emulator log, written by firestore-tests/rules.test.js runs
+firestore-debug.log

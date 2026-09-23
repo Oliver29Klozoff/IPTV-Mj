@@ -15,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 499
-        versionName "6.61"
+        versionCode 500
+        versionName "6.62"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -129,6 +129,13 @@ dependencies {
     ksp 'com.github.bumptech.glide:ksp:4.16.0'
     implementation 'com.google.zxing:core:3.5.2'
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    // Cast-to-device's QR scan only (see CastQrScanActivity kdoc) - zxing's CaptureActivity above
+    // has no zoom hook, CameraX/ML Kit does. LoginActivity's backup-restore QR scan stays on zxing.
+    implementation 'androidx.camera:camera-core:1.4.1'
+    implementation 'androidx.camera:camera-camera2:1.4.1'
+    implementation 'androidx.camera:camera-lifecycle:1.4.1'
+    implementation 'androidx.camera:camera-view:1.4.1'
+    implementation 'com.google.mlkit:barcode-scanning:17.3.0'
     implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
     implementation 'androidx.mediarouter:mediarouter:1.7.0'
     implementation 'androidx.datastore:datastore-preferences:1.0.0'
