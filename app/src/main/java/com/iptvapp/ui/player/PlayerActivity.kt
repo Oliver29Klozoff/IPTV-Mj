@@ -859,6 +859,16 @@ class PlayerActivity : AppCompatActivity() {
             return list.subList(start, start + CAST_PACK_LIMIT)
         }
 
+        // US categories only. Filling the rest of the 200 from the whole provider was
+        // sending UK, CA and the rest of the lineup along with the channel being watched.
+        val usIds = try {
+            repository.getLiveCategories().first()
+                .filter { com.iptvapp.util.CategoryFilters.isUsCategory(it.categoryName) }
+                .map { it.categoryId }
+                .toSet()
+        } catch (_: Exception) { emptySet() }
+        fun ChannelEntity.isUs() = categoryId != null && categoryId in usIds
+
         // Fill a pack up to the limit, in order of how relevant each source is, skipping
         // anything already included. Without this a small category sent a small pack — browsing
         // a 55-channel category meant the other end got 55 channels and nothing else, even
@@ -871,15 +881,17 @@ class PlayerActivity : AppCompatActivity() {
             // Favourites first — the most likely thing anyone would want next.
             try {
                 for (f in db.channelDao().getFavoriteChannelsBlocking()) {
+                    if (!f.isUs()) continue
                     if (out.size >= CAST_PACK_LIMIT) break
                     if (seen.add(f.streamId)) out += PackSource(f.streamId, f.name)
                 }
             } catch (_: Exception) { /* keep whatever we have */ }
 
-            // Then anything else on the provider being cast from, to fill the remainder.
+            // Then other US channels on the same provider, to fill the remainder.
             if (out.size < CAST_PACK_LIMIT) {
                 try {
                     for (c in repository.getAllChannels().first()) {
+                        if (!c.isUs()) continue
                         if (out.size >= CAST_PACK_LIMIT) break
                         if (seen.add(c.streamId)) out += PackSource(c.streamId, c.name)
                     }
@@ -888,14 +900,19 @@ class PlayerActivity : AppCompatActivity() {
             return out
         }
 
-        // 1. The list being browsed, if it has finished loading.
+        // 1. The list being browsed, if it has finished loading. Foreign categories dropped.
         val browsing: List<PackSource> = if (serverIndex != -1) {
-            mergedChannels.map { PackSource(it.streamId, it.name) }
+            mergedChannels
+                .filter { com.iptvapp.util.CategoryFilters.isUsCategory(it.categoryName) }
+                .map { PackSource(it.streamId, it.name) }
         } else {
-            channels.map { PackSource(it.streamId, it.name) }
+            channels.filter { it.isUs() }.map { PackSource(it.streamId, it.name) }
         }
         if (browsing.isNotEmpty()) {
-            val win = window(browsing, if (serverIndex != -1) mergedCurrentIndex else currentIndex)
+            val here = browsing.indexOfFirst {
+                it.streamId == (if (serverIndex != -1) mergedStreamId else streamId)
+            }
+            val win = window(browsing, if (here >= 0) here else 0)
             // Only top up from the primary provider's channels — a merged-provider cast would
             // otherwise be padded with channels from the wrong account entirely.
             return if (serverIndex == -1) topUp(win) else win
@@ -908,12 +925,15 @@ class PlayerActivity : AppCompatActivity() {
         try {
             val fromDb = if (serverIndex != -1) {
                 val current = repository.getMergedChannelByIndexAndId(serverIndex, mergedStreamId)
-                if (current != null) {
+                if (current != null && com.iptvapp.util.CategoryFilters.isUsCategory(current.categoryName)) {
                     repository.getMergedChannelsByCategory(serverIndex, current.categoryId).first()
+                        .filter { com.iptvapp.util.CategoryFilters.isUsCategory(it.categoryName) }
                         .map { PackSource(it.streamId, it.name) }
                 } else emptyList()
             } else {
-                repository.getAllChannels().first().map { PackSource(it.streamId, it.name) }
+                repository.getAllChannels().first()
+                    .filter { it.isUs() }
+                    .map { PackSource(it.streamId, it.name) }
             }
             if (fromDb.isNotEmpty()) {
                 val here = fromDb.indexOfFirst {
@@ -926,6 +946,7 @@ class PlayerActivity : AppCompatActivity() {
         // 3. Last resort.
         return try {
             db.channelDao().getFavoriteChannelsBlocking()
+                .filter { it.isUs() }
                 .take(CAST_PACK_LIMIT)
                 .map { PackSource(it.streamId, it.name) }
         } catch (_: Exception) {

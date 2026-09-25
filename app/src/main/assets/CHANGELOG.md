@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v6.64 - 2026-09-24
+- **Changed**: A cast's channel list is US categories only. Filling the list out to 200 no
+  longer pulls in channels from other countries.
+
 ## v6.63 - 2026-09-24
 - **Added**: Casting from the portrait mini player now sends the same channel list as the full
   player, up to 200 channels around what is playing, plus a short guide. The TV can change

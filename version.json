@@ -1,7 +1,7 @@
 {
-  "versionCode": 501,
-  "versionName": "6.63",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.63/MKTV.apk",
-  "apkSha256": "9f8e325196d539825261748c0228b417956c8f2235deefdc6d72c8e4272bc28b",
-  "changelog": "Casting from the portrait mini player now sends up to 200 channels and a short guide, so the TV can change channel and show what is on now and next."
+  "versionCode": 502,
+  "versionName": "6.64",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.64/MKTV.apk",
+  "apkSha256": "21e37f23ef163c39a2b8ca876764a7a05f42ca4acdd7c4cab6546e2fac8442a7",
+  "changelog": "A cast's channel list is US categories only. Filling the list out to 200 no longer pulls in channels from other countries."
 }

@@ -998,21 +998,29 @@ class HomeActivity : AppCompatActivity() {
     private suspend fun miniPackSource(): List<MiniPackSource> {
         val watching = currentMiniServerIndex
         val hereId = if (watching != -1) currentMiniMergedStreamId else currentMiniStreamId
+        val usIds = try {
+            repository.getLiveCategories().first()
+                .filter { com.iptvapp.util.CategoryFilters.isUsCategory(it.categoryName) }
+                .map { it.categoryId }
+                .toSet()
+        } catch (_: Exception) { emptySet() }
         val raw: List<MiniPackSource> = try {
             if (watching != -1) {
                 val current = repository.getMergedChannelByIndexAndId(watching, hereId)
-                if (current != null) {
+                if (current != null && com.iptvapp.util.CategoryFilters.isUsCategory(current.categoryName)) {
                     repository.getMergedChannelsByCategory(watching, current.categoryId).first()
+                        .filter { com.iptvapp.util.CategoryFilters.isUsCategory(it.categoryName) }
                         .map { MiniPackSource(it.streamId, it.name) }
                 } else emptyList()
             } else {
                 val current = if (hereId > 0) repository.getChannelById(hereId) else null
-                val list = if (!current?.categoryId.isNullOrBlank()) {
-                    repository.getChannelsByCategory(current!!.categoryId!!).first()
+                val list = if (!current?.categoryId.isNullOrBlank() && current!!.categoryId in usIds) {
+                    repository.getChannelsByCategory(current.categoryId!!).first()
                 } else {
-                    repository.getAllChannels().first()
+                    repository.getAllChannels().first().filter { it.categoryId != null && it.categoryId in usIds }
                 }
-                list.map { MiniPackSource(it.streamId, it.name) }
+                list.filter { it.categoryId != null && it.categoryId in usIds }
+                    .map { MiniPackSource(it.streamId, it.name) }
             }
         } catch (_: Exception) {
             emptyList()
@@ -1032,6 +1040,7 @@ class HomeActivity : AppCompatActivity() {
         val seen = out.mapTo(mutableSetOf()) { it.streamId }
         try {
             for (f in db.channelDao().getFavoriteChannelsBlocking()) {
+                if (f.categoryId == null || f.categoryId !in usIds) continue
                 if (out.size >= MINI_CAST_PACK_LIMIT) break
                 if (seen.add(f.streamId)) out += MiniPackSource(f.streamId, f.name)
             }
@@ -1039,6 +1048,7 @@ class HomeActivity : AppCompatActivity() {
         if (out.size < MINI_CAST_PACK_LIMIT) {
             try {
                 for (c in repository.getAllChannels().first()) {
+                    if (c.categoryId == null || c.categoryId !in usIds) continue
                     if (out.size >= MINI_CAST_PACK_LIMIT) break
                     if (seen.add(c.streamId)) out += MiniPackSource(c.streamId, c.name)
                 }
