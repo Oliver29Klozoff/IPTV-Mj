@@ -257,11 +257,23 @@ class XtreamRepository @Inject constructor(
 
     suspend fun searchProgramsAcrossChannels(query: String): List<ProgramSearchMatch> {
         val matches = db.epgDao().searchProgramsAcrossChannels(query)
+        if (matches.isEmpty()) return emptyList()
+        val primaryById = matches.filter { it.serverIndex == -1 }.map { it.streamId }.distinct()
+            .chunked(900)
+            .flatMap { db.channelDao().getChannelsByIds(it) }
+            .associateBy { it.streamId }
+        val mergedByKey = mutableMapOf<Pair<Int, Int>, MergedChannelEntity>()
+        matches.filter { it.serverIndex != -1 }.groupBy { it.serverIndex }.forEach { (idx, rows) ->
+            rows.map { it.streamId }.distinct().chunked(900).forEach { chunk ->
+                db.mergedChannelDao().getByServerAndIds(idx, chunk)
+                    .forEach { mergedByKey[idx to it.streamId] = it }
+            }
+        }
         return matches.mapNotNull { epg ->
             if (epg.serverIndex == -1) {
-                db.channelDao().getChannelById(epg.streamId)?.let { ProgramSearchMatch(it, null, epg.title) }
+                primaryById[epg.streamId]?.let { ProgramSearchMatch(it, null, epg.title) }
             } else {
-                db.mergedChannelDao().getByIndexAndId(epg.serverIndex, epg.streamId)?.let { ProgramSearchMatch(null, it, epg.title) }
+                mergedByKey[epg.serverIndex to epg.streamId]?.let { ProgramSearchMatch(null, it, epg.title) }
             }
         }
     }
@@ -1991,7 +2003,7 @@ class XtreamRepository @Inject constructor(
     suspend fun getMergedVodByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity? =
         db.mergedVodDao().getByIndexAndId(serverIndex, streamId)
 
-    fun searchMergedVod(query: String): Flow<List<MergedVodEntity>> = db.mergedVodDao().search(query)
+    fun searchMergedVod(query: String): Flow<List<MergedVodEntity>> = db.mergedVodDao().search(ftsQuery(query))
 
     suspend fun setMergedVodFavorite(vod: MergedVodEntity, isFavorite: Boolean) {
         db.mergedVodDao().setFavorite(vod.serverIndex, vod.streamId, isFavorite)
@@ -2108,7 +2120,7 @@ class XtreamRepository @Inject constructor(
     suspend fun getMergedSeriesByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity? =
         db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)
 
-    fun searchMergedSeries(query: String): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().search(query)
+    fun searchMergedSeries(query: String): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().search(ftsQuery(query))
 
     suspend fun setMergedSeriesFavorite(series: MergedSeriesEntity, isFavorite: Boolean) {
         db.mergedSeriesDao().setFavorite(series.serverIndex, series.seriesId, isFavorite)
@@ -2164,7 +2176,7 @@ class XtreamRepository @Inject constructor(
         db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)
 
     fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
-        db.mergedChannelDao().search(query)
+        db.mergedChannelDao().search(ftsQuery(query))
 
     fun getHiddenMergedChannels(): Flow<List<MergedChannelEntity>> = db.mergedChannelDao().getHidden()
     // Chunked for the same reason as bulkHideChannels.

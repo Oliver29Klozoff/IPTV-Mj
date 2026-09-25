@@ -25,11 +25,14 @@ import com.iptvapp.data.local.entities.*
         ChannelFts::class,
         VodFts::class,
         SeriesFts::class,
+        MergedChannelFts::class,
+        MergedVodFts::class,
+        MergedSeriesFts::class,
         BandwidthUsageEntity::class,
         ProviderHourlyStatsEntity::class,
         EpgDiffAlertEntity::class
     ],
-    version = 39,
+    version = 40,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -527,6 +530,37 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Extra-provider catalogs are searched with LIKE, which reads every row. FTS4 matches
+        // the primary catalog. External-content tables stay in sync through triggers, and
+        // rebuild fills them from rows that already exist.
+        val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                fun fts(table: String) {
+                    db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS ${table}_fts USING fts4(content=`$table`, name)")
+                    db.execSQL("INSERT INTO ${table}_fts(${table}_fts) VALUES('rebuild')")
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS ${table}_fts_ai AFTER INSERT ON `$table` BEGIN
+                          INSERT INTO ${table}_fts(docid, name) VALUES (new.rowid, new.name);
+                        END
+                    """.trimIndent())
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS ${table}_fts_ad AFTER DELETE ON `$table` BEGIN
+                          INSERT INTO ${table}_fts(${table}_fts, docid, name) VALUES('delete', old.rowid, old.name);
+                        END
+                    """.trimIndent())
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS ${table}_fts_au AFTER UPDATE ON `$table` BEGIN
+                          INSERT INTO ${table}_fts(${table}_fts, docid, name) VALUES('delete', old.rowid, old.name);
+                          INSERT INTO ${table}_fts(docid, name) VALUES (new.rowid, new.name);
+                        END
+                    """.trimIndent())
+                }
+                fts("merged_channels")
+                fts("merged_vod")
+                fts("merged_series")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -535,7 +569,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
             MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
-            MIGRATION_37_38, MIGRATION_38_39
+            MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40
         )
     }
 }

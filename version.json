@@ -1,7 +1,7 @@
 {
-  "versionCode": 500,
-  "versionName": "6.62",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.62/MKTV.apk",
-  "apkSha256": "2726e1670e53ba7945549d28ac48be06384a24402e9f64394c87fa115bcbcab7",
-  "changelog": "Cast icon on the portrait mini player, and a pinch-to-zoom QR scanner so a small or distant TV QR code is easier to read."
+  "versionCode": 501,
+  "versionName": "6.63",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.63/MKTV.apk",
+  "apkSha256": "9f8e325196d539825261748c0228b417956c8f2235deefdc6d72c8e4272bc28b",
+  "changelog": "Casting from the portrait mini player now sends up to 200 channels and a short guide, so the TV can change channel and show what is on now and next."
 }

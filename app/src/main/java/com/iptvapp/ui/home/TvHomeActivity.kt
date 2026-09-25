@@ -2553,6 +2553,7 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun showMoviesFullScreen() {
+        viewModel.ensureVodCatalog()
         binding.tvMainContent.visibility = View.GONE
         binding.tvMoviesFullScreen.visibility = View.VISIBLE
         // Movies is a full-screen takeover with no mini player visible at all — pausing here
@@ -2812,6 +2813,7 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     private fun showSeriesFullScreen() {
+        viewModel.ensureSeriesCatalog()
         binding.tvMainContent.visibility = View.GONE
         binding.tvSeriesFullScreen.visibility = View.VISIBLE
         // See showMoviesFullScreen's identical call for why.

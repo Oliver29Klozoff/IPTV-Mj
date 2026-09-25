@@ -57,17 +57,23 @@ class IptvApplication : Application(), Configuration.Provider {
         setupCrashHandler()
         applyCrashReportingPreference()
         createNotificationChannels()
-        try { CastContext.getSharedInstance(this) } catch (_: Exception) {}
-        // Keeps downloaded_content in sync with Media3's own DownloadManager for the lifetime
-        // of the process — see DownloadProgressListener's kdoc.
-        try { DownloadProgressListener(db).register(this) } catch (_: Exception) {}
+        // Cast and the download listener both touch Play services / Media3. Doing that inside
+        // onCreate holds the first frame. Posted so the home screen can draw first.
+        val app = this
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try { CastContext.getSharedInstance(app) } catch (_: Exception) {}
+            try { DownloadProgressListener(db).register(app) } catch (_: Exception) {}
+        }
         // Marks which build is actually running the current process — an OTA update installs
         // the new APK but a process already alive keeps running the old code until it's fully
         // restarted, which otherwise silently defeats any logging added in the new version.
-        try {
-            val v = packageManager.getPackageInfo(packageName, 0)
-            logPlaybackEvent(this, "APP STARTED: v${v.versionName} (${v.versionCodeCompat})")
-        } catch (_: Exception) {}
+        // The log rewrite reads the whole crash file; that stays off the main thread.
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val v = packageManager.getPackageInfo(packageName, 0)
+                logPlaybackEvent(app, "APP STARTED: v${v.versionName} (${v.versionCodeCompat})")
+            } catch (_: Exception) {}
+        }
     }
 
     private fun createNotificationChannels() {

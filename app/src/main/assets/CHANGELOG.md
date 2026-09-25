@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v6.63 - 2026-09-24
+- **Added**: Casting from the portrait mini player now sends the same channel list as the full
+  player, up to 200 channels around what is playing, plus a short guide. The TV can change
+  channel, and the receiver shows what is on now and what is next.
+- **Changed**: Cold start no longer reads the whole movie and series catalogs before the first
+  screen. Search on extra providers uses the same index as the primary catalog, and each search
+  stops at 200 matches.
+
 ## v6.62 - 2026-09-23
 - **Added**: A cast icon on the portrait mini player. Tap it to cast whatever the mini player is
   playing: scan the receiver's QR, type its code by hand, or "Cast to same device" if you've

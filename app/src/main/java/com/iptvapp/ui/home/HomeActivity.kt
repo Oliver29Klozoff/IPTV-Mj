@@ -954,11 +954,19 @@ class HomeActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Same account-limits/failover dance as PlayerActivity.resolveCastUrl (see its kdoc) - the
-     * mini player has no EPG/channel-pack plumbing of its own, so a mini-player cast always sends
-     * just the one stream, with no channel list the receiver could flip through. */
+    /** Which provider the last [resolveMiniCastUrl] decided to cast through, so the channel
+     *  pack is built from that same provider. A pack from the account this phone is using
+     *  would knock the mini player off as soon as the TV changed channel. */
+    private var lastMiniCastServerIndex: Int = -1
+
+    /** Same ceiling as PlayerActivity. A 2015 TV decrypts the pack in interpreted JS, and
+     *  200 channels is about half a second, paid once when the cast arrives. */
+    private val MINI_CAST_PACK_LIMIT = 200
+
+    /** Same account-limits/failover dance as PlayerActivity.resolveCastUrl. */
     private suspend fun resolveMiniCastUrl(): Pair<String, String?> {
         val idx = currentMiniServerIndex
+        lastMiniCastServerIndex = idx
         val limits = try { repository.accountLimits(idx, forceRefresh = true) } catch (_: Exception) { null }
         val needsOtherProvider = limits == null || limits.isSingleConnection || limits.atLimit
         if (!needsOtherProvider) return currentMiniUrl to null
@@ -975,9 +983,122 @@ class HomeActivity : AppCompatActivity() {
         return try {
             val url = if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
                       else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
+            lastMiniCastServerIndex = matchServerIndex
             url to null
         } catch (_: Exception) {
             currentMiniUrl to "Cast sent — couldn't use your other provider, so playback here may stop"
+        }
+    }
+
+    private data class MiniPackSource(val streamId: Int, val name: String)
+
+    /** Channels around whatever the mini player has on, so the receiver can flip.
+     *  The category of the playing channel comes first, then favourites, then the rest of
+     *  the primary provider. A merged-provider cast is not padded with the primary account. */
+    private suspend fun miniPackSource(): List<MiniPackSource> {
+        val watching = currentMiniServerIndex
+        val hereId = if (watching != -1) currentMiniMergedStreamId else currentMiniStreamId
+        val raw: List<MiniPackSource> = try {
+            if (watching != -1) {
+                val current = repository.getMergedChannelByIndexAndId(watching, hereId)
+                if (current != null) {
+                    repository.getMergedChannelsByCategory(watching, current.categoryId).first()
+                        .map { MiniPackSource(it.streamId, it.name) }
+                } else emptyList()
+            } else {
+                val current = if (hereId > 0) repository.getChannelById(hereId) else null
+                val list = if (!current?.categoryId.isNullOrBlank()) {
+                    repository.getChannelsByCategory(current!!.categoryId!!).first()
+                } else {
+                    repository.getAllChannels().first()
+                }
+                list.map { MiniPackSource(it.streamId, it.name) }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        fun window(list: List<MiniPackSource>): List<MiniPackSource> {
+            if (list.size <= MINI_CAST_PACK_LIMIT) return list
+            val around = list.indexOfFirst { it.streamId == hereId }.let { if (it < 0) 0 else it }
+            val start = (around - MINI_CAST_PACK_LIMIT / 2).coerceIn(0, list.size - MINI_CAST_PACK_LIMIT)
+            return list.subList(start, start + MINI_CAST_PACK_LIMIT)
+        }
+
+        val seed = if (raw.isNotEmpty()) window(raw) else emptyList()
+        if (watching != -1) return seed
+
+        val out = seed.toMutableList()
+        val seen = out.mapTo(mutableSetOf()) { it.streamId }
+        try {
+            for (f in db.channelDao().getFavoriteChannelsBlocking()) {
+                if (out.size >= MINI_CAST_PACK_LIMIT) break
+                if (seen.add(f.streamId)) out += MiniPackSource(f.streamId, f.name)
+            }
+        } catch (_: Exception) { }
+        if (out.size < MINI_CAST_PACK_LIMIT) {
+            try {
+                for (c in repository.getAllChannels().first()) {
+                    if (out.size >= MINI_CAST_PACK_LIMIT) break
+                    if (seen.add(c.streamId)) out += MiniPackSource(c.streamId, c.name)
+                }
+            } catch (_: Exception) { }
+        }
+        return out
+    }
+
+    private suspend fun miniCastEpg(
+        serverIdx: Int,
+        streamIds: List<Int>
+    ): Map<Int, List<CastRelayManager.CastProgramme>> {
+        if (streamIds.isEmpty()) return emptyMap()
+        return try {
+            val now = System.currentTimeMillis()
+            fun ms(v: Long) = if (v < 100_000_000_000L) v * 1000L else v
+            db.epgDao().getEpgForStreams(streamIds, serverIdx).first()
+                .filter { ms(it.stopTimestamp) > now }
+                .groupBy { it.streamId }
+                .mapValues { (_, rows) ->
+                    rows.sortedBy { ms(it.startTimestamp) }
+                        .take(3)
+                        .map {
+                            CastRelayManager.CastProgramme(it.title, ms(it.startTimestamp), ms(it.stopTimestamp))
+                        }
+                }
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    private suspend fun buildMiniCastPack(viaServerIndex: Int): List<CastRelayManager.CastChannel> {
+        return try {
+            val favs = miniPackSource()
+            if (favs.isEmpty()) return emptyList()
+            if (viaServerIndex == currentMiniServerIndex) {
+                val urls = repository.buildLiveStreamUrls(viaServerIndex, favs.map { it.streamId })
+                val guide = miniCastEpg(viaServerIndex, favs.map { it.streamId })
+                favs.mapNotNull { ch ->
+                    urls[ch.streamId]?.let {
+                        CastRelayManager.CastChannel(ch.name, it, guide[ch.streamId].orEmpty())
+                    }
+                }
+            } else {
+                val matches = repository.findFailoverChannels(favs.map { it.name }, currentMiniServerIndex)
+                val hits = favs.mapNotNull { ch ->
+                    matches[com.iptvapp.util.ChannelNameMatcher.normalize(ch.name)]
+                }
+                val urlsByServer = hits.groupBy { it.first }
+                    .mapValues { (idx, list) -> repository.buildLiveStreamUrls(idx, list.map { it.second }) }
+                val guideByServer = hits.groupBy { it.first }
+                    .mapValues { (idx, list) -> miniCastEpg(idx, list.map { it.second }) }
+                hits.mapNotNull { (idx, sid, name) ->
+                    urlsByServer[idx]?.get(sid)?.let {
+                        CastRelayManager.CastChannel(name, it, guideByServer[idx]?.get(sid).orEmpty())
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
@@ -989,12 +1110,19 @@ class HomeActivity : AppCompatActivity() {
         Toast.makeText(this, "Casting...", Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
             val (castUrl, warning) = resolveMiniCastUrl()
-            when (castRelay.send(code, castUrl, currentMiniTitle)) {
+            val pack = if (currentMiniIsVod) emptyList() else buildMiniCastPack(lastMiniCastServerIndex)
+            when (castRelay.send(code, castUrl, currentMiniTitle, pack)) {
                 is CastSendResult.Sent -> {
                     castRelay.lastSentCode = code
                     val msg = warning
-                        ?: "Cast sent — but no channel list went with it, so they can't change channel"
-                    Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show()
+                        ?: if (pack.isEmpty() && !currentMiniIsVod)
+                            "Cast sent — but no channel list went with it, so they can't change channel"
+                        else "Cast sent — ${pack.size} channels they can flip through"
+                    Toast.makeText(
+                        this@HomeActivity,
+                        msg,
+                        if (warning != null || pack.isEmpty()) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                    ).show()
                 }
                 is CastSendResult.InvalidCode -> {
                     if (castRelay.lastSentCode == code) castRelay.lastSentCode = null
@@ -3078,7 +3206,7 @@ class HomeActivity : AppCompatActivity() {
                 if (query.length >= 2 || query.isEmpty()) {
                     searchDebounceJob?.cancel()
                     searchDebounceJob = lifecycleScope.launch {
-                        kotlinx.coroutines.delay(300)
+                        kotlinx.coroutines.delay(120)
                         dispatchSearch(query)
                     }
                 }
@@ -3477,6 +3605,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showSeries() {
+        viewModel.ensureSeriesCatalog()
         landscapeShowChannelsMode()
         binding.rvCategories.visibility = View.GONE
         binding.rvChannels.adapter = seriesAdapter

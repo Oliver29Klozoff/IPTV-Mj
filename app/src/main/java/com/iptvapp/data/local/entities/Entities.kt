@@ -241,6 +241,10 @@ data class MergedChannelEntity(
     val manualGenre: String? = null
 )
 
+@Fts4(contentEntity = MergedChannelEntity::class)
+@Entity(tableName = "merged_channels_fts")
+data class MergedChannelFts(val name: String)
+
 // Small aggregate row (not a persisted entity) for the server-picker and category-picker
 // screens in the "All Providers" view — computed with GROUP BY so the UI never needs to load
 // or diff a server/provider's full multi-tens-of-thousands channel list just to show counts.
@@ -271,6 +275,10 @@ data class MergedVodEntity(
     val isHidden: Boolean = false
 )
 
+@Fts4(contentEntity = MergedVodEntity::class)
+@Entity(tableName = "merged_vod_fts")
+data class MergedVodFts(val name: String)
+
 data class MergedVodServerSummary(val serverIndex: Int, val serverNickname: String, val vodCount: Int)
 data class MergedVodCategorySummary(val categoryId: String?, val categoryName: String?, val vodCount: Int)
 
@@ -297,6 +305,10 @@ data class MergedSeriesEntity(
     val cachedAt: Long = System.currentTimeMillis(),
     val isHidden: Boolean = false
 )
+
+@Fts4(contentEntity = MergedSeriesEntity::class)
+@Entity(tableName = "merged_series_fts")
+data class MergedSeriesFts(val name: String)
 
 data class MergedSeriesServerSummary(val serverIndex: Int, val serverNickname: String, val seriesCount: Int)
 data class MergedSeriesCategorySummary(val categoryId: String?, val categoryName: String?, val seriesCount: Int)

@@ -1287,23 +1287,11 @@ class HomeViewModel @Inject constructor(
                     .collectLatest { _vodCategories.value = it }
             }
             launch {
-                repository.getAllVod().collectLatest { _vod.value = it }
-            }
-            launch {
+                // First page only. The full movie and series catalogs are tens of thousands of
+                // rows; pulling them in here made every cold start pay for screens the user
+                // has not opened. ensureVodCatalog / ensureSeriesCatalog start those when a
+                // Movies or Series screen actually opens.
                 repository.getVodFirstPage().collectLatest { _vodFirstPage.value = it }
-            }
-            launch {
-                // Series has no per-category browsing UI (unlike VOD), so unlike the VOD
-                // categories filter above, this filters the series list directly using each
-                // series' own categoryId looked up against series categories' names.
-                combine(
-                    repository.getAllSeries(), repository.getSeriesCategories(), prefs.englishOnlyMovies
-                ) { series, categories, englishOnly ->
-                    if (!englishOnly) return@combine series
-                    val englishCategoryIds = categories.filter { isEnglishCategory(it.categoryName) }
-                        .map { it.categoryId }.toSet()
-                    series.filter { it.categoryId in englishCategoryIds }
-                }.collectLatest { _series.value = it }
             }
             launch {
                 repository.getInProgressVod().collectLatest { _continueWatching.value = it }
@@ -1628,8 +1616,37 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var vodCatalogJob: Job? = null
+    private var seriesCatalogJob: Job? = null
+
+    /** Full movie catalog. Not started at boot — see loadAll. */
+    fun ensureVodCatalog() {
+        if (vodCatalogJob?.isActive == true) return
+        vodJob?.cancel()
+        vodCatalogJob = viewModelScope.launch {
+            repository.getAllVod().collectLatest { _vod.value = it }
+        }
+    }
+
+    /** Full series catalog, with the English-only filter applied the same way loadAll used to. */
+    fun ensureSeriesCatalog() {
+        if (seriesCatalogJob?.isActive == true) return
+        seriesSearchJob?.cancel()
+        seriesCatalogJob = viewModelScope.launch {
+            combine(
+                repository.getAllSeries(), repository.getSeriesCategories(), prefs.englishOnlyMovies
+            ) { series, categories, englishOnly ->
+                if (!englishOnly) return@combine series
+                val englishCategoryIds = categories.filter { isEnglishCategory(it.categoryName) }
+                    .map { it.categoryId }.toSet()
+                series.filter { it.categoryId in englishCategoryIds }
+            }.collectLatest { _series.value = it }
+        }
+    }
+
     fun selectVodCategory(categoryId: String) {
         selectedVodCategoryId = categoryId
+        vodCatalogJob?.cancel()
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             repository.getVodByCategory(categoryId).collectLatest {
@@ -1643,6 +1660,7 @@ class HomeViewModel @Inject constructor(
     // just adapted for primary Movies' flat category-list UI instead of a server picker.
     fun selectVodFavorites() {
         selectedVodCategoryId = null
+        vodCatalogJob?.cancel()
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             repository.getFavoriteVod().collectLatest {
@@ -1655,6 +1673,7 @@ class HomeViewModel @Inject constructor(
     // watchHistoryVod (movies >=95% watched) instead of favorited movies.
     fun selectVodWatched() {
         selectedVodCategoryId = null
+        vodCatalogJob?.cancel()
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             watchHistoryVod.collectLatest {
@@ -1672,6 +1691,7 @@ class HomeViewModel @Inject constructor(
     // build recommendations from.
     fun selectVodBecauseYouWatched() {
         selectedVodCategoryId = null
+        vodCatalogJob?.cancel()
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             combine(watchHistoryVod, repository.getAllVod()) { history, catalog -> history to catalog }
@@ -1996,6 +2016,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun searchVod(query: String) {
+        vodCatalogJob?.cancel()
         vodJob?.cancel()
         vodJob = viewModelScope.launch {
             if (query.isBlank()) {
@@ -2008,12 +2029,14 @@ class HomeViewModel @Inject constructor(
 
     fun searchSeries(query: String) {
         seriesSearchJob?.cancel()
+        if (query.isBlank()) {
+            seriesCatalogJob?.cancel()
+            ensureSeriesCatalog()
+            return
+        }
+        seriesCatalogJob?.cancel()
         seriesSearchJob = viewModelScope.launch {
-            if (query.isBlank()) {
-                repository.getAllSeries().collectLatest { _series.value = it }
-            } else {
-                repository.searchSeries(query).collectLatest { _series.value = it }
-            }
+            repository.searchSeries(query).collectLatest { _series.value = it }
         }
     }
 
@@ -2063,7 +2086,9 @@ class HomeViewModel @Inject constructor(
             // lasts. Computed once up front and merged into every emission below so it doesn't
             // need re-querying every time the reactive sources emit.
             val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
-            val programResults = repository.searchProgramsAcrossChannels(query).map { match ->
+            // Program-title search is a scan of the guide table. Two characters matches too
+            // much of it to be worth running on every keystroke; channel and title FTS still run.
+            val programResults = if (query.trim().length < 3) emptyList() else repository.searchProgramsAcrossChannels(query).map { match ->
                 GlobalSearchResult.ProgramMatch(
                     channel = match.channel,
                     mergedChannel = match.mergedChannel,

@@ -72,10 +72,13 @@ interface ChannelDao {
         JOIN channels_fts ON channels.streamId = channels_fts.rowid
         WHERE channels_fts.name MATCH :query AND channels.isHidden = 0
         ORDER BY COALESCE(channels.customNum, channels.num) ASC
+        LIMIT 200
     """)
     fun searchChannels(query: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE streamId = :streamId")
     suspend fun getChannelById(streamId: Int): ChannelEntity?
+    @Query("SELECT * FROM channels WHERE streamId IN (:ids)")
+    suspend fun getChannelsByIds(ids: List<Int>): List<ChannelEntity>
     @Upsert
     suspend fun upsertChannels(channels: List<ChannelEntity>)
     @Query("UPDATE channels SET isFavorite = :isFavorite WHERE streamId = :streamId")
@@ -206,6 +209,7 @@ interface VodDao {
         JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
         WHERE vod_streams_fts.name MATCH :query
         ORDER BY vod_streams.name ASC
+        LIMIT 200
     """)
     fun searchVod(query: String): Flow<List<VodEntity>>
     @Upsert
@@ -264,6 +268,7 @@ interface SeriesDao {
         JOIN series_fts ON series.seriesId = series_fts.rowid
         WHERE series_fts.name MATCH :query AND series.isHidden = 0
         ORDER BY series.name ASC
+        LIMIT 200
     """)
     fun searchSeries(query: String): Flow<List<SeriesEntity>>
     @Upsert
@@ -610,10 +615,18 @@ interface MergedChannelDao {
     // channel's current URL/name without pulling the whole table.
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedChannelEntity?
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId IN (:ids)")
+    suspend fun getByServerAndIds(serverIndex: Int, ids: List<Int>): List<MergedChannelEntity>
 
     // Searches across every configured server at once (not scoped to a selected server/
     // category) — matches how search already works on every other tab in this app.
-    @Query("SELECT * FROM merged_channels WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY serverIndex, num")
+    @Query("""
+        SELECT merged_channels.* FROM merged_channels
+        JOIN merged_channels_fts ON merged_channels.rowid = merged_channels_fts.docid
+        WHERE merged_channels_fts MATCH :query AND merged_channels.isHidden = 0
+        ORDER BY merged_channels.serverIndex, merged_channels.num
+        LIMIT 200
+    """)
     fun search(query: String): Flow<List<MergedChannelEntity>>
 
     // Favorites/folders for merged channels, same shape as ChannelDao's — reuses the same
@@ -684,7 +697,13 @@ interface MergedVodDao {
     @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity?
 
-    @Query("SELECT * FROM merged_vod WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY serverIndex, name")
+    @Query("""
+        SELECT merged_vod.* FROM merged_vod
+        JOIN merged_vod_fts ON merged_vod.rowid = merged_vod_fts.docid
+        WHERE merged_vod_fts MATCH :query AND merged_vod.isHidden = 0
+        ORDER BY merged_vod.serverIndex, merged_vod.name
+        LIMIT 200
+    """)
     fun search(query: String): Flow<List<MergedVodEntity>>
 
     @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId, watchedMs, durationMs, isHidden FROM merged_vod")
@@ -749,7 +768,13 @@ interface MergedSeriesDao {
     @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND seriesId = :seriesId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity?
 
-    @Query("SELECT * FROM merged_series WHERE name LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY serverIndex, name")
+    @Query("""
+        SELECT merged_series.* FROM merged_series
+        JOIN merged_series_fts ON merged_series.rowid = merged_series_fts.docid
+        WHERE merged_series_fts MATCH :query AND merged_series.isHidden = 0
+        ORDER BY merged_series.serverIndex, merged_series.name
+        LIMIT 200
+    """)
     fun search(query: String): Flow<List<MergedSeriesEntity>>
 
     @Query("SELECT serverIndex, seriesId, isFavorite, favoriteFolderId, isHidden FROM merged_series")
