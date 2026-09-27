@@ -203,6 +203,7 @@ class PreferencesManager @Inject constructor(
         // scanning through a long channel list could otherwise burn through that limit without
         // realizing why. Opt-in only.
         val LIVE_CHANNEL_PREVIEW_ENABLED = booleanPreferencesKey("live_channel_preview_enabled")
+        val DATA_SAVER_ENABLED = booleanPreferencesKey("data_saver_enabled")
     }
 
     val favoriteNumbersBackfilled: Flow<Boolean> = context.dataStore.data
@@ -894,5 +895,12 @@ class PreferencesManager @Inject constructor(
     val liveChannelPreviewEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.LIVE_CHANNEL_PREVIEW_ENABLED] ?: false }
     suspend fun setLiveChannelPreviewEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.LIVE_CHANNEL_PREVIEW_ENABLED] = enabled }
+    }
+
+    // Data Saver — caps the video quality the player will pick (see PlayerActivity.buildPlayer).
+    // Off by default; only helps on streams the provider offers in more than one quality.
+    val dataSaverEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DATA_SAVER_ENABLED] ?: false }
+    suspend fun setDataSaverEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DATA_SAVER_ENABLED] = enabled }
     }
 }

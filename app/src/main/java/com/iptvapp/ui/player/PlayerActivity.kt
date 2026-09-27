@@ -2405,9 +2405,14 @@ class PlayerActivity : AppCompatActivity() {
         val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
         val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
         val preferredSubtitleLanguage = kotlinx.coroutines.runBlocking { prefs.preferredSubtitleLanguage.first() }
+        val dataSaver = kotlinx.coroutines.runBlocking { prefs.dataSaverEnabled.first() }
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
             parameters = buildUponParameters()
                 .apply { if (tunnelingEnabled) setTunnelingEnabled(true) }
+                // Data Saver: ExoPlayer still plays the only rendition when a stream has just one
+                // (exceedVideoConstraintsIfNecessary defaults true), so a single-quality channel
+                // is unaffected rather than broken.
+                .apply { if (dataSaver) setMaxVideoSize(854, 480).setMaxVideoBitrate(1_200_000) }
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !subtitlesEnabled)
                 .setSelectUndeterminedTextLanguage(subtitlesEnabled)
                 .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
@@ -2423,6 +2428,12 @@ class PlayerActivity : AppCompatActivity() {
             .build()
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
+                exoPlayer.addListener(object : Player.Listener {
+                    override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                        val f = exoPlayer.videoFormat ?: return
+                        Log.i("MKTV_QUALITY", "dataSaver=$dataSaver playing ${f.width}x${f.height} @ ${f.bitrate / 1000} kbps")
+                    }
+                })
                 applyResizeStep()
                 binding.playerView.useController = false
                 applySubtitleStyle()

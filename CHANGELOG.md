@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.65 - 2026-09-27
+- **Added**: Data Saver (Settings > Stream, phone and TV). Caps the video quality the player picks
+  at 480p / about 1.2 Mbps, for slow connections like in-flight Wi-Fi. Off by default. It can only
+  choose a lower quality when the provider offers the channel in more than one; a single-quality
+  channel plays as usual. Takes effect the next time a channel starts.
+
 ## v6.64 - 2026-09-24
 - **Changed**: A cast's channel list is US categories only. Filling the list out to 200 no
   longer pulls in channels from other countries.

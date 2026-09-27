@@ -367,6 +367,7 @@ class TvSettingsActivity : AppCompatActivity() {
         val format       = prefs.preferredFormat.first()
         val preWarm      = prefs.preWarmOnFocus.first()
         val livePreview  = prefs.liveChannelPreviewEnabled.first()
+        val dataSaver    = prefs.dataSaverEnabled.first()
         val usaOnly      = prefs.usaOnlyChannels.first()
         val showMovies   = prefs.showMovies.first()
         val showSeries   = prefs.showSeries.first()
@@ -413,6 +414,9 @@ class TvSettingsActivity : AppCompatActivity() {
         settingsItems += TvSettingItem.Toggle("stream_live_preview", "Live Preview on Focus",
             subtitle = "Plays a muted preview of the highlighted channel after a brief pause — uses a real connection per preview, so only turn this on if your provider allows several simultaneous streams",
             checked = livePreview) { c -> lifecycleScope.launch { prefs.setLiveChannelPreviewEnabled(c) } }
+        settingsItems += TvSettingItem.Toggle("stream_data_saver", "Data Saver",
+            subtitle = "Caps video at 480p / about 1.2 Mbps for slow connections. Only helps on channels your provider offers in more than one quality. Takes effect the next time a channel starts",
+            checked = dataSaver) { c -> lifecycleScope.launch { prefs.setDataSaverEnabled(c) } }
         settingsItems += TvSettingItem.SubHeader("stream_sub_decoder", "Decoder") { toggleSubHeader("Stream", "stream_sub_decoder") }
         settingsItems += TvSettingItem.Info("stream_decoder_note",
             "Hardware (device) decoders are always used — this build has no software decoder fallback to prefer against.")
