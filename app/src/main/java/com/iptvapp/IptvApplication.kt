@@ -142,8 +142,30 @@ class IptvApplication : Application(), Configuration.Provider {
         fun getCrashLog(context: Context): String {
             return try {
                 val logFile = File(context.filesDir, "crash_log.txt")
-                if (logFile.exists()) logFile.readText().takeLast(3000)
-                else "No crash logs found"
+                if (!logFile.exists()) return "No crash logs found"
+                val fullText = logFile.readText()
+                // Used to be a blind readText().takeLast(3000) — a character-count cut with no
+                // regard for where one crash entry ends and the next begins. Confirmed against
+                // real debug reports that it slices straight through the middle of an entry: a
+                // "SQLiteException" arrived as "QLiteException" three separate times, its own
+                // "=== CRASH <timestamp> ===\nThread: ..." header silently discarded along with
+                // that missing "S" — every one of those reports was a fragment missing its own
+                // start, not the complete picture. Split on entry boundaries instead and keep
+                // only whole entries, most recent first, up to a generous budget — a debug
+                // report should never hand back a sliced fragment it can't show is complete.
+                val entryMarker = "=== CRASH "
+                val entryStarts = Regex("(?=${Regex.escape(entryMarker)})").findAll(fullText).map { it.range.first }.toList()
+                if (entryStarts.isEmpty()) return fullText.takeLast(3000)
+                val entries = entryStarts.mapIndexed { i, start ->
+                    fullText.substring(start, entryStarts.getOrElse(i + 1) { fullText.length })
+                }
+                val budget = 6000
+                val kept = StringBuilder()
+                for (entry in entries.asReversed()) {
+                    if (kept.isNotEmpty() && kept.length + entry.length > budget) break
+                    kept.insert(0, entry)
+                }
+                kept.toString().ifBlank { entries.last() }
             } catch (e: Exception) {
                 "Could not read crash log: ${e.message}"
             }

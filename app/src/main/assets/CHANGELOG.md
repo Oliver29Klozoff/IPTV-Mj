@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v6.74 - 2026-09-29
+- **Fixed**: the "Send Debug Report" crash log was silently truncated mid-word. It kept only the
+  last 3000 characters of the log file regardless of where that fell, which on a report sent
+  after this exact crash sliced through the middle of "SQLiteException" three separate times
+  (arriving as "QLiteException") and discarded that entry's own timestamp and thread name along
+  with it — every debug report sent was a fragment missing its own start, not the full picture.
+  Now keeps whole crash entries only, most recent first, up to a larger budget.
+  Not attempting a third fix for the underlying SQL crash itself this round — two reasoned-from-
+  the-trace attempts (v6.72, v6.73) already failed to stop it recurring, and continuing to guess
+  from the same incomplete trace isn't likely to do better a third time. This at least means the
+  next report (or Firebase Crashlytics, which already has the complete, untruncated exception for
+  all three occurrences) can actually show what's going on.
+
 ## v6.73 - 2026-09-29
 - **Fixed**: the v6.72 fix for the merged-provider crash was wrong — the exact same crash was
   reported again on v6.72. The real cause, per the crash's own suppressed context this time
