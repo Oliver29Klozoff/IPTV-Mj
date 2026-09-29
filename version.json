@@ -2,6 +2,6 @@
   "versionCode": 509,
   "versionName": "6.71",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.71/MKTV.apk",
-  "apkSha256": "d966cc213505d09e244b2a20d0237d81314ce4013dc84618aa25ede34b600c43",
+  "apkSha256": "c66a3cf9a729335ada45aaa07b201aa3e294cfdf18c95945101e1c72e39a10b3",
   "changelog": "M3U playlists can now be added as a toggleable secondary source (Settings > Providers > Add Source), phone only, alongside your primary Xtream login instead of replacing it."
 }
