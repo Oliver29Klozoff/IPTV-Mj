@@ -11,6 +11,7 @@ import com.iptvapp.util.Resource
 import com.iptvapp.util.XmltvFetcher
 import com.iptvapp.util.safeApiCall
 import kotlinx.coroutines.Dispatchers
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -1803,21 +1804,23 @@ class XtreamRepository @Inject constructor(
         // its rows unconditionally (the old behavior) permanently deleted that server's cached
         // channels AND favorites on a single transient hiccup, with nothing left for the next
         // refresh's `prev` lookup to restore them from either.
-        // NonCancellable: this DELETE-then-INSERT sequence has to run to completion once
-        // started — if the enclosing coroutine's scope gets torn down mid-way (navigating away,
-        // backgrounding the app, rotating — viewModelScope/lifecycleScope all cancel on exactly
-        // those), the clear for one server could commit while its re-insert never runs, or the
-        // cancellation could land while Room's own transaction/connection-pool bookkeeping is
-        // mid-operation. Either produces a real, generic SQLiteException("SQL logic error") on a
-        // real device (confirmed — this is a second attempt at the same reported crash; the
-        // mutex fix in v6.72 addressed a real but different race — two overlapping refreshes —
-        // and the exact same crash recurred after it, with the thrown exception's own suppressed
-        // context showing the coroutine was already Cancelling at the moment it hit clearForServer,
-        // which the mutex fix does nothing to prevent). See kotlinx.coroutines' own NonCancellable
-        // docs: wrapping a must-complete critical section is the standard fix for cancellation
-        // landing mid-operation, not serializing separate callers against each other.
+        // NonCancellable was v6.73's attempt at this same recurring SQLiteException("SQL logic
+        // error") in clearForServer — v6.72's mutex (a different theory: two overlapping
+        // refreshes) had already failed to stop it too. Both are left in place; neither is known
+        // to be wrong, but the crash has now recurred identically after both, on v6.74's fully-
+        // fixed (no longer truncated) crash report, still with no "Caused by" chain and the same
+        // suppressed Cancelling context — which, on reflection, is very likely just the ordinary,
+        // automatic effect of ANY unhandled exception propagating through a launch{} coroutine's
+        // Job, not evidence specific to this crash. Not attempting a fourth guess. Logging
+        // breadcrumbs instead — Crashlytics attaches recent log() calls to whatever crash follows
+        // them — so if this happens again, the report shows which serverIndex and how many rows,
+        // rather than needing a sixth identical stack trace to stare at. Note allConfiguredServers()
+        // always includes the primary provider at index -1, so this runs (and this exact crash
+        // has always been reachable) even with zero secondary providers configured.
         withContext(NonCancellable) {
             results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                val count = results.count { it.serverIndex == serverIndex }
+                FirebaseCrashlytics.getInstance().log("refreshMergedChannels: clearForServer(serverIndex=$serverIndex, incomingRows=$count)")
                 db.mergedChannelDao().clearForServer(serverIndex)
             }
             // A single @Upsert call over the WHOLE combined results list runs as one giant
@@ -1829,9 +1832,11 @@ class XtreamRepository @Inject constructor(
             // succeeded). Same fix already applied to VOD/series sync (fetchVodStreams/
             // fetchSeries) for the same reason — chunk so only one chunk's worth of rows commits at
             // a time.
-            results.chunked(2000).forEach { chunk ->
+            results.chunked(2000).forEachIndexed { i, chunk ->
+                FirebaseCrashlytics.getInstance().log("refreshMergedChannels: upsertAll chunk ${i + 1}/${(results.size + 1999) / 2000} (${chunk.size} rows)")
                 db.mergedChannelDao().upsertAll(chunk)
             }
+            FirebaseCrashlytics.getInstance().log("refreshMergedChannels: write phase complete, ${results.size} total rows across ${servers.size} servers")
             applyPendingMergedRestoreData(servers)
         }
         return errors

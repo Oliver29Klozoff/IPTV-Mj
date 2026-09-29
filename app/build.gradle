@@ -16,8 +16,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 512
-        versionName "6.74"
+        versionCode 513
+        versionName "6.75"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")

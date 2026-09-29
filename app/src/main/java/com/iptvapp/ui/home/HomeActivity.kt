@@ -1350,7 +1350,15 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val staleMs = 6 * 60 * 60 * 1000L
             val sinceLastRefresh = System.currentTimeMillis() - prefs.lastMergedChannelsRefresh.first()
-            if (prefs.getExtraServersWithNick().isNotEmpty() && sinceLastRefresh >= staleMs) {
+            // isNotEmpty() checked whether any extra provider row exists at all, not whether any
+            // is actually enabled — a disabled-but-not-removed provider still counts as "extra
+            // providers configured" and kept firing this on every cold start with nothing to
+            // actually merge, needlessly running the primary provider's own catalog through
+            // refreshMergedChannels()/clearForServer() for no reason (see that function's own
+            // reported-crash kdoc — this was the reliable, every-launch trigger for it on an
+            // account with a disabled secondary and no other providers).
+            val hasEnabledExtraServer = prefs.getExtraServersWithNick().any { it.getOrElse(5) { "true" }.toBoolean() }
+            if (hasEnabledExtraServer && sinceLastRefresh >= staleMs) {
                 viewModel.refreshMergedChannels()
             }
         }

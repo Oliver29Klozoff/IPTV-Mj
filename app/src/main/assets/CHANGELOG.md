@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v6.75 - 2026-09-29
+- **Fixed**: the automatic "All Providers" refresh on app launch (Live TV screen, phone and TV)
+  fired whenever any extra provider existed in Settings, even a *disabled* one — disabling a
+  provider doesn't remove it from that list. Confirmed on a real device this was firing on every
+  single cold start with nothing actually enabled to merge, and crashing every time (the still-
+  unresolved `SQLiteException` reported across v6.71–v6.74, now confirmed via testing to be on the
+  *primary* provider's own catalog, not anything secondary-specific — it goes through this same
+  code path regardless of secondary provider count or state). Now correctly requires at least one
+  *enabled* extra provider before auto-refreshing, which stops the crash loop entirely for any
+  account with zero enabled secondaries.
+- **Changed**: also added diagnostic logging around that same crash in case it's still reachable
+  for accounts that do have an enabled secondary provider — not another attempted fix for the
+  underlying cause, which is still unknown, just visibility if it happens again.
+
 ## v6.74 - 2026-09-29
 - **Fixed**: the "Send Debug Report" crash log was silently truncated mid-word. It kept only the
   last 3000 characters of the log file regardless of where that fell, which on a report sent

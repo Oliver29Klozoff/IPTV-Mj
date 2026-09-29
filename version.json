@@ -1,7 +1,7 @@
 {
-  "versionCode": 512,
-  "versionName": "6.74",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.74/MKTV.apk",
-  "apkSha256": "afbededdaf8fac7a4b7f06607dc3f762e3f8cd01e0adf38f31eddbb86e2f8a77",
-  "changelog": "Fixed: Send Debug Report was silently truncating crash logs mid-word, hiding each entry's own timestamp. Not a fix for the underlying crash itself — declining to guess a third time from an incomplete trace."
+  "versionCode": 513,
+  "versionName": "6.75",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.75/MKTV.apk",
+  "apkSha256": "efcbf48b9e2c75eda8c38ac240e441f19f23421f85ed9b87bc9e01462eb48598",
+  "changelog": "Fixes a crash loop on every launch: the auto-refresh that triggers the still-unresolved merged-provider crash fired even with zero ENABLED secondary providers. Now requires an enabled one. Root cause still unknown; this stops it from being hit automatically."
 }

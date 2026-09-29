@@ -406,7 +406,11 @@ class TvHomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val staleMs = 6 * 60 * 60 * 1000L
             val sinceLastRefresh = System.currentTimeMillis() - prefs.lastMergedChannelsRefresh.first()
-            if (prefs.getExtraServersWithNick().isNotEmpty() && sinceLastRefresh >= staleMs) {
+            // See HomeActivity's identical block for why this checks for an ENABLED extra
+            // server now, not just a non-empty list — a disabled-but-not-removed provider was
+            // still enough to fire this on every cold start with nothing to actually merge.
+            val hasEnabledExtraServer = prefs.getExtraServersWithNick().any { it.getOrElse(5) { "true" }.toBoolean() }
+            if (hasEnabledExtraServer && sinceLastRefresh >= staleMs) {
                 viewModel.refreshMergedChannels()
             }
         }
