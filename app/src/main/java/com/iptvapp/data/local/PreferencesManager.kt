@@ -733,7 +733,15 @@ class PreferencesManager @Inject constructor(
                 obj.optString("nick", ""), obj.optString("epg", ""),
                 // "enabled" (index 5) — optString default "true" means every existing install's
                 // already-saved providers stay enabled with zero migration needed.
-                obj.optString("enabled", "true")
+                obj.optString("enabled", "true"),
+                // "type" (index 6) — "xtream" (default, every existing install) or "m3u". Same
+                // optString-default backward-compat approach as "enabled" above. See
+                // XtreamRepository.ConfiguredServer.type kdoc for what this actually changes.
+                obj.optString("type", "xtream"),
+                // "m3uUrl" (index 7) — only meaningful when type == "m3u": the playlist URL this
+                // source was imported from, if any (blank when imported by pasting text instead,
+                // which has nothing to re-fetch from later).
+                obj.optString("m3uUrl", "")
             )
         }
     }
@@ -745,6 +753,7 @@ class PreferencesManager @Inject constructor(
                 put("url", s[0]); put("user", s[1]); put("pass", s[2])
                 put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
                 put("enabled", s.getOrElse(5) { "true" })
+                put("type", s.getOrElse(6) { "xtream" }); put("m3uUrl", s.getOrElse(7) { "" })
             })
         }
         context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }

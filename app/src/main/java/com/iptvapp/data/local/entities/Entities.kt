@@ -238,7 +238,14 @@ data class MergedChannelEntity(
     // any order the user actually dragged them into, not just "primary block, then merged block."
     val favOrder: Int = 0,
     // Same manual genre-chip override as ChannelEntity.manualGenre — see its kdoc.
-    val manualGenre: String? = null
+    val manualGenre: String? = null,
+    // Same override-URL column as ChannelEntity.streamUrl, same reason: an M3U-imported source
+    // has no Xtream credentials to reconstruct a playback URL from at call time (see
+    // XtreamRepository.importM3uText's own use of ChannelEntity.streamUrl for the primary-
+    // provider equivalent of this). Null for every Xtream-backed merged provider, which still
+    // build their URL the normal serverIndex+streamId+credentials way — see
+    // XtreamRepository.getMergedLiveStreamUrl.
+    val streamUrl: String? = null
 )
 
 @Fts4(contentEntity = MergedChannelEntity::class)

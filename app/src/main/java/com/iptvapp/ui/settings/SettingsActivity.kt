@@ -1,5 +1,6 @@
 package com.iptvapp.ui.settings
 import com.iptvapp.BuildConfig
+import com.iptvapp.util.Resource
 
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
@@ -358,6 +359,25 @@ class SettingsActivity : AppCompatActivity() {
     }
     private val openBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) lifecycleScope.launch { restoreBackupFromUri(uri) }
+    }
+    // "Add Source > M3U Playlist > Choose file" — same OpenDocument/read-as-text pattern
+    // LoginActivity's m3uFileLauncher uses for the separate replace-primary M3U import.
+    // pendingM3uSourceNickname carries the nickname collected before the picker launched, since
+    // the launcher callback has no way to receive extra arguments.
+    private var pendingM3uSourceNickname: String = ""
+    private val m3uSourceFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            lifecycleScope.launch {
+                val text = try {
+                    contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                } catch (e: Exception) { null }
+                if (text.isNullOrBlank()) {
+                    Toast.makeText(this@SettingsActivity, "Couldn't read that file", Toast.LENGTH_SHORT).show()
+                } else {
+                    importM3uSource(pendingM3uSourceNickname, sourceUrl = null, content = text)
+                }
+            }
+        }
     }
     // Requested when the New Episode Notifications switch is turned on (Android 13+ requires
     // this at request time, not just declared in the manifest) — same
@@ -2137,7 +2157,7 @@ class SettingsActivity : AppCompatActivity() {
             extraServers.addAll(prefs.getExtraServersWithNick())
             updateServerList()
         }
-        binding.btnAddServer.setOnClickListener { showAddServerDialog() }
+        binding.btnAddServer.setOnClickListener { showAddSourceTypeDialog() }
     }
 
     private fun updateServerList() {
@@ -2205,6 +2225,7 @@ class SettingsActivity : AppCompatActivity() {
                 val url = server[0]; val user = server[1]
                 val nick = server.getOrElse(3) { "" }.ifEmpty { user }
                 val enabled = server.getOrElse(5) { "true" }.toBoolean()
+                val isM3u = server.getOrElse(6) { "xtream" } == "m3u"
                 val row = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
                     setBackgroundColor(Color.parseColor("#1A1A1A"))
@@ -2237,7 +2258,14 @@ class SettingsActivity : AppCompatActivity() {
                     row.addView(this)
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
-                    text = url
+                    // An m3u-type row's url/user/pass slots are blank placeholders (see
+                    // importM3uAsSecondarySource) — there's no Xtream credential URL to show, so
+                    // show what this source actually is instead: PLAYLIST FILE for a pasted-text
+                    // import (index 7, m3uUrl, is blank), or the URL it was imported from.
+                    text = if (isM3u) {
+                        val m3uUrl = server.getOrElse(7) { "" }
+                        if (m3uUrl.isBlank()) "M3U PLAYLIST · FILE" else "M3U PLAYLIST · $m3uUrl"
+                    } else url
                     setTextColor(Color.parseColor("#777777"))
                     textSize = 11f
                     setSingleLine(true)
@@ -2294,10 +2322,15 @@ class SettingsActivity : AppCompatActivity() {
                     val heightPx = (40 * resources.displayMetrics.density).toInt()
                     layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
                         .also { it.marginEnd = 8 }
-                    setOnClickListener { showEditServerDialog(i) }
+                    // An m3u row has no credentials to edit (its url/user/pass slots are blank
+                    // placeholders — see importM3uAsSecondarySource), just a nickname.
+                    setOnClickListener { if (isM3u) showRenameM3uSourceDialog(i, nick) else showEditServerDialog(i) }
                     btnRow.addView(this)
                 }
-                android.widget.Button(this@SettingsActivity).apply {
+                // Switch (promote to primary) assumes Xtream credentials to promote — an m3u
+                // source has none, and "become the primary login" isn't something this source
+                // type supports. Skipped entirely rather than shown disabled/confusing.
+                if (!isM3u) android.widget.Button(this@SettingsActivity).apply {
                     text = "Switch"
                     isAllCaps = false
                     textSize = 13f
@@ -2374,8 +2407,11 @@ class SettingsActivity : AppCompatActivity() {
                 // Per-provider live-channel refresh — deliberately separate from the Movies/
                 // Series refresh buttons in the Display section, and from Home's "Refresh All
                 // Providers" (which touches every configured server at once). This only
-                // re-fetches THIS provider's live channels/categories.
-                android.widget.Button(this@SettingsActivity).apply {
+                // re-fetches THIS provider's live channels/categories. Hidden for m3u rows:
+                // refreshMergedChannels() intentionally skips them (see its own kdoc) — there's
+                // no Xtream API to re-fetch from, and showing a button that always silently does
+                // nothing is worse than not showing it.
+                if (!isM3u) android.widget.Button(this@SettingsActivity).apply {
                     text = "↻ Refresh Channels"
                     isAllCaps = false
                     textSize = 13f
@@ -2576,6 +2612,114 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    // "Add Source" used to always mean "Add Provider" (Xtream). Now offers a second, genuinely
+    // different kind of source — an M3U playlist that coexists as its own toggleable entry
+    // (Settings > Providers) rather than replacing your primary login the way LoginActivity's
+    // M3U import does — see XtreamRepository.importM3uAsSecondarySource kdoc.
+    private fun showAddSourceTypeDialog() {
+        val options = arrayOf("Xtream Provider", "M3U Playlist")
+        AlertDialog.Builder(this)
+            .setTitle("Add Source")
+            .setItems(options) { _, which ->
+                if (which == 0) showAddServerDialog() else showAddM3uSourceDialog()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showAddM3uSourceDialog() {
+        val etNick = android.widget.EditText(this).apply {
+            hint = "Nickname (e.g. UK Sports)"
+            setPadding(48, 24, 48, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("M3U Playlist")
+            .setView(etNick)
+            .setPositiveButton("Next") { _, _ ->
+                val nick = etNick.text.toString().trim().ifBlank { "M3U Playlist" }
+                val options = arrayOf("Enter M3U URL", "Choose file")
+                AlertDialog.Builder(this)
+                    .setTitle(nick)
+                    .setItems(options) { _, which ->
+                        if (which == 0) {
+                            showM3uSourceUrlDialog(nick)
+                        } else {
+                            pendingM3uSourceNickname = nick
+                            m3uSourceFileLauncher.launch(arrayOf("*/*", "text/*", "audio/x-mpegurl"))
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showM3uSourceUrlDialog(nickname: String) {
+        val input = android.widget.EditText(this).apply {
+            hint = "http://example.com/playlist.m3u"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setPadding(48, 24, 48, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("M3U URL")
+            .setView(input)
+            .setPositiveButton("Import") { _, _ ->
+                val url = input.text.toString().trim()
+                if (url.isEmpty()) return@setPositiveButton
+                lifecycleScope.launch {
+                    val result = repository.importM3uAsSecondarySourceFromUrl(nickname, url)
+                    handleM3uSourceImportResult(nickname, result)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // m3u rows have no credentials for the normal Edit flow (showEditServerDialog) to edit —
+    // just a nickname, so this is deliberately a smaller dialog rather than reusing that one.
+    private fun showRenameM3uSourceDialog(index: Int, currentNick: String) {
+        val input = android.widget.EditText(this).apply {
+            setText(currentNick)
+            setPadding(48, 24, 48, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Rename Source")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val newNick = input.text.toString().trim().ifBlank { currentNick }
+                val updated = extraServers[index].toMutableList()
+                while (updated.size < 4) updated.add("")
+                updated[3] = newNick
+                extraServers[index] = updated
+                lifecycleScope.launch {
+                    prefs.saveExtraServersWithNick(extraServers)
+                    updateServerList()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private suspend fun importM3uSource(nickname: String, sourceUrl: String?, content: String) {
+        handleM3uSourceImportResult(nickname, repository.importM3uAsSecondarySource(nickname, sourceUrl, content))
+    }
+
+    private fun handleM3uSourceImportResult(nickname: String, result: Resource<Int>) {
+        when (result) {
+            is Resource.Success -> {
+                lifecycleScope.launch {
+                    extraServers.clear()
+                    extraServers.addAll(prefs.getExtraServersWithNick())
+                    updateServerList()
+                }
+                Toast.makeText(this@SettingsActivity, "Imported ${result.data} channels as \"$nickname\"", Toast.LENGTH_SHORT).show()
+            }
+            is Resource.Error -> Toast.makeText(this@SettingsActivity, "Import failed: ${result.message}", Toast.LENGTH_SHORT).show()
+            else -> {}
+        }
     }
 
     private fun showAddServerDialog() {

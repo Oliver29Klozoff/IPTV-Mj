@@ -463,10 +463,9 @@ class XtreamRepository @Inject constructor(
         return urlBuilder().liveStreamUrl(streamId, "ts")
     }
 
-    /** No per-channel cached streamUrl override to check here, unlike the primary path above —
-     * MergedChannelEntity has no streamUrl column — so this is just getMergedLiveStreamUrl
-     * (already .ts-forced, already per-server-credentialed) under a recording-specific name for
-     * symmetry with getLiveStreamUrlForRecording. */
+    /** Just getMergedLiveStreamUrl (already .ts-forced for Xtream providers, already resolves an
+     * m3u-type provider's stored per-channel URL) under a recording-specific name for symmetry
+     * with getLiveStreamUrlForRecording. */
     suspend fun getMergedLiveStreamUrlForRecording(serverIndex: Int, streamId: Int): String =
         getMergedLiveStreamUrl(serverIndex, streamId)
 
@@ -1229,6 +1228,73 @@ class XtreamRepository @Inject constructor(
         return channels.size
     }
 
+    /** Fetches [url] and imports it via [importM3uAsSecondarySource] — same split as
+     * importM3uFromUrl/importM3uFromText above (network fetch stays in the repository, not the
+     * caller), just for the add-as-secondary-source path. */
+    suspend fun importM3uAsSecondarySourceFromUrl(nickname: String, url: String): Resource<Int> = safeApiCall {
+        val request = Request.Builder().url(url).build()
+        val content = okHttpClient.newCall(request).execute().use { it.body?.string() }
+            ?: throw Exception("Empty response from M3U URL")
+        importM3uAsSecondarySourceInternal(nickname, url, content)
+    }
+
+    /**
+     * Imports an M3U playlist as a NEW, independently toggleable secondary source — sits
+     * alongside the primary provider and any other extra providers (Settings > Providers >
+     * Add Source > M3U Playlist), unlike importM3uFromUrl/importM3uFromText above, which REPLACE
+     * the primary provider entirely as an alternative login method. This instead reuses the exact
+     * same merged-provider machinery an Xtream secondary provider already gets — favorites,
+     * folders, genre pins, search, the enabled/disabled toggle, drag-reorder — by writing into
+     * MergedChannelEntity under a freshly-allocated serverIndex, with type="m3u" on its
+     * extraServers entry and each row's own streamUrl set directly (see ConfiguredServer.type /
+     * MergedChannelEntity.streamUrl kdocs for why a direct URL is needed here at all).
+     *
+     * [sourceUrl] is stored so a future re-fetch could re-parse it later; pass null when
+     * importing from pasted text, which has nothing to re-fetch from (re-importing then means
+     * removing this source and adding it again with fresh text — see SettingsActivity, which
+     * hides the per-provider "Refresh Channels" button for every m3u-type row regardless, since
+     * refreshMergedChannels() intentionally never touches them — this function is the only way
+     * their channels get (re)written).
+     */
+    suspend fun importM3uAsSecondarySource(nickname: String, sourceUrl: String?, content: String): Resource<Int> = safeApiCall {
+        importM3uAsSecondarySourceInternal(nickname, sourceUrl, content)
+    }
+
+    private suspend fun importM3uAsSecondarySourceInternal(nickname: String, sourceUrl: String?, content: String): Int {
+        val channels = M3uParser.parse(content)
+        if (channels.isEmpty()) throw Exception("No channels found in playlist")
+
+        // Indices are compact (0..N-1) and shift on removal (see SettingsActivity's "Remove"
+        // button) — existing.size is always the next free one, same convention Add Provider uses.
+        val existing = prefs.getExtraServersWithNick()
+        val serverIndex = existing.size
+
+        val rows = channels.mapIndexed { idx, ch ->
+            val rawId = ch.streamUrl.hashCode().toLong() and 0x7FFFFFFFL
+            val streamId = (rawId + 10_000_000L).toInt()
+            MergedChannelEntity(
+                serverIndex = serverIndex,
+                streamId = streamId,
+                name = ch.name,
+                streamIcon = ch.logoUrl,
+                num = idx,
+                serverNickname = nickname,
+                epgChannelId = ch.tvgId,
+                // Denormalized directly onto the row (no separate merged-categories table — see
+                // MergedChannelEntity's own kdoc), unlike the primary-replace path above which
+                // needs a real CategoryEntity upsert.
+                categoryId = "m3u_${ch.groupTitle.hashCode().toLong() and 0xFFFFFFFFL}",
+                categoryName = ch.groupTitle,
+                streamUrl = ch.streamUrl
+            )
+        }
+        db.mergedChannelDao().clearForServer(serverIndex)
+        rows.chunked(2000).forEach { chunk -> db.mergedChannelDao().upsertAll(chunk) }
+
+        prefs.saveExtraServersWithNick(existing + listOf(listOf("", "", "", nickname, "", "true", "m3u", sourceUrl ?: "")))
+        return channels.size
+    }
+
     private fun decodeBase64(encoded: String): String = try {
         String(Base64.decode(encoded, Base64.DEFAULT))
     } catch (e: Exception) {
@@ -1246,7 +1312,17 @@ class XtreamRepository @Inject constructor(
         // request from the server's base URL + "/xmltv.php" regardless of this field, silently
         // ignoring it. Blank means "use the server's own default xmltv.php path," same fallback
         // XmltvFetcher.buildUrl already assumed.
-        val epgUrl: String = ""
+        val epgUrl: String = "",
+        // "xtream" (every provider before this field existed, and every Xtream Codes provider
+        // since) or "m3u". An m3u-type server has no credentials to build a playback URL from —
+        // serverUrl/username/password are meaningless placeholders for it (see
+        // importM3uAsSecondarySource) — its channels carry their own URL directly on
+        // MergedChannelEntity.streamUrl instead. Every function that builds a merged-channel
+        // playback URL or periodically re-fetches a provider's catalog branches on this. The
+        // primary provider (serverIndex -1) is always "xtream" — M3U-as-your-primary-login is a
+        // separate, older, unrelated feature (LoginActivity's importM3uFromUrl/Text) that
+        // replaces ChannelEntity wholesale rather than adding a coexisting toggleable source.
+        val type: String = "xtream"
     )
 
     // serverIndex -1 = primary, 0..N-1 = extraServers[i] — same convention as
@@ -1266,7 +1342,7 @@ class XtreamRepository @Inject constructor(
             // dimmed, with its saved credentials intact — for the user to re-enable later.
             if (!s.getOrElse(5) { "true" }.toBoolean()) return@forEachIndexed
             val nick = s.getOrElse(3) { "" }.ifBlank { s[1] }
-            servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick, s.getOrElse(4) { "" }))
+            servers.add(ConfiguredServer(i, s[0], s[1], s[2], nick, s.getOrElse(4) { "" }, s.getOrElse(6) { "xtream" }))
         }
         return servers
     }
@@ -1604,9 +1680,17 @@ class XtreamRepository @Inject constructor(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
     ): Map<Int, String> {
+        // m3u-type servers have no Xtream API to re-fetch from below — their channels were
+        // written directly at import time (see importM3uAsSecondarySource) and just sit as-is
+        // until the source is removed and re-added. Filtered out here rather than left to fail
+        // inside the fetch loop, which would both show a confusing "Server returned ___" error
+        // for a provider that was never supposed to be contacted, and (for a targeted single-
+        // server refresh) leave that provider's own "Refresh Channels" button perpetually
+        // failing — see SettingsActivity.updateServerList, which hides that button for m3u rows
+        // for the same reason instead of surfacing this as an error.
         val servers = allConfiguredServers().let { all ->
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
-        }
+        }.filter { it.type != "m3u" }
         val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedChannelEntity>()
@@ -2458,6 +2542,10 @@ class XtreamRepository @Inject constructor(
     suspend fun getMergedLiveStreamUrl(serverIndex: Int, streamId: Int): String {
         val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
             ?: throw Exception("Server no longer configured")
+        if (server.type == "m3u") {
+            return db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)?.streamUrl
+                ?: throw Exception("Channel has no stored URL")
+        }
         return XtreamUrlBuilder(server.serverUrl, server.username, server.password).liveStreamUrl(streamId, "ts")
     }
 
@@ -2476,6 +2564,11 @@ class XtreamRepository @Inject constructor(
             if (streamIds.isEmpty()) return@withContext emptyMap()
             val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
                 ?: return@withContext emptyMap()
+            if (server.type == "m3u") {
+                return@withContext db.mergedChannelDao().getByServerAndIds(serverIndex, streamIds)
+                    .mapNotNull { ch -> ch.streamUrl?.let { ch.streamId to it } }
+                    .toMap()
+            }
             // The primary provider honours the user's preferred container; merged providers are
             // .ts everywhere else in this class, so match that rather than inventing a third rule.
             val format = if (serverIndex == -1) prefs.preferredFormat.first() else "ts"

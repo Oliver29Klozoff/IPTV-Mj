@@ -1,7 +1,7 @@
 {
-  "versionCode": 508,
-  "versionName": "6.70",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.70/MKTV.apk",
-  "apkSha256": "8fbc961341cb993d06e2e36ed07a44114096fbd6d57ee19e3fb36fc8c03ac653",
-  "changelog": "Restyled the player's on-screen controls (Guide/CC/Resize accent, volume/seek bars, channel-change and EPG overlays) in the same OLED/cyan look. Shared with VOD/Series playback (one PlayerActivity)."
+  "versionCode": 509,
+  "versionName": "6.71",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.71/MKTV.apk",
+  "apkSha256": "d966cc213505d09e244b2a20d0237d81314ce4013dc84618aa25ede34b600c43",
+  "changelog": "M3U playlists can now be added as a toggleable secondary source (Settings > Providers > Add Source), phone only, alongside your primary Xtream login instead of replacing it."
 }

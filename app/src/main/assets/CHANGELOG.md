@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v6.71 - 2026-09-29
+- **Added**: M3U playlists as a toggleable secondary source (phone; Settings > Providers > Add
+  Source > M3U Playlist). Previously, importing an M3U playlist replaced your primary Xtream
+  login entirely — now you can add one alongside it (by URL or by picking a local file), give it
+  a nickname, and it behaves exactly like an additional Xtream provider: its own on/off switch,
+  its channels merge into Live TV and Favorites, favorites/folders/genre pins carry over, and
+  removing it is the same "Remove" action. It doesn't auto-refresh periodically (there's no
+  ongoing API to re-check) — re-adding it is currently the way to update it.
+  Note: TV Settings doesn't have this yet, phone only for now. This is new functionality
+  (including a database change), not a visual pass, and hasn't been exercised on a real device
+  this release — flag anything that looks off.
+
 ## v6.70 - 2026-09-29
 - **Changed**: Restyled the player's on-screen controls in the same OLED/cyan look as v6.69's
   channel list — the accent color on the Guide/CC/Resize buttons, the volume gesture bar, the VOD
