@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v6.69 - 2026-09-29
+- **Changed**: Restyled the live-channel list (phone, TV, and merged/secondary-provider rows) in
+  the OLED/cyan look from the Compose UI Preview — cyan focus ring and progress bar, rounded
+  quality-pill badge, and warmer OLED text tones, in place of the old flat blue-on-gray look.
+  Scoped to the channel list only: `HomeActivity`/`TvHomeActivity`'s own layout, Settings, VOD,
+  Series, and Login keep their existing look for now, and the shared `focus_selector` drawable
+  VOD/Series rows also use was forked rather than retinted, so this doesn't bleed into either.
+  The player screen's on-screen controls are a separate, larger piece not done yet.
+
 ## v6.68 - 2026-09-29
 - **Fixed**: Compose UI Preview (experimental) — Codex review of v6.67 caught four real bugs,
   fixed here. Expanding to full-screen and returning no longer loses the mini-player's channel or

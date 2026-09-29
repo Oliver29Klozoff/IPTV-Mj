@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TV variant of focus_selector_channel.xml — see that file's kdoc (phone drawable/ folder) for
+     why this is a fork of drawable-television/focus_selector.xml rather than a retint of it.
+     Same state logic and geometry as the original, colors only. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape>
+                    <solid android:color="#6606B6D4" />
+                    <corners android:radius="8dp" />
+                </shape>
+            </item>
+            <item android:left="2dp" android:right="2dp" android:top="2dp" android:bottom="2dp">
+                <shape>
+                    <solid android:color="@android:color/transparent" />
+                    <stroke android:width="3dp" android:color="#FFFFFF" />
+                    <corners android:radius="7dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item android:state_selected="true">
+        <shape>
+            <solid android:color="#3306B6D4" />
+            <stroke android:width="2dp" android:color="@color/oled_cyan_primary" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

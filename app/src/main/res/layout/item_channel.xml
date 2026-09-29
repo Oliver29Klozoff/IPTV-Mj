@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="75dp"
-    android:background="@drawable/focus_selector"
+    android:background="@drawable/focus_selector_channel"
     android:clickable="true"
     android:focusable="true">
 
@@ -88,7 +88,7 @@
                     android:layout_weight="1"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/oled_text_primary"
                     android:textSize="14sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -99,7 +99,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="#999999"
+                android:textColor="@color/oled_text_secondary"
                 android:textSize="12sp" />
 
             <TextView
@@ -108,7 +108,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="#666666"
+                android:textColor="@color/oled_text_muted"
                 android:textSize="11sp"
                 android:visibility="gone" />
 
@@ -125,7 +125,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textAllCaps="true"
-                android:textColor="#777777"
+                android:textColor="@color/oled_text_muted"
                 android:textSize="10sp"
                 android:visibility="gone" />
         </LinearLayout>
@@ -144,7 +144,7 @@
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
             android:padding="4dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/focus_selector_channel"
             android:src="@android:drawable/btn_star_big_off" />
 
         <ImageView
@@ -166,8 +166,8 @@
         android:layout_alignParentBottom="true"
         android:max="100"
         android:progress="0"
-        android:progressBackgroundTint="#1A1A1A"
-        android:progressTint="#008CFF"
+        android:progressBackgroundTint="@color/oled_surface_container_low"
+        android:progressTint="@color/oled_cyan_primary"
         android:visibility="invisible" />
 
 </RelativeLayout>

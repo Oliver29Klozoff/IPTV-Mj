@@ -1,7 +1,7 @@
 {
-  "versionCode": 506,
-  "versionName": "6.68",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.68/MKTV.apk",
-  "apkSha256": "954095b520d662f2186ecaeaed5066bba976459420a825751296bfb830ee34e9",
-  "changelog": "Codex-review fixes for the Compose UI Preview: mini-player state now survives fullscreen/PiP, PiP shows video-only, search no longer floods EPG fetches, sync status is now real."
+  "versionCode": 507,
+  "versionName": "6.69",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.69/MKTV.apk",
+  "apkSha256": "a0e60bb0cdeaa2ac070636a914b8c97de035bca5e70de963071eaec40b427937",
+  "changelog": "Restyled the live-channel list (phone, TV, merged rows) in the OLED/cyan look from the Compose preview. Scoped to the channel list only; player OSD is a separate piece not done yet."
 }

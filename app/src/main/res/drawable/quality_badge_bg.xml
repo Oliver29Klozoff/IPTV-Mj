@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Only used by item_channel.xml / item_merged_channel.xml's tvQualityBadge, so safe to retint
+     directly rather than fork (see focus_selector_channel.xml for why that one was forked). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#33008CFF" />
-    <corners android:radius="3dp" />
-    <stroke android:width="1dp" android:color="#008CFF" />
+    <solid android:color="#3306B6D4" />
+    <corners android:radius="6dp" />
+    <stroke android:width="1dp" android:color="@color/oled_cyan_primary" />
 </shape>
