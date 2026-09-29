@@ -1,7 +1,7 @@
 {
-  "versionCode": 503,
-  "versionName": "6.65",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.65/MKTV.apk",
-  "apkSha256": "726ff627e73c37af2a7095ab3e23c643653478625480e1b3d6fe1619fbfcd4e8",
-  "changelog": "Data Saver (Settings > Stream) caps video at 480p for slow connections like in-flight Wi-Fi."
+  "versionCode": 504,
+  "versionName": "6.66",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.66/MKTV.apk",
+  "apkSha256": "61b0e284e23a4af47ea926577c449754788c4742ac1baf5d7b9d6793fa03910b",
+  "changelog": "Added an experimental Compose UI Preview (Settings > Backup & Restore, phone) — a reworked OLED/cyan channel list and player, alongside the existing screens, not replacing them."
 }

@@ -1104,6 +1104,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnProviderWeather.setOnClickListener { showProviderWeatherDialog() }
         binding.btnLanExport.setOnClickListener { showLanExportDialog() }
         binding.btnReceiveCast.setOnClickListener { showReceiveCastDialog() }
+        binding.btnComposeUiPreview.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.compose.ComposeUiPreviewActivity::class.java))
+        }
         binding.btnManageBackups.setOnClickListener { showManageBackupsDialog() }
 
         lifecycleScope.launch {

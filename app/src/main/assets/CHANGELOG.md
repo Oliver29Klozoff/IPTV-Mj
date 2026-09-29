@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.66 - 2026-09-29
+- **Added**: Compose UI Preview (Settings > Backup & Restore, phone; experimental). A reworked
+  OLED/cyan channel list and player overlay, built with Jetpack Compose, standing alongside the
+  existing screens rather than replacing them — the rest of the app is unchanged. Real channel
+  logos, EPG, favoriting, and playback; no logical-channel numbers, per-row bitrate, or decoder/
+  VPN settings, since this app doesn't track or offer any of those.
+
 ## v6.65 - 2026-09-27
 - **Added**: Data Saver (Settings > Stream, phone and TV). Caps the video quality the player picks
   at 480p / about 1.2 Mbps, for slow connections like in-flight Wi-Fi. Off by default. It can only
