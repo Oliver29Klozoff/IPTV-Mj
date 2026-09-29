@@ -595,6 +595,17 @@ interface MergedChannelDao {
     @Query("DELETE FROM merged_channels WHERE serverIndex = :serverIndex")
     suspend fun clearForServer(serverIndex: Int)
 
+    // Removing a provider from extraServers shifts every later provider's index down by one
+    // (see SettingsActivity's "Remove" button). Xtream-sourced rows used to just get wiped
+    // wholesale on any removal and rely on the next refresh to repopulate everyone under their
+    // new index — fine for those, since refreshMergedChannels() can always re-fetch them. It is
+    // NOT fine for an m3u-type source: refreshMergedChannels() intentionally never touches those
+    // (see its kdoc), so wiping them on an unrelated provider's removal destroyed the only copy
+    // of that playlist's channels/favorites permanently. This re-indexes the survivors in place
+    // instead, so nothing needs to be wiped or re-fetched at all.
+    @Query("UPDATE merged_channels SET serverIndex = serverIndex - 1 WHERE serverIndex > :removedIndex")
+    suspend fun decrementServerIndicesAfter(removedIndex: Int)
+
     @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels WHERE isHidden = 0 GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
     fun getServerSummaries(): Flow<List<MergedServerSummary>>
 

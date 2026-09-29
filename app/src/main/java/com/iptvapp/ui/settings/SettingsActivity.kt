@@ -2390,12 +2390,21 @@ class SettingsActivity : AppCompatActivity() {
                         extraServers.removeAt(i)
                         lifecycleScope.launch {
                             prefs.saveExtraServersWithNick(extraServers)
-                            // Removing a server shifts every later server's index, which could
-                            // silently re-attribute stale merged-channel/VOD/series rows to the
-                            // wrong server until the next manual refresh — just clear the caches.
-                            // mergedVodDao/mergedSeriesDao were added after this clear was
-                            // originally written and had been missed until now.
-                            db.mergedChannelDao().clearAll()
+                            // merged_channels: delete just this server's own rows, then shift
+                            // every later server's rows down one index in place, instead of the
+                            // old clearAll() + rely-on-next-refresh-to-repopulate-everyone. That
+                            // was always a little wasteful for Xtream providers (refetches
+                            // everyone on the next refresh instead of just re-indexing), but for
+                            // an m3u-type source it was real data loss — refreshMergedChannels()
+                            // never repopulates those (see its kdoc), so removing ANY provider
+                            // silently emptied every M3U source in the list, not just the one
+                            // actually being removed. See decrementServerIndicesAfter's own kdoc.
+                            db.mergedChannelDao().clearForServer(i)
+                            db.mergedChannelDao().decrementServerIndicesAfter(i)
+                            // VOD/series are always Xtream-sourced (M3U import only ever carries
+                            // live channels — see M3uParser), so the old wipe-and-let-the-next-
+                            // refresh-repopulate approach doesn't lose anything permanently here,
+                            // just costs a re-fetch. Left as-is rather than widening this fix.
                             db.mergedVodDao().clearAll()
                             db.mergedSeriesDao().clearAll()
                         }
@@ -3476,6 +3485,14 @@ class SettingsActivity : AppCompatActivity() {
                         // provider that had been disabled, since getOrElse(5) { "true" } defaults
                         // to enabled when this field is missing from the restored row.
                         put("enabled", s.getOrElse(5) { "true" })
+                        // Previously omitted too — an m3u-type source (see ConfiguredServer.type)
+                        // restored without these silently became an Xtream provider with blank
+                        // credentials, since applyBackupJson's own getOrElse defaults type to
+                        // "xtream" when the field is missing. See applyBackupJson for how a
+                        // restored m3u entry actually gets its channels back (re-imported from
+                        // m3uUrl, not written directly — there's nothing else here to restore
+                        // MergedChannelEntity rows from, this JSON was never a full DB dump).
+                        put("type", s.getOrElse(6) { "xtream" }); put("m3uUrl", s.getOrElse(7) { "" })
                     }
                 }))
 
@@ -3680,8 +3697,10 @@ class SettingsActivity : AppCompatActivity() {
 
         val extraServersArray = json.optJSONArray("extraServers")
         if (extraServersArray != null) {
-            val restored = (0 until extraServersArray.length()).map { i ->
-                val obj = extraServersArray.getJSONObject(i)
+            val entries = (0 until extraServersArray.length()).map { extraServersArray.getJSONObject(it) }
+            // Xtream entries restore directly, same as before — their credentials are all this
+            // JSON ever needed to fully recover them (channels come back from the next refresh).
+            val xtreamRestored = entries.filter { it.optString("type", "xtream") != "m3u" }.map { obj ->
                 listOf(
                     obj.optString("url", ""), obj.optString("user", ""), obj.optString("pass", ""),
                     obj.optString("nick", ""), obj.optString("epg", ""),
@@ -3691,11 +3710,43 @@ class SettingsActivity : AppCompatActivity() {
                     obj.optString("enabled", "true")
                 )
             }
-            prefs.saveExtraServersWithNick(restored)
-            extraServers.clear(); extraServers.addAll(restored)
+            prefs.saveExtraServersWithNick(xtreamRestored)
+            extraServers.clear(); extraServers.addAll(xtreamRestored)
             db.mergedChannelDao().clearAll()
             db.mergedVodDao().clearAll()
             db.mergedSeriesDao().clearAll()
+
+            // m3u entries can't be restored the same way this JSON restores everything else —
+            // it was never a full DB dump, so there's no stored copy of their channels here to
+            // write back. One imported from a URL can genuinely recover by re-fetching that URL
+            // right now (importM3uAsSecondarySourceFromUrl appends it fresh, after the xtream
+            // entries just restored above, so it gets a correct new index same as adding one
+            // normally would). One imported by pasting text has nothing left to recover from and
+            // is skipped — restoring it as a permanently-empty toggle would be worse than not
+            // restoring it at all, since there'd be no way to ever populate it short of removing
+            // and re-adding it anyway.
+            val m3uEntries = entries.filter { it.optString("type", "xtream") == "m3u" }
+            if (m3uEntries.isNotEmpty()) {
+                var recovered = 0; var failed = 0; var skipped = 0
+                m3uEntries.forEach { obj ->
+                    val nick = obj.optString("nick", "").ifBlank { "M3U Playlist" }
+                    val m3uUrl = obj.optString("m3uUrl", "")
+                    if (m3uUrl.isBlank()) {
+                        skipped++
+                    } else when (repository.importM3uAsSecondarySourceFromUrl(nick, m3uUrl)) {
+                        is Resource.Success -> recovered++
+                        else -> failed++
+                    }
+                }
+                extraServers.clear(); extraServers.addAll(prefs.getExtraServersWithNick())
+                val parts = mutableListOf<String>()
+                if (recovered > 0) parts.add("$recovered M3U playlist${if (recovered == 1) "" else "s"} re-imported")
+                if (failed > 0) parts.add("$failed failed to re-fetch")
+                if (skipped > 0) parts.add("$skipped need re-adding manually (not imported from a URL)")
+                if (parts.isNotEmpty()) {
+                    Toast.makeText(this@SettingsActivity, parts.joinToString(", "), Toast.LENGTH_LONG).show()
+                }
+            }
         }
 
         // Merged/other-provider favorites can't be applied yet — that provider's channels

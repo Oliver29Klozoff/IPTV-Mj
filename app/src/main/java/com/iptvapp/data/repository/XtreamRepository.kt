@@ -1185,10 +1185,17 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun importM3uFromUrl(url: String): Resource<Int> = safeApiCall {
-        val request = Request.Builder().url(url).build()
-        val content = okHttpClient.newCall(request).execute().use { it.body?.string() }
-            ?: throw Exception("Empty response from M3U URL")
-        importM3uText(content)
+        // safeApiCall only catches exceptions, it doesn't switch dispatchers (see its own
+        // definition in util/Resource.kt) — this blocking OkHttp call was running on whatever
+        // dispatcher the caller's coroutine used, which for both call sites (LoginActivity,
+        // SettingsActivity) is Main. A synchronous network call on the main thread throws
+        // NetworkOnMainThreadException, so "Enter M3U URL" could never have actually worked.
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder().url(url).build()
+            val content = okHttpClient.newCall(request).execute().use { it.body?.string() }
+                ?: throw Exception("Empty response from M3U URL")
+            importM3uText(content)
+        }
     }
 
     suspend fun importM3uFromText(content: String): Resource<Int> = safeApiCall {
@@ -1232,10 +1239,14 @@ class XtreamRepository @Inject constructor(
      * importM3uFromUrl/importM3uFromText above (network fetch stays in the repository, not the
      * caller), just for the add-as-secondary-source path. */
     suspend fun importM3uAsSecondarySourceFromUrl(nickname: String, url: String): Resource<Int> = safeApiCall {
-        val request = Request.Builder().url(url).build()
-        val content = okHttpClient.newCall(request).execute().use { it.body?.string() }
-            ?: throw Exception("Empty response from M3U URL")
-        importM3uAsSecondarySourceInternal(nickname, url, content)
+        // See importM3uFromUrl's comment above — safeApiCall doesn't switch dispatchers on its
+        // own, so this blocking OkHttp call needs its own withContext(Dispatchers.IO) too.
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder().url(url).build()
+            val content = okHttpClient.newCall(request).execute().use { it.body?.string() }
+                ?: throw Exception("Empty response from M3U URL")
+            importM3uAsSecondarySourceInternal(nickname, url, content)
+        }
     }
 
     /**
@@ -1483,7 +1494,11 @@ class XtreamRepository @Inject constructor(
      * enough for a Settings diagnostics check without needing to build out full history
      * tracking for merged providers too. */
     suspend fun checkAllProviderHealth(): List<ProviderHealthStatus> = coroutineScope {
-        allConfiguredServers().map { server ->
+        // m3u-type servers have no Xtream connection to test — serverUrl/username/password are
+        // blank placeholders (see ConfiguredServer.type kdoc) — testProviderConnection("", "", "")
+        // would just report a permanently "unreachable" provider for a source that's actually
+        // fine, since playability there depends on its stored per-channel URLs, not a connection.
+        allConfiguredServers().filter { it.type != "m3u" }.map { server ->
             async {
                 val result = testProviderConnection(server.serverUrl, server.username, server.password)
                 ProviderHealthStatus(server.serverIndex, server.nickname, server.serverUrl, result.reachable, result.responseMs, result.error)
@@ -1577,7 +1592,9 @@ class XtreamRepository @Inject constructor(
      * or an unrecognized User-Agent — so this reuses it against one real channel per server
      * instead of duplicating that probe logic. */
     suspend fun runSpeedTestForAllProviders(): List<ProviderSpeedTestResult> = coroutineScope {
-        allConfiguredServers().map { server ->
+        // Same reasoning as checkAllProviderHealth — an m3u server's blank serverUrl isn't a
+        // real host to TCP/HTTP-test against (it would just report "Could not parse host").
+        allConfiguredServers().filter { it.type != "m3u" }.map { server ->
             async(Dispatchers.IO) {
                 val uri = try { java.net.URI(server.serverUrl) } catch (_: Exception) {
                     return@async ProviderSpeedTestResult(server.serverIndex, server.nickname, server.serverUrl, null, 0, null, "Invalid server URL")
@@ -2011,9 +2028,11 @@ class XtreamRepository @Inject constructor(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
     ): Map<Int, String> {
+        // M3U import only ever carries live channels (see M3uParser) — an m3u-type server never
+        // has VOD to fetch, same reasoning as refreshMergedChannels' own m3u filter.
         val servers = allConfiguredServers().let { all ->
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
-        }
+        }.filter { it.type != "m3u" }
         val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedVodEntity>()
@@ -2130,9 +2149,11 @@ class XtreamRepository @Inject constructor(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
     ): Map<Int, String> {
+        // M3U import only ever carries live channels (see M3uParser) — an m3u-type server never
+        // has series to fetch, same reasoning as refreshMergedChannels' own m3u filter.
         val servers = allConfiguredServers().let { all ->
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
-        }
+        }.filter { it.type != "m3u" }
         val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
         val errors = mutableMapOf<Int, String>()
         val results = mutableListOf<MergedSeriesEntity>()
