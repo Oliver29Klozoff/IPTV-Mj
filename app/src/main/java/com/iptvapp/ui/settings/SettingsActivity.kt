@@ -59,6 +59,7 @@ import androidx.work.NetworkType
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -2390,23 +2391,32 @@ class SettingsActivity : AppCompatActivity() {
                         extraServers.removeAt(i)
                         lifecycleScope.launch {
                             prefs.saveExtraServersWithNick(extraServers)
-                            // merged_channels: delete just this server's own rows, then shift
-                            // every later server's rows down one index in place, instead of the
-                            // old clearAll() + rely-on-next-refresh-to-repopulate-everyone. That
-                            // was always a little wasteful for Xtream providers (refetches
-                            // everyone on the next refresh instead of just re-indexing), but for
-                            // an m3u-type source it was real data loss — refreshMergedChannels()
-                            // never repopulates those (see its kdoc), so removing ANY provider
-                            // silently emptied every M3U source in the list, not just the one
-                            // actually being removed. See decrementServerIndicesAfter's own kdoc.
-                            db.mergedChannelDao().clearForServer(i)
-                            db.mergedChannelDao().decrementServerIndicesAfter(i)
-                            // VOD/series are always Xtream-sourced (M3U import only ever carries
-                            // live channels — see M3uParser), so the old wipe-and-let-the-next-
-                            // refresh-repopulate approach doesn't lose anything permanently here,
-                            // just costs a re-fetch. Left as-is rather than widening this fix.
-                            db.mergedVodDao().clearAll()
-                            db.mergedSeriesDao().clearAll()
+                            // NonCancellable — lifecycleScope cancels on exactly the things a
+                            // user does in the middle of tapping a button and moving on
+                            // (navigating away, backgrounding, rotating). Letting this land
+                            // mid-way through the clear-then-reindex sequence below produced a
+                            // real, reported SQLiteException("SQL logic error") from
+                            // clearForServer on a real device — see XtreamRepository.
+                            // refreshMergedChannels' matching comment for the full reasoning.
+                            withContext(NonCancellable) {
+                                // merged_channels: delete just this server's own rows, then shift
+                                // every later server's rows down one index in place, instead of the
+                                // old clearAll() + rely-on-next-refresh-to-repopulate-everyone. That
+                                // was always a little wasteful for Xtream providers (refetches
+                                // everyone on the next refresh instead of just re-indexing), but for
+                                // an m3u-type source it was real data loss — refreshMergedChannels()
+                                // never repopulates those (see its kdoc), so removing ANY provider
+                                // silently emptied every M3U source in the list, not just the one
+                                // actually being removed. See decrementServerIndicesAfter's own kdoc.
+                                db.mergedChannelDao().clearForServer(i)
+                                db.mergedChannelDao().decrementServerIndicesAfter(i)
+                                // VOD/series are always Xtream-sourced (M3U import only ever carries
+                                // live channels — see M3uParser), so the old wipe-and-let-the-next-
+                                // refresh-repopulate approach doesn't lose anything permanently here,
+                                // just costs a re-fetch. Left as-is rather than widening this fix.
+                                db.mergedVodDao().clearAll()
+                                db.mergedSeriesDao().clearAll()
+                            }
                         }
                         updateServerList()
                     }

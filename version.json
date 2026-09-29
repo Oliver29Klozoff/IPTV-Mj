@@ -1,7 +1,7 @@
 {
-  "versionCode": 510,
-  "versionName": "6.72",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.72/MKTV.apk",
-  "apkSha256": "b226a5a8713f82c78539814ea7145866a06e565fe8f9147cc245172b15c059c5",
-  "changelog": "Fixes a crash reported from v6.71: overlapping merged-provider refreshes could race each other's database writes. Now serialized everywhere, not just from the Live TV screen."
+  "versionCode": 511,
+  "versionName": "6.73",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.73/MKTV.apk",
+  "apkSha256": "a783a26a90c3bceb03e84cb551f3d450af52e8aeb2abc887f87327e34c92cc29",
+  "changelog": "v6.72's crash fix was wrong. Real cause: a merged-provider refresh cancelled mid-write (backgrounding, navigating away, rotating) while writing to the database. Now runs to completion once started."
 }

@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v6.73 - 2026-09-29
+- **Fixed**: the v6.72 fix for the merged-provider crash was wrong — the exact same crash was
+  reported again on v6.72. The real cause, per the crash's own suppressed context this time
+  (a "Cancelling" coroutine, missed on the first pass): navigating away, backgrounding the app, or
+  rotating the screen while a merged-channel/movie/series refresh is mid-write cancels that write
+  partway through, which is what actually threw the SQL error, not two refreshes overlapping.
+  Wrapped the clear-then-rewrite sequence in all three refreshes (and in Settings' "Remove"
+  provider action, which has the identical shape) so it finishes once started instead of being
+  interruptible mid-way. v6.72's fix (serializing overlapping refreshes) is left in place — it's
+  real and worth keeping — but wasn't the actual cause here.
+  Same caveat as before: reasoned from the crash report, not reproduced on a device. If this
+  exact crash happens a third time, both explanations were wrong and it needs actual device logs.
+
 ## v6.72 - 2026-09-29
 - **Fixed**: a crash report from v6.71 pointed at a real, pre-existing gap — refreshing merged/
   secondary-provider channels, movies, or series is now serialized (a Mutex per table) so two

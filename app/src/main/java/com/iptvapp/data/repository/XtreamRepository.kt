@@ -11,6 +11,7 @@ import com.iptvapp.util.Resource
 import com.iptvapp.util.XmltvFetcher
 import com.iptvapp.util.safeApiCall
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -1802,22 +1803,37 @@ class XtreamRepository @Inject constructor(
         // its rows unconditionally (the old behavior) permanently deleted that server's cached
         // channels AND favorites on a single transient hiccup, with nothing left for the next
         // refresh's `prev` lookup to restore them from either.
-        results.map { it.serverIndex }.distinct().forEach { serverIndex ->
-            db.mergedChannelDao().clearForServer(serverIndex)
+        // NonCancellable: this DELETE-then-INSERT sequence has to run to completion once
+        // started — if the enclosing coroutine's scope gets torn down mid-way (navigating away,
+        // backgrounding the app, rotating — viewModelScope/lifecycleScope all cancel on exactly
+        // those), the clear for one server could commit while its re-insert never runs, or the
+        // cancellation could land while Room's own transaction/connection-pool bookkeeping is
+        // mid-operation. Either produces a real, generic SQLiteException("SQL logic error") on a
+        // real device (confirmed — this is a second attempt at the same reported crash; the
+        // mutex fix in v6.72 addressed a real but different race — two overlapping refreshes —
+        // and the exact same crash recurred after it, with the thrown exception's own suppressed
+        // context showing the coroutine was already Cancelling at the moment it hit clearForServer,
+        // which the mutex fix does nothing to prevent). See kotlinx.coroutines' own NonCancellable
+        // docs: wrapping a must-complete critical section is the standard fix for cancellation
+        // landing mid-operation, not serializing separate callers against each other.
+        withContext(NonCancellable) {
+            results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                db.mergedChannelDao().clearForServer(serverIndex)
+            }
+            // A single @Upsert call over the WHOLE combined results list runs as one giant
+            // transaction — fine for a small catalog, but a provider with a large one (tens of
+            // thousands of channels) could leave that one COMMIT running for minutes on slower
+            // storage (confirmed via SQLiteConnectionPool logs on a Shield box: a stuck COMMIT held
+            // the only active connection, starving every other DB read — including the one backing
+            // the channel list UI — so channels never appeared even though the fetch itself
+            // succeeded). Same fix already applied to VOD/series sync (fetchVodStreams/
+            // fetchSeries) for the same reason — chunk so only one chunk's worth of rows commits at
+            // a time.
+            results.chunked(2000).forEach { chunk ->
+                db.mergedChannelDao().upsertAll(chunk)
+            }
+            applyPendingMergedRestoreData(servers)
         }
-        // A single @Upsert call over the WHOLE combined results list runs as one giant
-        // transaction — fine for a small catalog, but a provider with a large one (tens of
-        // thousands of channels) could leave that one COMMIT running for minutes on slower
-        // storage (confirmed via SQLiteConnectionPool logs on a Shield box: a stuck COMMIT held
-        // the only active connection, starving every other DB read — including the one backing
-        // the channel list UI — so channels never appeared even though the fetch itself
-        // succeeded). Same fix already applied to VOD/series sync (fetchVodStreams/
-        // fetchSeries) for the same reason — chunk so only one chunk's worth of rows commits at
-        // a time.
-        results.chunked(2000).forEach { chunk ->
-            db.mergedChannelDao().upsertAll(chunk)
-        }
-        applyPendingMergedRestoreData(servers)
         return errors
     }
 
@@ -2111,11 +2127,16 @@ class XtreamRepository @Inject constructor(
                 }
             }.forEach { it.await() }
         }
-        results.map { it.serverIndex }.distinct().forEach { serverIndex ->
-            db.mergedVodDao().clearForServer(serverIndex)
+        // NonCancellable — see refreshMergedChannels' own comment on why this clear-then-insert
+        // sequence can't be left interruptible mid-way; same fix, same reasoning, same table
+        // shape.
+        withContext(NonCancellable) {
+            results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                db.mergedVodDao().clearForServer(serverIndex)
+            }
+            db.mergedVodDao().upsertAll(results)
+            applyPendingMergedVodRestoreData(servers)
         }
-        db.mergedVodDao().upsertAll(results)
-        applyPendingMergedVodRestoreData(servers)
         return errors
     }
 
@@ -2232,11 +2253,16 @@ class XtreamRepository @Inject constructor(
                 }
             }.forEach { it.await() }
         }
-        results.map { it.serverIndex }.distinct().forEach { serverIndex ->
-            db.mergedSeriesDao().clearForServer(serverIndex)
+        // NonCancellable — see refreshMergedChannels' own comment on why this clear-then-insert
+        // sequence can't be left interruptible mid-way; same fix, same reasoning, same table
+        // shape.
+        withContext(NonCancellable) {
+            results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                db.mergedSeriesDao().clearForServer(serverIndex)
+            }
+            db.mergedSeriesDao().upsertAll(results)
+            applyPendingMergedSeriesRestoreData(servers)
         }
-        db.mergedSeriesDao().upsertAll(results)
-        applyPendingMergedSeriesRestoreData(servers)
         return errors
     }
 
