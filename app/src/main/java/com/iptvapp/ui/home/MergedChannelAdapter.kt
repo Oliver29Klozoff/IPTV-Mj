@@ -135,11 +135,11 @@ class MergedChannelAdapter(
                 binding.cbBulkSelect?.visibility = View.VISIBLE
                 binding.cbBulkSelect?.isChecked = bulkSelectedKeys.contains(key)
                 binding.root.setBackgroundColor(
-                    if (bulkSelectedKeys.contains(key)) 0x33008CFF else 0x00000000
+                    if (bulkSelectedKeys.contains(key)) 0x3306B6D4 else 0x00000000
                 )
             } else {
                 binding.cbBulkSelect?.visibility = View.GONE
-                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector_channel)
             }
             binding.ivFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener {

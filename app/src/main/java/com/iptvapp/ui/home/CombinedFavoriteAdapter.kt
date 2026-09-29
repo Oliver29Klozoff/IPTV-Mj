@@ -276,17 +276,17 @@ class CombinedFavoriteAdapter(
                 binding.cbBulkSelect?.visibility = View.VISIBLE
                 binding.cbBulkSelect?.isChecked = item.id in reorderSelectedIds
                 binding.root.setBackgroundColor(
-                    if (item.id in reorderSelectedIds) 0x33008CFF else 0x00000000
+                    if (item.id in reorderSelectedIds) 0x3306B6D4 else 0x00000000
                 )
             } else if (bulkSelectMode) {
                 binding.cbBulkSelect?.visibility = View.VISIBLE
                 binding.cbBulkSelect?.isChecked = bulkSelectedIds.contains(item.id)
                 binding.root.setBackgroundColor(
-                    if (bulkSelectedIds.contains(item.id)) 0x33008CFF else 0x00000000
+                    if (bulkSelectedIds.contains(item.id)) 0x3306B6D4 else 0x00000000
                 )
             } else {
                 binding.cbBulkSelect?.visibility = View.GONE
-                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector_channel)
             }
 
             binding.root.setOnClickListener {

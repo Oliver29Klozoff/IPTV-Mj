@@ -2,6 +2,6 @@
   "versionCode": 507,
   "versionName": "6.69",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.69/MKTV.apk",
-  "apkSha256": "a0e60bb0cdeaa2ac070636a914b8c97de035bca5e70de963071eaec40b427937",
+  "apkSha256": "72ec78d09fe0754731354e52eb9af7c6fb907508f23d0a82bc69909a5de1da64",
   "changelog": "Restyled the live-channel list (phone, TV, merged rows) in the OLED/cyan look from the Compose preview. Scoped to the channel list only; player OSD is a separate piece not done yet."
 }

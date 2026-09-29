@@ -202,11 +202,11 @@ class ChannelAdapter(
                 binding.cbBulkSelect?.visibility = View.VISIBLE
                 binding.cbBulkSelect?.isChecked = bulkSelectedIds.contains(item.streamId)
                 binding.root.setBackgroundColor(
-                    if (bulkSelectedIds.contains(item.streamId)) 0x33008CFF else 0x00000000
+                    if (bulkSelectedIds.contains(item.streamId)) 0x3306B6D4 else 0x00000000
                 )
             } else {
                 binding.cbBulkSelect?.visibility = View.GONE
-                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector)
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector_channel)
             }
             binding.root.setOnClickListener {
                 val now = System.currentTimeMillis()
