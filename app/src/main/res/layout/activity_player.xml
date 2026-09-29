@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- OLED/cyan reskin (v6.70) covers this screen's accent color (@color/oled_cyan_primary,
+     everywhere #008CFF used to be) and its reading-text hierarchy (oled_text_primary/secondary/
+     muted, on the channel title/EPG/time text). Shared by Live TV, VOD, and Series playback (one
+     PlayerActivity, an isVod flag) — no separate layout to scope this to Live TV only the way
+     item_channel.xml's variants allowed, so it reaches all three.
+
+     NOT retinted: @drawable/tv_sidebar_focus (every button's focus ring here) and the dimmed
+     #AAAAAA icon-button label color — that drawable is also the TV focus ring for Settings/VOD/
+     Series/Recordings app-wide, so retinting it in place would reach far outside this screen;
+     forking it (like focus_selector_channel.xml did for the channel list) means touching every
+     button below and is a separate, larger piece. Semantic/status colors (brightness yellow,
+     live-red, HDR badge, health dot, buffer-state colors, stats green) are untouched by design —
+     those encode state, not brand, same principle as the channel list's health dot/favorite star. -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"

@@ -6,11 +6,13 @@
     <color name="brand_blue_dark">#005BFF</color>
 
     <!-- OLED Cyber-Stream palette — same tokens as ui/compose/theme/Color.kt, so the Compose UI
-         Preview and this XML reskin read as one consistent design language instead of two. Scoped
-         deliberately to the live-channel row (item_channel.xml / item_merged_channel.xml) and its
-         TV variant for now — see focus_selector_channel.xml kdoc for why the shared app-wide
-         focus_selector.xml was forked rather than retinted (it's also used by every VOD/Series row,
-         which this pass isn't touching). -->
+         Preview and this XML reskin read as one consistent design language instead of two.
+         Currently used by the live-channel row (item_channel.xml / item_merged_channel.xml, both
+         phone and TV) and the player's on-screen controls (activity_player.xml) — see
+         focus_selector_channel.xml kdoc for why the shared app-wide focus_selector.xml was forked
+         rather than retinted (it's also used by every VOD/Series row, which these tokens don't
+         reach yet), and activity_player.xml's own top-of-file note for why tv_sidebar_focus and
+         icon-button label colors weren't touched either. -->
     <color name="oled_cyan_primary">#06B6D4</color>
     <color name="oled_cyan_glow">#38BDF8</color>
     <color name="oled_surface_container_low">#161B26</color>

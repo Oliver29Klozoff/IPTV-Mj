@@ -2,6 +2,6 @@
   "versionCode": 508,
   "versionName": "6.70",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.70/MKTV.apk",
-  "apkSha256": "70fbd70f94af4bd07444c3e3aaa621454a3447e0b53482a945c035b5b365a082",
+  "apkSha256": "8fbc961341cb993d06e2e36ed07a44114096fbd6d57ee19e3fb36fc8c03ac653",
   "changelog": "Restyled the player's on-screen controls (Guide/CC/Resize accent, volume/seek bars, channel-change and EPG overlays) in the same OLED/cyan look. Shared with VOD/Series playback (one PlayerActivity)."
 }
