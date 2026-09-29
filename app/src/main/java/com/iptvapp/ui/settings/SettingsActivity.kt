@@ -63,6 +63,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -1798,20 +1799,33 @@ class SettingsActivity : AppCompatActivity() {
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
                 val reportTitle = "Debug Report — v${pInfo.versionName} — ${Build.MODEL}"
-                val discordJson = JSONObject().apply {
+                // Used to cram the whole thing into an embed's description field via
+                // fullDebug.take(3900) — Discord embed descriptions cap at 4096 characters, a
+                // hard platform limit, not something raising the number fixes. Combined with
+                // getCrashLog()'s own now-larger budget, that truncation could still cut a crash
+                // entry's tail off, or (since recent entries sort last in that budget while
+                // take() keeps only the FRONT of the combined text) drop the newest crash
+                // entirely in favor of an older one. Sent as a plain-text file attachment
+                // instead — Discord webhooks accept those well past this size, and the whole
+                // report goes through untruncated regardless of how large the crash log gets.
+                val payloadJson = JSONObject().apply {
                     put("username", "Captain Hook")
-                    put("embeds", JSONArray().put(JSONObject().apply {
-                        put("title", reportTitle)
-                        put("description", "```\n${fullDebug.take(3900)}\n```")
-                        put("color", 0xF57C00)
-                    }))
+                    put("content", "**$reportTitle**")
                 }
+                val multipartBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("payload_json", payloadJson.toString())
+                    .addFormDataPart(
+                        "files[0]", "debug_report.txt",
+                        fullDebug.toRequestBody("text/plain".toMediaType())
+                    )
+                    .build()
                 binding.tvReportStatus.text = "Sending report..."
                 val response = withContext(Dispatchers.IO) {
                     OkHttpClient().newCall(
                         Request.Builder()
                             .url(AppConstants.DISCORD_WEBHOOK)
-                            .post(discordJson.toString().toRequestBody("application/json".toMediaType()))
+                            .post(multipartBody)
                             .build()
                     ).execute()
                 }

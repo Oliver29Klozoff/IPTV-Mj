@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -2480,20 +2481,29 @@ class TvSettingsActivity : AppCompatActivity() {
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
                 val reportTitle = "Debug Report — v${pInfo.versionName} — ${Build.MODEL}"
-                val discordJson = JSONObject().apply {
+                // See SettingsActivity's identical sendDebugReport() for why this moved from a
+                // fullDebug.take(3900)-truncated embed description (a hard 4096-char Discord
+                // limit, not something a bigger budget upstream fixes — could cut a crash entry's
+                // tail off, or drop the newest entry in favor of an older one) to a plain-text
+                // file attachment, which goes through untruncated regardless of size.
+                val payloadJson = JSONObject().apply {
                     put("username", "Captain Hook")
-                    put("embeds", JSONArray().put(JSONObject().apply {
-                        put("title", reportTitle)
-                        put("description", "```\n${fullDebug.take(3900)}\n```")
-                        put("color", 0xF57C00)
-                    }))
+                    put("content", "**$reportTitle**")
                 }
+                val multipartBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("payload_json", payloadJson.toString())
+                    .addFormDataPart(
+                        "files[0]", "debug_report.txt",
+                        fullDebug.toRequestBody("text/plain".toMediaType())
+                    )
+                    .build()
                 setItemValue("backup_debug", "Sending...")
                 val response = withContext(Dispatchers.IO) {
                     OkHttpClient().newCall(
                         Request.Builder()
                             .url(AppConstants.DISCORD_WEBHOOK)
-                            .post(discordJson.toString().toRequestBody("application/json".toMediaType()))
+                            .post(multipartBody)
                             .build()
                     ).execute()
                 }

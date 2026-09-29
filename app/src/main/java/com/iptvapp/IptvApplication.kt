@@ -159,7 +159,12 @@ class IptvApplication : Application(), Configuration.Provider {
                 val entries = entryStarts.mapIndexed { i, start ->
                     fullText.substring(start, entryStarts.getOrElse(i + 1) { fullText.length })
                 }
-                val budget = 6000
+                // Generous — matches the 40KB the log file itself is trimmed to (see
+                // setupCrashHandler above), not the small figure this started at when the send
+                // path still crammed everything into a size-limited Discord embed. Now sent as a
+                // file attachment instead (see SettingsActivity/TvSettingsActivity's
+                // sendDebugReport()), so there's no reason to hand back less than what's retained.
+                val budget = 40000
                 val kept = StringBuilder()
                 for (entry in entries.asReversed()) {
                     if (kept.isNotEmpty() && kept.length + entry.length > budget) break
