@@ -2,6 +2,6 @@
   "versionCode": 512,
   "versionName": "6.74",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.74/MKTV.apk",
-  "apkSha256": "c47d52f4571762aa07adace86b37e60c17240ee110838dfa3601c5adc6412ea7",
+  "apkSha256": "afbededdaf8fac7a4b7f06607dc3f762e3f8cd01e0adf38f31eddbb86e2f8a77",
   "changelog": "Fixed: Send Debug Report was silently truncating crash logs mid-word, hiding each entry's own timestamp. Not a fix for the underlying crash itself — declining to guess a third time from an incomplete trace."
 }
