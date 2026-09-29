@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v6.67 - 2026-09-29
+- **Changed**: Compose UI Preview (experimental) is now the full "Main Live TV" scaffold — a
+  persistent mini-player pinned above a filterable, searchable channel list, real category chips
+  and favorites count, and a real "channels synced Xm ago / RE-SYNC" status bar. Tapping a channel
+  switches the mini-player without leaving the list; the mini-player's own PiP and full-screen
+  buttons are real (system Picture-in-Picture, and the full player screen from v6.66). Dropped as
+  fabricated: a "CH 104"-style channel-number pill, a live sports score/clock overlay, and
+  HEVC/H.265, Catch-up, and 5.1 Audio filter chips — none of those are things this app tracks.
+
 ## v6.66 - 2026-09-29
 - **Added**: Compose UI Preview (Settings > Backup & Restore, phone; experimental). A reworked
   OLED/cyan channel list and player overlay, built with Jetpack Compose, standing alongside the

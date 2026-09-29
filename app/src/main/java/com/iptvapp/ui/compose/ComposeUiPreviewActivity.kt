@@ -1,5 +1,7 @@
 package com.iptvapp.ui.compose
 
+import android.app.PictureInPictureParams
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -7,9 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -22,9 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -32,34 +29,29 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.iptvapp.ui.compose.theme.IptvComposeTheme
 import com.iptvapp.ui.compose.theme.SurfaceBackground
-import com.iptvapp.ui.home.CombinedFavorite
 import com.iptvapp.ui.home.HomeViewModel
-import com.iptvapp.util.ChannelQualityTag
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Experimental Compose UI preview — reworks the favorites list and live player OSD in the OLED/
- * cyan look from a Stitch-generated spec, but bound to REAL data via the existing HomeViewModel/
- * XtreamRepository rather than the spec's fabricated model (see ChannelItemRow/PlayerOsdControls
- * kdoc for what got dropped and why: no LCN, no per-row Mbps, no decoder-engine picker, no
- * WireGuard toggle — none of those exist in this app).
+ * Experimental Compose UI preview — reworks the favorites/live channel list and player OSD in
+ * the OLED/cyan look from a Stitch-generated spec (see MainLiveTvScreen/ChannelItemRow/
+ * PlayerOsdControls kdoc for exactly what's real vs. what got dropped as fabricated: no LCN
+ * numbers, no per-row Mbps, no live sports score/clock, no HEVC/Catch-up/5.1-Audio filter chips,
+ * no decoder-engine picker, no WireGuard toggle — none of those exist in this app).
  *
  * Deliberately NOT wired into any real navigation flow — reachable only via Settings > Backup &
  * Restore > "Compose UI Preview (Experimental)" so it can be compared side-by-side with the real
  * (View/XML) screens without risking anything currently shipping. This is the only screen in the
  * app using Jetpack Compose; everything else stays View/XML + ViewBinding.
- *
- * Scope for this first pass: primary-server favorites only (CombinedFavorite.Primary) — merged/
- * secondary-provider favorites resolve their stream URL and favorite-toggle differently and
- * aren't wired up here yet.
  */
 @AndroidEntryPoint
 class ComposeUiPreviewActivity : ComponentActivity() {
     private val viewModel: HomeViewModel by viewModels()
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
+    @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,63 +59,37 @@ class ComposeUiPreviewActivity : ComponentActivity() {
         setContent {
             IptvComposeTheme {
                 Surface(color = SurfaceBackground, modifier = Modifier.fillMaxSize()) {
-                    ComposeUiPreviewScreen(viewModel, repository)
+                    var fullScreenChannel by remember { mutableStateOf<ComposeChannelUiState?>(null) }
+                    BackHandler(enabled = fullScreenChannel != null) { fullScreenChannel = null }
+
+                    val channel = fullScreenChannel
+                    if (channel == null) {
+                        MainLiveTvScreen(
+                            viewModel = viewModel,
+                            repository = repository,
+                            db = db,
+                            onExpandFullScreen = { fullScreenChannel = it },
+                            onEnterPip = { enterRealPictureInPicture() }
+                        )
+                    } else {
+                        ComposePlayerScreen(
+                            channel = channel,
+                            repository = repository,
+                            onBack = { fullScreenChannel = null }
+                        )
+                    }
                 }
             }
         }
     }
-}
 
-@Composable
-private fun ComposeUiPreviewScreen(
-    viewModel: HomeViewModel,
-    repository: com.iptvapp.data.repository.XtreamRepository
-) {
-    val favorites by viewModel.combinedFavorites.collectAsStateWithLifecycle()
-    val epgText by viewModel.channelEpgText.collectAsStateWithLifecycle()
-    val epgProgress by viewModel.channelEpgProgress.collectAsStateWithLifecycle()
-
-    val primaryChannels = favorites.filterIsInstance<CombinedFavorite.Primary>().map { it.channel }
-
-    LaunchedEffect(primaryChannels.map { it.streamId }) {
-        if (primaryChannels.isNotEmpty()) viewModel.loadEpgForChannels(primaryChannels)
-    }
-
-    val channelStates = primaryChannels.map { ch ->
-        ComposeChannelUiState(
-            streamId = ch.streamId,
-            name = ch.name,
-            logoUrl = ch.streamIcon,
-            qualityBadge = ChannelQualityTag.labelFor(ch.name),
-            currentProgramTitle = epgText[ch.streamId],
-            currentProgramProgress = (epgProgress[ch.streamId] ?: 0) / 100f,
-            isFavorite = true // this screen only ever lists favorites
-        )
-    }
-
-    var selected by remember { mutableStateOf<ComposeChannelUiState?>(null) }
-    BackHandler(enabled = selected != null) { selected = null }
-
-    val current = selected
-    if (current == null) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-        ) {
-            items(channelStates, key = { it.streamId }) { channel ->
-                ChannelItemRow(
-                    channel = channel,
-                    onSelectChannel = { selected = it },
-                    onToggleFavorite = { viewModel.toggleChannelFavorite(it.streamId) }
-                )
-            }
+    // Real system PiP (same API PlayerActivity's own buildPipParams/enterPictureInPictureMode
+    // uses), just without that screen's extra polish (a custom play/pause PiP action icon,
+    // live-tracked aspect ratio) — this is a comparison screen, not a claim of full parity.
+    private fun enterRealPictureInPicture() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            enterPictureInPictureMode(PictureInPictureParams.Builder().build())
         }
-    } else {
-        ComposePlayerScreen(
-            channel = current,
-            repository = repository,
-            onBack = { selected = null }
-        )
     }
 }
 

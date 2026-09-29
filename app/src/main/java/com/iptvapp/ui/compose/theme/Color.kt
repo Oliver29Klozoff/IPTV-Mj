@@ -21,3 +21,4 @@ val TextMuted = Color(0xFF64748B)
 
 // Status
 val FavoriteGold = Color(0xFFFBBF24)
+val LiveBadgeRed = Color(0xFFEF4444)

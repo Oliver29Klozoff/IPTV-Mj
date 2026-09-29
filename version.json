@@ -1,7 +1,7 @@
 {
-  "versionCode": 504,
-  "versionName": "6.66",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.66/MKTV.apk",
-  "apkSha256": "61b0e284e23a4af47ea926577c449754788c4742ac1baf5d7b9d6793fa03910b",
-  "changelog": "Added an experimental Compose UI Preview (Settings > Backup & Restore, phone) — a reworked OLED/cyan channel list and player, alongside the existing screens, not replacing them."
+  "versionCode": 505,
+  "versionName": "6.67",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.67/MKTV.apk",
+  "apkSha256": "8be492bfb67620447513fc61fe2e1b4d84c0c25e8d60c4350ca4ea28a7962598",
+  "changelog": "Compose UI Preview (experimental) is now the full Main Live TV scaffold: persistent mini-player, real filters/search, real sync status bar."
 }
