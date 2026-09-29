@@ -1,6 +1,7 @@
 package com.iptvapp.ui.compose
 
 import android.app.PictureInPictureParams
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -27,6 +28,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.ui.compose.theme.IptvComposeTheme
 import com.iptvapp.ui.compose.theme.SurfaceBackground
 import com.iptvapp.ui.home.HomeViewModel
@@ -52,6 +54,13 @@ class ComposeUiPreviewActivity : ComponentActivity() {
     private val viewModel: HomeViewModel by viewModels()
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
+    @Inject lateinit var prefs: PreferencesManager
+
+    // Read by MainLiveTvScreen to switch to a video-only layout while in PiP — Android shrinks
+    // this whole Activity's Compose tree into the small PiP window rather than hiding anything
+    // on its own, so without this the channel list/filter bar/sync bar all got squeezed down
+    // alongside the video instead of only the video showing (see onPictureInPictureModeChanged).
+    private var isInPip by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,12 +71,30 @@ class ComposeUiPreviewActivity : ComponentActivity() {
                     var fullScreenChannel by remember { mutableStateOf<ComposeChannelUiState?>(null) }
                     BackHandler(enabled = fullScreenChannel != null) { fullScreenChannel = null }
 
+                    // Hoisted above the fullscreen/list branch below: MainLiveTvScreen is removed
+                    // from composition (and its own `remember`ed state discarded) every time
+                    // fullScreenChannel becomes non-null, so the mini-player's active channel and
+                    // the browsing filter/search have to live up here to survive a round trip
+                    // through the full-screen player and back — otherwise returning from
+                    // fullscreen showed an empty mini-player and reset back to Favorites.
+                    var activeChannel by remember { mutableStateOf<ComposeChannelUiState?>(null) }
+                    var selectedFilterId by remember { mutableStateOf(FAVORITES_FILTER_ID) }
+                    var searchQuery by remember { mutableStateOf("") }
+
                     val channel = fullScreenChannel
                     if (channel == null) {
                         MainLiveTvScreen(
                             viewModel = viewModel,
                             repository = repository,
                             db = db,
+                            prefs = prefs,
+                            activeChannel = activeChannel,
+                            onActiveChannelChange = { activeChannel = it },
+                            selectedFilterId = selectedFilterId,
+                            onSelectedFilterIdChange = { selectedFilterId = it },
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            isInPip = isInPip,
                             onExpandFullScreen = { fullScreenChannel = it },
                             onEnterPip = { enterRealPictureInPicture() }
                         )
@@ -90,6 +117,11 @@ class ComposeUiPreviewActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             enterPictureInPictureMode(PictureInPictureParams.Builder().build())
         }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPip = isInPictureInPictureMode
     }
 }
 

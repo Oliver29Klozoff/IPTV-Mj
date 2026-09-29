@@ -1,7 +1,7 @@
 {
-  "versionCode": 505,
-  "versionName": "6.67",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.67/MKTV.apk",
-  "apkSha256": "8be492bfb67620447513fc61fe2e1b4d84c0c25e8d60c4350ca4ea28a7962598",
-  "changelog": "Compose UI Preview (experimental) is now the full Main Live TV scaffold: persistent mini-player, real filters/search, real sync status bar."
+  "versionCode": 506,
+  "versionName": "6.68",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.68/MKTV.apk",
+  "apkSha256": "954095b520d662f2186ecaeaed5066bba976459420a825751296bfb830ee34e9",
+  "changelog": "Codex-review fixes for the Compose UI Preview: mini-player state now survives fullscreen/PiP, PiP shows video-only, search no longer floods EPG fetches, sync status is now real."
 }

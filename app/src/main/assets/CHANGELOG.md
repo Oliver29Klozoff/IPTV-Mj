@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v6.68 - 2026-09-29
+- **Fixed**: Compose UI Preview (experimental) — Codex review of v6.67 caught four real bugs,
+  fixed here. Expanding to full-screen and returning no longer loses the mini-player's channel or
+  the selected filter/search; entering Picture-in-Picture now shows just the video instead of the
+  whole screen squeezed into the PiP window; typing in search no longer fires a fresh overlapping
+  EPG-fetch loop per keystroke (each one racing the last and risking the same provider rate-limit
+  this app already paces around elsewhere); and the "synced Xm ago" status bar now reflects a real
+  successful channel sync instead of guessing from the loading spinner.
+
 ## v6.67 - 2026-09-29
 - **Changed**: Compose UI Preview (experimental) is now the full "Main Live TV" scaffold — a
   persistent mini-player pinned above a filterable, searchable channel list, real category chips

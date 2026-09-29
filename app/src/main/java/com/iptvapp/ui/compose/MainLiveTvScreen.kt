@@ -55,6 +55,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.iptvapp.data.local.IptvDatabase
+import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.ui.compose.theme.CyanGlow
 import com.iptvapp.ui.compose.theme.CyanPrimary
@@ -69,7 +70,7 @@ import com.iptvapp.ui.home.HomeViewModel
 import com.iptvapp.util.ChannelQualityTag
 import kotlinx.coroutines.delay
 
-private const val FAVORITES_FILTER_ID = "__favorites__"
+internal const val FAVORITES_FILTER_ID = "__favorites__"
 
 /**
  * The "Main Live TV" scaffold: a persistent mini-player pinned above a filterable/searchable
@@ -81,12 +82,26 @@ private const val FAVORITES_FILTER_ID = "__favorites__"
  * (ComposePlayerScreen in ComposeUiPreviewActivity) rather than owning that itself, so the
  * mini-player's ExoPlayer here and the full-screen one are two independent, sequential instances
  * — never both holding the decoder at once.
+ *
+ * [activeChannel]/[selectedFilterId]/[searchQuery] are hoisted up to the caller (rather than
+ * `remember`ed locally) because this composable gets removed from composition whenever the
+ * caller shows the full-screen player instead — see ComposeUiPreviewActivity. [isInPip] switches
+ * to a video-only layout, since Android shrinks whatever this function composes into the PiP
+ * window rather than hiding any of it automatically.
  */
 @Composable
 fun MainLiveTvScreen(
     viewModel: HomeViewModel,
     repository: XtreamRepository,
     db: IptvDatabase,
+    prefs: PreferencesManager,
+    activeChannel: ComposeChannelUiState?,
+    onActiveChannelChange: (ComposeChannelUiState?) -> Unit,
+    selectedFilterId: String,
+    onSelectedFilterIdChange: (String) -> Unit,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    isInPip: Boolean,
     onExpandFullScreen: (ComposeChannelUiState) -> Unit,
     onEnterPip: () -> Unit
 ) {
@@ -98,11 +113,14 @@ fun MainLiveTvScreen(
     val epgText by viewModel.channelEpgText.collectAsStateWithLifecycle()
     val epgProgress by viewModel.channelEpgProgress.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
+    // Real persisted last-successful-fetch time (only ever set when fetchLiveStreams() actually
+    // succeeds — see XtreamRepository.fetchLiveStreams/isChannelCacheStale), not a guess from
+    // watching `loading` flip back to false, which also happened after a *failed* refresh (the
+    // ViewModel resets loading in a `finally`) and read "just now" from the moment this screen
+    // opened even when loadAll() found the cache already fresh and skipped the network entirely.
+    val lastSyncedAtMs by prefs.lastChannelsFetchTime.collectAsStateWithLifecycle(initialValue = 0L)
 
-    var selectedFilterId by remember { mutableStateOf(FAVORITES_FILTER_ID) }
-    var searchQuery by remember { mutableStateOf("") }
     var totalChannelCount by remember { mutableStateOf(0) }
-    var lastSyncedAtMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(Unit) {
         totalChannelCount = try { db.channelDao().getCount() } catch (_: Exception) { 0 }
@@ -117,8 +135,16 @@ fun MainLiveTvScreen(
     val filteredList = if (searchQuery.isBlank()) baseList
         else baseList.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
-    LaunchedEffect(filteredList.map { it.streamId }) {
-        if (filteredList.isNotEmpty()) viewModel.loadEpgForChannels(filteredList)
+    // Keyed off baseList (the category/favorites selection), not filteredList — EPG text/
+    // progress is per-channel data that doesn't depend on the search text, and
+    // loadEpgForChannels launches its own uncancellable viewModelScope job on every call (a
+    // 150ms-paced per-channel fetch loop — see HomeViewModel kdoc on the 429 storm that pacing
+    // exists to avoid). Keying this off the search-filtered list instead fired a fresh
+    // overlapping fetch loop on every keystroke, racing past ones and risking that same
+    // provider-side rate limiting. Once loaded for the base list, search just filters the
+    // already-cached epgText/epgProgress maps below — no re-fetch needed.
+    LaunchedEffect(baseList.map { it.streamId }) {
+        if (baseList.isNotEmpty()) viewModel.loadEpgForChannels(baseList)
     }
 
     val channelStates = filteredList.map { ch ->
@@ -135,7 +161,6 @@ fun MainLiveTvScreen(
 
     // The mini player's own ExoPlayer — a separate, shorter-lived instance from the full-screen
     // one ComposeUiPreviewActivity creates on expand; never both alive at once (see class kdoc).
-    var activeChannel by remember { mutableStateOf<ComposeChannelUiState?>(null) }
     val miniPlayer = remember { ExoPlayer.Builder(context).build() }
     var telemetry by remember { mutableStateOf(PlayerTelemetry()) }
 
@@ -165,6 +190,31 @@ fun MainLiveTvScreen(
         miniPlayer.playWhenReady = true
     }
 
+    if (isInPip) {
+        // Android still composes and shrinks this function's entire output into the small PiP
+        // window rather than hiding anything on its own — without this branch the channel list,
+        // filter bar and sync status bar all got squeezed down alongside the video instead of
+        // only the video showing. The PiP button is only enabled once a channel is already
+        // active (see MiniPlayerHeader), so the placeholder below is a defensive fallback, not
+        // the expected path.
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (activeChannel != null) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { PlayerView(it).apply { useController = false; player = miniPlayer } }
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(SurfaceContainerLow),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Hold a channel to preview it here", color = TextMuted, fontSize = 13.sp)
+                }
+            }
+        }
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         MiniPlayerHeader(
             channel = activeChannel,
@@ -178,9 +228,9 @@ fun MainLiveTvScreen(
             favoritesCount = favoriteChannels.size,
             categories = categories,
             selectedFilterId = selectedFilterId,
-            onSelectFilter = { selectedFilterId = it },
+            onSelectFilter = onSelectedFilterIdChange,
             searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it }
+            onSearchQueryChange = onSearchQueryChange
         )
 
         Box(modifier = Modifier.weight(1f)) {
@@ -192,7 +242,7 @@ fun MainLiveTvScreen(
                 items(channelStates, key = { it.streamId }) { channel ->
                     ChannelItemRow(
                         channel = channel,
-                        onSelectChannel = { activeChannel = it },
+                        onSelectChannel = onActiveChannelChange,
                         onToggleFavorite = { viewModel.toggleChannelFavorite(it.streamId) }
                     )
                 }
@@ -207,13 +257,6 @@ fun MainLiveTvScreen(
                 viewModel.refreshNow()
             }
         )
-    }
-
-    // refreshNow() is fire-and-forget on the ViewModel side; this just watches `loading` to know
-    // when that real refresh actually finished, so the sync bar's timestamp reflects real work
-    // done rather than the moment the button was tapped.
-    LaunchedEffect(loading) {
-        if (!loading) lastSyncedAtMs = System.currentTimeMillis()
     }
 }
 
@@ -411,6 +454,7 @@ private fun SyncStatusBar(lastSyncedAtMs: Long, isSyncing: Boolean, onResync: ()
     val elapsedMin = ((nowMs - lastSyncedAtMs) / 60_000).coerceAtLeast(0)
     val label = when {
         isSyncing -> "Syncing..."
+        lastSyncedAtMs <= 0L -> "Not yet synced"
         elapsedMin < 1 -> "Live channels synced • just now"
         else -> "Live channels synced • ${elapsedMin}m ago"
     }
