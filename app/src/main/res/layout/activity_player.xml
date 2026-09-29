@@ -22,7 +22,7 @@
         android:id="@+id/progressBuffering"
         android:layout_width="56dp"
         android:layout_height="56dp"
-        android:indeterminateTint="#008CFF"
+        android:indeterminateTint="@color/oled_cyan_primary"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -128,7 +128,7 @@
             android:layout_marginTop="6dp"
             android:max="100"
             android:progress="50"
-            android:progressTint="#008CFF"
+            android:progressTint="@color/oled_cyan_primary"
             android:progressBackgroundTint="#444444"
             android:rotation="270" />
     </LinearLayout>
@@ -145,7 +145,7 @@
         android:src="@android:drawable/ic_menu_agenda"
         android:nextFocusDown="@id/btnPlayPause"
         android:padding="8dp"
-        app:tint="#008CFF"
+        app:tint="@color/oled_cyan_primary"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -346,7 +346,7 @@
             android:layout_height="72dp"
             android:layout_marginEnd="10dp"
             android:text="CC"
-            android:textColor="#008CFF"
+            android:textColor="@color/oled_cyan_primary"
             android:textSize="22sp"
             android:textStyle="bold"
             android:background="@drawable/tv_sidebar_focus"
@@ -410,7 +410,7 @@
             android:nextFocusUp="@id/btnBack"
             android:scaleType="fitCenter"
             android:padding="16dp"
-            app:tint="#008CFF" />
+            app:tint="@color/oled_cyan_primary" />
     </LinearLayout>
 
     <!-- Compact buffer health badge (always visible during playback) -->
@@ -454,8 +454,8 @@
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:progressTint="#008CFF"
-            android:thumbTint="#008CFF" />
+            android:progressTint="@color/oled_cyan_primary"
+            android:thumbTint="@color/oled_cyan_primary" />
 
         <TextView
             android:id="@+id/tvTimeElapsed"
@@ -463,7 +463,7 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/seekBar"
             android:layout_alignParentStart="true"
-            android:textColor="#CCCCCC"
+            android:textColor="@color/oled_text_secondary"
             android:textSize="12sp" />
 
         <TextView
@@ -472,7 +472,7 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/seekBar"
             android:layout_alignParentEnd="true"
-            android:textColor="#CCCCCC"
+            android:textColor="@color/oled_text_secondary"
             android:textSize="12sp" />
     </RelativeLayout>
 
@@ -498,7 +498,7 @@
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_alignParentBottom="true"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/oled_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -509,7 +509,7 @@
             android:layout_alignParentStart="true"
             android:layout_above="@id/tvChannelTitle"
             android:layout_marginBottom="2dp"
-            android:textColor="#CCCCCC"
+            android:textColor="@color/oled_text_secondary"
             android:textSize="13sp" />
 
         <TextView
@@ -519,7 +519,7 @@
             android:layout_alignParentStart="true"
             android:layout_above="@id/tvEpgNow"
             android:layout_marginBottom="2dp"
-            android:textColor="#888888"
+            android:textColor="@color/oled_text_muted"
             android:textSize="12sp" />
 
     </RelativeLayout>
@@ -574,7 +574,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/oled_text_primary"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -585,7 +585,7 @@
             android:layout_marginTop="4dp"
             android:ellipsize="end"
             android:maxLines="2"
-            android:textColor="#CCCCCC"
+            android:textColor="@color/oled_text_secondary"
             android:textSize="14sp" />
 
         <ProgressBar
@@ -596,8 +596,8 @@
             android:layout_marginTop="10dp"
             android:max="100"
             android:progress="0"
-            android:progressBackgroundTint="#444444"
-            android:progressTint="#008CFF" />
+            android:progressBackgroundTint="@color/oled_surface_container_highest"
+            android:progressTint="@color/oled_cyan_primary" />
     </LinearLayout>
 
     <!-- Favorites guide drawer -->

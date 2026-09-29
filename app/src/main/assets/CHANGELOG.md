@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v6.70 - 2026-09-29
+- **Changed**: Restyled the player's on-screen controls in the same OLED/cyan look as v6.69's
+  channel list — the accent color on the Guide/CC/Resize buttons, the volume gesture bar, the VOD
+  seek bar, and the channel-change/EPG overlays, plus the channel title and guide text colors.
+  Note: unlike the channel list, this screen is genuinely shared by Live TV, VOD, and Series
+  playback (one PlayerActivity, an `isVod` flag), so this necessarily touches VOD/Series playback
+  too — there was no clean way to split it the way the channel list's separate layouts allowed.
+  Button focus rings and icon-button label colors are unchanged (still the app-wide `tv_sidebar_
+  focus`/gray icon colors), since that drawable is also used throughout TV Settings/VOD/Series and
+  wasn't part of this pass.
+
 ## v6.69 - 2026-09-29
 - **Changed**: Restyled the live-channel list (phone, TV, and merged/secondary-provider rows) in
   the OLED/cyan look from the Compose UI Preview — cyan focus ring and progress bar, rounded
