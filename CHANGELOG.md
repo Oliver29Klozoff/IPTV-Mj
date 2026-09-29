@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v6.72 - 2026-09-29
+- **Fixed**: a crash report from v6.71 pointed at a real, pre-existing gap — refreshing merged/
+  secondary-provider channels, movies, or series is now serialized (a Mutex per table) so two
+  overlapping refreshes can no longer race their own clear-and-rewrite of the same rows. The old
+  protection against this only covered refreshes started from the Live TV screen; Settings'
+  per-provider "Refresh Channels" button called the same underlying function directly and could
+  still collide with one already in flight, which is the confirmed cause of merged-provider
+  favorites occasionally reverting in the past — this closes the same gap for good, everywhere.
+  This is the most likely explanation for the reported crash but wasn't reproduced on a device
+  before this fix, so if it recurs, that still matters — let us know.
+
 ## v6.71 - 2026-09-29
 - **Added**: M3U playlists as a toggleable secondary source (phone; Settings > Providers > Add
   Source > M3U Playlist). Previously, importing an M3U playlist replaced your primary Xtream

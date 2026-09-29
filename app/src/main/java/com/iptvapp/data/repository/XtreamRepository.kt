@@ -16,6 +16,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
@@ -1693,10 +1695,30 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // Serializes concurrent refreshMergedChannels/Vod/Series calls against their own table —
+    // each snapshots current favorites (getUserData()) before its network fetch, then
+    // clearForServer+upsertAll once done, and two overlapping calls race that snapshot-fetch-
+    // write cycle against each other (whichever finishes last silently overwrites the other's
+    // more up-to-date state with its own stale snapshot — this exact race was already the
+    // confirmed root cause of merged-provider favorites occasionally reverting, per
+    // HomeViewModel.mergedChannelsRefreshJob's own kdoc). That fix only guards calls going
+    // through HomeViewModel — SettingsActivity's per-provider "Refresh Channels" button calls
+    // this repository directly, so the same race was still fully reachable from there, this time
+    // racing the raw DELETE+INSERT statements themselves rather than just favorite state,
+    // observed on a real device as a SQLiteException("SQL logic error") inside clearForServer.
+    // Moved down here (a Hilt singleton, shared by every caller, unlike a per-Activity
+    // ViewModel) so it actually covers all of them. A Mutex makes a second overlapping caller
+    // wait and then run its own real, correct refresh afterward, rather than HomeViewModel's
+    // coarser "silently no-op if one's already in flight" — slower in the rare case two refreshes
+    // actually overlap, but every caller gets a real result instead of a fabricated empty one.
+    private val mergedChannelsRefreshMutex = Mutex()
+    private val mergedVodRefreshMutex = Mutex()
+    private val mergedSeriesRefreshMutex = Mutex()
+
     suspend fun refreshMergedChannels(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
-    ): Map<Int, String> {
+    ): Map<Int, String> = mergedChannelsRefreshMutex.withLock {
         // m3u-type servers have no Xtream API to re-fetch from below — their channels were
         // written directly at import time (see importM3uAsSecondarySource) and just sit as-is
         // until the source is removed and re-added. Filtered out here rather than left to fail
@@ -2027,7 +2049,9 @@ class XtreamRepository @Inject constructor(
     suspend fun refreshMergedVod(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
-    ): Map<Int, String> {
+    ): Map<Int, String> = mergedVodRefreshMutex.withLock {
+        // Serialized against concurrent overlapping calls — see refreshMergedChannels' own kdoc
+        // on mergedChannelsRefreshMutex, same race, same fix, same table-scoped mutex here.
         // M3U import only ever carries live channels (see M3uParser) — an m3u-type server never
         // has VOD to fetch, same reasoning as refreshMergedChannels' own m3u filter.
         val servers = allConfiguredServers().let { all ->
@@ -2148,7 +2172,9 @@ class XtreamRepository @Inject constructor(
     suspend fun refreshMergedSeries(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
-    ): Map<Int, String> {
+    ): Map<Int, String> = mergedSeriesRefreshMutex.withLock {
+        // Serialized against concurrent overlapping calls — see refreshMergedChannels' own kdoc
+        // on mergedChannelsRefreshMutex, same race, same fix, same table-scoped mutex here.
         // M3U import only ever carries live channels (see M3uParser) — an m3u-type server never
         // has series to fetch, same reasoning as refreshMergedChannels' own m3u filter.
         val servers = allConfiguredServers().let { all ->
