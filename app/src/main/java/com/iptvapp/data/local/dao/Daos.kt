@@ -603,8 +603,31 @@ interface MergedChannelDao {
     // (see its kdoc), so wiping them on an unrelated provider's removal destroyed the only copy
     // of that playlist's channels/favorites permanently. This re-indexes the survivors in place
     // instead, so nothing needs to be wiped or re-fetched at all.
-    @Query("UPDATE merged_channels SET serverIndex = serverIndex - 1 WHERE serverIndex > :removedIndex")
-    suspend fun decrementServerIndicesAfter(removedIndex: Int)
+    //
+    // Done in two passes through a safe offset range rather than one direct
+    // "serverIndex = serverIndex - 1" UPDATE: streamId is only unique WITHIN one provider, so two
+    // different surviving providers can share a streamId. A single UPDATE processes affected rows
+    // in whatever order SQLite chooses (not guaranteed to be ascending serverIndex) — if the row
+    // for the higher of two same-streamId providers happens to be written first, its new
+    // (serverIndex, streamId) can momentarily collide with the lower provider's row, which hasn't
+    // moved yet, and the whole UPDATE throws mid-way against the composite primary key. Shifting
+    // every affected row into an offset range first (guaranteed to collide with nothing, since no
+    // real serverIndex is ever anywhere near that range) and then down to its real final index in
+    // a second pass makes every write in both passes collision-free by construction, regardless of
+    // row-processing order — the standard technique for renumbering rows sharing a key column.
+    // Wrapped in one @Transaction so a crash between the two passes can't leave rows stuck in the
+    // offset range instead of failing atomically.
+    @Query("UPDATE merged_channels SET serverIndex = serverIndex + 1000000 WHERE serverIndex > :removedIndex")
+    suspend fun offsetServerIndicesAfter(removedIndex: Int)
+
+    @Query("UPDATE merged_channels SET serverIndex = serverIndex - 1000001 WHERE serverIndex > 1000000")
+    suspend fun unoffsetServerIndices()
+
+    @androidx.room.Transaction
+    suspend fun decrementServerIndicesAfter(removedIndex: Int) {
+        offsetServerIndicesAfter(removedIndex)
+        unoffsetServerIndices()
+    }
 
     @Query("SELECT serverIndex, serverNickname, COUNT(*) as channelCount FROM merged_channels WHERE isHidden = 0 GROUP BY serverIndex, serverNickname ORDER BY serverIndex")
     fun getServerSummaries(): Flow<List<MergedServerSummary>>

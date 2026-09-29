@@ -3731,10 +3731,28 @@ class SettingsActivity : AppCompatActivity() {
                 m3uEntries.forEach { obj ->
                     val nick = obj.optString("nick", "").ifBlank { "M3U Playlist" }
                     val m3uUrl = obj.optString("m3uUrl", "")
+                    val wasEnabled = obj.optString("enabled", "true")
                     if (m3uUrl.isBlank()) {
                         skipped++
                     } else when (repository.importM3uAsSecondarySourceFromUrl(nick, m3uUrl)) {
-                        is Resource.Success -> recovered++
+                        is Resource.Success -> {
+                            recovered++
+                            // importM3uAsSecondarySourceInternal always appends a freshly-
+                            // imported source as enabled — a playlist that was deliberately
+                            // disabled at backup time needs that state re-applied here, or every
+                            // restore silently re-enables it. Always appended last (see that
+                            // function's own kdoc on index allocation), so it's the last entry
+                            // right after this call, before any other m3u entry is processed.
+                            if (wasEnabled != "true") {
+                                val fresh = prefs.getExtraServersWithNick().toMutableList()
+                                val lastIndex = fresh.size - 1
+                                val updated = fresh[lastIndex].toMutableList()
+                                while (updated.size < 6) updated.add("true")
+                                updated[5] = wasEnabled
+                                fresh[lastIndex] = updated
+                                prefs.saveExtraServersWithNick(fresh)
+                            }
+                        }
                         else -> failed++
                     }
                 }
