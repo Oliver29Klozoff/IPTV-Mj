@@ -2205,11 +2205,24 @@ class SettingsActivity : AppCompatActivity() {
             val mergedLastSync = prefs.lastMergedChannelsRefresh.first()
             // "Synced Xm ago" / "Not yet synced" — same wording and 0L-means-never handling as
             // the Compose preview's SyncStatusBar, so the two don't drift into different phrasing
-            // for the same underlying concept.
+            // for the same underlying concept. Only accurate for a timestamp that's genuinely
+            // success-gated (primary's lastChannelsFetchTime is — set inside fetchLiveStreams()
+            // after its upsert succeeds, never reached if the fetch itself failed).
             fun syncLabel(lastSyncMs: Long): String {
                 if (lastSyncMs <= 0L) return "Not yet synced"
                 val elapsedMin = (System.currentTimeMillis() - lastSyncMs) / 60_000
                 return if (elapsedMin < 1) "Synced just now" else "Synced ${elapsedMin}m ago"
+            }
+            // Separate wording for lastMergedChannelsRefresh: unlike lastChannelsFetchTime above,
+            // HomeViewModel.refreshMergedChannels() stamps this unconditionally whether the
+            // refresh succeeded or every provider failed (see its own code) — "Synced" would
+            // claim success a failed attempt doesn't actually have. "Refresh attempted" is
+            // accurate either way; if it failed, the per-provider error is already surfaced
+            // elsewhere (the Refresh Channels button's own failure toast, providersDownCount).
+            fun attemptLabel(lastAttemptMs: Long): String {
+                if (lastAttemptMs <= 0L) return "Not yet refreshed"
+                val elapsedMin = (System.currentTimeMillis() - lastAttemptMs) / 60_000
+                return if (elapsedMin < 1) "Refresh attempted just now" else "Refresh attempted ${elapsedMin}m ago"
             }
 
             val primaryRow = android.widget.LinearLayout(this@SettingsActivity).apply {
@@ -2348,7 +2361,9 @@ class SettingsActivity : AppCompatActivity() {
                     // M3U sources are explicitly excluded from refreshMergedChannels() (see its
                     // own kdoc) — mergedLastSync wouldn't reflect anything real for one, so this
                     // says what's actually true instead of borrowing a timestamp that isn't theirs.
-                    text = if (isM3u) "Not auto-refreshed (M3U)" else syncLabel(mergedLastSync)
+                    // attemptLabel, not syncLabel: see its own kdoc for why "Synced" would
+                    // overclaim here in a way it doesn't for the primary card.
+                    text = if (isM3u) "Not auto-refreshed (M3U)" else attemptLabel(mergedLastSync)
                     setTextColor(if (isM3u) getColor(com.iptvapp.R.color.oled_text_muted) else getColor(com.iptvapp.R.color.oled_cyan_primary))
                     textSize = 11f
                     row.addView(this)
@@ -2526,10 +2541,25 @@ class SettingsActivity : AppCompatActivity() {
                         text = "Refreshing…"
                         lifecycleScope.launch {
                             val errors = repository.refreshMergedChannels(i)
+                            // This call went straight to the repository, bypassing
+                            // HomeViewModel.refreshMergedChannels() entirely — which was the only
+                            // place stamping lastMergedChannelsRefresh, so a refresh triggered from
+                            // here never used to count toward that timestamp at all. Stamped here
+                            // too now, same as HomeViewModel does: unconditionally, attempt or not,
+                            // since that's this field's existing meaning everywhere else it's
+                            // read (see PreferencesManager.lastMergedChannelsRefresh's callers) —
+                            // not changing that meaning here, just making this entry point
+                            // contribute to it like the other one already does.
+                            prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
                             isEnabled = true
                             text = originalText
                             val msg = errors[i]?.let { err -> "Failed: $err" } ?: "Channels refreshed"
                             Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_SHORT).show()
+                            // The count/sync-status lines added in this same pass were fetched
+                            // once via first() when the screen first loaded — without this, a
+                            // successful refresh changed the real data but the card kept showing
+                            // the old numbers until the screen was left and reopened.
+                            updateServerList()
                         }
                     }
                     row.addView(this)
