@@ -32,7 +32,7 @@ import com.iptvapp.data.local.entities.*
         ProviderHourlyStatsEntity::class,
         EpgDiffAlertEntity::class
     ],
-    version = 41,
+    version = 42,
     exportSchema = false
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -571,6 +571,61 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Fixes the real cause of the SQLiteException("SQL logic error (code 1)") crash in
+        // MergedChannelDao_Impl.clearForServer that v6.72-v6.75 chased through concurrency
+        // theories (Mutex, NonCancellable) without ever confirming either as the actual cause.
+        // The real bug: MIGRATION_39_40 hand-rolled its own FTS4 content-sync triggers
+        // (merged_*_fts_ai/_ad/_au, using the `INSERT INTO fts(fts, docid, ...) VALUES('delete',
+        // ...)` special command) for merged_channels/merged_vod/merged_series, back before
+        // MergedChannelFts/MergedVodFts/MergedSeriesFts existed as real @Fts4(contentEntity=...)
+        // Room entities (contrast MIGRATION_35_36, which only ever did CREATE VIRTUAL TABLE +
+        // rebuild for channels_fts/vod_streams_fts/series_fts — no hand-rolled triggers — because
+        // ChannelFts/VodFts/SeriesFts already existed as real Room entities by then). Once the
+        // merged_* Fts entities were added to Entities.kt/the @Database's entities list, Room
+        // started ALSO generating and maintaining its OWN, differently-named sync triggers
+        // (room_fts_content_sync_merged_*_fts_*) for the same tables — see
+        // IptvDatabase_Impl's onPreMigrate (dropFtsSyncTriggers) / onPostMigrate, which unconditionally
+        // (re)creates Room's own set after every migration run, with no idea the hand-rolled set
+        // even exists. Both sets have been active side by side ever since, for any install that
+        // migrated through v39->40 before this fix (i.e. every real long-time user — a fresh
+        // install today only ever gets Room's own set, via createAllTables(), which is why this
+        // was never universally reported).
+        //
+        // For DELETE specifically this is a genuine correctness bug, not just redundant work:
+        // Room's BEFORE DELETE trigger (`DELETE FROM merged_channels_fts WHERE docid=OLD.rowid`)
+        // fires first and already removes the FTS row. The hand-rolled AFTER DELETE trigger then
+        // fires and tries to issue FTS4's special 'delete' command for the SAME docid, whose FTS
+        // entry is already gone — exactly the "content table row inconsistent with the FTS
+        // index... results can be difficult to predict" condition SQLite's own FTS3/4
+        // documentation warns about (ext/fts3/README.content). On a small catalog the odds of
+        // that mattering on any given refresh are low; at 55k+ channels refreshed repeatedly it's
+        // apparently been reliable enough to reproduce.
+        //
+        // Fix: drop only the redundant hand-rolled triggers (DROP TRIGGER doesn't take a table
+        // name — trigger names are unique per-schema). Room's own onPostMigrate step re-creates
+        // its own canonical set right after this migration runs, so nothing needs to be added
+        // back here. Then rebuild all three FTS indexes from their content tables' current data,
+        // since years of duplicate-trigger writes may have left the shadow index itself
+        // inconsistent even on refreshes that didn't crash — 'rebuild' is FTS4's own documented
+        // remedy for exactly that, and it doesn't depend on any prior per-docid state the way the
+        // special 'delete' command does, so it can't fail the same way.
+        val MIGRATION_41_42 = object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TRIGGER IF EXISTS merged_channels_fts_ai")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_channels_fts_ad")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_channels_fts_au")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_vod_fts_ai")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_vod_fts_ad")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_vod_fts_au")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_series_fts_ai")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_series_fts_ad")
+                db.execSQL("DROP TRIGGER IF EXISTS merged_series_fts_au")
+                db.execSQL("INSERT INTO merged_channels_fts(merged_channels_fts) VALUES('rebuild')")
+                db.execSQL("INSERT INTO merged_vod_fts(merged_vod_fts) VALUES('rebuild')")
+                db.execSQL("INSERT INTO merged_series_fts(merged_series_fts) VALUES('rebuild')")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -579,7 +634,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
             MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
-            MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41
+            MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42
         )
     }
 }

@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v6.78 - 2026-09-30
+- **Fixed**: found and fixed the actual cause of the `SQLiteException("SQL logic error")` crash
+  reported since v6.71, which v6.72-v6.76's fixes (a Mutex, `NonCancellable`, the enabled-provider
+  refresh gate) narrowed how often it could fire but never actually explained or fixed at the
+  source — it crashed again on v6.77 with nothing secondary even configured. The real cause:
+  `merged_channels`/`merged_vod`/`merged_series` had **two separate, uncoordinated sets** of
+  search-index sync triggers left over from an old migration, both firing on every write. On
+  delete, one of them was reliably trying to remove a search-index entry the other had already
+  removed a moment earlier — undefined behavior by the search engine's own documentation, and
+  reliably enough at 55k+ channels to reproduce on a real device. This only ever affected accounts
+  that had been updating since before multi-provider search was fully wired into the app's search
+  engine (a fresh install never had the leftover set); it did not affect your primary channel/
+  movie/series catalog's own data or your favorites — search only. Fixed by removing the leftover
+  duplicate triggers and rebuilding all three search indexes from scratch. No visible changes.
+
 ## v6.77 - 2026-09-30
 - **Changed**: restyled the whole Settings screen (phone) in the OLED/cyan look, finishing what
   v6.69/v6.70/v6.76 started — the nav rail, top bar, all cards, checkboxes/radio buttons, section

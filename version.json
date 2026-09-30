@@ -1,7 +1,7 @@
 {
-  "versionCode": 515,
-  "versionName": "6.77",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.77/MKTV.apk",
-  "apkSha256": "0832981601023b7c9c6093f4c6f01c58ab06b3110c6775c2461e9c8815eaeb77",
-  "changelog": "Restyled the whole Settings screen in the OLED/cyan look. The active nav tab now follows your real accent color pick instead of being hardcoded. No functional changes."
+  "versionCode": 516,
+  "versionName": "6.78",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.78/MKTV.apk",
+  "apkSha256": "eef23411431b11fc33f1dc7dc3ca3632be5072af517c69311aaa0c70d869e38d",
+  "changelog": "Found and fixed the actual cause of the recurring database search-index crash reported since v6.71 (a leftover duplicate set of search-index triggers from an old update, now removed and rebuilt). Search-only fix; your channels, movies, series, and favorites were never affected."
 }
