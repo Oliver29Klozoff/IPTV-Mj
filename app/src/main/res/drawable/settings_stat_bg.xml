@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- One LIVE / MOVIES / SERIES count block on a Settings > Providers sub-card. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/oled_surface_container_low" />
-    <corners android:radius="8dp" />
-</shape>

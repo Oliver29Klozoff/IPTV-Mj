@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Settings primary (solid cyan) button fill. Dimmed while disabled — e.g. Refresh EPG during a
-     refresh, Check for Updates while checking — which previously looked identical to enabled. -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_enabled="false" android:alpha="0.4" android:color="@color/oled_cyan_primary" />
-    <item android:color="@color/oled_cyan_primary" />
-</selector>

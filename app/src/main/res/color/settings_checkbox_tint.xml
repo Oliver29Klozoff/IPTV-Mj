@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Checked boxes fill cyan; unchecked ones are a quiet outline instead of the old cyan-for-both,
-     so checked vs unchecked reads at a glance. -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_checked="true" android:color="@color/oled_cyan_primary" />
-    <item android:color="@color/oled_text_secondary" />
-</selector>

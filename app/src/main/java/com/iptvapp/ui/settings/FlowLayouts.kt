@@ -4,111 +4,14 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
-import android.widget.RadioGroup
 import kotlin.math.max
 
 /**
- * Wrap-to-the-next-line layout for Settings' chip rows (v6.79 Stitch layout).
- *
- * The chip look needs rows that wrap — "Off / Every 6 hours / Every 12 hours / Daily" doesn't fit
- * one line in a phone's content pane — and a plain RadioGroup is a LinearLayout, so it can only
- * lay its buttons out in one straight line. [FlowRadioGroup] keeps everything RadioGroup does
- * (mutual exclusion, check listeners, `check()`, the same ids SettingsActivity already binds to)
- * and only replaces how its children are measured and placed.
- *
- * [FlowLayout] is the same arrangement for things that aren't radio buttons — the accent-color
- * swatches and gradient chips SettingsActivity builds in code.
+ * Wrap-to-the-next-line layout for the accent-color swatches and gradient chips SettingsActivity
+ * builds in code — a row of them doesn't fit one line on a phone.
  *
  * Left-to-right only; this app's UI is English-only.
  */
-private fun measureFlow(group: ViewGroup, widthMeasureSpec: Int, heightMeasureSpec: Int, spacing: Int): IntArray {
-    val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
-    val maxLineWidth = if (widthMode == View.MeasureSpec.UNSPECIFIED) Int.MAX_VALUE
-        else View.MeasureSpec.getSize(widthMeasureSpec) - group.paddingLeft - group.paddingRight
-
-    var lineWidth = 0
-    var lineHeight = 0
-    var lineHasItems = false
-    var widest = 0
-    var totalHeight = 0
-    for (i in 0 until group.childCount) {
-        val child = group.getChildAt(i)
-        if (child.visibility == View.GONE) continue
-        val lp = child.layoutParams as ViewGroup.MarginLayoutParams
-        child.measure(
-            ViewGroup.getChildMeasureSpec(widthMeasureSpec,
-                group.paddingLeft + group.paddingRight + lp.leftMargin + lp.rightMargin, lp.width),
-            ViewGroup.getChildMeasureSpec(heightMeasureSpec,
-                group.paddingTop + group.paddingBottom + lp.topMargin + lp.bottomMargin, lp.height)
-        )
-        val childWidth = child.measuredWidth + lp.leftMargin + lp.rightMargin
-        val childHeight = child.measuredHeight + lp.topMargin + lp.bottomMargin
-        if (lineHasItems && lineWidth + spacing + childWidth > maxLineWidth) {
-            widest = max(widest, lineWidth)
-            totalHeight += lineHeight + spacing
-            lineWidth = childWidth
-            lineHeight = childHeight
-        } else {
-            lineWidth += if (lineHasItems) spacing + childWidth else childWidth
-            lineHeight = max(lineHeight, childHeight)
-        }
-        lineHasItems = true
-    }
-    if (lineHasItems) {
-        widest = max(widest, lineWidth)
-        totalHeight += lineHeight
-    }
-    return intArrayOf(
-        View.resolveSize(widest + group.paddingLeft + group.paddingRight, widthMeasureSpec),
-        View.resolveSize(totalHeight + group.paddingTop + group.paddingBottom, heightMeasureSpec)
-    )
-}
-
-private fun layoutFlow(group: ViewGroup, width: Int, spacing: Int) {
-    val maxRight = width - group.paddingRight
-    var x = group.paddingLeft
-    var y = group.paddingTop
-    var lineHeight = 0
-    var lineHasItems = false
-    for (i in 0 until group.childCount) {
-        val child = group.getChildAt(i)
-        if (child.visibility == View.GONE) continue
-        val lp = child.layoutParams as ViewGroup.MarginLayoutParams
-        val childWidth = child.measuredWidth + lp.leftMargin + lp.rightMargin
-        val childHeight = child.measuredHeight + lp.topMargin + lp.bottomMargin
-        if (lineHasItems && x + spacing + childWidth > maxRight) {
-            x = group.paddingLeft
-            y += lineHeight + spacing
-            lineHeight = 0
-            lineHasItems = false
-        }
-        if (lineHasItems) x += spacing
-        val left = x + lp.leftMargin
-        val top = y + lp.topMargin
-        child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
-        x += childWidth
-        lineHeight = max(lineHeight, childHeight)
-        lineHasItems = true
-    }
-}
-
-class FlowRadioGroup @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
-) : RadioGroup(context, attrs) {
-
-    private val spacing = (8 * resources.displayMetrics.density + 0.5f).toInt()
-
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val size = measureFlow(this, widthMeasureSpec, heightMeasureSpec, spacing)
-        setMeasuredDimension(size[0], size[1])
-    }
-
-    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        layoutFlow(this, r - l, spacing)
-    }
-}
-
 class FlowLayout @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
@@ -121,17 +24,147 @@ class FlowLayout @JvmOverloads constructor(
         }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val size = measureFlow(this, widthMeasureSpec, heightMeasureSpec, spacingPx)
-        setMeasuredDimension(size[0], size[1])
+        val maxLineWidth = if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED) Int.MAX_VALUE
+            else MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
+
+        var lineWidth = 0
+        var lineHeight = 0
+        var lineHasItems = false
+        var widest = 0
+        var totalHeight = 0
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == View.GONE) continue
+            val lp = child.layoutParams as MarginLayoutParams
+            child.measure(
+                getChildMeasureSpec(widthMeasureSpec, paddingLeft + paddingRight + lp.leftMargin + lp.rightMargin, lp.width),
+                getChildMeasureSpec(heightMeasureSpec, paddingTop + paddingBottom + lp.topMargin + lp.bottomMargin, lp.height)
+            )
+            val childWidth = child.measuredWidth + lp.leftMargin + lp.rightMargin
+            val childHeight = child.measuredHeight + lp.topMargin + lp.bottomMargin
+            if (lineHasItems && lineWidth + spacingPx + childWidth > maxLineWidth) {
+                widest = max(widest, lineWidth)
+                totalHeight += lineHeight + spacingPx
+                lineWidth = childWidth
+                lineHeight = childHeight
+            } else {
+                lineWidth += if (lineHasItems) spacingPx + childWidth else childWidth
+                lineHeight = max(lineHeight, childHeight)
+            }
+            lineHasItems = true
+        }
+        if (lineHasItems) {
+            widest = max(widest, lineWidth)
+            totalHeight += lineHeight
+        }
+        setMeasuredDimension(
+            resolveSize(widest + paddingLeft + paddingRight, widthMeasureSpec),
+            resolveSize(totalHeight + paddingTop + paddingBottom, heightMeasureSpec)
+        )
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        layoutFlow(this, r - l, spacingPx)
+        val maxRight = (r - l) - paddingRight
+        var x = paddingLeft
+        var y = paddingTop
+        var lineHeight = 0
+        var lineHasItems = false
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == View.GONE) continue
+            val lp = child.layoutParams as MarginLayoutParams
+            val childWidth = child.measuredWidth + lp.leftMargin + lp.rightMargin
+            val childHeight = child.measuredHeight + lp.topMargin + lp.bottomMargin
+            if (lineHasItems && x + spacingPx + childWidth > maxRight) {
+                x = paddingLeft
+                y += lineHeight + spacingPx
+                lineHeight = 0
+                lineHasItems = false
+            }
+            if (lineHasItems) x += spacingPx
+            val left = x + lp.leftMargin
+            val top = y + lp.topMargin
+            child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
+            x += childWidth
+            lineHeight = max(lineHeight, childHeight)
+            lineHasItems = true
+        }
     }
 
     override fun generateLayoutParams(attrs: AttributeSet?): LayoutParams = MarginLayoutParams(context, attrs)
     override fun generateDefaultLayoutParams(): LayoutParams =
         MarginLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
     override fun generateLayoutParams(p: LayoutParams?): LayoutParams = MarginLayoutParams(p)
+    override fun checkLayoutParams(p: LayoutParams?): Boolean = p is MarginLayoutParams
+}
+
+/**
+ * A Settings panel's groups, stacked in one column on a phone and split into two side-by-side
+ * columns on a wide screen (landscape phone, car box) — how many comes from
+ * `R.integer.rack_columns` (values / values-w840dp), so it flips with the same width qualifier as
+ * the group box style. The activity is recreated on rotation, so reading it once is enough.
+ *
+ * Children go into the columns in turn (first left, second right, third left …) rather than into
+ * whichever column is shorter: a group growing or shrinking (a disclosure row opening, a provider
+ * being removed) then never makes other groups jump between columns. With only one visible child
+ * there is nothing to pair it with, so it spans the full width.
+ *
+ * Accepts any MarginLayoutParams, including the LinearLayout.LayoutParams that
+ * SettingsActivity.updateServerList gives its provider cards.
+ */
+class RackColumns @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : ViewGroup(context, attrs) {
+
+    private val columnCount = context.resources.getInteger(com.iptvapp.R.integer.rack_columns).coerceAtLeast(1)
+    private val gap = context.resources.getDimensionPixelSize(com.iptvapp.R.dimen.rack_column_gap)
+
+    private fun visibleChildren(): List<View> =
+        (0 until childCount).map { getChildAt(it) }.filter { it.visibility != View.GONE }
+
+    private fun columnsFor(visible: List<View>) = if (visible.size < 2) 1 else columnCount
+
+    private fun columnWidth(totalWidth: Int, columns: Int) =
+        ((totalWidth - paddingLeft - paddingRight - gap * (columns - 1)) / columns).coerceAtLeast(0)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val visible = visibleChildren()
+        val columns = columnsFor(visible)
+        val colWidth = columnWidth(width, columns)
+        val heights = IntArray(columns)
+        visible.forEachIndexed { i, child ->
+            val lp = child.layoutParams as MarginLayoutParams
+            child.measure(
+                MeasureSpec.makeMeasureSpec((colWidth - lp.leftMargin - lp.rightMargin).coerceAtLeast(0), MeasureSpec.EXACTLY),
+                getChildMeasureSpec(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED), 0,
+                    if (lp.height == LayoutParams.MATCH_PARENT) LayoutParams.WRAP_CONTENT else lp.height)
+            )
+            heights[i % columns] += lp.topMargin + child.measuredHeight + lp.bottomMargin
+        }
+        setMeasuredDimension(width, resolveSize((heights.maxOrNull() ?: 0) + paddingTop + paddingBottom, heightMeasureSpec))
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val visible = visibleChildren()
+        val columns = columnsFor(visible)
+        val colWidth = columnWidth(r - l, columns)
+        val tops = IntArray(columns) { paddingTop }
+        visible.forEachIndexed { i, child ->
+            val col = i % columns
+            val lp = child.layoutParams as MarginLayoutParams
+            val left = paddingLeft + col * (colWidth + gap) + lp.leftMargin
+            val top = tops[col] + lp.topMargin
+            child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
+            tops[col] = top + child.measuredHeight + lp.bottomMargin
+        }
+    }
+
+    override fun generateLayoutParams(attrs: AttributeSet?): LayoutParams = MarginLayoutParams(context, attrs)
+    override fun generateDefaultLayoutParams(): LayoutParams =
+        MarginLayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+    override fun generateLayoutParams(p: LayoutParams?): LayoutParams =
+        if (p is MarginLayoutParams) MarginLayoutParams(p) else MarginLayoutParams(p)
     override fun checkLayoutParams(p: LayoutParams?): Boolean = p is MarginLayoutParams
 }

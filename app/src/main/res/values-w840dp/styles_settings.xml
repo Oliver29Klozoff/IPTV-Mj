@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wide Settings (landscape phone, car box): the pieces that only fit with the extra width. Each
+     style here fully replaces its phone version in values/styles_settings.xml. -->
+<resources>
+
+    <!-- The header's search icon becomes a search field (it still opens the same search dialog). -->
+    <style name="Rack.SearchButton" parent="Rack.Button.Neutral">
+        <item name="android:minWidth">360dp</item>
+        <item name="android:text">Search settings</item>
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">@font/barlow_regular</item>
+        <item name="fontFamily">@font/barlow_regular</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textColor">@color/rack_text_muted</item>
+        <item name="icon">@drawable/ic_settings_search</item>
+        <item name="iconGravity">start</item>
+        <item name="iconSize">18dp</item>
+        <item name="iconPadding">10dp</item>
+        <item name="iconTint">@color/rack_text_muted</item>
+    </style>
+
+    <style name="Rack.Readout.WideOnly">
+        <item name="android:visibility">visible</item>
+    </style>
+
+    <style name="Rack.QuickLabel" parent="Rack.Eyebrow">
+        <item name="android:letterSpacing">0.18</item>
+        <item name="android:visibility">visible</item>
+    </style>
+
+</resources>

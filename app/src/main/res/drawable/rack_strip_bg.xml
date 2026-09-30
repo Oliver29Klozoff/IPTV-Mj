@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A row of readouts (the status strip under the Settings header, a provider card's LIVE /
+     MOVIES / SERIES counts): hairlines above and below, see-through in between so it sits on
+     whatever surface is under it. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:gravity="top" android:height="1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_border" />
+        </shape>
+    </item>
+    <item android:gravity="bottom" android:height="1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_border" />
+        </shape>
+    </item>
+</layer-list>

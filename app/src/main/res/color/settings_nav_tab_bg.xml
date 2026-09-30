@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Idle nav rail tab fill. The ACTIVE tab never uses this — SettingsActivity.styleNavTab builds
-     that one from the user's own accent color at runtime (see its kdoc). -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_focused="true" android:color="@color/oled_focus_fill" />
-    <item android:color="@color/oled_surface_rail" />
-</selector>

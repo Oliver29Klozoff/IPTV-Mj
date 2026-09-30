@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One segment (a RadioButton) of a segmented control. The checked fill is drawn white on
+     purpose: SettingsActivity.applyRackAccent tints checked segments with the accent in MULTIPLY
+     mode, so white becomes the accent and anything transparent stays transparent. Unchecked
+     segments get a white tint, which leaves them exactly as drawn.
+     The D-pad focus outline is NOT here (MULTIPLY would turn a white outline into the accent,
+     invisible on a checked segment) — it's the segment's foreground, rack_segment_focus.xml. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFFFF" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_focus_fill" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_pressed" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+</selector>

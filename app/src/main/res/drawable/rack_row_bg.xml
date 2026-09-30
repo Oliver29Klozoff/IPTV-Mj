@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Background of every tappable row (toggle rows, value rows, disclosure rows; the link-row
+     buttons get the same look from Rack.Button.Link). Touch gets a ripple; D-pad focus gets a
+     lifted fill plus a light 2dp outline — the one focus cue used everywhere in the Rack layout. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#1FFFFFFF">
+    <item android:id="@android:id/mask">
+        <color android:color="#FFFFFFFF" />
+    </item>
+    <item>
+        <selector>
+            <item android:state_focused="true">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/rack_focus_fill" />
+                    <stroke android:width="2dp" android:color="@color/rack_focus_ring" />
+                </shape>
+            </item>
+            <item>
+                <color android:color="@android:color/transparent" />
+            </item>
+        </selector>
+    </item>
+</ripple>

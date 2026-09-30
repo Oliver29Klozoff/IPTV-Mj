@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings "Studio Rack" layout metrics (v6.80), phone / narrow width. values-w840dp/ holds the
+     wide version (landscape phone, car box): two columns of boxed groups with a page margin,
+     instead of one column of edge-to-edge groups. The activity is recreated on rotation (no
+     configChanges in the manifest), so these always match the current width. -->
+<resources>
+    <!-- How many columns RackColumns splits a panel's groups into. -->
+    <integer name="rack_columns">1</integer>
+    <dimen name="rack_column_gap">24dp</dimen>
+    <!-- Page margin around the groups. 0 on phones: groups run edge to edge. -->
+    <dimen name="rack_page_padding">0dp</dimen>
+    <!-- Inset for things that sit outside a group box (group titles, a lone button), so they line
+         up with the text inside the rows. 0 on wide screens, where the page margin does that. -->
+    <dimen name="rack_inset">16dp</dimen>
+    <dimen name="rack_row_min_height">60dp</dimen>
+    <dimen name="rack_header_height">56dp</dimen>
+    <dimen name="rack_tab_padding">12dp</dimen>
+    <dimen name="rack_readout_padding">16dp</dimen>
+</resources>

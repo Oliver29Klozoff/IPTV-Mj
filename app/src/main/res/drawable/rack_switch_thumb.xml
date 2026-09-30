@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Square knob for rack_switch_track: 22dp with 3dp / 4dp of transparent inset, so a Switch's own
+     width math (2 x thumb width) comes out at the track's 56dp. White when on, for the same
+     MULTIPLY tint (SettingsActivity.applyRackAccent picks black or white to read on the accent). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true">
+        <layer-list>
+            <item android:left="3dp" android:top="4dp" android:right="3dp" android:bottom="4dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="#FFFFFFFF" />
+                    <corners android:radius="3dp" />
+                    <size android:width="22dp" android:height="22dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item android:left="3dp" android:top="4dp" android:right="3dp" android:bottom="4dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/rack_knob_off" />
+                    <corners android:radius="3dp" />
+                    <size android:width="22dp" android:height="22dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

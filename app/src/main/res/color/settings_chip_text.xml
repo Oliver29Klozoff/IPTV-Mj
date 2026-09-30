@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Radio-group "chips" (auto-refresh schedule, stream format, video player, DNS provider):
-     dark text on the solid cyan selected chip, light otherwise. -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_checked="true" android:color="#000000" />
-    <item android:state_focused="true" android:color="@color/oled_text_primary" />
-    <item android:color="@color/oled_text_secondary" />
-</selector>

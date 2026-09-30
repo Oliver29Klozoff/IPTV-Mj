@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Idle tab label; brightens under D-pad focus. The active tab's label is the accent, set by
+     SettingsActivity.styleNavTab. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/rack_text" />
+    <item android:color="@color/rack_text_muted" />
+</selector>

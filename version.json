@@ -1,7 +1,7 @@
 {
-  "versionCode": 517,
-  "versionName": "6.79",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.79/MKTV.apk",
-  "apkSha256": "dcc5c02ec0de7f1d82fef5cfab5db042b0b430f467e2ea60652c6ffb1c036892",
-  "changelog": "New Settings look: the Stitch layout — outlined tabs, stroked cards, chip choices, line icons and provider count blocks. Every setting still works exactly as before. Also: cyan is back as an accent swatch, and TV-remote / car-box focus is visible everywhere in Settings."
+  "versionCode": 518,
+  "versionName": "6.80",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.80/MKTV.apk",
+  "apkSha256": "68f77c7f3212bfb0df1a14ca657a20c368482f857fb617a7b83af9399a649eb6",
+  "changelog": "New Settings look: \"Studio Rack\" — black, tabs across the top, a status strip, grouped rows with square toggles, two columns on the car box, and a Quick bar for Refresh EPG / Check update / Log out. Highlights follow your accent color (amber is a new swatch). Also: Settings search now jumps straight to the setting."
 }

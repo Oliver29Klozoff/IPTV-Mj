@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solid accent button label: black on the accent (applyRackAccent switches it to white when the
+     user's accent is too dark for black text). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false" android:color="@color/rack_disabled_text" />
+    <item android:color="#FF000000" />
+</selector>

@@ -15,14 +15,13 @@
          icon-button label colors weren't touched either. -->
     <color name="oled_cyan_primary">#06B6D4</color>
     <color name="oled_cyan_glow">#38BDF8</color>
-    <!-- Deepest canvas tone — same value as Compose's SurfaceBackground. Added for
-         activity_settings.xml's root/chrome background, one tier below
-         oled_surface_container_low (card surfaces) rather than reusing that same tone for both,
-         matching the depth system the Compose theme and the original Stitch mockups both used. -->
+    <!-- Deepest canvas tone — same value as Compose's SurfaceBackground, one tier below
+         oled_surface_container_low (card surfaces), matching the depth system the Compose theme
+         and the original Stitch mockups both used. Currently unused: Settings, its only user,
+         moved to the rack_* palette below in v6.80. Kept as a palette token. -->
     <color name="oled_surface_background">#0A0E17</color>
-    <!-- Sits between oled_surface_background and oled_surface_container_low — used for
-         activity_settings.xml's top bar and nav rail chrome, which reads as "elevated above the
-         canvas but still distinct from the readable card content on top of it." -->
+    <!-- Sits between oled_surface_background and oled_surface_container_low ("elevated above the
+         canvas but still distinct from card content"). Currently unused for the same reason. -->
     <color name="oled_surface_header">#0F131D</color>
     <color name="oled_surface_container_low">#161B26</color>
     <color name="oled_surface_container_highest">#283042</color>
@@ -34,28 +33,39 @@
     <color name="oled_live_badge_red">#EF4444</color>
     <!-- Low-alpha cyan wash for a static "subtle" surface. Currently unused: its only user was the
          Settings Speed Test button, which became a solid primary button in the v6.79 layout. Kept
-         as a palette token. (The nav rail's active-tab wash is NOT this — it's built from the
-         user's own accent at runtime, see SettingsActivity.accentBackgroundTint.) -->
+         as a palette token. -->
     <color name="oled_cyan_wash">#1A06B6D4</color>
 
-    <!-- Settings' Stitch "Cinematic Cyber-Stream" layer (v6.79) — the extra surfaces that design
-         introduced on top of the tokens above. Used by activity_settings.xml, styles_settings.xml
-         and SettingsActivity's Kotlin-built provider cards / accent picker only. -->
-    <!-- Nav rail, one step darker than the top bar so the rail reads as its own column. -->
-    <color name="oled_surface_rail">#0D111A</color>
-    <!-- Inset surface INSIDE a card (secondary buttons, provider sub-cards, chips) — darker than
-         the card it sits in, so it reads as recessed rather than raised. -->
-    <color name="oled_surface_nested">#101522</color>
-    <!-- Hairline outline on every Settings card / chip / secondary button. Deliberately quieter
-         than oled_outline_stroke, which is tuned for the channel list's focus ring. -->
-    <color name="oled_card_stroke">#222B3D</color>
-    <!-- D-pad focus fill (TV / car box) — paired with oled_cyan_glow as the focus outline. -->
-    <color name="oled_focus_fill">#242E42</color>
-    <!-- Danger button fill (Logout, Remove, Clear, Disconnect) under oled_live_badge_red text. -->
-    <color name="oled_danger_bg">#2A1215</color>
-    <!-- Small status / helper text in Settings. oled_text_muted (#64748B) only reaches ~3.6:1 on
-         a #161B26 card — below the 4.5:1 small text needs to stay readable — so Settings uses this
-         lighter step (~4.8:1) instead. Kept Settings-only rather than changing oled_text_muted
-         app-wide, same fork-not-edit rule as focus_selector_channel. -->
-    <color name="settings_text_muted">#7A889E</color>
+    <!-- Settings' "Studio Rack" palette (v6.80): pure black, neutral greys, and the user's own
+         accent color for every highlight (applied at runtime by SettingsActivity.applyRackAccent,
+         so none of these is an accent). Used by activity_settings.xml, styles_settings.xml, the
+         rack_* drawables and SettingsActivity's Kotlin-built provider cards / accent picker only. -->
+    <color name="rack_bg">#000000</color>
+    <!-- A group of rows (the "module" in the rack). -->
+    <color name="rack_surface">#0D0D0D</color>
+    <!-- A disclosure row's expanded contents, recessed one step below the group they open inside. -->
+    <color name="rack_surface_recessed">#070707</color>
+    <color name="rack_footer">#050505</color>
+    <color name="rack_border">#1F1F1F</color>
+    <color name="rack_divider">#1A1A1A</color>
+    <color name="rack_text">#EDEDED</color>
+    <color name="rack_text_secondary">#A3A3A3</color>
+    <!-- Helper lines and labels: ~5.6:1 on rack_surface, so small text stays readable. -->
+    <color name="rack_text_muted">#8A8A8A</color>
+    <color name="rack_chevron">#5C5C5C</color>
+    <color name="rack_disabled_text">#5C5C5C</color>
+    <!-- Controls in their "off" state (toggle track / edge / knob, idle segment border). -->
+    <color name="rack_control_off">#1C1C1C</color>
+    <color name="rack_control_edge">#333333</color>
+    <color name="rack_knob_off">#7A7A7A</color>
+    <!-- D-pad focus (TV / car box): a lifted fill plus a light outline. The outline is never the
+         accent, so focus stays visible on things that are already accent-colored. -->
+    <color name="rack_focus_fill">#1C1C1C</color>
+    <color name="rack_focus_ring">#EDEDED</color>
+    <color name="rack_pressed">#1A1A1A</color>
+    <color name="rack_danger_text">#FF6159</color>
+    <color name="rack_danger_bg">#140605</color>
+    <color name="rack_danger_focus_bg">#2A0C0A</color>
+    <color name="rack_danger_border">#4A1512</color>
+    <color name="rack_danger_disabled_text">#6E3431</color>
 </resources>

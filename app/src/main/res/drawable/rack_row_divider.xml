@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Between rows in a group box (showDividers="middle", so a hidden row takes its line with it). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/rack_divider" />
+    <size android:height="1dp" />
+</shape>

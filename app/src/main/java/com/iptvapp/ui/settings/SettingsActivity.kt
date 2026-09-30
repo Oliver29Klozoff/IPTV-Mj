@@ -27,6 +27,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.view.doOnNextLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -128,32 +129,58 @@ class SettingsActivity : AppCompatActivity() {
             + "Autoplay Next Episode: shows a cancelable 10-second Up Next prompt and "
             + "auto-advances to the next episode when one finishes, including into the next "
             + "season once the current one runs out. On by default.\n\n"
-            + "Global Extra Buffering: builds up a bigger buffer before playback starts, "
+            + "Extra Buffering: builds up a bigger buffer before playback starts, "
             + "trading a slower start for fewer stalls mid-stream on slow/unreliable "
             + "connections. On by default.\n\n"
-            + "Show USA Channels Only / English Movies & Series Only: filters live channels "
-            + "or VOD/series to just those tagged for that country/language by your "
-            + "provider — depends entirely on your provider's own naming, so may not work "
-            + "for every provider.\n\n"
+            + "Remind Me Before a Show: how long before a program starts a Guide \"Remind Me\" "
+            + "notification fires — gives you time to actually switch over instead of finding "
+            + "out right as it starts.\n\n"
+            + "Live Reconnect Speed: how fast a live channel keeps retrying after a "
+            + "dropped/stalled connection. Aggressive retries quickly with a lower ceiling; "
+            + "Patient waits longer between attempts — useful for slower or less reliable "
+            + "providers.\n\n"
+            + "Data Saver: caps video at 480p / about 1.2 Mbps for slow Wi-Fi like on a plane. "
+            + "Only helps on channels your provider offers in more than one quality — a "
+            + "single-quality channel plays as usual. Takes effect the next time a channel "
+            + "starts.\n\n"
+            + "Allow Picture-in-Picture: shrinks live playback into a small floating window "
+            + "when you leave the app (e.g. press Home) instead of stopping it. On by default.\n\n"
+            + "Live Preview on Press-and-Hold: hold a channel's logo in the list to play a small "
+            + "muted preview before you commit to tuning in. Uses a real connection to your "
+            + "provider per preview, so it's off by default.\n\n"
             + "Preferred Audio / Subtitle Language: when a stream offers multiple language "
             + "tracks, automatically selects the one matching your choice instead of whatever "
             + "the stream defaults to. Only works if the stream actually tags its tracks with "
             + "language info — depends on your provider.\n\n"
-            + "Subtitle Style (size, offset, bold, colors, outline): customizes how subtitles "
-            + "look during playback — lives in this same dropdown alongside the language "
+            + "Subtitle Style (size, position, bold, colors, outline): customizes how subtitles "
+            + "look during playback — lives under Audio & Subtitles alongside the language "
             + "settings since both apply to subtitles.",
         // 1: Display
-        "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
+        "Show USA Channels Only / English Movies & Series Only: filters live channels "
+            + "or VOD/series to just those tagged for that country/language by your "
+            + "provider — depends entirely on your provider's own naming, so may not work "
+            + "for every provider.\n\n"
+            + "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
             + "screen — the content itself isn't deleted, just the tab.\n\n"
             + "Auto-Clear Continue Watching: automatically removes an in-progress movie or "
             + "show from Continue Watching once it's been untouched for the chosen number of "
             + "days — it comes back automatically if you actually resume it later. Off by "
             + "default.\n\n"
-            + "Accent Color: the highlight color used for selected tabs, buttons, and "
-            + "progress bars throughout the app.\n\n"
+            + "Catalog — Refresh: re-downloads your primary provider's live channels, movies or "
+            + "series right now instead of waiting for the automatic refresh.\n\n"
+            + "Clear Favorite Channels: un-favorites every channel on your primary provider. "
+            + "Favorites on other providers, folders, and movie/series favorites are not "
+            + "affected. Can't be undone.\n\n"
+            + "Accent Color: the highlight color used for selected tabs, buttons, toggles and "
+            + "progress bars — on this screen and throughout the app.\n\n"
             + "AMOLED Black: forces pure black backgrounds everywhere instead of dark gray — "
             + "saves battery on OLED screens and looks better in a dark room. Requires an "
-            + "app restart to fully apply everywhere.",
+            + "app restart to fully apply everywhere.\n\n"
+            + "Force TV Mode: uses the TV interface and D-pad navigation on this device even "
+            + "though it's not detected as a TV — for a car head unit/box or other non-standard "
+            + "screen. Restarts the app.\n\n"
+            + "Mosaic: watch up to 6 channels at once in a grid, with audio following whichever "
+            + "tile you select.",
         // 2: Providers
         "Add, edit, or switch between multiple Xtream provider logins if you have more than "
             + "one IPTV subscription — only one is active for playback at a time, but you "
@@ -164,7 +191,9 @@ class SettingsActivity : AppCompatActivity() {
             + "a factory reset or when moving to a new device. Nothing is uploaded "
             + "anywhere automatically; you pick the exact file location yourself.\n\n"
             + "Auto backup (weekly): does the same backup automatically once a week to that "
-            + "same chosen location, without you having to remember to do it manually.",
+            + "same chosen location, without you having to remember to do it manually.\n\n"
+            + "New Episode Notifications: checks your favorited shows once a day and notifies "
+            + "you when one gets a new episode.",
         // 4: Sync
         "Cross-Device Sync: keeps your favorites and watch history in sync across your "
             + "devices via a private Firebase-backed store — nothing public, only devices "
@@ -173,6 +202,13 @@ class SettingsActivity : AppCompatActivity() {
             + "another device's data down, instead of waiting for automatic sync.\n\n"
             + "Pairing Code: the code that links devices together — enter the same code on "
             + "every device you want kept in sync.\n\n"
+            + "Automatic Crash Reporting: automatically sends crash details so bugs can be found "
+            + "and fixed without you needing to send a debug report. No account info is "
+            + "included.\n\n"
+            + "Share Anonymous Stream Health Data: off by default. When on, a hashed (never the "
+            + "raw URL or your login) provider identifier plus the channel name and error type "
+            + "are shared anonymously so other users can see \"N people reported issues with "
+            + "this channel recently\". No account info is included.\n\n"
             + "Send Debug Report: uploads device info and recent playback error logs so a "
             + "problem can be diagnosed — no account credentials are included.\n\n"
             + "Connect Trakt: links your Trakt.tv account so movies and TV episodes you watch "
@@ -188,67 +224,94 @@ class SettingsActivity : AppCompatActivity() {
             + "Silent Self-Update: on Android 12+, skips the \"Install update?\" confirmation "
             + "screen when the OS allows it, updating more seamlessly. Off by default since "
             + "it bypasses a normal Android security prompt — only turn this on if you're "
-            + "comfortable with that."
+            + "comfortable with that.\n\n"
+            + "Quick Actions: Sort Channels cycles the live channel order (Default, A-Z, "
+            + "Popular, Recent); Multi-view opens the Mosaic; Feature Tour goes back to the "
+            + "home screen and walks you through its tabs and buttons."
     )
 
     // ─── Search ─────────────────────────────────────────────────────────────
-    // Hand-mapped rather than parsed from the layout — this XML mixes CardView sections and
-    // collapsible sub-cards with no consistent id-to-label convention to walk automatically.
-    // Each entry: (label, panel index into panelViews/navButtonViews, header id to expand if
-    // this setting lives inside a collapsible card (null if not collapsible), target view id
-    // to scroll to and highlight).
+    // Hand-mapped rather than parsed from the layout — row labels and view ids don't follow one
+    // convention that could be walked automatically.
+    // Each entry: (label, panel index into panelViews/navButtonViews, disclosure row to open
+    // first if the setting sits inside one (null otherwise), target view to scroll to and
+    // highlight). A target that's a toggle resolves to its whole row (see jumpToSettingSearchResult).
     private data class SettingSearchEntry(val label: String, val panelIndex: Int, val headerId: Int?, val targetId: Int)
 
     private val settingSearchIndex: List<SettingSearchEntry> by lazy {
         listOf(
+            SettingSearchEntry("EPG Refresh", 0, null, R.id.btnRefreshEpg),
+            SettingSearchEntry("Refresh Only Missing Guide Data", 0, null, R.id.cbRefreshMissingOnly),
+            SettingSearchEntry("Auto Refresh Schedule", 0, null, R.id.rgAutoEpgRefresh),
+            SettingSearchEntry("Remind Me Lead Time", 0, null, R.id.rowReminderLeadTime),
             SettingSearchEntry("EPG URL", 0, R.id.hdrEpgUrl, R.id.hdrEpgUrl),
-            SettingSearchEntry("Stream Format", 0, R.id.hdrFormat, R.id.hdrFormat),
-            SettingSearchEntry("Preferred Audio Language", 0, R.id.hdrLanguage, R.id.hdrLanguage),
-            SettingSearchEntry("Preferred Subtitle Language", 0, R.id.hdrLanguage, R.id.hdrLanguage),
-            SettingSearchEntry("Video Player", 0, R.id.hdrPlayer, R.id.hdrPlayer),
-            SettingSearchEntry("EPG Refresh", 0, R.id.hdrEpgSection, R.id.hdrEpgSection),
-            SettingSearchEntry("Auto Refresh Schedule", 0, R.id.hdrEpgSection, R.id.hdrEpgSection),
-            SettingSearchEntry("Provider Speed Test", 0, R.id.hdrSpeedTest, R.id.hdrSpeedTest),
-            SettingSearchEntry("DNS over HTTPS", 0, R.id.hdrDoh, R.id.hdrDoh),
+            SettingSearchEntry("Default US Guide", 0, R.id.hdrEpgUrl, R.id.cbUseDefaultUsEpg),
+            SettingSearchEntry("Stream Format", 0, null, R.id.rgFormat),
+            SettingSearchEntry("Video Player", 0, null, R.id.rgPlayer),
+            SettingSearchEntry("Autoplay Next Episode", 0, null, R.id.switchAutoplayNextEpisode),
             SettingSearchEntry("Tunneled Playback", 0, null, R.id.switchTunneledPlayback),
             SettingSearchEntry("DV7 HEVC Fallback", 0, null, R.id.switchDv7Fallback),
             SettingSearchEntry("Audio Passthrough Fallback", 0, null, R.id.switchAudioPassthroughFallback),
-            SettingSearchEntry("Autoplay Next Episode", 0, null, R.id.switchAutoplayNextEpisode),
-            SettingSearchEntry("Global Extra Buffering", 0, null, R.id.switchExtraBuffering),
+            SettingSearchEntry("Preferred Audio Language", 0, R.id.hdrLanguage, R.id.spinnerAudioLanguage),
+            SettingSearchEntry("Preferred Subtitle Language", 0, R.id.hdrLanguage, R.id.spinnerSubtitleLanguage),
+            SettingSearchEntry("Subtitle Size", 0, R.id.hdrLanguage, R.id.rowSubSize),
+            SettingSearchEntry("Subtitle Position", 0, R.id.hdrLanguage, R.id.rowSubOffset),
+            SettingSearchEntry("Subtitle Text Color", 0, R.id.hdrLanguage, R.id.rowSubTextColor),
+            SettingSearchEntry("Subtitle Background Color", 0, R.id.hdrLanguage, R.id.rowSubBgColor),
+            SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
+            SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
+            SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
+            SettingSearchEntry("Data Saver", 0, null, R.id.switchDataSaver),
+            SettingSearchEntry("DNS over HTTPS", 0, null, R.id.cbDohEnabled),
+            SettingSearchEntry("Provider Speed Test", 0, null, R.id.btnSpeedTest),
             SettingSearchEntry("Picture-in-Picture", 0, null, R.id.switchPipEnabled),
-            SettingSearchEntry("Show USA Channels Only", 0, null, R.id.cbUsaOnlyChannels),
-            SettingSearchEntry("Show English Movies & Series Only", 0, null, R.id.cbEnglishOnlyMovies),
-            SettingSearchEntry("Subtitle Size", 0, R.id.hdrLanguage, R.id.hdrLanguage),
-            SettingSearchEntry("Subtitle Text Color", 0, R.id.hdrLanguage, R.id.hdrLanguage),
-            SettingSearchEntry("Subtitle Background Color", 0, R.id.hdrLanguage, R.id.hdrLanguage),
-            SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.hdrLanguage),
-            SettingSearchEntry("Channels & Tabs", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
-            SettingSearchEntry("Show Movies Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
-            SettingSearchEntry("Show Series Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
-            SettingSearchEntry("Show Watching Tab", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
-            SettingSearchEntry("Auto-Clear Continue Watching", 1, R.id.hdrChannelsTabs, R.id.hdrChannelsTabs),
-            SettingSearchEntry("Accent Color", 1, R.id.hdrAccentColor, R.id.hdrAccentColor),
-            SettingSearchEntry("AMOLED Black", 1, R.id.hdrAccentColor, R.id.hdrAccentColor),
-            SettingSearchEntry("Quick Actions", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
-            SettingSearchEntry("Sort Channels", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
-            SettingSearchEntry("Multi-view / Mosaic", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
-            SettingSearchEntry("Feature Tour", 1, R.id.hdrQuickActions, R.id.hdrQuickActions),
-            SettingSearchEntry("Check for Updates", 5, R.id.hdrUpdates, R.id.hdrUpdates),
-            SettingSearchEntry("What's New / Changelog", 5, R.id.hdrUpdates, R.id.hdrUpdates),
-            SettingSearchEntry("Silent Self-Update", 5, R.id.hdrUpdates, R.id.hdrUpdates),
-            SettingSearchEntry("Backup", 3, null, R.id.sectionBackup),
-            SettingSearchEntry("Restore", 3, null, R.id.sectionBackup),
-            SettingSearchEntry("Auto backup", 3, null, R.id.sectionBackup),
-            SettingSearchEntry("Add Provider", 2, null, R.id.sectionServers),
-            SettingSearchEntry("Cross-Device Sync", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Push to Cloud", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Pull from Cloud", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Pairing Code", 4, R.id.hdrCrossDeviceSync, R.id.hdrCrossDeviceSync),
-            SettingSearchEntry("Diagnostics", 4, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
-            SettingSearchEntry("Send Debug Report", 4, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
-            SettingSearchEntry("Provider Health", 4, R.id.hdrDiagnostics, R.id.hdrDiagnostics),
-            SettingSearchEntry("Connect Trakt", 4, null, R.id.sectionSync),
-            SettingSearchEntry("Sync Watched History from Trakt", 4, null, R.id.sectionSync)
+            SettingSearchEntry("Live Channel Preview", 0, null, R.id.switchLiveChannelPreview),
+            // These two had panel 0 here before, but they live in Display (panel 1).
+            SettingSearchEntry("Show USA Channels Only", 1, null, R.id.cbUsaOnlyChannels),
+            SettingSearchEntry("Show English Movies & Series Only", 1, null, R.id.cbEnglishOnlyMovies),
+            SettingSearchEntry("Channels & Tabs", 1, null, R.id.cbUsaOnlyChannels),
+            SettingSearchEntry("Show Movies Tab", 1, null, R.id.cbShowMovies),
+            SettingSearchEntry("Show Series Tab", 1, null, R.id.cbShowSeries),
+            SettingSearchEntry("Show Watching Tab", 1, null, R.id.cbShowWatching),
+            SettingSearchEntry("Auto-Clear Continue Watching", 1, null, R.id.rowAutoClearContinueWatching),
+            SettingSearchEntry("Refresh Channels, Movies or Series", 1, null, R.id.btnRefreshChannels),
+            SettingSearchEntry("Clear Favorite Channels", 1, null, R.id.btnClearFavoriteChannels),
+            SettingSearchEntry("Accent Color", 1, null, R.id.accentColorRow),
+            SettingSearchEntry("AMOLED Black", 1, null, R.id.cbAmoledBlack),
+            SettingSearchEntry("Force TV Mode", 1, null, R.id.switchForceTvMode),
+            SettingSearchEntry("Mosaic", 1, null, R.id.btnOpenMosaic),
+            SettingSearchEntry("Add Provider", 2, null, R.id.btnAddServer),
+            SettingSearchEntry("Backup", 3, null, R.id.btnBackupSettings),
+            SettingSearchEntry("Restore", 3, null, R.id.btnRestoreSettings),
+            SettingSearchEntry("Auto backup", 3, null, R.id.switchAutoBackup),
+            SettingSearchEntry("Manage Backups", 3, null, R.id.btnManageBackups),
+            SettingSearchEntry("Auto-preview Movies", 3, null, R.id.switchVodAutoPreview),
+            SettingSearchEntry("Monthly Data Cap", 3, null, R.id.btnBandwidthBudget),
+            SettingSearchEntry("New Episode Notifications", 3, null, R.id.switchNewEpisodeNotifications),
+            SettingSearchEntry("Cross-Device Sync", 4, null, R.id.switchSyncEnabled),
+            SettingSearchEntry("Push to Cloud", 4, null, R.id.btnSyncUp),
+            SettingSearchEntry("Pull from Cloud", 4, null, R.id.btnSyncDown),
+            SettingSearchEntry("Pairing Code", 4, null, R.id.etGithubToken),
+            SettingSearchEntry("Join Watch Party", 4, null, R.id.btnJoinWatchParty),
+            SettingSearchEntry("Diagnostics", 4, null, R.id.switchCrashReporting),
+            SettingSearchEntry("Crash Reporting", 4, null, R.id.switchCrashReporting),
+            SettingSearchEntry("Send Debug Report", 4, null, R.id.btnSendDebugReport),
+            SettingSearchEntry("Provider Health", 4, null, R.id.btnProviderHealth),
+            SettingSearchEntry("Data Usage", 4, null, R.id.btnDataUsage),
+            SettingSearchEntry("LAN Export", 4, null, R.id.btnLanExport),
+            SettingSearchEntry("Receive a Cast", 4, null, R.id.btnReceiveCast),
+            // tvTraktStatus rather than the Trakt buttons: which of those is visible depends on
+            // whether Trakt is connected, and a hidden view has no position to scroll to.
+            SettingSearchEntry("Connect Trakt", 4, null, R.id.tvTraktStatus),
+            SettingSearchEntry("Sync Watched History from Trakt", 4, null, R.id.tvTraktStatus),
+            SettingSearchEntry("Check for Updates", 5, null, R.id.btnCheckUpdate),
+            SettingSearchEntry("What's New / Changelog", 5, null, R.id.btnWhatsNew),
+            SettingSearchEntry("Silent Self-Update", 5, null, R.id.switchSilentSelfUpdate),
+            // These four had panel 1 here before, but they live in Updates (panel 5).
+            SettingSearchEntry("Quick Actions", 5, null, R.id.btnSettingsSort),
+            SettingSearchEntry("Sort Channels", 5, null, R.id.btnSettingsSort),
+            SettingSearchEntry("Multi-view / Mosaic", 5, null, R.id.btnSettingsMosaic),
+            SettingSearchEntry("Feature Tour", 5, null, R.id.btnFeatureTour)
         )
     }
 
@@ -295,40 +358,39 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun jumpToSettingSearchResult(match: SettingSearchEntry) {
-        // Reuse the existing left-rail nav click to switch panels, keeping its highlight/focus
-        // side effects (backgroundTint, text color) consistent with a normal manual tap.
+        // Same path as tapping the tab, so the active tab's accent styling stays consistent.
         navButtonViews.getOrNull(match.panelIndex)?.performClick()
         val panel = panelViews.getOrNull(match.panelIndex) as? android.widget.ScrollView ?: return
-        panel.post {
-            if (match.headerId != null) {
-                val header = findViewById<View>(match.headerId)
-                val bodyId = when (match.headerId) {
-                    R.id.hdrEpgUrl -> R.id.bodyEpgUrl
-                    R.id.hdrFormat -> R.id.bodyFormat
-                    R.id.hdrLanguage -> R.id.bodyLanguage
-                    R.id.hdrPlayer -> R.id.bodyPlayer
-                    R.id.hdrEpgSection -> R.id.bodyEpgSection
-                    R.id.hdrSpeedTest -> R.id.bodySpeedTest
-                    R.id.hdrDoh -> R.id.bodyDoh
-                    R.id.hdrChannelsTabs -> R.id.bodyChannelsTabs
-                    R.id.hdrAccentColor -> R.id.bodyAccentColor
-                    R.id.hdrQuickActions -> R.id.bodyQuickActions
-                    R.id.hdrUpdates -> R.id.bodyUpdates
-                    R.id.hdrCrossDeviceSync -> R.id.bodyCrossDeviceSync
-                    R.id.hdrDiagnostics -> R.id.bodyDiagnostics
-                    else -> null
-                }
-                val body = bodyId?.let { findViewById<View>(it) }
-                if (body != null && body.visibility == View.GONE) header?.performClick()
+        // The two disclosure rows are the only things left that can hide a setting.
+        if (match.headerId != null) {
+            val bodyId = when (match.headerId) {
+                R.id.hdrEpgUrl -> R.id.bodyEpgUrl
+                R.id.hdrLanguage -> R.id.bodyLanguage
+                else -> null
             }
-            panel.post {
-                val target = findViewById<View>(match.targetId) ?: return@post
-                panel.smoothScrollTo(0, target.top)
-                val original = target.background
-                target.setBackgroundColor(Color.parseColor("#1A008CFF"))
-                target.postDelayed({ target.background = original }, 900)
-            }
+            val body = bodyId?.let { findViewById<View>(it) }
+            if (body != null && body.visibility == View.GONE) findViewById<View>(match.headerId)?.performClick()
         }
+        // A toggle isn't a focus / touch target of its own any more — its row is.
+        val found = findViewById<View>(match.targetId) ?: return
+        val target = (found.parent as? View)?.takeIf { it.tag == TAG_TOGGLE_ROW } ?: found
+        // Scroll once the layout pass that the tab switch / disclosure above just queued has run,
+        // by the target's position within the whole panel. (target.top alone is relative to its
+        // own parent, which in these nested groups is nowhere near the panel's scroll offset —
+        // the old jump scrolled to roughly the top of the panel whatever the target was.)
+        panel.doOnNextLayout {
+            val rect = android.graphics.Rect()
+            target.getDrawingRect(rect)
+            panel.offsetDescendantRectToMyCoords(target, rect)
+            panel.smoothScrollTo(0, (rect.top - (16 * resources.displayMetrics.density).toInt()).coerceAtLeast(0))
+            // With a remote, land focus on it too, so OK acts on the setting straight away.
+            if (!panel.isInTouchMode) (if (target.isFocusable) target else firstFocusableIn(target))?.requestFocus()
+            val original = target.background
+            val accent = accentColorInt()
+            target.setBackgroundColor(Color.argb(46, Color.red(accent), Color.green(accent), Color.blue(accent)))
+            target.postDelayed({ target.background = original }, 900)
+        }
+        panel.requestLayout()
     }
 
     private fun showSettingsHelp() {
@@ -393,9 +455,16 @@ class SettingsActivity : AppCompatActivity() {
 
     // #06B6D4 (cyan) leads the list because it's the default accent since v6.77 — before this it
     // wasn't a swatch at all, so anyone who tried another color could only get back to the
-    // default through the custom hue picker.
+    // default through the custom hue picker. #F5A524 (amber) is the Studio Rack Settings
+    // design's own highlight (v6.80), one tap away for anyone who wants that exact look.
     private val accentPalette = listOf(
-        "#06B6D4", "#008CFF", "#FF3B30", "#34C759", "#AF52DE", "#FF9500", "#FF2D55", "#5AC8FA"
+        "#06B6D4", "#F5A524", "#008CFF", "#FF3B30", "#34C759", "#AF52DE", "#FF9500", "#FF2D55", "#5AC8FA"
+    )
+    // Spoken names for the swatches (TalkBack), instead of reading out hex codes.
+    private val accentSwatchNames = mapOf(
+        "#06B6D4" to "cyan", "#F5A524" to "amber", "#008CFF" to "blue", "#FF3B30" to "red",
+        "#34C759" to "green", "#AF52DE" to "purple", "#FF9500" to "orange", "#FF2D55" to "pink",
+        "#5AC8FA" to "light blue"
     )
     // Named two-stop gradients — selectable alongside the flat swatches above. Picking one only
     // ever paints a real gradient on the tab indicator (the one place that can render it); every
@@ -418,6 +487,15 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Default accent until loadSettings reads the real one — the Rack drawables are drawn
+        // white where the accent goes, so they need a tint before the first frame.
+        applyRackAccent(accentColorInt())
+        wireToggleRows(binding.root)
+        hideWhileEmpty(
+            binding.tvEpgRefreshStatus, binding.tvSpeedTestResult, binding.tvUpdateStatus,
+            binding.tvBackupStatus, binding.tvAutoBackupPath, binding.tvReportStatus,
+            binding.tvSyncStatus, binding.tvTraktStatus, binding.tvTraktSyncStatus
+        )
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         workManager = WorkManager.getInstance(this)
 
@@ -463,7 +541,7 @@ class SettingsActivity : AppCompatActivity() {
         // Quick Actions — sort cycles, others launch intents back to home
         binding.btnSettingsSort.setOnClickListener {
             currentSortIndex = (currentSortIndex + 1) % sortLabels.size
-            binding.btnSettingsSort.text = "Sort Channels: ${sortLabels[currentSortIndex]}"
+            binding.btnSettingsSort.text = sortButtonLabel()
             lifecycleScope.launch { prefs.setChannelSortMode(currentSortIndex) }
         }
         binding.btnSettingsMosaic.setOnClickListener {
@@ -680,6 +758,7 @@ class SettingsActivity : AppCompatActivity() {
                     else -> "m3u8"
                 }
                 prefs.setPreferredFormat(format)
+                binding.tvStatusFormat.text = format.uppercase(Locale.US)
                 Toast.makeText(this@SettingsActivity, "Format set to $format", Toast.LENGTH_SHORT).show()
             }
         }
@@ -776,11 +855,10 @@ class SettingsActivity : AppCompatActivity() {
         setupCollapsibleCards()
     }
 
-    // Accent picker, in the Stitch layout: SOLID round swatches, then the named GRADIENTS as
-    // labeled chips, then the custom-hue picker as its own chip. Both rows wrap (FlowLayout)
-    // instead of the old fixed 5-per-row grid. What counts as "selected" and what each tap saves
-    // are unchanged. Every tile and chip is now D-pad focusable with a cyan focus ring — before
-    // this they were plain click targets that a TV / car-box remote couldn't reach at all.
+    // Accent picker, in the Studio Rack look: SOLID square-cornered swatches, then the named
+    // GRADIENTS as labeled chips, then the custom-hue picker as its own chip. Both rows wrap
+    // (FlowLayout). What counts as "selected" and what each tap saves are unchanged. Every tile
+    // and chip is D-pad focusable with the same light focus outline as the rest of the screen.
     private fun setupAccentPicker() {
         val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density + 0.5f).toInt()
@@ -789,21 +867,21 @@ class SettingsActivity : AppCompatActivity() {
 
         fun sectionLabel(text: String, topMarginDp: Int) = android.widget.TextView(this).apply {
             this.text = text
-            setTextColor(getColor(R.color.settings_text_muted))
-            textSize = 11f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.1f
+            setTextColor(getColor(R.color.rack_text_muted))
+            textSize = 12f
+            typeface = rackFont(R.font.barlow_condensed_semibold)
+            letterSpacing = 0.16f
             layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(topMarginDp); bottomMargin = dp(6) }
         }
 
-        // Foreground ring that only shows under D-pad focus.
-        fun focusRing(oval: Boolean) = android.graphics.drawable.StateListDrawable().apply {
+        // Foreground outline that only shows under D-pad focus.
+        fun focusRing(cornerDp: Int) = android.graphics.drawable.StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
-                if (oval) shape = android.graphics.drawable.GradientDrawable.OVAL else cornerRadius = dp(10).toFloat()
-                setStroke(dp(2), getColor(R.color.oled_cyan_glow))
+                cornerRadius = dp(cornerDp).toFloat()
+                setStroke(dp(2), getColor(R.color.rack_focus_ring))
                 setColor(Color.TRANSPARENT)
             })
         }
@@ -824,7 +902,7 @@ class SettingsActivity : AppCompatActivity() {
             setupAccentPicker()
         }
 
-        // SOLID — one round swatch per color; the selected one gets a ring in its own color.
+        // SOLID — one swatch per color; the selected one gets a frame in its own color.
         container.addView(sectionLabel("SOLID", 0))
         val solids = FlowLayout(this).apply {
             spacingPx = dp(4)
@@ -839,32 +917,32 @@ class SettingsActivity : AppCompatActivity() {
             val tile = android.widget.FrameLayout(this).apply {
                 layoutParams = ViewGroup.MarginLayoutParams(dp(44), dp(44))
                 isFocusable = true
-                foreground = focusRing(oval = true)
-                contentDescription = if (hex == "#06B6D4") "Accent color cyan (default)" else "Accent color $hex"
+                foreground = focusRing(cornerDp = 6)
+                contentDescription = "Accent color " + (accentSwatchNames[hex] ?: hex) + if (hex == "#06B6D4") " (default)" else ""
                 setOnClickListener { pickSolid(hex) }
             }
             tile.addView(View(this).apply {
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    cornerRadius = dp(4).toFloat()
                     setColor(color)
                 }
                 tag = hex
-                layoutParams = android.widget.FrameLayout.LayoutParams(dp(30), dp(30), android.view.Gravity.CENTER)
+                layoutParams = android.widget.FrameLayout.LayoutParams(dp(28), dp(28), android.view.Gravity.CENTER)
             })
             if (isSelected) tile.addView(View(this).apply {
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    cornerRadius = dp(6).toFloat()
                     setStroke(dp(2), color)
                     setColor(Color.TRANSPARENT)
                 }
-                layoutParams = android.widget.FrameLayout.LayoutParams(dp(40), dp(40), android.view.Gravity.CENTER)
+                layoutParams = android.widget.FrameLayout.LayoutParams(dp(38), dp(38), android.view.Gravity.CENTER)
             })
             solids.addView(tile)
         }
         container.addView(solids)
 
-        // GRADIENTS + Custom — chips with a color dot and the preset's name. The selected chip gets
-        // an outline in its own start color; Custom is dashed until it's the active choice.
+        // GRADIENTS + Custom — chips with a color swatch and the preset's name. The selected chip
+        // gets an outline in its own start color; Custom is dashed until it's the active choice.
         container.addView(sectionLabel("GRADIENTS", 12))
         val chips = FlowLayout(this).apply {
             spacingPx = dp(8)
@@ -878,28 +956,28 @@ class SettingsActivity : AppCompatActivity() {
                 orientation = android.widget.LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44))
-                setPadding(dp(8), 0, dp(12), 0)
+                setPadding(dp(10), 0, dp(14), 0)
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(10).toFloat()
-                    setColor(if (dashed) Color.TRANSPARENT else getColor(R.color.oled_surface_nested))
+                    cornerRadius = dp(5).toFloat()
+                    setColor(Color.TRANSPARENT)
                     when {
                         selectedColor != null -> setStroke(dp(2), selectedColor)
-                        dashed -> setStroke(dp(1), getColor(R.color.oled_outline_stroke), dp(4).toFloat(), dp(3).toFloat())
-                        else -> setStroke(dp(1), getColor(R.color.oled_card_stroke))
+                        dashed -> setStroke(dp(1), getColor(R.color.rack_control_edge), dp(4).toFloat(), dp(3).toFloat())
+                        else -> setStroke(dp(1), getColor(R.color.rack_control_edge))
                     }
                 }
                 isFocusable = true
-                foreground = focusRing(oval = false)
+                foreground = focusRing(cornerDp = 5)
                 setOnClickListener { onClick() }
                 addView(View(this@SettingsActivity).apply {
                     background = dot
-                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(24), dp(24))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(20), dp(20))
                 })
                 addView(android.widget.TextView(this@SettingsActivity).apply {
                     text = label
-                    textSize = 13f
-                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-                    setTextColor(getColor(if (dashed) R.color.oled_text_secondary else R.color.oled_text_primary))
+                    textSize = 15f
+                    typeface = rackFont(R.font.barlow_medium)
+                    setTextColor(getColor(if (dashed) R.color.rack_text_secondary else R.color.rack_text))
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
                     ).apply { marginStart = dp(8) }
@@ -910,12 +988,12 @@ class SettingsActivity : AppCompatActivity() {
             val dot = android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.parseColor(gradient.second), Color.parseColor(gradient.third))
-            ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL }
+            ).apply { cornerRadius = dp(3).toFloat() }
             chips.addView(chip(gradient.first, dot, if (isSelected) Color.parseColor(gradient.second) else null, dashed = false) { pickGradient(gradient) })
         }
         val customSelected = accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty()
         val customDot = android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.OVAL
+            cornerRadius = dp(3).toFloat()
             if (customSelected) {
                 setColor(Color.parseColor(currentAccentColor))
             } else {
@@ -991,44 +1069,31 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    // Picking a new accent changes what "the active color" is without switching tabs, so
+    // everything accent-colored — the active tab included — gets repainted here, or it would stay
+    // on the previous accent until something else happened to refresh it.
     private fun applyAccentToSettings(colorInt: Int) {
-        // setupSectionToggles' selectPanel() styles the tabs whenever one is tapped — this is the
-        // other path that changes what "the active color" is (picking a new accent) without
-        // switching tabs, so the active tab needs restyling here too or it goes stale, still
-        // showing the previous accent until the next tab switch coincidentally refreshes it.
-        navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == currentPanelIndex, accent = colorInt) }
+        applyRackAccent(colorInt)
     }
 
-    // One nav-rail tab, in the Stitch rail look. Idle tabs take their colors from XML state lists
-    // (settings_nav_tab_*: dark pill + hairline outline; lifted fill + cyan glow under D-pad
-    // focus). The active tab is built here from the user's own accent instead — a wash of it
-    // (see accentBackgroundTint) behind bold accent text and an accent outline.
-    // Under D-pad focus the active tab gets a light outline and a stronger wash. Swapping only the
-    // outline to the cyan glow (the idle tabs' focus cue) was tried first and was invisible on a
-    // real render with the default cyan accent — glow and accent are near-identical blues — which
-    // is the same "focus hidden on the active tab" problem the Stitch spec's own selector had.
+    // One tab of the tab row. Idle tabs keep their XML look (Rack.Tab: grey label; a lifted fill
+    // and light outline under D-pad focus). The active tab's label and a 2dp underline are the
+    // user's accent. The underline is the button's foreground, so it never fights the focus fill
+    // and outline, which are its background — focus stays visible on the active tab too.
+    // The font stays the same either way, so switching tabs never shifts their widths.
     private fun styleNavTab(btn: android.widget.Button, active: Boolean, accent: Int) {
         val tab = btn as? com.google.android.material.button.MaterialButton ?: return
-        val density = resources.displayMetrics.density
         if (active) {
-            val focused = intArrayOf(android.R.attr.state_focused)
-            tab.backgroundTintList = android.content.res.ColorStateList(
-                arrayOf(focused, intArrayOf()),
-                intArrayOf(Color.argb(72, Color.red(accent), Color.green(accent), Color.blue(accent)), accentBackgroundTint(accent))
-            )
-            tab.strokeColor = android.content.res.ColorStateList(
-                arrayOf(focused, intArrayOf()),
-                intArrayOf(getColor(R.color.oled_text_primary), accent)
-            )
-            tab.strokeWidth = (1.5f * density + 0.5f).toInt()
             tab.setTextColor(accent)
-            tab.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+            tab.foreground = android.graphics.drawable.LayerDrawable(
+                arrayOf(android.graphics.drawable.ColorDrawable(accent))
+            ).apply {
+                setLayerGravity(0, android.view.Gravity.BOTTOM or android.view.Gravity.FILL_HORIZONTAL)
+                setLayerHeight(0, (2 * resources.displayMetrics.density + 0.5f).toInt())
+            }
         } else {
-            tab.backgroundTintList = getColorStateList(R.color.settings_nav_tab_bg)
-            tab.strokeColor = getColorStateList(R.color.settings_nav_tab_stroke)
-            tab.strokeWidth = (1f * density + 0.5f).toInt()
-            tab.setTextColor(getColorStateList(R.color.settings_nav_tab_text))
-            tab.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            tab.setTextColor(getColorStateList(R.color.rack_tab_text))
+            tab.foreground = null
         }
     }
 
@@ -1036,12 +1101,192 @@ class SettingsActivity : AppCompatActivity() {
     private fun accentColorInt(): Int =
         try { Color.parseColor(currentAccentColor) } catch (_: Exception) { getColor(R.color.oled_cyan_primary) }
 
-    // Low-alpha wash of whatever the user's actual accent color is (their own swatch/gradient
-    // pick, or the default) — used for the active nav tab's background. Deliberately NOT a fixed
-    // cyan: the tab's text already follows the accent, so a hardcoded cyan background would
-    // visibly clash for anyone who picked a different color (Berry/purple, Sunset/orange, etc.).
-    private fun accentBackgroundTint(accent: Int): Int =
-        Color.argb(26, Color.red(accent), Color.green(accent), Color.blue(accent))
+    // ─── Studio Rack styling (v6.80) ───────────────────────────────────────────
+
+    private fun rackFont(res: Int): android.graphics.Typeface? =
+        try { androidx.core.content.res.ResourcesCompat.getFont(this, res) } catch (_: Exception) { null }
+
+    // Black or white, whichever reads on the accent: black for every palette color, white only
+    // for a dark custom hue (a pure blue, say), where black text would fall under ~4.5:1.
+    private fun onAccentColor(accent: Int): Int =
+        if (androidx.core.graphics.ColorUtils.calculateLuminance(accent) >= 0.18) Color.BLACK else Color.WHITE
+
+    // Paints the user's accent onto everything accent-colored under [root]: views are found by
+    // the android:tag their Rack style gives them (styles_settings.xml lists the tags), Switches
+    // and ProgressBars by type. Runs on open (with the default, then the saved accent), on every
+    // accent pick, and on each batch of rebuilt provider cards; repainting a view is harmless.
+    private fun applyRackAccent(accent: Int, root: View = binding.root) {
+        val onAccent = onAccentColor(accent)
+        val disabled = intArrayOf(-android.R.attr.state_enabled)
+        val focused = intArrayOf(android.R.attr.state_focused)
+        val checked = intArrayOf(android.R.attr.state_checked)
+        val otherwise = intArrayOf()
+        fun csl(vararg entries: Pair<IntArray, Int>) = android.content.res.ColorStateList(
+            entries.map { it.first }.toTypedArray(), entries.map { it.second }.toIntArray()
+        )
+        val fillBg = csl(disabled to getColor(R.color.rack_control_off), otherwise to accent)
+        val fillText = csl(disabled to getColor(R.color.rack_disabled_text), otherwise to onAccent)
+        val outlineStroke = csl(
+            disabled to getColor(R.color.rack_control_edge),
+            focused to getColor(R.color.rack_focus_ring),
+            otherwise to accent
+        )
+        val outlineText = csl(disabled to getColor(R.color.rack_disabled_text), otherwise to accent)
+        // MULTIPLY tints: the white parts of the Rack toggle / segment drawables become the accent
+        // (or the black-or-white knob), and everything else — greys, black, transparent — stays
+        // exactly as drawn.
+        val multiply = android.graphics.PorterDuff.Mode.MULTIPLY
+        val onTint = csl(checked to accent, otherwise to Color.WHITE)
+        val knobTint = csl(checked to onAccent, otherwise to Color.WHITE)
+        val segmentText = csl(
+            checked to onAccent,
+            disabled to getColor(R.color.rack_disabled_text),
+            focused to getColor(R.color.rack_text),
+            otherwise to getColor(R.color.rack_text_muted)
+        )
+
+        fun paint(v: View) {
+            when (v.tag) {
+                TAG_ACCENT_FILL -> (v as? com.google.android.material.button.MaterialButton)?.apply {
+                    backgroundTintList = fillBg; setTextColor(fillText); iconTint = fillText
+                }
+                TAG_ACCENT_OUTLINE -> (v as? com.google.android.material.button.MaterialButton)?.apply {
+                    strokeColor = outlineStroke; setTextColor(outlineText); iconTint = outlineText
+                }
+                TAG_ACCENT_ICON -> (v as? com.google.android.material.button.MaterialButton)?.iconTint = outlineText
+                TAG_ACCENT_TEXT -> (v as? android.widget.TextView)?.setTextColor(accent)
+                TAG_ACCENT_DOT -> v.background = accentDot(accent)
+                TAG_TOGGLE -> (v as? android.widget.CompoundButton)?.let { toggle ->
+                    androidx.core.widget.CompoundButtonCompat.setButtonTintList(toggle, null)
+                    toggle.buttonDrawable = rackToggleDrawable(accent, onAccent)
+                }
+                TAG_SEGMENT -> (v as? android.widget.RadioButton)?.let { segment ->
+                    androidx.core.view.ViewCompat.setBackgroundTintList(segment, onTint)
+                    androidx.core.view.ViewCompat.setBackgroundTintMode(segment, multiply)
+                    segment.setTextColor(segmentText)
+                }
+            }
+            when (v) {
+                is androidx.appcompat.widget.SwitchCompat -> {
+                    v.trackTintList = onTint; v.trackTintMode = multiply
+                    v.thumbTintList = knobTint; v.thumbTintMode = multiply
+                }
+                is android.widget.Switch -> {
+                    v.trackTintList = onTint; v.trackTintMode = multiply
+                    v.thumbTintList = knobTint; v.thumbTintMode = multiply
+                }
+                is android.widget.ProgressBar -> v.progressTintList = android.content.res.ColorStateList.valueOf(accent)
+            }
+            if (v is ViewGroup) for (i in 0 until v.childCount) paint(v.getChildAt(i))
+        }
+        paint(root)
+        if (root === binding.root) {
+            navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == currentPanelIndex, accent = accent) }
+            binding.btnSettingsSort.text = sortButtonLabel(accent)
+        }
+    }
+
+    // The toggle drawn for CheckBox-backed settings: the same square track and knob as
+    // rack_switch_track / rack_switch_thumb, built here because track and knob share one drawable
+    // and need different colors (accent vs. black-or-white), which a single tint can't give.
+    private fun rackToggleDrawable(accent: Int, onAccent: Int): android.graphics.drawable.Drawable {
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density + 0.5f).toInt()
+        fun toggle(track: Int, edge: Int?, knob: Int, knobAtEnd: Boolean) = android.graphics.drawable.LayerDrawable(arrayOf(
+            android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(5).toFloat()
+                setColor(track)
+                if (edge != null) setStroke(dp(1), edge)
+                setSize(dp(56), dp(30))
+            },
+            android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(3).toFloat()
+                setColor(knob)
+            }
+        )).apply {
+            setLayerGravity(1, (if (knobAtEnd) android.view.Gravity.END else android.view.Gravity.START) or android.view.Gravity.CENTER_VERTICAL)
+            setLayerInset(1, dp(4), 0, dp(4), 0)
+            setLayerSize(1, dp(22), dp(22))
+        }
+        return android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_checked), toggle(accent, null, onAccent, knobAtEnd = true))
+            addState(intArrayOf(), toggle(
+                getColor(R.color.rack_control_off), getColor(R.color.rack_control_edge),
+                getColor(R.color.rack_knob_off), knobAtEnd = false
+            ))
+        }
+    }
+
+    // The status strip's provider dot: the accent with a soft halo, standing in for a glow.
+    private fun accentDot(accent: Int): android.graphics.drawable.Drawable {
+        val inset = (2 * resources.displayMetrics.density + 0.5f).toInt()
+        return android.graphics.drawable.LayerDrawable(arrayOf(
+            android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Color.argb(70, Color.red(accent), Color.green(accent), Color.blue(accent)))
+            },
+            android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(accent)
+            }
+        )).apply { setLayerInset(1, inset, inset, inset, inset) }
+    }
+
+    // "Sort channels: A-Z" with the current order in the accent, like a value row's value.
+    private fun sortButtonLabel(accent: Int = accentColorInt()): CharSequence {
+        val value = sortLabels[currentSortIndex]
+        return android.text.SpannableString("Sort channels: $value").apply {
+            setSpan(
+                android.text.style.ForegroundColorSpan(accent),
+                length - value.length, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+    }
+
+    // Toggle rows (tag toggleRow) are one D-pad / touch target: a click anywhere on the row flips
+    // the Switch or toggle CheckBox inside it, which fires the same OnCheckedChangeListener that
+    // tapping the toggle itself always did. The row also tells TalkBack it's a switch and whether
+    // it's on, since the toggle inside is no longer focusable on its own.
+    private fun wireToggleRows(root: View) {
+        if (root.tag == TAG_TOGGLE_ROW && root is ViewGroup) {
+            val toggle = findCompoundButton(root) ?: return
+            root.setOnClickListener { if (toggle.isEnabled) toggle.toggle() }
+            androidx.core.view.ViewCompat.setAccessibilityDelegate(root, object : androidx.core.view.AccessibilityDelegateCompat() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: androidx.core.view.accessibility.AccessibilityNodeInfoCompat) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.isCheckable = true
+                    info.isChecked = toggle.isChecked
+                    info.className = android.widget.Switch::class.java.name
+                }
+            })
+            return
+        }
+        if (root is ViewGroup) for (i in 0 until root.childCount) wireToggleRows(root.getChildAt(i))
+    }
+
+    private fun findCompoundButton(group: ViewGroup): android.widget.CompoundButton? {
+        for (i in 0 until group.childCount) {
+            val child = group.getChildAt(i)
+            if (child is android.widget.CompoundButton) return child
+            if (child is ViewGroup) findCompoundButton(child)?.let { return it }
+        }
+        return null
+    }
+
+    // Status lines that are empty most of the time (refresh status, speed-test result …) take no
+    // room until they have something to say, instead of leaving a blank line in their row.
+    private fun hideWhileEmpty(vararg views: android.widget.TextView) {
+        views.forEach { tv ->
+            tv.visibility = if (tv.text.isNullOrEmpty()) View.GONE else View.VISIBLE
+            tv.addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    tv.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
+                }
+                override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            })
+        }
+    }
 
     // Subtitle styling (size/offset/bold/colors/outline) previously only existed on TV
     // Settings — the phone had no way to customize subtitle appearance at all, even though
@@ -1144,43 +1389,36 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    // A disclosure row: clicking it shows / hides the rows under it, and its chevron turns to
+    // point up while they're showing.
     private fun wireCollapsible(headerId: Int, bodyId: Int, chevronId: Int) {
         val header  = findViewById<View>(headerId)   ?: return
         val body    = findViewById<View>(bodyId)     ?: return
-        val chevron = findViewById<android.widget.TextView>(chevronId) ?: return
+        val chevron = findViewById<View>(chevronId)  ?: return
+        chevron.rotation = if (body.visibility == View.VISIBLE) 180f else 0f
         header.setOnClickListener {
             val expanding = body.visibility == View.GONE
             body.visibility = if (expanding) View.VISIBLE else View.GONE
-            chevron.text    = if (expanding) "▲" else "▼"
+            chevron.animate().rotation(if (expanding) 180f else 0f).setDuration(150).start()
         }
     }
 
+    // Only two things still open and close in the Rack layout; everything else is always shown.
     private fun setupCollapsibleCards() {
-        wireCollapsible(R.id.hdrEpgUrl,      R.id.bodyEpgUrl,      R.id.chevEpgUrl)
-        wireCollapsible(R.id.hdrFormat,      R.id.bodyFormat,      R.id.chevFormat)
-        wireCollapsible(R.id.hdrLanguage,    R.id.bodyLanguage,    R.id.chevLanguage)
-        wireCollapsible(R.id.hdrPlayer,      R.id.bodyPlayer,      R.id.chevPlayer)
-        wireCollapsible(R.id.hdrEpgSection,  R.id.bodyEpgSection,  R.id.chevEpgSection)
-        wireCollapsible(R.id.hdrSpeedTest,   R.id.bodySpeedTest,   R.id.chevSpeedTest)
-        wireCollapsible(R.id.hdrDoh,         R.id.bodyDoh,         R.id.chevDoh)
-        wireCollapsible(R.id.hdrChannelsTabs,     R.id.bodyChannelsTabs,     R.id.chevChannelsTabs)
-        wireCollapsible(R.id.hdrAccentColor,      R.id.bodyAccentColor,      R.id.chevAccentColor)
-        wireCollapsible(R.id.hdrQuickActions,     R.id.bodyQuickActions,     R.id.chevQuickActions)
-        wireCollapsible(R.id.hdrUpdates,          R.id.bodyUpdates,          R.id.chevUpdates)
-        wireCollapsible(R.id.hdrCrossDeviceSync,  R.id.bodyCrossDeviceSync,  R.id.chevCrossDeviceSync)
-        wireCollapsible(R.id.hdrDiagnostics,      R.id.bodyDiagnostics,      R.id.chevDiagnostics)
+        wireCollapsible(R.id.hdrEpgUrl,   R.id.bodyEpgUrl,   R.id.chevEpgUrl)
+        wireCollapsible(R.id.hdrLanguage, R.id.bodyLanguage, R.id.chevLanguage)
     }
 
+    // D-pad with the tabs across the top: Down from a tab goes to the first setting of its panel
+    // (not whatever happens to sit geometrically below the tab), and Back from inside a panel
+    // returns to its tab. Everything else — Left / Right between the two columns on a wide
+    // screen, Up from the top of a panel back to the tabs — is plain focus search.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             val inContent = panelViews[currentPanelIndex].hasFocus()
             val inNav = binding.settingsNavRail.hasFocus()
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (inContent) {
-                    navButtonViews[currentPanelIndex].requestFocus()
-                    return true
-                }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (inNav) {
+                KeyEvent.KEYCODE_DPAD_DOWN -> if (inNav) {
                     focusFirstInCurrentPanel()
                     return true
                 }
@@ -1199,12 +1437,16 @@ class SettingsActivity : AppCompatActivity() {
         if (first != null) first.requestFocus() else panel.requestFocus()
     }
 
+    // First focusable view under [view] in layout order, skipping anything hidden (a view inside a
+    // GONE parent reports itself VISIBLE, so a closed disclosure row's contents have to be skipped
+    // at the parent). Rows count too — a toggle row is itself the focus target.
     private fun firstFocusableIn(view: View): View? {
-        if (view !is ViewGroup && view.isFocusable && view.isEnabled && view.visibility == View.VISIBLE) return view
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                firstFocusableIn(view.getChildAt(i))?.let { return it }
-            }
+        if (view !is ViewGroup) return null
+        for (i in 0 until view.childCount) {
+            val child = view.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+            if (child.isFocusable && child.isEnabled) return child
+            firstFocusableIn(child)?.let { return it }
         }
         return null
     }
@@ -1930,7 +2172,7 @@ class SettingsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 binding.tvReportStatus.text = "Error: ${e.message}"
             } finally {
-                binding.btnSendDebugReport.text = "Send Debug Report"
+                binding.btnSendDebugReport.text = "Send"
                 binding.btnSendDebugReport.isEnabled = true
             }
         }
@@ -2159,14 +2401,15 @@ class SettingsActivity : AppCompatActivity() {
                     else      -> binding.rbDohCloudflare.isChecked = true
                 }
                 currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
-                binding.btnSettingsSort.text = "Sort Channels: ${sortLabels[currentSortIndex]}"
                 currentAccentColor = prefs.accentColor.first()
                 currentAccentColorEnd = prefs.accentColorEnd.first()
                 setupAccentPicker()
-                applyAccentToSettings(Color.parseColor(currentAccentColor))
+                // Also sets the Sort channels label, with its value in the accent.
+                applyAccentToSettings(accentColorInt())
                 setupSubtitleSettings()
                 updateLastRefreshText()
                 updateCacheAgeText()
+                binding.tvStatusFormat.text = prefs.preferredFormat.first().uppercase(Locale.US)
                 binding.tvVersion.text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
             } finally {
                 isLoadingSettings = false
@@ -2237,23 +2480,29 @@ class SettingsActivity : AppCompatActivity() {
         workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
+    // Also feeds the status strip's GUIDE readout: the time for a refresh today, otherwise the date.
     private suspend fun updateLastRefreshText() {
         val time = prefs.lastEpgRefreshTime.first()
-        binding.tvLastEpgRefresh.text = if (time == 0L) {
-            "Last EPG Refresh: Never"
-        } else {
-            val formatted = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(time))
-            "Last EPG Refresh: $formatted"
+        if (time == 0L) {
+            binding.tvLastEpgRefresh.text = "Not refreshed yet"
+            binding.tvStatusGuide.text = "Never"
+            return
         }
+        val date = Date(time)
+        binding.tvLastEpgRefresh.text = "Last refreshed " + SimpleDateFormat("MMM d · h:mm a", Locale.getDefault()).format(date)
+        binding.tvStatusGuide.text = if (android.text.format.DateUtils.isToday(time))
+            SimpleDateFormat("h:mm a", Locale.getDefault()).format(date)
+        else
+            SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
     }
 
     private suspend fun updateCacheAgeText() {
         val newest = db.epgDao().getNewestEpgStopTimestamp()
         val nowSeconds = System.currentTimeMillis() / 1000
         binding.tvEpgCacheAge.text = when {
-            newest == null -> "EPG Cache Age: Unknown"
-            newest < nowSeconds -> "EPG Cache: Expired"
-            else -> "EPG Cache: covers ~${(newest - nowSeconds) / 3600}h ahead"
+            newest == null -> "Guide data: unknown"
+            newest < nowSeconds -> "Guide data has run out"
+            else -> "Guide data covers the next ~${(newest - nowSeconds) / 3600} h"
         }
     }
 
@@ -2318,18 +2567,31 @@ class SettingsActivity : AppCompatActivity() {
                 return if (elapsedMin < 1) "Refresh attempted just now" else "Refresh attempted ${elapsedMin}m ago"
             }
 
-            // ── v6.79 Stitch provider cards: view construction only. The data above and every
-            // button's click handler below are exactly what they were before this restyle. ──
+            // ── Provider cards, in the Studio Rack look (v6.80): view construction only. The data
+            // above and every button's click handler below are unchanged by the restyle. ──
             val density = resources.displayMetrics.density
             fun dp(v: Int) = (v * density + 0.5f).toInt()
             val counts = java.text.NumberFormat.getIntegerInstance()
             val accent = accentColorInt()
+            val condensed = rackFont(R.font.barlow_condensed_semibold)
 
-            // One provider's sub-card, recessed inside the Providers card (provider_card_bg).
+            // Small condensed caps label (PRIMARY PROVIDER, LIVE …), same as the Rack.Eyebrow style.
+            fun eyebrow(value: String) = android.widget.TextView(this@SettingsActivity).apply {
+                text = value
+                setTextColor(getColor(R.color.rack_text_muted))
+                textSize = 12f
+                typeface = condensed
+                letterSpacing = 0.16f
+                isAllCaps = true
+                setSingleLine(true)
+            }
+
+            // One provider = one module, in the same box as the other panels' groups (edge to edge
+            // on a phone, bordered on a wide screen, where RackColumns puts two side by side).
             fun providerCard(dimmed: Boolean) = android.widget.LinearLayout(this@SettingsActivity).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                setBackgroundResource(R.drawable.provider_card_bg)
-                setPadding(dp(14), dp(14), dp(14), dp(14))
+                setBackgroundResource(R.drawable.rack_group_bg)
+                setPadding(dp(16), dp(14), dp(16), dp(14))
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -2339,48 +2601,44 @@ class SettingsActivity : AppCompatActivity() {
                 alpha = if (dimmed) 0.45f else 1f
             }
 
-            // "PROVIDER 2" + nickname on the left; ACTIVE (in the user's accent) or INACTIVE pill
-            // on the right.
+            // "PROVIDER 2" + nickname on the left; ● ACTIVE (in the user's accent) or INACTIVE on
+            // the right, like the status strip's PROVIDER readout.
             fun cardHeader(label: String, nickname: String, active: Boolean) = android.widget.LinearLayout(this@SettingsActivity).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.TOP
                 addView(android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
                     layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    addView(android.widget.TextView(this@SettingsActivity).apply {
-                        text = label
-                        setTextColor(getColor(R.color.settings_text_muted))
-                        textSize = 10f
-                        typeface = android.graphics.Typeface.DEFAULT_BOLD
-                        letterSpacing = 0.12f
-                    })
+                    addView(eyebrow(label))
                     addView(android.widget.TextView(this@SettingsActivity).apply {
                         text = nickname
-                        setTextColor(getColor(R.color.oled_text_primary))
-                        textSize = 16f
-                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        setTextColor(getColor(R.color.rack_text))
+                        textSize = 18f
+                        typeface = rackFont(R.font.barlow_semibold)
                         setSingleLine(true)
                         ellipsize = android.text.TextUtils.TruncateAt.END
                     })
                 })
-                addView(android.widget.TextView(this@SettingsActivity).apply {
-                    text = if (active) "● ACTIVE" else "INACTIVE"
-                    setTextColor(if (active) accent else getColor(R.color.settings_text_muted))
-                    textSize = 11f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    letterSpacing = 0.06f
-                    setPadding(dp(8), dp(4), dp(8), dp(4))
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(6).toFloat()
-                        setColor(
-                            if (active) Color.argb(31, Color.red(accent), Color.green(accent), Color.blue(accent))
-                            else getColor(R.color.oled_surface_container_low)
-                        )
-                    }
+                addView(android.widget.LinearLayout(this@SettingsActivity).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     ).also { it.marginStart = dp(12) }
+                    if (active) addView(View(this@SettingsActivity).apply {
+                        tag = TAG_ACCENT_DOT
+                        background = accentDot(accent)
+                        layoutParams = android.widget.LinearLayout.LayoutParams(dp(12), dp(12)).also { it.marginEnd = dp(6) }
+                    })
+                    addView(android.widget.TextView(this@SettingsActivity).apply {
+                        text = if (active) "ACTIVE" else "INACTIVE"
+                        if (active) tag = TAG_ACCENT_TEXT
+                        setTextColor(if (active) accent else getColor(R.color.rack_text_muted))
+                        textSize = 13f
+                        typeface = rackFont(R.font.barlow_condensed_bold)
+                        letterSpacing = 0.12f
+                    })
                 })
             }
 
@@ -2388,61 +2646,53 @@ class SettingsActivity : AppCompatActivity() {
             // port/path stay visible.
             fun detailLine(value: String) = android.widget.TextView(this@SettingsActivity).apply {
                 text = value
-                setTextColor(getColor(R.color.settings_text_muted))
-                textSize = 12f
+                setTextColor(getColor(R.color.rack_text_muted))
+                textSize = 13f
+                typeface = rackFont(R.font.barlow_regular)
                 setSingleLine(true)
                 ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.topMargin = dp(8) }
+                ).also { it.topMargin = dp(6) }
             }
 
-            // LIVE / MOVIES / SERIES as three count blocks. null = a kind of content this source type
-            // never has (M3U is live-only): that block is left out instead of showing a permanent 0
-            // that would read like missing data, with an empty slot keeping LIVE at a third width.
+            // LIVE / MOVIES / SERIES as readouts between hairlines, like the status strip. null =
+            // a kind of content this source type never has (M3U is live-only): that readout is
+            // left out instead of showing a permanent 0 that would read like missing data.
             fun statsRow(live: Int, movies: Int?, series: Int?) = android.widget.LinearLayout(this@SettingsActivity).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
+                setBackgroundResource(R.drawable.rack_strip_bg)
+                dividerDrawable = androidx.appcompat.content.res.AppCompatResources.getDrawable(this@SettingsActivity, R.drawable.rack_cell_divider)
+                showDividers = android.widget.LinearLayout.SHOW_DIVIDER_MIDDLE
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                 ).also { it.topMargin = dp(12) }
-                val blocks = listOf("LIVE" to live, "MOVIES" to movies, "SERIES" to series)
-                blocks.forEachIndexed { idx, (label, value) ->
-                    val lp = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                        .also { if (idx < blocks.lastIndex) it.marginEnd = dp(8) }
-                    if (value == null) {
-                        addView(View(this@SettingsActivity).apply { layoutParams = lp })
-                    } else {
+                listOfNotNull("LIVE" to live, movies?.let { "MOVIES" to it }, series?.let { "SERIES" to it })
+                    .forEachIndexed { idx, (label, value) ->
                         addView(android.widget.LinearLayout(this@SettingsActivity).apply {
                             orientation = android.widget.LinearLayout.VERTICAL
-                            setBackgroundResource(R.drawable.settings_stat_bg)
-                            setPadding(dp(10), dp(8), dp(10), dp(8))
-                            layoutParams = lp
+                            setPadding(if (idx == 0) 0 else dp(12), dp(9), dp(8), dp(9))
+                            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                            addView(eyebrow(label))
                             addView(android.widget.TextView(this@SettingsActivity).apply {
                                 text = counts.format(value.toLong())
-                                setTextColor(getColor(R.color.oled_text_primary))
+                                setTextColor(getColor(R.color.rack_text))
                                 textSize = 17f
-                                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                                typeface = rackFont(R.font.barlow_semibold)
                                 fontFeatureSettings = "tnum"
                                 setSingleLine(true)
                             })
-                            addView(android.widget.TextView(this@SettingsActivity).apply {
-                                text = label
-                                setTextColor(getColor(R.color.settings_text_muted))
-                                textSize = 10f
-                                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                                letterSpacing = 0.12f
-                            })
                         })
                     }
-                }
             }
 
-            fun statusLine(value: String, colorRes: Int) = android.widget.TextView(this@SettingsActivity).apply {
+            fun statusLine(value: String) = android.widget.TextView(this@SettingsActivity).apply {
                 text = value
-                setTextColor(getColor(colorRes))
-                textSize = 12f
+                setTextColor(getColor(R.color.rack_text_secondary))
+                textSize = 13f
+                typeface = rackFont(R.font.barlow_regular)
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -2463,7 +2713,7 @@ class SettingsActivity : AppCompatActivity() {
                 // to verify the nickname you see actually matches the credentials really in use.
                 addView(detailLine(creds.serverUrl))
                 addView(statsRow(primaryChannelCount, primaryVodCount, primarySeriesCount))
-                addView(statusLine(syncLabel(primaryLastSync), R.color.oled_cyan_primary))
+                addView(statusLine(syncLabel(primaryLastSync)))
             }
             cardButton(R.layout.settings_provider_btn_secondary, primaryRow, "Edit").apply {
                 layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -2503,23 +2753,28 @@ class SettingsActivity : AppCompatActivity() {
                 // attemptLabel, not syncLabel: see its own kdoc for why "Synced" would
                 // overclaim here in a way it doesn't for the primary card.
                 row.addView(
-                    if (isM3u) statusLine("Not auto-refreshed (M3U)", R.color.settings_text_muted)
-                    else statusLine(attemptLabel(mergedLastSync), R.color.oled_cyan_primary)
+                    if (isM3u) statusLine("Not auto-refreshed (M3U)")
+                    else statusLine(attemptLabel(mergedLastSync))
                 )
                 android.widget.Switch(this@SettingsActivity).apply {
                     text = if (enabled) "Enabled" else "Disabled"
                     isChecked = enabled
-                    setTextColor(getColor(R.color.oled_text_primary))
-                    textSize = 14f
-                    // Same thumb/track as every other Settings toggle (styles_settings.xml).
-                    setThumbResource(R.drawable.settings_switch_thumb)
-                    setTrackResource(R.drawable.settings_switch_track)
-                    minHeight = dp(44)
+                    setTextColor(getColor(R.color.rack_text))
+                    textSize = 16f
+                    typeface = rackFont(R.font.barlow_medium)
+                    // Same square thumb/track as every other Settings toggle (styles_settings.xml);
+                    // applyRackAccent below tints it. Unlike those, this one is its own focus stop
+                    // (it isn't inside a toggle row), so it carries the row focus background.
+                    setThumbResource(R.drawable.rack_switch_thumb)
+                    setTrackResource(R.drawable.rack_switch_track)
+                    setBackgroundResource(R.drawable.rack_row_bg)
+                    setPadding(dp(8), 0, dp(8), 0)
+                    minHeight = dp(48)
                     gravity = android.view.Gravity.CENTER_VERTICAL
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.topMargin = dp(8) }
+                    ).also { it.topMargin = dp(6); it.marginStart = -dp(8); it.marginEnd = -dp(8) }
                     setOnCheckedChangeListener { _, checked ->
                         val updated = extraServers[i].toMutableList()
                         while (updated.size < 6) updated.add("true")
@@ -2684,6 +2939,17 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 ll.addView(row)
             }
+
+            // The status strip's PROVIDER / CHANNELS readouts follow whichever provider is active.
+            val activeServer = extraServers.getOrNull(activeIndex)
+            binding.tvStatusProvider.text = (activeServer?.let { s -> s.getOrElse(3) { "" }.ifEmpty { s.getOrElse(1) { "" } } } ?: primaryNick)
+                .ifEmpty { "—" }
+            binding.tvStatusChannels.text = counts.format(
+                (if (activeServer == null) primaryChannelCount else mergedChannelCounts[activeIndex] ?: 0).toLong()
+            )
+            // The cards were built with the accent as it was a moment ago; if loadSettings has
+            // read a different saved one since, this brings them in line.
+            applyRackAccent(accentColorInt(), ll)
         }
     }
 
@@ -3621,6 +3887,17 @@ class SettingsActivity : AppCompatActivity() {
 
     companion object {
         private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
+
+        // android:tag values the Rack styles put on views (styles_settings.xml has the full list),
+        // read by applyRackAccent / wireToggleRows.
+        private const val TAG_TOGGLE_ROW = "toggleRow"
+        private const val TAG_TOGGLE = "toggle"
+        private const val TAG_SEGMENT = "segment"
+        private const val TAG_ACCENT_FILL = "accentFill"
+        private const val TAG_ACCENT_OUTLINE = "accentOutline"
+        private const val TAG_ACCENT_ICON = "accentIcon"
+        private const val TAG_ACCENT_TEXT = "accentText"
+        private const val TAG_ACCENT_DOT = "accentDot"
     }
 
     private suspend fun buildBackupJson(scope: BackupScope = BackupScope()): JSONObject = withContext(Dispatchers.IO) {

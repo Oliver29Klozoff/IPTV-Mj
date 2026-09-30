@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text fields (Guide URL, pairing code): recessed black well with a grey edge; a light 2dp edge
+     while focused / typing. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_bg" />
+            <corners android:radius="4dp" />
+            <stroke android:width="2dp" android:color="@color/rack_focus_ring" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_bg" />
+            <corners android:radius="4dp" />
+            <stroke android:width="1dp" android:color="@color/rack_control_edge" />
+        </shape>
+    </item>
+</selector>

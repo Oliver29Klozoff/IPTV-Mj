@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wide Settings (landscape phone, car box, tablet landscape) — see values/dimens_settings.xml. -->
+<resources>
+    <integer name="rack_columns">2</integer>
+    <dimen name="rack_page_padding">24dp</dimen>
+    <dimen name="rack_inset">0dp</dimen>
+    <dimen name="rack_row_min_height">54dp</dimen>
+    <dimen name="rack_header_height">60dp</dimen>
+    <dimen name="rack_tab_padding">18dp</dimen>
+    <dimen name="rack_readout_padding">20dp</dimen>
+</resources>

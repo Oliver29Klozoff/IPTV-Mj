@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Settings group box, phone width: edge to edge, with hairlines above and below and none at
+     the sides (drawable-w840dp/ has the boxed version for two-column layouts). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_border" />
+        </shape>
+    </item>
+    <item android:top="1dp" android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_surface" />
+        </shape>
+    </item>
+</layer-list>

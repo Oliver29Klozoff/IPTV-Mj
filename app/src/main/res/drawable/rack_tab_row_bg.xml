@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tab row: black with a hairline along the bottom. The active tab's 2dp accent underline
+     (SettingsActivity.styleNavTab) sits on top of this line. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_bg" />
+        </shape>
+    </item>
+    <item android:gravity="bottom" android:height="1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_border" />
+        </shape>
+    </item>
+</layer-list>

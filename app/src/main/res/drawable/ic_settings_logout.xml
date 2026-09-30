@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Drawn in its final muted grey rather than white-for-tinting like the other Settings icons,
-     because rack_spinner_bg.xml uses it inside a layer-list, which can't tint a child. The
-     disclosure-row chevrons that also use it tint it anyway (drawableTint). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -9,9 +6,9 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#00000000"
-        android:pathData="M6,9l6,6l6,-6"
+        android:pathData="M9,21H5a2,2 0,0 1,-2 -2V5a2,2 0,0 1,2 -2h4M16,17l5,-5l-5,-5M21,12H9"
         android:strokeWidth="2"
-        android:strokeColor="#FF8A8A8A"
+        android:strokeColor="#FFFFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 </vector>

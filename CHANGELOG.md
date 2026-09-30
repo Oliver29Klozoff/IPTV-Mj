@@ -1,5 +1,29 @@
 # IPTV App - Changelog
 
+## v6.80 - 2026-09-30
+- **Changed**: Settings has the new "Studio Rack" look you picked (design A): pure black, the
+  Barlow typeface, tabs across the top instead of the left rail, and a status strip under the
+  header showing when the guide last refreshed, your active provider and the app version (plus
+  channel count and stream format on wide screens). Settings are now grouped rows — a label and a
+  short explanation on the left, the control on the right — with square toggles and segmented
+  choices. A Quick bar at the bottom keeps Refresh EPG, Check update and Log out one tap away.
+- **Changed**: sideways on a phone and on the car box, the groups sit in two columns and provider
+  cards go two across, instead of one long column.
+- **Changed**: every highlight — the active tab, toggles, choices, main buttons, values — is your
+  accent color. Amber, the color in the mockup, is a new swatch next to cyan, if you want the
+  exact look.
+- **Changed**: tapping anywhere on a toggle's row flips it, not just the toggle itself; with a
+  remote, the whole row lights up. The collapsible cards are gone, so every setting is visible
+  straight away; only Guide URL and Audio & subtitles still open and close.
+- **Fixed**: Settings search now scrolls to the setting itself and highlights it (before, it
+  stopped at roughly the top of the tab), opens Guide URL or Audio & subtitles first if the
+  setting is inside, and with a remote puts focus on it. "Show USA channels only", "Show English
+  movies & series only" and the Quick Actions results used to open the wrong tab. More settings
+  can be found by search too.
+- **Fixed**: with a remote, moving from the tabs into Stream & EPG could do nothing, because the
+  first control it tried was inside a closed card. It now always lands on the first setting.
+- **Changed**: shortened in-row descriptions keep their full explanation in "What do these do?".
+
 ## v6.79 - 2026-09-30
 - **Changed**: Settings has the new Stitch "Cinematic Cyber-Stream" layout from the approved
   mockup — outlined rail tabs, stroked cards with cyan section headers, solid-cyan main buttons,

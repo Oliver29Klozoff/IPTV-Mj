@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A disclosure row's expanded contents (Guide URL, Audio & subtitles): one step darker than the
+     group around it, so the nested rows read as belonging to the row above. A shape rather than a
+     plain color so AMOLED Black (ThemeUtils) leaves the step in place. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/rack_surface_recessed" />
+</shape>
