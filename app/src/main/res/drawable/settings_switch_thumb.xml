@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thumb for every Settings toggle (see settings_switch_track.xml). A 16dp dot inset 4dp inside a
+     24dp box — the inset is real transparent space, not a transparent stroke, so the Switch's own
+     width math (2 × thumb width) produces a 48×24dp control with the dot sitting inside the track.
+     Dark dot on the cyan "on" track (a light dot on cyan fails contrast); light dot when off. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true">
+        <layer-list>
+            <item android:left="4dp" android:top="4dp" android:right="4dp" android:bottom="4dp">
+                <shape android:shape="oval">
+                    <solid android:color="@color/oled_surface_background" />
+                    <size android:width="16dp" android:height="16dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item android:left="4dp" android:top="4dp" android:right="4dp" android:bottom="4dp">
+                <shape android:shape="oval">
+                    <solid android:color="@color/oled_text_secondary" />
+                    <size android:width="16dp" android:height="16dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

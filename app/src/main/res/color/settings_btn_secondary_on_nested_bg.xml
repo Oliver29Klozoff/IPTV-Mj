@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Secondary buttons sitting on an already-nested surface (the provider sub-cards) — one step
+     lighter than that surface so they don't disappear into it. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/oled_focus_fill" />
+    <item android:color="@color/oled_surface_container_low" />
+</selector>

@@ -32,10 +32,30 @@
     <color name="oled_text_muted">#64748B</color>
     <color name="oled_favorite_gold">#FBBF24</color>
     <color name="oled_live_badge_red">#EF4444</color>
-    <!-- Low-alpha cyan wash for a "subtle/outlined" button state (activity_settings.xml's Speed
-         Test button) — static, unlike the nav rail's accent-following background (see
-         SettingsActivity.accentBackgroundTint kdoc for why that one has to stay dynamic instead
-         of using this fixed token: it sits behind text that legitimately varies with the user's
-         own accent color pick, this doesn't). -->
+    <!-- Low-alpha cyan wash for a static "subtle" surface. Currently unused: its only user was the
+         Settings Speed Test button, which became a solid primary button in the v6.79 layout. Kept
+         as a palette token. (The nav rail's active-tab wash is NOT this — it's built from the
+         user's own accent at runtime, see SettingsActivity.accentBackgroundTint.) -->
     <color name="oled_cyan_wash">#1A06B6D4</color>
+
+    <!-- Settings' Stitch "Cinematic Cyber-Stream" layer (v6.79) — the extra surfaces that design
+         introduced on top of the tokens above. Used by activity_settings.xml, styles_settings.xml
+         and SettingsActivity's Kotlin-built provider cards / accent picker only. -->
+    <!-- Nav rail, one step darker than the top bar so the rail reads as its own column. -->
+    <color name="oled_surface_rail">#0D111A</color>
+    <!-- Inset surface INSIDE a card (secondary buttons, provider sub-cards, chips) — darker than
+         the card it sits in, so it reads as recessed rather than raised. -->
+    <color name="oled_surface_nested">#101522</color>
+    <!-- Hairline outline on every Settings card / chip / secondary button. Deliberately quieter
+         than oled_outline_stroke, which is tuned for the channel list's focus ring. -->
+    <color name="oled_card_stroke">#222B3D</color>
+    <!-- D-pad focus fill (TV / car box) — paired with oled_cyan_glow as the focus outline. -->
+    <color name="oled_focus_fill">#242E42</color>
+    <!-- Danger button fill (Logout, Remove, Clear, Disconnect) under oled_live_badge_red text. -->
+    <color name="oled_danger_bg">#2A1215</color>
+    <!-- Small status / helper text in Settings. oled_text_muted (#64748B) only reaches ~3.6:1 on
+         a #161B26 card — below the 4.5:1 small text needs to stay readable — so Settings uses this
+         lighter step (~4.8:1) instead. Kept Settings-only rather than changing oled_text_muted
+         app-wide, same fork-not-edit rule as focus_selector_channel. -->
+    <color name="settings_text_muted">#7A889E</color>
 </resources>

@@ -1,5 +1,21 @@
 # IPTV App - Changelog
 
+## v6.79 - 2026-09-30
+- **Changed**: Settings has the new Stitch "Cinematic Cyber-Stream" layout from the approved
+  mockup — outlined rail tabs, stroked cards with cyan section headers, solid-cyan main buttons,
+  chip-style choices (Auto Refresh Schedule, Stream Format, Video Player, DNS provider), line icons
+  instead of emoji, and provider cards with LIVE / MOVIES / SERIES count blocks. Every setting is
+  still there, in the same tab, doing exactly what it did — only the look changed.
+- **Changed**: the loose Stream & EPG toggles are grouped into titled cards (Playback, Network &
+  Buffering, Picture-in-Picture & Preview), Backup's non-backup items got their own card, and
+  Logout moved to the bottom of the rail.
+- **Changed**: the active rail tab still follows your accent color — now with an outline in it too.
+- **Fixed**: cyan, the default accent since v6.77, wasn't a swatch — once you picked another color
+  the only way back was the custom color wheel. It's now the first swatch.
+- **Fixed**: on a TV remote or the car box's D-pad, the accent swatches couldn't be reached at all,
+  and focus on the rail tabs was hard to see. Every Settings control now shows a clear focus
+  outline, and buttons dim while they're busy (e.g. Refresh EPG mid-refresh).
+
 ## v6.78 - 2026-09-30
 - **Fixed**: found and fixed the actual cause of the `SQLiteException("SQL logic error")` crash
   reported since v6.71, which v6.72-v6.76's fixes (a Mutex, `NonCancellable`, the enabled-provider

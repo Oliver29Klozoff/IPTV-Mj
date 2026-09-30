@@ -1,7 +1,7 @@
 {
-  "versionCode": 516,
-  "versionName": "6.78",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.78/MKTV.apk",
-  "apkSha256": "eef23411431b11fc33f1dc7dc3ca3632be5072af517c69311aaa0c70d869e38d",
-  "changelog": "Found and fixed the actual cause of the recurring database search-index crash reported since v6.71 (a leftover duplicate set of search-index triggers from an old update, now removed and rebuilt). Search-only fix; your channels, movies, series, and favorites were never affected."
+  "versionCode": 517,
+  "versionName": "6.79",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.79/MKTV.apk",
+  "apkSha256": "dcc5c02ec0de7f1d82fef5cfab5db042b0b430f467e2ea60652c6ffb1c036892",
+  "changelog": "New Settings look: the Stitch layout — outlined tabs, stroked cards, chip choices, line icons and provider count blocks. Every setting still works exactly as before. Also: cyan is back as an accent swatch, and TV-remote / car-box focus is visible everywhere in Settings."
 }

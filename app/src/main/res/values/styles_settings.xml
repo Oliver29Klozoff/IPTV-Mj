@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings screen styles — the Stitch "Cinematic Cyber-Stream" layout (v6.79): a dark rail of
+     outlined tabs, stroked cards with cyan section headers, solid-cyan primary buttons, recessed
+     secondary buttons and chip-style radio groups.
+
+     Scope: activity_settings.xml, plus the three settings_provider_btn_*.xml layouts that
+     SettingsActivity inflates for its Kotlin-built provider cards. Nothing else in the app uses
+     these — same fork-not-edit rule as focus_selector_channel.xml, so no other screen shifts.
+
+     Every button style has a visible D-pad focus state (outline and/or fill change) for the TV /
+     car-box case, and a dimmed disabled state for buttons the screen disables mid-operation. -->
+<resources>
+
+    <style name="SettingsUi" />
+
+    <!-- ── Structure ──────────────────────────────────────────────────────────────────────── -->
+
+    <!-- Cyan, letter-spaced panel title (STREAM & PLAYBACK, DISPLAY, …). -->
+    <style name="SettingsUi.SectionHeader">
+        <item name="android:textColor">@color/oled_cyan_primary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:paddingBottom">12dp</item>
+    </style>
+
+    <!-- The stroked card every section sits in. MaterialCardView (a CardView subclass) only so it
+         can draw the hairline outline; nothing references these cards by id. -->
+    <style name="SettingsUi.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/oled_surface_container_low</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/oled_card_stroke</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <!-- Collapsible card header row (the hdr* ids SettingsActivity.wireCollapsible toggles). -->
+    <style name="SettingsUi.CardHeader">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+
+    <!-- Same row, for cards that only have a title (no collapse). -->
+    <style name="SettingsUi.CardHeader.Static">
+        <item name="android:background">@null</item>
+    </style>
+
+    <style name="SettingsUi.CardTitle">
+        <item name="android:textColor">@color/oled_text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+
+    <!-- ▲ / ▼ — still plain text, since wireCollapsible swaps the character itself. -->
+    <style name="SettingsUi.Chevron">
+        <item name="android:textColor">@color/oled_cyan_primary</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <!-- A card's content under its header row. -->
+    <style name="SettingsUi.CardBody">
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">16dp</item>
+    </style>
+
+    <!-- A card's content when the card has no header row at all. -->
+    <style name="SettingsUi.CardContent">
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">16dp</item>
+    </style>
+
+    <!-- Label-on-the-left, control-on-the-right row (toggles, Refresh buttons). -->
+    <style name="SettingsUi.Row">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:minHeight">44dp</item>
+    </style>
+
+    <style name="SettingsUi.Divider">
+        <item name="android:background">@color/oled_card_stroke</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:layout_marginBottom">12dp</item>
+    </style>
+
+    <!-- Between stacked 44dp tap rows (subtitle style), where the rows already carry the spacing. -->
+    <style name="SettingsUi.Divider.Tight">
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:layout_marginBottom">2dp</item>
+    </style>
+
+    <!-- ── Text ───────────────────────────────────────────────────────────────────────────── -->
+
+    <style name="SettingsUi.Label">
+        <item name="android:textColor">@color/oled_text_primary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <!-- Small label above a field (Preferred Audio Language, Pairing Code …). -->
+    <style name="SettingsUi.FieldLabel">
+        <item name="android:textColor">@color/oled_text_secondary</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- The explanatory line under a setting. -->
+    <style name="SettingsUi.Desc">
+        <item name="android:textColor">@color/oled_text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <!-- Status lines and asides (Last EPG Refresh, backup status, "Experimental — …"). -->
+    <style name="SettingsUi.Note">
+        <item name="android:textColor">@color/settings_text_muted</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <!-- Small caps sub-heading inside a card (AUTO REFRESH SCHEDULE, SUBTITLE STYLE). -->
+    <style name="SettingsUi.SubLabel">
+        <item name="android:textColor">@color/settings_text_muted</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.1</item>
+    </style>
+
+    <!-- Current value on a tap-to-pick row ("5 min before", "Normal", "Never", "100%"). -->
+    <style name="SettingsUi.Value">
+        <item name="android:textColor">@color/oled_cyan_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:drawableEnd">@drawable/ic_settings_chevron_right</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:drawableTint">@color/settings_text_muted</item>
+    </style>
+
+    <!-- Same row, when the value is a raw color code (#FFFFFFFF) rather than a word. -->
+    <style name="SettingsUi.Value.Code">
+        <item name="android:textColor">@color/oled_text_secondary</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+
+    <!-- ── Buttons (MaterialButton — every <Button> here inflates as one under this theme) ─── -->
+
+    <style name="SettingsUi.Button" parent="Widget.MaterialComponents.Button">
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
+        <item name="elevation">0dp</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="iconPadding">8dp</item>
+        <item name="iconSize">18dp</item>
+    </style>
+
+    <!-- Solid cyan, dark text: the one main action in a card (Refresh EPG, Save, Push, …). -->
+    <style name="SettingsUi.Button.Primary">
+        <item name="backgroundTint">@color/settings_btn_primary_bg</item>
+        <item name="android:textColor">@color/settings_btn_primary_text</item>
+        <item name="android:textStyle">bold</item>
+        <item name="strokeColor">@color/settings_btn_primary_stroke</item>
+        <item name="strokeWidth">2dp</item>
+        <item name="iconTint">@color/settings_btn_primary_text</item>
+        <item name="iconGravity">textStart</item>
+        <item name="rippleColor">#33000000</item>
+    </style>
+
+    <!-- Recessed with a hairline outline: supporting actions (Restore, Pull, Cancel …). -->
+    <style name="SettingsUi.Button.Secondary">
+        <item name="backgroundTint">@color/settings_btn_secondary_bg</item>
+        <item name="android:textColor">@color/settings_btn_secondary_text</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="strokeColor">@color/settings_btn_stroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="iconTint">@color/oled_cyan_primary</item>
+        <item name="iconGravity">textStart</item>
+        <item name="rippleColor">#1FFFFFFF</item>
+    </style>
+
+    <!-- A secondary button paired side by side with a 48dp primary (Backup | Restore). -->
+    <style name="SettingsUi.Button.Secondary.Tall">
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- Secondary buttons on an already-recessed surface (provider sub-cards). -->
+    <style name="SettingsUi.Button.Secondary.OnNested">
+        <item name="backgroundTint">@color/settings_btn_secondary_on_nested_bg</item>
+    </style>
+
+    <!-- Compact secondary with a leading icon (the Refresh buttons beside Show Movies Tab etc.). -->
+    <style name="SettingsUi.Button.Secondary.Small">
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconPadding">6dp</item>
+    </style>
+
+    <!-- Full-width row that opens something else (Provider Health, Data Usage, What's New …):
+         left-aligned text, trailing chevron. -->
+    <style name="SettingsUi.Button.Action" parent="SettingsUi.Button.Secondary">
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="icon">@drawable/ic_settings_chevron_right</item>
+        <item name="iconGravity">end</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconTint">@color/settings_text_muted</item>
+    </style>
+
+    <!-- Same row with a leading cyan icon instead of the chevron (Quick Actions). -->
+    <style name="SettingsUi.Button.Action.Leading">
+        <item name="iconGravity">start</item>
+        <item name="iconSize">18dp</item>
+        <item name="iconPadding">12dp</item>
+        <item name="iconTint">@color/oled_cyan_primary</item>
+    </style>
+
+    <!-- Dark red fill, red text: anything destructive (Remove, Clear, Disconnect, Logout). -->
+    <style name="SettingsUi.Button.Danger">
+        <item name="backgroundTint">@color/oled_danger_bg</item>
+        <item name="android:textColor">@color/settings_btn_danger_text</item>
+        <item name="android:textStyle">bold</item>
+        <item name="strokeColor">@color/settings_btn_focus_stroke</item>
+        <item name="strokeWidth">2dp</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="rippleColor">#33EF4444</item>
+    </style>
+
+    <style name="SettingsUi.Button.Danger.Small">
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+
+    <!-- Top bar "Back". -->
+    <style name="SettingsUi.Button.Back">
+        <item name="backgroundTint">@color/settings_btn_back_bg</item>
+        <item name="android:textColor">@color/oled_text_primary</item>
+        <item name="strokeColor">@color/settings_btn_focus_stroke</item>
+        <item name="strokeWidth">2dp</item>
+        <item name="icon">@drawable/ic_settings_back</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconPadding">6dp</item>
+        <item name="iconTint">@color/oled_text_primary</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="rippleColor">#1FFFFFFF</item>
+    </style>
+
+    <!-- Top bar search / help: borderless, outline only under D-pad focus. -->
+    <style name="SettingsUi.IconButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:padding">0dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="iconPadding">0dp</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconSize">20dp</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="strokeColor">@color/settings_btn_focus_stroke</item>
+        <item name="strokeWidth">2dp</item>
+        <item name="rippleColor">#1F38BDF8</item>
+    </style>
+
+    <!-- ── Nav rail ───────────────────────────────────────────────────────────────────────── -->
+
+    <!-- Idle rail tab. The active tab's colors come from SettingsActivity.styleNavTab at runtime,
+         built from the user's own accent pick — these are only the resting / focused idle look. -->
+    <style name="SettingsUi.NavTab" parent="SettingsUi.Button">
+        <item name="backgroundTint">@color/settings_nav_tab_bg</item>
+        <item name="strokeColor">@color/settings_nav_tab_stroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/settings_nav_tab_text</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:minHeight">54dp</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="rippleColor">#1F38BDF8</item>
+    </style>
+
+    <!-- Recordings opens its own screen rather than a panel — marked with a small ↗. -->
+    <style name="SettingsUi.NavTab.Launcher">
+        <item name="icon">@drawable/ic_settings_external</item>
+        <item name="iconGravity">textEnd</item>
+        <item name="iconSize">12dp</item>
+        <item name="iconPadding">4dp</item>
+        <item name="iconTint">@color/settings_nav_tab_text</item>
+    </style>
+
+    <!-- Refresh EPG / Check Update shortcuts under the tabs: icon over label. -->
+    <style name="SettingsUi.RailButton" parent="SettingsUi.Button.Secondary">
+        <item name="android:textColor">@color/settings_nav_tab_text</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="strokeColor">@color/settings_nav_tab_stroke</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="iconGravity">textTop</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconPadding">2dp</item>
+        <item name="iconTint">@color/settings_nav_tab_text</item>
+    </style>
+
+    <style name="SettingsUi.RailLogout" parent="SettingsUi.Button.Danger">
+        <item name="android:minHeight">54dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+
+    <!-- ── Inputs & toggles ───────────────────────────────────────────────────────────────── -->
+
+    <style name="SettingsUi.Input">
+        <item name="android:background">@drawable/oled_input_bg</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:textColor">@color/oled_text_primary</item>
+        <item name="android:textColorHint">@color/settings_text_muted</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="SettingsUi.Spinner">
+        <item name="android:background">@drawable/settings_spinner_bg</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingEnd">40dp</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- android.widget.Switch toggles. Same thumb/track drawables as SettingsUi.SwitchMaterial, so
+         the two widget types this screen already mixes look identical without changing either. -->
+    <style name="SettingsUi.Switch">
+        <item name="android:thumb">@drawable/settings_switch_thumb</item>
+        <item name="android:track">@drawable/settings_switch_track</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <!-- SwitchMaterial toggles. useMaterialThemeColors off, or it re-tints the drawables with the
+         theme's colorSecondary (#008CFF) the moment the switch attaches. -->
+    <style name="SettingsUi.SwitchMaterial" parent="Widget.MaterialComponents.CompoundButton.Switch">
+        <item name="android:thumb">@drawable/settings_switch_thumb</item>
+        <item name="track">@drawable/settings_switch_track</item>
+        <item name="useMaterialThemeColors">false</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <style name="SettingsUi.CheckBox" parent="Widget.MaterialComponents.CompoundButton.CheckBox">
+        <item name="android:textColor">@color/oled_text_primary</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:buttonTint">@color/settings_checkbox_tint</item>
+        <item name="buttonTint">@color/settings_checkbox_tint</item>
+        <item name="useMaterialThemeColors">false</item>
+    </style>
+
+    <!-- A RadioButton drawn as a chip (see settings_chip_bg.xml). buttonCompat has to be cleared
+         as well as android:button: AppCompat applies buttonCompat first, so android:button alone
+         would leave the radio dot in place. -->
+    <style name="SettingsUi.Chip" parent="Widget.MaterialComponents.CompoundButton.RadioButton">
+        <item name="android:button">@null</item>
+        <item name="buttonCompat">@null</item>
+        <item name="useMaterialThemeColors">false</item>
+        <item name="android:background">@drawable/settings_chip_bg</item>
+        <item name="android:textColor">@color/settings_chip_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+
+</resources>

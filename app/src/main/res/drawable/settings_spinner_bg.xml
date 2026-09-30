@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Audio / subtitle language dropdowns: the same recessed field as oled_input_bg plus a chevron,
+     so they read as pickers rather than bare text. Dark field is safe here: the app forces night
+     mode (IptvApplication), so the spinner's item text is always light. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/oled_surface_background" />
+                    <corners android:radius="8dp" />
+                    <stroke android:width="1.5dp" android:color="@color/oled_cyan_glow" />
+                </shape>
+            </item>
+            <item android:gravity="end|center_vertical" android:right="12dp"
+                android:width="18dp" android:height="18dp"
+                android:drawable="@drawable/ic_settings_chevron_down" />
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/oled_surface_background" />
+                    <corners android:radius="8dp" />
+                    <stroke android:width="1dp" android:color="@color/oled_card_stroke" />
+                </shape>
+            </item>
+            <item android:gravity="end|center_vertical" android:right="12dp"
+                android:width="18dp" android:height="18dp"
+                android:drawable="@drawable/ic_settings_chevron_down" />
+        </layer-list>
+    </item>
+</selector>

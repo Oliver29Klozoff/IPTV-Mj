@@ -391,8 +391,11 @@ class SettingsActivity : AppCompatActivity() {
     private val sortLabels = listOf("Default", "A-Z", "Popular", "Recent")
     private var currentSortIndex = 0
 
+    // #06B6D4 (cyan) leads the list because it's the default accent since v6.77 — before this it
+    // wasn't a swatch at all, so anyone who tried another color could only get back to the
+    // default through the custom hue picker.
     private val accentPalette = listOf(
-        "#008CFF", "#FF3B30", "#34C759", "#AF52DE", "#FF9500", "#FF2D55", "#5AC8FA"
+        "#06B6D4", "#008CFF", "#FF3B30", "#34C759", "#AF52DE", "#FF9500", "#FF2D55", "#5AC8FA"
     )
     // Named two-stop gradients — selectable alongside the flat swatches above. Picking one only
     // ever paints a real gradient on the tab indicator (the one place that can render it); every
@@ -460,7 +463,7 @@ class SettingsActivity : AppCompatActivity() {
         // Quick Actions — sort cycles, others launch intents back to home
         binding.btnSettingsSort.setOnClickListener {
             currentSortIndex = (currentSortIndex + 1) % sortLabels.size
-            binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
+            binding.btnSettingsSort.text = "Sort Channels: ${sortLabels[currentSortIndex]}"
             lifecycleScope.launch { prefs.setChannelSortMode(currentSortIndex) }
         }
         binding.btnSettingsMosaic.setOnClickListener {
@@ -581,7 +584,7 @@ class SettingsActivity : AppCompatActivity() {
                 repository.fetchVodCategories()
                 val result = repository.fetchVodStreams()
                 binding.btnRefreshMovies.isEnabled = true
-                binding.btnRefreshMovies.text = "↻ Refresh"
+                binding.btnRefreshMovies.text = "Refresh"
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Movies refreshed (${result.data?.size ?: 0} titles)"
                 else
@@ -596,7 +599,7 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 val result = repository.fetchSeries()
                 binding.btnRefreshSeries.isEnabled = true
-                binding.btnRefreshSeries.text = "↻ Refresh"
+                binding.btnRefreshSeries.text = "Refresh"
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Series refreshed (${result.data?.size ?: 0} titles)"
                 else
@@ -624,7 +627,7 @@ class SettingsActivity : AppCompatActivity() {
                 if (result !is com.iptvapp.util.Resource.Success) result = repository.fetchLiveStreams()
                 repository.fetchLiveCategories()
                 binding.btnRefreshChannels.isEnabled = true
-                binding.btnRefreshChannels.text = "↻ Refresh"
+                binding.btnRefreshChannels.text = "Refresh"
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Channels refreshed (${result.data?.size ?: 0} channels)"
                 else
@@ -762,14 +765,8 @@ class SettingsActivity : AppCompatActivity() {
             panelViews.forEachIndexed { i, panel ->
                 panel.visibility = if (i == index) View.VISIBLE else View.GONE
             }
-            navButtonViews.forEachIndexed { i, btn ->
-                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    if (i == index) accentBackgroundTint(currentAccentColor) else getColor(com.iptvapp.R.color.oled_surface_container_low)
-                )
-                btn.setTextColor(
-                    if (i == index) Color.parseColor(currentAccentColor) else getColor(com.iptvapp.R.color.oled_text_secondary)
-                )
-            }
+            val accent = accentColorInt()
+            navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == index, accent = accent) }
         }
         navButtonViews.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
         binding.headerRecordings.setOnClickListener {
@@ -779,111 +776,157 @@ class SettingsActivity : AppCompatActivity() {
         setupCollapsibleCards()
     }
 
-    // Tiles wrap into fixed-size sub-rows (rather than one long horizontal LinearLayout) since
-    // 8 tiles at 44dp+margins overflows narrower phone screens — accentColorRow is now a
-    // vertical container that this fills with as many horizontal sub-rows as needed.
-    private val ACCENT_TILES_PER_ROW = 5
-
+    // Accent picker, in the Stitch layout: SOLID round swatches, then the named GRADIENTS as
+    // labeled chips, then the custom-hue picker as its own chip. Both rows wrap (FlowLayout)
+    // instead of the old fixed 5-per-row grid. What counts as "selected" and what each tap saves
+    // are unchanged. Every tile and chip is now D-pad focusable with a cyan focus ring — before
+    // this they were plain click targets that a TV / car-box remote couldn't reach at all.
     private fun setupAccentPicker() {
         val density = resources.displayMetrics.density
         fun dp(v: Int) = (v * density + 0.5f).toInt()
         val container = binding.accentColorRow
         container.removeAllViews()
 
-        fun newSubRow(): android.widget.LinearLayout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
+        fun sectionLabel(text: String, topMarginDp: Int) = android.widget.TextView(this).apply {
+            this.text = text
+            setTextColor(getColor(R.color.settings_text_muted))
+            textSize = 11f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            letterSpacing = 0.1f
             layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
-            ).apply { if (container.childCount > 0) topMargin = dp(8) }
-            container.addView(this)
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(topMarginDp); bottomMargin = dp(6) }
         }
 
-        // Tile kinds: a flat swatch (hex), a named gradient preset (gradient), or the custom-hue
-        // picker tile (isCustomTile). Exactly one of hex/gradient is non-null unless isCustomTile.
-        fun buildTile(isFirstInRow: Boolean, hex: String?, gradient: Triple<String, String, String>?, isCustomTile: Boolean): android.widget.FrameLayout {
-            val outer = android.widget.FrameLayout(this).apply {
-                layoutParams = android.widget.LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-                    if (!isFirstInRow) marginStart = dp(8)
-                }
+        // Foreground ring that only shows under D-pad focus.
+        fun focusRing(oval: Boolean) = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
+                if (oval) shape = android.graphics.drawable.GradientDrawable.OVAL else cornerRadius = dp(10).toFloat()
+                setStroke(dp(2), getColor(R.color.oled_cyan_glow))
+                setColor(Color.TRANSPARENT)
+            })
+        }
+
+        fun pickSolid(hex: String) {
+            currentAccentColor = hex
+            currentAccentColorEnd = ""
+            lifecycleScope.launch { prefs.setAccentColor(hex) }
+            applyAccentToSettings(Color.parseColor(hex))
+            setupAccentPicker()
+        }
+
+        fun pickGradient(gradient: Triple<String, String, String>) {
+            currentAccentColor = gradient.second
+            currentAccentColorEnd = gradient.third
+            lifecycleScope.launch { prefs.setAccentGradient(gradient.second, gradient.third) }
+            applyAccentToSettings(Color.parseColor(gradient.second))
+            setupAccentPicker()
+        }
+
+        // SOLID — one round swatch per color; the selected one gets a ring in its own color.
+        container.addView(sectionLabel("SOLID", 0))
+        val solids = FlowLayout(this).apply {
+            spacingPx = dp(4)
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        accentPalette.forEach { hex ->
+            val color = Color.parseColor(hex)
+            val isSelected = hex == currentAccentColor && currentAccentColorEnd.isEmpty()
+            val tile = android.widget.FrameLayout(this).apply {
+                layoutParams = ViewGroup.MarginLayoutParams(dp(44), dp(44))
+                isFocusable = true
+                foreground = focusRing(oval = true)
+                contentDescription = if (hex == "#06B6D4") "Accent color cyan (default)" else "Accent color $hex"
+                setOnClickListener { pickSolid(hex) }
             }
-            val isSelected = when {
-                isCustomTile -> accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty()
-                gradient != null -> currentAccentColorEnd.equals(gradient.third, ignoreCase = true) && currentAccentColor.equals(gradient.second, ignoreCase = true)
-                else -> hex == currentAccentColor && currentAccentColorEnd.isEmpty()
-            }
-            val swatch = View(this).apply {
-                val gd = android.graphics.drawable.GradientDrawable()
-                gd.shape = android.graphics.drawable.GradientDrawable.OVAL
-                when {
-                    isCustomTile -> {
-                        if (isSelected) {
-                            gd.setColor(Color.parseColor(currentAccentColor))
-                        } else {
-                            // Conic hint that this tile opens a picker, not a single fixed color —
-                            // a plain solid circle here would look like just another preset.
-                            gd.colors = intArrayOf(Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.RED)
-                            gd.gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
-                            gd.orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                        }
-                    }
-                    gradient != null -> {
-                        gd.colors = intArrayOf(Color.parseColor(gradient.second), Color.parseColor(gradient.third))
-                        gd.orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                    }
-                    else -> gd.setColor(Color.parseColor(hex))
+            tile.addView(View(this).apply {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(color)
                 }
-                background = gd
                 tag = hex
-                layoutParams = android.widget.FrameLayout.LayoutParams(dp(32), dp(32)).apply {
-                    gravity = android.view.Gravity.CENTER
+                layoutParams = android.widget.FrameLayout.LayoutParams(dp(30), dp(30), android.view.Gravity.CENTER)
+            })
+            if (isSelected) tile.addView(View(this).apply {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setStroke(dp(2), color)
+                    setColor(Color.TRANSPARENT)
                 }
-            }
-            val ring = View(this).apply {
-                val gd = android.graphics.drawable.GradientDrawable()
-                gd.shape = android.graphics.drawable.GradientDrawable.OVAL
-                gd.setStroke(dp(2), Color.WHITE)
-                gd.setColor(Color.TRANSPARENT)
-                background = gd
-                visibility = if (isSelected) View.VISIBLE else View.GONE
-                layoutParams = android.widget.FrameLayout.LayoutParams(dp(40), dp(40)).apply {
-                    gravity = android.view.Gravity.CENTER
-                }
-            }
-            outer.addView(swatch)
-            outer.addView(ring)
-            outer.setOnClickListener {
-                when {
-                    isCustomTile -> showCustomColorPickerDialog()
-                    gradient != null -> {
-                        currentAccentColor = gradient.second
-                        currentAccentColorEnd = gradient.third
-                        lifecycleScope.launch { prefs.setAccentGradient(gradient.second, gradient.third) }
-                        applyAccentToSettings(Color.parseColor(gradient.second))
-                        setupAccentPicker()
-                    }
-                    hex != null -> {
-                        currentAccentColor = hex
-                        currentAccentColorEnd = ""
-                        lifecycleScope.launch { prefs.setAccentColor(hex) }
-                        applyAccentToSettings(Color.parseColor(hex))
-                        setupAccentPicker()
-                    }
-                }
-            }
-            return outer
+                layoutParams = android.widget.FrameLayout.LayoutParams(dp(40), dp(40), android.view.Gravity.CENTER)
+            })
+            solids.addView(tile)
         }
+        container.addView(solids)
 
-        data class TileSpec(val hex: String?, val gradient: Triple<String, String, String>?, val isCustomTile: Boolean)
-        val allTiles = accentPalette.map { TileSpec(it, null, false) } +
-            accentGradients.map { TileSpec(null, it, false) } +
-            listOf(TileSpec(null, null, true))
-        var subRow: android.widget.LinearLayout? = null
-        allTiles.forEachIndexed { i, spec ->
-            val posInRow = i % ACCENT_TILES_PER_ROW
-            if (posInRow == 0) subRow = newSubRow()
-            subRow!!.addView(buildTile(isFirstInRow = posInRow == 0, hex = spec.hex, gradient = spec.gradient, isCustomTile = spec.isCustomTile))
+        // GRADIENTS + Custom — chips with a color dot and the preset's name. The selected chip gets
+        // an outline in its own start color; Custom is dashed until it's the active choice.
+        container.addView(sectionLabel("GRADIENTS", 12))
+        val chips = FlowLayout(this).apply {
+            spacingPx = dp(8)
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
+        fun chip(label: String, dot: android.graphics.drawable.Drawable, selectedColor: Int?, dashed: Boolean, onClick: () -> Unit) =
+            android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44))
+                setPadding(dp(8), 0, dp(12), 0)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(if (dashed) Color.TRANSPARENT else getColor(R.color.oled_surface_nested))
+                    when {
+                        selectedColor != null -> setStroke(dp(2), selectedColor)
+                        dashed -> setStroke(dp(1), getColor(R.color.oled_outline_stroke), dp(4).toFloat(), dp(3).toFloat())
+                        else -> setStroke(dp(1), getColor(R.color.oled_card_stroke))
+                    }
+                }
+                isFocusable = true
+                foreground = focusRing(oval = false)
+                setOnClickListener { onClick() }
+                addView(View(this@SettingsActivity).apply {
+                    background = dot
+                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(24), dp(24))
+                })
+                addView(android.widget.TextView(this@SettingsActivity).apply {
+                    text = label
+                    textSize = 13f
+                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                    setTextColor(getColor(if (dashed) R.color.oled_text_secondary else R.color.oled_text_primary))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { marginStart = dp(8) }
+                })
+            }
+        accentGradients.forEach { gradient ->
+            val isSelected = currentAccentColorEnd.equals(gradient.third, ignoreCase = true) && currentAccentColor.equals(gradient.second, ignoreCase = true)
+            val dot = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.parseColor(gradient.second), Color.parseColor(gradient.third))
+            ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL }
+            chips.addView(chip(gradient.first, dot, if (isSelected) Color.parseColor(gradient.second) else null, dashed = false) { pickGradient(gradient) })
+        }
+        val customSelected = accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty()
+        val customDot = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            if (customSelected) {
+                setColor(Color.parseColor(currentAccentColor))
+            } else {
+                // Conic hint that this chip opens a picker, not one fixed color — a plain solid
+                // dot here would look like just another preset.
+                colors = intArrayOf(Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.RED)
+                gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
+            }
+        }
+        chips.addView(chip("Custom", customDot, if (customSelected) Color.parseColor(currentAccentColor) else null, dashed = !customSelected) { showCustomColorPickerDialog() })
+        container.addView(chips)
     }
 
     private fun showCustomColorPickerDialog() {
@@ -949,28 +992,56 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun applyAccentToSettings(colorInt: Int) {
-        navButtonViews.forEachIndexed { i, btn ->
-            btn.setTextColor(if (i == currentPanelIndex) colorInt else getColor(com.iptvapp.R.color.oled_text_secondary))
-            // setupSectionToggles' selectPanel() sets this same background whenever a tab is
-            // tapped — this is the other path that changes what "the active color" is (picking a
-            // new custom accent) without switching tabs, so the active button's background needs
-            // updating here too or it goes stale, still tinted with whatever the previous accent
-            // was, until the next tab switch coincidentally refreshes it.
-            if (i == currentPanelIndex) {
-                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(accentBackgroundTint(currentAccentColor))
-            }
+        // setupSectionToggles' selectPanel() styles the tabs whenever one is tapped — this is the
+        // other path that changes what "the active color" is (picking a new accent) without
+        // switching tabs, so the active tab needs restyling here too or it goes stale, still
+        // showing the previous accent until the next tab switch coincidentally refreshes it.
+        navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == currentPanelIndex, accent = colorInt) }
+    }
+
+    // One nav-rail tab, in the Stitch rail look. Idle tabs take their colors from XML state lists
+    // (settings_nav_tab_*: dark pill + hairline outline; lifted fill + cyan glow under D-pad
+    // focus). The active tab is built here from the user's own accent instead — a wash of it
+    // (see accentBackgroundTint) behind bold accent text and an accent outline.
+    // Under D-pad focus the active tab gets a light outline and a stronger wash. Swapping only the
+    // outline to the cyan glow (the idle tabs' focus cue) was tried first and was invisible on a
+    // real render with the default cyan accent — glow and accent are near-identical blues — which
+    // is the same "focus hidden on the active tab" problem the Stitch spec's own selector had.
+    private fun styleNavTab(btn: android.widget.Button, active: Boolean, accent: Int) {
+        val tab = btn as? com.google.android.material.button.MaterialButton ?: return
+        val density = resources.displayMetrics.density
+        if (active) {
+            val focused = intArrayOf(android.R.attr.state_focused)
+            tab.backgroundTintList = android.content.res.ColorStateList(
+                arrayOf(focused, intArrayOf()),
+                intArrayOf(Color.argb(72, Color.red(accent), Color.green(accent), Color.blue(accent)), accentBackgroundTint(accent))
+            )
+            tab.strokeColor = android.content.res.ColorStateList(
+                arrayOf(focused, intArrayOf()),
+                intArrayOf(getColor(R.color.oled_text_primary), accent)
+            )
+            tab.strokeWidth = (1.5f * density + 0.5f).toInt()
+            tab.setTextColor(accent)
+            tab.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        } else {
+            tab.backgroundTintList = getColorStateList(R.color.settings_nav_tab_bg)
+            tab.strokeColor = getColorStateList(R.color.settings_nav_tab_stroke)
+            tab.strokeWidth = (1f * density + 0.5f).toInt()
+            tab.setTextColor(getColorStateList(R.color.settings_nav_tab_text))
+            tab.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }
     }
 
+    // currentAccentColor as a color int, falling back to the default cyan if it's ever unparseable.
+    private fun accentColorInt(): Int =
+        try { Color.parseColor(currentAccentColor) } catch (_: Exception) { getColor(R.color.oled_cyan_primary) }
+
     // Low-alpha wash of whatever the user's actual accent color is (their own swatch/gradient
     // pick, or the default) — used for the active nav tab's background. Deliberately NOT a fixed
-    // cyan: the tab's text already correctly follows currentAccentColor, so a hardcoded cyan
-    // background would visibly clash for anyone who picked a different color (Berry/purple,
-    // Sunset/orange, etc.) instead of matching it.
-    private fun accentBackgroundTint(accentHex: String): Int {
-        val base = try { Color.parseColor(accentHex) } catch (_: Exception) { Color.parseColor("#06B6D4") }
-        return Color.argb(26, Color.red(base), Color.green(base), Color.blue(base))
-    }
+    // cyan: the tab's text already follows the accent, so a hardcoded cyan background would
+    // visibly clash for anyone who picked a different color (Berry/purple, Sunset/orange, etc.).
+    private fun accentBackgroundTint(accent: Int): Int =
+        Color.argb(26, Color.red(accent), Color.green(accent), Color.blue(accent))
 
     // Subtitle styling (size/offset/bold/colors/outline) previously only existed on TV
     // Settings — the phone had no way to customize subtitle appearance at all, even though
@@ -2088,7 +2159,7 @@ class SettingsActivity : AppCompatActivity() {
                     else      -> binding.rbDohCloudflare.isChecked = true
                 }
                 currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
-                binding.btnSettingsSort.text = "⇅  Sort Channels: ${sortLabels[currentSortIndex]}"
+                binding.btnSettingsSort.text = "Sort Channels: ${sortLabels[currentSortIndex]}"
                 currentAccentColor = prefs.accentColor.first()
                 currentAccentColorEnd = prefs.accentColorEnd.first()
                 setupAccentPicker()
@@ -2247,67 +2318,157 @@ class SettingsActivity : AppCompatActivity() {
                 return if (elapsedMin < 1) "Refresh attempted just now" else "Refresh attempted ${elapsedMin}m ago"
             }
 
-            val primaryRow = android.widget.LinearLayout(this@SettingsActivity).apply {
+            // ── v6.79 Stitch provider cards: view construction only. The data above and every
+            // button's click handler below are exactly what they were before this restyle. ──
+            val density = resources.displayMetrics.density
+            fun dp(v: Int) = (v * density + 0.5f).toInt()
+            val counts = java.text.NumberFormat.getIntegerInstance()
+            val accent = accentColorInt()
+
+            // One provider's sub-card, recessed inside the Providers card (provider_card_bg).
+            fun providerCard(dimmed: Boolean) = android.widget.LinearLayout(this@SettingsActivity).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                setBackgroundResource(com.iptvapp.R.drawable.provider_card_bg)
-                setPadding(24, 20, 24, 20)
+                setBackgroundResource(R.drawable.provider_card_bg)
+                setPadding(dp(14), dp(14), dp(14), dp(14))
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.bottomMargin = 12 }
+                ).also { it.bottomMargin = dp(12) }
+                // Dimmed while disabled — same "muted" visual language the app already uses rather
+                // than inventing a new convention. Everything stays readable, just de-emphasized.
+                alpha = if (dimmed) 0.45f else 1f
             }
-            android.widget.TextView(this@SettingsActivity).apply {
-                text = "PRIMARY PROVIDER"
-                setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
-                textSize = 10f
-                primaryRow.addView(this)
+
+            // "PROVIDER 2" + nickname on the left; ACTIVE (in the user's accent) or INACTIVE pill
+            // on the right.
+            fun cardHeader(label: String, nickname: String, active: Boolean) = android.widget.LinearLayout(this@SettingsActivity).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.TOP
+                addView(android.widget.LinearLayout(this@SettingsActivity).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    addView(android.widget.TextView(this@SettingsActivity).apply {
+                        text = label
+                        setTextColor(getColor(R.color.settings_text_muted))
+                        textSize = 10f
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        letterSpacing = 0.12f
+                    })
+                    addView(android.widget.TextView(this@SettingsActivity).apply {
+                        text = nickname
+                        setTextColor(getColor(R.color.oled_text_primary))
+                        textSize = 16f
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        setSingleLine(true)
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                })
+                addView(android.widget.TextView(this@SettingsActivity).apply {
+                    text = if (active) "● ACTIVE" else "INACTIVE"
+                    setTextColor(if (active) accent else getColor(R.color.settings_text_muted))
+                    textSize = 11f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    letterSpacing = 0.06f
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(6).toFloat()
+                        setColor(
+                            if (active) Color.argb(31, Color.red(accent), Color.green(accent), Color.blue(accent))
+                            else getColor(R.color.oled_surface_container_low)
+                        )
+                    }
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.marginStart = dp(12) }
+                })
             }
-            android.widget.TextView(this@SettingsActivity).apply {
-                text = primaryNick
-                setTextColor(getColor(com.iptvapp.R.color.oled_text_primary))
-                textSize = 14f
-                primaryRow.addView(this)
-            }
-            android.widget.TextView(this@SettingsActivity).apply {
-                text = if (activeIndex == -1) "● ACTIVE" else "INACTIVE"
-                setTextColor(if (activeIndex == -1) Color.parseColor(currentAccentColor) else getColor(com.iptvapp.R.color.oled_text_muted))
+
+            // Server URL / playlist source — one line, middle-ellipsized so both the host and the
+            // port/path stay visible.
+            fun detailLine(value: String) = android.widget.TextView(this@SettingsActivity).apply {
+                text = value
+                setTextColor(getColor(R.color.settings_text_muted))
                 textSize = 12f
-                primaryRow.addView(this)
-            }
-            // Extra providers already show their URL directly (added earlier so a stray
-            // space/typo could be spotted) — the primary row never did, making it impossible
-            // to verify the nickname you see actually matches the credentials really in use.
-            android.widget.TextView(this@SettingsActivity).apply {
-                text = creds.serverUrl
-                setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
-                textSize = 11f
                 setSingleLine(true)
                 ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-                primaryRow.addView(this)
-            }
-            android.widget.TextView(this@SettingsActivity).apply {
-                text = "LIVE $primaryChannelCount  ·  MOVIES $primaryVodCount  ·  SERIES $primarySeriesCount"
-                setTextColor(getColor(com.iptvapp.R.color.oled_text_secondary))
-                textSize = 11f
-                setPadding(0, 8, 0, 0)
-                primaryRow.addView(this)
-            }
-            android.widget.TextView(this@SettingsActivity).apply {
-                text = syncLabel(primaryLastSync)
-                setTextColor(getColor(com.iptvapp.R.color.oled_cyan_primary))
-                textSize = 11f
-                primaryRow.addView(this)
-            }
-            android.widget.Button(this@SettingsActivity).apply {
-                text = "Edit"
-                isAllCaps = false
-                textSize = 13f
-                setTextColor(getColor(com.iptvapp.R.color.oled_text_primary))
-                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
-                val heightPx = (40 * resources.displayMetrics.density).toInt()
                 layoutParams = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, heightPx
-                ).also { it.topMargin = 12 }
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = dp(8) }
+            }
+
+            // LIVE / MOVIES / SERIES as three count blocks. null = a kind of content this source type
+            // never has (M3U is live-only): that block is left out instead of showing a permanent 0
+            // that would read like missing data, with an empty slot keeping LIVE at a third width.
+            fun statsRow(live: Int, movies: Int?, series: Int?) = android.widget.LinearLayout(this@SettingsActivity).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = dp(12) }
+                val blocks = listOf("LIVE" to live, "MOVIES" to movies, "SERIES" to series)
+                blocks.forEachIndexed { idx, (label, value) ->
+                    val lp = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .also { if (idx < blocks.lastIndex) it.marginEnd = dp(8) }
+                    if (value == null) {
+                        addView(View(this@SettingsActivity).apply { layoutParams = lp })
+                    } else {
+                        addView(android.widget.LinearLayout(this@SettingsActivity).apply {
+                            orientation = android.widget.LinearLayout.VERTICAL
+                            setBackgroundResource(R.drawable.settings_stat_bg)
+                            setPadding(dp(10), dp(8), dp(10), dp(8))
+                            layoutParams = lp
+                            addView(android.widget.TextView(this@SettingsActivity).apply {
+                                text = counts.format(value.toLong())
+                                setTextColor(getColor(R.color.oled_text_primary))
+                                textSize = 17f
+                                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                                fontFeatureSettings = "tnum"
+                                setSingleLine(true)
+                            })
+                            addView(android.widget.TextView(this@SettingsActivity).apply {
+                                text = label
+                                setTextColor(getColor(R.color.settings_text_muted))
+                                textSize = 10f
+                                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                                letterSpacing = 0.12f
+                            })
+                        })
+                    }
+                }
+            }
+
+            fun statusLine(value: String, colorRes: Int) = android.widget.TextView(this@SettingsActivity).apply {
+                text = value
+                setTextColor(getColor(colorRes))
+                textSize = 12f
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = dp(10) }
+            }
+
+            // Card buttons come from small layout files so they share activity_settings.xml's exact
+            // button styles (D-pad focus and disabled states included) instead of re-creating them
+            // by hand here.
+            fun cardButton(layoutRes: Int, parent: ViewGroup, label: String) =
+                (layoutInflater.inflate(layoutRes, parent, false) as com.google.android.material.button.MaterialButton)
+                    .apply { text = label }
+
+            val primaryRow = providerCard(dimmed = false).apply {
+                addView(cardHeader("PRIMARY PROVIDER", primaryNick, active = activeIndex == -1))
+                // Extra providers already show their URL directly (added earlier so a stray
+                // space/typo could be spotted) — the primary row never did, making it impossible
+                // to verify the nickname you see actually matches the credentials really in use.
+                addView(detailLine(creds.serverUrl))
+                addView(statsRow(primaryChannelCount, primaryVodCount, primarySeriesCount))
+                addView(statusLine(syncLabel(primaryLastSync), R.color.oled_cyan_primary))
+            }
+            cardButton(R.layout.settings_provider_btn_secondary, primaryRow, "Edit").apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
+                ).also { it.topMargin = dp(12) }
                 setOnClickListener { showEditPrimaryDialog(creds, primaryNick) }
                 primaryRow.addView(this)
             }
@@ -2318,86 +2479,47 @@ class SettingsActivity : AppCompatActivity() {
                 val nick = server.getOrElse(3) { "" }.ifEmpty { user }
                 val enabled = server.getOrElse(5) { "true" }.toBoolean()
                 val isM3u = server.getOrElse(6) { "xtream" } == "m3u"
-                val row = android.widget.LinearLayout(this@SettingsActivity).apply {
-                    orientation = android.widget.LinearLayout.VERTICAL
-                    setBackgroundResource(com.iptvapp.R.drawable.provider_card_bg)
-                    setPadding(24, 20, 24, 20)
-                    layoutParams = android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.bottomMargin = 12 }
-                    // Dimmed while disabled — same "muted" visual language the app already uses
-                    // (e.g. the oled_text_muted INACTIVE label just below) rather than inventing a
-                    // new convention. Credentials/nickname/URL stay fully readable, just de-emphasized.
-                    alpha = if (enabled) 1f else 0.45f
-                }
-                android.widget.TextView(this@SettingsActivity).apply {
-                    text = "PROVIDER ${i + 2}"
-                    setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
-                    textSize = 10f
-                    row.addView(this)
-                }
-                android.widget.TextView(this@SettingsActivity).apply {
-                    text = nick
-                    setTextColor(getColor(com.iptvapp.R.color.oled_text_primary))
-                    textSize = 14f
-                    row.addView(this)
-                }
-                android.widget.TextView(this@SettingsActivity).apply {
-                    text = if (activeIndex == i) "● ACTIVE" else "INACTIVE"
-                    setTextColor(if (activeIndex == i) Color.parseColor(currentAccentColor) else getColor(com.iptvapp.R.color.oled_text_muted))
-                    textSize = 12f
-                    row.addView(this)
-                }
-                android.widget.TextView(this@SettingsActivity).apply {
-                    // An m3u-type row's url/user/pass slots are blank placeholders (see
-                    // importM3uAsSecondarySource) — there's no Xtream credential URL to show, so
-                    // show what this source actually is instead: PLAYLIST FILE for a pasted-text
-                    // import (index 7, m3uUrl, is blank), or the URL it was imported from.
-                    text = if (isM3u) {
+                val row = providerCard(dimmed = !enabled)
+                row.addView(cardHeader("PROVIDER ${i + 2}", nick, active = activeIndex == i))
+                // An m3u-type row's url/user/pass slots are blank placeholders (see
+                // importM3uAsSecondarySource) — there's no Xtream credential URL to show, so
+                // show what this source actually is instead: PLAYLIST FILE for a pasted-text
+                // import (index 7, m3uUrl, is blank), or the URL it was imported from.
+                row.addView(detailLine(
+                    if (isM3u) {
                         val m3uUrl = server.getOrElse(7) { "" }
                         if (m3uUrl.isBlank()) "M3U PLAYLIST · FILE" else "M3U PLAYLIST · $m3uUrl"
                     } else url
-                    setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
-                    textSize = 11f
-                    setSingleLine(true)
-                    ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-                    row.addView(this)
-                }
-                android.widget.TextView(this@SettingsActivity).apply {
-                    // M3U sources never have VOD/series (M3uParser is live-channels-only — see
-                    // its own kdoc), so their stat line only ever shows what's actually real for
-                    // them instead of a permanent "MOVIES 0 · SERIES 0" that looks like missing
-                    // data rather than a source type that was never going to have any.
-                    text = if (isM3u) {
-                        "LIVE ${mergedChannelCounts[i] ?: 0}"
-                    } else {
-                        "LIVE ${mergedChannelCounts[i] ?: 0}  ·  MOVIES ${mergedVodCounts[i] ?: 0}  ·  SERIES ${mergedSeriesCounts[i] ?: 0}"
-                    }
-                    setTextColor(getColor(com.iptvapp.R.color.oled_text_secondary))
-                    textSize = 11f
-                    setPadding(0, 8, 0, 0)
-                    row.addView(this)
-                }
-                android.widget.TextView(this@SettingsActivity).apply {
-                    // M3U sources are explicitly excluded from refreshMergedChannels() (see its
-                    // own kdoc) — mergedLastSync wouldn't reflect anything real for one, so this
-                    // says what's actually true instead of borrowing a timestamp that isn't theirs.
-                    // attemptLabel, not syncLabel: see its own kdoc for why "Synced" would
-                    // overclaim here in a way it doesn't for the primary card.
-                    text = if (isM3u) "Not auto-refreshed (M3U)" else attemptLabel(mergedLastSync)
-                    setTextColor(if (isM3u) getColor(com.iptvapp.R.color.oled_text_muted) else getColor(com.iptvapp.R.color.oled_cyan_primary))
-                    textSize = 11f
-                    row.addView(this)
-                }
+                ))
+                // M3U sources never have VOD/series (M3uParser is live-channels-only — see its own
+                // kdoc), so their stats only ever show what's actually real for them (see statsRow).
+                row.addView(
+                    if (isM3u) statsRow(mergedChannelCounts[i] ?: 0, null, null)
+                    else statsRow(mergedChannelCounts[i] ?: 0, mergedVodCounts[i] ?: 0, mergedSeriesCounts[i] ?: 0)
+                )
+                // M3U sources are explicitly excluded from refreshMergedChannels() (see its
+                // own kdoc) — mergedLastSync wouldn't reflect anything real for one, so this
+                // says what's actually true instead of borrowing a timestamp that isn't theirs.
+                // attemptLabel, not syncLabel: see its own kdoc for why "Synced" would
+                // overclaim here in a way it doesn't for the primary card.
+                row.addView(
+                    if (isM3u) statusLine("Not auto-refreshed (M3U)", R.color.settings_text_muted)
+                    else statusLine(attemptLabel(mergedLastSync), R.color.oled_cyan_primary)
+                )
                 android.widget.Switch(this@SettingsActivity).apply {
                     text = if (enabled) "Enabled" else "Disabled"
                     isChecked = enabled
-                    setTextColor(Color.WHITE)
+                    setTextColor(getColor(R.color.oled_text_primary))
+                    textSize = 14f
+                    // Same thumb/track as every other Settings toggle (styles_settings.xml).
+                    setThumbResource(R.drawable.settings_switch_thumb)
+                    setTrackResource(R.drawable.settings_switch_track)
+                    minHeight = dp(44)
+                    gravity = android.view.Gravity.CENTER_VERTICAL
                     layoutParams = android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.topMargin = 12 }
+                    ).also { it.topMargin = dp(8) }
                     setOnCheckedChangeListener { _, checked ->
                         val updated = extraServers[i].toMutableList()
                         while (updated.size < 6) updated.add("true")
@@ -2429,17 +2551,11 @@ class SettingsActivity : AppCompatActivity() {
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.topMargin = 12 }
+                    ).also { it.topMargin = dp(8) }
                 }
-                android.widget.Button(this@SettingsActivity).apply {
-                    text = "Edit"
-                    isAllCaps = false
-                    textSize = 13f
-                    setTextColor(Color.WHITE)
-                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
-                    val heightPx = (40 * resources.displayMetrics.density).toInt()
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
-                        .also { it.marginEnd = 8 }
+                cardButton(R.layout.settings_provider_btn_secondary, btnRow, "Edit").apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, dp(44), 1f)
+                        .also { it.marginEnd = dp(8) }
                     // An m3u row has no credentials to edit (its url/user/pass slots are blank
                     // placeholders — see importM3uAsSecondarySource), just a nickname.
                     setOnClickListener { if (isM3u) showRenameM3uSourceDialog(i, nick) else showEditServerDialog(i) }
@@ -2448,19 +2564,9 @@ class SettingsActivity : AppCompatActivity() {
                 // Switch (promote to primary) assumes Xtream credentials to promote — an m3u
                 // source has none, and "become the primary login" isn't something this source
                 // type supports. Skipped entirely rather than shown disabled/confusing.
-                if (!isM3u) android.widget.Button(this@SettingsActivity).apply {
-                    text = "Switch"
-                    isAllCaps = false
-                    textSize = 13f
-                    setTextColor(Color.BLACK)
-                    // setBackgroundColor() replaces the Material theme's rounded button
-                    // background with a flat square rectangle — backgroundTintList keeps the
-                    // theme's rounded shape/ripple and just recolors it, matching every other
-                    // button in the app (all of which set backgroundTint, never a raw color).
-                    backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(com.iptvapp.R.color.oled_cyan_primary))
-                    val heightPx = (40 * resources.displayMetrics.density).toInt()
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
-                        .also { it.marginEnd = 8 }
+                if (!isM3u) cardButton(R.layout.settings_provider_btn_primary, btnRow, "Switch").apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, dp(44), 1f)
+                        .also { it.marginEnd = dp(8) }
                     setOnClickListener {
                         lifecycleScope.launch {
                             val primary = prefs.credentials.first()
@@ -2494,16 +2600,10 @@ class SettingsActivity : AppCompatActivity() {
                     }
                     btnRow.addView(this)
                 }
-                android.widget.Button(this@SettingsActivity).apply {
-                    text = "Remove"
-                    isAllCaps = false
-                    textSize = 13f
-                    setTextColor(Color.parseColor("#FF6B6B"))
-                    // Matches the app's established "danger" button convention (e.g. Trakt
-                    // Disconnect): a subdued dark fill with red text, not a solid red block.
-                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E1E1E"))
-                    val heightPx = (40 * resources.displayMetrics.density).toInt()
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
+                // Same "danger" treatment as Logout / Clear / Trakt Disconnect: a dark red fill
+                // with red text, not a solid red block.
+                cardButton(R.layout.settings_provider_btn_danger, btnRow, "Remove").apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, dp(44), 1f)
                     setOnClickListener {
                         extraServers.removeAt(i)
                         lifecycleScope.launch {
@@ -2547,16 +2647,12 @@ class SettingsActivity : AppCompatActivity() {
                 // refreshMergedChannels() intentionally skips them (see its own kdoc) — there's
                 // no Xtream API to re-fetch from, and showing a button that always silently does
                 // nothing is worse than not showing it.
-                if (!isM3u) android.widget.Button(this@SettingsActivity).apply {
-                    text = "↻ Refresh Channels"
-                    isAllCaps = false
-                    textSize = 13f
-                    setTextColor(getColor(com.iptvapp.R.color.oled_cyan_primary))
-                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E1E1E"))
-                    val heightPx = (40 * resources.displayMetrics.density).toInt()
+                if (!isM3u) cardButton(R.layout.settings_provider_btn_secondary, row, "Refresh Channels").apply {
+                    icon = androidx.appcompat.content.res.AppCompatResources.getDrawable(this@SettingsActivity, R.drawable.ic_settings_refresh)
+                    iconSize = dp(16)
                     layoutParams = android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, heightPx
-                    ).also { it.topMargin = 8 }
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
+                    ).also { it.topMargin = dp(8) }
                     setOnClickListener {
                         isEnabled = false
                         val originalText = text

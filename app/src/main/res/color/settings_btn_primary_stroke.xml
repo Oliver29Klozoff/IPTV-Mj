@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary buttons only show an outline under D-pad focus (TV / car box): a light ring reads on
+     solid cyan where the cyan glow used by every other control would not. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/oled_text_primary" />
+    <item android:color="@android:color/transparent" />
+</selector>
