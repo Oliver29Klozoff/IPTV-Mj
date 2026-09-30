@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings > Providers card background — part of the same OLED/cyan reskin as
+     focus_selector_channel.xml (channel list) and activity_player.xml (player OSD). Not a
+     selector: this screen is touch-scrolled, not a D-pad focus list, so there's no focused/
+     selected state to distinguish — just the resting card look. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/oled_surface_container_low" />
+    <corners android:radius="12dp" />
+    <stroke android:width="1dp" android:color="@color/oled_outline_stroke" />
+</shape>

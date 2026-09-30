@@ -1,6 +1,12 @@
 # IPTV App - Changelog
 
-## v6.75 - 2026-09-29
+## v6.76 - 2026-09-29
+- **Changed**: restyled Settings > Providers in the OLED/cyan look (continuing the reskin from
+  v6.69/v6.70) — rounded cards instead of flat boxes, and each provider now shows its own real
+  live/movie/series counts and last-synced status, not just a nickname and URL. M3U sources show
+  only their real channel count (they never have movies/series) and an honest "not auto-refreshed"
+  label instead of borrowing a timestamp that isn't theirs. No functional changes — the M3U toggle
+  feature (v6.71) and everything else here works exactly as before.
 - **Fixed**: the automatic "All Providers" refresh on app launch (Live TV screen, phone and TV)
   fired whenever any extra provider existed in Settings, even a *disabled* one — disabling a
   provider doesn't remove it from that list. Confirmed on a real device this was firing on every

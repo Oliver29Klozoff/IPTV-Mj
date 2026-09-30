@@ -1,7 +1,7 @@
 {
-  "versionCode": 513,
-  "versionName": "6.75",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.75/MKTV.apk",
-  "apkSha256": "efcbf48b9e2c75eda8c38ac240e441f19f23421f85ed9b87bc9e01462eb48598",
-  "changelog": "Fixes a crash loop on every launch: the auto-refresh that triggers the still-unresolved merged-provider crash fired even with zero ENABLED secondary providers. Now requires an enabled one. Root cause still unknown; this stops it from being hit automatically."
+  "versionCode": 514,
+  "versionName": "6.76",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.76/MKTV.apk",
+  "apkSha256": "4933832b88eb80c060e0196678e1eec0458652bb5560bfb56f1ee54f437cca7f",
+  "changelog": "Restyled Settings > Providers in the OLED/cyan look, with real per-provider live/movie/series counts and sync status instead of just a nickname and URL. No functional changes."
 }

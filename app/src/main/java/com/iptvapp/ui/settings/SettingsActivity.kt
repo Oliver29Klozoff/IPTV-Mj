@@ -2183,9 +2183,38 @@ class SettingsActivity : AppCompatActivity() {
             val activeIndex = prefs.activeServerIndex.first()
             val primaryNick = prefs.serverNickname.first().ifEmpty { creds.username }
 
+            // Real per-provider counts and sync status — part of the same OLED/cyan reskin as
+            // the channel list (v6.69) and player (v6.70), continued here. Primary's counts come
+            // straight from its own tables (channels/vod_streams/series are primary-only —
+            // secondary/merged providers live in the separate merged_* tables, see
+            // MergedChannelEntity's own kdoc), so no per-server filtering is needed for it.
+            val primaryChannelCount = try { db.channelDao().getCount() } catch (_: Exception) { 0 }
+            val primaryVodCount = try { db.vodDao().getCount() } catch (_: Exception) { 0 }
+            val primarySeriesCount = try { db.seriesDao().getCount() } catch (_: Exception) { 0 }
+            val primaryLastSync = prefs.lastChannelsFetchTime.first()
+            // Merged tables' own getServerSummaries() DAOs return (serverIndex, nickname, count)
+            // for every configured secondary provider in one query each — exactly what each
+            // provider's own stat row needs, keyed for O(1) lookup instead of a query per card.
+            val mergedChannelCounts = db.mergedChannelDao().getServerSummaries().first().associate { it.serverIndex to it.channelCount }
+            val mergedVodCounts = db.mergedVodDao().getServerSummaries().first().associate { it.serverIndex to it.vodCount }
+            val mergedSeriesCounts = db.mergedSeriesDao().getServerSummaries().first().associate { it.serverIndex to it.seriesCount }
+            // One shared timestamp for every secondary provider — refreshMergedChannels() stamps
+            // it on completion whether it refreshed one targeted provider or all of them (see its
+            // own kdoc), so this is genuinely accurate for "last time this provider's data was
+            // written," not an approximation, even though it isn't tracked separately per index.
+            val mergedLastSync = prefs.lastMergedChannelsRefresh.first()
+            // "Synced Xm ago" / "Not yet synced" — same wording and 0L-means-never handling as
+            // the Compose preview's SyncStatusBar, so the two don't drift into different phrasing
+            // for the same underlying concept.
+            fun syncLabel(lastSyncMs: Long): String {
+                if (lastSyncMs <= 0L) return "Not yet synced"
+                val elapsedMin = (System.currentTimeMillis() - lastSyncMs) / 60_000
+                return if (elapsedMin < 1) "Synced just now" else "Synced ${elapsedMin}m ago"
+            }
+
             val primaryRow = android.widget.LinearLayout(this@SettingsActivity).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                setBackgroundColor(Color.parseColor("#1A1A1A"))
+                setBackgroundResource(com.iptvapp.R.drawable.provider_card_bg)
                 setPadding(24, 20, 24, 20)
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -2194,19 +2223,19 @@ class SettingsActivity : AppCompatActivity() {
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = "PRIMARY PROVIDER"
-                setTextColor(Color.parseColor("#777777"))
+                setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
                 textSize = 10f
                 primaryRow.addView(this)
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = primaryNick
-                setTextColor(Color.WHITE)
+                setTextColor(getColor(com.iptvapp.R.color.oled_text_primary))
                 textSize = 14f
                 primaryRow.addView(this)
             }
             android.widget.TextView(this@SettingsActivity).apply {
                 text = if (activeIndex == -1) "● ACTIVE" else "INACTIVE"
-                setTextColor(if (activeIndex == -1) Color.parseColor(currentAccentColor) else Color.parseColor("#555555"))
+                setTextColor(if (activeIndex == -1) Color.parseColor(currentAccentColor) else getColor(com.iptvapp.R.color.oled_text_muted))
                 textSize = 12f
                 primaryRow.addView(this)
             }
@@ -2215,17 +2244,30 @@ class SettingsActivity : AppCompatActivity() {
             // to verify the nickname you see actually matches the credentials really in use.
             android.widget.TextView(this@SettingsActivity).apply {
                 text = creds.serverUrl
-                setTextColor(Color.parseColor("#777777"))
+                setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
                 textSize = 11f
                 setSingleLine(true)
                 ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                primaryRow.addView(this)
+            }
+            android.widget.TextView(this@SettingsActivity).apply {
+                text = "LIVE $primaryChannelCount  ·  MOVIES $primaryVodCount  ·  SERIES $primarySeriesCount"
+                setTextColor(getColor(com.iptvapp.R.color.oled_text_secondary))
+                textSize = 11f
+                setPadding(0, 8, 0, 0)
+                primaryRow.addView(this)
+            }
+            android.widget.TextView(this@SettingsActivity).apply {
+                text = syncLabel(primaryLastSync)
+                setTextColor(getColor(com.iptvapp.R.color.oled_cyan_primary))
+                textSize = 11f
                 primaryRow.addView(this)
             }
             android.widget.Button(this@SettingsActivity).apply {
                 text = "Edit"
                 isAllCaps = false
                 textSize = 13f
-                setTextColor(Color.WHITE)
+                setTextColor(getColor(com.iptvapp.R.color.oled_text_primary))
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#333333"))
                 val heightPx = (40 * resources.displayMetrics.density).toInt()
                 layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -2243,32 +2285,32 @@ class SettingsActivity : AppCompatActivity() {
                 val isM3u = server.getOrElse(6) { "xtream" } == "m3u"
                 val row = android.widget.LinearLayout(this@SettingsActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
-                    setBackgroundColor(Color.parseColor("#1A1A1A"))
+                    setBackgroundResource(com.iptvapp.R.drawable.provider_card_bg)
                     setPadding(24, 20, 24, 20)
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     ).also { it.bottomMargin = 12 }
                     // Dimmed while disabled — same "muted" visual language the app already uses
-                    // (e.g. the #555555 INACTIVE label just below) rather than inventing a new
-                    // convention. Credentials/nickname/URL stay fully readable, just de-emphasized.
+                    // (e.g. the oled_text_muted INACTIVE label just below) rather than inventing a
+                    // new convention. Credentials/nickname/URL stay fully readable, just de-emphasized.
                     alpha = if (enabled) 1f else 0.45f
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = "PROVIDER ${i + 2}"
-                    setTextColor(Color.parseColor("#777777"))
+                    setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
                     textSize = 10f
                     row.addView(this)
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = nick
-                    setTextColor(Color.WHITE)
+                    setTextColor(getColor(com.iptvapp.R.color.oled_text_primary))
                     textSize = 14f
                     row.addView(this)
                 }
                 android.widget.TextView(this@SettingsActivity).apply {
                     text = if (activeIndex == i) "● ACTIVE" else "INACTIVE"
-                    setTextColor(if (activeIndex == i) Color.parseColor(currentAccentColor) else Color.parseColor("#555555"))
+                    setTextColor(if (activeIndex == i) Color.parseColor(currentAccentColor) else getColor(com.iptvapp.R.color.oled_text_muted))
                     textSize = 12f
                     row.addView(this)
                 }
@@ -2281,10 +2323,34 @@ class SettingsActivity : AppCompatActivity() {
                         val m3uUrl = server.getOrElse(7) { "" }
                         if (m3uUrl.isBlank()) "M3U PLAYLIST · FILE" else "M3U PLAYLIST · $m3uUrl"
                     } else url
-                    setTextColor(Color.parseColor("#777777"))
+                    setTextColor(getColor(com.iptvapp.R.color.oled_text_muted))
                     textSize = 11f
                     setSingleLine(true)
                     ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                    row.addView(this)
+                }
+                android.widget.TextView(this@SettingsActivity).apply {
+                    // M3U sources never have VOD/series (M3uParser is live-channels-only — see
+                    // its own kdoc), so their stat line only ever shows what's actually real for
+                    // them instead of a permanent "MOVIES 0 · SERIES 0" that looks like missing
+                    // data rather than a source type that was never going to have any.
+                    text = if (isM3u) {
+                        "LIVE ${mergedChannelCounts[i] ?: 0}"
+                    } else {
+                        "LIVE ${mergedChannelCounts[i] ?: 0}  ·  MOVIES ${mergedVodCounts[i] ?: 0}  ·  SERIES ${mergedSeriesCounts[i] ?: 0}"
+                    }
+                    setTextColor(getColor(com.iptvapp.R.color.oled_text_secondary))
+                    textSize = 11f
+                    setPadding(0, 8, 0, 0)
+                    row.addView(this)
+                }
+                android.widget.TextView(this@SettingsActivity).apply {
+                    // M3U sources are explicitly excluded from refreshMergedChannels() (see its
+                    // own kdoc) — mergedLastSync wouldn't reflect anything real for one, so this
+                    // says what's actually true instead of borrowing a timestamp that isn't theirs.
+                    text = if (isM3u) "Not auto-refreshed (M3U)" else syncLabel(mergedLastSync)
+                    setTextColor(if (isM3u) getColor(com.iptvapp.R.color.oled_text_muted) else getColor(com.iptvapp.R.color.oled_cyan_primary))
+                    textSize = 11f
                     row.addView(this)
                 }
                 android.widget.Switch(this@SettingsActivity).apply {
@@ -2354,7 +2420,7 @@ class SettingsActivity : AppCompatActivity() {
                     // background with a flat square rectangle — backgroundTintList keeps the
                     // theme's rounded shape/ripple and just recolors it, matching every other
                     // button in the app (all of which set backgroundTint, never a raw color).
-                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#008CFF"))
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(com.iptvapp.R.color.oled_cyan_primary))
                     val heightPx = (40 * resources.displayMetrics.density).toInt()
                     layoutParams = android.widget.LinearLayout.LayoutParams(0, heightPx, 1f)
                         .also { it.marginEnd = 8 }
@@ -2448,7 +2514,7 @@ class SettingsActivity : AppCompatActivity() {
                     text = "↻ Refresh Channels"
                     isAllCaps = false
                     textSize = 13f
-                    setTextColor(Color.parseColor("#008CFF"))
+                    setTextColor(getColor(com.iptvapp.R.color.oled_cyan_primary))
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E1E1E"))
                     val heightPx = (40 * resources.displayMetrics.density).toInt()
                     layoutParams = android.widget.LinearLayout.LayoutParams(
