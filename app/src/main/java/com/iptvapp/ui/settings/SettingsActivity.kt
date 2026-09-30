@@ -404,7 +404,11 @@ class SettingsActivity : AppCompatActivity() {
         Triple("Berry", "#AF52DE", "#FF3B30"),
         Triple("Aurora", "#34C759", "#5AC8FA")
     )
-    private var currentAccentColor = "#008CFF"
+    // Default only — the swatches/gradients above and prefs.accentColor's own DataStore
+    // fallback (PreferencesManager.kt) are the real source of truth for anyone who's actually
+    // picked something; this is just what a fresh install / never-customized account starts on,
+    // now matching the rest of the OLED/cyan reskin instead of the old blue.
+    private var currentAccentColor = "#06B6D4"
     private var currentAccentColorEnd = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -760,10 +764,10 @@ class SettingsActivity : AppCompatActivity() {
             }
             navButtonViews.forEachIndexed { i, btn ->
                 btn.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    if (i == index) Color.parseColor("#1A3A5C") else Color.parseColor("#1A1A1A")
+                    if (i == index) accentBackgroundTint(currentAccentColor) else getColor(com.iptvapp.R.color.oled_surface_container_low)
                 )
                 btn.setTextColor(
-                    if (i == index) Color.parseColor(currentAccentColor) else Color.parseColor("#AAAAAA")
+                    if (i == index) Color.parseColor(currentAccentColor) else getColor(com.iptvapp.R.color.oled_text_secondary)
                 )
             }
         }
@@ -946,8 +950,26 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun applyAccentToSettings(colorInt: Int) {
         navButtonViews.forEachIndexed { i, btn ->
-            btn.setTextColor(if (i == currentPanelIndex) colorInt else Color.parseColor("#AAAAAA"))
+            btn.setTextColor(if (i == currentPanelIndex) colorInt else getColor(com.iptvapp.R.color.oled_text_secondary))
+            // setupSectionToggles' selectPanel() sets this same background whenever a tab is
+            // tapped — this is the other path that changes what "the active color" is (picking a
+            // new custom accent) without switching tabs, so the active button's background needs
+            // updating here too or it goes stale, still tinted with whatever the previous accent
+            // was, until the next tab switch coincidentally refreshes it.
+            if (i == currentPanelIndex) {
+                btn.backgroundTintList = android.content.res.ColorStateList.valueOf(accentBackgroundTint(currentAccentColor))
+            }
         }
+    }
+
+    // Low-alpha wash of whatever the user's actual accent color is (their own swatch/gradient
+    // pick, or the default) — used for the active nav tab's background. Deliberately NOT a fixed
+    // cyan: the tab's text already correctly follows currentAccentColor, so a hardcoded cyan
+    // background would visibly clash for anyone who picked a different color (Berry/purple,
+    // Sunset/orange, etc.) instead of matching it.
+    private fun accentBackgroundTint(accentHex: String): Int {
+        val base = try { Color.parseColor(accentHex) } catch (_: Exception) { Color.parseColor("#06B6D4") }
+        return Color.argb(26, Color.red(base), Color.green(base), Color.blue(base))
     }
 
     // Subtitle styling (size/offset/bold/colors/outline) previously only existed on TV

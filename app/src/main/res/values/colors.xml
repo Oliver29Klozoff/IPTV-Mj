@@ -15,6 +15,15 @@
          icon-button label colors weren't touched either. -->
     <color name="oled_cyan_primary">#06B6D4</color>
     <color name="oled_cyan_glow">#38BDF8</color>
+    <!-- Deepest canvas tone — same value as Compose's SurfaceBackground. Added for
+         activity_settings.xml's root/chrome background, one tier below
+         oled_surface_container_low (card surfaces) rather than reusing that same tone for both,
+         matching the depth system the Compose theme and the original Stitch mockups both used. -->
+    <color name="oled_surface_background">#0A0E17</color>
+    <!-- Sits between oled_surface_background and oled_surface_container_low — used for
+         activity_settings.xml's top bar and nav rail chrome, which reads as "elevated above the
+         canvas but still distinct from the readable card content on top of it." -->
+    <color name="oled_surface_header">#0F131D</color>
     <color name="oled_surface_container_low">#161B26</color>
     <color name="oled_surface_container_highest">#283042</color>
     <color name="oled_outline_stroke">#2B3448</color>
@@ -23,4 +32,10 @@
     <color name="oled_text_muted">#64748B</color>
     <color name="oled_favorite_gold">#FBBF24</color>
     <color name="oled_live_badge_red">#EF4444</color>
+    <!-- Low-alpha cyan wash for a "subtle/outlined" button state (activity_settings.xml's Speed
+         Test button) — static, unlike the nav rail's accent-following background (see
+         SettingsActivity.accentBackgroundTint kdoc for why that one has to stay dynamic instead
+         of using this fixed token: it sits behind text that legitimately varies with the user's
+         own accent color pick, this doesn't). -->
+    <color name="oled_cyan_wash">#1A06B6D4</color>
 </resources>

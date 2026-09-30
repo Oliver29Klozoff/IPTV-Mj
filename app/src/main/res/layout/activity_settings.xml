@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0A0A0A"
+    android:background="@color/oled_surface_background"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
@@ -12,7 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:paddingTop="8dp"
-        android:background="#111111"
+        android:background="@color/oled_surface_header"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="12dp">
@@ -20,9 +20,9 @@
             android:id="@+id/btnBack"
             android:layout_width="wrap_content"
             android:layout_height="44dp"
-            android:backgroundTint="#1E1E1E"
+            android:backgroundTint="@color/oled_surface_container_low"
             android:text="&#8592; Back"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/oled_text_primary"
             android:textSize="14sp"
             android:minWidth="0dp"
             android:paddingHorizontal="20dp" />
@@ -32,7 +32,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="SETTINGS"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/oled_text_primary"
             android:textSize="16sp"
             android:textStyle="bold"
             android:letterSpacing="0.15" />
@@ -63,7 +63,7 @@
             android:background="@android:color/transparent"
             app:backgroundTint="@android:color/transparent"
             android:text="?"
-            android:textColor="#008CFF"
+            android:textColor="@color/oled_cyan_primary"
             android:textSize="18sp"
             android:textStyle="bold"
             android:minWidth="0dp"
@@ -81,7 +81,7 @@
             android:id="@+id/settingsNavRail"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:background="#0F0F0F">
+            android:background="@color/oled_surface_header">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -95,11 +95,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A3A5C"
+                    android:backgroundTint="@color/oled_cyan_wash"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Stream &amp; EPG"
-                    android:textColor="#008CFF"
+                    android:textColor="@color/oled_cyan_primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -109,11 +109,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Display"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -122,11 +122,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Providers"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -135,11 +135,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Recordings"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -148,11 +148,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Backup"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -161,11 +161,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Sync"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -174,11 +174,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginBottom="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Updates"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -191,7 +191,7 @@
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Logout"
-                    android:textColor="#FF4444"
+                    android:textColor="@color/oled_live_badge_red"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -201,11 +201,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginTop="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Refresh EPG"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
                 <Button
@@ -214,11 +214,11 @@
                     android:layout_height="60dp"
                     android:layout_marginHorizontal="6dp"
                     android:layout_marginTop="4dp"
-                    android:backgroundTint="#1A1A1A"
+                    android:backgroundTint="@color/oled_surface_container_low"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:text="Check Update"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/oled_text_secondary"
                     android:textSize="12sp" />
 
             </LinearLayout>
@@ -229,7 +229,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#0A0A0A">
+            android:background="@color/oled_surface_background">
 
             <!-- STREAM PANEL -->
             <ScrollView
@@ -248,7 +248,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="STREAM"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
@@ -261,8 +261,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -283,7 +283,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="EPG REFRESH"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -292,7 +292,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▼"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -309,7 +309,7 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#008CFF"
+                                    android:backgroundTint="@color/oled_cyan_primary"
                                     android:text="Refresh EPG"
                                     android:textColor="#000000"
                                     android:textStyle="bold"
@@ -322,7 +322,7 @@
                                     android:layout_marginTop="10dp"
                                     android:max="100"
                                     android:progress="0"
-                                    android:progressTint="#008CFF"
+                                    android:progressTint="@color/oled_cyan_primary"
                                     android:visibility="gone" />
                                 <Button
                                     android:id="@+id/btnCancelEpgRefresh"
@@ -331,7 +331,7 @@
                                     android:layout_marginTop="8dp"
                                     android:backgroundTint="#2A2A2A"
                                     android:text="Cancel Refresh"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp"
                                     android:visibility="gone" />
                                 <TextView
@@ -340,7 +340,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
                                     android:text=""
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="12sp" />
                                 <TextView
                                     android:id="@+id/tvLastEpgRefresh"
@@ -348,7 +348,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="6dp"
                                     android:text="Last EPG Refresh: Never"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="12sp" />
                                 <TextView
                                     android:id="@+id/tvEpgCacheAge"
@@ -356,7 +356,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="4dp"
                                     android:text="EPG Cache Age: Unknown"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="12sp" />
                                 <View
                                     android:layout_width="match_parent"
@@ -369,15 +369,15 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Refresh only channels missing guide data"
-                                    android:textColor="#CCCCCC"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="13sp"
-                                    android:buttonTint="#008CFF" />
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <TextView
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="12dp"
                                     android:text="AUTO REFRESH SCHEDULE"
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp"
                                     android:letterSpacing="0.1" />
                                 <RadioGroup
@@ -386,10 +386,10 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
                                     android:orientation="vertical">
-                                    <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Off" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                    <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                    <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
-                                    <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="#FFFFFF" android:buttonTint="#008CFF" />
+                                    <RadioButton android:id="@+id/rbAutoOff" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Off" android:textColor="@color/oled_text_primary" android:buttonTint="@color/oled_cyan_primary" />
+                                    <RadioButton android:id="@+id/rbAuto6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 6 hours" android:textColor="@color/oled_text_primary" android:buttonTint="@color/oled_cyan_primary" />
+                                    <RadioButton android:id="@+id/rbAuto12" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Every 12 hours" android:textColor="@color/oled_text_primary" android:buttonTint="@color/oled_cyan_primary" />
+                                    <RadioButton android:id="@+id/rbAuto24" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Daily" android:textColor="@color/oled_text_primary" android:buttonTint="@color/oled_cyan_primary" />
                                 </RadioGroup>
                                 <View
                                     android:layout_width="match_parent"
@@ -416,14 +416,14 @@
                                             android:layout_height="wrap_content"
                                             android:layout_weight="1"
                                             android:text="Remind Me Lead Time"
-                                            android:textColor="#FFFFFF"
+                                            android:textColor="@color/oled_text_primary"
                                             android:textSize="14sp" />
                                         <TextView
                                             android:id="@+id/tvReminderLeadTimeValue"
                                             android:layout_width="wrap_content"
                                             android:layout_height="wrap_content"
                                             android:text="5 min before"
-                                            android:textColor="#888888"
+                                            android:textColor="@color/oled_text_muted"
                                             android:textSize="13sp" />
                                     </LinearLayout>
                                     <TextView
@@ -431,7 +431,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_marginTop="4dp"
                                         android:text="How long before a program starts a Guide &quot;Remind Me&quot; notification fires — gives you time to actually switch over instead of finding out right as it starts."
-                                        android:textColor="#888888"
+                                        android:textColor="@color/oled_text_muted"
                                         android:textSize="11sp" />
                                 </LinearLayout>
                             </LinearLayout>
@@ -443,8 +443,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -465,7 +465,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="EPG URL"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -474,7 +474,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -491,19 +491,19 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="48dp"
                                     android:layout_marginTop="6dp"
-                                    android:background="@drawable/search_bg"
+                                    android:background="@drawable/oled_input_bg"
                                     android:hint="Enter XMLTV / EPG URL"
                                     android:inputType="textUri"
                                     android:paddingHorizontal="12dp"
-                                    android:textColor="#FFFFFF"
-                                    android:textColorHint="#555555"
+                                    android:textColor="@color/oled_text_primary"
+                                    android:textColorHint="@color/oled_text_muted"
                                     android:textSize="13sp" />
                                 <Button
                                     android:id="@+id/btnSaveEpg"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="10dp"
-                                    android:backgroundTint="#008CFF"
+                                    android:backgroundTint="@color/oled_cyan_primary"
                                     android:text="Save EPG URL"
                                     android:textColor="#000000"
                                     android:textStyle="bold"
@@ -513,9 +513,9 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="10dp"
-                                    android:buttonTint="#008CFF"
+                                    android:buttonTint="@color/oled_cyan_primary"
                                     android:text="No guide from your provider? Use the default US guide"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -526,8 +526,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -548,7 +548,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="STREAM FORMAT"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -557,7 +557,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▼"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -580,16 +580,16 @@
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:text="m3u8"
-                                        android:textColor="#FFFFFF"
-                                        android:buttonTint="#008CFF" />
+                                        android:textColor="@color/oled_text_primary"
+                                        android:buttonTint="@color/oled_cyan_primary" />
                                     <RadioButton
                                         android:id="@+id/rbTs"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:layout_marginStart="24dp"
                                         android:text="ts"
-                                        android:textColor="#FFFFFF"
-                                        android:buttonTint="#008CFF" />
+                                        android:textColor="@color/oled_text_primary"
+                                        android:buttonTint="@color/oled_cyan_primary" />
                                 </RadioGroup>
                             </LinearLayout>
                         </LinearLayout>
@@ -600,8 +600,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -622,7 +622,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="AUDIO, SUBTITLES &amp; LANGUAGE"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -631,7 +631,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▼"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -647,7 +647,7 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:text="Preferred Audio Language"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Spinner
                                     android:id="@+id/spinnerAudioLanguage"
@@ -660,7 +660,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="16dp"
                                     android:text="Preferred Subtitle Language"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Spinner
                                     android:id="@+id/spinnerSubtitleLanguage"
@@ -673,14 +673,14 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="10dp"
                                     android:text="Used when a stream offers multiple language tracks. If your provider doesn't tag languages, this has no effect."
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp" />
                                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="16dp" android:background="#222222" />
                                 <TextView
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:text="SUBTITLE STYLE"
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1"
@@ -695,9 +695,9 @@
                                     android:background="?attr/selectableItemBackground"
                                     android:id="@+id/rowSubSize">
                                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                        android:text="Subtitle Size" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                        android:text="Subtitle Size" android:textColor="@color/oled_text_primary" android:textSize="14sp" />
                                     <TextView android:id="@+id/tvSubSizeValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                        android:textColor="#888888" android:textSize="13sp" />
+                                        android:textColor="@color/oled_text_muted" android:textSize="13sp" />
                                 </LinearLayout>
                                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
                                 <LinearLayout
@@ -710,9 +710,9 @@
                                     android:background="?attr/selectableItemBackground"
                                     android:id="@+id/rowSubOffset">
                                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                        android:text="Vertical Offset" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                        android:text="Vertical Offset" android:textColor="@color/oled_text_primary" android:textSize="14sp" />
                                     <TextView android:id="@+id/tvSubOffsetValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                        android:textColor="#888888" android:textSize="13sp" />
+                                        android:textColor="@color/oled_text_muted" android:textSize="13sp" />
                                 </LinearLayout>
                                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
                                 <CheckBox
@@ -720,9 +720,9 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Bold"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp"
-                                    android:buttonTint="#008CFF" />
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
                                 <LinearLayout
                                     android:layout_width="match_parent"
@@ -734,9 +734,9 @@
                                     android:background="?attr/selectableItemBackground"
                                     android:id="@+id/rowSubTextColor">
                                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                        android:text="Text Color" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                        android:text="Text Color" android:textColor="@color/oled_text_primary" android:textSize="14sp" />
                                     <TextView android:id="@+id/tvSubTextColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                        android:textColor="#888888" android:textSize="13sp" />
+                                        android:textColor="@color/oled_text_muted" android:textSize="13sp" />
                                 </LinearLayout>
                                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
                                 <LinearLayout
@@ -749,9 +749,9 @@
                                     android:background="?attr/selectableItemBackground"
                                     android:id="@+id/rowSubBgColor">
                                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                        android:text="Background Color" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                        android:text="Background Color" android:textColor="@color/oled_text_primary" android:textSize="14sp" />
                                     <TextView android:id="@+id/tvSubBgColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                        android:textColor="#888888" android:textSize="13sp" />
+                                        android:textColor="@color/oled_text_muted" android:textSize="13sp" />
                                 </LinearLayout>
                                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginVertical="12dp" android:background="#222222" />
                                 <CheckBox
@@ -759,9 +759,9 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Outline"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp"
-                                    android:buttonTint="#008CFF" />
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <LinearLayout
                                     android:id="@+id/rowSubOutlineColor"
                                     android:layout_width="match_parent"
@@ -773,9 +773,9 @@
                                     android:focusable="true"
                                     android:background="?attr/selectableItemBackground">
                                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                                        android:text="Outline Color" android:textColor="#FFFFFF" android:textSize="14sp" />
+                                        android:text="Outline Color" android:textColor="@color/oled_text_primary" android:textSize="14sp" />
                                     <TextView android:id="@+id/tvSubOutlineColorValue" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                        android:textColor="#888888" android:textSize="13sp" />
+                                        android:textColor="@color/oled_text_muted" android:textSize="13sp" />
                                 </LinearLayout>
                             </LinearLayout>
                         </LinearLayout>
@@ -786,8 +786,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -808,7 +808,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="VIDEO PLAYER"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -817,7 +817,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▼"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -839,30 +839,30 @@
                                         android:id="@+id/rbPlayerInternal"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:buttonTint="#008CFF"
+                                        android:buttonTint="@color/oled_cyan_primary"
                                         android:text="Built-in player"
-                                        android:textColor="#FFFFFF" />
+                                        android:textColor="@color/oled_text_primary" />
                                     <RadioButton
                                         android:id="@+id/rbPlayerVlc"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:buttonTint="#008CFF"
+                                        android:buttonTint="@color/oled_cyan_primary"
                                         android:text="VLC"
-                                        android:textColor="#FFFFFF" />
+                                        android:textColor="@color/oled_text_primary" />
                                     <RadioButton
                                         android:id="@+id/rbPlayerMx"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:buttonTint="#008CFF"
+                                        android:buttonTint="@color/oled_cyan_primary"
                                         android:text="MX Player"
-                                        android:textColor="#FFFFFF" />
+                                        android:textColor="@color/oled_text_primary" />
                                     <RadioButton
                                         android:id="@+id/rbPlayerSystem"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:buttonTint="#008CFF"
+                                        android:buttonTint="@color/oled_cyan_primary"
                                         android:text="Ask every time"
-                                        android:textColor="#FFFFFF" />
+                                        android:textColor="@color/oled_text_primary" />
                                 </RadioGroup>
                             </LinearLayout>
                         </LinearLayout>
@@ -873,8 +873,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -895,7 +895,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="PROVIDER SPEED TEST"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -904,7 +904,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▼"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -921,9 +921,9 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A3A5C"
+                                    android:backgroundTint="@color/oled_cyan_wash"
                                     android:text="Run Speed Test"
-                                    android:textColor="#008CFF"
+                                    android:textColor="@color/oled_cyan_primary"
                                     android:textSize="13sp" />
                                 <TextView
                                     android:id="@+id/tvSpeedTestResult"
@@ -931,7 +931,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
                                     android:text=""
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -942,8 +942,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp">
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp">
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -963,7 +963,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="DNS OVER HTTPS"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -972,7 +972,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▼"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -988,7 +988,7 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:text="Bypass ISP throttling by encrypting DNS queries"
-                                    android:textColor="#888888"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp"
                                     android:layout_marginBottom="10dp" />
                                 <CheckBox
@@ -996,8 +996,8 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:text="Enable DNS over HTTPS"
-                                    android:textColor="#CCCCCC"
-                                    android:buttonTint="#008CFF" />
+                                    android:textColor="@color/oled_text_secondary"
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <RadioGroup
                                     android:id="@+id/rgDohProvider"
                                     android:layout_width="match_parent"
@@ -1009,22 +1009,22 @@
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:text="Cloudflare 1.1.1.1"
-                                        android:textColor="#CCCCCC"
-                                        android:buttonTint="#008CFF" />
+                                        android:textColor="@color/oled_text_secondary"
+                                        android:buttonTint="@color/oled_cyan_primary" />
                                     <RadioButton
                                         android:id="@+id/rbDohGoogle"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:text="Google 8.8.8.8"
-                                        android:textColor="#CCCCCC"
-                                        android:buttonTint="#008CFF" />
+                                        android:textColor="@color/oled_text_secondary"
+                                        android:buttonTint="@color/oled_cyan_primary" />
                                     <RadioButton
                                         android:id="@+id/rbDohNextDns"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:text="NextDNS"
-                                        android:textColor="#CCCCCC"
-                                        android:buttonTint="#008CFF" />
+                                        android:textColor="@color/oled_text_secondary"
+                                        android:buttonTint="@color/oled_cyan_primary" />
                                 </RadioGroup>
                             </LinearLayout>
                         </LinearLayout>
@@ -1035,8 +1035,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1053,7 +1053,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Tunneled Playback"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchTunneledPlayback"
@@ -1065,7 +1065,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Lets the device handle audio/video sync in hardware — smoother on supported devices, but can cause glitches on some. Off by default."
-                                android:textColor="#888888"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                             <LinearLayout
                                 android:layout_width="match_parent"
@@ -1078,7 +1078,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="DV7 → HEVC Fallback"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchDv7Fallback"
@@ -1090,7 +1090,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Maps Dolby Vision Profile 7 content to standard HEVC for devices without proper DV7 hardware support"
-                                android:textColor="#888888"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                             <LinearLayout
                                 android:layout_width="match_parent"
@@ -1103,7 +1103,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Audio Passthrough Fallback"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchAudioPassthroughFallback"
@@ -1115,7 +1115,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Forces stereo audio instead of Dolby/DTS passthrough — turn this on only if some channels/movies have no sound at all. Off by default since it disables surround sound on setups that do have a receiver."
-                                android:textColor="#888888"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                             <LinearLayout
                                 android:layout_width="match_parent"
@@ -1128,7 +1128,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Autoplay Next Episode"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchAutoplayNextEpisode"
@@ -1140,7 +1140,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Shows a cancelable 10-second Up Next prompt and auto-advances to the next episode when one finishes. On by default."
-                                android:textColor="#888888"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
@@ -1150,8 +1150,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1168,7 +1168,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Global Extra Buffering"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchExtraBuffering"
@@ -1180,7 +1180,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Enable extra buffering for all servers by default — trades a slower start/seek for fewer mid-playback stalls. On by default."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="12sp"
                                 android:lineSpacingExtra="2dp" />
                         </LinearLayout>
@@ -1190,8 +1190,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:id="@+id/rowLiveReconnectSpeed"
@@ -1212,14 +1212,14 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Live Reconnect Speed"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <TextView
                                     android:id="@+id/tvLiveReconnectSpeedValue"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Normal"
-                                    android:textColor="#888888"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="13sp" />
                             </LinearLayout>
                             <TextView
@@ -1227,7 +1227,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="How fast a live channel keeps retrying after a dropped/stalled connection. Aggressive retries quickly with a lower ceiling; Patient waits longer between attempts — useful for slower or less reliable providers."
-                                android:textColor="#888888"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
@@ -1236,8 +1236,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1254,7 +1254,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Allow Picture-in-Picture"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchPipEnabled"
@@ -1266,7 +1266,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Shrink live playback into a small floating window when you leave the app (e.g. press Home) instead of stopping it. On by default."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="12sp"
                                 android:lineSpacingExtra="2dp" />
                         </LinearLayout>
@@ -1276,8 +1276,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1294,7 +1294,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Live Preview on Press-and-Hold"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <com.google.android.material.switchmaterial.SwitchMaterial
                                     android:id="@+id/switchLiveChannelPreview"
@@ -1306,7 +1306,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Hold a channel's logo in the list to play a small muted preview before you commit to tuning in. Uses a real connection to your provider per preview, so it's off by default."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="12sp"
                                 android:lineSpacingExtra="2dp" />
                         </LinearLayout>
@@ -1316,8 +1316,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1334,7 +1334,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Data Saver (slow connections)"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <com.google.android.material.switchmaterial.SwitchMaterial
                                     android:id="@+id/switchDataSaver"
@@ -1346,7 +1346,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:text="Caps video at 480p / about 1.2 Mbps for slow Wi-Fi like on a plane. Only helps on channels your provider offers in more than one quality — a single-quality channel plays as usual. Takes effect the next time a channel starts."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="12sp"
                                 android:lineSpacingExtra="2dp" />
                         </LinearLayout>
@@ -1371,7 +1371,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="DISPLAY"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
@@ -1379,8 +1379,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1401,7 +1401,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="CHANNELS &amp; TABS"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -1410,7 +1410,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -1427,24 +1427,24 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Show USA Channels Only"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp"
-                                    android:buttonTint="#008CFF" />
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <CheckBox
                                     android:id="@+id/cbEnglishOnlyMovies"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
                                     android:text="Show English Movies &amp; Series Only"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp"
-                                    android:buttonTint="#008CFF" />
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <TextView
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="2dp"
                                     android:text="Experimental — only works if your provider labels movie/series categories with an EN/ENG/ENGLISH/US/USA tag."
-                                    android:textColor="#888888"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp" />
                                 <View
                                     android:layout_width="match_parent"
@@ -1462,9 +1462,9 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Show Movies Tab"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="14sp"
-                                        android:buttonTint="#008CFF"
+                                        android:buttonTint="@color/oled_cyan_primary"
                                         android:checked="true" />
                                     <Button
                                         android:id="@+id/btnRefreshMovies"
@@ -1472,7 +1472,7 @@
                                         android:layout_height="32dp"
                                         android:text="↻ Refresh"
                                         android:textSize="12sp"
-                                        android:textColor="#008CFF"
+                                        android:textColor="@color/oled_cyan_primary"
                                         android:background="@android:color/transparent"
                                         android:padding="4dp" />
                                 </LinearLayout>
@@ -1492,9 +1492,9 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Show Series Tab"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="14sp"
-                                        android:buttonTint="#008CFF"
+                                        android:buttonTint="@color/oled_cyan_primary"
                                         android:checked="true" />
                                     <Button
                                         android:id="@+id/btnRefreshSeries"
@@ -1502,7 +1502,7 @@
                                         android:layout_height="32dp"
                                         android:text="↻ Refresh"
                                         android:textSize="12sp"
-                                        android:textColor="#008CFF"
+                                        android:textColor="@color/oled_cyan_primary"
                                         android:background="@android:color/transparent"
                                         android:padding="4dp" />
                                 </LinearLayout>
@@ -1521,7 +1521,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Live Channels"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="14sp" />
                                     <Button
                                         android:id="@+id/btnRefreshChannels"
@@ -1529,7 +1529,7 @@
                                         android:layout_height="32dp"
                                         android:text="↻ Refresh"
                                         android:textSize="12sp"
-                                        android:textColor="#008CFF"
+                                        android:textColor="@color/oled_cyan_primary"
                                         android:background="@android:color/transparent"
                                         android:padding="4dp" />
                                 </LinearLayout>
@@ -1548,7 +1548,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Clear all favorited channels (this provider)"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="14sp" />
                                     <Button
                                         android:id="@+id/btnClearFavoriteChannels"
@@ -1570,9 +1570,9 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Show Watching Tab"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp"
-                                    android:buttonTint="#008CFF"
+                                    android:buttonTint="@color/oled_cyan_primary"
                                     android:checked="true" />
                                 <View
                                     android:layout_width="match_parent"
@@ -1597,14 +1597,14 @@
                                             android:layout_height="wrap_content"
                                             android:layout_weight="1"
                                             android:text="Auto-Clear Continue Watching"
-                                            android:textColor="#FFFFFF"
+                                            android:textColor="@color/oled_text_primary"
                                             android:textSize="14sp" />
                                         <TextView
                                             android:id="@+id/tvAutoClearContinueWatchingValue"
                                             android:layout_width="wrap_content"
                                             android:layout_height="wrap_content"
                                             android:text="Never"
-                                            android:textColor="#888888"
+                                            android:textColor="@color/oled_text_muted"
                                             android:textSize="13sp" />
                                     </LinearLayout>
                                     <TextView
@@ -1612,7 +1612,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_marginTop="4dp"
                                         android:text="Automatically clears an in-progress movie or show from Continue Watching once you haven't touched it for this long. It reappears if you actually resume it later."
-                                        android:textColor="#888888"
+                                        android:textColor="@color/oled_text_muted"
                                         android:textSize="11sp" />
                                 </LinearLayout>
                             </LinearLayout>
@@ -1623,8 +1623,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1645,7 +1645,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="ACCENT COLOR"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -1654,7 +1654,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -1681,9 +1681,9 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="AMOLED Black (pure black backgrounds)"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp"
-                                    android:buttonTint="#008CFF" />
+                                    android:buttonTint="@color/oled_cyan_primary" />
                                 <View
                                     android:layout_width="match_parent"
                                     android:layout_height="1dp"
@@ -1699,7 +1699,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Force TV Mode"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="14sp" />
                                     <Switch
                                         android:id="@+id/switchForceTvMode"
@@ -1711,7 +1711,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="4dp"
                                     android:text="Use the TV interface and D-pad navigation on this device even though it's not detected as a TV — for a car head unit/box or other non-standard screen. Restarts the app."
-                                    android:textColor="#888888"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -1722,7 +1722,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="20dp"
                         android:text="MULTI-VIEW"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
@@ -1731,8 +1731,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1743,7 +1743,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text="Watch up to 6 channels at once in a grid, with audio following whichever tile you select."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="13sp"
                                 android:lineSpacingExtra="3dp"
                                 android:paddingBottom="16dp" />
@@ -1751,7 +1751,7 @@
                                 android:id="@+id/btnOpenMosaic"
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
-                                android:backgroundTint="#008CFF"
+                                android:backgroundTint="@color/oled_cyan_primary"
                                 android:text="⊞ Open Mosaic"
                                 android:textAllCaps="false"
                                 android:textColor="#000000"
@@ -1778,8 +1778,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="16dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1800,7 +1800,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="QUICK ACTIONS"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -1809,7 +1809,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -1825,9 +1825,9 @@
                                     android:id="@+id/btnSettingsSort"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
-                                    android:backgroundTint="#1E1E1E"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="⇅  Sort Channels: Default"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp"
                                     android:gravity="start|center_vertical"
                                     android:paddingHorizontal="12dp" />
@@ -1836,9 +1836,9 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1E1E1E"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="⊞  Multi-view / Mosaic"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp"
                                     android:gravity="start|center_vertical"
                                     android:paddingHorizontal="12dp" />
@@ -1847,9 +1847,9 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1E1E1E"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="🎯  Feature Tour"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp"
                                     android:gravity="start|center_vertical"
                                     android:paddingHorizontal="12dp" />
@@ -1860,8 +1860,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1882,7 +1882,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="UPDATES"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -1891,7 +1891,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -1907,9 +1907,9 @@
                                 android:id="@+id/btnWhatsNew"
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
-                                android:backgroundTint="#1A3A5C"
+                                android:backgroundTint="@color/oled_cyan_wash"
                                 android:text="What's New / Changelog"
-                                android:textColor="#008CFF"
+                                android:textColor="@color/oled_cyan_primary"
                                 android:textStyle="bold"
                                 android:textSize="13sp" />
                             <Button
@@ -1917,7 +1917,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
                                 android:layout_marginTop="8dp"
-                                android:backgroundTint="#008CFF"
+                                android:backgroundTint="@color/oled_cyan_primary"
                                 android:text="Check for Updates"
                                 android:textColor="#000000"
                                 android:textStyle="bold"
@@ -1929,7 +1929,7 @@
                                 android:layout_marginTop="8dp"
                                 android:gravity="center"
                                 android:text=""
-                                android:textColor="#777777"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="12sp" />
                             <View
                                 android:layout_width="match_parent"
@@ -1950,14 +1950,14 @@
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
                                         android:text="Silent Self-Update (Android 12+)"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="14sp" />
                                     <TextView
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
                                         android:layout_marginTop="2dp"
                                         android:text="Skips the install confirmation screen for updates when Android allows it. Off by default."
-                                        android:textColor="#777777"
+                                        android:textColor="@color/oled_text_muted"
                                         android:textSize="11sp" />
                                 </LinearLayout>
                                 <com.google.android.material.switchmaterial.SwitchMaterial
@@ -1987,7 +1987,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="BACKUP &amp; RESTORE"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
@@ -1995,8 +1995,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -2013,7 +2013,7 @@
                                     android:layout_height="44dp"
                                     android:layout_weight="1"
                                     android:layout_marginEnd="4dp"
-                                    android:backgroundTint="#008CFF"
+                                    android:backgroundTint="@color/oled_cyan_primary"
                                     android:text="Backup"
                                     android:textColor="#000000"
                                     android:textStyle="bold"
@@ -2024,9 +2024,9 @@
                                     android:layout_height="44dp"
                                     android:layout_weight="1"
                                     android:layout_marginStart="4dp"
-                                    android:backgroundTint="#1E1E1E"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Restore"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                             </LinearLayout>
                             <TextView
@@ -2035,7 +2035,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="6dp"
                                 android:text=""
-                                android:textColor="#777777"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="12sp" />
                             <LinearLayout
                                 android:layout_width="match_parent"
@@ -2048,7 +2048,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Auto backup (weekly)"
-                                    android:textColor="#CCCCCC"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="13sp" />
                                 <com.google.android.material.switchmaterial.SwitchMaterial
                                     android:id="@+id/switchAutoBackup"
@@ -2066,7 +2066,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Auto-preview movies on focus"
-                                    android:textColor="#CCCCCC"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="13sp" />
                                 <com.google.android.material.switchmaterial.SwitchMaterial
                                     android:id="@+id/switchVodAutoPreview"
@@ -2081,23 +2081,23 @@
                                 android:layout_marginTop="8dp"
                                 android:text="Monthly Data Cap"
                                 android:textAllCaps="false"
-                                android:textColor="#008CFF" />
+                                android:textColor="@color/oled_cyan_primary" />
                             <TextView
                                 android:id="@+id/tvAutoBackupPath"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
                                 android:text=""
-                                android:textColor="#555555"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                             <Button
                                 android:id="@+id/btnManageBackups"
                                 android:layout_width="match_parent"
                                 android:layout_height="40dp"
                                 android:layout_marginTop="10dp"
-                                android:backgroundTint="#1E1E1E"
+                                android:backgroundTint="@color/oled_surface_container_low"
                                 android:text="Manage Backups on This Device"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/oled_text_primary"
                                 android:textSize="12sp" />
                             <LinearLayout
                                 android:layout_width="match_parent"
@@ -2110,7 +2110,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="New Episode Notifications"
-                                    android:textColor="#CCCCCC"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="13sp" />
                                 <com.google.android.material.switchmaterial.SwitchMaterial
                                     android:id="@+id/switchNewEpisodeNotifications"
@@ -2122,7 +2122,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
                                 android:text="Notifies you when a favorited show gets a new episode (checked daily)"
-                                android:textColor="#555555"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
@@ -2145,7 +2145,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="PROVIDERS"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
@@ -2153,8 +2153,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -2171,7 +2171,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
                                 android:layout_marginTop="8dp"
-                                android:backgroundTint="#008CFF"
+                                android:backgroundTint="@color/oled_cyan_primary"
                                 android:text="Add Provider"
                                 android:textColor="#000000"
                                 android:textStyle="bold"
@@ -2197,8 +2197,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -2219,7 +2219,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="CROSS-DEVICE SYNC"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -2228,7 +2228,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                         <LinearLayout
@@ -2245,7 +2245,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text="Sync favorites and watch history across your devices using Firebase."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="13sp"
                                 android:lineSpacingExtra="3dp"
                                 android:paddingBottom="16dp" />
@@ -2261,7 +2261,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="Auto Sync to Cloud (daily)"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="14sp" />
                                 <Switch
                                     android:id="@+id/switchSyncEnabled"
@@ -2274,7 +2274,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
                                 android:layout_marginBottom="8dp"
-                                android:backgroundTint="#008CFF"
+                                android:backgroundTint="@color/oled_cyan_primary"
                                 android:text="Push to Cloud"
                                 android:textColor="#000000"
                                 android:textStyle="bold"
@@ -2284,9 +2284,9 @@
                                 android:id="@+id/btnSyncDown"
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
-                                android:backgroundTint="#1A1A1A"
+                                android:backgroundTint="@color/oled_surface_container_low"
                                 android:text="Pull from Cloud"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/oled_text_primary"
                                 android:textSize="13sp" />
 
                             <TextView
@@ -2294,7 +2294,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
                                 android:text="Pairing Code (enter another device's sync code)"
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="12sp" />
 
                             <LinearLayout
@@ -2308,10 +2308,10 @@
                                     android:layout_width="0dp"
                                     android:layout_height="44dp"
                                     android:layout_weight="1"
-                                    android:background="#1A1A1A"
+                                    android:background="@color/oled_surface_container_low"
                                     android:hint="ABC12345"
-                                    android:textColorHint="#555555"
-                                    android:textColor="#FFFFFF"
+                                    android:textColorHint="@color/oled_text_muted"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="12sp"
                                     android:paddingHorizontal="10dp"
                                     android:inputType="textVisiblePassword"
@@ -2322,7 +2322,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="44dp"
                                     android:layout_marginStart="6dp"
-                                    android:backgroundTint="#008CFF"
+                                    android:backgroundTint="@color/oled_cyan_primary"
                                     android:text="Pair"
                                     android:textSize="13sp" />
                             </LinearLayout>
@@ -2332,9 +2332,9 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="40dp"
                                 android:layout_marginTop="8dp"
-                                android:backgroundTint="#1E1E1E"
+                                android:backgroundTint="@color/oled_surface_container_low"
                                 android:text="Saved Codes"
-                                android:textColor="#008CFF"
+                                android:textColor="@color/oled_cyan_primary"
                                 android:textSize="12sp" />
 
                             <Button
@@ -2342,7 +2342,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="40dp"
                                 android:layout_marginTop="8dp"
-                                android:backgroundTint="#1E1E1E"
+                                android:backgroundTint="@color/oled_surface_container_low"
                                 android:text="Join Watch Party"
                                 android:textColor="#00CC66"
                                 android:textSize="12sp" />
@@ -2352,7 +2352,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
-                                android:textColor="#888888"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="12sp"
                                 android:lineSpacingExtra="3dp" />
                         </LinearLayout>
@@ -2363,8 +2363,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -2385,7 +2385,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
                                     android:text="DIAGNOSTICS"
-                                    android:textColor="#AAAAAA"
+                                    android:textColor="@color/oled_text_secondary"
                                     android:textSize="12sp"
                                     android:textStyle="bold"
                                     android:letterSpacing="0.1" />
@@ -2394,7 +2394,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="▲"
-                                    android:textColor="#555555"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="14sp" />
                             </LinearLayout>
                             <LinearLayout
@@ -2417,7 +2417,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Automatic Crash Reporting"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="13sp" />
                                     <Switch
                                         android:id="@+id/switchCrashReporting"
@@ -2429,7 +2429,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginBottom="12dp"
                                     android:text="Automatically sends crash details so bugs can be found and fixed without you needing to send a debug report. No account info is included."
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp" />
                                 <LinearLayout
                                     android:layout_width="match_parent"
@@ -2442,7 +2442,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
                                         android:text="Share Anonymous Stream Health Data"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/oled_text_primary"
                                         android:textSize="13sp" />
                                     <Switch
                                         android:id="@+id/switchCommunityHealthSharing"
@@ -2454,13 +2454,13 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginBottom="12dp"
                                     android:text="Off by default. When on, a hashed (never the raw URL or your login) provider identifier plus the channel name and error type are shared anonymously so other users can see &quot;N people reported issues with this channel recently&quot;. No account info is included."
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="11sp" />
                                 <Button
                                     android:id="@+id/btnSendDebugReport"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Send Debug Report"
                                     android:textColor="#FF6B6B"
                                     android:textStyle="bold"
@@ -2471,61 +2471,61 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="4dp"
                                     android:text=""
-                                    android:textColor="#777777"
+                                    android:textColor="@color/oled_text_muted"
                                     android:textSize="12sp" />
                                 <Button
                                     android:id="@+id/btnProviderHealth"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Provider Health"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Button
                                     android:id="@+id/btnLanExport"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="LAN Export (Scan QR to Download)"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Button
                                     android:id="@+id/btnReceiveCast"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Receive a Cast"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Button
                                     android:id="@+id/btnComposeUiPreview"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Compose UI Preview (Experimental)"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Button
                                     android:id="@+id/btnDataUsage"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Data Usage"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                                 <Button
                                     android:id="@+id/btnProviderWeather"
                                     android:layout_width="match_parent"
                                     android:layout_height="44dp"
                                     android:layout_marginTop="8dp"
-                                    android:backgroundTint="#1A1A1A"
+                                    android:backgroundTint="@color/oled_surface_container_low"
                                     android:text="Provider Health Weather Map"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/oled_text_primary"
                                     android:textSize="13sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -2537,7 +2537,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="20dp"
                         android:text="TRAKT"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:letterSpacing="0.15"
@@ -2546,8 +2546,8 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardBackgroundColor="#161616"
-                        app:cardCornerRadius="8dp"
+                        app:cardBackgroundColor="@color/oled_surface_container_low"
+                        app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -2558,7 +2558,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text="Connect Trakt to automatically track your movie and episode watch activity."
-                                android:textColor="#AAAAAA"
+                                android:textColor="@color/oled_text_secondary"
                                 android:textSize="13sp"
                                 android:lineSpacingExtra="3dp"
                                 android:paddingBottom="16dp" />
@@ -2567,14 +2567,14 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:text=""
-                                android:textColor="#777777"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="13sp"
                                 android:paddingBottom="12dp" />
                             <Button
                                 android:id="@+id/btnTraktConnect"
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
-                                android:backgroundTint="#008CFF"
+                                android:backgroundTint="@color/oled_cyan_primary"
                                 android:text="Connect to Trakt"
                                 android:textColor="#000000"
                                 android:textStyle="bold"
@@ -2583,7 +2583,7 @@
                                 android:id="@+id/btnTraktDisconnect"
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
-                                android:backgroundTint="#1E1E1E"
+                                android:backgroundTint="@color/oled_surface_container_low"
                                 android:text="Disconnect"
                                 android:textColor="#FF6B6B"
                                 android:textSize="13sp"
@@ -2593,9 +2593,9 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="44dp"
                                 android:layout_marginTop="8dp"
-                                android:backgroundTint="#1E1E1E"
+                                android:backgroundTint="@color/oled_surface_container_low"
                                 android:text="Sync Watched History from Trakt"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/oled_text_primary"
                                 android:textSize="13sp"
                                 android:visibility="gone" />
                             <TextView
@@ -2604,7 +2604,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="6dp"
                                 android:text=""
-                                android:textColor="#777777"
+                                android:textColor="@color/oled_text_muted"
                                 android:textSize="12sp" />
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>

@@ -607,7 +607,7 @@ class PreferencesManager @Inject constructor(
     val preWarmOnFocus: Flow<Boolean> = context.dataStore.data.map { it[Keys.PRE_WARM_ON_FOCUS] ?: true }
     suspend fun setPreWarmOnFocus(enabled: Boolean) { context.dataStore.edit { it[Keys.PRE_WARM_ON_FOCUS] = enabled } }
 
-    val accentColor: Flow<String> = context.dataStore.data.map { it[Keys.ACCENT_COLOR] ?: "#008CFF" }
+    val accentColor: Flow<String> = context.dataStore.data.map { it[Keys.ACCENT_COLOR] ?: "#06B6D4" }
     val accentColorEnd: Flow<String> = context.dataStore.data.map { it[Keys.ACCENT_COLOR_END] ?: "" }
     suspend fun setAccentColor(color: String) {
         // A plain solid pick (the existing preset swatches / custom hue picker) always clears

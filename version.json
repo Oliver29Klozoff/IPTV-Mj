@@ -1,7 +1,7 @@
 {
-  "versionCode": 514,
-  "versionName": "6.76",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.76/MKTV.apk",
-  "apkSha256": "76c9ab70659998c7ce70ed431f3076097ea3712b65a838d0318117e292cf32d8",
-  "changelog": "Restyled Settings > Providers in the OLED/cyan look, with real per-provider live/movie/series counts and sync status instead of just a nickname and URL. No functional changes."
+  "versionCode": 515,
+  "versionName": "6.77",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.77/MKTV.apk",
+  "apkSha256": "0832981601023b7c9c6093f4c6f01c58ab06b3110c6775c2461e9c8815eaeb77",
+  "changelog": "Restyled the whole Settings screen in the OLED/cyan look. The active nav tab now follows your real accent color pick instead of being hardcoded. No functional changes."
 }

@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v6.77 - 2026-09-30
+- **Changed**: restyled the whole Settings screen (phone) in the OLED/cyan look, finishing what
+  v6.69/v6.70/v6.76 started — the nav rail, top bar, all cards, checkboxes/radio buttons, section
+  action buttons, and the EPG URL input field. The active nav tab now follows whatever accent
+  color you've actually picked (default swatch, a named gradient like "Ocean," or your own custom
+  color) instead of being hardcoded — its background is a subtle tint of your real accent, not a
+  fixed cyan that would clash with anything you've customized away from the default. Also changed
+  the app's default accent (for anyone who's never touched that setting) from the old blue to
+  cyan, matching everywhere else already reskinned; anyone with a custom pick keeps it untouched.
+  No functional changes — every toggle, button, and input works exactly as before.
+
 ## v6.76 - 2026-09-29
 - **Changed**: restyled Settings > Providers in the OLED/cyan look (continuing the reskin from
   v6.69/v6.70) — rounded cards instead of flat boxes, and each provider now shows its own real
