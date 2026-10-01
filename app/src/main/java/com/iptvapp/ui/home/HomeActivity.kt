@@ -1275,6 +1275,8 @@ class HomeActivity : AppCompatActivity() {
     private var isPipMode = false
     private var externalPlayerChoice = "internal"
     private var currentAccent: Int = android.graphics.Color.parseColor("#008CFF")
+    // Second color when the accent is a gradient preset (Sunset, Ocean …), null for a solid one.
+    private var currentAccentEnd: Int? = null
 
     @javax.inject.Inject lateinit var prefs: PreferencesManager
     @javax.inject.Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
@@ -1508,8 +1510,7 @@ class HomeActivity : AppCompatActivity() {
         tabs.forEach { (button, index) ->
             button?.setOnClickListener {
                 binding.tabLayout.getTabAt(index)?.select()
-                tabs.forEach { (b, _) -> b?.setTextColor(0xFFAAAAAA.toInt()) }
-                button.setTextColor(currentAccent)
+                tabs.forEach { (b, _) -> paintSidebarLabel(b, active = b === button) }
             }
         }
         // Landscape previously only had an undiscoverable long-press-the-sidebar-entry
@@ -1544,8 +1545,7 @@ class HomeActivity : AppCompatActivity() {
         binding.tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
                 val idx = tab?.position ?: return
-                tabs.forEach { (b, _) -> b?.setTextColor(0xFFAAAAAA.toInt()) }
-                tabs.firstOrNull { it.second == idx }?.first?.setTextColor(currentAccent)
+                tabs.forEach { (b, i) -> paintSidebarLabel(b, active = i == idx) }
             }
             override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
             override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
@@ -1563,7 +1563,16 @@ class HomeActivity : AppCompatActivity() {
             }
         })
         // Sync initial highlight to tab 0 (Favorites)
-        btn(R.id.landBtnFavorites)?.setTextColor(currentAccent)
+        paintSidebarLabel(btn(R.id.landBtnFavorites), active = true)
+    }
+
+    // A landscape sidebar label: the accent when it's the active tab — drawn as a gradient across
+    // the text when the accent is a gradient preset — plain grey otherwise. Every highlight change
+    // goes through here: a gradient is a paint shader, which a plain setTextColor wouldn't clear.
+    private fun paintSidebarLabel(button: android.widget.Button?, active: Boolean) {
+        button ?: return
+        if (active) com.iptvapp.util.AccentText.apply(button, currentAccent, currentAccentEnd)
+        else com.iptvapp.util.AccentText.plain(button, 0xFFAAAAAA.toInt())
     }
 
     private fun isLandscapeMode() =
@@ -1718,16 +1727,17 @@ class HomeActivity : AppCompatActivity() {
         scheduleContentAutoCollapse()
     }
 
-    // Gradient-preset accents (Sunset/Ocean/etc., picked in Settings) only ever render as a
-    // real gradient on the ONE surface here that can actually show one — the tab indicator bar,
-    // via TabLayout.setSelectedTabIndicator(Drawable), which (unlike
-    // setSelectedTabIndicatorColor(Int)) accepts an arbitrary Drawable. Everywhere else in this
-    // function (progress tints, text colors) can only ever hold a single solid color, so those
-    // stay on the gradient's start color exactly like a plain accent pick — a real gradient
-    // rework for focus rings/every list row's selected-state background across 14 layout files
-    // was scoped out as a separate, much bigger task.
+    // Gradient-preset accents (Sunset/Ocean/etc., picked in Settings) render as a real gradient
+    // wherever this screen can show one: the tab indicator bar (TabLayout.setSelectedTabIndicator
+    // accepts an arbitrary Drawable), the accent-colored labels — the mini player's now-playing
+    // line, Timeline view, the active landscape sidebar tab — as a gradient across the text
+    // (AccentText), and the selected genre chips (buildGenreChipView). The progress spinners and
+    // bar only take a single tint, so they stay on the gradient's start color like a plain pick.
+    // Focus rings / every list row's selected-state background across 14 layout files remain a
+    // separate, much bigger task.
     private fun applyAccent(colorInt: Int, gradientEndColorInt: Int? = null) {
         currentAccent = colorInt
+        currentAccentEnd = gradientEndColorInt
         if (gradientEndColorInt != null) {
             val gradient = android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
@@ -1741,8 +1751,8 @@ class HomeActivity : AppCompatActivity() {
         binding.miniPlayerProgress?.indeterminateTintList = csl
         binding.progressBar?.indeterminateTintList = csl
         binding.miniEpgProgress?.progressTintList = csl
-        binding.tvMiniEpg?.setTextColor(colorInt)
-        binding.btnTimelineViewRow?.setTextColor(colorInt)
+        binding.tvMiniEpg?.let { com.iptvapp.util.AccentText.apply(it, colorInt, gradientEndColorInt) }
+        binding.btnTimelineViewRow?.let { com.iptvapp.util.AccentText.apply(it, colorInt, gradientEndColorInt) }
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
@@ -1752,9 +1762,7 @@ class HomeActivity : AppCompatActivity() {
             R.id.landBtnGuide to TAB_GUIDE, R.id.landBtnWatching to TAB_HISTORY
         )
         sidebarMap.forEach { (id, idx) ->
-            binding.root.findViewById<android.widget.Button?>(id)?.setTextColor(
-                if (idx == tabIdx) colorInt else 0xFFAAAAAA.toInt()
-            )
+            paintSidebarLabel(binding.root.findViewById(id), active = idx == tabIdx)
         }
     }
 
@@ -3550,7 +3558,13 @@ class HomeActivity : AppCompatActivity() {
                 shape = android.graphics.drawable.GradientDrawable.RECTANGLE
                 cornerRadius = 32f
                 if (selected) {
-                    setColor(currentAccent)
+                    val end = currentAccentEnd
+                    if (end != null) {
+                        orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                        colors = intArrayOf(currentAccent, end)
+                    } else {
+                        setColor(currentAccent)
+                    }
                 } else {
                     setColor(0xFF2A2A2A.toInt())
                     setStroke(2, 0xFF555555.toInt())

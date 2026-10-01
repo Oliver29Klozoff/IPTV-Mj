@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The same toggle for settings that are CheckBoxes in code (Show Movies tab, AMOLED black …), as
-     one drawable. This XML version only shows until the accent is known: then
-     SettingsActivity.applyRackAccent swaps in rackToggleDrawable(), the identical shape in the
-     user's accent. (It can't be tinted like rack_switch_track, because track and knob share one
-     drawable here and need different colors.) Cyan = the app's default accent. -->
+     one drawable (track and knob together). Only what inflates: SettingsActivity.applyRackAccent
+     swaps in rackToggleDrawable(), the identical shape in the user's accent or gradient, before
+     the first frame. Cyan = the app's default accent. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_checked="true">
         <layer-list>

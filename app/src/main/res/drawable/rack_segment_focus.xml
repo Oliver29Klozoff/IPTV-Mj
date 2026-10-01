@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A segment's D-pad focus outline, drawn as its foreground so the accent tint on its background
-     (rack_segment_bg.xml) never touches it: light on every segment, checked or not. -->
+<!-- A segment's D-pad focus outline, drawn as its foreground so it sits above the accent (or
+     gradient) fill of a chosen segment and survives SettingsActivity swapping that background:
+     light on every segment, chosen or not. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">

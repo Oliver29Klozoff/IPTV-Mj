@@ -489,7 +489,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
         // Default accent until loadSettings reads the real one — the Rack drawables are drawn
         // white where the accent goes, so they need a tint before the first frame.
-        applyRackAccent(accentColorInt())
+        applyRackAccent()
         wireToggleRows(binding.root)
         hideWhileEmpty(
             binding.tvEpgRefreshStatus, binding.tvSpeedTestResult, binding.tvUpdateStatus,
@@ -844,8 +844,7 @@ class SettingsActivity : AppCompatActivity() {
             panelViews.forEachIndexed { i, panel ->
                 panel.visibility = if (i == index) View.VISIBLE else View.GONE
             }
-            val accent = accentColorInt()
-            navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == index, accent = accent) }
+            navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == index) }
         }
         navButtonViews.forEachIndexed { i, btn -> btn.setOnClickListener { selectPanel(i) } }
         binding.headerRecordings.setOnClickListener {
@@ -890,7 +889,7 @@ class SettingsActivity : AppCompatActivity() {
             currentAccentColor = hex
             currentAccentColorEnd = ""
             lifecycleScope.launch { prefs.setAccentColor(hex) }
-            applyAccentToSettings(Color.parseColor(hex))
+            applyAccentToSettings()
             setupAccentPicker()
         }
 
@@ -898,7 +897,7 @@ class SettingsActivity : AppCompatActivity() {
             currentAccentColor = gradient.second
             currentAccentColorEnd = gradient.third
             lifecycleScope.launch { prefs.setAccentGradient(gradient.second, gradient.third) }
-            applyAccentToSettings(Color.parseColor(gradient.second))
+            applyAccentToSettings()
             setupAccentPicker()
         }
 
@@ -942,7 +941,8 @@ class SettingsActivity : AppCompatActivity() {
         container.addView(solids)
 
         // GRADIENTS + Custom — chips with a color swatch and the preset's name. The selected chip
-        // gets an outline in its own start color; Custom is dashed until it's the active choice.
+        // gets an outline in its own colors (a gradient ring for a gradient); Custom is dashed
+        // until it's the active choice.
         container.addView(sectionLabel("GRADIENTS", 12))
         val chips = FlowLayout(this).apply {
             spacingPx = dp(8)
@@ -951,20 +951,29 @@ class SettingsActivity : AppCompatActivity() {
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
-        fun chip(label: String, dot: android.graphics.drawable.Drawable, selectedColor: Int?, dashed: Boolean, onClick: () -> Unit) =
+        fun chip(label: String, dot: android.graphics.drawable.Drawable, selected: IntArray?, dashed: Boolean, onClick: () -> Unit) =
             android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44))
                 setPadding(dp(10), 0, dp(14), 0)
-                background = android.graphics.drawable.GradientDrawable().apply {
+                background = if (selected != null) {
+                    // A stroke can only be one color, so the ring is a gradient-filled shape with
+                    // the group's own surface color laid 2dp inside it.
+                    android.graphics.drawable.LayerDrawable(arrayOf(
+                        android.graphics.drawable.GradientDrawable(
+                            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, selected
+                        ).apply { cornerRadius = dp(5).toFloat() },
+                        android.graphics.drawable.GradientDrawable().apply {
+                            cornerRadius = dp(3).toFloat()
+                            setColor(getColor(R.color.rack_surface))
+                        }
+                    )).apply { setLayerInset(1, dp(2), dp(2), dp(2), dp(2)) }
+                } else android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(5).toFloat()
                     setColor(Color.TRANSPARENT)
-                    when {
-                        selectedColor != null -> setStroke(dp(2), selectedColor)
-                        dashed -> setStroke(dp(1), getColor(R.color.rack_control_edge), dp(4).toFloat(), dp(3).toFloat())
-                        else -> setStroke(dp(1), getColor(R.color.rack_control_edge))
-                    }
+                    if (dashed) setStroke(dp(1), getColor(R.color.rack_control_edge), dp(4).toFloat(), dp(3).toFloat())
+                    else setStroke(dp(1), getColor(R.color.rack_control_edge))
                 }
                 isFocusable = true
                 foreground = focusRing(cornerDp = 5)
@@ -989,7 +998,11 @@ class SettingsActivity : AppCompatActivity() {
                 android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.parseColor(gradient.second), Color.parseColor(gradient.third))
             ).apply { cornerRadius = dp(3).toFloat() }
-            chips.addView(chip(gradient.first, dot, if (isSelected) Color.parseColor(gradient.second) else null, dashed = false) { pickGradient(gradient) })
+            chips.addView(chip(
+                gradient.first, dot,
+                if (isSelected) intArrayOf(Color.parseColor(gradient.second), Color.parseColor(gradient.third)) else null,
+                dashed = false
+            ) { pickGradient(gradient) })
         }
         val customSelected = accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty()
         val customDot = android.graphics.drawable.GradientDrawable().apply {
@@ -1003,7 +1016,11 @@ class SettingsActivity : AppCompatActivity() {
                 gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
             }
         }
-        chips.addView(chip("Custom", customDot, if (customSelected) Color.parseColor(currentAccentColor) else null, dashed = !customSelected) { showCustomColorPickerDialog() })
+        chips.addView(chip(
+            "Custom", customDot,
+            if (customSelected) Color.parseColor(currentAccentColor).let { intArrayOf(it, it) } else null,
+            dashed = !customSelected
+        ) { showCustomColorPickerDialog() })
         container.addView(chips)
     }
 
@@ -1062,7 +1079,7 @@ class SettingsActivity : AppCompatActivity() {
                 currentAccentColor = hex
                 currentAccentColorEnd = ""
                 lifecycleScope.launch { prefs.setAccentColor(hex) }
-                applyAccentToSettings(Color.parseColor(hex))
+                applyAccentToSettings()
                 setupAccentPicker()
             }
             .setNegativeButton("Cancel", null)
@@ -1071,28 +1088,34 @@ class SettingsActivity : AppCompatActivity() {
 
     // Picking a new accent changes what "the active color" is without switching tabs, so
     // everything accent-colored — the active tab included — gets repainted here, or it would stay
-    // on the previous accent until something else happened to refresh it.
-    private fun applyAccentToSettings(colorInt: Int) {
-        applyRackAccent(colorInt)
+    // on the previous accent until something else happened to refresh it. Reads the new pick from
+    // currentAccentColor / currentAccentColorEnd, which every caller sets first.
+    private fun applyAccentToSettings() {
+        applyRackAccent()
     }
 
     // One tab of the tab row. Idle tabs keep their XML look (Rack.Tab: grey label; a lifted fill
     // and light outline under D-pad focus). The active tab's label and a 2dp underline are the
-    // user's accent. The underline is the button's foreground, so it never fights the focus fill
-    // and outline, which are its background — focus stays visible on the active tab too.
-    // The font stays the same either way, so switching tabs never shifts their widths.
-    private fun styleNavTab(btn: android.widget.Button, active: Boolean, accent: Int) {
+    // user's accent — a left-to-right sweep when it's a gradient. The underline is the button's
+    // foreground, so it never fights the focus fill and outline, which are its background —
+    // focus stays visible on the active tab too. The font stays the same either way, so switching
+    // tabs never shifts their widths.
+    private fun styleNavTab(btn: android.widget.Button, active: Boolean) {
         val tab = btn as? com.google.android.material.button.MaterialButton ?: return
         if (active) {
-            tab.setTextColor(accent)
-            tab.foreground = android.graphics.drawable.LayerDrawable(
-                arrayOf(android.graphics.drawable.ColorDrawable(accent))
-            ).apply {
+            val start = accentColorInt()
+            val end = accentEndColorInt()
+            com.iptvapp.util.AccentText.apply(tab, start, end)
+            tab.foreground = android.graphics.drawable.LayerDrawable(arrayOf(
+                android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(start, end ?: start)
+                )
+            )).apply {
                 setLayerGravity(0, android.view.Gravity.BOTTOM or android.view.Gravity.FILL_HORIZONTAL)
-                setLayerHeight(0, (2 * resources.displayMetrics.density + 0.5f).toInt())
+                setLayerHeight(0, px(2))
             }
         } else {
-            tab.setTextColor(getColorStateList(R.color.rack_tab_text))
+            com.iptvapp.util.AccentText.plain(tab, getColorStateList(R.color.rack_tab_text))
             tab.foreground = null
         }
     }
@@ -1101,22 +1124,41 @@ class SettingsActivity : AppCompatActivity() {
     private fun accentColorInt(): Int =
         try { Color.parseColor(currentAccentColor) } catch (_: Exception) { getColor(R.color.oled_cyan_primary) }
 
+    // The gradient's second color when the accent is a gradient preset, null for a solid accent.
+    private fun accentEndColorInt(): Int? =
+        currentAccentColorEnd.takeIf { it.isNotEmpty() }?.let { try { Color.parseColor(it) } catch (_: Exception) { null } }
+
     // ─── Studio Rack styling (v6.80) ───────────────────────────────────────────
 
     private fun rackFont(res: Int): android.graphics.Typeface? =
         try { androidx.core.content.res.ResourcesCompat.getFont(this, res) } catch (_: Exception) { null }
 
-    // Black or white, whichever reads on the accent: black for every palette color, white only
-    // for a dark custom hue (a pure blue, say), where black text would fall under ~4.5:1.
-    private fun onAccentColor(accent: Int): Int =
-        if (androidx.core.graphics.ColorUtils.calculateLuminance(accent) >= 0.18) Color.BLACK else Color.WHITE
+    private fun px(dp: Int) = (dp * resources.displayMetrics.density + 0.5f).toInt()
 
-    // Paints the user's accent onto everything accent-colored under [root]: views are found by
-    // the android:tag their Rack style gives them (styles_settings.xml lists the tags), Switches
-    // and ProgressBars by type. Runs on open (with the default, then the saved accent), on every
-    // accent pick, and on each batch of rebuilt provider cards; repainting a view is harmless.
-    private fun applyRackAccent(accent: Int, root: View = binding.root) {
-        val onAccent = onAccentColor(accent)
+    // Black or white, whichever reads better on the accent — over both ends of a gradient, so it
+    // holds up across the whole sweep. Black for every swatch and preset; white only for a dark
+    // custom hue (a pure blue, say), where black would fall under ~4.5:1.
+    private fun onAccentColor(start: Int, end: Int?): Int {
+        val stops = listOfNotNull(start, end)
+        val black = stops.minOf { androidx.core.graphics.ColorUtils.calculateContrast(Color.BLACK, it) }
+        val white = stops.minOf { androidx.core.graphics.ColorUtils.calculateContrast(Color.WHITE, it) }
+        return if (black >= white) Color.BLACK else Color.WHITE
+    }
+
+    // Paints the user's accent onto everything accent-colored under [root]. A gradient accent is
+    // drawn as a real left-to-right gradient on every surface that can hold one — main buttons,
+    // "on" toggles, chosen segments, the active tab, values, dots, the progress bar — instead of
+    // falling back to its first color (which made Sunset look exactly like the orange swatch,
+    // Ocean like the blue one, and so on). Outlined buttons and icons stay on the first color.
+    // Views are found by the android:tag their Rack style gives them (styles_settings.xml lists
+    // the tags), Switches and ProgressBars by type. Runs on open (with the default, then the
+    // saved accent), on every accent pick, and on each batch of rebuilt provider cards;
+    // repainting a view is harmless.
+    private fun applyRackAccent(root: View = binding.root) {
+        val start = accentColorInt()
+        val end = accentEndColorInt()
+        val fill = intArrayOf(start, end ?: start)
+        val onAccent = onAccentColor(start, end)
         val disabled = intArrayOf(-android.R.attr.state_enabled)
         val focused = intArrayOf(android.R.attr.state_focused)
         val checked = intArrayOf(android.R.attr.state_checked)
@@ -1124,20 +1166,13 @@ class SettingsActivity : AppCompatActivity() {
         fun csl(vararg entries: Pair<IntArray, Int>) = android.content.res.ColorStateList(
             entries.map { it.first }.toTypedArray(), entries.map { it.second }.toIntArray()
         )
-        val fillBg = csl(disabled to getColor(R.color.rack_control_off), otherwise to accent)
         val fillText = csl(disabled to getColor(R.color.rack_disabled_text), otherwise to onAccent)
         val outlineStroke = csl(
             disabled to getColor(R.color.rack_control_edge),
             focused to getColor(R.color.rack_focus_ring),
-            otherwise to accent
+            otherwise to start
         )
-        val outlineText = csl(disabled to getColor(R.color.rack_disabled_text), otherwise to accent)
-        // MULTIPLY tints: the white parts of the Rack toggle / segment drawables become the accent
-        // (or the black-or-white knob), and everything else — greys, black, transparent — stays
-        // exactly as drawn.
-        val multiply = android.graphics.PorterDuff.Mode.MULTIPLY
-        val onTint = csl(checked to accent, otherwise to Color.WHITE)
-        val knobTint = csl(checked to onAccent, otherwise to Color.WHITE)
+        val outlineText = csl(disabled to getColor(R.color.rack_disabled_text), otherwise to start)
         val segmentText = csl(
             checked to onAccent,
             disabled to getColor(R.color.rack_disabled_text),
@@ -1148,87 +1183,183 @@ class SettingsActivity : AppCompatActivity() {
         fun paint(v: View) {
             when (v.tag) {
                 TAG_ACCENT_FILL -> (v as? com.google.android.material.button.MaterialButton)?.apply {
-                    backgroundTintList = fillBg; setTextColor(fillText); iconTint = fillText
+                    // A MaterialButton's own background can only take one tint color, so it
+                    // gets a drawn one (fill, focus outline, disabled grey, ripple) instead.
+                    background = rackFillBackground(fill, px(4).toFloat())
+                    backgroundTintList = null
+                    setTextColor(fillText); iconTint = fillText
                 }
                 TAG_ACCENT_OUTLINE -> (v as? com.google.android.material.button.MaterialButton)?.apply {
                     strokeColor = outlineStroke; setTextColor(outlineText); iconTint = outlineText
                 }
                 TAG_ACCENT_ICON -> (v as? com.google.android.material.button.MaterialButton)?.iconTint = outlineText
-                TAG_ACCENT_TEXT -> (v as? android.widget.TextView)?.setTextColor(accent)
-                TAG_ACCENT_DOT -> v.background = accentDot(accent)
+                TAG_ACCENT_TEXT -> (v as? android.widget.TextView)?.let { com.iptvapp.util.AccentText.apply(it, start, end) }
+                TAG_ACCENT_DOT -> v.background = accentDot(start, end)
                 TAG_TOGGLE -> (v as? android.widget.CompoundButton)?.let { toggle ->
                     androidx.core.widget.CompoundButtonCompat.setButtonTintList(toggle, null)
-                    toggle.buttonDrawable = rackToggleDrawable(accent, onAccent)
+                    toggle.buttonDrawable = rackToggleDrawable(fill, onAccent)
                 }
                 TAG_SEGMENT -> (v as? android.widget.RadioButton)?.let { segment ->
-                    androidx.core.view.ViewCompat.setBackgroundTintList(segment, onTint)
-                    androidx.core.view.ViewCompat.setBackgroundTintMode(segment, multiply)
+                    androidx.core.view.ViewCompat.setBackgroundTintList(segment, null)
+                    segment.background = rackSegmentBackground(fill)
                     segment.setTextColor(segmentText)
                 }
             }
             when (v) {
                 is androidx.appcompat.widget.SwitchCompat -> {
-                    v.trackTintList = onTint; v.trackTintMode = multiply
-                    v.thumbTintList = knobTint; v.thumbTintMode = multiply
+                    v.trackDrawable = rackTrackDrawable(fill); v.trackTintList = null
+                    v.thumbDrawable = rackThumbDrawable(onAccent); v.thumbTintList = null
                 }
                 is android.widget.Switch -> {
-                    v.trackTintList = onTint; v.trackTintMode = multiply
-                    v.thumbTintList = knobTint; v.thumbTintMode = multiply
+                    v.trackDrawable = rackTrackDrawable(fill); v.trackTintList = null
+                    v.thumbDrawable = rackThumbDrawable(onAccent); v.thumbTintList = null
                 }
-                is android.widget.ProgressBar -> v.progressTintList = android.content.res.ColorStateList.valueOf(accent)
+                is android.widget.ProgressBar -> if (!v.isIndeterminate) {
+                    v.progressDrawable = rackProgressDrawable(fill)
+                    v.progressTintList = null
+                    v.progressBackgroundTintList = null
+                }
             }
             if (v is ViewGroup) for (i in 0 until v.childCount) paint(v.getChildAt(i))
         }
         paint(root)
         if (root === binding.root) {
-            navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == currentPanelIndex, accent = accent) }
-            binding.btnSettingsSort.text = sortButtonLabel(accent)
+            navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == currentPanelIndex) }
+            binding.btnSettingsSort.text = sortButtonLabel(start)
         }
     }
 
-    // The toggle drawn for CheckBox-backed settings: the same square track and knob as
-    // rack_switch_track / rack_switch_thumb, built here because track and knob share one drawable
-    // and need different colors (accent vs. black-or-white), which a single tint can't give.
-    private fun rackToggleDrawable(accent: Int, onAccent: Int): android.graphics.drawable.Drawable {
-        val density = resources.displayMetrics.density
-        fun dp(v: Int) = (v * density + 0.5f).toInt()
-        fun toggle(track: Int, edge: Int?, knob: Int, knobAtEnd: Boolean) = android.graphics.drawable.LayerDrawable(arrayOf(
+    // The drawn background of a solid accent button: the accent (or gradient) fill, a light
+    // outline under D-pad focus, grey while disabled (e.g. Refresh mid-refresh), and a ripple.
+    private fun rackFillBackground(fill: IntArray, radius: Float): android.graphics.drawable.Drawable {
+        fun shape(colors: IntArray?, solid: Int, stroke: Int?) = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = radius
+            if (colors != null) {
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                this.colors = colors
+            } else {
+                setColor(solid)
+            }
+            if (stroke != null) setStroke(px(2), stroke)
+        }
+        val states = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(-android.R.attr.state_enabled), shape(null, getColor(R.color.rack_control_off), null))
+            addState(intArrayOf(android.R.attr.state_focused), shape(fill, 0, getColor(R.color.rack_focus_ring)))
+            addState(intArrayOf(), shape(fill, 0, null))
+        }
+        return android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(0x33000000), states, shape(null, Color.WHITE, null)
+        )
+    }
+
+    // A Switch's track: the accent (or gradient) when on, the grey square well when off. Same
+    // shape and size as rack_switch_track.xml, which is only the first frame.
+    private fun rackTrackDrawable(fill: IntArray) = android.graphics.drawable.StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_checked), android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fill
+        ).apply { cornerRadius = px(5).toFloat(); setSize(px(56), px(30)) })
+        addState(intArrayOf(), android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = px(5).toFloat()
+            setColor(getColor(R.color.rack_control_off))
+            setStroke(px(1), getColor(R.color.rack_control_edge))
+            setSize(px(56), px(30))
+        })
+    }
+
+    // A Switch's knob: black or white on the accent when on, grey when off. 22dp with 3dp / 4dp of
+    // transparent inset, so the Switch's own width math (2 x thumb width) lands on the 56dp track —
+    // same as rack_switch_thumb.xml.
+    private fun rackThumbDrawable(onAccent: Int): android.graphics.drawable.Drawable {
+        fun knob(color: Int) = android.graphics.drawable.LayerDrawable(arrayOf(
             android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(5).toFloat()
-                setColor(track)
-                if (edge != null) setStroke(dp(1), edge)
-                setSize(dp(56), dp(30))
+                cornerRadius = px(3).toFloat()
+                setColor(color)
+                setSize(px(22), px(22))
+            }
+        )).apply { setLayerInset(0, px(3), px(4), px(3), px(4)) }
+        return android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_checked), knob(onAccent))
+            addState(intArrayOf(), knob(getColor(R.color.rack_knob_off)))
+        }
+    }
+
+    // The same toggle for CheckBox-backed settings, as one drawable (track and knob together).
+    private fun rackToggleDrawable(fill: IntArray, onAccent: Int): android.graphics.drawable.Drawable {
+        fun toggle(track: IntArray, edge: Int?, knob: Int, knobAtEnd: Boolean) = android.graphics.drawable.LayerDrawable(arrayOf(
+            android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, track
+            ).apply {
+                cornerRadius = px(5).toFloat()
+                if (edge != null) setStroke(px(1), edge)
+                setSize(px(56), px(30))
             },
             android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(3).toFloat()
+                cornerRadius = px(3).toFloat()
                 setColor(knob)
             }
         )).apply {
             setLayerGravity(1, (if (knobAtEnd) android.view.Gravity.END else android.view.Gravity.START) or android.view.Gravity.CENTER_VERTICAL)
-            setLayerInset(1, dp(4), 0, dp(4), 0)
-            setLayerSize(1, dp(22), dp(22))
+            setLayerInset(1, px(4), 0, px(4), 0)
+            setLayerSize(1, px(22), px(22))
         }
+        val off = getColor(R.color.rack_control_off)
         return android.graphics.drawable.StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_checked), toggle(accent, null, onAccent, knobAtEnd = true))
+            addState(intArrayOf(android.R.attr.state_checked), toggle(fill, null, onAccent, knobAtEnd = true))
             addState(intArrayOf(), toggle(
-                getColor(R.color.rack_control_off), getColor(R.color.rack_control_edge),
+                intArrayOf(off, off), getColor(R.color.rack_control_edge),
                 getColor(R.color.rack_knob_off), knobAtEnd = false
             ))
         }
     }
 
-    // The status strip's provider dot: the accent with a soft halo, standing in for a glow.
-    private fun accentDot(accent: Int): android.graphics.drawable.Drawable {
-        val inset = (2 * resources.displayMetrics.density + 0.5f).toInt()
+    // One segment's background: the accent (or gradient) when chosen, a lifted fill under D-pad
+    // focus or a press, nothing otherwise. The focus outline is the segment's foreground
+    // (rack_segment_focus.xml), so swapping this never touches it.
+    private fun rackSegmentBackground(fill: IntArray) = android.graphics.drawable.StateListDrawable().apply {
+        val radius = px(4).toFloat()
+        addState(intArrayOf(android.R.attr.state_checked), android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fill
+        ).apply { cornerRadius = radius })
+        addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = radius; setColor(getColor(R.color.rack_focus_fill))
+        })
+        addState(intArrayOf(android.R.attr.state_pressed), android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = radius; setColor(getColor(R.color.rack_pressed))
+        })
+    }
+
+    // The EPG refresh bar: a grey track with the accent (or gradient) revealed as it fills.
+    private fun rackProgressDrawable(fill: IntArray): android.graphics.drawable.Drawable {
+        val radius = px(2).toFloat()
         return android.graphics.drawable.LayerDrawable(arrayOf(
             android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(Color.argb(70, Color.red(accent), Color.green(accent), Color.blue(accent)))
+                cornerRadius = radius; setColor(getColor(R.color.rack_control_off))
             },
-            android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(accent)
-            }
+            android.graphics.drawable.ClipDrawable(
+                android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fill
+                ).apply { cornerRadius = radius },
+                android.view.Gravity.START, android.graphics.drawable.ClipDrawable.HORIZONTAL
+            )
+        )).apply {
+            setId(0, android.R.id.background)
+            setId(1, android.R.id.progress)
+        }
+    }
+
+    // The status strip's (and a provider card's) ACTIVE dot: the accent — or the gradient, on a
+    // diagonal — with a soft halo standing in for a glow.
+    private fun accentDot(start: Int, end: Int?): android.graphics.drawable.Drawable {
+        val inset = px(2)
+        val stops = intArrayOf(start, end ?: start)
+        return android.graphics.drawable.LayerDrawable(arrayOf(
+            android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                stops.map { Color.argb(70, Color.red(it), Color.green(it), Color.blue(it)) }.toIntArray()
+            ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL },
+            android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR, stops
+            ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL }
         )).apply { setLayerInset(1, inset, inset, inset, inset) }
     }
 
@@ -2405,7 +2536,7 @@ class SettingsActivity : AppCompatActivity() {
                 currentAccentColorEnd = prefs.accentColorEnd.first()
                 setupAccentPicker()
                 // Also sets the Sort channels label, with its value in the accent.
-                applyAccentToSettings(accentColorInt())
+                applyAccentToSettings()
                 setupSubtitleSettings()
                 updateLastRefreshText()
                 updateCacheAgeText()
@@ -2628,7 +2759,7 @@ class SettingsActivity : AppCompatActivity() {
                     ).also { it.marginStart = dp(12) }
                     if (active) addView(View(this@SettingsActivity).apply {
                         tag = TAG_ACCENT_DOT
-                        background = accentDot(accent)
+                        background = accentDot(accent, accentEndColorInt())
                         layoutParams = android.widget.LinearLayout.LayoutParams(dp(12), dp(12)).also { it.marginEnd = dp(6) }
                     })
                     addView(android.widget.TextView(this@SettingsActivity).apply {
@@ -2949,7 +3080,7 @@ class SettingsActivity : AppCompatActivity() {
             )
             // The cards were built with the accent as it was a moment ago; if loadSettings has
             // read a different saved one since, this brings them in line.
-            applyRackAccent(accentColorInt(), ll)
+            applyRackAccent(ll)
         }
     }
 

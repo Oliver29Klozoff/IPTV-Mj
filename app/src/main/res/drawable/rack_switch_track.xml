@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Square-cornered toggle track (Studio Rack). The "on" track is drawn white on purpose:
-     SettingsActivity.applyRackAccent tints it with the user's accent in MULTIPLY mode, which turns
-     white into the accent and leaves the grey "off" track exactly as drawn. -->
+<!-- Square-cornered toggle track (Studio Rack). Only what inflates: SettingsActivity.applyRackAccent
+     swaps in rackTrackDrawable() — the same shape, in the user's accent or gradient — before the
+     first frame. Cyan = the app's default accent. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_checked="true">
         <shape android:shape="rectangle">
-            <solid android:color="#FFFFFFFF" />
+            <solid android:color="@color/oled_cyan_primary" />
             <corners android:radius="5dp" />
             <size android:width="56dp" android:height="30dp" />
         </shape>

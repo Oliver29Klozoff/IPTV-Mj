@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Solid accent button fill. Cyan (the app's default accent) only until
-     SettingsActivity.applyRackAccent replaces it with the user's own accent. -->
+<!-- Solid accent button fill — only what inflates. SettingsActivity.applyRackAccent replaces the
+     whole background (rackFillBackground: the user's accent or gradient, focus outline, disabled
+     grey) before the first frame. Cyan = the app's default accent. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_enabled="false" android:color="@color/rack_control_off" />
     <item android:color="@color/oled_cyan_primary" />

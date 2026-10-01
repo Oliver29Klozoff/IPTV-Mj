@@ -13,8 +13,10 @@
        accentIcon    grey button with an accent icon  accentText     text in the accent (values)
        accentDot     the status strip's provider dot  toggle         CheckBox drawn as a toggle
        segment       one option of a segmented control
-     Switches and ProgressBars are found by type. The XML colors are only the first frame (cyan,
-     the app's default accent).
+     Switches and ProgressBars are found by type. When the accent is a gradient preset, fills,
+     "on" toggles, chosen segments, the active tab, values and dots are drawn as a real gradient
+     (outlined buttons and icons keep its first color), so those get drawables built in code. The
+     XML colors and drawables are only what inflates (cyan, the app's default accent).
 
      D-pad focus (TV / car box) is the same everywhere: a lifted fill plus a light outline, never
      the accent, so focus stays visible on things that are already accent-colored.
@@ -256,8 +258,8 @@
         <item name="android:showDividers">middle</item>
     </style>
 
-    <!-- One option of a segmented control (a RadioButton; see rack_segment_bg for how the accent
-         gets onto the checked one). -->
+    <!-- One option of a segmented control (a RadioButton). The chosen one's accent / gradient fill
+         is drawn by SettingsActivity.rackSegmentBackground; rack_segment_bg is what inflates. -->
     <style name="Rack.Segment" parent="Widget.MaterialComponents.CompoundButton.RadioButton">
         <item name="android:tag">segment</item>
         <item name="android:button">@null</item>

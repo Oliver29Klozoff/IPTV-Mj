@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v6.81 - 2026-09-30
+- **Changed**: the gradient accents (Sunset, Ocean, Berry, Aurora in Display → Accent color) now
+  actually look like gradients. Before, picking one only used its first color, so Sunset looked
+  exactly like the orange swatch, Ocean like the blue one, and so on. In Settings, the main
+  buttons, "on" toggles, chosen options, the active tab, values and the provider dot are now drawn
+  as a two-color sweep, and the chosen gradient chip gets a gradient ring.
+- **Changed**: on the home screen, a gradient accent also sweeps across the active landscape
+  sidebar tab, the mini player's now-playing line, the Timeline view button and the selected genre
+  chips (the tab underline already showed it).
+
 ## v6.80 - 2026-09-30
 - **Changed**: Settings has the new "Studio Rack" look you picked (design A): pure black, the
   Barlow typeface, tabs across the top instead of the left rail, and a status strip under the
