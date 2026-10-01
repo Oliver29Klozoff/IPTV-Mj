@@ -66,6 +66,8 @@ class SeriesDetailActivity : AppCompatActivity() {
         // tab underline as a gradient for a gradient accent). Phone / car box only, not the Shield.
         if (com.iptvapp.util.RackAccent.appliesTo(this)) lifecycleScope.launch {
             val accent = com.iptvapp.util.RackAccent.load(prefs)
+            // The layout's tabIndicatorColor would tint the gradient back to one color; clear it first.
+            binding.tabSeasons.setSelectedTabIndicatorColor(android.graphics.Color.TRANSPARENT)
             binding.tabSeasons.setSelectedTabIndicator(android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, accent.stops
             ))

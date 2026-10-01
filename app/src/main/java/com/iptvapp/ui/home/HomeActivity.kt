@@ -2428,6 +2428,7 @@ class HomeActivity : AppCompatActivity() {
             binding.miniPlayerView?.player = miniPlayer
             binding.miniPlayerContainer?.visibility = View.VISIBLE
             binding.miniInfoStrip?.visibility = View.VISIBLE
+            binding.miniPlayerColumn?.visibility = View.VISIBLE
             binding.pipCorner?.visibility = View.GONE
             binding.btnCollapsePip?.text = "PiP ▼"
             isPipMode = false
@@ -2436,6 +2437,7 @@ class HomeActivity : AppCompatActivity() {
             binding.pipCornerView?.player = miniPlayer
             binding.miniPlayerContainer?.visibility = View.GONE
             binding.miniInfoStrip?.visibility = View.GONE
+            binding.miniPlayerColumn?.visibility = View.GONE // car box: let the channel panel take the row
             binding.pipCorner?.visibility = View.VISIBLE
             binding.tvPipChannelName?.text = currentMiniTitle
             isPipMode = true
