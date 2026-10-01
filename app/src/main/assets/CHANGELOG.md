@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v6.83 - 2026-10-01
+- **Changed**: Settings → Providers lists the active provider first, then your other providers,
+  with disabled ones at the very bottom. Each card's buttons work exactly as before.
+
 ## v6.82 - 2026-10-01
 - **New**: a "Neon" gradient accent — cyan to purple — first in Display → Accent color →
   Gradients.

@@ -1,7 +1,7 @@
 {
-  "versionCode": 520,
-  "versionName": "6.82",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.82/MKTV.apk",
-  "apkSha256": "cafe7613689e45a851900cc5e377058a2e1690cc33b7505dc2f753bb786547ce",
-  "changelog": "New Neon gradient accent (cyan to purple), and Settings tabs can now be swiped left and right."
+  "versionCode": 521,
+  "versionName": "6.83",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.83/MKTV.apk",
+  "apkSha256": "4a77369b63894694cfeaff9757040b273d8fd5ee0f50e5ff4179209e36666cf9",
+  "changelog": "Settings > Providers now shows the active provider first, other providers next, and disabled ones at the bottom."
 }

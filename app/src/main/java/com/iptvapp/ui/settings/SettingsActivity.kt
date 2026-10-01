@@ -2898,6 +2898,11 @@ class SettingsActivity : AppCompatActivity() {
                 (layoutInflater.inflate(layoutRes, parent, false) as com.google.android.material.button.MaterialButton)
                     .apply { text = label }
 
+            // Cards are collected with a rank and added at the end, so the active provider comes
+            // first, then the other enabled ones, then disabled ones (each group in its usual order).
+            // Only the on-screen order changes: every card's buttons still act on its own index.
+            val cards = mutableListOf<Pair<Int, View>>()
+            fun rank(active: Boolean, enabled: Boolean) = when { active -> 0; enabled -> 1; else -> 2 }
             val primaryRow = providerCard(dimmed = false).apply {
                 addView(cardHeader("PRIMARY PROVIDER", primaryNick, active = activeIndex == -1))
                 // Extra providers already show their URL directly (added earlier so a stray
@@ -2914,7 +2919,7 @@ class SettingsActivity : AppCompatActivity() {
                 setOnClickListener { showEditPrimaryDialog(creds, primaryNick) }
                 primaryRow.addView(this)
             }
-            ll.addView(primaryRow)
+            cards.add(rank(active = activeIndex == -1, enabled = true) to primaryRow)
 
             extraServers.forEachIndexed { i, server ->
                 val url = server[0]; val user = server[1]
@@ -3129,8 +3134,9 @@ class SettingsActivity : AppCompatActivity() {
                     }
                     row.addView(this)
                 }
-                ll.addView(row)
+                cards.add(rank(active = activeIndex == i, enabled = enabled) to row)
             }
+            cards.sortedBy { it.first }.forEach { ll.addView(it.second) }
 
             // The status strip's PROVIDER / CHANNELS readouts follow whichever provider is active.
             val activeServer = extraServers.getOrNull(activeIndex)
