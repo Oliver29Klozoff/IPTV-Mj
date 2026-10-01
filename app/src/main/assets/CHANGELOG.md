@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.82 - 2026-10-01
+- **New**: a "Neon" gradient accent — cyan to purple — first in Display → Accent color →
+  Gradients.
+- **New**: swipe left or right anywhere on a Settings tab to move to the next or previous tab
+  (Recordings is skipped, since it opens its own screen). A swipe never taps the toggle or button
+  it starts on; scrolling up and down works as before.
+
 ## v6.81 - 2026-09-30
 - **Changed**: the gradient accents (Sunset, Ocean, Berry, Aurora in Display → Accent color) now
   actually look like gradients. Before, picking one only used its first color, so Sunset looked

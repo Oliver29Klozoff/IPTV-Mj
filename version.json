@@ -1,7 +1,7 @@
 {
-  "versionCode": 519,
-  "versionName": "6.81",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.81/MKTV.apk",
-  "apkSha256": "780e21781bbd3ea0eeeccf2a656ae8d254c62b6f928420a82b06d1df36fe1405",
-  "changelog": "Gradient accents (Sunset, Ocean, Berry, Aurora) now really show as gradients: buttons, toggles, chosen options, the active tab and values in Settings, plus highlights on the home screen. Before, a gradient looked the same as a solid color."
+  "versionCode": 520,
+  "versionName": "6.82",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.82/MKTV.apk",
+  "apkSha256": "cafe7613689e45a851900cc5e377058a2e1690cc33b7505dc2f753bb786547ce",
+  "changelog": "New Neon gradient accent (cyan to purple), and Settings tabs can now be swiped left and right."
 }

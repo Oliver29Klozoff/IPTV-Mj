@@ -466,11 +466,12 @@ class SettingsActivity : AppCompatActivity() {
         "#34C759" to "green", "#AF52DE" to "purple", "#FF9500" to "orange", "#FF2D55" to "pink",
         "#5AC8FA" to "light blue"
     )
-    // Named two-stop gradients — selectable alongside the flat swatches above. Picking one only
-    // ever paints a real gradient on the tab indicator (the one place that can render it); every
-    // other accent consumer (progress tints, text colors) falls back to the start color, same as
-    // a plain solid pick. See HomeActivity.applyAccent().
+    // Named two-stop gradients — selectable alongside the flat swatches above. Drawn as a real
+    // gradient wherever a surface can hold one (see applyRackAccent here and
+    // HomeActivity.applyAccent); single-tint things like progress spinners use the start color.
+    // Neon (cyan → purple) was asked for by name in v6.82 and leads the list.
     private val accentGradients = listOf(
+        Triple("Neon", "#06B6D4", "#AF52DE"),
         Triple("Sunset", "#FF9500", "#FF2D55"),
         Triple("Ocean", "#008CFF", "#34C759"),
         Triple("Berry", "#AF52DE", "#FF3B30"),
@@ -1560,6 +1561,66 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    // ─── Swipe between tabs ─────────────────────────────────────────────────
+    // A sideways swipe anywhere over the panels moves to the next / previous tab (Recordings is
+    // skipped — it opens its own screen, it isn't a panel). Watched at the Activity level so it
+    // works over any row; once a drag is clearly sideways the rows under the finger get a CANCEL,
+    // so a swipe never also taps a toggle or button. Vertical drags are left to the ScrollView,
+    // and the tab row and Quick bar (which scroll sideways themselves) aren't swipe areas.
+    private var swipeDownX = 0f
+    private var swipeDownY = 0f
+    private var swipeTracking = false
+    private var swiping = false
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                swipeDownX = ev.rawX
+                swipeDownY = ev.rawY
+                swiping = false
+                val panels = binding.sectionStream.parent as View
+                val loc = IntArray(2).also { panels.getLocationOnScreen(it) }
+                swipeTracking = ev.rawX >= loc[0] && ev.rawX < loc[0] + panels.width &&
+                    ev.rawY >= loc[1] && ev.rawY < loc[1] + panels.height
+            }
+            android.view.MotionEvent.ACTION_MOVE -> if (swipeTracking && !swiping) {
+                val dx = Math.abs(ev.rawX - swipeDownX)
+                val dy = Math.abs(ev.rawY - swipeDownY)
+                if (dx > slop * 2 && dx > dy * 1.5f) {
+                    swiping = true
+                    val cancel = android.view.MotionEvent.obtain(ev).apply { action = android.view.MotionEvent.ACTION_CANCEL }
+                    super.dispatchTouchEvent(cancel)
+                    cancel.recycle()
+                } else if (dy > slop) {
+                    swipeTracking = false
+                }
+            }
+            android.view.MotionEvent.ACTION_UP -> if (swiping) {
+                swiping = false
+                swipeTracking = false
+                val dx = ev.rawX - swipeDownX
+                if (Math.abs(dx) > px(64)) swipeToPanel(if (dx < 0) currentPanelIndex + 1 else currentPanelIndex - 1, fromRight = dx < 0)
+                return true
+            }
+            android.view.MotionEvent.ACTION_CANCEL -> { swiping = false; swipeTracking = false }
+        }
+        if (swiping) return true
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun swipeToPanel(index: Int, fromRight: Boolean) {
+        if (index !in panelViews.indices) return
+        navButtonViews[index].performClick()
+        val tab = navButtonViews[index]
+        binding.settingsNavRail.smoothScrollTo((tab.left - px(48)).coerceAtLeast(0), 0)
+        // The new panel slides in a little from the side it came from.
+        val panel = panelViews[index]
+        panel.translationX = (if (fromRight) 1 else -1) * px(48).toFloat()
+        panel.alpha = 0f
+        panel.animate().translationX(0f).alpha(1f).setDuration(180).start()
     }
 
     private fun focusFirstInCurrentPanel() {
