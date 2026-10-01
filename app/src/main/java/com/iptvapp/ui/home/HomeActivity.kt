@@ -1305,17 +1305,18 @@ class HomeActivity : AppCompatActivity() {
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        // Status strip's "Now playing" follows the mini player's own channel label, wherever that
-        // gets set from (see updateHomeStatusStrip).
-        binding.tvHomeStatusNow?.let { now ->
-            binding.tvMiniChannelName?.addTextChangedListener(object : android.text.TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: android.text.Editable?) {
-                    now.text = s?.toString()?.takeIf { it.isNotBlank() } ?: "—"
-                }
-            })
-        }
+        // Whenever the mini player switches to something new (from any of its many play paths):
+        // the status strip's "Now playing" follows its channel label (see updateHomeStatusStrip),
+        // and the readout's "Left" cell hides until refreshMiniEpg — which only runs for a live
+        // channel with a guide — fills it again, so a movie never shows a stale show's time left.
+        binding.tvMiniChannelName?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                binding.tvHomeStatusNow?.text = s?.toString()?.takeIf { it.isNotBlank() } ?: "—"
+                binding.miniTimeLeftCell?.visibility = View.GONE
+            }
+        })
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1783,6 +1784,7 @@ class HomeActivity : AppCompatActivity() {
         binding.syncProgressBar?.progressTintList = csl
         setProvidersModeButtonHighlight()
         if (::channelAdapter.isInitialized) channelAdapter.setAccent(colorInt, gradientEndColorInt)
+        if (::guideAdapter.isInitialized) guideAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
         binding.homeStatusDot?.background = android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
             intArrayOf(colorInt, gradientEndColorInt ?: colorInt)
@@ -2182,6 +2184,12 @@ class HomeActivity : AppCompatActivity() {
         } else {
             binding.miniEpgProgress?.visibility = View.GONE
         }
+        // Readout strip's "Left" cell (v6.85): time to the end of the current show.
+        val minutesLeft = viewModel.getMiniEpgMinutesLeft(streamId)
+        binding.tvMiniTimeLeft?.text = minutesLeft?.let {
+            if (it >= 60) "${it / 60} h ${it % 60} min" else "$it min"
+        }
+        binding.miniTimeLeftCell?.visibility = if (minutesLeft != null) View.VISIBLE else View.GONE
     }
 
     private fun startEpgRefreshLoop(streamId: Int) {
@@ -2419,6 +2427,7 @@ class HomeActivity : AppCompatActivity() {
             binding.pipCornerView?.player = null
             binding.miniPlayerView?.player = miniPlayer
             binding.miniPlayerContainer?.visibility = View.VISIBLE
+            binding.miniInfoStrip?.visibility = View.VISIBLE
             binding.pipCorner?.visibility = View.GONE
             binding.btnCollapsePip?.text = "PiP ▼"
             isPipMode = false
@@ -2426,6 +2435,7 @@ class HomeActivity : AppCompatActivity() {
             binding.miniPlayerView?.player = null
             binding.pipCornerView?.player = miniPlayer
             binding.miniPlayerContainer?.visibility = View.GONE
+            binding.miniInfoStrip?.visibility = View.GONE
             binding.pipCorner?.visibility = View.VISIBLE
             binding.tvPipChannelName?.text = currentMiniTitle
             isPipMode = true

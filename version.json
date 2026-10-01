@@ -1,7 +1,7 @@
 {
-  "versionCode": 522,
-  "versionName": "6.84",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.84/MKTV.apk",
-  "apkSha256": "80d8e18a909d280f61f4b528d9cc054577ee86c04acacf4fca7a46e37085ac9f",
-  "changelog": "Home screen gets the Settings look: Barlow type, black backgrounds, condensed tabs in your accent color, a status strip (provider, channels, guide, now playing), cleaner channel rows and white remote-focus outlines."
+  "versionCode": 523,
+  "versionName": "6.85",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.85/MKTV.apk",
+  "apkSha256": "24987a1ff820f4014d2e46939f7a9b5a135f9ef95351434278a13d660b7089fe",
+  "changelog": "Mini player gets a readout strip (channel, show, time left) instead of text over the video; the TV guide and movie/series screens get the Settings look with your accent color. Shield unchanged."
 }

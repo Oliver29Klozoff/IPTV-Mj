@@ -2,15 +2,14 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/rack_bg"
-    android:theme="@style/ThemeOverlay.HomeRack"
+    android:background="#0F0F0F"
     android:orientation="horizontal">
 
     <!-- Left: poster + play controls -->
     <LinearLayout
         android:layout_width="240dp"
         android:layout_height="match_parent"
-        android:background="@color/rack_surface"
+        android:background="#141414"
         android:orientation="vertical"
         android:padding="16dp">
 
@@ -19,7 +18,7 @@
             android:layout_width="match_parent"
             android:layout_height="260dp"
             android:scaleType="centerCrop"
-            android:background="@color/rack_control_off" />
+            android:background="#222222" />
 
         <ProgressBar
             android:id="@+id/progressVod"
@@ -27,7 +26,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:progressTint="@color/oled_cyan_primary"
+            android:progressTint="#008CFF"
             android:visibility="gone" />
 
         <Button
@@ -35,7 +34,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginTop="16dp"
-            android:backgroundTint="@color/oled_cyan_primary"
+            android:backgroundTint="#008CFF"
             android:text="▶  Play"
             android:textAllCaps="false"
             android:textColor="#000000"
@@ -44,7 +43,7 @@
             android:focusableInTouchMode="false"
             android:nextFocusDown="@id/btnFavorite" />
 
-        <!-- D-pad focus support (focusable + a visible focus outline + explicit nextFocus chain)
+        <!-- D-pad focus support (focusable + tv_sidebar_focus ring + explicit nextFocus chain)
              added to every button on this screen — previously none were focusable at all, so a
              D-pad simply couldn't move around here; only touch worked. -->
         <Button
@@ -54,10 +53,11 @@
             android:minHeight="44dp"
             android:layout_marginTop="8dp"
             android:paddingVertical="8dp"
-            android:background="@drawable/home_chip_bg"
+            android:background="@drawable/tv_sidebar_focus"
+            android:backgroundTint="#222222"
             android:text="☆  Add to Favorites"
             android:textAllCaps="false"
-            android:textColor="@color/rack_text"
+            android:textColor="#FFFFFF"
             android:textSize="13sp"
             android:focusable="true"
             android:focusableInTouchMode="false"
@@ -69,10 +69,11 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/home_chip_bg"
+            android:background="@drawable/tv_sidebar_focus"
+            android:backgroundTint="#222222"
             android:text="▶  Watch Trailer"
             android:textAllCaps="false"
-            android:textColor="@color/rack_text"
+            android:textColor="#FFFFFF"
             android:visibility="gone"
             android:focusable="true"
             android:focusableInTouchMode="false"
@@ -84,10 +85,11 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/home_chip_bg"
+            android:background="@drawable/tv_sidebar_focus"
+            android:backgroundTint="#222222"
             android:text="⬇  Download"
             android:textAllCaps="false"
-            android:textColor="@color/rack_text"
+            android:textColor="#FFFFFF"
             android:textSize="13sp"
             android:focusable="true"
             android:focusableInTouchMode="false"
@@ -99,10 +101,10 @@
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/home_tab_bg"
+            android:background="@drawable/tv_sidebar_focus"
             android:text="✕  Clear Progress"
             android:textAllCaps="false"
-            android:textColor="@color/rack_text_muted"
+            android:textColor="#888888"
             android:textSize="13sp"
             android:visibility="gone"
             android:focusable="true"
@@ -120,8 +122,8 @@
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:text="← Back"
-            android:textColor="@color/rack_text"
-            android:background="@drawable/home_tab_bg"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/tv_sidebar_focus"
             android:gravity="start|center_vertical"
             android:paddingStart="4dp"
             android:focusable="true"
@@ -145,7 +147,7 @@
                 android:id="@+id/tvVodTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/rack_text"
+                android:textColor="#FFFFFF"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -168,14 +170,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="16dp"
-                    android:textColor="@color/rack_text_muted"
+                    android:textColor="#AAAAAA"
                     android:textSize="13sp" />
 
                 <TextView
                     android:id="@+id/tvVodDuration"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/rack_text_muted"
+                    android:textColor="#AAAAAA"
                     android:textSize="13sp" />
 
             </LinearLayout>
@@ -185,7 +187,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:textColor="@color/rack_text_secondary"
+                android:textColor="#008CFF"
                 android:textSize="13sp" />
 
             <ProgressBar
@@ -193,7 +195,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:indeterminateTint="@color/oled_cyan_primary"
+                android:indeterminateTint="#008CFF"
                 android:visibility="gone" />
 
             <TextView
@@ -201,7 +203,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
-                android:textColor="@color/rack_text_secondary"
+                android:textColor="#DDDDDD"
                 android:textSize="14sp"
                 android:lineSpacingExtra="3dp" />
 
@@ -210,7 +212,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
-                android:textColor="@color/rack_text_muted"
+                android:textColor="#AAAAAA"
                 android:textSize="13sp"
                 android:lineSpacingExtra="3dp" />
 
@@ -219,7 +221,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:textColor="@color/rack_text_muted"
+                android:textColor="#AAAAAA"
                 android:textSize="13sp" />
 
         </LinearLayout>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Movie / series / episode cards on the phone and car box (v6.85): nothing at rest, a lifted
+     fill while selected, and the Settings D-pad focus look (lifted fill + light 2dp outline). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_focus_fill" />
+            <corners android:radius="4dp" />
+            <stroke android:width="2dp" android:color="@color/rack_focus_ring" />
+        </shape>
+    </item>
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_focus_fill" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_pressed" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    <item>
+        <color android:color="@android:color/transparent" />
+    </item>
+</selector>

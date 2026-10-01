@@ -25,6 +25,7 @@ class MergedVodDetailActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMergedVodDetailBinding
 
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private var serverIndex: Int = -1
     private var streamId: Int = -1
@@ -36,6 +37,13 @@ class MergedVodDetailActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMergedVodDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Studio Rack look (v6.85): Play and the watch-progress bar in the user's accent (or
+        // gradient). Phone / car box only — the Shield keeps its own detail layout and colors.
+        if (com.iptvapp.util.RackAccent.appliesTo(this)) lifecycleScope.launch {
+            val accent = com.iptvapp.util.RackAccent.load(prefs)
+            com.iptvapp.util.RackAccent.paintFillButton(binding.btnPlay, accent)
+            com.iptvapp.util.RackAccent.paintProgress(binding.progressVod, accent)
+        }
 
         serverIndex = intent.getIntExtra("server_index", -1)
         streamId = intent.getIntExtra("vod_stream_id", -1)

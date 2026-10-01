@@ -188,46 +188,82 @@
 
         <View android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/rack_border" />
 
-        <!-- Mini player - right panel (weight 3 = ~37.5%) -->
-        <FrameLayout
-            android:id="@+id/miniPlayerContainer"
+        <!-- Mini player - right panel (weight 3 = ~37.5%). v6.85: the video on its own, with
+             what's playing in the readout strip under it (miniInfoStrip) instead of floating
+             over the picture. -->
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_weight="3"
             android:layout_height="match_parent"
-            android:background="#000000">
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/miniPlayerView"
+            android:orientation="vertical">
+            <FrameLayout
+                android:id="@+id/miniPlayerContainer"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:use_controller="false"
-                app:resize_mode="fit" />
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="#000000">
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/miniPlayerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:use_controller="false"
+                    app:resize_mode="fit" />
+                <ImageButton android:id="@+id/btnFullscreen" android:layout_width="36dp" android:layout_height="36dp"
+                    android:layout_gravity="top|end" android:layout_margin="8dp"
+                    android:background="@drawable/home_tab_bg"
+                    android:src="@android:drawable/ic_menu_zoom" android:tint="#FFFFFF"
+                    android:focusable="true" />
+                <ProgressBar android:id="@+id/miniPlayerProgress" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_gravity="center"
+                    android:indeterminateTint="@color/oled_cyan_primary" android:visibility="gone" />
+                <Button android:id="@+id/btnCollapsePip" android:layout_width="wrap_content"
+                    android:layout_height="32dp" android:layout_gravity="top|start" android:layout_margin="8dp"
+                    android:background="@android:color/transparent" android:text="PiP ▼"
+                    android:textColor="#AAAAAA" android:textSize="11sp" android:padding="4dp" />
+            </FrameLayout>
             <LinearLayout
+                android:id="@+id/miniInfoStrip"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom"
-                android:background="#88000000"
-                android:orientation="vertical"
-                android:padding="8dp">
-                <TextView android:id="@+id/tvMiniChannelName" android:layout_width="match_parent"
-                    android:layout_height="wrap_content" android:textColor="#FFFFFF"
-                    android:textSize="14sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
-                <TextView android:id="@+id/tvMiniEpg" android:layout_width="match_parent"
-                    android:layout_height="wrap_content" android:textColor="#AAAAAA"
-                    android:textSize="12sp" android:maxLines="2" android:ellipsize="end" />
+                android:background="@color/rack_surface"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView android:id="@+id/tvMiniChannelName" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:hint="Nothing playing" android:textColorHint="@color/rack_text_muted"
+                    android:textColor="@color/rack_text"
+                        android:textSize="16sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/tvMiniEpg" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:textColor="@color/rack_text"
+                        android:textSize="13sp" android:maxLines="2" android:ellipsize="end" />
+                </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/miniTimeLeftCell"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:gravity="end"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+                    <TextView
+                        style="@style/HomeRack.Eyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Left" />
+                    <TextView
+                        android:id="@+id/tvMiniTimeLeft"
+                        style="@style/HomeRack.ReadoutValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
             </LinearLayout>
-            <ImageButton android:id="@+id/btnFullscreen" android:layout_width="36dp" android:layout_height="36dp"
-                android:layout_gravity="top|end" android:layout_margin="8dp"
-                android:background="@drawable/home_tab_bg"
-                android:src="@android:drawable/ic_menu_zoom" android:tint="#FFFFFF"
-                android:focusable="true" />
-            <ProgressBar android:id="@+id/miniPlayerProgress" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:layout_gravity="center"
-                android:indeterminateTint="@color/oled_cyan_primary" android:visibility="gone" />
-            <Button android:id="@+id/btnCollapsePip" android:layout_width="wrap_content"
-                android:layout_height="28dp" android:layout_gravity="top|start" android:layout_margin="8dp"
-                android:background="@android:color/transparent" android:text="PiP ▼"
-                android:textColor="#AAAAAA" android:textSize="11sp" android:padding="4dp" />
-        </FrameLayout>
+        </LinearLayout>
 
     </LinearLayout>
 

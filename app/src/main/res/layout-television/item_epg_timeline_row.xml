@@ -8,7 +8,7 @@
     <LinearLayout
         android:layout_width="120dp"
         android:layout_height="match_parent"
-        android:background="@color/rack_surface"
+        android:background="#1A1A1A"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="8dp">
@@ -40,7 +40,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="2"
-                android:textColor="@color/rack_text_secondary"
+                android:textColor="#DDDDDD"
                 android:textSize="11sp" />
 
             <TextView
@@ -49,7 +49,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/rack_text_muted"
+                android:textColor="#777777"
                 android:textSize="9sp" />
 
         </LinearLayout>
@@ -59,7 +59,7 @@
     <View
         android:layout_width="1dp"
         android:layout_height="match_parent"
-        android:background="@color/rack_border" />
+        android:background="#2A2A2A" />
 
     <!-- Horizontally scrollable program blocks -->
     <HorizontalScrollView

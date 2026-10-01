@@ -2245,6 +2245,15 @@ class HomeViewModel @Inject constructor(
         return ((current - start) * 100 / (stop - start)).toInt().coerceIn(0, 100)
     }
 
+    /** Minutes until the current show ends, for the mini player readout; null when the guide
+     * has no current show for this channel. */
+    suspend fun getMiniEpgMinutesLeft(streamId: Int): Int? {
+        val epg = repository.getEpgForStream(streamId).first()
+        val now = epg.nowProgram() ?: return null
+        val left = now.stopMs() - System.currentTimeMillis()
+        return if (left > 0) ((left + 59_999) / 60_000).toInt() else null
+    }
+
     suspend fun getVodProgress(streamId: Int): Pair<Long, Long> = repository.getVodProgress(streamId)
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)

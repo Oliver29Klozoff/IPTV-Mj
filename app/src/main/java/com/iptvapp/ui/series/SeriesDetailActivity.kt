@@ -38,6 +38,7 @@ class SeriesDetailActivity : AppCompatActivity() {
     private lateinit var episodeAdapter: EpisodeAdapter
 
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     @Inject lateinit var downloadRepository: DownloadRepository
 
@@ -61,6 +62,16 @@ class SeriesDetailActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySeriesDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Studio Rack look (v6.85): season tabs and the loading spinner in the user's accent (the
+        // tab underline as a gradient for a gradient accent). Phone / car box only, not the Shield.
+        if (com.iptvapp.util.RackAccent.appliesTo(this)) lifecycleScope.launch {
+            val accent = com.iptvapp.util.RackAccent.load(prefs)
+            binding.tabSeasons.setSelectedTabIndicator(android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, accent.stops
+            ))
+            binding.tabSeasons.setTabTextColors(getColor(com.iptvapp.R.color.rack_text_muted), accent.start)
+            binding.progressBar.indeterminateTintList = android.content.res.ColorStateList.valueOf(accent.start)
+        }
         // Targeting SDK 35 (Android 15+) makes edge-to-edge content mandatory — the season
         // tab row was drawing underneath the status bar with nothing pushing it down,
         // making the tabs behind the status bar/notification area untappable. Pad the top

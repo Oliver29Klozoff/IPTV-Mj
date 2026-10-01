@@ -7,13 +7,13 @@
     android:paddingHorizontal="16dp"
     android:focusable="true"
     android:focusableInTouchMode="false"
-    android:background="@drawable/channel_row_bg">
+    android:background="@drawable/focus_selector">
 
     <TextView
         android:id="@+id/tvEpisodeNum"
         android:layout_width="40dp"
         android:layout_height="wrap_content"
-        android:textColor="@color/rack_text_secondary"
+        android:textColor="#008CFF"
         android:textSize="14sp"
         android:textStyle="bold"
         android:gravity="center" />
@@ -29,7 +29,7 @@
             android:id="@+id/tvEpisodeTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/rack_text"
+            android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -39,7 +39,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textColor="@color/rack_text_muted"
+            android:textColor="#666666"
             android:textSize="11sp" />
     </LinearLayout>
 
@@ -50,15 +50,15 @@
         android:layout_marginEnd="12dp"
         android:padding="6dp"
         android:textSize="16sp"
-        android:textColor="@color/rack_text_muted"
+        android:textColor="#AAAAAA"
         android:focusable="true"
         android:focusableInTouchMode="false"
-        android:background="@drawable/channel_row_bg"
+        android:background="@drawable/focus_selector"
         android:text="⬇" />
 
     <ImageView
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:src="@android:drawable/ic_media_play"
-        android:tint="@color/rack_text_secondary" />
+        android:tint="#008CFF" />
 </LinearLayout>

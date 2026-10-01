@@ -42,6 +42,10 @@ class EpgTimelineActivity : AppCompatActivity() {
     private lateinit var adapter: TimelineAdapter
 
     @Inject lateinit var db: IptvDatabase
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    // v6.85 Studio Rack look on phones / car box only; the Shield keeps its own guide.
+    private val rack by lazy { com.iptvapp.util.RackAccent.appliesTo(this) }
+
 
     // 4dp per minute — 30min=120dp, 1hr=240dp
     private val dpPerMin = 4f
@@ -87,6 +91,8 @@ class EpgTimelineActivity : AppCompatActivity() {
 
         binding.rvTimeline.layoutManager = LinearLayoutManager(this)
         binding.rvTimeline.adapter = adapter
+        // Studio Rack look (v6.85): the show on now in the user's accent (or gradient).
+        if (com.iptvapp.util.RackAccent.appliesTo(this)) lifecycleScope.launch { adapter.setAccent(com.iptvapp.util.RackAccent.load(prefs)) }
 
         binding.btnTimelineBack.setOnClickListener { finish() }
         binding.btnTimelineNow.setOnClickListener {
@@ -236,8 +242,15 @@ class EpgTimelineActivity : AppCompatActivity() {
             val label = SimpleDateFormat("h:mm a", Locale.US).format(Date(slotStartMs))
             val tv = TextView(this).apply {
                 text = label
-                setTextColor(0xFF888888.toInt())
-                textSize = 11f
+                if (rack) {
+                    setTextColor(getColor(R.color.rack_text_muted))
+                    textSize = 12f
+                    typeface = androidx.core.content.res.ResourcesCompat.getFont(this@EpgTimelineActivity, R.font.barlow_condensed_semibold)
+                    letterSpacing = 0.06f
+                } else {
+                    setTextColor(0xFF888888.toInt())
+                    textSize = 11f
+                }
                 layoutParams = LinearLayout.LayoutParams(dpToPx(slotWidthDp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT)
                 setPadding(dpToPx(6f).toInt(), 0, 0, 0)
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -246,7 +259,7 @@ class EpgTimelineActivity : AppCompatActivity() {
             // Divider
             val div = View(this).apply {
                 layoutParams = LinearLayout.LayoutParams(dpToPx(1f).toInt(), ViewGroup.LayoutParams.MATCH_PARENT)
-                setBackgroundColor(0xFF2A2A2A.toInt())
+                setBackgroundColor(if (rack) getColor(R.color.rack_border) else 0xFF2A2A2A.toInt())
             }
             container.addView(div)
         }
@@ -416,6 +429,14 @@ class TimelineAdapter(
         onScrollChanged(x)
     }
 
+    // v6.85: accent for the show that's on now. Null until EpgTimelineActivity loads it.
+    private var accent: com.iptvapp.util.RackAccent.Accent? = null
+
+    fun setAccent(value: com.iptvapp.util.RackAccent.Accent) {
+        accent = value
+        notifyDataSetChanged()
+    }
+
     override fun getItemCount() = rows.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -499,13 +520,21 @@ class TimelineAdapter(
                     ellipsize = android.text.TextUtils.TruncateAt.END
                     setPadding(dpToPx(6f, ctx).toInt(), 0, dpToPx(6f, ctx).toInt(), 0)
                     gravity = android.view.Gravity.CENTER_VERTICAL
-                    val bgColor = when {
-                        isNow -> 0xFF003366.toInt()
-                        isReplay -> 0xFF1A2A1A.toInt()
-                        else -> 0xFF1C1C1C.toInt()
+                    // Studio Rack blocks (v6.85): square-cornered modules with a hairline edge;
+                    // the show on now gets a wash and edge in the user's accent (a gradient wash
+                    // for a gradient accent); catch-up replay keeps its green tint.
+                    if (com.iptvapp.util.RackAccent.appliesTo(ctx)) {
+                        background = programBlockBackground(ctx, isNow, isReplay)
+                        setTextColor(ctx.getColor(if (isNow) R.color.rack_text else R.color.rack_text_secondary))
+                        if (isNow) typeface = android.graphics.Typeface.create(typeface, android.graphics.Typeface.BOLD)
+                    } else {
+                        setBackgroundColor(when {
+                            isNow -> 0xFF003366.toInt()
+                            isReplay -> 0xFF1A2A1A.toInt()
+                            else -> 0xFF1C1C1C.toInt()
+                        })
+                        setTextColor(if (isNow) 0xFF00AAFF.toInt() else 0xFFCCCCCC.toInt())
                     }
-                    setBackgroundColor(bgColor)
-                    setTextColor(if (isNow) 0xFF00AAFF.toInt() else 0xFFCCCCCC.toInt())
                     layoutParams = LinearLayout.LayoutParams(widthPx, ViewGroup.LayoutParams.MATCH_PARENT).apply {
                         setMargins(dpToPx(1f, ctx).toInt(), dpToPx(2f, ctx).toInt(), dpToPx(1f, ctx).toInt(), dpToPx(2f, ctx).toInt())
                     }
@@ -521,7 +550,39 @@ class TimelineAdapter(
 
         private fun makeGap(widthPx: Int, ctx: Context): View = View(ctx).apply {
             layoutParams = LinearLayout.LayoutParams(widthPx, ViewGroup.LayoutParams.MATCH_PARENT)
-            setBackgroundColor(0xFF111111.toInt())
+            if (!com.iptvapp.util.RackAccent.appliesTo(ctx)) setBackgroundColor(0xFF111111.toInt())
+        }
+
+        private fun programBlockBackground(ctx: Context, isNow: Boolean, isReplay: Boolean): android.graphics.drawable.Drawable {
+            val density = ctx.resources.displayMetrics.density
+            fun shape(fill: IntArray, edge: Int) = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fill
+            ).apply {
+                cornerRadius = 3 * density
+                setStroke((1 * density + 0.5f).toInt(), edge)
+            }
+            fun wash(c: Int, alpha: Int) = android.graphics.Color.argb(alpha, android.graphics.Color.red(c), android.graphics.Color.green(c), android.graphics.Color.blue(c))
+            val surface = ctx.getColor(R.color.rack_surface)
+            val rest = when {
+                isNow -> {
+                    val a = accent ?: com.iptvapp.util.RackAccent.Accent(ctx.getColor(R.color.oled_cyan_primary), null)
+                    shape(a.stops.map { wash(it, 70) }.toIntArray(), a.start)
+                }
+                isReplay -> shape(intArrayOf(0xFF0E1A10.toInt(), 0xFF0E1A10.toInt()), 0xFF1F3A24.toInt())
+                else -> shape(intArrayOf(surface, surface), ctx.getColor(R.color.rack_border))
+            }
+            return android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 3 * density
+                    setColor(ctx.getColor(R.color.rack_focus_fill))
+                    setStroke((2 * density + 0.5f).toInt(), ctx.getColor(R.color.rack_focus_ring))
+                })
+                addState(intArrayOf(android.R.attr.state_pressed), android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 3 * density
+                    setColor(ctx.getColor(R.color.rack_pressed))
+                })
+                addState(intArrayOf(), rest)
+            }
         }
 
         private fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts

@@ -9,7 +9,7 @@
     android:paddingHorizontal="12dp"
     android:focusable="true"
     android:focusableInTouchMode="false"
-    android:background="@drawable/home_card_bg">
+    android:background="@drawable/focus_selector">
 
     <CheckBox
         android:id="@+id/cbVodBulkSelect"
@@ -49,7 +49,7 @@
             android:id="@+id/tvVodName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/rack_text"
+            android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:maxLines="1"
             android:ellipsize="end" />
@@ -59,7 +59,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textColor="@color/rack_text_muted"
+            android:textColor="#888888"
             android:textSize="12sp" />
 
         <!-- Same gray-uppercase-label style as item_merged_channel's server tag -->
@@ -71,7 +71,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textAllCaps="true"
-            android:textColor="@color/rack_text_muted"
+            android:textColor="#777777"
             android:textSize="10sp" />
 
         <ProgressBar
@@ -82,7 +82,7 @@
             android:layout_marginTop="4dp"
             android:max="100"
             android:progress="0"
-            android:progressTint="@color/oled_cyan_primary"
+            android:progressTint="#008CFF"
             android:visibility="gone" />
     </LinearLayout>
 

@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v6.85 - 2026-10-01
+- **Changed**: the mini player on the home screen is now a clean video box with a readout strip
+  underneath — channel, the show on now and how much of it is left — instead of text laid over
+  the picture. It says "Nothing playing" until you start a channel.
+- **Changed**: the TV guide (grid) picks up the Settings look: Barlow type, black and grey
+  backgrounds, and the show on now drawn in your accent color (gradients included), with replay
+  shows tinted green. The top bar is tidier, so the search box has room on phones.
+- **Changed**: movie and series screens — the poster cards, detail pages, season tabs and episode
+  list — use the same look; the Play button and watch-progress bar follow your accent.
+- The Shield's TV screens are unchanged.
+
 ## v6.84 - 2026-10-01
 - **Changed**: the home screen (phone and car box) picks up the Settings look: the Barlow
   typeface, black and grey backgrounds instead of the old dark greys, condensed capital tab names
