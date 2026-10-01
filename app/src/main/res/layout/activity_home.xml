@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F0F0F">
+    android:background="@color/rack_bg"
+    android:theme="@style/ThemeOverlay.HomeRack">
 
     <!-- TOP BAR -->
 
@@ -12,7 +13,7 @@
         android:id="@+id/topBar"
         android:layout_width="0dp"
         android:layout_height="56dp"
-        android:background="#1A1A1A"
+        android:background="@color/rack_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="12dp"
@@ -31,7 +32,7 @@
             android:id="@+id/btnMenu"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_sort_by_size"
             android:tint="#FFFFFF" />
 
@@ -44,7 +45,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:layout_marginStart="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_search"
             android:contentDescription="Search all providers"
             android:tint="#888888" />
@@ -54,7 +55,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:layout_marginStart="15dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_popup_sync"
             android:tint="#888888" />
 
@@ -67,7 +68,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:layout_marginStart="15dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_gallery"
             android:contentDescription="Multi-View"
             android:tint="#888888" />
@@ -98,7 +99,7 @@
             android:layout_width="wrap_content"
             android:layout_height="36dp"
             android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:drawableStart="@android:drawable/ic_menu_sort_alphabetically"
             android:drawableTint="#888888"
             android:drawablePadding="4dp"
@@ -118,7 +119,7 @@
                 android:id="@+id/etSearch"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@drawable/search_bg"
+                android:background="@drawable/home_search_bg"
                 android:hint="Search..."
                 android:imeOptions="actionSearch"
                 android:inputType="text"
@@ -133,7 +134,7 @@
                 android:layout_height="28dp"
                 android:layout_gravity="center_vertical|end"
                 android:layout_marginEnd="2dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:tint="#888888"
                 android:contentDescription="Clear search"
@@ -142,6 +143,103 @@
 
     </LinearLayout>
 
+    <!-- STATUS STRIP (v6.84) — the Settings readout strip, live: active provider, its channel
+         count, when the guide last refreshed and what is playing. Filled by
+         HomeActivity.updateHomeStatusStrip. -->
+    <LinearLayout
+        android:id="@+id/homeStatusStrip"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rack_strip_bg"
+        android:divider="@drawable/rack_cell_divider"
+        android:orientation="horizontal"
+        android:showDividers="middle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBar">
+        <LinearLayout
+            style="@style/HomeRack.Readout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content">
+            <TextView
+                style="@style/HomeRack.Eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Provider" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <!-- Accent dot, painted by HomeActivity.updateHomeStatusStrip. -->
+                <View
+                    android:id="@+id/homeStatusDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginEnd="5dp" />
+                <TextView
+                    android:id="@+id/tvHomeStatusProvider"
+                    style="@style/HomeRack.ReadoutValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="—" />
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout
+            style="@style/HomeRack.Readout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content">
+            <TextView
+                style="@style/HomeRack.Eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Channels" />
+            <TextView
+                android:id="@+id/tvHomeStatusChannels"
+                style="@style/HomeRack.ReadoutValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="—" />
+        </LinearLayout>
+        <LinearLayout
+            style="@style/HomeRack.Readout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content">
+            <TextView
+                style="@style/HomeRack.Eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Guide" />
+            <TextView
+                android:id="@+id/tvHomeStatusGuide"
+                style="@style/HomeRack.ReadoutValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="—" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/homeStatusNowCell"
+            style="@style/HomeRack.Readout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.6"
+            android:visibility="gone">
+            <TextView
+                style="@style/HomeRack.Eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Now playing" />
+            <TextView
+                android:id="@+id/tvHomeStatusNow"
+                style="@style/HomeRack.ReadoutValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="—" />
+        </LinearLayout>
+    </LinearLayout>
+
+
     <FrameLayout
         android:id="@+id/miniPlayerContainer"
         android:layout_width="0dp"
@@ -149,7 +247,7 @@
         android:background="#000000"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/topBar">
+        app:layout_constraintTop_toBottomOf="@id/homeStatusStrip">
 
         <androidx.media3.ui.PlayerView
             android:id="@+id/miniPlayerView"
@@ -172,7 +270,7 @@
             android:layout_height="36dp"
             android:layout_gravity="top|end"
             android:layout_margin="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:contentDescription="Cast to a Device"
             android:src="@drawable/ic_cast_mini" />
 
@@ -223,7 +321,7 @@
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/rack_text"
                         android:textSize="12sp"
                         android:layout_marginTop="1dp" />
 
@@ -250,7 +348,7 @@
                 android:max="100"
                 android:progress="0"
                 android:progressBackgroundTint="#33FFFFFF"
-                android:progressTint="#008CFF"
+                android:progressTint="@color/oled_cyan_primary"
                 android:visibility="gone" />
 
         </LinearLayout>
@@ -260,7 +358,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:indeterminateTint="#008CFF"
+            android:indeterminateTint="@color/oled_cyan_primary"
             android:visibility="gone" />
 
         <Button
@@ -327,15 +425,16 @@
         android:id="@+id/tabLayout"
         android:layout_width="0dp"
         android:layout_height="48dp"
-        android:background="#1A1A1A"
+        android:background="@drawable/rack_tab_row_bg"
+        app:tabTextAppearance="@style/HomeRack.TabText"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/miniPlayerContainer"
-        app:tabIndicatorColor="#008CFF"
-        app:tabIndicatorHeight="3dp"
+        app:tabIndicatorColor="@color/oled_cyan_primary"
+        app:tabIndicatorHeight="2dp"
         app:tabMode="scrollable"
         app:tabSelectedTextColor="#FFFFFF"
-        app:tabTextColor="#888888">
+        app:tabTextColor="@color/rack_text_muted">
 
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAVORITES" />
         <com.google.android.material.tabs.TabItem android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PROVIDERS" />
@@ -354,7 +453,7 @@
         android:id="@+id/providersModeRow"
         android:layout_width="0dp"
         android:layout_height="40dp"
-        android:background="#1A1A1A"
+        android:background="@color/rack_surface"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
@@ -369,11 +468,13 @@
             android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="6dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:text="Live"
             android:textAllCaps="true"
-            android:textColor="#008CFF"
+            android:textColor="@color/rack_text"
             android:textSize="11sp" />
 
         <TextView
@@ -382,7 +483,9 @@
             android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="6dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:text="Movies"
             android:textAllCaps="true"
@@ -395,7 +498,9 @@
             android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="6dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:text="Series"
             android:textAllCaps="true"
@@ -409,7 +514,7 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:layout_marginEnd="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_sort_alphabetically"
             android:tint="#888888"
             android:contentDescription="Sort movies"
@@ -419,7 +524,7 @@
             android:id="@+id/btnRefreshProviders"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/stat_notify_sync"
             android:tint="#4FC3F7"
             android:contentDescription="Refresh providers" />
@@ -432,11 +537,13 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginStart="6dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Select All"
-            android:textColor="#008CFF"
+            android:textColor="@color/rack_text"
             android:textSize="11sp"
             android:visibility="gone" />
 
@@ -450,7 +557,7 @@
         android:id="@+id/guideModeRow"
         android:layout_width="0dp"
         android:layout_height="40dp"
-        android:background="#1A1A1A"
+        android:background="@color/rack_surface"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
@@ -465,9 +572,11 @@
             android:layout_height="32dp"
             android:gravity="center"
             android:paddingHorizontal="10dp"
-            android:background="@drawable/focus_selector"
-            android:text="📋 What's On"
-            android:textColor="#008CFF"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
+            android:text="What's on"
+            android:textColor="@color/rack_text"
             android:textSize="12sp" />
 
         <TextView
@@ -477,9 +586,11 @@
             android:layout_marginStart="8dp"
             android:gravity="center"
             android:paddingHorizontal="10dp"
-            android:background="@drawable/focus_selector"
-            android:text="⏱ Grid"
-            android:textColor="#008CFF"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
+            android:text="Grid"
+            android:textColor="@color/rack_text"
             android:textSize="12sp" />
 
         <View
@@ -491,7 +602,7 @@
             android:id="@+id/btnGuideRefreshRow"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_popup_sync"
             android:tint="#888888"
             android:contentDescription="Refresh guide" />
@@ -507,7 +618,7 @@
         android:id="@+id/bulkSelectBar"
         android:layout_width="0dp"
         android:layout_height="40dp"
-        android:background="#1A1A1A"
+        android:background="@color/rack_surface"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
@@ -529,18 +640,22 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginEnd="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Select All"
-            android:textColor="#008CFF"
+            android:textColor="@color/rack_text"
             android:textSize="12sp" />
 
         <TextView
             android:id="@+id/btnBulkSelectDone"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Done"
@@ -554,7 +669,9 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Hide"
@@ -567,7 +684,9 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="✕"
@@ -581,7 +700,7 @@
         android:id="@+id/syncProgressContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="#1A1A1A"
+        android:background="@color/rack_surface"
         android:orientation="vertical"
         android:paddingHorizontal="12dp"
         android:paddingTop="6dp"
@@ -607,7 +726,7 @@
             android:max="100"
             android:progress="0"
             android:progressBackgroundTint="#33FFFFFF"
-            android:progressTint="#008CFF" />
+            android:progressTint="@color/oled_cyan_primary" />
 
     </LinearLayout>
 
@@ -629,21 +748,21 @@
             android:id="@+id/tvWhatsOnNowHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#1A1A1A"
+            android:background="@color/rack_surface"
             android:paddingHorizontal="12dp"
             android:paddingTop="8dp"
             android:text="WHAT'S ON NOW"
-            android:textColor="#888888"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.05"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="12sp"
+            android:fontFamily="@font/barlow_condensed_semibold"
+            android:letterSpacing="0.16"
             android:visibility="gone" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvWhatsOnNow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#1A1A1A"
+            android:background="@color/rack_surface"
             android:clipToPadding="false"
             android:orientation="horizontal"
             android:paddingHorizontal="8dp"
@@ -656,7 +775,7 @@
             android:id="@+id/genreFilterScroll"
             android:layout_width="match_parent"
             android:layout_height="40dp"
-            android:background="#1A1A1A"
+            android:background="@color/rack_surface"
             android:scrollbars="none"
             android:visibility="gone">
 
@@ -681,13 +800,13 @@
                 android:id="@+id/rvCategories"
                 android:layout_width="160dp"
                 android:layout_height="match_parent"
-                android:background="#141414"
+                android:background="@color/rack_surface"
                 android:paddingTop="8dp" />
 
             <View
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
-                android:background="#2A2A2A" />
+                android:background="@color/rack_border" />
 
             <!-- Pull-to-refresh, Favorites-only for now (see HomeActivity's swipeRefreshLayout
                  setup) — wraps just the channel list, not the categories sidebar next to it,
@@ -714,7 +833,7 @@
         android:id="@+id/progressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminateTint="#008CFF"
+        android:indeterminateTint="@color/oled_cyan_primary"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="75dp"
-    android:background="@drawable/focus_selector_channel"
+    android:background="@drawable/home_row_bg"
     android:clickable="true"
     android:focusable="true">
 
@@ -40,7 +40,7 @@
                 android:id="@+id/ivChannelLogo"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#222222"
+                android:background="@color/rack_control_off"
                 android:padding="4dp"
                 android:scaleType="fitCenter" />
             <androidx.media3.ui.PlayerView
@@ -88,8 +88,8 @@
                     android:layout_weight="1"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textColor="@color/oled_text_primary"
-                    android:textSize="14sp"
+                    android:textColor="@color/rack_text"
+                    android:textSize="15sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -99,8 +99,8 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/oled_text_secondary"
-                android:textSize="12sp" />
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/tvEpgNext"
@@ -108,7 +108,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/oled_text_muted"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="11sp"
                 android:visibility="gone" />
 
@@ -125,7 +125,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textAllCaps="true"
-                android:textColor="@color/oled_text_muted"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="10sp"
                 android:visibility="gone" />
         </LinearLayout>
@@ -144,7 +144,7 @@
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
             android:padding="4dp"
-            android:background="@drawable/focus_selector_channel"
+            android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/btn_star_big_off" />
 
         <ImageView
@@ -166,7 +166,7 @@
         android:layout_alignParentBottom="true"
         android:max="100"
         android:progress="0"
-        android:progressBackgroundTint="@color/oled_surface_container_low"
+        android:progressBackgroundTint="@color/rack_control_off"
         android:progressTint="@color/oled_cyan_primary"
         android:visibility="invisible" />
 

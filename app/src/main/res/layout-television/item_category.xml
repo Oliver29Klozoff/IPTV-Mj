@@ -8,7 +8,7 @@
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:paddingHorizontal="12dp"
-    android:background="@drawable/home_row_bg">
+    android:background="@drawable/focus_selector">
 
     <CheckBox
         android:id="@+id/cbCategoryBulkSelect"

@@ -858,10 +858,11 @@ class HomeActivity : AppCompatActivity() {
     private enum class ProvidersMode { LIVE, MOVIES, SERIES }
 
     private fun setProvidersModeButtonHighlight() {
-        val active = "#008CFF"; val inactive = "#888888"
-        binding.btnProvidersModeLive?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.LIVE) active else inactive))
-        binding.btnProvidersModeMovies?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.MOVIES) active else inactive))
-        binding.btnProvidersModeSeries?.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.SERIES) active else inactive))
+        // Chosen mode in the user's accent (was a fixed blue), the others muted grey.
+        val active = currentAccent; val inactive = getColor(R.color.rack_text_muted)
+        binding.btnProvidersModeLive?.setTextColor(if (providersMode == ProvidersMode.LIVE) active else inactive)
+        binding.btnProvidersModeMovies?.setTextColor(if (providersMode == ProvidersMode.MOVIES) active else inactive)
+        binding.btnProvidersModeSeries?.setTextColor(if (providersMode == ProvidersMode.SERIES) active else inactive)
         binding.btnProvidersVodSort?.visibility = if (providersMode == ProvidersMode.MOVIES) View.VISIBLE else View.GONE
     }
     private var providersMode = ProvidersMode.LIVE
@@ -1304,6 +1305,17 @@ class HomeActivity : AppCompatActivity() {
         UpdateChecker(this).check(lifecycleScope)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Status strip's "Now playing" follows the mini player's own channel label, wherever that
+        // gets set from (see updateHomeStatusStrip).
+        binding.tvHomeStatusNow?.let { now ->
+            binding.tvMiniChannelName?.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    now.text = s?.toString()?.takeIf { it.isNotBlank() } ?: "—"
+                }
+            })
+        }
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1764,6 +1776,47 @@ class HomeActivity : AppCompatActivity() {
         sidebarMap.forEach { (id, idx) ->
             paintSidebarLabel(binding.root.findViewById(id), active = idx == tabIdx)
         }
+        // Studio Rack carry-over (v6.84): selected tab label, catalog-sync bar, Live/Movies/Series
+        // mode buttons, channel rows' show-progress bar and the status strip's dot all follow the
+        // accent too.
+        binding.tabLayout.setTabTextColors(getColor(R.color.rack_text_muted), colorInt)
+        binding.syncProgressBar?.progressTintList = csl
+        setProvidersModeButtonHighlight()
+        if (::channelAdapter.isInitialized) channelAdapter.setAccent(colorInt, gradientEndColorInt)
+        binding.homeStatusDot?.background = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+            intArrayOf(colorInt, gradientEndColorInt ?: colorInt)
+        ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL }
+    }
+
+    // The status strip under the top bar (v6.84, carried over from Settings): which provider is
+    // active, how many channels it has, when the guide last refreshed. "Now playing" mirrors the
+    // mini player's own channel label (wired once in onCreate). Refreshed on every onResume, which
+    // covers coming back from Settings after switching providers or refreshing the guide.
+    private fun updateHomeStatusStrip() {
+        if (binding.homeStatusStrip == null) return
+        lifecycleScope.launch {
+            val activeIndex = prefs.activeServerIndex.first()
+            val extras = prefs.getExtraServersWithNick()
+            val active = extras.getOrNull(activeIndex)
+            val provider = active?.let { it.getOrElse(3) { "" }.ifEmpty { it.getOrElse(1) { "" } } }
+                ?: prefs.serverNickname.first().ifEmpty { prefs.credentials.first().username }
+            binding.tvHomeStatusProvider?.text = provider.ifEmpty { "—" }
+            val count = try {
+                if (active == null) db.channelDao().getCount()
+                else db.mergedChannelDao().getServerSummaries().first()
+                    .firstOrNull { it.serverIndex == activeIndex }?.channelCount ?: 0
+            } catch (_: Exception) { null }
+            binding.tvHomeStatusChannels?.text =
+                count?.let { java.text.NumberFormat.getIntegerInstance().format(it.toLong()) } ?: "—"
+            val lastEpg = prefs.lastEpgRefreshTime.first()
+            binding.tvHomeStatusGuide?.text = when {
+                lastEpg <= 0L -> "Never"
+                android.text.format.DateUtils.isToday(lastEpg) ->
+                    java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(lastEpg))
+                else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date(lastEpg))
+            }
+        }
     }
 
     override fun onResume() {
@@ -1782,6 +1835,7 @@ class HomeActivity : AppCompatActivity() {
             val nickname = prefs.serverNickname.first()
             binding.etSearch.hint = if (nickname.isNotBlank()) "Search ($nickname)…" else "Search…"
         }
+        updateHomeStatusStrip()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         if (suppressMiniAutoResume) {
             // Returning from the guide grid with an explicit channel choice — don't override it

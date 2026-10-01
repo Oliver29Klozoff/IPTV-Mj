@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v6.84 - 2026-10-01
+- **Changed**: the home screen (phone and car box) picks up the Settings look: the Barlow
+  typeface, black and grey backgrounds instead of the old dark greys, condensed capital tab names
+  (top tabs and the landscape sidebar) with the active one in your accent color, a square search
+  box, and outlined Live / Movies / Series, What's on, Grid and Select all buttons.
+- **New**: a status strip under the top bar shows your active provider, its channel count and when
+  the guide last refreshed — plus what's playing on wide screens and in landscape.
+- **Changed**: channel rows have a thin divider, the playing channel's row is lit, and the "how far
+  into the show" bar under each row follows your accent (including gradients).
+- **Changed**: with a remote or the car box D-pad, rows, tabs and buttons on the home screen now
+  show the same white outline as Settings.
+- The Shield's TV home screen is unchanged.
+
 ## v6.83 - 2026-10-01
 - **Changed**: Settings → Providers lists the active provider first, then your other providers,
   with disabled ones at the very bottom. Each card's buttons work exactly as before.

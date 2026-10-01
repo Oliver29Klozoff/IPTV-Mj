@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home screen, phone and car box (activity_home.xml in layout / layout-land / layout-sw720dp):
+     the Settings "Studio Rack" look carried over (v6.84) — Barlow type, black and grey surfaces,
+     condensed caps for tabs and labels, outlined buttons, square search well, white D-pad
+     outlines. The Shield's TV home (TvHomeActivity, layout-television) is not affected.
+
+     ThemeOverlay.HomeRack goes on each home layout's root (android:theme): it swaps in Barlow as
+     the default face for every TextView, EditText and Button inside, including RecyclerView rows,
+     which inflate with their parent's themed context. -->
+<resources>
+
+    <style name="ThemeOverlay.HomeRack" parent="">
+        <item name="android:textViewStyle">@style/HomeRack.TextView</item>
+        <item name="android:editTextStyle">@style/HomeRack.EditText</item>
+        <item name="editTextStyle">@style/HomeRack.EditText</item>
+        <item name="materialButtonStyle">@style/HomeRack.Button</item>
+    </style>
+
+    <style name="HomeRack" />
+
+    <style name="HomeRack.TextView" parent="android:Widget.TextView">
+        <item name="android:fontFamily">@font/barlow</item>
+        <item name="fontFamily">@font/barlow</item>
+    </style>
+
+    <style name="HomeRack.EditText" parent="Widget.AppCompat.EditText">
+        <item name="android:fontFamily">@font/barlow</item>
+        <item name="fontFamily">@font/barlow</item>
+    </style>
+
+    <!-- Same as the app's default MaterialButton, plus the face. -->
+    <style name="HomeRack.Button" parent="Widget.MaterialComponents.Button">
+        <item name="android:fontFamily">@font/barlow</item>
+        <item name="fontFamily">@font/barlow</item>
+    </style>
+
+    <!-- "MKTV" in the top bar / sidebar, like Settings' "SETTINGS". -->
+    <style name="HomeRack.Title">
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textColor">@color/rack_text</item>
+    </style>
+
+    <!-- Top tabs (TabLayout tabTextAppearance). Colors come from tabTextColor / setTabTextColors. -->
+    <style name="HomeRack.TabText" parent="TextAppearance.Design.Tab">
+        <item name="android:fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <!-- Landscape sidebar tabs (the active one's color is set by HomeActivity.paintSidebarLabel). -->
+    <style name="HomeRack.SidebarTab">
+        <item name="android:background">@drawable/home_tab_bg</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <!-- Outlined mode / action button (Live · Movies · Series, What's on, Grid, Select all …). -->
+    <style name="HomeRack.Chip">
+        <item name="android:background">@drawable/home_chip_bg</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <!-- Small condensed caps label (status strip labels, WHAT'S ON NOW). -->
+    <style name="HomeRack.Eyebrow">
+        <item name="android:fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="fontFamily">@font/barlow_condensed_semibold</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:letterSpacing">0.16</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/rack_text_muted</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <!-- One cell of the home status strip (label over value). -->
+    <style name="HomeRack.Readout">
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+    </style>
+
+    <style name="HomeRack.ReadoutValue">
+        <item name="android:fontFamily">@font/barlow_semibold</item>
+        <item name="fontFamily">@font/barlow_semibold</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/rack_text</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+</resources>

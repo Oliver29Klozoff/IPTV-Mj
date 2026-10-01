@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home mode / action buttons (Live·Movies·Series, What's on, Grid, Select all …): outlined like
+     Settings' grey buttons; D-pad focus lifts the fill and turns the edge light. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_focus_fill" />
+            <corners android:radius="4dp" />
+            <stroke android:width="2dp" android:color="@color/rack_focus_ring" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_pressed" />
+            <corners android:radius="4dp" />
+            <stroke android:width="1dp" android:color="@color/rack_control_edge" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <corners android:radius="4dp" />
+            <stroke android:width="1dp" android:color="@color/rack_control_edge" />
+        </shape>
+    </item>
+</selector>

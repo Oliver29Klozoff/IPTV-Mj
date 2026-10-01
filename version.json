@@ -1,7 +1,7 @@
 {
-  "versionCode": 521,
-  "versionName": "6.83",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.83/MKTV.apk",
-  "apkSha256": "4a77369b63894694cfeaff9757040b273d8fd5ee0f50e5ff4179209e36666cf9",
-  "changelog": "Settings > Providers now shows the active provider first, other providers next, and disabled ones at the bottom."
+  "versionCode": 522,
+  "versionName": "6.84",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.84/MKTV.apk",
+  "apkSha256": "8d943a3099394ded556e5444839aa0a518b9b236d2461569c0995a9372ccf1c8",
+  "changelog": "Home screen gets the Settings look: Barlow type, black backgrounds, condensed tabs in your accent color, a status strip (provider, channels, guide, now playing), cleaner channel rows and white remote-focus outlines."
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home channel / category rows (Studio Rack look, v6.84): a hairline under each row; the row
+     that's playing (state_selected) lifts a step; D-pad focus is the same lifted fill plus light
+     2dp outline as Settings. Phone / car box only — the Shield keeps its own rows
+     (layout-television). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_focus_fill" />
+            <stroke android:width="2dp" android:color="@color/rack_focus_ring" />
+        </shape>
+    </item>
+    <item android:state_selected="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/rack_focus_fill" />
+                </shape>
+            </item>
+            <item android:gravity="bottom" android:height="1dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/rack_control_edge" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+            <item android:gravity="bottom" android:height="1dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/rack_divider" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

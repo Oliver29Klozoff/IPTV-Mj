@@ -8,14 +8,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F0F0F">
+    android:background="@color/rack_bg"
+    android:theme="@style/ThemeOverlay.HomeRack">
 
     <!-- LEFT SIDEBAR -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="150dp"
         android:layout_height="0dp"
-        android:background="#111111"
+        android:background="@color/rack_surface"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -27,22 +28,18 @@
             android:paddingVertical="14dp"
             android:paddingHorizontal="12dp"
             android:text="MKTV"
-            android:textColor="#008CFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.15" />
+            style="@style/HomeRack.Title"
+            android:textSize="20sp" />
 
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" />
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/rack_border" />
 
         <Button
             android:id="@+id/landBtnFavorites"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="FAVORITES"
-            android:textColor="#008CFF"
-            android:textStyle="bold"
-            android:textSize="12sp"
+            android:textColor="@color/rack_text"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
@@ -62,10 +59,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginEnd="48dp"
-                android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
                 android:text="PROVIDERS"
                 android:textColor="#AAAAAA"
-                android:textSize="12sp"
                 android:gravity="start|center_vertical"
                 android:paddingStart="14dp" />
 
@@ -80,7 +76,7 @@
                 android:layout_height="44dp"
                 android:layout_gravity="end|center_vertical"
                 android:padding="6dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/stat_notify_sync"
                 android:tint="#4FC3F7"
                 android:contentDescription="Refresh providers" />
@@ -91,10 +87,9 @@
             android:id="@+id/landBtnLive"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="LIVE"
             android:textColor="#AAAAAA"
-            android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
@@ -102,10 +97,9 @@
             android:id="@+id/landBtnCategories"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="CATEGORIES"
             android:textColor="#AAAAAA"
-            android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
@@ -113,10 +107,9 @@
             android:id="@+id/landBtnMovies"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="MOVIES"
             android:textColor="#AAAAAA"
-            android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
@@ -124,10 +117,9 @@
             android:id="@+id/landBtnSeries"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="SERIES"
             android:textColor="#AAAAAA"
-            android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
@@ -135,10 +127,9 @@
             android:id="@+id/landBtnGuide"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="GUIDE"
             android:textColor="#AAAAAA"
-            android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
@@ -146,14 +137,13 @@
             android:id="@+id/landBtnWatching"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:background="@android:color/transparent"
+            style="@style/HomeRack.SidebarTab"
             android:text="HISTORY"
             android:textColor="#AAAAAA"
-            android:textSize="12sp"
             android:gravity="start|center_vertical"
             android:paddingHorizontal="14dp" />
 
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#222222" android:layout_marginTop="4dp" />
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/rack_border" android:layout_marginTop="4dp" />
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -164,7 +154,7 @@
                 android:id="@+id/etSearch"
                 android:layout_width="match_parent"
                 android:layout_height="36dp"
-                android:background="#1E1E1E"
+                android:background="@drawable/home_search_bg"
                 android:hint="Search..."
                 android:textColorHint="#555555"
                 android:textColor="#FFFFFF"
@@ -179,7 +169,7 @@
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_gravity="center_vertical|end"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:tint="#888888"
                 android:contentDescription="Clear search"
@@ -199,7 +189,7 @@
                 android:layout_width="0dp"
                 android:layout_height="36dp"
                 android:layout_weight="1"
-                android:background="#1E1E1E"
+                android:background="@drawable/home_chip_bg"
                 android:src="@android:drawable/ic_menu_preferences"
                 android:tint="#AAAAAA"
                 android:scaleType="center"
@@ -209,7 +199,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_marginStart="4dp"
-                android:background="#1E1E1E"
+                android:background="@drawable/home_chip_bg"
                 android:text="&#8645;"
                 android:textColor="#AAAAAA"
                 android:textSize="14sp"
@@ -221,7 +211,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_marginStart="4dp"
-                android:background="#1E1E1E"
+                android:background="@drawable/home_chip_bg"
                 android:src="@android:drawable/ic_menu_gallery"
                 android:tint="#AAAAAA"
                 android:scaleType="center"
@@ -239,7 +229,7 @@
     <View
         android:layout_width="1dp"
         android:layout_height="0dp"
-        android:background="#222222"
+        android:background="@color/rack_border"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toEndOf="@id/topBar"
         app:layout_constraintTop_toTopOf="parent" />
@@ -272,7 +262,7 @@
                 android:id="@+id/providersModeRow"
                 android:layout_width="match_parent"
                 android:layout_height="36dp"
-                android:background="#1A1A1A"
+                android:background="@color/rack_surface"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="8dp"
@@ -284,11 +274,13 @@
                     android:layout_height="28dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
-                    android:background="@drawable/focus_selector"
+                    android:background="@drawable/home_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.1"
                     android:gravity="center"
                     android:text="Live"
                     android:textAllCaps="true"
-                    android:textColor="#008CFF"
+                    android:textColor="@color/rack_text"
                     android:textSize="10sp" />
 
                 <TextView
@@ -297,7 +289,9 @@
                     android:layout_height="28dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
-                    android:background="@drawable/focus_selector"
+                    android:background="@drawable/home_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.1"
                     android:gravity="center"
                     android:text="Movies"
                     android:textAllCaps="true"
@@ -309,7 +303,9 @@
                     android:layout_width="0dp"
                     android:layout_height="28dp"
                     android:layout_weight="1"
-                    android:background="@drawable/focus_selector"
+                    android:background="@drawable/home_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.1"
                     android:gravity="center"
                     android:text="Series"
                     android:textAllCaps="true"
@@ -323,7 +319,7 @@
                 android:id="@+id/guideModeRow"
                 android:layout_width="match_parent"
                 android:layout_height="36dp"
-                android:background="#1A1A1A"
+                android:background="@color/rack_surface"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="8dp"
@@ -335,9 +331,11 @@
                     android:layout_height="28dp"
                     android:gravity="center"
                     android:paddingHorizontal="8dp"
-                    android:background="@drawable/focus_selector"
-                    android:text="📋 What's On"
-                    android:textColor="#008CFF"
+                    android:background="@drawable/home_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.1"
+                    android:text="What's on"
+                    android:textColor="@color/rack_text"
                     android:textSize="11sp" />
 
                 <TextView
@@ -347,9 +345,11 @@
                     android:layout_marginStart="6dp"
                     android:gravity="center"
                     android:paddingHorizontal="8dp"
-                    android:background="@drawable/focus_selector"
-                    android:text="⏱ Grid"
-                    android:textColor="#008CFF"
+                    android:background="@drawable/home_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.1"
+                    android:text="Grid"
+                    android:textColor="@color/rack_text"
                     android:textSize="11sp" />
 
                 <View
@@ -361,7 +361,7 @@
                     android:id="@+id/btnGuideRefreshRow"
                     android:layout_width="28dp"
                     android:layout_height="28dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:background="@drawable/home_tab_bg"
                     android:src="@android:drawable/ic_popup_sync"
                     android:tint="#888888"
                     android:contentDescription="Refresh guide" />
@@ -374,7 +374,7 @@
                 android:id="@+id/syncProgressContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#1A1A1A"
+                android:background="@color/rack_surface"
                 android:orientation="vertical"
                 android:paddingHorizontal="8dp"
                 android:paddingTop="6dp"
@@ -397,7 +397,7 @@
                     android:max="100"
                     android:progress="0"
                     android:progressBackgroundTint="#33FFFFFF"
-                    android:progressTint="#008CFF" />
+                    android:progressTint="@color/oled_cyan_primary" />
 
             </LinearLayout>
 
@@ -406,7 +406,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:background="#141414"
+                android:background="@color/rack_surface"
                 android:paddingTop="8dp" />
 
             <!-- Drill-down replacement for rvCategories within the same column — tapping a
@@ -426,12 +426,12 @@
                     android:id="@+id/rvChannels"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="#141414"
+                    android:background="@color/rack_surface"
                     android:paddingTop="8dp" />
 
             </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#2A2A2A" />
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/rack_border" />
 
         </LinearLayout>
 
@@ -440,7 +440,7 @@
             android:id="@+id/categoriesDivider"
             android:layout_width="1dp"
             android:layout_height="match_parent"
-            android:background="#222222" />
+            android:background="@color/rack_border" />
 
         <!-- RIGHT: mini player on top, channels below -->
         <LinearLayout
@@ -449,6 +449,100 @@
             android:layout_weight="3"
             android:orientation="vertical"
             android:gravity="center_horizontal">
+
+            <!-- STATUS STRIP (v6.84) — the Settings readout strip, live: active provider, its channel
+                 count, when the guide last refreshed and what is playing. Filled by
+                 HomeActivity.updateHomeStatusStrip. -->
+            <LinearLayout
+                android:id="@+id/homeStatusStrip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/rack_strip_bg"
+                android:divider="@drawable/rack_cell_divider"
+                android:orientation="horizontal"
+                android:showDividers="middle">
+                <LinearLayout
+                    style="@style/HomeRack.Readout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/HomeRack.Eyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Provider" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <!-- Accent dot, painted by HomeActivity.updateHomeStatusStrip. -->
+                        <View
+                            android:id="@+id/homeStatusDot"
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:layout_marginEnd="5dp" />
+                        <TextView
+                            android:id="@+id/tvHomeStatusProvider"
+                            style="@style/HomeRack.ReadoutValue"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="—" />
+                    </LinearLayout>
+                </LinearLayout>
+                <LinearLayout
+                    style="@style/HomeRack.Readout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/HomeRack.Eyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Channels" />
+                    <TextView
+                        android:id="@+id/tvHomeStatusChannels"
+                        style="@style/HomeRack.ReadoutValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="—" />
+                </LinearLayout>
+                <LinearLayout
+                    style="@style/HomeRack.Readout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/HomeRack.Eyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Guide" />
+                    <TextView
+                        android:id="@+id/tvHomeStatusGuide"
+                        style="@style/HomeRack.ReadoutValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="—" />
+                </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/homeStatusNowCell"
+                    style="@style/HomeRack.Readout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.6"
+                    >
+                    <TextView
+                        style="@style/HomeRack.Eyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Now playing" />
+                    <TextView
+                        android:id="@+id/tvHomeStatusNow"
+                        style="@style/HomeRack.ReadoutValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="—" />
+                </LinearLayout>
+            </LinearLayout>
+
 
             <FrameLayout
                 android:id="@+id/miniPlayerContainer"
@@ -518,7 +612,7 @@
                             android:layout_height="2dp"
                             android:layout_marginTop="6dp"
                             android:max="100"
-                            android:progressTint="#008CFF"
+                            android:progressTint="@color/oled_cyan_primary"
                             android:progressBackgroundTint="#333333" />
 
                     </LinearLayout>
@@ -541,7 +635,7 @@
                     android:layout_width="32dp"
                     android:layout_height="32dp"
                     android:layout_gravity="center"
-                    android:indeterminateTint="#008CFF"
+                    android:indeterminateTint="@color/oled_cyan_primary"
                     android:visibility="gone" />
 
             </FrameLayout>
@@ -553,21 +647,21 @@
                 android:id="@+id/tvWhatsOnNowHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#1A1A1A"
+                android:background="@color/rack_surface"
                 android:paddingHorizontal="12dp"
                 android:paddingTop="8dp"
                 android:text="WHAT'S ON NOW"
-                android:textColor="#888888"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="12sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.16"
                 android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvWhatsOnNow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#1A1A1A"
+                android:background="@color/rack_surface"
                 android:clipToPadding="false"
                 android:orientation="horizontal"
                 android:paddingHorizontal="8dp"
@@ -586,7 +680,7 @@
             android:id="@+id/genreFilterColumn"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:background="#1A1A1A"
+            android:background="@color/rack_surface"
             android:orientation="vertical"
             android:visibility="gone">
 
@@ -594,7 +688,7 @@
                 android:id="@+id/btnGenreFilterCollapse"
                 android:layout_width="match_parent"
                 android:layout_height="32dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/ic_media_previous"
                 android:tint="#888888"
                 android:padding="6dp"
@@ -633,7 +727,7 @@
         android:id="@+id/bulkSelectBar"
         android:layout_width="0dp"
         android:layout_height="40dp"
-        android:background="#1A1A1A"
+        android:background="@color/rack_surface"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
@@ -656,11 +750,13 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginEnd="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Select All"
-            android:textColor="#008CFF"
+            android:textColor="@color/rack_text"
             android:textSize="12sp" />
 
         <!-- Providers' own Select All (Live/Movies/Series bulk-select there, separate from
@@ -675,11 +771,13 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginEnd="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Select All"
-            android:textColor="#008CFF"
+            android:textColor="@color/rack_text"
             android:textSize="12sp"
             android:visibility="gone" />
 
@@ -687,7 +785,9 @@
             android:id="@+id/btnBulkSelectDone"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Done"
@@ -699,7 +799,9 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="Hide"
@@ -712,7 +814,9 @@
             android:layout_width="wrap_content"
             android:layout_height="32dp"
             android:layout_marginStart="8dp"
-            android:background="@drawable/focus_selector"
+            android:background="@drawable/home_chip_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.1"
             android:gravity="center"
             android:paddingHorizontal="10dp"
             android:text="✕"

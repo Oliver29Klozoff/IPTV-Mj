@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="72dp"
-    android:background="@drawable/home_row_bg"
+    android:background="@drawable/focus_selector_channel"
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
@@ -25,7 +25,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_marginEnd="12dp"
-        android:background="@color/rack_control_off"
+        android:background="#222222"
         android:padding="4dp"
         android:scaleType="fitCenter" />
 
@@ -61,8 +61,8 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/rack_text"
-                android:textSize="15sp"
+                android:textColor="@color/oled_text_primary"
+                android:textSize="14sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -73,7 +73,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="@color/rack_text_secondary"
+            android:textColor="@color/oled_text_secondary"
             android:textSize="11sp"
             android:visibility="gone" />
 
@@ -87,7 +87,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textAllCaps="true"
-            android:textColor="@color/rack_text_muted"
+            android:textColor="@color/oled_text_muted"
             android:textSize="10sp" />
     </LinearLayout>
 
@@ -105,7 +105,7 @@
         android:layout_height="28dp"
         android:layout_marginStart="8dp"
         android:padding="4dp"
-        android:background="@drawable/home_tab_bg"
+        android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/btn_star_big_off" />
 
 </LinearLayout>

@@ -37,6 +37,18 @@ class ChannelAdapter(
     var isTvMode: Boolean = false
     var onChannelFocused: ((ChannelEntity) -> Unit)? = null
 
+    // Accent for the "how far into the show" bar under each row (v6.84), set by
+    // HomeActivity.applyAccent; a gradient accent draws the bar as a gradient. Null keeps the
+    // layout's own tint (the TV home never sets it).
+    private var accentStops: IntArray? = null
+
+    fun setAccent(start: Int, end: Int?) {
+        val stops = intArrayOf(start, end ?: start)
+        if (accentStops?.contentEquals(stops) == true) return
+        accentStops = stops
+        notifyItemRangeChanged(0, itemCount)
+    }
+
     private var epgTextByStreamId: Map<Int, String> = emptyMap()
     private var epgNextTextByStreamId: Map<Int, String> = emptyMap()
     private var epgProgressByStreamId: Map<Int, Int> = emptyMap()
@@ -177,6 +189,26 @@ class ChannelAdapter(
 
             val progress = epgProgressByStreamId[item.streamId] ?: 0
             binding.epgProgressBar.visibility = if (progress > 0) View.VISIBLE else View.INVISIBLE
+            accentStops?.let { stops ->
+                // Rebuilt only when the accent changed since this row's bar was last drawn.
+                if (binding.epgProgressBar.tag !== stops) {
+                    binding.epgProgressBar.progressTintList = null
+                    binding.epgProgressBar.progressBackgroundTintList = null
+                    binding.epgProgressBar.progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(
+                        android.graphics.drawable.ColorDrawable(0xFF1C1C1C.toInt()),
+                        android.graphics.drawable.ClipDrawable(
+                            android.graphics.drawable.GradientDrawable(
+                                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, stops
+                            ),
+                            android.view.Gravity.START, android.graphics.drawable.ClipDrawable.HORIZONTAL
+                        )
+                    )).apply {
+                        setId(0, android.R.id.background)
+                        setId(1, android.R.id.progress)
+                    }
+                    binding.epgProgressBar.tag = stops
+                }
+            }
             binding.epgProgressBar.progress = progress
 
             Glide.with(binding.ivChannelLogo)
