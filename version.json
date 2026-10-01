@@ -2,6 +2,6 @@
   "versionCode": 519,
   "versionName": "6.81",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.81/MKTV.apk",
-  "apkSha256": "c7a852f4cde26b74c6f718f3abdcb156b002cad63a6cefe1a7d15a9536e1fb26",
+  "apkSha256": "780e21781bbd3ea0eeeccf2a656ae8d254c62b6f928420a82b06d1df36fe1405",
   "changelog": "Gradient accents (Sunset, Ocean, Berry, Aurora) now really show as gradients: buttons, toggles, chosen options, the active tab and values in Settings, plus highlights on the home screen. Before, a gradient looked the same as a solid color."
 }

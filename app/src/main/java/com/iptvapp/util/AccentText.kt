@@ -7,7 +7,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.TextView
-import java.util.WeakHashMap
+import com.iptvapp.R
 
 /**
  * Text in the user's accent — a left-to-right gradient across the text itself when the accent is
@@ -18,13 +18,12 @@ import java.util.WeakHashMap
  * whenever the view is laid out again or its text changes. Anything that later needs the label
  * back to a plain color must go through [plain] — a shader overrides setTextColor.
  *
- * Main thread only, like any View work. Views are held weakly, so rebuilt views don't leak.
+ * Main thread only, like any View work. The re-fit listeners live in a tag on the view itself
+ * (not in a map here), so nothing outside the view holds on to it and closed screens are freed.
  */
 object AccentText {
 
     private class Fitter(val layout: View.OnLayoutChangeListener, val watcher: TextWatcher)
-
-    private val fitters = WeakHashMap<TextView, Fitter>()
 
     /** [end] null (or the same as [start]) means a solid accent. */
     fun apply(tv: TextView, start: Int, end: Int?) {
@@ -58,7 +57,7 @@ object AccentText {
         )
         tv.addOnLayoutChangeListener(fitter.layout)
         tv.addTextChangedListener(fitter.watcher)
-        fitters[tv] = fitter
+        tv.setTag(R.id.accent_text_fitter, fitter)
         fit()
     }
 
@@ -79,9 +78,10 @@ object AccentText {
     }
 
     private fun detach(tv: TextView) {
-        fitters.remove(tv)?.let {
+        (tv.getTag(R.id.accent_text_fitter) as? Fitter)?.let {
             tv.removeOnLayoutChangeListener(it.layout)
             tv.removeTextChangedListener(it.watcher)
+            tv.setTag(R.id.accent_text_fitter, null)
         }
     }
 }

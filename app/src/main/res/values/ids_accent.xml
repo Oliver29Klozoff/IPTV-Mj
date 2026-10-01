@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- View tag key: AccentText keeps a gradient label's re-fit listeners on the label itself. -->
+    <item name="accent_text_fitter" type="id" />
+</resources>
