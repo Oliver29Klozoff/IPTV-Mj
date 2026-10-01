@@ -2,6 +2,6 @@
   "versionCode": 522,
   "versionName": "6.84",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.84/MKTV.apk",
-  "apkSha256": "8d943a3099394ded556e5444839aa0a518b9b236d2461569c0995a9372ccf1c8",
+  "apkSha256": "80d8e18a909d280f61f4b528d9cc054577ee86c04acacf4fca7a46e37085ac9f",
   "changelog": "Home screen gets the Settings look: Barlow type, black backgrounds, condensed tabs in your accent color, a status strip (provider, channels, guide, now playing), cleaner channel rows and white remote-focus outlines."
 }

@@ -139,7 +139,7 @@ class MergedChannelAdapter(
                 )
             } else {
                 binding.cbBulkSelect?.visibility = View.GONE
-                binding.root.setBackgroundResource(com.iptvapp.R.drawable.focus_selector_channel)
+                binding.root.setBackgroundResource(com.iptvapp.R.drawable.channel_row_bg)
             }
             binding.ivFavorite.setOnClickListener { onFavoriteClick(item) }
             binding.root.setOnClickListener {

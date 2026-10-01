@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="75dp"
-    android:background="@drawable/home_row_bg"
+    android:background="@drawable/channel_row_bg"
     android:clickable="true"
     android:focusable="true">
 
