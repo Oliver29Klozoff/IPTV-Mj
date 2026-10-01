@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.86 - 2026-10-01
+- **Fixed**: playing a channel from another provider (for example from Favorites) left the mini
+  player's readout strip without the show on now, or still showing the previous channel's show.
+  It now shows that provider's guide — the show, what's next, the time left and the progress bar
+  — and keeps it current every minute.
+
 ## v6.85 - 2026-10-01
 - **Changed**: the mini player on the home screen is now a clean video box with a readout strip
   underneath — channel, the show on now and how much of it is left — instead of text laid over

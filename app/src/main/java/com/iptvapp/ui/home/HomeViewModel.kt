@@ -2254,6 +2254,36 @@ class HomeViewModel @Inject constructor(
         return if (left > 0) ((left + 59_999) / 60_000).toInt() else null
     }
 
+    /** What the mini player's readout strip shows for a channel from a secondary provider
+     * (merged channel). Those channels' guide rows live in epg_entries stamped with their
+     * serverIndex (fetchXmltvEpgForMergedServer), not under the primary streamId lookups the
+     * getMiniEpg* calls above use — so before this the strip stayed blank (or kept the previous
+     * channel's show) when a Favorites / Providers merged channel was playing. Falls back to the
+     * provider's own get_short_epg when its XMLTV had nothing for the channel. */
+    data class MiniEpg(val text: String, val description: String, val progress: Int, val minutesLeft: Int?)
+
+    suspend fun getMergedMiniEpg(serverIndex: Int, streamId: Int): MiniEpg? {
+        val cached = repository.getEpgForServerStreams(listOf(serverIndex to streamId)).first()
+            .filter { it.serverIndex == serverIndex && it.streamId == streamId }
+            .sortedBy { it.startTimestamp }
+        val now = cached.nowProgram()
+        if (now != null) {
+            val next = cached.nextProgram(now)
+            return miniEpg(now.title, next?.title, now.startMs(), now.stopMs(),
+                now.description.takeIf { it.isNotBlank() } ?: "")
+        }
+        val live = repository.fetchMergedEpgNowNext(serverIndex, streamId) ?: return null
+        return miniEpg(live.nowTitle, live.nextTitle, live.nowStartMs, live.nowStopMs, "")
+    }
+
+    private fun miniEpg(nowTitle: String, nextTitle: String?, startMs: Long, stopMs: Long, description: String): MiniEpg {
+        val current = System.currentTimeMillis()
+        val progress = if (stopMs > startMs) ((current - startMs) * 100 / (stopMs - startMs)).toInt().coerceIn(0, 100) else 0
+        val left = stopMs - current
+        val text = if (nextTitle != null) "NOW: $nowTitle   NEXT: $nextTitle" else "NOW: $nowTitle"
+        return MiniEpg(text, description, progress, if (left > 0) ((left + 59_999) / 60_000).toInt() else null)
+    }
+
     suspend fun getVodProgress(streamId: Int): Pair<Long, Long> = repository.getVodProgress(streamId)
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)

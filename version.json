@@ -1,7 +1,7 @@
 {
-  "versionCode": 523,
-  "versionName": "6.85",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.85/MKTV.apk",
-  "apkSha256": "1fd208ac659a8f75dd9bfa07d0156c6f69d0a7fa4fdc04aa96c4f5b331ee2914",
-  "changelog": "Mini player gets a readout strip (channel, show, time left) instead of text over the video; the TV guide and movie/series screens get the Settings look with your accent color. Shield unchanged."
+  "versionCode": 524,
+  "versionName": "6.86",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.86/MKTV.apk",
+  "apkSha256": "47411c57d578330335534256b907a241aa4fcd8d0730ced886cceae2d9ae30f6",
+  "changelog": "Mini player now shows the guide (show, next, time left) for channels from your other providers, e.g. when played from Favorites."
 }

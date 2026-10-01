@@ -2203,6 +2203,38 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /** refreshMiniEpg's twin for a channel from a secondary provider (playMergedChannel), which
+     * has no primary streamId to look the guide up by. Clears the strip when there's no guide. */
+    private suspend fun refreshMergedMiniEpg(serverIndex: Int, streamId: Int) {
+        val epg = viewModel.getMergedMiniEpg(serverIndex, streamId)
+        if (currentMiniServerIndex != serverIndex || currentMiniMergedStreamId != streamId) return
+        binding.tvMiniEpg.text = epg?.text ?: ""
+        val desc = epg?.description.orEmpty()
+        binding.tvHeroDescription?.text = desc
+        binding.tvHeroDescription?.visibility = if (desc.isNotBlank()) View.VISIBLE else View.GONE
+        val progress = epg?.progress ?: 0
+        binding.miniEpgProgress?.progress = progress
+        binding.miniEpgProgress?.visibility = if (progress > 0) View.VISIBLE else View.GONE
+        val minutesLeft = epg?.minutesLeft
+        binding.tvMiniTimeLeft?.text = minutesLeft?.let {
+            if (it >= 60) "${it / 60} h ${it % 60} min" else "$it min"
+        }
+        binding.miniTimeLeftCell?.visibility = if (minutesLeft != null) View.VISIBLE else View.GONE
+    }
+
+    private fun startMergedEpgRefreshLoop(serverIndex: Int, streamId: Int) {
+        epgRefreshJob?.cancel()
+        epgRefreshJob = lifecycleScope.launch {
+            refreshMergedMiniEpg(serverIndex, streamId)
+            while (true) {
+                delay(60_000)
+                if (currentMiniStreamId == -1 && currentMiniServerIndex == serverIndex &&
+                    currentMiniMergedStreamId == streamId) refreshMergedMiniEpg(serverIndex, streamId)
+                else break
+            }
+        }
+    }
+
     private fun showVodSortDialog() {
         val options = listOf(
             HomeViewModel.VodSort.DEFAULT to "Default",
@@ -4298,6 +4330,11 @@ class HomeActivity : AppCompatActivity() {
                 lifecycleScope.launch { prefs.setLastPlayedChannel(channel.serverIndex, channel.streamId) }
                 binding.tvMiniChannelName.text = title
                 binding.tvPipChannelName?.text = title
+                // Drop the previous channel's show right away; the merged guide lookup refills it.
+                binding.tvMiniEpg.text = ""
+                binding.tvHeroDescription?.visibility = View.GONE
+                binding.miniEpgProgress?.visibility = View.GONE
+                startMergedEpgRefreshLoop(channel.serverIndex, channel.streamId)
                 if (!channel.streamIcon.isNullOrBlank()) {
                     binding.ivHeroChannelLogo?.visibility = View.VISIBLE
                     com.bumptech.glide.Glide.with(this@HomeActivity)
