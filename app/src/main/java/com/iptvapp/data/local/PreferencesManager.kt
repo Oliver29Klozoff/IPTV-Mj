@@ -71,6 +71,10 @@ class PreferencesManager @Inject constructor(
         // two different providers can reuse the same category id string.
         val FAVORITE_MERGED_CATEGORY_IDS = stringSetPreferencesKey("favorite_merged_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
+        // Movie / series favorites carried into the primary on a provider switch (see
+        // XtreamRepository.capturePendingPrimaryFavoritesFrom).
+        val PENDING_FAV_VOD_IDS = stringSetPreferencesKey("pending_fav_vod_ids")
+        val PENDING_FAV_SERIES_IDS = stringSetPreferencesKey("pending_fav_series_ids")
         // Restored from a backup before that provider's channels have ever been fetched, so
         // there's nothing to mark favorite yet — applied opportunistically the next time that
         // server's channels are refreshed. Keyed "$serverUrl|$streamId" (server URL, not
@@ -779,6 +783,16 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setPendingFavoriteChannelIds(ids: Set<Int>) {
         context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = ids.map { id -> id.toString() }.toSet() }
+    }
+
+    val pendingFavoriteVodIds: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_FAV_VOD_IDS] ?: emptySet() }
+    suspend fun setPendingFavoriteVodIds(ids: Set<Int>) {
+        context.dataStore.edit { it[Keys.PENDING_FAV_VOD_IDS] = ids.map { id -> id.toString() }.toSet() }
+    }
+
+    val pendingFavoriteSeriesIds: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_FAV_SERIES_IDS] ?: emptySet() }
+    suspend fun setPendingFavoriteSeriesIds(ids: Set<Int>) {
+        context.dataStore.edit { it[Keys.PENDING_FAV_SERIES_IDS] = ids.map { id -> id.toString() }.toSet() }
     }
 
     suspend fun clearPendingFavoriteChannelIds() {

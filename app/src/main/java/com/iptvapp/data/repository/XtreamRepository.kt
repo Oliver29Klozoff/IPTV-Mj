@@ -85,6 +85,14 @@ class XtreamRepository @Inject constructor(
      * favorites would silently reset to none the moment it became primary, even though it had
      * favorites a moment earlier as a secondary provider. */
     suspend fun capturePendingPrimaryFavoritesFrom(serverIndex: Int) {
+        // Movie / series favorites too: the switch now clears this slot's merged catalog
+        // (clearMergedProviderData), so they'd otherwise be lost. Applied after fetchVodStreams /
+        // fetchSeries load the new primary's catalog (applyPendingPrimaryVod/SeriesFavorites).
+        val vodFavs = db.mergedVodDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }.map { it.streamId }
+        if (vodFavs.isNotEmpty()) prefs.setPendingFavoriteVodIds(vodFavs.toSet())
+        val seriesFavs = db.mergedSeriesDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }.map { it.seriesId }
+        if (seriesFavs.isNotEmpty()) prefs.setPendingFavoriteSeriesIds(seriesFavs.toSet())
+
         val favorites = db.mergedChannelDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }
         if (favorites.isEmpty()) return
         prefs.setPendingFavoriteChannelIds(favorites.map { it.streamId }.toSet())
@@ -102,6 +110,22 @@ class XtreamRepository @Inject constructor(
     /** Applies any pending primary-favorite carryover captured by
      * capturePendingPrimaryFavoritesFrom, once this provider's channels actually exist in the
      * channels table to apply them to. Called from fetchLiveStreams() right after upserting. */
+    private suspend fun applyPendingPrimaryVodFavorites() {
+        val pending = prefs.pendingFavoriteVodIds.first().mapNotNull { it.toIntOrNull() }
+        if (pending.isEmpty()) return
+        val existing = db.vodDao().getUserData().map { it.streamId }.toSet()
+        pending.filter { it in existing }.forEach { db.vodDao().setFavorite(it, true) }
+        prefs.setPendingFavoriteVodIds(pending.filter { it !in existing }.toSet())
+    }
+
+    private suspend fun applyPendingPrimarySeriesFavorites() {
+        val pending = prefs.pendingFavoriteSeriesIds.first().mapNotNull { it.toIntOrNull() }
+        if (pending.isEmpty()) return
+        val existing = db.seriesDao().getUserData().map { it.seriesId }.toSet()
+        pending.filter { it in existing }.forEach { db.seriesDao().setFavorite(it, true) }
+        prefs.setPendingFavoriteSeriesIds(pending.filter { it !in existing }.toSet())
+    }
+
     private suspend fun applyPendingPrimaryFavorites() {
         val pendingIds = prefs.pendingFavoriteChannelIds.first()
         if (pendingIds.isNotEmpty()) {
@@ -523,6 +547,7 @@ class XtreamRepository @Inject constructor(
                 saved += chunk.size
                 onProgress(saved, list.size)
             }
+            applyPendingPrimaryVodFavorites()
             list
         }
     }
@@ -695,6 +720,7 @@ class XtreamRepository @Inject constructor(
                 saved += chunk.size
                 onProgress(saved, list.size)
             }
+            applyPendingPrimarySeriesFavorites()
             list
         }
     }
