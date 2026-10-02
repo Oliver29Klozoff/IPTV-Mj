@@ -196,7 +196,10 @@ class XtreamRepository @Inject constructor(
      * moves into the promoted provider's place), so everything cached for that slot belongs to the
      * provider that just became primary. Left in place, its channels — and guide — showed under the
      * old primary's name in Live and Providers. Called after capturePendingPrimaryFavoritesFrom has
-     * taken the slot's favorites; the slot refetches as the provider it now really is. */
+     * taken the slot's favorites; the slot refetches as the provider it now really is.
+     * Known gap: the slot's other per-title data (movie progress, VOD/series folders, hidden flags)
+     * isn't carried into the new primary. Before this it wasn't usable either — the next merged
+     * refresh re-applied it by streamId to the old primary's unrelated titles in the same slot. */
     suspend fun clearMergedProviderData(serverIndex: Int) = withContext(Dispatchers.IO) {
         mergedChannelsRefreshMutex.withLock { db.mergedChannelDao().clearForServer(serverIndex) }
         mergedVodRefreshMutex.withLock { db.mergedVodDao().clearForServer(serverIndex) }
