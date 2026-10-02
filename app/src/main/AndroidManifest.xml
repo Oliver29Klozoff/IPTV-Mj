@@ -86,11 +86,6 @@
             android:screenOrientation="unspecified" />
 
         <activity
-            android:name=".ui.settings.TvSettingsActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
             android:name=".ui.MainActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />

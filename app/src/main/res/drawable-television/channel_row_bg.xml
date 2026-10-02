@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- TV (Shield) version of channel_row_bg: the same focus_selector_channel look its rows have
-     always had. The row adapters reset rows to channel_row_bg after bulk select, so this keeps
-     the TV home unchanged while phones / the car box get the Studio Rack row. -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@drawable/focus_selector_channel" />
-</layer-list>

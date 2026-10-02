@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v6.87 - 2026-10-01
+- **Changed**: the Shield (Android TV) now has the same look as the phone and car box: Barlow type,
+  black and grey backgrounds, condensed capital section names with the active one in your accent
+  color (gradients included) and an accent bar beside it, and the same white outline around
+  whatever the remote is on.
+- **Changed**: on the Shield, the channel lists, guide, What's on now, movie and series posters,
+  movie / series pages, episode list and Recordings all use that look.
+- **Changed**: the Shield now uses the same Settings screen as the phone — tabs across the top, a
+  status strip, two columns, and every setting the phone has. Channel change speed and Pre-warm
+  streams on focus, which only the old TV Settings had, are now in Stream & EPG on every device.
+- **Removed**: the experimental "Compose UI preview" in Settings → Backup. Its look already lives in
+  the real screens; removing it makes the app about 10 MB smaller.
+- The player's "Ask each time" option is now just "Ask", so it fits on one line.
+
 ## v6.86 - 2026-10-01
 - **Fixed**: playing a channel from another provider (for example from Favorites) left the mini
   player's readout strip without the show on now, or still showing the previous channel's show.

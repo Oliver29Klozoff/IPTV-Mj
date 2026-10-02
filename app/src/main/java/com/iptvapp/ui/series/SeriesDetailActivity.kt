@@ -63,8 +63,8 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding = ActivitySeriesDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
         // Studio Rack look (v6.85): season tabs and the loading spinner in the user's accent (the
-        // tab underline as a gradient for a gradient accent). Phone / car box only, not the Shield.
-        if (com.iptvapp.util.RackAccent.appliesTo(this)) lifecycleScope.launch {
+        // tab underline as a gradient for a gradient accent). (Shield too since v6.87.)
+        lifecycleScope.launch {
             val accent = com.iptvapp.util.RackAccent.load(prefs)
             // The layout's tabIndicatorColor would tint the gradient back to one color; clear it first.
             binding.tabSeasons.setSelectedTabIndicatorColor(android.graphics.Color.TRANSPARENT)

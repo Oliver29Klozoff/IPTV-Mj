@@ -619,7 +619,7 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
-                                    android:text="Ask each time" />
+                                    android:text="Ask" />
                             </RadioGroup>
                         </LinearLayout>
                         <LinearLayout
@@ -992,6 +992,60 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Normal" />
+                        </LinearLayout>
+                        <!-- Channel change speed + pre-warm: TV-remote settings that only the old
+                             Shield Settings screen had, until the Shield moved onto this one (v6.87). -->
+                        <LinearLayout
+                            android:id="@+id/rowChannelZapSpeed"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Channel change speed" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Wait after the last channel up/down press before tuning" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvChannelZapSpeedValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Instant" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Pre-warm streams on focus" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Looks up a channel's stream as soon as the remote lands on it" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchPreWarmOnFocus"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
                         </LinearLayout>
                         <LinearLayout
                             style="@style/Rack.Row.Toggle"

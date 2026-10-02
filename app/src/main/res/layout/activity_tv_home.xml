@@ -5,6 +5,7 @@
      LinearLayout is now tvMainContent, the FrameLayout's first child. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:theme="@style/ThemeOverlay.HomeRack"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -12,7 +13,7 @@
     android:id="@+id/tvMainContent"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#07090F"
+    android:background="@color/rack_bg"
     android:orientation="horizontal">
 
     <!-- LEFT PANEL: drillable (sidebar → categories → channels). Width is set at runtime —
@@ -32,7 +33,7 @@
             android:id="@+id/tvSidebar"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#0C0F1A"
+            android:background="@color/rack_surface"
             android:orientation="vertical"
             android:paddingTop="14dp"
             android:paddingBottom="12dp"
@@ -67,16 +68,17 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="MKTV"
-                        android:textColor="#008CFF"
+                        android:textColor="@color/oled_cyan_primary"
                         android:textSize="20sp"
                         android:textStyle="bold"
-                        android:letterSpacing="0.05" />
+                        android:letterSpacing="0.12"
+                        android:fontFamily="@font/barlow_condensed_bold" />
 
                     <TextView
                         android:id="@+id/tvClock"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textColor="#888888"
+                        android:textColor="@color/rack_text_muted"
                         android:textSize="12sp" />
 
                 </LinearLayout>
@@ -87,7 +89,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:layout_marginVertical="8dp"
-                android:background="#1E2A3A" />
+                android:background="@color/rack_border" />
 
             <androidx.core.widget.NestedScrollView
                 android:layout_width="match_parent"
@@ -100,128 +102,160 @@
                 android:orientation="vertical">
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvFavorites"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="FAVORITES"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvProviders"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="PROVIDERS"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvLive"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="LIVE"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvCategories"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
                 android:text="CATEGORIES"
                 android:textAllCaps="false"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvMovies"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="MOVIES"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvSeries"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="SERIES"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvGuide"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="GUIDE"
-                android:textColor="#008CFF"
-                android:textSize="13sp"
+                android:textColor="@color/oled_cyan_primary"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
                 android:ellipsize="end" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvRecordings"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:text="RECORDINGS"
-                android:textColor="#888888"
-                android:textSize="13sp"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="22dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:singleLine="true"
@@ -229,6 +263,7 @@
 
             <!-- Hidden grid toggle kept for binding compatibility -->
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvGrid"
                 android:layout_width="0dp"
                 android:layout_height="0dp"
@@ -239,16 +274,20 @@
             </androidx.core.widget.NestedScrollView>
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/btnTvSettings"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:text="⚙  SETTINGS"
-                android:textColor="#888888"
-                android:textSize="13sp"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="15sp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.1"
                 android:textAllCaps="false"
                 android:gravity="start|center_vertical"
                 android:paddingStart="16dp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false" />
 
@@ -260,7 +299,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:background="#0C0F1A"
+            android:background="@color/rack_surface"
             android:visibility="gone">
 
             <LinearLayout
@@ -268,16 +307,18 @@
                 android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:background="#0A0D16">
+                android:background="@color/rack_bg">
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnCatBack"
                     android:layout_width="52dp"
                     android:layout_height="match_parent"
                     android:text="←"
                     android:textSize="18sp"
-                    android:textColor="#888888"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:textColor="@color/rack_text_muted"
+                    android:background="@drawable/home_tab_bg"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:nextFocusDown="@id/tvBtnProvidersModeChannels" />
@@ -288,7 +329,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:paddingStart="10dp"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/rack_text"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -297,7 +338,7 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#1E2A3A" />
+                android:background="@color/rack_border" />
 
             <!-- PROVIDERS MODE ROW — Channels/Movies/Series direct-select buttons side by side,
                  visible only while the PROVIDERS sidebar section is active and at its top
@@ -309,22 +350,24 @@
                 android:id="@+id/tvProvidersModeRow"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
-                android:background="#0C0F1A"
+                android:background="@color/rack_surface"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="10dp"
                 android:visibility="gone">
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnProvidersModeChannels"
                     android:layout_width="0dp"
                     android:layout_height="36dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="6dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="Channels"
                     android:textAllCaps="false"
-                    android:textColor="#008CFF"
+                    android:textColor="@color/oled_cyan_primary"
                     android:textSize="12sp"
                     android:gravity="center"
                     android:padding="0dp"
@@ -339,15 +382,17 @@
                     android:nextFocusRight="@id/tvBtnProvidersModeMovies" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnProvidersModeMovies"
                     android:layout_width="0dp"
                     android:layout_height="36dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="6dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="Movies"
                     android:textAllCaps="false"
-                    android:textColor="#888888"
+                    android:textColor="@color/rack_text_muted"
                     android:textSize="12sp"
                     android:gravity="center"
                     android:padding="0dp"
@@ -363,14 +408,16 @@
                     android:nextFocusRight="@id/tvBtnProvidersModeSeries" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnProvidersModeSeries"
                     android:layout_width="0dp"
                     android:layout_height="36dp"
                     android:layout_weight="1"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="Series"
                     android:textAllCaps="false"
-                    android:textColor="#888888"
+                    android:textColor="@color/rack_text_muted"
                     android:textSize="12sp"
                     android:gravity="center"
                     android:padding="0dp"
@@ -390,13 +437,14 @@
                      after drilling into a category (tvBtnChanRefresh, the leaf-list refresh
                      button, is a separate/deeper level and easy to never reach). -->
                 <Button
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnProvidersModeRefresh"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginStart="6dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="⟳"
-                    android:textColor="#4FC3F7"
+                    android:textColor="@color/oled_cyan_primary"
                     android:textSize="16sp"
                     android:gravity="center"
                     android:padding="0dp"
@@ -423,7 +471,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="#0C0F1A"
+                android:background="@color/rack_surface"
                 android:paddingHorizontal="10dp"
                 android:paddingTop="6dp"
                 android:paddingBottom="4dp"
@@ -433,7 +481,7 @@
                     android:id="@+id/tvProvidersSyncStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/rack_text_secondary"
                     android:textSize="11sp" />
 
                 <ProgressBar
@@ -443,7 +491,7 @@
                     android:layout_height="4dp"
                     android:layout_marginTop="4dp"
                     android:max="100"
-                    android:progressTint="#4FC3F7" />
+                    android:progressTint="@color/oled_cyan_primary" />
 
             </LinearLayout>
 
@@ -465,7 +513,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:background="#0C0F1A"
+            android:background="@color/rack_surface"
             android:visibility="gone">
 
             <LinearLayout
@@ -473,16 +521,18 @@
                 android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:background="#0A0D16">
+                android:background="@color/rack_bg">
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnChanBack"
                     android:layout_width="52dp"
                     android:layout_height="match_parent"
                     android:text="←"
                     android:textSize="18sp"
-                    android:textColor="#888888"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:textColor="@color/rack_text_muted"
+                    android:background="@drawable/home_tab_bg"
                     android:focusable="true"
                     android:focusableInTouchMode="false" />
 
@@ -492,32 +542,36 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:paddingStart="10dp"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/rack_text"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnChanSort"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
                     android:text="⇅ Default"
                     android:textSize="12sp"
-                    android:textColor="#888888"
+                    android:textColor="@color/rack_text_muted"
                     android:paddingHorizontal="14dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:visibility="gone"
                     android:focusable="true"
                     android:focusableInTouchMode="false" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnChanRefresh"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
                     android:text="⟳ Refresh"
                     android:textSize="12sp"
-                    android:textColor="#888888"
+                    android:textColor="@color/rack_text_muted"
                     android:paddingHorizontal="14dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:visibility="gone"
                     android:focusable="true"
                     android:focusableInTouchMode="false" />
@@ -527,7 +581,7 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#1E2A3A" />
+                android:background="@color/rack_border" />
 
             <!-- BULK-SELECT BAR — shown while any of TvHomeActivity's bulkSelectXxxMode flags is
                  active (see updateTvBulkSelectUi). One shared bar for every bulk-selectable list
@@ -538,7 +592,7 @@
                 android:id="@+id/tvBulkSelectBar"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
-                android:background="#0C0F1A"
+                android:background="@color/rack_surface"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="10dp"
@@ -549,18 +603,20 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/rack_text"
                     android:textSize="13sp" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnBulkSelectAll"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="Select All"
                     android:textAllCaps="false"
-                    android:textColor="#008CFF"
+                    android:textColor="@color/oled_cyan_primary"
                     android:textSize="12sp"
                     android:gravity="center"
                     android:padding="0dp"
@@ -576,11 +632,13 @@
                     android:nextFocusRight="@id/tvBtnBulkSelectDone" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnBulkSelectDone"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="Done"
                     android:textAllCaps="false"
                     android:textColor="#34C759"
@@ -603,11 +661,12 @@
                      select still use Done alone (Done already means Hide for those, no Favorite
                      concept there), see updateTvBulkSelectUi's TvBulkState.hideAction. -->
                 <Button
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnBulkSelectHide"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="Hide"
                     android:textAllCaps="false"
                     android:textColor="#FFA500"
@@ -628,10 +687,12 @@
                     android:nextFocusRight="@id/tvBtnBulkSelectCancel" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnBulkSelectCancel"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:text="✕"
                     android:textColor="#FF6B6B"
                     android:textSize="14sp"
@@ -654,7 +715,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
-                android:background="#0C0F1A"
+                android:background="@color/rack_surface"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="8dp">
@@ -664,21 +725,23 @@
                     android:layout_width="0dp"
                     android:layout_height="36dp"
                     android:layout_weight="1"
-                    android:background="@drawable/search_bg"
+                    android:background="@drawable/home_search_bg"
                     android:hint="Search…"
                     android:imeOptions="actionSearch"
                     android:inputType="text"
                     android:paddingHorizontal="10dp"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#555555"
+                    android:textColor="@color/rack_text"
+                    android:textColorHint="@color/rack_text_muted"
                     android:textSize="12sp" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnClearSearch"
                     android:layout_width="wrap_content"
                     android:layout_height="32dp"
                     android:text="✕"
-                    android:textColor="#888888"
+                    android:textColor="@color/rack_text_muted"
                     android:textSize="14sp"
                     android:background="@android:color/transparent"
                     android:visibility="gone" />
@@ -692,7 +755,7 @@
                 android:visibility="gone"
                 android:scrollbars="none"
                 android:paddingVertical="6dp"
-                android:background="#0A0D16">
+                android:background="@color/rack_bg">
                 <LinearLayout
                     android:id="@+id/tvGenreChipContainer"
                     android:layout_width="wrap_content"
@@ -721,7 +784,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:background="#0C0F1A"
+            android:background="@color/rack_surface"
             android:visibility="gone">
 
             <LinearLayout
@@ -729,16 +792,18 @@
                 android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:background="#0A0D16">
+                android:background="@color/rack_bg">
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/tvBtnGuideBack"
                     android:layout_width="52dp"
                     android:layout_height="match_parent"
                     android:text="←"
                     android:textSize="18sp"
-                    android:textColor="#888888"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:textColor="@color/rack_text_muted"
+                    android:background="@drawable/home_tab_bg"
                     android:focusable="true"
                     android:focusableInTouchMode="false" />
 
@@ -748,21 +813,23 @@
                     android:layout_weight="1"
                     android:paddingStart="10dp"
                     android:text="GUIDE"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/rack_text"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <Button
+
+                    app:backgroundTint="@null"
                     android:id="@+id/btnGuideRefresh"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
                     android:paddingHorizontal="16dp"
                     android:text="⟳ REFRESH"
                     android:textAllCaps="false"
-                    android:textColor="#008CFF"
+                    android:textColor="@color/oled_cyan_primary"
                     android:textSize="12sp"
                     android:letterSpacing="0.05"
-                    android:background="@drawable/tv_sidebar_focus"
+                    android:background="@drawable/home_tab_bg"
                     android:focusable="true"
                     android:focusableInTouchMode="false" />
 
@@ -771,7 +838,7 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#1E2A3A" />
+                android:background="@color/rack_border" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/tvRvEpgGuide"
@@ -805,7 +872,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#0A0D16"
+            android:background="@color/rack_bg"
             android:visibility="gone">
 
             <TextView
@@ -815,7 +882,7 @@
                 android:paddingHorizontal="10dp"
                 android:paddingTop="6dp"
                 android:text="WHAT'S ON NOW"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.05" />
@@ -865,7 +932,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:indeterminateTint="#008CFF"
+                    android:indeterminateTint="@color/oled_cyan_primary"
                     android:visibility="gone" />
 
                 <!-- Classic TV channel-number-entry OSD: type digits on the remote from
@@ -879,7 +946,7 @@
                     android:background="#CC000000"
                     android:paddingHorizontal="20dp"
                     android:paddingVertical="10dp"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/rack_text"
                     android:textSize="28sp"
                     android:textStyle="bold"
                     android:visibility="gone" />
@@ -890,7 +957,7 @@
                 android:id="@+id/tvMiniPlayerFooter"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#0C0F1A"
+                android:background="@color/rack_surface"
                 android:orientation="vertical"
                 android:padding="16dp">
 
@@ -901,8 +968,8 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:text="No channel selected"
-                    android:textColor="#008CFF"
-                    android:textSize="15sp"
+                    android:textColor="@color/rack_text"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -912,8 +979,8 @@
                     android:layout_marginTop="6dp"
                     android:ellipsize="end"
                     android:maxLines="4"
-                    android:textColor="#AAAAAA"
-                    android:textSize="12sp" />
+                    android:textColor="@color/rack_text_secondary"
+                    android:textSize="14sp" />
 
             </LinearLayout>
 
@@ -927,8 +994,8 @@
             android:layout_height="3dp"
             android:max="100"
             android:progress="0"
-            android:progressBackgroundTint="#1A1F2E"
-            android:progressTint="#008CFF"
+            android:progressBackgroundTint="@color/rack_control_off"
+            android:progressTint="@color/oled_cyan_primary"
             android:visibility="gone" />
 
     </LinearLayout>
@@ -938,7 +1005,7 @@
         android:id="@+id/tvProgressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminateTint="#008CFF"
+        android:indeterminateTint="@color/oled_cyan_primary"
         android:visibility="gone" />
 
 </LinearLayout>
@@ -959,7 +1026,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:orientation="vertical"
-        android:background="#0C0F1A"
+        android:background="@color/rack_surface"
         android:paddingHorizontal="16dp"
         android:paddingTop="8dp"
         android:paddingBottom="6dp"
@@ -969,7 +1036,7 @@
             android:id="@+id/tvGlobalSyncStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#AAAAAA"
+            android:textColor="@color/rack_text_secondary"
             android:textSize="12sp" />
 
         <ProgressBar
@@ -979,7 +1046,7 @@
             android:layout_height="4dp"
             android:layout_marginTop="4dp"
             android:max="100"
-            android:progressTint="#4FC3F7" />
+            android:progressTint="@color/oled_cyan_primary" />
 
     </LinearLayout>
 
@@ -994,39 +1061,43 @@
         android:id="@+id/tvMoviesFullScreen"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#07090F"
+        android:background="@color/rack_bg"
         android:orientation="vertical"
         android:visibility="gone">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="64dp"
-            android:background="#0C0F1A"
+            android:background="@color/rack_surface"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingHorizontal="16dp">
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnMoviesFsBack"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:text="←"
                 android:textSize="18sp"
-                android:textColor="#888888"
-                android:background="@drawable/tv_sidebar_focus"
+                android:textColor="@color/rack_text_muted"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:nextFocusRight="@id/tvBtnMoviesFsRefresh" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnMoviesFsRefresh"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:layout_marginStart="8dp"
                 android:text="⟳"
                 android:textSize="20sp"
-                android:textColor="#008CFF"
-                android:background="@drawable/tv_sidebar_focus"
+                android:textColor="@color/oled_cyan_primary"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:nextFocusLeft="@id/tvBtnMoviesFsBack"
@@ -1038,26 +1109,28 @@
                 android:layout_height="44dp"
                 android:layout_weight="1"
                 android:layout_marginStart="12dp"
-                android:background="@drawable/search_bg"
+                android:background="@drawable/home_search_bg"
                 android:hint="Search Movies…"
                 android:imeOptions="actionSearch"
                 android:inputType="text"
                 android:paddingHorizontal="14dp"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#555555"
+                android:textColor="@color/rack_text"
+                android:textColorHint="@color/rack_text_muted"
                 android:textSize="15sp"
                 android:nextFocusLeft="@id/tvBtnMoviesFsRefresh"
                 android:nextFocusRight="@id/tvBtnMoviesFsClearSearch" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnMoviesFsClearSearch"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:text="✕"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="14sp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:padding="0dp"
@@ -1074,13 +1147,14 @@
                  which read as "the search box is broken, nothing happens when I try to search."
                  A real, focusable button gives an unambiguous "yes, this is searching now." -->
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnMoviesFsSearch"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:text="🔍"
                 android:textSize="16sp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:padding="0dp"
@@ -1090,6 +1164,8 @@
                 android:nextFocusRight="@id/tvBtnMoviesFsSort" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnMoviesFsSort"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
@@ -1097,8 +1173,8 @@
                 android:text="⇅ Sort"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:textColor="#888888"
-                android:background="@drawable/tv_sidebar_focus"
+                android:textColor="@color/rack_text_muted"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="12dp"
@@ -1114,7 +1190,7 @@
             android:layout_height="wrap_content"
             android:scrollbars="none"
             android:paddingVertical="8dp"
-            android:background="#0A0D16">
+            android:background="@color/rack_bg">
             <LinearLayout
                 android:id="@+id/tvGenreChipContainerFs"
                 android:layout_width="wrap_content"
@@ -1143,39 +1219,43 @@
         android:id="@+id/tvSeriesFullScreen"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#07090F"
+        android:background="@color/rack_bg"
         android:orientation="vertical"
         android:visibility="gone">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="64dp"
-            android:background="#0C0F1A"
+            android:background="@color/rack_surface"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingHorizontal="16dp">
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnSeriesFsBack"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:text="←"
                 android:textSize="18sp"
-                android:textColor="#888888"
-                android:background="@drawable/tv_sidebar_focus"
+                android:textColor="@color/rack_text_muted"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:nextFocusRight="@id/tvBtnSeriesFsRefresh" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnSeriesFsRefresh"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:layout_marginStart="8dp"
                 android:text="⟳"
                 android:textSize="20sp"
-                android:textColor="#008CFF"
-                android:background="@drawable/tv_sidebar_focus"
+                android:textColor="@color/oled_cyan_primary"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:nextFocusLeft="@id/tvBtnSeriesFsBack"
@@ -1187,26 +1267,28 @@
                 android:layout_height="44dp"
                 android:layout_weight="1"
                 android:layout_marginStart="12dp"
-                android:background="@drawable/search_bg"
+                android:background="@drawable/home_search_bg"
                 android:hint="Search Series…"
                 android:imeOptions="actionSearch"
                 android:inputType="text"
                 android:paddingHorizontal="14dp"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#555555"
+                android:textColor="@color/rack_text"
+                android:textColorHint="@color/rack_text_muted"
                 android:textSize="15sp"
                 android:nextFocusLeft="@id/tvBtnSeriesFsRefresh"
                 android:nextFocusRight="@id/tvBtnSeriesFsClearSearch" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnSeriesFsClearSearch"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:text="✕"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="14sp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:padding="0dp"
@@ -1217,13 +1299,15 @@
                 android:visibility="gone" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnSeriesFsSearch"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginStart="8dp"
                 android:text="🔍"
                 android:textSize="16sp"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:padding="0dp"
@@ -1233,6 +1317,8 @@
                 android:nextFocusRight="@id/tvBtnSeriesFsSort" />
 
             <Button
+
+                app:backgroundTint="@null"
                 android:id="@+id/tvBtnSeriesFsSort"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
@@ -1240,8 +1326,8 @@
                 android:text="⇅ Sort"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:textColor="#888888"
-                android:background="@drawable/tv_sidebar_focus"
+                android:textColor="@color/rack_text_muted"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="12dp"
@@ -1257,7 +1343,7 @@
             android:layout_height="wrap_content"
             android:scrollbars="none"
             android:paddingVertical="8dp"
-            android:background="#0A0D16">
+            android:background="@color/rack_bg">
             <LinearLayout
                 android:id="@+id/tvGenreChipContainerFsSeries"
                 android:layout_width="wrap_content"

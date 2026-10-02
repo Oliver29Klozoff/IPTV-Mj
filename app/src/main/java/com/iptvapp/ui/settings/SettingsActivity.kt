@@ -45,6 +45,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.Bitmap
 import com.iptvapp.util.isForceTvModeEnabled
+import com.iptvapp.util.isLargeScreenDevice
 import com.iptvapp.util.setForceTvModeEnabled
 import com.iptvapp.util.versionCodeCompat
 import com.iptvapp.R
@@ -261,6 +262,8 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
             SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
+            SettingSearchEntry("Channel Change Speed", 0, null, R.id.rowChannelZapSpeed),
+            SettingSearchEntry("Pre-warm Streams on Focus", 0, null, R.id.switchPreWarmOnFocus),
             SettingSearchEntry("Data Saver", 0, null, R.id.switchDataSaver),
             SettingSearchEntry("DNS over HTTPS", 0, null, R.id.cbDohEnabled),
             SettingSearchEntry("Provider Speed Test", 0, null, R.id.btnSpeedTest),
@@ -1704,6 +1707,12 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchDataSaver.setOnCheckedChangeListener { _, isChecked ->
             lifecycleScope.launch { prefs.setDataSaverEnabled(isChecked) }
         }
+        lifecycleScope.launch {
+            binding.switchPreWarmOnFocus.isChecked = prefs.preWarmOnFocus.first()
+        }
+        binding.switchPreWarmOnFocus.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch { prefs.setPreWarmOnFocus(isChecked) }
+        }
 
         lifecycleScope.launch {
             binding.switchNewEpisodeNotifications.isChecked = prefs.newEpisodeNotificationsEnabled.first()
@@ -2373,6 +2382,36 @@ class SettingsActivity : AppCompatActivity() {
         else -> "Normal"
     }
 
+    private fun zapSpeedLabel(ms: Int) = when (ms) {
+        150 -> "Fast (150ms)"
+        300 -> "Medium (300ms)"
+        500 -> "Slow (500ms)"
+        else -> "Instant"
+    }
+
+    // A rapid D-pad channel-up/down press still switches the OSD preview instantly either way —
+    // this only delays the actual network resolve + player reload after the last press, so
+    // mashing the button settles on one real channel switch. See PlayerActivity.playChannel.
+    private fun showChannelZapSpeedDialog() {
+        lifecycleScope.launch {
+            val options = arrayOf("Instant (no delay)", "Fast (150ms)", "Medium (300ms)", "Slow (500ms)")
+            val values = intArrayOf(0, 150, 300, 500)
+            val selIdx = values.indexOf(prefs.channelZapDebounceMs.first()).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Channel Change Speed")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val ms = values[which]
+                    lifecycleScope.launch {
+                        prefs.setChannelZapDebounceMs(ms)
+                        binding.tvChannelZapSpeedValue.text = zapSpeedLabel(ms)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun showLiveReconnectSpeedDialog() {
         lifecycleScope.launch {
             val current = prefs.liveReconnectSpeed.first()
@@ -2579,6 +2618,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
+                binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
                 binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
@@ -3042,7 +3082,10 @@ class SettingsActivity : AppCompatActivity() {
                             prefs.saveCredentials(url, user, newPass)
                             prefs.setServerNickname(newNick)
                             prefs.setActiveServerIndex(-1)
-                            val intent = Intent(this@SettingsActivity, com.iptvapp.ui.home.HomeActivity::class.java)
+                            // The Shield uses this Settings screen too (v6.87), so restart into its own home.
+                            val home = if (isLargeScreenDevice()) com.iptvapp.ui.home.TvHomeActivity::class.java
+                                else com.iptvapp.ui.home.HomeActivity::class.java
+                            val intent = Intent(this@SettingsActivity, home)
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             startActivity(intent)
                         }
@@ -3755,6 +3798,7 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
+        binding.rowChannelZapSpeed.setOnClickListener { showChannelZapSpeedDialog() }
         binding.rowReminderLeadTime.setOnClickListener { showReminderLeadTimeDialog() }
         binding.switchPipEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener

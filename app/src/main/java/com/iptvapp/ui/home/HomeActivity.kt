@@ -51,7 +51,6 @@ import com.iptvapp.ui.guide.GuideAdapter
 import com.iptvapp.ui.player.MultiViewActivity
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.settings.SettingsActivity
-import com.iptvapp.ui.settings.TvSettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -2381,12 +2380,8 @@ class HomeActivity : AppCompatActivity() {
             Toast.makeText(this, "Sort: ${label.drop(2).trim()}", Toast.LENGTH_SHORT).show()
         }
         binding.btnMenu.setOnClickListener {
-            val settingsClass = if (isLargeScreenDevice()) {
-                TvSettingsActivity::class.java
-            } else {
-                SettingsActivity::class.java
-            }
-            settingsLauncher.launch(Intent(this, settingsClass))
+            // One Settings screen everywhere since v6.87 — the Shield's own TvSettingsActivity is gone.
+            settingsLauncher.launch(Intent(this, SettingsActivity::class.java))
         }
         binding.btnMultiView?.setOnClickListener {
             startActivity(Intent(this, MultiViewActivity::class.java))

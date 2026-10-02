@@ -1,7 +1,7 @@
 {
-  "versionCode": 524,
-  "versionName": "6.86",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.86/MKTV.apk",
-  "apkSha256": "47411c57d578330335534256b907a241aa4fcd8d0730ced886cceae2d9ae30f6",
-  "changelog": "Mini player now shows the guide (show, next, time left) for channels from your other providers, e.g. when played from Favorites."
+  "versionCode": 525,
+  "versionName": "6.87",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.87/MKTV.apk",
+  "apkSha256": "89af9c78cf6a74f73eeee0559633f82681ee4dd0521832b35e6bc55489f0a9f5",
+  "changelog": "The Shield gets the phone's look: Barlow type, black backgrounds, accent-colored sections and white remote-focus outlines, plus the phone's Settings screen. Compose preview removed (app ~10 MB smaller)."
 }

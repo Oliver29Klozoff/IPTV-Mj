@@ -39,11 +39,6 @@ object RackAccent {
 
     private const val DEFAULT_ACCENT = 0xFF06B6D4.toInt()
 
-    /** False on the Shield / Android TV: its screens keep their own (layout-television) look. */
-    fun appliesTo(context: android.content.Context): Boolean =
-        (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) !=
-            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
-
     suspend fun load(prefs: PreferencesManager): Accent {
         val start = runCatching { Color.parseColor(prefs.accentColor.first()) }.getOrDefault(DEFAULT_ACCENT)
         val end = prefs.accentColorEnd.first().takeIf { it.isNotEmpty() }

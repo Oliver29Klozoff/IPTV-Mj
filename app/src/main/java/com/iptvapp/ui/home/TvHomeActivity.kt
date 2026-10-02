@@ -30,7 +30,6 @@ import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
-import com.iptvapp.ui.settings.TvSettingsActivity
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
@@ -175,10 +174,9 @@ class TvHomeActivity : AppCompatActivity() {
     private var providersMode = ProvidersMode.CHANNELS
 
     private fun setProvidersModeButtonHighlight() {
-        val active = "#008CFF"; val inactive = "#888888"
-        binding.tvBtnProvidersModeChannels.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.CHANNELS) active else inactive))
-        binding.tvBtnProvidersModeMovies.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.MOVIES) active else inactive))
-        binding.tvBtnProvidersModeSeries.setTextColor(android.graphics.Color.parseColor(if (providersMode == ProvidersMode.SERIES) active else inactive))
+        paintSectionLabel(binding.tvBtnProvidersModeChannels, providersMode == ProvidersMode.CHANNELS)
+        paintSectionLabel(binding.tvBtnProvidersModeMovies, providersMode == ProvidersMode.MOVIES)
+        paintSectionLabel(binding.tvBtnProvidersModeSeries, providersMode == ProvidersMode.SERIES)
     }
 
     // Bulk-select-to-favorites, Hide Channel, and Channels Like This were phone-only
@@ -454,7 +452,7 @@ class TvHomeActivity : AppCompatActivity() {
             FeatureTourDialog.showIfNeeded(this)
         }
         UpdateChecker(this).check(lifecycleScope)
-        lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
+        lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         rescheduleEpgRefreshIfNeeded()
         // Cross-device live-TV handoff (see PlaybackHandoffManager kdoc) — only a prompt, never
         // auto-plays, so it doesn't fight with the cold-boot resume block above (which already
@@ -515,28 +513,40 @@ class TvHomeActivity : AppCompatActivity() {
     // Selecting a sidebar section re-colors the active button (selectSection() below) using
     // this field rather than a hardcoded blue, so the accent survives navigation instead of
     // only showing briefly at launch before the first tap reverts it to the default color.
-    private var currentAccent: Int = 0xFF008CFF.toInt()
+    private var currentAccent: Int = 0xFF06B6D4.toInt()
+    private var currentAccentEnd: Int? = null
+
+    /** Studio Rack labels (v6.87, same as the phone sidebar): the active one in the accent — a
+     * gradient across the text for a gradient preset — the rest in the muted grey. */
+    private fun paintSectionLabel(button: android.widget.TextView, active: Boolean) {
+        if (active) com.iptvapp.util.AccentText.apply(button, currentAccent, currentAccentEnd)
+        else com.iptvapp.util.AccentText.plain(button, getColor(com.iptvapp.R.color.rack_text_muted))
+    }
 
     /** Recolors the sidebar, header buttons, and progress bars to the accent chosen in
      * Settings → Display, including a matching focus-ring color (not just the hardcoded blue). */
-    private fun applyAccent(accent: Int) {
+    private fun applyAccent(rack: com.iptvapp.util.RackAccent.Accent) {
+        val accent = rack.start
         currentAccent = accent
+        currentAccentEnd = rack.end
         listOf(
             binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories,
             binding.btnTvMovies, binding.btnTvSeries, binding.btnTvGuide,
             binding.btnTvProviders
-        ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent) }
+        ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent, rack.end) }
         // The currently active section's button should stay accent-colored and keep its
         // left-accent-bar marker (isSelected — see TvAccentHelper.buildFocusDrawable), not fall
         // back to the dim grey/unselected state applyToButton's fresh drawable would otherwise
         // leave every button in.
-        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
-        activeSidebarButton().setTextColor(accent)
+        sectionButtons.forEach { paintSectionLabel(it, false); it.isSelected = false }
+        paintSectionLabel(activeSidebarButton(), true)
         activeSidebarButton().isSelected = true
         updateProvidersHealthBadge(lastProvidersDownCount)
 
-        binding.tvMktvWordmark.setTextColor(accent)
-        binding.tvEpgProgress.progressTintList = android.content.res.ColorStateList.valueOf(accent)
+        com.iptvapp.util.AccentText.apply(binding.tvMktvWordmark, accent, rack.end)
+        com.iptvapp.util.AccentText.apply(binding.tvTvEpg, accent, rack.end)
+        com.iptvapp.util.RackAccent.paintProgress(binding.tvEpgProgress, rack)
+        setProvidersModeButtonHighlight()
         binding.tvMiniPlayerProgress.indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
         binding.tvProgressBar.indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
     }
@@ -565,7 +575,7 @@ class TvHomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
-        lifecycleScope.launch { applyAccent(android.graphics.Color.parseColor(prefs.accentColor.first())) }
+        lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
         lifecycleScope.launch {
             val nickname = prefs.serverNickname.first()
@@ -1472,7 +1482,7 @@ class TvHomeActivity : AppCompatActivity() {
         binding.tvCatPanel.visibility = View.GONE
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.GONE
-        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
+        sectionButtons.forEach { paintSectionLabel(it, false); it.isSelected = false }
         binding.btnTvFavorites.requestFocus()
         resetMiniPreviewToNowPlaying()
         resetIdleExpandTimer()
@@ -1702,7 +1712,7 @@ class TvHomeActivity : AppCompatActivity() {
             startActivity(Intent(this, TvRecordingActivity::class.java))
         }
         binding.btnTvSettings.setOnClickListener {
-            startActivity(Intent(this, TvSettingsActivity::class.java))
+            startActivity(Intent(this, com.iptvapp.ui.settings.SettingsActivity::class.java))
         }
         binding.tvBtnCatBack.setOnClickListener { showSidebar() }
         binding.tvBtnChanBack.setOnClickListener {
@@ -1754,16 +1764,14 @@ class TvHomeActivity : AppCompatActivity() {
             sidebarContentWidthPx = 0
             if (navState == NavState.SIDEBAR) resizeLeftPanel(expanded = false)
         }
-        val color = if (downCount > 0) 0xFFFF5252.toInt()
-            else if (currentSection == Section.PROVIDERS) currentAccent
-            else 0xFF888888.toInt()
-        button.setTextColor(color)
+        if (downCount > 0) com.iptvapp.util.AccentText.plain(button, 0xFFFF5252.toInt())
+        else paintSectionLabel(button, currentSection == Section.PROVIDERS)
     }
 
     private fun selectSection(section: Section) {
         currentSection = section
-        sectionButtons.forEach { it.setTextColor(0xFF888888.toInt()); it.isSelected = false }
-        activeSidebarButton().setTextColor(currentAccent)
+        sectionButtons.forEach { paintSectionLabel(it, false); it.isSelected = false }
+        paintSectionLabel(activeSidebarButton(), true)
         activeSidebarButton().isSelected = true
         updateProvidersHealthBadge(lastProvidersDownCount)
         binding.tvGenreChipScroll.visibility = View.GONE
@@ -3024,8 +3032,8 @@ class TvHomeActivity : AppCompatActivity() {
             // every sidebar button already does — sharing the static resource would leave every
             // genre chip hardcoded blue regardless of theme.
             isSelected = selected
-            setTextColor(if (selected) currentAccent else 0xFF888888.toInt())
-            background = com.iptvapp.util.TvAccentHelper.buildFocusDrawable(this@TvHomeActivity, currentAccent)
+            paintSectionLabel(this, selected)
+            background = com.iptvapp.util.TvAccentHelper.buildFocusDrawable(this@TvHomeActivity, currentAccent, currentAccentEnd)
             setPadding(28, 0, 28, 0)
             layoutParams = android.view.ViewGroup.MarginLayoutParams(
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT,

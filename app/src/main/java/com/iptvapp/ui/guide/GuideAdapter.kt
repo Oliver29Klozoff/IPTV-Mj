@@ -31,16 +31,12 @@ class GuideAdapter(
     inner class ViewHolder(private val binding: ItemGuideRowBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        private var rack = true
-
         fun bind(row: GuideRow) {
             binding.tvChannelName.text = row.name
             binding.viewProviderStripe?.setBackgroundColor(providerColorFor(row.serverIndex) ?: 0x00000000)
             binding.programContainer.removeAllViews()
 
             val nowMs = System.currentTimeMillis()
-            // v6.85 Studio Rack look on phones / car box only; the Shield keeps its old guide colors.
-            rack = com.iptvapp.util.RackAccent.appliesTo(binding.root.context)
 
             fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
 
@@ -50,7 +46,7 @@ class GuideAdapter(
                 .take(8)
 
             if (visible.isEmpty()) {
-                binding.programContainer.addView(makeProgramText("No upcoming guide data", if (rack) binding.root.context.getColor(com.iptvapp.R.color.rack_text_muted) else 0xFF555555.toInt(), null))
+                binding.programContainer.addView(makeProgramText("No upcoming guide data", binding.root.context.getColor(com.iptvapp.R.color.rack_text_muted), null))
             } else {
                 // "NOW" must mean the single program whose window actually contains the current
                 // time (start <= now < stop), not just "already started" — that condition alone
@@ -75,7 +71,6 @@ class GuideAdapter(
                     // the text for a gradient accent), everything else in the Rack greys.
                     val ctx = binding.root.context
                     val color = when {
-                        !rack    -> when { isNow -> 0xFF00FF88.toInt(); isReplay -> 0xFF00AAFF.toInt(); else -> 0xFFCCCCCC.toInt() }
                         isNow    -> accent?.start ?: ctx.getColor(com.iptvapp.R.color.oled_cyan_primary)
                         isReplay -> ctx.getColor(com.iptvapp.R.color.rack_text)
                         else     -> ctx.getColor(com.iptvapp.R.color.rack_text_secondary)
@@ -85,7 +80,7 @@ class GuideAdapter(
                         onClick = { if (isReplay) onReplayClick(row, program) },
                         onLongClick = { showTimerDialog(row, program) }
                     )
-                    if (isNow && rack) accent?.let { com.iptvapp.util.AccentText.apply(programView, it.start, it.end) }
+                    if (isNow) accent?.let { com.iptvapp.util.AccentText.apply(programView, it.start, it.end) }
                     binding.programContainer.addView(programView)
                 }
             }
@@ -104,7 +99,7 @@ class GuideAdapter(
                 minWidth = 300
                 isClickable = true
                 isFocusable = true
-                if (rack) setBackgroundResource(com.iptvapp.R.drawable.home_tab_bg)
+                setBackgroundResource(com.iptvapp.R.drawable.home_tab_bg)
                 if (onClick != null) setOnClickListener { onClick() }
                 setOnLongClickListener {
                     onLongClick?.invoke()

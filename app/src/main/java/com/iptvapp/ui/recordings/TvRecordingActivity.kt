@@ -182,14 +182,14 @@ class TvRecordingActivity : AppCompatActivity() {
         }
         val folderLabel = android.widget.TextView(this).apply {
             text = "Folder name (under Movies/)"
-            setTextColor(android.graphics.Color.WHITE)
+            setTextColor(getColor(com.iptvapp.R.color.rack_text))
         }
         val folderInput = EditText(this).apply {
             setPadding(0, 16, 0, 24)
         }
         val retentionLabel = android.widget.TextView(this).apply {
             text = "Auto-delete recordings after"
-            setTextColor(android.graphics.Color.WHITE)
+            setTextColor(getColor(com.iptvapp.R.color.rack_text))
         }
         val retentionOptions = listOf("Never" to 0, "7 days" to 7, "14 days" to 14, "30 days" to 30, "60 days" to 60, "90 days" to 90)
         val retentionSpinner = android.widget.Spinner(this)
@@ -563,8 +563,8 @@ class TvRecordingActivity : AppCompatActivity() {
             hint = "Minutes"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText("60")
-            setTextColor(android.graphics.Color.WHITE)
-            setHintTextColor(0xFF555555.toInt())
+            setTextColor(getColor(com.iptvapp.R.color.rack_text))
+            setHintTextColor(getColor(com.iptvapp.R.color.rack_text_muted))
             setPadding(48, 32, 48, 32)
         }
         AlertDialog.Builder(this)

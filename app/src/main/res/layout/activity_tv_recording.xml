@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:theme="@style/ThemeOverlay.HomeRack"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#07090F">
+    android:background="@color/rack_bg">
 
     <!-- STEP: Recordings List -->
     <LinearLayout
@@ -24,48 +26,51 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="SCHEDULED RECORDINGS"
-                android:textColor="#008CFF"
+                android:textColor="@color/oled_cyan_primary"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.08" />
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnRecordingStorageSettings"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="STORAGE"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="20dp"
                 android:layout_marginEnd="12dp" />
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnToggleScheduleView"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="SCHEDULE VIEW"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="20dp"
                 android:layout_marginEnd="12dp" />
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnAddNew"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="+ SCHEDULE NEW"
-                android:textColor="#008CFF"
+                android:textColor="@color/oled_cyan_primary"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="20dp" />
@@ -75,7 +80,7 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#1E2A3A"
+            android:background="@color/rack_border"
             android:layout_marginBottom="8dp" />
 
         <TextView
@@ -83,7 +88,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="No recordings scheduled. Press  + SCHEDULE NEW  to add one."
-            android:textColor="#555555"
+            android:textColor="@color/rack_text_muted"
             android:textSize="15sp"
             android:gravity="center"
             android:paddingTop="40dp"
@@ -107,14 +112,15 @@
             android:visibility="gone">
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnDayPrev"
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
                 android:text="◀ PREV DAY"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="16dp" />
@@ -125,19 +131,20 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/rack_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnDayNext"
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
                 android:text="NEXT DAY ▶"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="16dp" />
@@ -176,14 +183,15 @@
             android:paddingBottom="16dp">
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnCatBack"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="← BACK"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="16dp"
@@ -194,7 +202,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="SELECT CATEGORY"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/rack_text"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -205,19 +213,19 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginBottom="12dp"
-            android:background="@drawable/search_bg"
+            android:background="@drawable/home_search_bg"
             android:hint="Search categories…"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:paddingHorizontal="14dp"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#555555"
+            android:textColor="@color/rack_text"
+            android:textColorHint="@color/rack_text_muted"
             android:textSize="14sp" />
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#1E2A3A"
+            android:background="@color/rack_border"
             android:layout_marginBottom="8dp" />
 
         <androidx.recyclerview.widget.RecyclerView
@@ -247,14 +255,15 @@
             android:paddingBottom="16dp">
 
             <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnChanBack"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="← CATEGORIES"
-                android:textColor="#888888"
+                android:textColor="@color/rack_text_muted"
                 android:textSize="13sp"
                 android:textAllCaps="false"
-                android:background="@drawable/tv_sidebar_focus"
+                android:background="@drawable/home_tab_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
                 android:paddingHorizontal="16dp"
@@ -265,7 +274,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/rack_text"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -276,19 +285,19 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginBottom="12dp"
-            android:background="@drawable/search_bg"
+            android:background="@drawable/home_search_bg"
             android:hint="Search channels…"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:paddingHorizontal="14dp"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#555555"
+            android:textColor="@color/rack_text"
+            android:textColorHint="@color/rack_text_muted"
             android:textSize="14sp" />
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#1E2A3A"
+            android:background="@color/rack_border"
             android:layout_marginBottom="8dp" />
 
         <androidx.recyclerview.widget.RecyclerView

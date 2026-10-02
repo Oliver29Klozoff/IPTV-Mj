@@ -38,8 +38,8 @@ class MergedVodDetailActivity : AppCompatActivity() {
         binding = ActivityMergedVodDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
         // Studio Rack look (v6.85): Play and the watch-progress bar in the user's accent (or
-        // gradient). Phone / car box only — the Shield keeps its own detail layout and colors.
-        if (com.iptvapp.util.RackAccent.appliesTo(this)) lifecycleScope.launch {
+        // gradient). Every device, the Shield included (v6.87).
+        lifecycleScope.launch {
             val accent = com.iptvapp.util.RackAccent.load(prefs)
             com.iptvapp.util.RackAccent.paintFillButton(binding.btnPlay, accent)
             com.iptvapp.util.RackAccent.paintProgress(binding.progressVod, accent)

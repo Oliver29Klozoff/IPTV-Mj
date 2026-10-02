@@ -3,36 +3,37 @@ package com.iptvapp.util
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.widget.Button
+import com.iptvapp.R
 
-/** Builds a focus-ring drawable matching tv_sidebar_focus.xml's look (translucent fill +
- * solid border on focus) but colored with the user's chosen accent, so themed buttons still
- * get a properly tinted focus highlight instead of the hardcoded blue. */
+/** Background for the Shield's sidebar sections and genre chips, in the Studio Rack look the
+ * phone / car box use (v6.87): D-pad focus is the lifted fill + light 2dp outline Settings uses
+ * (never the accent), and the active section ("selected") keeps a lifted fill with a 3dp bar
+ * down its left edge in the user's accent — top-to-bottom gradient for a gradient preset — so
+ * it stays marked once focus moves elsewhere. */
 object TvAccentHelper {
 
-    fun buildFocusDrawable(context: Context, accent: Int): StateListDrawable {
+    fun buildFocusDrawable(context: Context, accent: Int, accentEnd: Int? = null): StateListDrawable {
         fun dp(v: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), context.resources.displayMetrics)
+        val lifted = context.getColor(R.color.rack_focus_fill)
 
         val focused = GradientDrawable().apply {
-            setColor(withAlpha(accent, 0x33))
-            setStroke(dp(2).toInt(), accent)
-            cornerRadius = dp(6)
+            setColor(lifted)
+            setStroke(dp(2).toInt(), context.getColor(R.color.rack_focus_ring))
+            cornerRadius = dp(4)
         }
         val pressed = GradientDrawable().apply {
-            setColor(withAlpha(accent, 0x44))
-            cornerRadius = dp(6)
+            setColor(context.getColor(R.color.rack_pressed))
+            cornerRadius = dp(4)
         }
-        // "Selected" here means "this is the sidebar's currently active section" (see
-        // TvHomeActivity.activeSidebarButton/selectSection) — a persistent left accent bar +
-        // faint tint, distinct from the focus ring above so the active section stays visibly
-        // marked even after D-pad focus moves to a different button. Layered as a separate
-        // state (not merged into `focused`) so a focused-but-inactive button still gets the
-        // plain focus ring, and the active-but-unfocused button still shows its own marker.
-        val selected = android.graphics.drawable.LayerDrawable(arrayOf(
-            GradientDrawable().apply { setColor(withAlpha(accent, 0x1A)) },
-            GradientDrawable().apply { setColor(accent) }
+        // Layered as its own state (not merged into `focused`) so a focused-but-inactive button
+        // still gets the plain focus outline, and the active-but-unfocused one keeps its bar.
+        val selected = LayerDrawable(arrayOf(
+            GradientDrawable().apply { setColor(lifted) },
+            GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(accent, accentEnd ?: accent))
         )).apply {
             setLayerInsetStart(1, 0)
             setLayerWidth(1, dp(3).toInt())
@@ -49,13 +50,13 @@ object TvAccentHelper {
         }
     }
 
-    private fun withAlpha(color: Int, alpha: Int): Int =
-        (color and 0x00FFFFFF) or (alpha shl 24)
-
-    /** Applies the accent to a button's text and gives it its own focus-drawable instance
-     * (StateListDrawables must not be shared across views that might animate independently). */
-    fun applyToButton(button: Button, accent: Int) {
-        button.setTextColor(accent)
-        button.background = buildFocusDrawable(button.context, accent)
+    /** Gives a sidebar button its own background instance (StateListDrawables must not be shared
+     * across views that might animate independently). Its label is painted separately — see
+     * TvHomeActivity.paintSectionLabel — since only the active section shows the accent. */
+    fun applyToButton(button: Button, accent: Int, accentEnd: Int? = null) {
+        button.background = buildFocusDrawable(button.context, accent, accentEnd)
+        // Inflated Buttons are MaterialButtons, whose theme backgroundTint would recolor this.
+        androidx.core.view.ViewCompat.setBackgroundTintList(button, null)
+        (button as? com.google.android.material.button.MaterialButton)?.backgroundTintList = null
     }
 }

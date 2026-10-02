@@ -5,7 +5,7 @@
     android:orientation="vertical"
     android:gravity="center_vertical"
     android:paddingHorizontal="20dp"
-    android:background="@drawable/tv_sidebar_focus"
+    android:background="@drawable/home_tab_bg"
     android:focusable="true"
     android:focusableInTouchMode="false">
 
@@ -13,7 +13,7 @@
         android:id="@+id/tvPickerName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/rack_text"
         android:textSize="16sp"
         android:textStyle="bold"
         android:ellipsize="end"
@@ -23,7 +23,7 @@
         android:id="@+id/tvPickerSub"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#666666"
+        android:textColor="@color/rack_text_muted"
         android:textSize="12sp"
         android:ellipsize="end"
         android:maxLines="1"

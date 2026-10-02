@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Home channel / category rows (Studio Rack look, v6.84): a hairline under each row; the row
      that's playing (state_selected) lifts a step; D-pad focus is the same lifted fill plus light
-     2dp outline as Settings. Phone / car box only — the Shield keeps its own rows
-     (layout-television) and the TV build of this drawable (drawable-television/channel_row_bg),
-     which the row adapters also reset to when bulk select ends. -->
+     2dp outline as Settings. Every device, the Shield included
+     since v6.87; the row adapters also reset to it when bulk select ends. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">

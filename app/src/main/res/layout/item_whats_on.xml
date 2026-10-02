@@ -25,7 +25,7 @@
             android:id="@+id/tvWonChannel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/rack_text"
             android:textSize="13sp"
             android:textStyle="bold"
             android:maxLines="1"
@@ -35,7 +35,7 @@
             android:id="@+id/tvWonProgram"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#AAAAAA"
+            android:textColor="@color/rack_text_secondary"
             android:textSize="12sp"
             android:maxLines="1"
             android:ellipsize="end"
@@ -48,7 +48,7 @@
             android:layout_height="2dp"
             android:layout_marginTop="4dp"
             android:max="100"
-            android:progressTint="#008CFF"
-            android:progressBackgroundTint="#333333" />
+            android:progressTint="@color/oled_cyan_primary"
+            android:progressBackgroundTint="@color/rack_border" />
     </LinearLayout>
 </LinearLayout>

@@ -8,7 +8,7 @@
     android:layout_width="112dp"
     android:layout_height="wrap_content"
     android:layout_marginEnd="6dp"
-    android:background="@drawable/tv_sidebar_focus"
+    android:background="@drawable/home_tab_bg"
     android:focusable="true"
     android:orientation="vertical"
     android:paddingHorizontal="6dp"
@@ -20,7 +20,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textColor="#008CFF"
+        android:textColor="@color/oled_cyan_primary"
         android:textSize="8sp"
         android:textStyle="bold" />
 
@@ -31,7 +31,7 @@
         android:layout_marginTop="1dp"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/rack_text"
         android:textSize="8sp" />
 
     <ProgressBar
@@ -43,6 +43,6 @@
         android:max="100"
         android:progress="0"
         android:progressBackgroundTint="#33FFFFFF"
-        android:progressTint="#008CFF" />
+        android:progressTint="@color/oled_cyan_primary" />
 
 </LinearLayout>
