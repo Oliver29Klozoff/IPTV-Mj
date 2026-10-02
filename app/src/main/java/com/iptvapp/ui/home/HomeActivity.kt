@@ -4786,6 +4786,9 @@ class HomeActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         lifecycleScope.launch {
+            viewModel.channelLoadError.collect { msg -> Toast.makeText(this@HomeActivity, msg, Toast.LENGTH_LONG).show() }
+        }
+        lifecycleScope.launch {
             viewModel.loading.collect { isLoading ->
                 binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
             }

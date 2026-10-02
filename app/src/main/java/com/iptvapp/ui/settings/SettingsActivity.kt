@@ -3073,7 +3073,12 @@ class SettingsActivity : AppCompatActivity() {
                             // had vanished.
                             val newNick = extraServers[i].getOrElse(3) { "" }
                             val updated = extraServers.toMutableList()
-                            updated[i] = listOf(primary.serverUrl, primary.username, primary.password, prefs.serverNickname.first())
+                            // Guide URLs swap with the logins: the promoted provider's own XMLTV URL becomes
+                            // the primary's, and the old primary keeps its URL in the slot it moves into
+                            // (both used to be dropped — the old primary's guide kept feeding the new one).
+                            val promotedEpgUrl = extraServers[i].getOrElse(4) { "" }
+                            updated[i] = listOf(primary.serverUrl, primary.username, primary.password,
+                                prefs.serverNickname.first(), prefs.epgUrl.first(), "true", "xtream", "")
                             // The provider becoming primary may already have favorites recorded
                             // from when it was a secondary provider — those don't automatically
                             // carry over just because its role changed, so capture them now
@@ -3085,8 +3090,10 @@ class SettingsActivity : AppCompatActivity() {
                             // favorites, folders, and pinned categories must survive a primary
                             // switch (clearAllTables() used to wipe those too).
                             repository.clearPrimaryProviderData()
+                            repository.clearMergedProviderData(i)
                             prefs.saveCredentials(url, user, newPass)
                             prefs.setServerNickname(newNick)
+                            prefs.setEpgUrl(promotedEpgUrl)
                             prefs.setActiveServerIndex(-1)
                             // The Shield uses this Settings screen too (v6.87), so restart into its own home.
                             val home = if (isLargeScreenDevice()) com.iptvapp.ui.home.TvHomeActivity::class.java

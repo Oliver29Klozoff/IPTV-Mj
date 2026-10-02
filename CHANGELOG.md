@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v6.88 - 2026-10-02
+- **Fixed**: disabling a provider in Settings now takes its channels out of Live, Favorites, the
+  Providers list and the recordings channel picker straight away. They used to stay until the
+  app was restarted.
+- **Fixed**: switching providers left the new provider's cached channels and guide filed under
+  the old provider's name, so they showed up as the old provider in Live and Providers. The
+  switch now clears them, and the old provider reloads its own channels.
+- **Fixed**: switching providers now brings the new provider's own guide (XMLTV) address with it,
+  and the old provider keeps its own. The old provider's guide used to keep feeding the new one.
+- **New**: if a provider's server refuses to send its channel list (for example, it answers
+  "403 Forbidden"), the home screen now says so instead of quietly showing an empty list.
+
 ## v6.87 - 2026-10-01
 - **Changed**: the Shield (Android TV) now has the same look as the phone and car box: Barlow type,
   black and grey backgrounds, condensed capital section names with the active one in your accent

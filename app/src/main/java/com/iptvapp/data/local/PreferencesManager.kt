@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
@@ -719,6 +720,14 @@ class PreferencesManager @Inject constructor(
         }
         context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
     }
+
+    /** Indices of the extra providers that are switched on, as a live Flow (getExtraServersWithNick
+     * is a one-shot read) — so lists built from merged data drop a provider the moment it's
+     * disabled in Settings, not only on the next app start. Same "enabled" default as below. */
+    val enabledExtraServerIndices: Flow<Set<Int>> = context.dataStore.data.map { p ->
+        val arr = org.json.JSONArray(p[Keys.EXTRA_SERVERS] ?: "[]")
+        (0 until arr.length()).filter { arr.getJSONObject(it).optString("enabled", "true").toBoolean() }.toSet()
+    }.distinctUntilChanged()
 
     suspend fun getExtraServersWithNick(): List<List<String>> {
         val json = context.dataStore.data.first()[Keys.EXTRA_SERVERS] ?: "[]"

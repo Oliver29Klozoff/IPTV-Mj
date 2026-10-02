@@ -3114,6 +3114,9 @@ class TvHomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            viewModel.channelLoadError.collect { msg -> Toast.makeText(this@TvHomeActivity, msg, Toast.LENGTH_LONG).show() }
+        }
+        lifecycleScope.launch {
             viewModel.loading.collect { isLoading ->
                 binding.tvProgressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
                 if (!isLoading) binding.tvRvContent.visibility = View.VISIBLE

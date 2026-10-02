@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -403,16 +404,14 @@ class HomeViewModel @Inject constructor(
     private fun startCombinedLiveCategories() {
         combinedLiveCategoriesJob?.cancel()
         combinedLiveCategoriesJob = viewModelScope.launch {
-            repository.getMergedServerSummaries().collectLatest { allServers ->
-                // A disabled provider's merged_channels rows are deliberately left untouched on
-                // disable (see SettingsActivity's provider-enable toggle) so its favorites/
-                // folders survive being re-enabled later — this is the one merged-data read that
-                // doesn't already go through XtreamRepository.allConfiguredServers()'s enabled-
-                // only filter, so it has to filter here instead of relying on the rows being gone.
-                val enabledIndices = prefs.getExtraServersWithNick()
-                    .mapIndexedNotNull { i, s -> if (s.getOrElse(5) { "true" }.toBoolean()) i else null }
-                    .toSet()
-                val servers = allServers.filter { it.serverIndex in enabledIndices }
+            // A disabled provider's merged_channels rows are deliberately left untouched on disable (see
+            // SettingsActivity's provider-enable toggle) so its favorites/folders survive being
+            // re-enabled, so this list filters them out itself. It used to read the enabled set only
+            // when merged data changed, so a provider disabled in Settings stayed in Live until the
+            // app restarted; combining with the live enabled-set Flow re-filters it immediately.
+            repository.getMergedServerSummaries().combine(prefs.enabledExtraServerIndices) { all, enabled ->
+                all.filter { it.serverIndex in enabled }
+            }.collectLatest { servers ->
                 val mergedCategoryFlows = servers.map { server ->
                     repository.getMergedCategorySummaries(server.serverIndex)
                         .combine(prefs.usaOnlyChannels) { cats, usaOnly ->
@@ -502,6 +501,8 @@ class HomeViewModel @Inject constructor(
                 repository.searchChannels(query),
                 repository.searchMergedChannels(query).combine(prefs.usaOnlyChannels) { channels, usaOnly ->
                     if (usaOnly) channels.filter { isUsCategory(it.categoryName) } else channels
+                }.combine(prefs.enabledExtraServerIndices) { channels, enabled ->
+                    channels.filter { it.serverIndex in enabled }
                 }
             ) { primary, merged ->
                 primary.map { LiveChannelRow(channel = it) } + merged.map { LiveChannelRow(mergedChannel = it) }
@@ -1350,7 +1351,7 @@ class HomeViewModel @Inject constructor(
                 _syncProgress.value = "Loading channels…" to 0
                 coroutineScope {
                     launch { repository.fetchLiveCategories() }
-                    launch { repository.fetchLiveStreams() }
+                    launch { reportChannelLoadError(repository.fetchLiveStreams()) }
                     launch { repository.fetchVodCategories() }
                     launch { repository.fetchSeriesCategories() }
                 }
@@ -1374,6 +1375,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // A failed channel fetch used to leave an empty list with no explanation — e.g. a provider
+    // whose server answers 403 to everything right after switching to it. Emitted once per
+    // failed fetch; HomeActivity / TvHomeActivity show it.
+    // A Channel, not a SharedFlow: the first fetch runs from init, possibly before the screen collects.
+    private val _channelLoadError = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.BUFFERED)
+    val channelLoadError: kotlinx.coroutines.flow.Flow<String> = _channelLoadError.receiveAsFlow()
+
+    private suspend fun reportChannelLoadError(result: com.iptvapp.util.Resource<*>) {
+        if (result !is com.iptvapp.util.Resource.Error) return
+        val nick = prefs.serverNickname.first().ifBlank { "your provider" }
+        _channelLoadError.trySend("Couldn't load channels from $nick (${result.message}). Check its server address and login in Settings → Providers.")
+    }
+
     // Manual "↻ Refresh" on the Live tab — deliberately live-channels-only. Movies/Series have
     // their own dedicated refresh buttons (Settings' btnRefreshMovies/btnRefreshSeries, and TV's
     // equivalents); bundling a full VOD/series re-fetch into every live-channel refresh made
@@ -1384,7 +1398,7 @@ class HomeViewModel @Inject constructor(
             try {
                 coroutineScope {
                     launch { repository.fetchLiveCategories() }
-                    launch { repository.fetchLiveStreams() }
+                    launch { reportChannelLoadError(repository.fetchLiveStreams()) }
                 }
             } finally {
                 _loading.value = false

@@ -17,6 +17,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -156,6 +157,18 @@ class XtreamRepository @Inject constructor(
         sql.execSQL("DELETE FROM channel_reliability")
         sql.execSQL("DELETE FROM recordings WHERE serverIndex = -1")
         sql.execSQL("DELETE FROM episode_watched")
+    }
+
+    /** A primary switch hands extra-provider slot [serverIndex] to a different login (the old primary
+     * moves into the promoted provider's place), so everything cached for that slot belongs to the
+     * provider that just became primary. Left in place, its channels — and guide — showed under the
+     * old primary's name in Live and Providers. Called after capturePendingPrimaryFavoritesFrom has
+     * taken the slot's favorites; the slot refetches as the provider it now really is. */
+    suspend fun clearMergedProviderData(serverIndex: Int) = withContext(Dispatchers.IO) {
+        mergedChannelsRefreshMutex.withLock { db.mergedChannelDao().clearForServer(serverIndex) }
+        mergedVodRefreshMutex.withLock { db.mergedVodDao().clearForServer(serverIndex) }
+        mergedSeriesRefreshMutex.withLock { db.mergedSeriesDao().clearForServer(serverIndex) }
+        db.epgDao().deleteAllForServer(serverIndex)
     }
 
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
@@ -2326,7 +2339,10 @@ class XtreamRepository @Inject constructor(
         return XtreamUrlBuilder(server.serverUrl, server.username, server.password).seriesStreamUrl(episodeId, containerExtension)
     }
 
-    fun getMergedServerSummaries(): Flow<List<MergedServerSummary>> = db.mergedChannelDao().getServerSummaries()
+    fun getMergedServerSummaries(): Flow<List<MergedServerSummary>> =
+        db.mergedChannelDao().getServerSummaries().combine(prefs.enabledExtraServerIndices) { rows, enabled ->
+            rows.filter { it.serverIndex == -1 || it.serverIndex in enabled }
+        }
 
     fun getMergedCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>> =
         db.mergedChannelDao().getCategorySummaries(serverIndex)
@@ -2576,8 +2592,14 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // Merged-channel browsing reads below drop a disabled provider's rows (kept in the table on
+    // purpose so its favorites survive re-enabling), live, so disabling one in Settings takes it
+    // out of Favorites, Providers and the recordings picker straight away.
+    private fun Flow<List<MergedChannelEntity>>.enabledOnly(): Flow<List<MergedChannelEntity>> =
+        combine(prefs.enabledExtraServerIndices) { rows, enabled -> rows.filter { it.serverIndex in enabled } }
+
     fun getMergedAllFavorites(): Flow<List<MergedChannelEntity>> =
-        db.mergedChannelDao().getAllFavorites()
+        db.mergedChannelDao().getAllFavorites().enabledOnly()
     // Movies/Series equivalents — aggregate favorites across EVERY configured secondary
     // provider, backing the "★ Favorites" entry at the top of the Providers tab's server
     // picker (see HomeViewModel.selectMergedVodAllFavoritesAcrossServers/
@@ -2585,9 +2607,9 @@ class XtreamRepository @Inject constructor(
     fun getMergedVodAllFavorites(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getAllFavorites()
     fun getMergedSeriesAllFavorites(): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().getAllFavorites()
     fun getMergedFavoritesInFolder(folderId: Int): Flow<List<MergedChannelEntity>> =
-        db.mergedChannelDao().getFavoritesInFolder(folderId)
+        db.mergedChannelDao().getFavoritesInFolder(folderId).enabledOnly()
     fun getMergedUnfiledFavorites(): Flow<List<MergedChannelEntity>> =
-        db.mergedChannelDao().getUnfiledFavorites()
+        db.mergedChannelDao().getUnfiledFavorites().enabledOnly()
     fun getMergedFavoriteCountsByFolder(): Flow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> =
         db.mergedChannelDao().getFavoriteCountsByFolder()
     suspend fun setMergedChannelFavorite(serverIndex: Int, streamId: Int, favorite: Boolean) =

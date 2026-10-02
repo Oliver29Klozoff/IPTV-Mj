@@ -1,7 +1,7 @@
 {
-  "versionCode": 525,
-  "versionName": "6.87",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.87/MKTV.apk",
-  "apkSha256": "f5629f0f247e116e19a9257bedea9d74f4065706738538bec6554d1ff21e0d75",
-  "changelog": "The Shield gets the phone's look: Barlow type, black backgrounds, accent-colored sections and white remote-focus outlines, plus the phone's Settings screen. Compose preview removed (app ~10 MB smaller)."
+  "versionCode": 526,
+  "versionName": "6.88",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.88/MKTV.apk",
+  "apkSha256": "c45e2dc9d52c345ad223fe36915187f21281860f61cf662b3deb9b6c44378a75",
+  "changelog": "Disabling a provider hides its channels right away; switching providers no longer leaves the new provider's channels and guide under the old one's name; a provider refusing its channel list now shows a message."
 }
