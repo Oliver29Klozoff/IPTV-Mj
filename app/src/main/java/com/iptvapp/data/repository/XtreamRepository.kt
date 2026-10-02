@@ -88,23 +88,21 @@ class XtreamRepository @Inject constructor(
         // Movie / series favorites too: the switch now clears this slot's merged catalog
         // (clearMergedProviderData), so they'd otherwise be lost. Applied after fetchVodStreams /
         // fetchSeries load the new primary's catalog (applyPendingPrimaryVod/SeriesFavorites).
+        // Every set is replaced, empty ones included: leftovers from an earlier switch (a catalog
+        // fetch that failed, or IDs the new catalog lacked) would otherwise be applied to whatever
+        // unrelated titles share those IDs in the next primary's catalog.
         val vodFavs = db.mergedVodDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }.map { it.streamId }
-        if (vodFavs.isNotEmpty()) prefs.setPendingFavoriteVodIds(vodFavs.toSet())
+        prefs.setPendingFavoriteVodIds(vodFavs.toSet())
         val seriesFavs = db.mergedSeriesDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }.map { it.seriesId }
-        if (seriesFavs.isNotEmpty()) prefs.setPendingFavoriteSeriesIds(seriesFavs.toSet())
+        prefs.setPendingFavoriteSeriesIds(seriesFavs.toSet())
 
         val favorites = db.mergedChannelDao().getUserData().filter { it.serverIndex == serverIndex && it.isFavorite }
-        if (favorites.isEmpty()) return
         prefs.setPendingFavoriteChannelIds(favorites.map { it.streamId }.toSet())
 
-        val folderRows = favorites.mapNotNull { it.favoriteFolderId }.distinct()
-        if (folderRows.isNotEmpty()) {
-            val folderNameById = db.favoriteFolderDao().getAll().first().associate { it.id to it.name }
-            val keys = favorites.mapNotNull { fav ->
-                fav.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> "${fav.streamId}|$name" } }
-            }.toSet()
-            if (keys.isNotEmpty()) prefs.setPendingPrimaryChannelFolders(keys)
-        }
+        val folderNameById = db.favoriteFolderDao().getAll().first().associate { it.id to it.name }
+        prefs.setPendingPrimaryChannelFolders(favorites.mapNotNull { fav ->
+            fav.favoriteFolderId?.let { fid -> folderNameById[fid]?.let { name -> "${fav.streamId}|$name" } }
+        }.toSet())
     }
 
     /** Applies any pending primary-favorite carryover captured by

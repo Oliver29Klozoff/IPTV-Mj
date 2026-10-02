@@ -3091,6 +3091,9 @@ class SettingsActivity : AppCompatActivity() {
                             // switch (clearAllTables() used to wipe those too).
                             repository.clearPrimaryProviderData()
                             repository.clearMergedProviderData(i)
+                            // The old primary now lives in that slot with nothing cached — mark merged data stale so
+                            // the restarted home screen reloads it instead of waiting out the 6-hour window.
+                            prefs.setLastMergedChannelsRefresh(0L)
                             prefs.saveCredentials(url, user, newPass)
                             prefs.setServerNickname(newNick)
                             prefs.setEpgUrl(promotedEpgUrl)
