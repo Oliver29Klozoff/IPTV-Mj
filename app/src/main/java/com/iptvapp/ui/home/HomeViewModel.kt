@@ -502,7 +502,7 @@ class HomeViewModel @Inject constructor(
                 repository.searchMergedChannels(query).combine(prefs.usaOnlyChannels) { channels, usaOnly ->
                     if (usaOnly) channels.filter { isUsCategory(it.categoryName) } else channels
                 }.combine(prefs.enabledExtraServerIndices) { channels, enabled ->
-                    channels.filter { it.serverIndex in enabled }
+                    channels.filter { it.serverIndex == -1 || it.serverIndex in enabled }
                 }
             ) { primary, merged ->
                 primary.map { LiveChannelRow(channel = it) } + merged.map { LiveChannelRow(mergedChannel = it) }

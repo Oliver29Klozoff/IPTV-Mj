@@ -2631,7 +2631,10 @@ class XtreamRepository @Inject constructor(
     // purpose so its favorites survive re-enabling), live, so disabling one in Settings takes it
     // out of Favorites, Providers and the recordings picker straight away.
     private fun Flow<List<MergedChannelEntity>>.enabledOnly(): Flow<List<MergedChannelEntity>> =
-        combine(prefs.enabledExtraServerIndices) { rows, enabled -> rows.filter { it.serverIndex in enabled } }
+        combine(prefs.enabledExtraServerIndices) { rows, enabled ->
+            // serverIndex -1 = the primary provider's own rows (e.g. favorited from the Providers tab).
+            rows.filter { it.serverIndex == -1 || it.serverIndex in enabled }
+        }
 
     fun getMergedAllFavorites(): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().getAllFavorites().enabledOnly()
