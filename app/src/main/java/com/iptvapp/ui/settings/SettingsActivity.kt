@@ -2134,9 +2134,15 @@ class SettingsActivity : AppCompatActivity() {
             .setItems(arrayOf("Play This Channel", "Hide This Channel")) { _, which ->
                 when (which) {
                     0 -> {
-                        startActivity(Intent(this, com.iptvapp.ui.home.HomeActivity::class.java).apply {
-                            putExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, channel.streamId)
-                        })
+                        // The Shield (same Settings screen since v6.87) plays it through TvHomeActivity's
+                        // mktv://play deep link, as the old TV Settings did, not the phone home.
+                        if (isLargeScreenDevice()) {
+                            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("mktv://play/${channel.streamId}")))
+                        } else {
+                            startActivity(Intent(this, com.iptvapp.ui.home.HomeActivity::class.java).apply {
+                                putExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, channel.streamId)
+                            })
+                        }
                         finish()
                     }
                     1 -> lifecycleScope.launch {
