@@ -1462,6 +1462,36 @@
                                 android:text="Refresh"
                                 app:icon="@drawable/ic_settings_refresh" />
                         </LinearLayout>
+                        <!-- Hidden channels (v6.89): the only way back for a channel hidden from its
+                             long-press menu — the "Unhide in Settings → Display" toast pointed here
+                             before anything existed to do it. -->
+                        <LinearLayout
+                            android:id="@+id/rowHiddenChannels"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Hidden channels" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Bring back channels you hid, from any provider" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvHiddenChannelsValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="None" />
+                        </LinearLayout>
                         <LinearLayout
                             style="@style/Rack.Row"
                             android:layout_width="match_parent"

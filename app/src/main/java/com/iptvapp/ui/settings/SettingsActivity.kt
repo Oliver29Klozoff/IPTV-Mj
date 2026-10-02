@@ -169,6 +169,8 @@ class SettingsActivity : AppCompatActivity() {
             + "default.\n\n"
             + "Catalog — Refresh: re-downloads your primary provider's live channels, movies or "
             + "series right now instead of waiting for the automatic refresh.\n\n"
+            + "Hidden Channels: lists every channel you hid from its long-press menu, on any "
+            + "provider — tick the ones to bring back, or Unhide all.\n\n"
             + "Clear Favorite Channels: un-favorites every channel on your primary provider. "
             + "Favorites on other providers, folders, and movie/series favorites are not "
             + "affected. Can't be undone.\n\n"
@@ -278,6 +280,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Show Watching Tab", 1, null, R.id.cbShowWatching),
             SettingSearchEntry("Auto-Clear Continue Watching", 1, null, R.id.rowAutoClearContinueWatching),
             SettingSearchEntry("Refresh Channels, Movies or Series", 1, null, R.id.btnRefreshChannels),
+            SettingSearchEntry("Hidden Channels", 1, null, R.id.rowHiddenChannels),
             SettingSearchEntry("Clear Favorite Channels", 1, null, R.id.btnClearFavoriteChannels),
             SettingSearchEntry("Accent Color", 1, null, R.id.accentColorRow),
             SettingSearchEntry("AMOLED Black", 1, null, R.id.cbAmoledBlack),
@@ -2388,6 +2391,48 @@ class SettingsActivity : AppCompatActivity() {
         else -> "Normal"
     }
 
+    private fun refreshHiddenChannelsCount() {
+        lifecycleScope.launch {
+            val n = repository.getHiddenChannels().first().size + repository.getHiddenMergedChannels().first().size
+            binding.tvHiddenChannelsValue.text = if (n == 0) "None" else "$n hidden"
+        }
+    }
+
+    /** Every hidden channel (primary + other providers), ticked to unhide. Nothing else in the app
+     * could unhide one, though the "hidden" toast has always said to come here. */
+    private fun showHiddenChannelsDialog() {
+        lifecycleScope.launch {
+            val primary = repository.getHiddenChannels().first()
+            val merged = repository.getHiddenMergedChannels().first()
+            if (primary.isEmpty() && merged.isEmpty()) {
+                Toast.makeText(this@SettingsActivity, "No hidden channels", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
+            val labels = (primary.map { "${it.name}  ·  $primaryNick" } +
+                merged.map { "${it.name}  ·  ${it.serverNickname}" }).toTypedArray()
+            val checked = BooleanArray(labels.size)
+            suspend fun unhide(indices: List<Int>) {
+                indices.forEach { idx ->
+                    if (idx < primary.size) db.channelDao().setHidden(primary[idx].streamId, false)
+                    else merged[idx - primary.size].let { repository.unhideMergedChannel(it.serverIndex, it.streamId) }
+                }
+                Toast.makeText(this@SettingsActivity, "${indices.size} channel${if (indices.size == 1) "" else "s"} unhidden", Toast.LENGTH_SHORT).show()
+                refreshHiddenChannelsCount()
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Hidden channels")
+                .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
+                .setPositiveButton("Unhide selected") { _, _ ->
+                    val picked = checked.indices.filter { checked[it] }
+                    if (picked.isNotEmpty()) lifecycleScope.launch { unhide(picked) }
+                }
+                .setNeutralButton("Unhide all") { _, _ -> lifecycleScope.launch { unhide(labels.indices.toList()) } }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun zapSpeedLabel(ms: Int) = when (ms) {
         150 -> "Fast (150ms)"
         300 -> "Medium (300ms)"
@@ -3815,6 +3860,8 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
         binding.rowChannelZapSpeed.setOnClickListener { showChannelZapSpeedDialog() }
+        binding.rowHiddenChannels.setOnClickListener { showHiddenChannelsDialog() }
+        refreshHiddenChannelsCount()
         binding.rowReminderLeadTime.setOnClickListener { showReminderLeadTimeDialog() }
         binding.switchPipEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener

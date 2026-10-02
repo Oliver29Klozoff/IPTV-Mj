@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.89 - 2026-10-02
+- **New**: Settings → Display → Hidden channels lists every channel you've hidden, on any provider.
+  Tick the ones to bring back and tap Unhide selected, or Unhide all. The "hidden" message has
+  always pointed there, but until now there was nothing in Settings to unhide them with.
+
 ## v6.88 - 2026-10-02
 - **Fixed**: disabling a provider in Settings now takes its channels out of Live, Favorites, the
   Providers list and the recordings channel picker straight away. They used to stay until the
