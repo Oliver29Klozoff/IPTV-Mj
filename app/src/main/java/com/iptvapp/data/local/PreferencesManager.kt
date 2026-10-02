@@ -75,6 +75,8 @@ class PreferencesManager @Inject constructor(
         // XtreamRepository.capturePendingPrimaryFavoritesFrom).
         val PENDING_FAV_VOD_IDS = stringSetPreferencesKey("pending_fav_vod_ids")
         val PENDING_FAV_SERIES_IDS = stringSetPreferencesKey("pending_fav_series_ids")
+        // "url|user" of the provider those two sets came from — applied only while it's the primary.
+        val PENDING_FAV_VOD_SERIES_OWNER = stringPreferencesKey("pending_fav_vod_series_owner")
         // Restored from a backup before that provider's channels have ever been fetched, so
         // there's nothing to mark favorite yet — applied opportunistically the next time that
         // server's channels are refreshed. Keyed "$serverUrl|$streamId" (server URL, not
@@ -788,6 +790,11 @@ class PreferencesManager @Inject constructor(
     val pendingFavoriteVodIds: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_FAV_VOD_IDS] ?: emptySet() }
     suspend fun setPendingFavoriteVodIds(ids: Set<Int>) {
         context.dataStore.edit { it[Keys.PENDING_FAV_VOD_IDS] = ids.map { id -> id.toString() }.toSet() }
+    }
+
+    val pendingFavoriteVodSeriesOwner: Flow<String> = context.dataStore.data.map { it[Keys.PENDING_FAV_VOD_SERIES_OWNER] ?: "" }
+    suspend fun setPendingFavoriteVodSeriesOwner(owner: String) {
+        context.dataStore.edit { it[Keys.PENDING_FAV_VOD_SERIES_OWNER] = owner }
     }
 
     val pendingFavoriteSeriesIds: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_FAV_SERIES_IDS] ?: emptySet() }

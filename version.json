@@ -2,6 +2,6 @@
   "versionCode": 526,
   "versionName": "6.88",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.88/MKTV.apk",
-  "apkSha256": "fa962a0ef29bef62625ff29af0e5e3e465024f048ec1d7adfffad3383ff4beb9",
+  "apkSha256": "325641b821bc94ad1496e59ffc55f0a63eaa97cb73e8f22ceea66aab183eab62",
   "changelog": "Disabling a provider hides its channels right away; switching providers no longer leaves the new provider's channels and guide under the old one's name; a provider refusing its channel list now shows a message."
 }
