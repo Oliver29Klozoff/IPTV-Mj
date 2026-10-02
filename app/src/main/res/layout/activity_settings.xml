@@ -2183,12 +2183,6 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Receive a cast" />
-                        <Button
-                            android:id="@+id/btnComposeUiPreview"
-                            style="@style/Rack.Button.Link"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Compose UI preview (experimental)" />
                     </LinearLayout>
                 </LinearLayout>
 

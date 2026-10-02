@@ -5,8 +5,7 @@
     <color name="brand_blue">#008CFF</color>
     <color name="brand_blue_dark">#005BFF</color>
 
-    <!-- OLED Cyber-Stream palette — same tokens as ui/compose/theme/Color.kt, so the Compose UI
-         Preview and this XML reskin read as one consistent design language instead of two.
+    <!-- OLED Cyber-Stream palette — the look first tried in the (since removed) Compose UI preview.
          Currently used by the live-channel row (item_channel.xml / item_merged_channel.xml, both
          phone and TV) and the player's on-screen controls (activity_player.xml) — see
          focus_selector_channel.xml kdoc for why the shared app-wide focus_selector.xml was forked
