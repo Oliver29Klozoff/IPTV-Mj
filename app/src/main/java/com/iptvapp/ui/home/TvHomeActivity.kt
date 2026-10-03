@@ -162,9 +162,10 @@ class TvHomeActivity : AppCompatActivity() {
                 currentMiniTitle = timeshiftTitle
                 currentMiniStreamId = streamId
                 currentMiniServerIndex = -1
-                // A catch-up replay is a finished recording: treated as VOD so a pause keeps its place
-                // and full screen gets the seek bar, not re-prepared from the start like live.
-                currentMiniIsVod = true
+                // Same as the phone: a replay is played through the live path. Known gap — it restarts
+                // after a pause / full-screen round trip and can't be scrubbed; a proper catch-up mode
+                // (own identity, no movie-progress saving) is still to do.
+                currentMiniIsVod = false
                 binding.tvTvChannelName.text = timeshiftTitle
                 miniPlayer?.let {
                     it.setMediaItem(MediaItem.fromUri(timeshiftUrl))
