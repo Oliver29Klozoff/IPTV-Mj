@@ -2811,6 +2811,14 @@ class SettingsActivity : AppCompatActivity() {
             textSize = 15f
             setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, (12 * resources.displayMetrics.density).toInt())
         })
+        // The cards left up during a rebuild hold provider indices from before it (a removal shifts
+        // them), so they're greyed out and every control on them is switched off until replaced.
+        fun disableTree(v: View) {
+            v.isEnabled = false
+            v.isFocusable = false
+            if (v is ViewGroup) for (c in 0 until v.childCount) disableTree(v.getChildAt(c))
+        }
+        if (ll.childCount > 0) { disableTree(ll); ll.alpha = 0.5f }
         serverListJob?.cancel()
         serverListJob = lifecycleScope.launch {
             val creds = prefs.credentials.first()
@@ -3251,6 +3259,8 @@ class SettingsActivity : AppCompatActivity() {
             }
             ll.removeAllViews()
             cards.sortedBy { it.first }.forEach { ll.addView(it.second) }
+            ll.isEnabled = true
+            ll.alpha = 1f
 
             // The status strip's PROVIDER / CHANNELS readouts follow whichever provider is active.
             val activeServer = extraServers.getOrNull(activeIndex)

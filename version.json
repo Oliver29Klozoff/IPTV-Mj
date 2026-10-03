@@ -2,6 +2,6 @@
   "versionCode": 528,
   "versionName": "6.90",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.90/MKTV.apk",
-  "apkSha256": "84e2d8e22e58489cb8235122eca8c338293a765f5ea3d0d32c9d4e7757ac824b",
+  "apkSha256": "4a3488b7e85e19ee195c061fb95be35067618112c88adc2d577f2735091c404c",
   "changelog": "Settings > Providers shows 'Loading providers...' instead of an empty list while it counts a big catalog."
 }
