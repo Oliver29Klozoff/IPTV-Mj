@@ -1,7 +1,7 @@
 {
-  "versionCode": 531,
-  "versionName": "6.93",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.93/MKTV.apk",
-  "apkSha256": "9a08e2029de6e0fddf2746bed2e05c9f20eff97029825c585de719579d19196b",
-  "changelog": "New full-screen player look: top bar with channel, show and tools, accent play button, Quick Zap favorites strip and a screen Lock."
+  "versionCode": 532,
+  "versionName": "6.94",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.94/MKTV.apk",
+  "apkSha256": "0dd0d2da6183dcf863baee732518f28d2c6b42d7c97e8153f9dba84594964f89",
+  "changelog": "Mini player: REC and favorite buttons, Later on this channel with reminders, and a Quick Zap favorites strip."
 }

@@ -1314,8 +1314,16 @@ class HomeActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) {
                 binding.tvHomeStatusNow?.text = s?.toString()?.takeIf { it.isNotBlank() } ?: "—"
                 binding.miniTimeLeftCell?.visibility = View.GONE
+                // REC / FAV / Later are for a main-provider live channel; refreshMiniExtras brings them back.
+                binding.btnMiniRec?.visibility = View.GONE
+                binding.btnMiniFav?.visibility = View.GONE
+                binding.miniLaterRow?.visibility = View.GONE
             }
         })
+        binding.rvMiniZap?.apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
+            adapter = miniZapAdapter
+        }
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1784,6 +1792,8 @@ class HomeActivity : AppCompatActivity() {
         setProvidersModeButtonHighlight()
         if (::channelAdapter.isInitialized) channelAdapter.setAccent(colorInt, gradientEndColorInt)
         if (::guideAdapter.isInitialized) guideAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
+        miniZapAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
+        paintMiniFav()
         binding.homeStatusDot?.background = android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
             intArrayOf(colorInt, gradientEndColorInt ?: colorInt)
@@ -2189,6 +2199,122 @@ class HomeActivity : AppCompatActivity() {
             if (it >= 60) "${it / 60} h ${it % 60} min" else "$it min"
         }
         binding.miniTimeLeftCell?.visibility = if (minutesLeft != null) View.VISIBLE else View.GONE
+        refreshMiniExtras(streamId)
+        refreshMiniZap()
+    }
+
+    // ── Mini player extras (v6.94): REC / FAV, Later on this channel, Quick Zap ──
+
+    private val miniZapAdapter by lazy {
+        com.iptvapp.ui.player.QuickZapAdapter { ch ->
+            playInMiniPlayer(ch)
+            lifecycleScope.launch {
+                viewModel.markChannelWatched(ch.streamId)
+                viewModel.setCurrentlyPlaying(ch.streamId)
+            }
+        }
+    }
+    private var miniFavOn = false
+
+    private fun paintMiniFav() {
+        binding.btnMiniFav?.apply {
+            setImageResource(if (miniFavOn) R.drawable.ic_mini_star_on else R.drawable.ic_mini_star)
+            imageTintList = if (miniFavOn) android.content.res.ColorStateList.valueOf(currentAccent) else null
+            contentDescription = if (miniFavOn) "Remove from favorites" else "Add to favorites"
+        }
+    }
+
+    /** REC, FAV and the next shows for the main-provider live channel in the mini player. */
+    private suspend fun refreshMiniExtras(streamId: Int) {
+        if (currentMiniStreamId != streamId || currentMiniIsVod || currentMiniServerIndex != -1) return
+        val channel = viewModel.getChannelById(streamId) ?: return
+        fun ms(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
+        val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
+
+        binding.btnMiniRec?.apply {
+            visibility = View.VISIBLE
+            setOnClickListener {
+                lifecycleScope.launch {
+                    // Records from now to the end of the show on now (an hour if the guide has none).
+                    val now = System.currentTimeMillis()
+                    val left = viewModel.getCurrentProgram(streamId)?.let { ms(it.stopTimestamp) - now }
+                    startActivity(Intent(this@HomeActivity, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, streamId)
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, now)
+                        putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS,
+                            left?.takeIf { it > 60_000L } ?: 60 * 60_000L)
+                    })
+                }
+            }
+        }
+        miniFavOn = viewModel.isChannelFavorite(streamId)
+        paintMiniFav()
+        binding.btnMiniFav?.apply {
+            visibility = View.VISIBLE
+            setOnClickListener {
+                viewModel.toggleChannelFavorite(streamId)
+                miniFavOn = !miniFavOn
+                paintMiniFav()
+                Toast.makeText(this@HomeActivity, if (miniFavOn) "Added to favorites" else "Removed from favorites", Toast.LENGTH_SHORT).show()
+                binding.root.postDelayed({ lifecycleScope.launch { refreshMiniZap() } }, 500)
+            }
+        }
+
+        val row = binding.miniLaterRow ?: return
+        val chips = binding.miniLaterChips ?: return
+        val upcoming = viewModel.getUpcomingPrograms(streamId)
+        chips.removeAllViews()
+        row.visibility = if (upcoming.isEmpty()) View.GONE else View.VISIBLE
+        val d = resources.displayMetrics.density
+        upcoming.forEach { p ->
+            val start = ms(p.startTimestamp)
+            val stop = ms(p.stopTimestamp)
+            val set = ChannelTimerScheduler.isScheduled(this, streamId, start)
+            chips.addView(android.widget.TextView(this).apply {
+                text = "${time.format(java.util.Date(start))} · ${p.title}"
+                textSize = 13f
+                maxLines = 1
+                maxWidth = (240 * d).toInt()
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(getColor(if (set) R.color.rack_text else R.color.rack_text_secondary))
+                setBackgroundResource(R.drawable.home_chip_bg)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding((10 * d).toInt(), 0, (10 * d).toInt(), 0)
+                isFocusable = true
+                if (set) {
+                    val bell = androidx.core.content.ContextCompat.getDrawable(this@HomeActivity, R.drawable.ic_guide_bell)
+                    bell?.setBounds(0, 0, (14 * d).toInt(), (14 * d).toInt())
+                    setCompoundDrawablesRelative(null, null, bell, null)
+                    compoundDrawablePadding = (6 * d).toInt()
+                }
+                layoutParams = android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (36 * d).toInt()).apply {
+                    marginEnd = (8 * d).toInt()
+                }
+                // Tap sets or cancels the reminder; long-press offers Remind / Record.
+                setOnClickListener {
+                    if (set) {
+                        ChannelTimerScheduler.cancel(this@HomeActivity, streamId)
+                        Toast.makeText(this@HomeActivity, "Reminder cancelled", Toast.LENGTH_SHORT).show()
+                    } else {
+                        ChannelTimerScheduler.schedule(this@HomeActivity, streamId, channel.name, p.title, start)
+                        Toast.makeText(this@HomeActivity, "Reminder set for ${p.title}", Toast.LENGTH_SHORT).show()
+                    }
+                    lifecycleScope.launch { refreshMiniExtras(streamId) }
+                }
+                setOnLongClickListener {
+                    showReminderOrRecordChoice(channel, p.title, start, (stop - start).coerceAtLeast(60_000L), time.format(java.util.Date(start)))
+                    true
+                }
+            })
+        }
+    }
+
+    /** Quick Zap (portrait only — rvMiniZap exists in that layout): favorites with what's on. */
+    private suspend fun refreshMiniZap() {
+        val row = binding.miniZapRow ?: return
+        val (favs, showing) = viewModel.getQuickZap()
+        miniZapAdapter.submit(favs, showing, currentMiniStreamId)
+        row.visibility = if (favs.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun startEpgRefreshLoop(streamId: Int) {
@@ -2219,6 +2345,7 @@ class HomeActivity : AppCompatActivity() {
             if (it >= 60) "${it / 60} h ${it % 60} min" else "$it min"
         }
         binding.miniTimeLeftCell?.visibility = if (minutesLeft != null) View.VISIBLE else View.GONE
+        refreshMiniZap()
     }
 
     private fun startMergedEpgRefreshLoop(serverIndex: Int, streamId: Int) {

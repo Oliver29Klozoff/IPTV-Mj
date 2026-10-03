@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v6.94 - 2026-10-03
+- **New**: the home screen's mini player has more under the video:
+  - **REC and ★** next to the channel name. REC records from now to the end of the show (an hour
+    if the guide has none); ★ adds or removes the channel from your favorites. They show for your
+    main provider's live channels.
+  - **Later on this channel**: the next three shows. Tap one to set or cancel a reminder (a bell
+    marks the ones that are set); long-press for Remind / Record.
+  - **Quick Zap** (portrait): your favorite channels as cards with what's on and its progress. Tap
+    one to switch; the playing channel is outlined.
+  - In landscape and on the car box you get REC, ★ and Later; your favorites list is already beside
+    the player there.
+
 ## v6.93 - 2026-10-03
 - **Changed**: the full-screen player has a new look (phone, car box and Shield):
   - **Top bar**: the channel name with its quality tag and LIVE, and the show on now (with time
