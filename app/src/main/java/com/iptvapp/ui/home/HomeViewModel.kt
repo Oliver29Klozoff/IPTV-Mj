@@ -1983,6 +1983,9 @@ class HomeViewModel @Inject constructor(
                 val mergedServerIndices = mergedFavorites.map { it.serverIndex }.distinct()
                 val totalUnits = allChannels.size + mergedServerIndices.size + mergedFavorites.size
                 val completedUnits = java.util.concurrent.atomic.AtomicInteger(0)
+                // Whether any request actually brought data back, so an offline refresh doesn't
+                // stamp the "Guide updated" time just because cached rows are still there.
+                val anyFetched = java.util.concurrent.atomic.AtomicBoolean(false)
                 fun bumpGuideProgress() {
                     val done = completedUnits.incrementAndGet()
                     _syncProgress.value = "Loading guide… $done/${totalUnits.coerceAtLeast(1)}" to (done * 100 / totalUnits.coerceAtLeast(1))
@@ -1995,14 +1998,23 @@ class HomeViewModel @Inject constructor(
                         // history), so both the primary and merged-provider fetch loops below
                         // deliberately space requests out instead of firing all at once.
                         allChannels.forEach { ch ->
-                            launch { repository.fetchEpg(ch.streamId); bumpGuideProgress() }
+                            launch {
+                                if (repository.fetchEpg(ch.streamId) is com.iptvapp.util.Resource.Success) anyFetched.set(true)
+                                bumpGuideProgress()
+                            }
                             kotlinx.coroutines.delay(150)
                         }
                         mergedServerIndices.forEach { serverIndex ->
-                            launch { repository.fetchXmltvEpgForMergedServer(serverIndex); bumpGuideProgress() }
+                            launch {
+                                if (repository.fetchXmltvEpgForMergedServer(serverIndex) > 0) anyFetched.set(true)
+                                bumpGuideProgress()
+                            }
                         }
                         mergedFavorites.forEach { ch ->
-                            launch { repository.fetchMergedEpg(ch.serverIndex, ch.streamId); bumpGuideProgress() }
+                            launch {
+                                if (repository.fetchMergedEpg(ch.serverIndex, ch.streamId).isNotEmpty()) anyFetched.set(true)
+                                bumpGuideProgress()
+                            }
                             kotlinx.coroutines.delay(150)
                         }
                     }
@@ -2016,7 +2028,7 @@ class HomeViewModel @Inject constructor(
                 if (fresh.isNotEmpty() || mergedFresh.isNotEmpty()) {
                     _guideRows.value = buildRows(fresh, mergedFresh)
                     // The guide screen's "Guide updated" time follows this fetch too, not just the worker.
-                    prefs.setLastEpgRefreshTime(System.currentTimeMillis())
+                    if (anyFetched.get()) prefs.setLastEpgRefreshTime(System.currentTimeMillis())
                 }
             }
         }
