@@ -349,6 +349,21 @@
             android:layout_marginEnd="4dp"
             android:visibility="gone" />
 
+        <!-- Tool chips share the row evenly with the show info and scroll when they don't fit, so a
+             narrow phone can't squeeze the channel and now/next out of view. -->
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end|center_vertical"
+            android:orientation="horizontal">
+
         <Button
             android:id="@+id/btnTracks"
             style="@style/PlayerChip"
@@ -407,6 +422,10 @@
             android:scaleType="fitCenter"
             android:src="@drawable/ic_player_zap"
             android:visibility="gone" />
+
+        </LinearLayout>
+
+        </HorizontalScrollView>
 
     </LinearLayout>
 
