@@ -21,6 +21,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -513,21 +514,25 @@ class EpgTimelineActivity : AppCompatActivity() {
     private fun startClock() {
         lifecycleScope.launch {
             var lastMinute = -1L
-            while (true) {
-                rebaseIfStale()
-                updateNowIndicator()
-                val minute = nowMs / 60_000L
-                if (lastMinute != -1L && minute != lastMinute) {
-                    // Rebinding rebuilds every block; put remote focus back on the same program.
-                    val focusedKey = currentFocus?.tag as? String
-                    adapter.refresh()
-                    renderDetail()
-                    if (focusedKey != null) binding.rvTimeline.post {
-                        binding.rvTimeline.findViewWithTag<View>(focusedKey)?.requestFocus()
+            // Only while the guide is on screen; coming back after time has passed catches up at once
+            // (lastMinute is kept across stops, so the first tick refreshes the blocks).
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (true) {
+                    rebaseIfStale()
+                    updateNowIndicator()
+                    val minute = nowMs / 60_000L
+                    if (lastMinute != -1L && minute != lastMinute) {
+                        // Rebinding rebuilds every block; put remote focus back on the same program.
+                        val focusedKey = currentFocus?.tag as? String
+                        adapter.refresh()
+                        renderDetail()
+                        if (focusedKey != null) binding.rvTimeline.post {
+                            binding.rvTimeline.findViewWithTag<View>(focusedKey)?.requestFocus()
+                        }
                     }
+                    lastMinute = minute
+                    delay(30_000)
                 }
-                lastMinute = minute
-                delay(30_000)
             }
         }
     }
