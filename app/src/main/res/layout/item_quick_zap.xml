@@ -1,24 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Quick Zap card (v6.93): one favorite channel in the player's bottom strip - logo, number +
-     name, the show on now and its progress. The playing channel is outlined in the accent
-     (QuickZapAdapter sets the background). -->
+<!-- Quick Zap card: one favorite in a short strip. Logo, number, name, the show on now and a
+     thin progress bar. The playing channel is outlined in the accent (QuickZapAdapter). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="190dp"
+    android:layout_width="156dp"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="8dp"
+    android:minHeight="36dp"
+    android:layout_marginEnd="6dp"
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="8dp">
+    android:paddingHorizontal="6dp"
+    android:paddingVertical="3dp">
 
     <ImageView
         android:id="@+id/ivZapLogo"
-        android:layout_width="44dp"
-        android:layout_height="30dp"
-        android:layout_marginEnd="8dp"
+        android:layout_width="28dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="6dp"
         android:background="@color/rack_control_off"
-        android:padding="3dp"
+        android:padding="2dp"
         android:scaleType="fitCenter" />
 
     <LinearLayout
@@ -40,7 +41,7 @@
                 android:layout_marginEnd="5dp"
                 android:fontFamily="@font/barlow_condensed_bold"
                 android:textColor="@color/rack_text_muted"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tvZapName"
@@ -51,7 +52,7 @@
                 android:fontFamily="@font/barlow_semibold"
                 android:maxLines="1"
                 android:textColor="@color/rack_text"
-                android:textSize="13sp" />
+                android:textSize="12sp" />
 
         </LinearLayout>
 
@@ -62,14 +63,14 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/rack_text_secondary"
-            android:textSize="11sp" />
+            android:textSize="10sp" />
 
         <ProgressBar
             android:id="@+id/zapProgress"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="2dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="1dp"
             android:max="100" />
 
     </LinearLayout>

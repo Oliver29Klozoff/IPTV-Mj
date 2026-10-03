@@ -1,7 +1,7 @@
 {
-  "versionCode": 532,
-  "versionName": "6.94",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.94/MKTV.apk",
-  "apkSha256": "8fb6ca8a50dcecf82ea1de21dd6451057e352c6157b3b677075715bdee1d0bf8",
-  "changelog": "Mini player: REC and favorite buttons, Later on this channel with reminders, and a Quick Zap favorites strip."
+  "versionCode": 533,
+  "versionName": "6.95",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.95/MKTV.apk",
+  "apkSha256": "420c155d75b81b8c473b1ca065d90242db31514a16d79290a7a30ff432d2a248",
+  "changelog": "Quick Zap and now/next take less of the screen. Favorite cards are a short row, now and next share one line in the full-screen player, and Later is one row of smaller chips."
 }

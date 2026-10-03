@@ -2281,9 +2281,9 @@ class HomeActivity : AppCompatActivity() {
             val set = ChannelTimerScheduler.isScheduled(this, streamId, start)
             chips.addView(android.widget.TextView(this).apply {
                 text = "${time.format(java.util.Date(start))} · ${p.title}"
-                textSize = 13f
+                textSize = 12f
                 maxLines = 1
-                maxWidth = (240 * d).toInt()
+                maxWidth = (200 * d).toInt()
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 setTextColor(getColor(if (set) R.color.rack_text else R.color.rack_text_secondary))
                 setBackgroundResource(R.drawable.home_chip_bg)
@@ -2296,8 +2296,8 @@ class HomeActivity : AppCompatActivity() {
                     setCompoundDrawablesRelative(null, null, bell, null)
                     compoundDrawablePadding = (6 * d).toInt()
                 }
-                layoutParams = android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (36 * d).toInt()).apply {
-                    marginEnd = (8 * d).toInt()
+                layoutParams = android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (28 * d).toInt()).apply {
+                    marginEnd = (6 * d).toInt()
                 }
                 // Tap sets or cancels the reminder; long-press offers Remind / Record.
                 setOnClickListener {
@@ -2323,7 +2323,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** Quick Zap (portrait only — rvMiniZap exists in that layout): favorites with what's on. */
     private suspend fun refreshMiniZap() {
-        val row = binding.miniZapRow ?: return
+        val row = binding.rvMiniZap ?: return
         if (resources.configuration.screenHeightDp < 720) { row.visibility = View.GONE; return }
         val (favs, showing) = viewModel.getQuickZap()
         miniZapAdapter.submit(favs, showing, currentMiniStreamId)

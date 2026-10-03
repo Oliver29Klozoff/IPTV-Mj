@@ -246,27 +246,40 @@
 
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/tvEpgNow"
+            <!-- Now and next share one line so the top bar stays a single row under the title. -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:shadowColor="#99000000"
-                android:shadowRadius="4"
-                android:textColor="@color/rack_text_secondary"
-                android:textSize="13sp" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvEpgNext"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:shadowColor="#99000000"
-                android:shadowRadius="4"
-                android:textColor="@color/rack_text_muted"
-                android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/tvEpgNow"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="4"
+                    android:textColor="@color/rack_text_secondary"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvEpgNext"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="4"
+                    android:textColor="@color/rack_text_muted"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -650,7 +663,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingBottom="12dp"
+        android:paddingBottom="6dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -658,11 +671,11 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="28dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="20dp"
-            android:paddingEnd="12dp">
+            android:paddingStart="16dp"
+            android:paddingEnd="8dp">
 
             <TextView
                 android:layout_width="0dp"
@@ -670,17 +683,17 @@
                 android:layout_weight="1"
                 android:fontFamily="@font/barlow_condensed_bold"
                 android:letterSpacing="0.14"
-                android:text="QUICK ZAP · FAVORITES"
+                android:text="QUICK ZAP"
                 android:textColor="@color/rack_text"
-                android:textSize="13sp" />
+                android:textSize="11sp" />
 
             <ImageButton
                 android:id="@+id/btnCloseGuide"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/player_chip_bg"
                 android:contentDescription="Close quick zap"
-                android:padding="8dp"
+                android:padding="6dp"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 app:tint="@color/rack_text" />
 

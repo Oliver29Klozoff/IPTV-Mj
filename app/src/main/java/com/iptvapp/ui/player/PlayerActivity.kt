@@ -3330,12 +3330,14 @@ class PlayerActivity : AppCompatActivity() {
                 val next = epg.firstOrNull { now != null && startMs(it) > stopMs(now) }
                 binding.tvEpgNow.text = if (now != null) now.title + " · " + minutesLeftLabel(stopMs(now) - nowMs) + " left" else ""
                 binding.tvEpgNext.text = if (next != null) "Next · " + clockLabel(startMs(next)) + " · " + next.title else ""
+                binding.tvEpgNext.visibility = if (next != null) View.VISIBLE else View.GONE
             }
         } else if (!isVod && serverIndex != -1) {
             lifecycleScope.launch {
                 val nowNext = try { repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId) } catch (_: Exception) { null }
                 binding.tvEpgNow.text = if (nowNext != null) nowNext.nowTitle + " · " + minutesLeftLabel(nowNext.nowStopMs - System.currentTimeMillis()) + " left" else ""
                 binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "Next · " + clockLabel(nowNext.nowStopMs) + " · " + nowNext.nextTitle else ""
+                binding.tvEpgNext.visibility = if (nowNext?.nextTitle != null) View.VISIBLE else View.GONE
             }
         }
     }

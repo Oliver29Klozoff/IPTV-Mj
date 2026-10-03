@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.95 - 2026-10-03
+- **Changed**: Quick Zap and now/next take less of the screen. The favorite cards are a short
+  row, and the home screen no longer puts a heading above them. On the full-screen player, what's
+  on now and what's next share one line, and the Quick Zap bar is shorter. "Later on this channel"
+  is one row of smaller chips.
+
+
 ## v6.94 - 2026-10-03
 - **New**: the home screen's mini player has more under the video:
   - **REC and ★** next to the channel name. REC records from now to the end of the show (an hour

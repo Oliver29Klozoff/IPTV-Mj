@@ -686,27 +686,30 @@
                         android:progressBackgroundTint="@color/rack_control_off" />
 
                 </LinearLayout>
-        <!-- Later on this channel (v6.94): the next shows as chips; tap one to set / cancel its
-             reminder, long-press for Remind / Record. Filled in by HomeActivity.refreshMiniExtras. -->
+        <!-- Later on this channel: one row of chips. Tap to set or cancel a reminder,
+             long-press for Remind / Record. Filled in by HomeActivity.refreshMiniExtras. -->
         <LinearLayout
             android:id="@+id/miniLaterRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="4dp"
+            android:paddingBottom="2dp"
             android:visibility="gone">
 
             <TextView
                 style="@style/HomeRack.Eyebrow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingHorizontal="12dp"
-                android:text="Later on this channel" />
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"
+                android:text="Later" />
 
             <HorizontalScrollView
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_weight="1"
                 android:scrollbars="none">
 
                 <LinearLayout
@@ -714,7 +717,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="12dp" />
+                    android:paddingEnd="12dp" />
 
             </HorizontalScrollView>
 
