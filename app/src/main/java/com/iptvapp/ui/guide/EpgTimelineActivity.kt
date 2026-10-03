@@ -539,12 +539,19 @@ class EpgTimelineActivity : AppCompatActivity() {
      * copy could have a stale title or times for the panel's Remind / Record), else at whatever is on
      * that channel now, else at the first live show. */
     private fun reconcileSelection(rows: List<GuideRow>) {
-        val (oldRow, oldProgram) = selected ?: run { selectFirstLive(rows); return }
+        // Only shows inside the day being displayed count; on another day nothing is picked for you.
+        val windowEnd = startMs + (hoursBack + hoursAhead) * 60 * 60_000L
+        fun inWindow(p: EpgEntity) = epgMs(p.stopTimestamp) > startMs && epgMs(p.startTimestamp) < windowEnd
+        fun fallback() {
+            selected = null
+            if (dayOffset == 0) selectFirstLive(rows)
+            if (selected == null) { adapter.clearSelection(); renderDetail() }
+        }
+        val (oldRow, oldProgram) = selected ?: run { fallback(); return }
         val row = rows.firstOrNull { it.serverIndex == oldRow.serverIndex && it.streamId == oldRow.streamId }
-        val program = row?.programs?.firstOrNull { it.startTimestamp == oldProgram.startTimestamp }
-            ?: row?.programs?.firstOrNull { epgMs(it.startTimestamp) <= nowMs && nowMs < epgMs(it.stopTimestamp) }
-        if (row != null && program != null) select(row, program)
-        else { selected = null; selectFirstLive(rows); if (selected == null) renderDetail() }
+        val program = row?.programs?.firstOrNull { it.startTimestamp == oldProgram.startTimestamp && inWindow(it) }
+            ?: if (dayOffset == 0) row?.programs?.firstOrNull { epgMs(it.startTimestamp) <= nowMs && nowMs < epgMs(it.stopTimestamp) } else null
+        if (row != null && program != null) select(row, program) else fallback()
     }
 
     private fun selectFirstLive(rows: List<GuideRow>) {
@@ -822,6 +829,14 @@ class TimelineAdapter(
     private var selectedKey: String? = null
 
     // Updated in place, not by rebinding: rebinding would destroy the block that holds D-pad focus.
+    fun clearSelection() {
+        selectedKey = null
+        scrollViews.forEach { sv ->
+            val row = sv.getChildAt(0) as? ViewGroup ?: return@forEach
+            for (i in 0 until row.childCount) row.getChildAt(i).isSelected = false
+        }
+    }
+
     fun setSelectedKey(key: String) {
         if (key == selectedKey) return
         selectedKey = key
