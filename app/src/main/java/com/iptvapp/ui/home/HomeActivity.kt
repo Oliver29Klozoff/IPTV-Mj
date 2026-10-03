@@ -2262,6 +2262,8 @@ class HomeActivity : AppCompatActivity() {
 
         val row = binding.miniLaterRow ?: return
         val chips = binding.miniLaterChips ?: return
+        // Only with room to spare: on a short screen the extra row would push the channel list off it.
+        if (resources.configuration.screenHeightDp < 600) { row.visibility = View.GONE; return }
         val upcoming = viewModel.getUpcomingPrograms(streamId)
         chips.removeAllViews()
         row.visibility = if (upcoming.isEmpty()) View.GONE else View.VISIBLE
@@ -2315,6 +2317,7 @@ class HomeActivity : AppCompatActivity() {
     /** Quick Zap (portrait only — rvMiniZap exists in that layout): favorites with what's on. */
     private suspend fun refreshMiniZap() {
         val row = binding.miniZapRow ?: return
+        if (resources.configuration.screenHeightDp < 720) { row.visibility = View.GONE; return }
         val (favs, showing) = viewModel.getQuickZap()
         miniZapAdapter.submit(favs, showing, currentMiniStreamId)
         row.visibility = if (favs.isEmpty()) View.GONE else View.VISIBLE
