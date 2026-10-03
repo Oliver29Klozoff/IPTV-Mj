@@ -2226,8 +2226,12 @@ class HomeActivity : AppCompatActivity() {
 
     /** REC, FAV and the next shows for the main-provider live channel in the mini player. */
     private suspend fun refreshMiniExtras(streamId: Int) {
-        if (currentMiniStreamId != streamId || currentMiniIsVod || currentMiniServerIndex != -1) return
+        // Re-checked after every lookup: a channel switch mid-refresh mustn't put this channel's buttons
+        // and chips back under the new one (these refreshes run in independent jobs).
+        fun stillPlaying() = currentMiniStreamId == streamId && !currentMiniIsVod && currentMiniServerIndex == -1
+        if (!stillPlaying()) return
         val channel = viewModel.getChannelById(streamId) ?: return
+        if (!stillPlaying()) return
         fun ms(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
         val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
 
@@ -2247,7 +2251,9 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-        miniFavOn = viewModel.isChannelFavorite(streamId)
+        val isFav = viewModel.isChannelFavorite(streamId)
+        if (!stillPlaying()) return
+        miniFavOn = isFav
         paintMiniFav()
         binding.btnMiniFav?.apply {
             visibility = View.VISIBLE
@@ -2265,6 +2271,7 @@ class HomeActivity : AppCompatActivity() {
         // Only with room to spare: on a short screen the extra row would push the channel list off it.
         if (resources.configuration.screenHeightDp < 600) { row.visibility = View.GONE; return }
         val upcoming = viewModel.getUpcomingPrograms(streamId)
+        if (!stillPlaying()) return
         chips.removeAllViews()
         row.visibility = if (upcoming.isEmpty()) View.GONE else View.VISIBLE
         val d = resources.displayMetrics.density
