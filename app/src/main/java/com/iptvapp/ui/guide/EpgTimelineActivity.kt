@@ -99,6 +99,7 @@ class EpgTimelineActivity : AppCompatActivity() {
         binding = ActivityEpgTimelineBinding.inflate(layoutInflater)
         setContentView(binding.root)
         hideSystemUi()
+        applyCompactLayout()
 
         adapter = TimelineAdapter(
             dpPerMin = dpPerMin,
@@ -131,17 +132,16 @@ class EpgTimelineActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) { applyFilters() }
         })
 
-        buildDayChips()
+        buildChips()
         buildTimeHeader()
         lifecycleScope.launch {
             accent = RackAccent.load(prefs)
             adapter.setAccent(accent)
             RackAccent.paintFillButton(binding.btnDetailPrimary, accent)
-            buildDayChips()
             categoryNames = try {
                 db.categoryDao().getCategoriesByType("live").first().associate { it.categoryId to it.categoryName }
             } catch (_: Exception) { emptyMap() }
-            buildGenreChips()
+            buildChips()
             applyFilters()
         }
         lifecycleScope.launch {
@@ -228,6 +228,34 @@ class EpgTimelineActivity : AppCompatActivity() {
             setOnClickListener { onClick() }
         }
 
+    // Short screens (a phone on its side, ~360dp tall): the detail panel goes on one line beside its
+    // buttons and the genre pills share the day-chip row, or the grid would have under one row left.
+    private val compact by lazy { resources.configuration.screenHeightDp < 500 }
+
+    private fun applyCompactLayout() {
+        if (!compact) return
+        binding.genreBar.visibility = View.GONE
+        binding.tvDetailMeta.visibility = View.GONE
+        binding.guideDetailPanel.apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(paddingLeft, dp(8f), paddingRight, dp(8f))
+        }
+        binding.detailText.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        binding.detailButtons.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = dp(12f)
+        }
+        listOf(binding.btnDetailPrimary, binding.btnDetailSecondary).forEach { b ->
+            b.layoutParams = (b.layoutParams as LinearLayout.LayoutParams).apply { width = dp(132f); weight = 0f }
+        }
+    }
+
+    /** Day chips and genre pills; on a short screen both go in the day-chip row. */
+    private fun buildChips() {
+        buildDayChips()
+        buildGenreChips()
+    }
+
     private fun buildDayChips() {
         val row = binding.dayChipRow
         row.removeAllViews()
@@ -248,8 +276,18 @@ class EpgTimelineActivity : AppCompatActivity() {
     }
 
     private fun buildGenreChips() {
-        val row = binding.genreChipRow
-        row.removeAllViews()
+        binding.genreChipRow.removeAllViews()
+        val row = if (compact) binding.dayChipRow else binding.genreChipRow
+        if (compact) {
+            for (i in row.childCount - 1 downTo 0) if (row.getChildAt(i).getTag(R.id.guide_genre_chip) == true) row.removeViewAt(i)
+            row.addView(View(this).apply {
+                setTag(R.id.guide_genre_chip, true)
+                setBackgroundColor(getColor(R.color.rack_border))
+                layoutParams = LinearLayout.LayoutParams(dp(1f), dp(24f)).apply {
+                    marginEnd = dp(8f); marginStart = dp(2f); gravity = android.view.Gravity.CENTER_VERTICAL
+                }
+            })
+        }
         val all = rows()
         val available = listOf(GENRE_FAVORITES, "Sports", "News", "Movies", "Kids").filter { g -> all.any { matchesGenre(it, g) } }
         if (genre != GENRE_ALL && genre !in available) genre = GENRE_ALL
@@ -258,7 +296,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                 genre = g
                 buildGenreChips()
                 applyFilters()
-            })
+            }.apply { setTag(R.id.guide_genre_chip, true) })
         }
     }
 
@@ -286,7 +324,7 @@ class EpgTimelineActivity : AppCompatActivity() {
     private fun changeDay(delta: Int) {
         dayOffset += delta
         startMs = computeStartMs()
-        buildDayChips()
+        buildChips()
         buildTimeHeader()
         adapter.updateStartMs(startMs)
         applyFilters()
@@ -324,7 +362,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                     binding.tvTimelineEmpty?.visibility = View.GONE
                     buildGenreChips()
                     applyFilters()
-                    if (selected == null) selectFirstLive(rows)
+                    reconcileSelection(rows)
                     if (dayOffset == 0) binding.rvTimeline.post { scrollToNow() }
                 }
             }
@@ -476,6 +514,18 @@ class EpgTimelineActivity : AppCompatActivity() {
         selected = row to program
         adapter.setSelectedKey(programKey(row, program))
         renderDetail()
+    }
+
+    /** After a guide refresh, points the selection at the same program in the new data (its old
+     * copy could have a stale title or times for the panel's Remind / Record), else at whatever is on
+     * that channel now, else at the first live show. */
+    private fun reconcileSelection(rows: List<GuideRow>) {
+        val (oldRow, oldProgram) = selected ?: run { selectFirstLive(rows); return }
+        val row = rows.firstOrNull { it.serverIndex == oldRow.serverIndex && it.streamId == oldRow.streamId }
+        val program = row?.programs?.firstOrNull { it.startTimestamp == oldProgram.startTimestamp }
+            ?: row?.programs?.firstOrNull { epgMs(it.startTimestamp) <= nowMs && nowMs < epgMs(it.stopTimestamp) }
+        if (row != null && program != null) select(row, program)
+        else { selected = null; selectFirstLive(rows); if (selected == null) renderDetail() }
     }
 
     private fun selectFirstLive(rows: List<GuideRow>) {

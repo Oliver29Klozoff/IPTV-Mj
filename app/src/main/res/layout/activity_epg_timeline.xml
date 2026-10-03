@@ -304,6 +304,14 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
+        <!-- Stacked over the buttons normally; side by side with them on short screens
+             (EpgTimelineActivity.applyCompactLayout). -->
+        <LinearLayout
+            android:id="@+id/detailText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
         <TextView
             android:id="@+id/tvDetailEyebrow"
             android:layout_width="match_parent"
@@ -337,7 +345,10 @@
             android:textColor="@color/rack_text_secondary"
             android:textSize="13sp" />
 
+        </LinearLayout>
+
         <LinearLayout
+            android:id="@+id/detailButtons"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"

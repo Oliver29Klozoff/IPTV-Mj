@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Marks the guide's genre pills (and their divider) when they share the day-chip row. -->
+    <item name="guide_genre_chip" type="id" />
+</resources>
