@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Player OSD (v6.93): a tool chip over video - dark glass with a faint edge; remote focus is the
+     same lifted fill + light 2dp outline as the rest of the app. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rack_focus_fill" />
+            <corners android:radius="4dp" />
+            <stroke android:width="2dp" android:color="@color/rack_focus_ring" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#99000000" />
+            <corners android:radius="4dp" />
+            <stroke android:width="1dp" android:color="#80EDEDED" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#66000000" />
+            <corners android:radius="4dp" />
+            <stroke android:width="1dp" android:color="#40EDEDED" />
+        </shape>
+    </item>
+</selector>

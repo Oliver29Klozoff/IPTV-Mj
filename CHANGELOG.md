@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v6.93 - 2026-10-03
+- **Changed**: the full-screen player has a new look (phone, car box and Shield):
+  - **Top bar**: the channel name with its quality tag and LIVE, and the show on now (with time
+    left) and next under it. Along the right sit the record, signal and HDR badges, Cast, then
+    Audio · CC, Screen fit, Stats, Sleep, Party, Notes, Lock and Quick Zap.
+  - **Centre**: back, a big play / pause button in your accent color, and LIVE.
+  - **Bottom**: the seek bar for movies and episodes.
+  - The video darkens a little at the top and bottom while the controls show, and every control
+    gets the white outline when the remote is on it.
+- **New**: **Quick Zap**, a strip of your favorite channels along the bottom with what's on and
+  its progress. The playing channel is outlined; tap a card (or press OK on it) to switch.
+- **New**: **Lock** (phones and the car box). It ignores touches so the screen can't be bumped;
+  tap anywhere and press "Locked · tap to unlock" to get the controls back.
+
 ## v6.92 - 2026-10-03
 - **Changed**: on the Shield, Guide now opens the new guide grid (the same one as the phone, sized
   for TV). Focus starts on the show that's on now. Move with the remote and the panel at the

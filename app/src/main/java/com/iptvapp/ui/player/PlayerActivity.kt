@@ -1,5 +1,6 @@
 package com.iptvapp.ui.player
 
+import com.iptvapp.R
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.PictureInPictureParams
@@ -68,13 +69,22 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
     private val hideHandler = Handler(Looper.getMainLooper())
-    private lateinit var guideAdapter: ChannelAdapter
+    private lateinit var guideAdapter: QuickZapAdapter
+
+    // v6.93: the user's accent (play button, Sleep countdown, Quick Zap) — cyan until it loads.
+    private var playerAccent = com.iptvapp.util.RackAccent.Accent(0xFF06B6D4.toInt(), null)
+    // Lock: touches are ignored (except the unlock button) so the screen can't be bumped.
+    private var isLocked = false
+    private val hideUnlockRunnable = Runnable { binding.btnUnlock.visibility = View.GONE }
 
     private var isOverlayVisible = false
     private var isHealthBadgeActive = false
 
     private val hideRunnable = Runnable {
         isOverlayVisible = false
+        binding.osdTopBar.visibility = View.GONE
+        binding.playerTopScrim.visibility = View.GONE
+        binding.playerBottomScrim.visibility = View.GONE
         binding.epgOverlay.visibility = View.GONE
         binding.btnBack.visibility = View.GONE
         binding.btnGuide.visibility = View.GONE
@@ -585,6 +595,18 @@ class PlayerActivity : AppCompatActivity() {
     private fun setupActionButtons() {
         binding.btnSleep.setOnClickListener { showSleepTimerDialog() }
         binding.btnTracks.setOnClickListener { showTrackSelectorDialog() }
+        binding.btnLock.setOnClickListener { setLocked(true) }
+        binding.btnUnlock.setOnClickListener { setLocked(false) }
+        // Lock guards a touch screen; a remote-only device (the Shield) has nothing to lock.
+        if (resources.configuration.touchscreen == android.content.res.Configuration.TOUCHSCREEN_NOTOUCH) {
+            binding.btnLock.visibility = View.GONE
+        }
+        lifecycleScope.launch {
+            playerAccent = com.iptvapp.util.RackAccent.load(prefs)
+            paintPlayButton()
+            if (::guideAdapter.isInitialized) guideAdapter.setAccent(playerAccent)
+            binding.seekBar.progressTintList = android.content.res.ColorStateList.valueOf(playerAccent.start)
+        }
         binding.btnStats.setOnClickListener {
             statsVisible = !statsVisible
             if (statsVisible) {
@@ -2005,21 +2027,21 @@ class PlayerActivity : AppCompatActivity() {
                 sleepTimer?.cancel()
                 val chosen = mins[which]
                 if (chosen == 0) {
-                    binding.btnSleep.text = "⏱"
-                    binding.btnSleep.setTextColor(getColor(android.R.color.darker_gray))
+                    binding.btnSleep.text = "Sleep"
+                    binding.btnSleep.setTextColor(getColor(R.color.rack_text))
                 } else {
-                    binding.btnSleep.setTextColor(0xFF00AAFF.toInt())
+                    binding.btnSleep.setTextColor(playerAccent.start)
                     sleepTimer = object : CountDownTimer(chosen * 60_000L, 60_000L) {
                         override fun onTick(ms: Long) {
-                            binding.btnSleep.text = "⏱${ms / 60_000}m"
+                            binding.btnSleep.text = "Sleep ${ms / 60_000}m"
                         }
                         override fun onFinish() {
                             player?.pause()
-                            binding.btnSleep.text = "⏱"
-                            binding.btnSleep.setTextColor(getColor(android.R.color.darker_gray))
+                            binding.btnSleep.text = "Sleep"
+                            binding.btnSleep.setTextColor(getColor(R.color.rack_text))
                         }
                     }.start()
-                    binding.btnSleep.text = "⏱${chosen}m"
+                    binding.btnSleep.text = "Sleep ${chosen}m"
                 }
                 resetHideTimer()
             }
@@ -2273,6 +2295,17 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (isLocked) {
+            // Locked: only the unlock button gets touches; any other tap brings it back up.
+            val b = binding.btnUnlock
+            if (b.visibility == View.VISIBLE) {
+                val r = android.graphics.Rect()
+                b.getGlobalVisibleRect(r)
+                if (r.contains(ev.rawX.toInt(), ev.rawY.toInt())) return super.dispatchTouchEvent(ev)
+            }
+            if (ev.actionMasked == MotionEvent.ACTION_UP) flashUnlock()
+            return true
+        }
         gestureDetector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }
@@ -2673,7 +2706,7 @@ class PlayerActivity : AppCompatActivity() {
         val offsetMs = p.currentLiveOffset
         val atLiveEdge = offsetMs == androidx.media3.common.C.TIME_UNSET || offsetMs < 5_000L
         binding.btnDvrLive.setTextColor(
-            if (atLiveEdge) 0xFF555555.toInt() else 0xFFFF3B30.toInt()
+            if (atLiveEdge) getColor(R.color.rack_text) else getColor(R.color.rack_danger_text)
         )
     }
 
@@ -3256,6 +3289,15 @@ class PlayerActivity : AppCompatActivity() {
     private fun showOverlay() {
         isOverlayVisible = true
         binding.tvChannelTitle.text = streamTitle
+        // v6.93 OSD: the top bar (with the tool chips) and both scrims come and go with the controls;
+        // the title line carries the name's quality tag and LIVE for live TV.
+        binding.osdTopBar.visibility = View.VISIBLE
+        binding.playerTopScrim.visibility = View.VISIBLE
+        binding.playerBottomScrim.visibility = View.VISIBLE
+        val quality = com.iptvapp.util.ChannelQualityTag.labelFor(streamTitle)
+        binding.tvOsdQuality.text = quality ?: ""
+        binding.tvOsdQuality.visibility = if (quality != null) View.VISIBLE else View.GONE
+        binding.tvOsdLive.visibility = if (isVod) View.GONE else View.VISIBLE
         binding.epgOverlay.visibility = View.VISIBLE
         binding.btnBack.visibility = View.VISIBLE
         binding.btnGuide.visibility = View.VISIBLE
@@ -3286,17 +3328,62 @@ class PlayerActivity : AppCompatActivity() {
                 fun stopMs(e: com.iptvapp.data.local.entities.EpgEntity)  = if (e.stopTimestamp  < 100_000_000_000L) e.stopTimestamp  * 1000L else e.stopTimestamp
                 val now  = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs }
                 val next = epg.firstOrNull { now != null && startMs(it) > stopMs(now) }
-                binding.tvEpgNow.text = if (now != null) "NOW: " + now.title else ""
-                binding.tvEpgNext.text = if (next != null) "NEXT: " + next.title else ""
+                binding.tvEpgNow.text = if (now != null) now.title + " · " + minutesLeftLabel(stopMs(now) - nowMs) + " left" else ""
+                binding.tvEpgNext.text = if (next != null) "Next · " + clockLabel(startMs(next)) + " · " + next.title else ""
             }
         } else if (!isVod && serverIndex != -1) {
             lifecycleScope.launch {
                 val nowNext = try { repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId) } catch (_: Exception) { null }
-                binding.tvEpgNow.text = if (nowNext != null) "NOW: " + nowNext.nowTitle else ""
-                binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "NEXT: " + nowNext.nextTitle else ""
+                binding.tvEpgNow.text = if (nowNext != null) nowNext.nowTitle + " · " + minutesLeftLabel(nowNext.nowStopMs - System.currentTimeMillis()) + " left" else ""
+                binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "Next · " + clockLabel(nowNext.nowStopMs) + " · " + nowNext.nextTitle else ""
             }
         }
     }
+
+    private fun setLocked(locked: Boolean) {
+        isLocked = locked
+        osdHandler.removeCallbacks(hideUnlockRunnable)
+        if (locked) {
+            hideHandler.removeCallbacks(hideRunnable)
+            hideRunnable.run()
+            binding.guideContainer.visibility = View.GONE
+            flashUnlock()
+        } else {
+            binding.btnUnlock.visibility = View.GONE
+            showOverlay()
+        }
+    }
+
+    private fun flashUnlock() {
+        binding.btnUnlock.visibility = View.VISIBLE
+        osdHandler.removeCallbacks(hideUnlockRunnable)
+        osdHandler.postDelayed(hideUnlockRunnable, 3000)
+    }
+
+    /** The play / pause circle in the accent (a gradient one for a gradient preset), with the
+     * light ring under remote focus; its icon black or white for contrast. */
+    private fun paintPlayButton() {
+        val d = resources.displayMetrics.density
+        fun oval(ring: Boolean) = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, playerAccent.stops
+        ).apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            if (ring) setStroke((3 * d).toInt(), getColor(R.color.rack_focus_ring))
+        }
+        binding.btnPlayPause.background = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), oval(true))
+            addState(intArrayOf(), oval(false))
+        }
+        binding.btnPlayPause.imageTintList = android.content.res.ColorStateList.valueOf(playerAccent.onAccent)
+    }
+
+    private fun minutesLeftLabel(ms: Long): String {
+        val m = ((ms.coerceAtLeast(0) + 59_999) / 60_000).toInt()
+        return if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
+    }
+
+    private fun clockLabel(ms: Long): String =
+        java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(ms))
 
     private fun showChannelOsd() {
         binding.tvOsdChannelName.text = streamTitle
@@ -3666,6 +3753,10 @@ class PlayerActivity : AppCompatActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
             isOverlayVisible = false
+            binding.osdTopBar.visibility = View.GONE
+            binding.playerTopScrim.visibility = View.GONE
+            binding.playerBottomScrim.visibility = View.GONE
+            binding.guideContainer.visibility = View.GONE
             binding.epgOverlay.visibility = View.GONE
             binding.btnBack.visibility = View.GONE
             binding.btnGuide.visibility = View.GONE
@@ -3693,14 +3784,13 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupFavoritesGuide() {
-        guideAdapter = ChannelAdapter(
+        guideAdapter = QuickZapAdapter(
             onChannelClick = { channel ->
                 binding.guideContainer.visibility = View.GONE
                 playChannel(channel)
-            },
-            onFavoriteClick = {}
+            }
         )
-        binding.rvFavoritesGuide.layoutManager = LinearLayoutManager(this)
+        binding.rvFavoritesGuide.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.rvFavoritesGuide.adapter = guideAdapter
         binding.btnGuide.setOnClickListener { toggleFavoritesGuide() }
         binding.btnCloseGuide.setOnClickListener { binding.guideContainer.visibility = View.GONE }
@@ -3714,23 +3804,26 @@ class PlayerActivity : AppCompatActivity() {
         hideHandler.removeCallbacks(hideRunnable)
         lifecycleScope.launch {
             val favs = repository.getFavoriteChannels().first()
-            guideAdapter.submitList(favs)
+            // The show on now per favorite (with its progress) for the Quick Zap cards.
+            val nowMs = System.currentTimeMillis()
+            fun ms(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
             val ids = favs.map { it.streamId }
-            if (ids.isNotEmpty()) {
-                val epg = repository.getEpgForStreams(ids).first().groupBy { it.streamId }
-                val textMap = favs.associate { ch ->
-                    val now = epg[ch.streamId].orEmpty().firstOrNull()
-                    val next = epg[ch.streamId].orEmpty().drop(1).firstOrNull()
-                    val t = when {
-                        now != null && next != null -> "NOW: ${now.title}   NEXT: ${next.title}"
-                        now != null -> "NOW: ${now.title}"
-                        else -> ""
-                    }
-                    ch.streamId to t
-                }
-                guideAdapter.submitEpgText(textMap)
-            }
+            val epg = if (ids.isEmpty()) emptyMap() else repository.getEpgForStreams(ids).first().groupBy { it.streamId }
+            val nowShowing = favs.mapNotNull { ch ->
+                val p = epg[ch.streamId].orEmpty().firstOrNull { ms(it.startTimestamp) <= nowMs && nowMs < ms(it.stopTimestamp) }
+                    ?: return@mapNotNull null
+                val start = ms(p.startTimestamp); val stop = ms(p.stopTimestamp)
+                val pct = if (stop > start) ((nowMs - start) * 100 / (stop - start)).toInt().coerceIn(0, 100) else 0
+                ch.streamId to QuickZapAdapter.NowShowing(p.title, pct)
+            }.toMap()
+            guideAdapter.submit(favs, nowShowing, streamId)
             binding.guideContainer.visibility = View.VISIBLE
+            // Start on the playing channel, focused for the remote.
+            val pos = guideAdapter.positionOf(streamId).coerceAtLeast(0)
+            binding.rvFavoritesGuide.scrollToPosition(pos)
+            binding.rvFavoritesGuide.post {
+                binding.rvFavoritesGuide.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus()
+            }
         }
     }
 

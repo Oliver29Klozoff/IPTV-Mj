@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A text tool chip in the player's top bar (v6.93): Audio · CC, Stats, Sleep, Party, Notes,
+         Lock. Inflates as a MaterialButton, so its theme tint and insets are switched off. -->
+    <style name="PlayerChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:background">@drawable/player_chip_bg</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/rack_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+</resources>

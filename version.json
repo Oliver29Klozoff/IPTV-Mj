@@ -1,7 +1,7 @@
 {
-  "versionCode": 530,
-  "versionName": "6.92",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.92/MKTV.apk",
-  "apkSha256": "564387230b6819d9fb8c123a89f8976ecb537822b6703a47dc3b064356da2888",
-  "changelog": "Shield: Guide opens the new guide grid with remote support."
+  "versionCode": 531,
+  "versionName": "6.93",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.93/MKTV.apk",
+  "apkSha256": "b17201e588d0a418800c05ba4f1d71c2493dad343929fc9ee026fad62e6ccdaa",
+  "changelog": "New full-screen player look: top bar with channel, show and tools, accent play button, Quick Zap favorites strip and a screen Lock."
 }

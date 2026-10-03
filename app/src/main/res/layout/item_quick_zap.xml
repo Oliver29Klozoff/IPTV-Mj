@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Zap card (v6.93): one favorite channel in the player's bottom strip - logo, number +
+     name, the show on now and its progress. The playing channel is outlined in the accent
+     (QuickZapAdapter sets the background). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="190dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/ivZapLogo"
+        android:layout_width="44dp"
+        android:layout_height="30dp"
+        android:layout_marginEnd="8dp"
+        android:background="@color/rack_control_off"
+        android:padding="3dp"
+        android:scaleType="fitCenter" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvZapNum"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvZapName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="@font/barlow_semibold"
+                android:maxLines="1"
+                android:textColor="@color/rack_text"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvZapShow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/rack_text_secondary"
+            android:textSize="11sp" />
+
+        <ProgressBar
+            android:id="@+id/zapProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_marginTop="4dp"
+            android:max="100" />
+
+    </LinearLayout>
+
+</LinearLayout>

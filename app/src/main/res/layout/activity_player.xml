@@ -1,23 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- OLED/cyan reskin (v6.70) covers this screen's accent color (@color/oled_cyan_primary,
-     everywhere #008CFF used to be) and its reading-text hierarchy (oled_text_primary/secondary/
-     muted, on the channel title/EPG/time text). Shared by Live TV, VOD, and Series playback (one
-     PlayerActivity, an isVod flag) — no separate layout to scope this to Live TV only the way
-     item_channel.xml's variants allowed, so it reaches all three.
-
-     NOT retinted: @drawable/tv_sidebar_focus (every button's focus ring here) and the dimmed
-     #AAAAAA icon-button label color — that drawable is also the TV focus ring for Settings/VOD/
-     Series/Recordings app-wide, so retinting it in place would reach far outside this screen;
-     forking it (like focus_selector_channel.xml did for the channel list) means touching every
-     button below and is a separate, larger piece. Semantic/status colors (brightness yellow,
-     live-red, HDR badge, health dot, buffer-state colors, stats green) are untouched by design —
-     those encode state, not brand, same principle as the channel list's health dot/favorite star. -->
+<!-- Full-screen player (v6.93 Studio Rack redesign, from the approved "MKTV Player Redesign"
+     mockup). Every view id and view type from before is kept — PlayerActivity drives them all —
+     only their places and looks changed:
+     - osdTopBar: back, channel title + quality / LIVE tags with the show on now / next under it
+       (epgOverlay), the record / health / HDR badge, Cast, and the tool chips (Audio·CC, Fit,
+       Stats, Sleep, Party, Notes, Lock, Quick Zap) that used to sit in the bottom row.
+     - bottomControls: just back-30 / play-pause / LIVE, centred on the video.
+     - vodSeekContainer: along the bottom.
+     - guideContainer: the favorites list as a Quick Zap strip along the bottom (was a side drawer).
+     Scrims, the top bar and the chips appear and hide with the rest of the overlay. Semantic colors
+     (brightness yellow, live red, HDR badge, health dot, stats green) are unchanged. -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="#000000"
+    android:theme="@style/ThemeOverlay.HomeRack">
 
     <androidx.media3.ui.PlayerView
         android:id="@+id/playerView"
@@ -29,6 +28,27 @@
         app:layout_constraintTop_toTopOf="parent"
         app:use_controller="false"
         app:show_timeout="5000" />
+
+    <!-- Darken the video under the top bar and the bottom area while the controls show -->
+    <View
+        android:id="@+id/playerTopScrim"
+        android:layout_width="0dp"
+        android:layout_height="130dp"
+        android:background="@drawable/player_scrim_top"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:id="@+id/playerBottomScrim"
+        android:layout_width="0dp"
+        android:layout_height="180dp"
+        android:background="@drawable/player_scrim_bottom"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <!-- Buffering spinner -->
     <ProgressBar
@@ -146,21 +166,249 @@
             android:rotation="270" />
     </LinearLayout>
 
-    <!-- Top left: Guide -->
-    <ImageButton
-        android:id="@+id/btnGuide"
+    <!-- Top bar: back · what's on · badges · Cast · tool chips -->
+    <LinearLayout
+        android:id="@+id/osdTopBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:visibility="gone"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="16dp"
-        android:background="@drawable/tv_sidebar_focus"
-        android:src="@android:drawable/ic_menu_agenda"
-        android:nextFocusDown="@id/btnPlayPause"
-        android:padding="8dp"
-        app:tint="@color/oled_cyan_primary"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/player_chip_bg"
+            android:src="@drawable/ic_player_back"
+            android:contentDescription="Back"
+            android:padding="10dp"
+            android:visibility="gone" />
+
+        <!-- Title line (channel + quality + LIVE), then the show on now and next -->
+        <LinearLayout
+            android:id="@+id/epgOverlay"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvChannelTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/barlow_semibold"
+                    android:maxLines="1"
+                    android:shadowColor="#99000000"
+                    android:shadowRadius="4"
+                    android:textColor="@color/rack_text"
+                    android:textSize="17sp" />
+
+                <TextView
+                    android:id="@+id/tvOsdQuality"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/player_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:paddingHorizontal="4dp"
+                    android:textColor="@color/rack_text"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvOsdLive"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.1"
+                    android:text="● LIVE"
+                    android:textColor="@color/rack_danger_text"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvEpgNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:shadowColor="#99000000"
+                android:shadowRadius="4"
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvEpgNext"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:shadowColor="#99000000"
+                android:shadowRadius="4"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/bufferHealthBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="4dp"
+            android:background="@android:color/transparent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="6dp"
+            android:visibility="gone">
+
+            <!-- Small record indicator/button — replaces the old full-size camera-icon
+                 transport button. Tap opens the same record-duration dialog btnRecord used to;
+                 blinks (see startRecordDotBlink() in PlayerActivity) while a recording of this
+                 channel is actually in progress, otherwise shows solid+dim as a plain button. -->
+            <FrameLayout
+                android:id="@+id/btnRecordDot"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/player_chip_bg"
+                android:contentDescription="Record"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:visibility="gone">
+
+                <View
+                    android:id="@+id/viewRecordDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_gravity="center"
+                    android:alpha="0.4"
+                    android:background="@drawable/record_dot" />
+
+            </FrameLayout>
+
+            <View
+                android:id="@+id/viewHealthDotPlayer"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/health_dot" />
+
+            <TextView
+                android:id="@+id/tvHealthBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:textColor="@color/rack_text"
+                android:textSize="12sp" />
+
+            <!-- Real-stream HDR/Dolby Vision badge — only shown once the video track actually
+                 decodes as HDR (Format.colorInfo.isTransferHdr or Dolby Vision mimeType), unlike
+                 ChannelQualityTag's SD/HD/FHD/4K tag elsewhere, which is just parsed from the
+                 channel's name text and can't tell HDR from SDR at all. -->
+            <TextView
+                android:id="@+id/tvHdrBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/hdr_badge_bg"
+                android:fontFamily="sans-serif-medium"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="1dp"
+                android:textColor="#000000"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- Cast button -->
+        <androidx.mediarouter.app.MediaRouteButton
+            android:id="@+id/btnCast"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="4dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnTracks"
+            style="@style/PlayerChip"
+            android:text="Audio · CC" />
+
+        <ImageButton
+            android:id="@+id/btnResize"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/player_chip_bg"
+            android:contentDescription="Screen fit"
+            android:padding="9dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_player_fit" />
+
+        <Button
+            android:id="@+id/btnStats"
+            style="@style/PlayerChip"
+            android:text="Stats" />
+
+        <Button
+            android:id="@+id/btnSleep"
+            style="@style/PlayerChip"
+            android:text="Sleep" />
+
+        <Button
+            android:id="@+id/btnWatchParty"
+            style="@style/PlayerChip"
+            android:text="Party" />
+
+        <!-- Time Capsule Rewatch Notes — VOD/EPISODE only, shown/hidden at runtime by
+             updateRewatchNotesButtonVisibility() in PlayerActivity since LIVE content never
+             shows it (gone by default here, matching btnDvrRewind's own runtime-toggle pattern). -->
+        <Button
+            android:id="@+id/btnRewatchNotes"
+            style="@style/PlayerChip"
+            android:text="Notes"
+            android:visibility="gone" />
+
+        <!-- Lock (v6.93): ignores touches so the screen can't be bumped; touch-screens only -->
+        <Button
+            android:id="@+id/btnLock"
+            style="@style/PlayerChip"
+            android:text="Lock" />
+
+        <!-- Quick Zap: shows / hides the favorites strip along the bottom -->
+        <ImageButton
+            android:id="@+id/btnGuide"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/player_chip_bg"
+            android:contentDescription="Quick zap"
+            android:padding="9dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_player_zap"
+            android:visibility="gone" />
+
+    </LinearLayout>
 
     <!-- Persistent Watch Party badge — deliberately NOT part of the auto-hiding overlay group
          (hideRunnable/showOverlay), same reasoning as PiP's always-visible affordances, since
@@ -183,258 +431,68 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Top right: Close -->
-    <ImageButton
-        android:id="@+id/btnBack"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_margin="8dp"
-        android:background="@drawable/tv_sidebar_focus"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:nextFocusDown="@id/btnStats"
-        android:padding="8dp"
-        app:tint="#FFFFFF"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <LinearLayout
-        android:id="@+id/bufferHealthBadge"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:layout_margin="8dp"
-        android:background="@android:color/transparent"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="10dp"
-        android:paddingVertical="4dp"
-        android:visibility="gone"
-        app:layout_constraintEnd_toStartOf="@id/btnCast"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <!-- Small record indicator/button — replaces the old full-size camera-icon
-             transport button. Tap opens the same record-duration dialog btnRecord used to;
-             blinks (see startRecordDotBlink() in PlayerActivity) while a recording of this
-             channel is actually in progress, otherwise shows solid+dim as a plain button. -->
-        <FrameLayout
-            android:id="@+id/btnRecordDot"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_marginEnd="4dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:focusable="true"
-            android:focusableInTouchMode="false"
-            android:visibility="gone">
-
-            <View
-                android:id="@+id/viewRecordDot"
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:layout_gravity="center"
-                android:alpha="0.4"
-                android:background="@drawable/record_dot" />
-
-        </FrameLayout>
-
-        <View
-            android:id="@+id/viewHealthDotPlayer"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginEnd="6dp"
-            android:background="@drawable/health_dot" />
-
-        <TextView
-            android:id="@+id/tvHealthBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp" />
-
-        <!-- Real-stream HDR/Dolby Vision badge — only shown once the video track actually
-             decodes as HDR (Format.colorInfo.isTransferHdr or Dolby Vision mimeType), unlike
-             ChannelQualityTag's SD/HD/FHD/4K tag elsewhere, which is just parsed from the
-             channel's name text and can't tell HDR from SDR at all. -->
-        <TextView
-            android:id="@+id/tvHdrBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:background="@drawable/hdr_badge_bg"
-            android:fontFamily="sans-serif-medium"
-            android:paddingHorizontal="5dp"
-            android:paddingVertical="1dp"
-            android:textColor="#000000"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
-
-    </LinearLayout>
-
-    <!-- Cast button -->
-    <androidx.mediarouter.app.MediaRouteButton
-        android:id="@+id/btnCast"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="8dp"
-        android:visibility="gone"
-        app:layout_constraintEnd_toStartOf="@id/btnBack"
-        app:layout_constraintTop_toTopOf="parent" />
-
-
-    <!-- Bottom controls: Sleep | Play/Pause | CC — anchored to the very bottom; everything else
-         in this transient-overlay stack (vodSeekContainer, epgOverlay) is built to sit ABOVE this
-         row (layout_constraintBottom_toTopOf, see their own comments) instead of every element
-         independently pinning to parent's bottom, which used to leave the seek bar, the channel
-         title, and this button row all rendering in the same overlapping screen space. -->
+    <!-- Centre: back 30 s · play / pause · LIVE -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <Button
-            android:id="@+id/btnSleep"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:text="⏱"
-            android:textColor="#AAAAAA"
-            android:textSize="28sp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:nextFocusUp="@id/btnGuide"
-            android:padding="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp" />
+        app:layout_constraintTop_toTopOf="parent">
 
         <ImageButton
             android:id="@+id/btnDvrRewind"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:src="@android:drawable/ic_media_rew"
-            android:nextFocusUp="@id/btnGuide"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="32dp"
+            android:background="@drawable/player_round_bg"
+            android:contentDescription="Back 30 seconds"
+            android:src="@drawable/ic_player_rewind"
             android:scaleType="fitCenter"
-            android:padding="14dp"
-            android:visibility="gone"
-            app:tint="#FFFFFF" />
+            android:padding="15dp"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/btnPlayPause"
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:background="@drawable/tv_sidebar_focus"
+            android:background="@drawable/player_round_bg"
+            android:contentDescription="Play or pause"
             android:src="@android:drawable/ic_media_pause"
-            android:nextFocusUp="@id/btnGuide"
             android:scaleType="fitCenter"
-            android:padding="10dp"
-            app:tint="#FFFFFF" />
+            android:padding="16dp"
+            app:tint="#FF000000" />
 
         <Button
             android:id="@+id/btnDvrLive"
             android:layout_width="wrap_content"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:minWidth="72dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="32dp"
+            app:backgroundTint="@null"
+            android:background="@drawable/player_round_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:letterSpacing="0.1"
+            android:minWidth="0dp"
+            android:paddingHorizontal="18dp"
             android:text="● LIVE"
-            android:textColor="#FF3B30"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:background="@drawable/tv_sidebar_focus"
-            android:nextFocusUp="@id/btnGuide"
-            android:paddingHorizontal="12dp"
+            android:textColor="@color/rack_danger_text"
+            android:textSize="15sp"
             android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnTracks"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:text="CC"
-            android:textColor="@color/oled_cyan_primary"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:background="@drawable/tv_sidebar_focus"
-            android:nextFocusUp="@id/btnBack"
-            android:padding="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp" />
-
-        <Button
-            android:id="@+id/btnWatchParty"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:text="👥"
-            android:textColor="#AAAAAA"
-            android:textSize="22sp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:nextFocusUp="@id/btnBack"
-            android:padding="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp" />
-
-        <!-- Time Capsule Rewatch Notes — VOD/EPISODE only, shown/hidden at runtime by
-             updateRewatchNotesButtonVisibility() in PlayerActivity since LIVE content never
-             shows it (gone by default here, matching btnDvrRewind's own runtime-toggle pattern). -->
-        <Button
-            android:id="@+id/btnRewatchNotes"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:text="📝"
-            android:textColor="#AAAAAA"
-            android:textSize="22sp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:nextFocusUp="@id/btnBack"
-            android:padding="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnStats"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginEnd="10dp"
-            android:text="📊"
-            android:textColor="#AAAAAA"
-            android:textSize="24sp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:nextFocusUp="@id/btnBack"
-            android:padding="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp" />
-
-        <ImageButton
-            android:id="@+id/btnResize"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:background="@drawable/tv_sidebar_focus"
-            android:src="@android:drawable/ic_menu_crop"
-            android:nextFocusUp="@id/btnBack"
-            android:scaleType="fitCenter"
-            android:padding="16dp"
-            app:tint="@color/oled_cyan_primary" />
     </LinearLayout>
-
-    <!-- Compact buffer health badge (always visible during playback) -->
-
 
     <!-- Streaming stats overlay -->
     <TextView
         android:id="@+id/tvStats"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="76dp"
         android:background="#DD000000"
         android:fontFamily="monospace"
         android:paddingHorizontal="14dp"
@@ -447,19 +505,17 @@
 
     <!-- VOD seek bar — not inside epgOverlay since it needs its own visibility toggling
          (PlayerActivity.showOverlay/hideRunnable's isVod branches) independent of that view's
-         own show/hide calls. Auto-hides with the rest of the transient controls, same timing as
-         everything else. Sits directly above bottomControls (not independently pinned to
-         parent's bottom like every element here used to be) so the two don't render on top of
-         each other. -->
+         own show/hide calls. Auto-hides with the rest of the transient controls. Along the bottom
+         now that the transport row sits in the centre. -->
     <RelativeLayout
         android:id="@+id/vodSeekContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@android:color/transparent"
-        android:paddingHorizontal="12dp"
-        android:paddingBottom="12dp"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="14dp"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/bottomControls"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
@@ -468,7 +524,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:progressTint="@color/oled_cyan_primary"
-            android:thumbTint="@color/oled_cyan_primary" />
+            android:thumbTint="@color/rack_text" />
 
         <TextView
             android:id="@+id/tvTimeElapsed"
@@ -476,8 +532,10 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/seekBar"
             android:layout_alignParentStart="true"
-            android:textColor="@color/oled_text_secondary"
-            android:textSize="12sp" />
+            android:layout_marginStart="16dp"
+            android:fontFamily="@font/barlow_condensed_semibold"
+            android:textColor="@color/rack_text"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/tvTimeRemaining"
@@ -485,56 +543,10 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/seekBar"
             android:layout_alignParentEnd="true"
-            android:textColor="@color/oled_text_secondary"
-            android:textSize="12sp" />
-    </RelativeLayout>
-
-    <!-- Bottom EPG/info overlay — for VOD this shows only the movie title (tvEpgNow/tvEpgNext
-         stay empty, see PlayerActivity.showOverlay's !isVod guard), sitting directly above
-         vodSeekContainer instead of overlapping it at the same bottom position like before. For
-         live TV, vodSeekContainer is never shown (GONE, zero height), so this still lands
-         correctly right above bottomControls in that case. -->
-    <RelativeLayout
-        android:id="@+id/epgOverlay"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="@android:color/transparent"
-        android:padding="12dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/vodSeekContainer"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <TextView
-            android:id="@+id/tvChannelTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_alignParentBottom="true"
-            android:textColor="@color/oled_text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvEpgNow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_above="@id/tvChannelTitle"
-            android:layout_marginBottom="2dp"
-            android:textColor="@color/oled_text_secondary"
+            android:layout_marginEnd="16dp"
+            android:fontFamily="@font/barlow_condensed_semibold"
+            android:textColor="@color/rack_text_secondary"
             android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/tvEpgNext"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_above="@id/tvEpgNow"
-            android:layout_marginBottom="2dp"
-            android:textColor="@color/oled_text_muted"
-            android:textSize="12sp" />
-
     </RelativeLayout>
 
     <!-- Channel zones (click to switch) -->
@@ -571,10 +583,10 @@
     <!-- Channel Change OSD: brief top-right banner on D-pad/swipe channel flip -->
     <LinearLayout
         android:id="@+id/channelOsd"
-        android:layout_width="280dp"
+        android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:layout_margin="20dp"
-        android:background="#DD000000"
+        android:background="@drawable/player_osd_card_bg"
         android:orientation="vertical"
         android:padding="16dp"
         android:visibility="gone"
@@ -586,10 +598,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
+            android:fontFamily="@font/barlow_semibold"
             android:maxLines="1"
-            android:textColor="@color/oled_text_primary"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:textColor="@color/rack_text"
+            android:textSize="20sp" />
 
         <TextView
             android:id="@+id/tvOsdEpg"
@@ -598,7 +610,7 @@
             android:layout_marginTop="4dp"
             android:ellipsize="end"
             android:maxLines="2"
-            android:textColor="@color/oled_text_secondary"
+            android:textColor="@color/rack_text_secondary"
             android:textSize="14sp" />
 
         <ProgressBar
@@ -609,57 +621,81 @@
             android:layout_marginTop="10dp"
             android:max="100"
             android:progress="0"
-            android:progressBackgroundTint="@color/oled_surface_container_highest"
+            android:progressBackgroundTint="@color/rack_control_off"
             android:progressTint="@color/oled_cyan_primary" />
     </LinearLayout>
 
-    <!-- Favorites guide drawer -->
+    <!-- Quick Zap: favorite channels as cards along the bottom (was a left-hand drawer) -->
     <LinearLayout
         android:id="@+id/guideContainer"
-        android:layout_width="340dp"
-        android:layout_height="0dp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#CC000000"
+        android:paddingBottom="12dp"
         android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="40dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
+            android:paddingStart="20dp"
+            android:paddingEnd="12dp">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Favorites"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:letterSpacing="0.14"
+                android:text="QUICK ZAP · FAVORITES"
+                android:textColor="@color/rack_text"
+                android:textSize="13sp" />
 
             <ImageButton
                 android:id="@+id/btnCloseGuide"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/player_chip_bg"
+                android:contentDescription="Close quick zap"
+                android:padding="8dp"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
-                app:tint="#FFFFFF" />
+                app:tint="@color/rack_text" />
 
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvFavoritesGuide"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:paddingTop="4dp" />
+            android:layout_height="wrap_content"
+            android:clipToPadding="false"
+            android:paddingHorizontal="16dp" />
 
     </LinearLayout>
+
+    <!-- Locked (v6.93): the only touch that gets through while the screen is locked -->
+    <Button
+        android:id="@+id/btnUnlock"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_marginBottom="28dp"
+        app:backgroundTint="@null"
+        android:background="@drawable/player_chip_bg"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:letterSpacing="0.1"
+        android:paddingHorizontal="18dp"
+        android:text="Locked · tap to unlock"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <!-- Up Next card — shown at episode end -->
     <LinearLayout
@@ -669,7 +705,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginBottom="48dp"
         android:layout_marginEnd="24dp"
-        android:background="#CC000000"
+        android:background="@drawable/player_osd_card_bg"
         android:orientation="vertical"
         android:padding="16dp"
         android:visibility="gone"
@@ -680,19 +716,21 @@
             android:id="@+id/tvUpNextLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/barlow_condensed_semibold"
             android:text="Up Next"
-            android:textColor="#AAAAAA"
-            android:textSize="11sp"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="12sp"
             android:textAllCaps="true"
-            android:letterSpacing="0.1" />
+            android:letterSpacing="0.16" />
 
         <TextView
             android:id="@+id/tvUpNextTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:fontFamily="@font/barlow_semibold"
+            android:textColor="@color/rack_text"
+            android:textSize="15sp"
             android:maxLines="2"
             android:ellipsize="end" />
 
@@ -704,7 +742,7 @@
             android:layout_marginTop="12dp"
             android:max="100"
             android:progress="100"
-            android:progressTint="#E50914" />
+            android:progressTint="@color/oled_cyan_primary" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -715,21 +753,33 @@
             <Button
                 android:id="@+id/btnUpNextPlay"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:layout_weight="1"
-                android:text="Play Now"
-                android:textSize="12sp"
-                android:backgroundTint="#E50914" />
+                app:backgroundTint="@null"
+                android:background="@drawable/player_chip_bg"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:letterSpacing="0.1"
+                android:text="Play now"
+                android:textColor="@color/rack_text"
+                android:textSize="13sp" />
 
             <Button
                 android:id="@+id/btnUpNextCancel"
                 android:layout_width="0dp"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
+                app:backgroundTint="@null"
+                android:background="@drawable/player_chip_bg"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:letterSpacing="0.1"
                 android:text="Cancel"
-                android:textSize="12sp"
-                android:backgroundTint="#444444" />
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="13sp" />
 
         </LinearLayout>
 
@@ -742,15 +792,20 @@
     <Button
         android:id="@+id/btnSkipToNextEpisode"
         android:layout_width="wrap_content"
-        android:layout_height="40dp"
+        android:layout_height="44dp"
         android:layout_gravity="bottom|end"
         android:layout_marginBottom="48dp"
         android:layout_marginEnd="24dp"
-        android:backgroundTint="#CC000000"
-        android:text="Skip to Next Episode  ▶"
-        android:textAllCaps="false"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
+        app:backgroundTint="@null"
+        android:background="@drawable/player_chip_bg"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:letterSpacing="0.1"
+        android:paddingHorizontal="16dp"
+        android:text="Skip to next episode  ▶"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
