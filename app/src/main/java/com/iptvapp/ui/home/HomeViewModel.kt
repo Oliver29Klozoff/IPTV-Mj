@@ -2013,7 +2013,11 @@ class HomeViewModel @Inject constructor(
                 // Reload from DB after network fetch and update rows
                 val fresh = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
                 val mergedFresh = if (serverPairs.isEmpty()) emptyList() else repository.getEpgForServerStreams(serverPairs).first()
-                if (fresh.isNotEmpty() || mergedFresh.isNotEmpty()) _guideRows.value = buildRows(fresh, mergedFresh)
+                if (fresh.isNotEmpty() || mergedFresh.isNotEmpty()) {
+                    _guideRows.value = buildRows(fresh, mergedFresh)
+                    // The guide screen's "Guide updated" time follows this fetch too, not just the worker.
+                    prefs.setLastEpgRefreshTime(System.currentTimeMillis())
+                }
             }
         }
     }

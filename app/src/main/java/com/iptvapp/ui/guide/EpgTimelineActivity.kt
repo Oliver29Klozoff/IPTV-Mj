@@ -145,11 +145,12 @@ class EpgTimelineActivity : AppCompatActivity() {
             applyFilters()
         }
         lifecycleScope.launch {
-            val t = prefs.lastEpgRefreshTime.first()
-            binding.tvGuideUpdated.text = when {
-                t <= 0L -> "Guide not updated yet"
-                android.text.format.DateUtils.isToday(t) -> "Guide updated " + SimpleDateFormat("h:mm a", Locale.US).format(Date(t))
-                else -> "Guide updated " + SimpleDateFormat("MMM d", Locale.US).format(Date(t))
+            prefs.lastEpgRefreshTime.collect { t ->
+                binding.tvGuideUpdated.text = when {
+                    t <= 0L -> "Guide not updated yet"
+                    android.text.format.DateUtils.isToday(t) -> "Guide updated " + SimpleDateFormat("h:mm a", Locale.US).format(Date(t))
+                    else -> "Guide updated " + SimpleDateFormat("MMM d", Locale.US).format(Date(t))
+                }
             }
         }
         observeGuide()
