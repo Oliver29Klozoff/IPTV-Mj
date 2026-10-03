@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.97 - 2026-10-03
+- **Fixed**: Tapping a reminder notification now switches to that channel. The previous try
+  opened the app and left whatever was already playing. This includes a channel from your
+  other provider. Update, then tap the reminder again (or set it once more if it already
+  disappeared).
+
+
 ## v6.96 - 2026-10-03
 - **Fixed**: Tapping a reminder notification tunes the channel the reminder is for. It used to
   open the app and leave you on whatever was already playing.

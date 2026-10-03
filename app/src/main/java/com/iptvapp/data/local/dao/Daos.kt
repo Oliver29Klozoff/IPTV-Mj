@@ -649,6 +649,11 @@ interface MergedChannelDao {
     // channel's current URL/name without pulling the whole table.
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedChannelEntity?
+
+    // A reminder only stored the numeric id. The same id can exist on more than one provider,
+    // so callers still prefer a known serverIndex when they have one.
+    @Query("SELECT * FROM merged_channels WHERE streamId = :streamId")
+    suspend fun getByStreamId(streamId: Int): List<MergedChannelEntity>
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId IN (:ids)")
     suspend fun getByServerAndIds(serverIndex: Int, ids: List<Int>): List<MergedChannelEntity>
 

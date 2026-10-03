@@ -48,11 +48,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.tabs.TabLayout
 import com.iptvapp.databinding.ActivityHomeBinding
 import com.iptvapp.ui.guide.GuideAdapter
+import com.iptvapp.ui.guide.ReminderTune
 import com.iptvapp.ui.player.MultiViewActivity
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.settings.SettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
@@ -846,6 +848,12 @@ class HomeActivity : AppCompatActivity() {
     // A reminder notification (or the widget) asked for a specific channel. Held until the mini
     // player exists, and it wins over the cold-boot "resume whatever was on" path.
     private var pendingJumpStreamId = -1
+    private var pendingJumpServerIndex = -1
+    // Stays set until that channel is actually on the player. onResume used to clear the
+    // one-shot guard and then re-prepare whatever was already playing.
+    private var tuneInFlight = false
+    private var tuneGeneration = 0
+    private var tuneJob: kotlinx.coroutines.Job? = null
     private var tabPositionBeforePlayer: Int = -1
     private var pendingScrollToCurrent = false
     // True once the Providers tab has jumped-to/been browsed since the last time a DIFFERENT
@@ -1485,30 +1493,103 @@ class HomeActivity : AppCompatActivity() {
     // Lets other screens (Settings' "Play This Channel", the widget, a channel reminder)
     // hand off to a specific channel without duplicating playback logic there.
     // "open_stream_id" is what reminder notifications posted before v6.96 put on the intent.
+    // ReminderTune is what a tap records, because that older intent often never arrives.
     private fun handleJumpToChannelExtra() {
-        val streamId = intent.getIntExtra(EXTRA_JUMP_TO_STREAM_ID, -1).takeIf { it >= 0 }
-            ?: intent.getIntExtra("open_stream_id", -1)
-        if (streamId < 0) return
-        intent.removeExtra(EXTRA_JUMP_TO_STREAM_ID)
-        intent.removeExtra("open_stream_id")
-        pendingJumpStreamId = streamId
+        val pending = ReminderTune.take(this, intent) ?: return
+        pendingJumpStreamId = pending.streamId
+        pendingJumpServerIndex = pending.serverIndex
         suppressMiniAutoResume = true
+        tuneInFlight = true
     }
 
     private fun consumePendingJump() {
         val streamId = pendingJumpStreamId
         if (streamId < 0) return
+        val serverIndex = pendingJumpServerIndex
         pendingJumpStreamId = -1
-        lifecycleScope.launch {
-            val channel = viewModel.getChannelById(streamId) ?: return@launch
-            playInMiniPlayer(channel)
-            viewModel.markChannelWatched(channel.streamId)
-            viewModel.setCurrentlyPlaying(channel.streamId)
+        pendingJumpServerIndex = -1
+        val generation = ++tuneGeneration
+        tuneInFlight = true
+        suppressMiniAutoResume = true
+        // A second tap while the first lookup is still retrying must not let the older
+        // result start playback after the newer channel is already on.
+        tuneJob?.cancel()
+        tuneJob = lifecycleScope.launch {
+            try {
+                val target = viewModel.resolveReminderChannel(streamId, serverIndex)
+                if (generation != tuneGeneration) return@launch
+                ensureActive()
+                when (target) {
+                    is ReminderTarget.Primary -> {
+                        playInMiniPlayer(target.channel)
+                        if (!joinTune(generation)) return@launch
+                        viewModel.markChannelWatched(target.channel.streamId)
+                        viewModel.setCurrentlyPlaying(target.channel.streamId)
+                        revealRemindedChannel(target.channel)
+                    }
+                    is ReminderTarget.Merged -> {
+                        playMergedChannel(target.channel)
+                        if (!joinTune(generation)) return@launch
+                        revealRemindedMerged(target.channel)
+                    }
+                    null -> Toast.makeText(this@HomeActivity, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                if (generation == tuneGeneration) {
+                    tuneInFlight = false
+                    suppressMiniAutoResume = false
+                }
+            }
         }
+    }
+
+    private suspend fun joinTune(generation: Int): Boolean {
+        try {
+            miniPlayJob?.join()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            if (generation != tuneGeneration) return false
+            throw e
+        } catch (_: Exception) {
+            if (generation == tuneGeneration) {
+                Toast.makeText(this@HomeActivity, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
+            }
+            return false
+        }
+        return generation == tuneGeneration
+    }
+
+    private fun revealRemindedChannel(channel: ChannelEntity) {
+        if (miniPlayerExpandedFullScreen) collapseMiniPlayerFromFullScreen()
+        pendingScrollToCurrent = true
+        scrollWhatsOnNowToStreamId(channel.streamId)
+        if (!channel.isFavorite) return
+        binding.tabLayout.getTabAt(TAB_FAVORITES)?.select()
+        showFavorites()
+        scrollFavoritesToStreamId(channel.streamId)
+    }
+
+    private fun revealRemindedMerged(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        if (miniPlayerExpandedFullScreen) collapseMiniPlayerFromFullScreen()
+        providersTabVisitedSinceTabSwitch = false
+        if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) showAllProviders()
+        else binding.tabLayout.getTabAt(TAB_PROVIDERS)?.select()
     }
 
     companion object {
         const val EXTRA_JUMP_TO_STREAM_ID = "jump_to_stream_id"
+        const val EXTRA_JUMP_SERVER_INDEX = "jump_server_index"
+
+        // Extras, the pre-v6.96 extra, or mktv://tune/<id>. mktv://play is a different handoff
+        // (it opens the full-screen player) and is intentionally not read here.
+        fun streamIdFromJumpIntent(intent: Intent?): Int {
+            if (intent == null) return -1
+            val extra = intent.getIntExtra(EXTRA_JUMP_TO_STREAM_ID, -1).takeIf { it >= 0 }
+                ?: intent.getIntExtra("open_stream_id", -1).takeIf { it >= 0 }
+            if (extra != null) return extra
+            val uri = intent.data ?: return -1
+            if (uri.scheme != "mktv" || uri.host != "tune") return -1
+            return uri.lastPathSegment?.toIntOrNull()?.takeIf { it >= 0 } ?: -1
+        }
 
         // Tab positions — must match the TabItem order in activity_home.xml (portrait AND
         // landscape). Every position check goes through these; scattering raw indices is what
@@ -1872,6 +1953,10 @@ class HomeActivity : AppCompatActivity() {
         }
         updateHomeStatusStrip()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
+        // A tap can resume this screen without onNewIntent. The channel id was saved at tap time.
+        handleJumpToChannelExtra()
+        if (pendingJumpStreamId >= 0 && miniPlayer != null) consumePendingJump()
+        if (tuneInFlight) return
         if (suppressMiniAutoResume) {
             // Returning from the guide grid with an explicit channel choice — don't override it
             suppressMiniAutoResume = false
@@ -4521,6 +4606,8 @@ class HomeActivity : AppCompatActivity() {
                     it.prepare()
                     it.playWhenReady = true
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(this@HomeActivity, "Couldn't load this channel — tap Refresh and try again", Toast.LENGTH_SHORT).show()
             }

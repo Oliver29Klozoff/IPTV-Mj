@@ -33,12 +33,14 @@ import com.iptvapp.ui.series.SeriesDetailActivity
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
+import com.iptvapp.ui.guide.ReminderTune
 import com.iptvapp.tv.TvHomeChannelPublisher
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
 import com.iptvapp.worker.EpgRefreshWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -128,6 +130,8 @@ class TvHomeActivity : AppCompatActivity() {
     // against racing ahead of onCreate's own (async, up to ~3s) cold-boot resume lookup — see
     // that block's comment for the full story.
     private var coldBootResumeInProgress = false
+    private var reminderTuneJob: kotlinx.coroutines.Job? = null
+    private var reminderTuneGen = 0
 
     // Left-panel drill-down state
     private enum class NavState { SIDEBAR, CATEGORIES, CHANNELS }
@@ -466,43 +470,19 @@ class TvHomeActivity : AppCompatActivity() {
         // the race with a primary channel every time, even when this block is about to resolve
         // to the actual last-played merged channel a moment later.
         // A reminder notification names a channel: play that, and don't let the resume above
-        // replace it a moment later.
-        val jumpStreamId = intent.getIntExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, -1)
-            .takeIf { it >= 0 } ?: intent.getIntExtra("open_stream_id", -1)
-        coldBootResumeInProgress = true
-        lifecycleScope.launch {
-            try {
-                if (jumpStreamId >= 0) {
-                    intent.removeExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID)
-                    intent.removeExtra("open_stream_id")
-                    val channel = viewModel.getChannelById(jumpStreamId)
-                    if (channel != null) {
-                        playInMiniPlayer(channel)
-                        miniPlayJob?.join()
-                        showSidebar()
-                        return@launch
-                    }
+        // replace it a moment later. take() also reads the id the tap activity saved, because
+        // the intent extras are dropped when this screen is already the task root.
+        val tune = ReminderTune.take(this, intent)
+        if (tune != null) {
+            launchReminderTune(tune.streamId, tune.serverIndex, fallBackToLastPlayed = true)
+        } else {
+            coldBootResumeInProgress = true
+            lifecycleScope.launch {
+                try {
+                    resumeLastPlayedChannel()
+                } finally {
+                    coldBootResumeInProgress = false
                 }
-                val lastServerIndex = prefs.lastPlayedServerIndex.first()
-                val lastStreamId = prefs.lastPlayedStreamId.first()
-                if (lastServerIndex != -1 && lastStreamId != -1) {
-                    var channel: com.iptvapp.data.local.entities.MergedChannelEntity? = null
-                    for (attempt in 1..10) {
-                        channel = viewModel.getMergedChannelByIndexAndId(lastServerIndex, lastStreamId)
-                        if (channel != null) break
-                        delay(300)
-                    }
-                    if (channel != null) {
-                        playMergedChannel(channel)
-                        selectSection(Section.PROVIDERS)
-                        return@launch
-                    }
-                }
-                val recent = viewModel.getRecentChannel()
-                if (recent != null) playInMiniPlayer(recent)
-                showSidebar()
-            } finally {
-                coldBootResumeInProgress = false
             }
         }
         handleDeepLink(intent)
@@ -615,23 +595,94 @@ class TvHomeActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleDeepLink(intent)
-        val streamId = intent.getIntExtra(HomeActivity.EXTRA_JUMP_TO_STREAM_ID, -1).takeIf { it >= 0 }
-            ?: intent.getIntExtra("open_stream_id", -1)
-        if (streamId < 0) return
-        intent.removeExtra(HomeActivity.EXTRA_JUMP_TO_STREAM_ID)
-        intent.removeExtra("open_stream_id")
+        val tune = ReminderTune.take(this, intent) ?: return
         // onResume, which follows this, would otherwise re-prepare whatever is already on.
+        launchReminderTune(tune.streamId, tune.serverIndex)
+    }
+
+    // Cancels an older lookup so it cannot start playback after a newer tap has resolved.
+    private fun launchReminderTune(streamId: Int, serverIndex: Int, fallBackToLastPlayed: Boolean = false) {
+        val generation = ++reminderTuneGen
         coldBootResumeInProgress = true
-        lifecycleScope.launch {
+        reminderTuneJob?.cancel()
+        reminderTuneJob = lifecycleScope.launch {
             try {
-                val channel = viewModel.getChannelById(streamId) ?: return@launch
-                playInMiniPlayer(channel)
-                miniPlayJob?.join()
-                showSidebar()
+                val played = tuneToReminder(streamId, serverIndex, generation)
+                if (!played && fallBackToLastPlayed && generation == reminderTuneGen) resumeLastPlayedChannel()
             } finally {
-                coldBootResumeInProgress = false
+                if (generation == reminderTuneGen) coldBootResumeInProgress = false
             }
         }
+    }
+
+    private suspend fun resumeLastPlayedChannel() {
+        val lastServerIndex = prefs.lastPlayedServerIndex.first()
+        val lastStreamId = prefs.lastPlayedStreamId.first()
+        if (lastServerIndex != -1 && lastStreamId != -1) {
+            var channel: com.iptvapp.data.local.entities.MergedChannelEntity? = null
+            for (attempt in 1..10) {
+                channel = viewModel.getMergedChannelByIndexAndId(lastServerIndex, lastStreamId)
+                if (channel != null) break
+                delay(300)
+            }
+            if (channel != null) {
+                playMergedChannel(channel)
+                selectSection(Section.PROVIDERS)
+                return
+            }
+        }
+        val recent = viewModel.getRecentChannel()
+        if (recent != null) playInMiniPlayer(recent)
+        showSidebar()
+    }
+
+    // Plays the reminded channel and leaves the sidebar on the player. Returns false when the
+    // channel isn't in the database, so cold boot can still resume the last one.
+    private suspend fun tuneToReminder(streamId: Int, serverIndex: Int, generation: Int): Boolean {
+        val target = try {
+            viewModel.resolveReminderChannel(streamId, serverIndex)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            Toast.makeText(this, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        if (generation != reminderTuneGen) return false
+        kotlin.coroutines.coroutineContext.ensureActive()
+        try {
+            when (target) {
+                is ReminderTarget.Primary -> {
+                    playInMiniPlayer(target.channel)
+                    miniPlayJob?.join()
+                    viewModel.setCurrentlyPlaying(target.channel.streamId)
+                    prefs.setLastPlayedChannel(-1, target.channel.streamId)
+                }
+                is ReminderTarget.Merged -> {
+                    playMergedChannel(target.channel)
+                    miniPlayJob?.join()
+                    prefs.setLastPlayedChannel(target.channel.serverIndex, target.channel.streamId)
+                }
+                null -> {
+                    Toast.makeText(this, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
+                    return false
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            Toast.makeText(this, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) {
+            binding.tvMoviesFullScreen.visibility = View.GONE
+            binding.tvMainContent.visibility = View.VISIBLE
+        }
+        if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) {
+            binding.tvSeriesFullScreen.visibility = View.GONE
+            binding.tvMainContent.visibility = View.VISIBLE
+        }
+        showSidebar()
+        return true
     }
 
     private fun handleDeepLink(intent: Intent?) {
@@ -659,12 +710,19 @@ class TvHomeActivity : AppCompatActivity() {
             val nickname = prefs.serverNickname.first()
             binding.tvEtSearch.hint = if (nickname.isNotBlank()) "Search ($nickname)…" else "Search…"
         }
-        if (currentMiniUrl.isEmpty() && !coldBootResumeInProgress) {
+        // A tap can resume this screen without onNewIntent. The channel id was saved at tap time.
+        val tune = ReminderTune.take(this, intent)
+        if (tune != null) {
+            launchReminderTune(tune.streamId, tune.serverIndex)
+        } else if (coldBootResumeInProgress) {
+            // The tune, or cold-boot resume, owns the player until it finishes. Falling through
+            // used to call play() on the paused channel and undo the switch.
+        } else if (currentMiniUrl.isEmpty()) {
             lifecycleScope.launch {
                 val recent = viewModel.getRecentChannel()
                 if (recent != null) playInMiniPlayer(recent)
             }
-        } else if (!currentMiniIsVod && currentMiniUrl.isNotEmpty() && !coldBootResumeInProgress) {
+        } else if (!currentMiniIsVod && currentMiniUrl.isNotEmpty()) {
             // Re-prepare so ExoPlayer re-fetches the manifest and starts at the real live
             // edge, instead of resuming from whatever position was buffered before pausing.
             miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
@@ -2249,7 +2307,8 @@ class TvHomeActivity : AppCompatActivity() {
     // currentMiniUrl/Title/StreamId/IsVod are plain generic fields already read by
     // tvMiniPlayerContainer's click listener, so setting them here is all that's needed.
     private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
-        lifecycleScope.launch {
+        miniPlayJob?.cancel()
+        miniPlayJob = lifecycleScope.launch {
             try {
                 val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
                 val title = "${channel.name} · ${channel.serverNickname}"
@@ -2267,6 +2326,8 @@ class TvHomeActivity : AppCompatActivity() {
                     it.prepare()
                     it.playWhenReady = true
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(this@TvHomeActivity, "Couldn't load this channel — tap Refresh and try again", Toast.LENGTH_SHORT).show()
             }
@@ -4057,7 +4118,7 @@ class TvHomeActivity : AppCompatActivity() {
             .setItems(labels) { _, i ->
                 val epg = upcoming[i]
                 val startMs = toMs(epg.startTimestamp)
-                ChannelTimerScheduler.schedule(this, row.streamId, row.name, epg.title, startMs)
+                ChannelTimerScheduler.schedule(this, row.streamId, row.name, epg.title, startMs, row.serverIndex)
                 Toast.makeText(this, "Reminder set for ${fmt.format(Date(startMs))}", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null).show()

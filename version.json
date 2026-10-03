@@ -1,7 +1,7 @@
 {
-  "versionCode": 534,
-  "versionName": "6.96",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.96/MKTV.apk",
-  "apkSha256": "f66fb54563ead2884dd5c40def8df3af86296bdb522be123ca1211f75d509509",
-  "changelog": "Tapping a reminder notification tunes the channel the reminder is for."
+  "versionCode": 535,
+  "versionName": "6.97",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.97/MKTV.apk",
+  "apkSha256": "de06dcf25c88f450095329101cb0d509f66262897c82b13a1e1056eaa01ee299",
+  "changelog": "Tapping a reminder notification switches to that channel, including one from another provider."
 }

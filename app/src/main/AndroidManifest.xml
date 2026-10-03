@@ -62,13 +62,23 @@
         <activity
             android:name=".ui.home.HomeActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:screenOrientation="unspecified"
             android:configChanges="keyboardHidden"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ui.guide.ReminderTapActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
             android:name=".ui.home.TvHomeActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">

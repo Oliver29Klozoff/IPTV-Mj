@@ -126,7 +126,7 @@ class GuideAdapter(
                 .setItems(options) { _, which ->
                     when (which) {
                         0 -> {
-                            ChannelTimerScheduler.schedule(context, row.streamId, row.name, program.title, startMs)
+                            ChannelTimerScheduler.schedule(context, row.streamId, row.name, program.title, startMs, row.serverIndex)
                             Toast.makeText(context, "Reminder set for $timeStr", Toast.LENGTH_SHORT).show()
                         }
                         1 -> context.startActivity(

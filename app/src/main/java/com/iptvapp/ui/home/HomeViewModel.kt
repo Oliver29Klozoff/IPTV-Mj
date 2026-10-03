@@ -2574,4 +2574,34 @@ class HomeViewModel @Inject constructor(
 
     suspend fun getChannelByNumber(num: Int): ChannelEntity? =
         repository.getChannelByNumber(num)
+
+    // The channel a reminder named. serverIndex >= 0 is a merged provider and must not fall
+    // through onto a primary row that happens to reuse the same numeric id. A reminder that
+    // never recorded a server (older alarms) tries the primary table, then any merged row.
+    suspend fun resolveReminderChannel(streamId: Int, serverIndex: Int): ReminderTarget? {
+        if (streamId < 0) return null
+        if (serverIndex >= 0) {
+            repeat(8) { attempt ->
+                repository.getMergedChannelByIndexAndId(serverIndex, streamId)?.let {
+                    return ReminderTarget.Merged(it)
+                }
+                if (attempt < 7) kotlinx.coroutines.delay(200)
+            }
+            return null
+        }
+        repeat(8) { attempt ->
+            repository.getChannelById(streamId)?.let { return ReminderTarget.Primary(it) }
+            if (attempt < 7) kotlinx.coroutines.delay(200)
+        }
+        val matches = repository.getMergedChannelsByStreamId(streamId)
+        if (matches.isEmpty()) return null
+        val active = prefs.activeServerIndex.first()
+        val pick = matches.firstOrNull { it.serverIndex == active } ?: matches.first()
+        return ReminderTarget.Merged(pick)
+    }
+}
+
+sealed class ReminderTarget {
+    data class Primary(val channel: ChannelEntity) : ReminderTarget()
+    data class Merged(val channel: com.iptvapp.data.local.entities.MergedChannelEntity) : ReminderTarget()
 }

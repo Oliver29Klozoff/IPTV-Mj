@@ -342,6 +342,8 @@ class XtreamRepository @Inject constructor(
 
     suspend fun getChannelById(streamId: Int) = db.channelDao().getChannelById(streamId)
 
+    suspend fun getMergedChannelsByStreamId(streamId: Int) = db.mergedChannelDao().getByStreamId(streamId)
+
     // Custom number takes priority — if the digits typed match someone's user-assigned number,
     // that's what they meant; only falls back to the provider's raw num when no custom number
     // matches (the common case for every channel that hasn't been given one).
