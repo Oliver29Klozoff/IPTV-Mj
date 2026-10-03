@@ -2797,10 +2797,22 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnAddServer.setOnClickListener { showAddSourceTypeDialog() }
     }
 
+    // Counting each provider's channels / movies / series takes a few seconds on a big catalog (57k
+    // channels on the Shield), and the list used to sit empty meanwhile — it looked like there were
+    // no providers, only "Add provider". Now: "Loading providers…" on first open, the old cards stay
+    // up during a refresh, and a newer refresh cancels an older one so cards never double up.
+    private var serverListJob: kotlinx.coroutines.Job? = null
+
     private fun updateServerList() {
         val ll = binding.llServers
-        ll.removeAllViews()
-        lifecycleScope.launch {
+        if (ll.childCount == 0) ll.addView(android.widget.TextView(this).apply {
+            text = "Loading providers…"
+            setTextColor(getColor(R.color.rack_text_muted))
+            textSize = 15f
+            setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, (12 * resources.displayMetrics.density).toInt())
+        })
+        serverListJob?.cancel()
+        serverListJob = lifecycleScope.launch {
             val creds = prefs.credentials.first()
             val activeIndex = prefs.activeServerIndex.first()
             val primaryNick = prefs.serverNickname.first().ifEmpty { creds.username }
@@ -3237,6 +3249,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 cards.add(rank(active = activeIndex == i, enabled = enabled) to row)
             }
+            ll.removeAllViews()
             cards.sortedBy { it.first }.forEach { ll.addView(it.second) }
 
             // The status strip's PROVIDER / CHANNELS readouts follow whichever provider is active.

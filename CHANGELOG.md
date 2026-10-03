@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.90 - 2026-10-03
+- **Fixed**: Settings → Providers no longer looks empty while it counts each provider's channels,
+  movies and series, which takes a few seconds with a big catalog (especially on the Shield). It
+  shows "Loading providers…" the first time, and keeps the cards on screen while they refresh.
+
 ## v6.89 - 2026-10-02
 - **New**: Settings → Display → Hidden channels lists every channel you've hidden, on any provider.
   Tick the ones to bring back and tap Unhide selected, or Unhide all. The "hidden" message has

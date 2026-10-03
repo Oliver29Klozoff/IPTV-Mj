@@ -1,7 +1,7 @@
 {
-  "versionCode": 527,
-  "versionName": "6.89",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.89/MKTV.apk",
-  "apkSha256": "f4588b2df0b776a3e546adaa8096d7948ea3d90ed69ea6393457c9d11655acc7",
-  "changelog": "New: Settings > Display > Hidden channels - bring back channels you hid, from any provider."
+  "versionCode": 528,
+  "versionName": "6.90",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.90/MKTV.apk",
+  "apkSha256": "84e2d8e22e58489cb8235122eca8c338293a765f5ea3d0d32c9d4e7757ac824b",
+  "changelog": "Settings > Providers shows 'Loading providers...' instead of an empty list while it counts a big catalog."
 }
