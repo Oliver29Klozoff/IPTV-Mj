@@ -367,6 +367,9 @@ class EpgTimelineActivity : AppCompatActivity() {
                 row.programs.any { it.title.contains(q, ignoreCase = true) })
         }
         adapter.submitList(filtered)
+        // The panel follows what's shown: a filter that hides the selected channel moves the
+        // selection to a visible one (or hides the panel), so Watch / Remind can't act on a hidden row.
+        reconcileSelection(filtered)
     }
 
     private fun observeGuide() {
@@ -379,7 +382,6 @@ class EpgTimelineActivity : AppCompatActivity() {
                     binding.tvTimelineEmpty?.visibility = View.GONE
                     buildGenreChips()
                     applyFilters()
-                    reconcileSelection(rows)
                     if (dayOffset == 0) binding.rvTimeline.post { scrollToNow() }
                 }
             }
