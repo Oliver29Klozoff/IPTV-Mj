@@ -256,8 +256,21 @@ class EpgTimelineActivity : AppCompatActivity() {
         buildGenreChips()
     }
 
+    /** After a chip row is rebuilt, puts remote focus back on the chip with that label, if one had it. */
+    private fun refocusChip(row: ViewGroup, label: String?) {
+        if (label == null) return
+        for (i in 0 until row.childCount) {
+            val v = row.getChildAt(i)
+            if (v is TextView && v.text.toString().equals(label, ignoreCase = true)) { v.requestFocus(); return }
+        }
+    }
+
+    private fun focusedChipLabel(): String? =
+        (currentFocus as? TextView)?.takeIf { it.parent === binding.dayChipRow || it.parent === binding.genreChipRow }?.text?.toString()
+
     private fun buildDayChips() {
         val row = binding.dayChipRow
+        val focused = focusedChipLabel()
         row.removeAllViews()
         for (offset in -1..4) {
             val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_MONTH, offset) }
@@ -273,9 +286,11 @@ class EpgTimelineActivity : AppCompatActivity() {
                 if (offset == dayOffset) { if (offset == 0) scrollToNow() } else changeDay(offset - dayOffset)
             })
         }
+        refocusChip(row, focused)
     }
 
     private fun buildGenreChips() {
+        val focused = focusedChipLabel()
         binding.genreChipRow.removeAllViews()
         val row = if (compact) binding.dayChipRow else binding.genreChipRow
         if (compact) {
@@ -298,6 +313,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                 applyFilters()
             }.apply { setTag(R.id.guide_genre_chip, true) })
         }
+        refocusChip(row, focused)
     }
 
     // Genres are guessed from the category and channel names the providers give (e.g. "US| SPORTS",
