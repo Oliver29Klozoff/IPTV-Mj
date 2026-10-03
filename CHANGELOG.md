@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v6.96 - 2026-10-03
+- **Fixed**: Tapping a reminder notification tunes the channel the reminder is for. It used to
+  open the app and leave you on whatever was already playing.
+
+
 ## v6.95 - 2026-10-03
 - **Changed**: Quick Zap and now/next take less of the screen. The favorite cards are a short
   row, and the home screen no longer puts a heading above them. On the full-screen player, what's

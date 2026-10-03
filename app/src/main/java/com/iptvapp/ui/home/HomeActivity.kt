@@ -843,6 +843,9 @@ class HomeActivity : AppCompatActivity() {
 
     // Prevents onResume from auto-resuming "recent" channel when we just picked one from the grid
     private var suppressMiniAutoResume = false
+    // A reminder notification (or the widget) asked for a specific channel. Held until the mini
+    // player exists, and it wins over the cold-boot "resume whatever was on" path.
+    private var pendingJumpStreamId = -1
     private var tabPositionBeforePlayer: Int = -1
     private var pendingScrollToCurrent = false
     // True once the Providers tab has jumped-to/been browsed since the last time a DIFFERENT
@@ -1470,11 +1473,32 @@ class HomeActivity : AppCompatActivity() {
         })
     }
 
-    // Lets other screens (currently: Settings' Provider Health "Play This Channel" action)
-    // hand off to a specific channel without duplicating playback/navigation logic there.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleJumpToChannelExtra()
+        // Already on screen (a reminder tapped over the app). The player exists, so tune now —
+        // onStart will not run initMiniPlayer again.
+        if (miniPlayer != null) consumePendingJump()
+    }
+
+    // Lets other screens (Settings' "Play This Channel", the widget, a channel reminder)
+    // hand off to a specific channel without duplicating playback logic there.
+    // "open_stream_id" is what reminder notifications posted before v6.96 put on the intent.
     private fun handleJumpToChannelExtra() {
-        val streamId = intent.getIntExtra(EXTRA_JUMP_TO_STREAM_ID, -1)
+        val streamId = intent.getIntExtra(EXTRA_JUMP_TO_STREAM_ID, -1).takeIf { it >= 0 }
+            ?: intent.getIntExtra("open_stream_id", -1)
         if (streamId < 0) return
+        intent.removeExtra(EXTRA_JUMP_TO_STREAM_ID)
+        intent.removeExtra("open_stream_id")
+        pendingJumpStreamId = streamId
+        suppressMiniAutoResume = true
+    }
+
+    private fun consumePendingJump() {
+        val streamId = pendingJumpStreamId
+        if (streamId < 0) return
+        pendingJumpStreamId = -1
         lifecycleScope.launch {
             val channel = viewModel.getChannelById(streamId) ?: return@launch
             playInMiniPlayer(channel)
@@ -2067,16 +2091,21 @@ class HomeActivity : AppCompatActivity() {
                 showMiniCastMenu()
             }
         }
-        restoredMiniState?.let { state ->
-            restoredMiniState = null
-            binding.tvMiniChannelName.text = state.title
-            miniPlayer?.setMediaItem(
-                androidx.media3.common.MediaItem.fromUri(state.url),
-                if (state.isVod) state.positionMs else 0L
-            )
-            miniPlayer?.prepare()
-            miniPlayer?.playWhenReady = true
-        } ?: loadLastWatchedChannel()
+        when {
+            pendingJumpStreamId >= 0 -> consumePendingJump()
+            restoredMiniState != null -> {
+                val state = restoredMiniState!!
+                restoredMiniState = null
+                binding.tvMiniChannelName.text = state.title
+                miniPlayer?.setMediaItem(
+                    androidx.media3.common.MediaItem.fromUri(state.url),
+                    if (state.isVod) state.positionMs else 0L
+                )
+                miniPlayer?.prepare()
+                miniPlayer?.playWhenReady = true
+            }
+            else -> loadLastWatchedChannel()
+        }
     }
 
     private fun loadLastWatchedChannel() {

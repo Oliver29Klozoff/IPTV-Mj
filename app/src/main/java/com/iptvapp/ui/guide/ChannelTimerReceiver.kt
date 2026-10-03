@@ -12,6 +12,8 @@ import androidx.core.app.NotificationCompat
 import com.iptvapp.R
 import com.iptvapp.data.local.dataStore
 import com.iptvapp.ui.home.HomeActivity
+import com.iptvapp.ui.home.TvHomeActivity
+import com.iptvapp.util.isLargeScreenDevice
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -26,9 +28,12 @@ class ChannelTimerReceiver : BroadcastReceiver() {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
 
-        val tapIntent = Intent(context, HomeActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("open_stream_id", streamId)
+        // Phone home, or the Shield/car-box home. SINGLE_TOP delivers the channel to the
+        // screen that's already open instead of leaving it on whatever was playing.
+        val home = if (context.isLargeScreenDevice()) TvHomeActivity::class.java else HomeActivity::class.java
+        val tapIntent = Intent(context, home).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            if (streamId >= 0) putExtra(HomeActivity.EXTRA_JUMP_TO_STREAM_ID, streamId)
         }
         val tapPi = PendingIntent.getActivity(
             context, streamId, tapIntent,

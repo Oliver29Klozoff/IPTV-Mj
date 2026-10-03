@@ -1,7 +1,7 @@
 {
-  "versionCode": 533,
-  "versionName": "6.95",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.95/MKTV.apk",
-  "apkSha256": "420c155d75b81b8c473b1ca065d90242db31514a16d79290a7a30ff432d2a248",
-  "changelog": "Quick Zap and now/next take less of the screen. Favorite cards are a short row, now and next share one line in the full-screen player, and Later is one row of smaller chips."
+  "versionCode": 534,
+  "versionName": "6.96",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.96/MKTV.apk",
+  "apkSha256": "f66fb54563ead2884dd5c40def8df3af86296bdb522be123ca1211f75d509509",
+  "changelog": "Tapping a reminder notification tunes the channel the reminder is for."
 }

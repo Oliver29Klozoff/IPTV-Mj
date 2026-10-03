@@ -465,9 +465,24 @@ class TvHomeActivity : AppCompatActivity() {
         // otherwise fires immediately (synchronously ahead of this async retry loop) and wins
         // the race with a primary channel every time, even when this block is about to resolve
         // to the actual last-played merged channel a moment later.
+        // A reminder notification names a channel: play that, and don't let the resume above
+        // replace it a moment later.
+        val jumpStreamId = intent.getIntExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, -1)
+            .takeIf { it >= 0 } ?: intent.getIntExtra("open_stream_id", -1)
         coldBootResumeInProgress = true
         lifecycleScope.launch {
             try {
+                if (jumpStreamId >= 0) {
+                    intent.removeExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID)
+                    intent.removeExtra("open_stream_id")
+                    val channel = viewModel.getChannelById(jumpStreamId)
+                    if (channel != null) {
+                        playInMiniPlayer(channel)
+                        miniPlayJob?.join()
+                        showSidebar()
+                        return@launch
+                    }
+                }
                 val lastServerIndex = prefs.lastPlayedServerIndex.first()
                 val lastStreamId = prefs.lastPlayedStreamId.first()
                 if (lastServerIndex != -1 && lastStreamId != -1) {
@@ -598,7 +613,25 @@ class TvHomeActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleDeepLink(intent)
+        val streamId = intent.getIntExtra(HomeActivity.EXTRA_JUMP_TO_STREAM_ID, -1).takeIf { it >= 0 }
+            ?: intent.getIntExtra("open_stream_id", -1)
+        if (streamId < 0) return
+        intent.removeExtra(HomeActivity.EXTRA_JUMP_TO_STREAM_ID)
+        intent.removeExtra("open_stream_id")
+        // onResume, which follows this, would otherwise re-prepare whatever is already on.
+        coldBootResumeInProgress = true
+        lifecycleScope.launch {
+            try {
+                val channel = viewModel.getChannelById(streamId) ?: return@launch
+                playInMiniPlayer(channel)
+                miniPlayJob?.join()
+                showSidebar()
+            } finally {
+                coldBootResumeInProgress = false
+            }
+        }
     }
 
     private fun handleDeepLink(intent: Intent?) {
@@ -631,7 +664,7 @@ class TvHomeActivity : AppCompatActivity() {
                 val recent = viewModel.getRecentChannel()
                 if (recent != null) playInMiniPlayer(recent)
             }
-        } else if (!currentMiniIsVod) {
+        } else if (!currentMiniIsVod && currentMiniUrl.isNotEmpty() && !coldBootResumeInProgress) {
             // Re-prepare so ExoPlayer re-fetches the manifest and starts at the real live
             // edge, instead of resuming from whatever position was buffered before pausing.
             miniPlayer?.setMediaItem(MediaItem.fromUri(currentMiniUrl))
@@ -740,7 +773,8 @@ class TvHomeActivity : AppCompatActivity() {
         channel.customNum?.let { "$it · ${channel.name}" } ?: channel.name
 
     private fun playInMiniPlayer(channel: ChannelEntity) {
-        lifecycleScope.launch {
+        miniPlayJob?.cancel()
+        miniPlayJob = lifecycleScope.launch {
             val url = viewModel.getLiveStreamUrl(channel.streamId)
             currentMiniUrl = url
             currentMiniTitle = miniPlayerTitleFor(channel)
