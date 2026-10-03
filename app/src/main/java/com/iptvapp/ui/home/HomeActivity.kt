@@ -1176,7 +1176,9 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniTitle = timeshiftTitle
                     currentMiniStreamId = streamId
                     currentMiniServerIndex = -1
-                    currentMiniIsVod = false
+                    // Catch-up replay = a finished recording: VOD, so pausing keeps its place and full
+                    // screen can seek (it was re-prepared from the start like live).
+                    currentMiniIsVod = true
                     binding.tvMiniChannelName.text = timeshiftTitle
                     binding.tvPipChannelName?.text = timeshiftTitle
                     miniPlayer?.let {

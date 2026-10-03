@@ -242,7 +242,11 @@ class EpgTimelineActivity : AppCompatActivity() {
     /** First data on a remote device: put focus on the selected block once it's laid out. */
     private fun placeRemoteFocus() {
         if (!usesRemote || remoteFocusPlaced) return
-        val key = selected?.let { programKey(it.first, it.second) } ?: return
+        val (row, program) = selected ?: return
+        val key = programKey(row, program)
+        // The selected channel may be below the visible rows: bring its row in first, then focus.
+        val pos = adapter.positionOf(row)
+        if (pos >= 0) binding.rvTimeline.scrollToPosition(pos)
         binding.rvTimeline.postDelayed({
             val v = binding.rvTimeline.findViewWithTag<View>(key)
             if (v != null && v.requestFocus()) remoteFocusPlaced = true
@@ -889,6 +893,8 @@ class TimelineAdapter(
             for (i in 0 until row.childCount) row.getChildAt(i).let { it.isSelected = it.tag == key }
         }
     }
+
+    fun positionOf(row: GuideRow) = rows.indexOfFirst { it.serverIndex == row.serverIndex && it.streamId == row.streamId }
 
     override fun getItemCount() = rows.size
 
