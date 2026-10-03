@@ -167,6 +167,10 @@ class TvHomeActivity : AppCompatActivity() {
                 // (own identity, no movie-progress saving) is still to do.
                 currentMiniIsVod = false
                 binding.tvTvChannelName.text = timeshiftTitle
+                // The previous live channel's now/next refresh would keep writing under the replay.
+                epgRefreshJob?.cancel()
+                binding.tvTvEpg.text = "Replay"
+                binding.tvEpgProgress.visibility = View.GONE
                 miniPlayer?.let {
                     it.setMediaItem(MediaItem.fromUri(timeshiftUrl))
                     it.prepare()
@@ -1703,7 +1707,11 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvMovies.setOnClickListener { selectSection(Section.MOVIES) }
         binding.btnTvSeries.setOnClickListener { selectSection(Section.SERIES) }
         binding.btnTvFavorites.setOnClickListener { selectSection(Section.FAVORITES) }
-        binding.btnTvGuide.setOnClickListener { selectSection(Section.GUIDE) }
+        // v6.92: opens the guide grid (EpgTimelineActivity) on top without changing the home section, so
+        // the panel, search target and observers are exactly as they were when you come back.
+        binding.btnTvGuide.setOnClickListener {
+            guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+        }
         binding.btnTvProviders.setOnClickListener { selectSection(Section.PROVIDERS) }
         // Phone reaches these via a dedicated What's On button's click/long-click — TV has no
         // such button (Guide is a sidebar entry, not a tab), so both live behind one long-press
@@ -1830,9 +1838,7 @@ class TvHomeActivity : AppCompatActivity() {
             // for over the previous "always show genre tiles first" behavior, which added an
             // extra screen the user didn't want between the sidebar and their actual favorites.
             Section.FAVORITES -> showFavoriteGenreChannels(FAV_GENRE_ALL_ID, "FAVORITES")
-            // v6.92: the Shield opens the same guide grid as the phone (EpgTimelineActivity, with D-pad
-            // support) instead of its own list panel; picks come back through guideLauncher.
-            Section.GUIDE -> guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+            Section.GUIDE -> showGuidePanel()
             Section.PROVIDERS -> showMergedChannelsPanel()
         }
     }
