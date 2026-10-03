@@ -67,9 +67,11 @@ object ChannelTimerScheduler {
     // bell icon and "Reminder set" state (v6.91).
     private const val REMINDERS = "channel_reminders"
 
-    // Stored as "startMs|bootMs": a reboot clears every alarm, so an entry written before the current
-    // boot (boot time more than a minute off) no longer counts as scheduled.
-    private fun bootMs() = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
+    // Stored as "startMs|bootCount": a reboot clears every alarm, so an entry written in an earlier boot
+    // no longer counts as scheduled. Android's boot counter, not a clock-derived boot time, so a
+    // clock correction doesn't make a live reminder look unset.
+    private fun bootCount(context: Context) =
+        android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
 
     fun isScheduled(context: Context, streamId: Int, startMs: Long): Boolean {
         if (startMs <= System.currentTimeMillis()) return false
@@ -79,7 +81,7 @@ object ChannelTimerScheduler {
         } catch (_: ClassCastException) { null } ?: return false
         val parts = v.split("|")
         val boot = parts.getOrNull(1)?.toLongOrNull() ?: return false
-        return parts[0].toLongOrNull() == startMs && kotlin.math.abs(boot - bootMs()) < 60_000L
+        return parts[0].toLongOrNull() == startMs && boot == bootCount(context).toLong()
     }
 
     // Fires the notification `reminderLeadMinutes` before the program's actual start time
@@ -103,7 +105,7 @@ object ChannelTimerScheduler {
             context, streamId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putString(streamId.toString(), "$startMs|${bootMs()}").apply()
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putString(streamId.toString(), "$startMs|${bootCount(context)}").apply()
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             am.set(AlarmManager.RTC_WAKEUP, fireAtMs, pi)

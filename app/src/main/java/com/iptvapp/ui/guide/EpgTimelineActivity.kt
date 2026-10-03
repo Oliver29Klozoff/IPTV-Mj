@@ -123,6 +123,7 @@ class EpgTimelineActivity : AppCompatActivity() {
 
         binding.btnTimelineBack.setOnClickListener { finish() }
         binding.btnTimelineRefresh.setOnClickListener {
+            rebaseIfStale()
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
             viewModel.loadGuide(forceRefresh = true)
         }
@@ -284,7 +285,7 @@ class EpgTimelineActivity : AppCompatActivity() {
             }
             val on = offset == dayOffset
             row.addView(chip(label, filled = on, outlined = false) {
-                if (offset == dayOffset) { if (offset == 0) scrollToNow() } else changeDay(offset - dayOffset)
+                if (offset == dayOffset) { if (offset == 0) { rebaseIfStale(); scrollToNow() } } else changeDay(offset - dayOffset)
             })
         }
         refocusChip(row, focused)
@@ -489,12 +490,31 @@ class EpgTimelineActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        rebaseIfStale()
+    }
+
+    /** Today's window is fixed when drawn; after hours open (or in the background) "now" can run off
+     * its end. Redraws the grid around the current time when it has. */
+    private fun rebaseIfStale() {
+        if (dayOffset != 0) return
+        val windowEnd = startMs + (hoursBack + hoursAhead) * 60 * 60_000L
+        if (nowMs in startMs until windowEnd - 60 * 60_000L) return
+        startMs = computeStartMs()
+        buildTimeHeader()
+        adapter.updateStartMs(startMs)
+        applyFilters()
+        binding.rvTimeline.post { scrollToNow() }
+    }
+
     /** Moves the now-line every 30 s and redraws the blocks each minute (LIVE NOW, minutes
      * left, progress) while the screen is open. */
     private fun startClock() {
         lifecycleScope.launch {
             var lastMinute = -1L
             while (true) {
+                rebaseIfStale()
                 updateNowIndicator()
                 val minute = nowMs / 60_000L
                 if (lastMinute != -1L && minute != lastMinute) {
