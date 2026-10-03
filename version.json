@@ -1,7 +1,7 @@
 {
-  "versionCode": 528,
-  "versionName": "6.90",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.90/MKTV.apk",
-  "apkSha256": "4a3488b7e85e19ee195c061fb95be35067618112c88adc2d577f2735091c404c",
-  "changelog": "Settings > Providers shows 'Loading providers...' instead of an empty list while it counts a big catalog."
+  "versionCode": 529,
+  "versionName": "6.91",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.91/MKTV.apk",
+  "apkSha256": "ade0b2173466bc01c6fc0975a2ad7a4ad3aaa1bcbf10bf4cad35926ce499721b",
+  "changelog": "Redesigned guide grid: day chips, genre pills, a live now-line, LIVE NOW blocks with progress, reminder bells, replay tags and a detail panel with Watch / Remind / Record / Replay."
 }

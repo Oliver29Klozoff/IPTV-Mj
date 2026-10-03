@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Guide timeline (v6.91 redesign): top bar, day chips, genre pills + "guide updated" time, the
+     time ruler with a NOW pill, the channel grid with a red now-line over it, and a detail panel
+     for the selected program. Day chips, genre pills and the detail panel's content are filled in
+     by EpgTimelineActivity. -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -10,11 +14,11 @@
     <LinearLayout
         android:id="@+id/timelineTopBar"
         android:layout_width="0dp"
-        android:layout_height="52dp"
+        android:layout_height="56dp"
         android:background="@color/rack_surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="12dp"
+        android:paddingHorizontal="6dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -22,76 +26,34 @@
         <Button
             android:id="@+id/btnTimelineBack"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="44dp"
+            app:backgroundTint="@null"
             android:background="@drawable/home_tab_bg"
             android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
+            android:paddingHorizontal="10dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
             android:fontFamily="@font/barlow_condensed_bold"
-            android:letterSpacing="0.08"
-            android:text="← Guide"
-            android:textColor="@color/rack_text_secondary"
-            android:textSize="14sp" />
-
-        <Button
-            android:id="@+id/btnTimelinePrevDay"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
-            android:background="@drawable/home_tab_bg"
-            android:text="◀"
-            android:textColor="@color/rack_text_muted"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/tvTimelineDay"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:minWidth="52dp"
+            android:letterSpacing="0.12"
+            android:text="←  GUIDE"
             android:textColor="@color/rack_text"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/btnTimelineNextDay"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
-            android:background="@drawable/home_tab_bg"
-            android:text="▶"
-            android:textColor="@color/rack_text_muted"
-            android:textSize="14sp" />
+            android:textSize="20sp" />
 
         <EditText
             android:id="@+id/etTimelineSearch"
             android:layout_width="0dp"
-            android:layout_height="34dp"
+            android:layout_height="38dp"
             android:layout_weight="1"
-            android:layout_marginHorizontal="6dp"
+            android:layout_marginHorizontal="8dp"
             android:background="@drawable/home_search_bg"
-            android:hint="Search"
+            android:hint="Search channels or shows"
             android:inputType="text"
             android:paddingHorizontal="10dp"
             android:textColor="@color/rack_text"
             android:textColorHint="@color/rack_text_muted"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:maxLines="1"
             android:imeOptions="actionSearch" />
-
-        <Button
-            android:id="@+id/btnTimelineNow"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:background="@drawable/home_tab_bg"
-            android:minWidth="0dp"
-            android:paddingHorizontal="8dp"
-            android:fontFamily="@font/barlow_condensed_bold"
-            android:letterSpacing="0.08"
-            android:text="Now"
-            android:textColor="@color/rack_text_secondary"
-            android:textSize="13sp" />
 
         <!-- The Guide previously had no way to force a fresh EPG fetch at all — loadGuide()'s
              own staleness check only looks at the newest cached stop-timestamp ACROSS EVERY
@@ -100,54 +62,140 @@
              force a redo short of reinstalling or clearing app data. -->
         <ImageButton
             android:id="@+id/btnTimelineRefresh"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="@drawable/home_tab_bg"
-            android:src="@android:drawable/ic_popup_sync"
-            android:tint="#888888"
+            android:src="@drawable/ic_settings_refresh"
+            app:tint="@color/rack_text_secondary"
             android:contentDescription="Refresh guide" />
 
     </LinearLayout>
 
-    <!-- Header row: channel column spacer + time labels -->
-    <LinearLayout
-        android:id="@+id/timelineHeader"
+    <!-- Day chips (Yesterday · Today · Tomorrow · next days), built in code -->
+    <HorizontalScrollView
+        android:id="@+id/dayChipScroll"
         android:layout_width="0dp"
-        android:layout_height="36dp"
-        android:background="@color/rack_surface"
-        android:orientation="horizontal"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingTop="10dp"
+        android:paddingBottom="4dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/timelineTopBar">
 
-        <!-- Spacer matching channel column width -->
-        <View
-            android:layout_width="120dp"
-            android:layout_height="match_parent"
-            android:background="@color/rack_surface" />
+        <LinearLayout
+            android:id="@+id/dayChipRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp" />
 
-        <View
-            android:layout_width="1dp"
-            android:layout_height="match_parent"
-            android:background="@color/rack_border" />
+    </HorizontalScrollView>
+
+    <!-- Genre pills, built in code, with the guide's last refresh time at the end -->
+    <LinearLayout
+        android:id="@+id/genreBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="4dp"
+        android:paddingBottom="10dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/dayChipScroll">
 
         <HorizontalScrollView
-            android:id="@+id/timeHeaderScroll"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:scrollbars="none">
 
             <LinearLayout
-                android:id="@+id/timeHeaderContent"
+                android:id="@+id/genreChipRow"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="horizontal" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp" />
 
         </HorizontalScrollView>
 
+        <TextView
+            android:id="@+id/tvGuideUpdated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:fontFamily="@font/barlow_condensed_semibold"
+            android:letterSpacing="0.14"
+            android:maxLines="1"
+            android:textAllCaps="true"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="11sp" />
+
     </LinearLayout>
+
+    <!-- Time ruler: channel-column label + scrolling time labels, with the NOW pill over it -->
+    <FrameLayout
+        android:id="@+id/timelineHeader"
+        android:layout_width="0dp"
+        android:layout_height="32dp"
+        android:background="@color/rack_surface"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/genreBar">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="@dimen/guide_channel_col"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:letterSpacing="0.16"
+                android:text="CHANNELS"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="11sp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="@color/rack_border" />
+
+            <HorizontalScrollView
+                android:id="@+id/timeHeaderScroll"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/timeHeaderContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal" />
+
+            </HorizontalScrollView>
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvNowPill"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:layout_gravity="center_vertical"
+            android:background="@drawable/guide_now_pill_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:gravity="center"
+            android:paddingHorizontal="7dp"
+            android:textColor="#FF000000"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <!-- Loading indicator — shown only until real fetch progress is known (see
          timelineSyncProgressContainer below, which takes over once the network fetch actually
@@ -158,7 +206,7 @@
         android:layout_height="wrap_content"
         android:indeterminateTint="@color/oled_cyan_primary"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/guideDetailPanel"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/timelineHeader" />
@@ -211,20 +259,119 @@
         android:textColor="@color/rack_text_muted"
         android:textSize="14sp"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/guideDetailPanel"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/timelineHeader" />
 
-    <!-- Channel rows -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvTimeline"
+    <!-- Channel rows, with the red now-line drawn over them -->
+    <FrameLayout
+        android:id="@+id/guideGridArea"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:scrollbars="none"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/guideDetailPanel"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/timelineHeader" />
+        app:layout_constraintTop_toBottomOf="@id/timelineHeader">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvTimeline"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="none" />
+
+        <View
+            android:id="@+id/viewNowNeedle"
+            android:layout_width="2dp"
+            android:layout_height="match_parent"
+            android:background="@color/rack_danger_text"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <!-- Selected program: what it is, and what you can do with it -->
+    <LinearLayout
+        android:id="@+id/guideDetailPanel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@color/rack_surface"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="14dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/tvDetailEyebrow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/barlow_condensed_semibold"
+            android:letterSpacing="0.16"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textAllCaps="true"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvDetailTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/barlow_semibold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/rack_text"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/tvDetailMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="@color/rack_text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnDetailPrimary"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                app:backgroundTint="@null"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:letterSpacing="0.1"
+                android:textSize="15sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp" />
+
+            <Button
+                android:id="@+id/btnDetailSecondary"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                app:backgroundTint="@null"
+                android:background="@drawable/home_chip_bg"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:letterSpacing="0.1"
+                android:textColor="@color/rack_text"
+                android:textSize="15sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

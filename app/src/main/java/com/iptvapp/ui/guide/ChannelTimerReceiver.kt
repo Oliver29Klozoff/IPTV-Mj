@@ -62,6 +62,15 @@ class ChannelTimerReceiver : BroadcastReceiver() {
 
 object ChannelTimerScheduler {
 
+    // The alarm itself can't be queried, so each scheduled reminder's start time is also kept here
+    // (one per channel, same as the alarm — its PendingIntent is keyed by streamId) for the guide's
+    // bell icon and "Reminder set" state (v6.91).
+    private const val REMINDERS = "channel_reminders"
+
+    fun isScheduled(context: Context, streamId: Int, startMs: Long): Boolean =
+        startMs > System.currentTimeMillis() &&
+            context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).getLong(streamId.toString(), 0L) == startMs
+
     // Fires the notification `reminderLeadMinutes` before the program's actual start time
     // (default 5 min, configurable in Settings) instead of exactly at startMs — previously the
     // alarm was set for startMs itself, so the notification read "X is starting now" at the exact
@@ -83,6 +92,7 @@ object ChannelTimerScheduler {
             context, streamId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putLong(streamId.toString(), startMs).apply()
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             am.set(AlarmManager.RTC_WAKEUP, fireAtMs, pi)
@@ -98,5 +108,6 @@ object ChannelTimerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi)
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().remove(streamId.toString()).apply()
     }
 }

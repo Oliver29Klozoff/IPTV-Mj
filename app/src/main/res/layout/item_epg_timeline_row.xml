@@ -1,30 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Guide timeline row (v6.91): channel cell (number + quality badge, name, provider) and the
+     scrolling program blocks, which TimelineAdapter builds in code. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="64dp"
+    android:layout_height="@dimen/guide_row_height"
+    android:background="@drawable/channel_row_bg"
     android:orientation="horizontal">
 
     <!-- Fixed channel cell -->
     <LinearLayout
-        android:layout_width="120dp"
+        android:layout_width="@dimen/guide_channel_col"
         android:layout_height="match_parent"
         android:background="@color/rack_surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="8dp">
+        android:paddingEnd="8dp">
 
         <View
             android:id="@+id/viewTimelineProviderStripe"
             android:layout_width="3dp"
             android:layout_height="match_parent"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="7dp"
             android:background="#00000000" />
 
         <ImageView
             android:id="@+id/ivTimelineChannelLogo"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_marginEnd="6dp"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginEnd="7dp"
             android:scaleType="fitCenter"
             android:visibility="gone" />
 
@@ -34,14 +37,45 @@
             android:layout_weight="1"
             android:orientation="vertical">
 
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvTimelineChannelNum"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="5dp"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:textColor="@color/rack_text_muted"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvTimelineQuality"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/home_chip_bg"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:letterSpacing="0.06"
+                    android:paddingHorizontal="3dp"
+                    android:textColor="@color/rack_text_secondary"
+                    android:textSize="9sp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/tvTimelineChannelName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:maxLines="2"
-                android:textColor="@color/rack_text_secondary"
-                android:textSize="11sp" />
+                android:fontFamily="@font/barlow_semibold"
+                android:maxLines="1"
+                android:textColor="@color/rack_text"
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/tvTimelineProviderLabel"
@@ -50,7 +84,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/rack_text_muted"
-                android:textSize="9sp" />
+                android:textSize="10sp" />
 
         </LinearLayout>
 

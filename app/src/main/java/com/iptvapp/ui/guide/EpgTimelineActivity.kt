@@ -13,11 +13,13 @@ import android.view.WindowInsetsController
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -27,12 +29,21 @@ import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.entities.EpgEntity
 import com.iptvapp.databinding.ActivityEpgTimelineBinding
 import com.iptvapp.ui.home.HomeViewModel
+import com.iptvapp.util.RackAccent
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+
+private fun epgMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
+
+/** Identifies one program block across rebinds (selection survives the minute refresh). */
+private fun programKey(row: GuideRow, program: EpgEntity) =
+    "${row.serverIndex}:${row.streamId}:${program.startTimestamp}"
 
 @AndroidEntryPoint
 class EpgTimelineActivity : AppCompatActivity() {
@@ -60,6 +71,14 @@ class EpgTimelineActivity : AppCompatActivity() {
     // way; a day with no cached data just renders an empty grid, same as a live EPG app would.
     private var dayOffset = 0
 
+    // v6.91 redesign state: the accent (chips, Watch button, live blocks), the genre pill that's
+    // on, the primary provider's category names (genres are guessed from them), and the program
+    // the detail panel describes.
+    private var accent = RackAccent.Accent(0xFF06B6D4.toInt(), null)
+    private var genre = GENRE_ALL
+    private var categoryNames: Map<String, String> = emptyMap()
+    private var selected: Pair<GuideRow, EpgEntity>? = null
+
     private val nowMs get() = System.currentTimeMillis()
     private val startMs get() = run {
         val cal = java.util.Calendar.getInstance()
@@ -82,35 +101,56 @@ class EpgTimelineActivity : AppCompatActivity() {
             startMs = startMs,
             onScrollChanged = { scrollX -> syncScroll(scrollX) },
             onChannelClick = { row -> playChannel(row) },
-            onProgramClick = { row, program -> handleProgramClick(row, program) },
-            onProgramLongPress = { row, program -> showTimerDialog(row, program) }
+            onProgramClick = { row, program -> onProgramTapped(row, program) },
+            onProgramLongPress = { row, program -> showTimerDialog(row, program) },
+            onProgramFocused = { row, program -> select(row, program) }
         )
+
+        // Opening the guide shouldn't pop the keyboard up: on a touch screen the search box was the
+        // first thing able to take focus. The screen takes it instead (on a remote, focus still
+        // starts on the back button).
+        binding.root.isFocusableInTouchMode = true
+        binding.root.requestFocus()
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
 
         binding.rvTimeline.layoutManager = LinearLayoutManager(this)
         binding.rvTimeline.adapter = adapter
-        // Studio Rack look (v6.85): the show on now in the user's accent (or gradient).
-        lifecycleScope.launch { adapter.setAccent(com.iptvapp.util.RackAccent.load(prefs)) }
 
         binding.btnTimelineBack.setOnClickListener { finish() }
-        binding.btnTimelineNow.setOnClickListener {
-            if (dayOffset != 0) changeDay(-dayOffset) else scrollToNow()
-        }
         binding.btnTimelineRefresh.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
             viewModel.loadGuide(forceRefresh = true)
         }
-        binding.btnTimelinePrevDay.setOnClickListener { changeDay(-1) }
-        binding.btnTimelineNextDay.setOnClickListener { changeDay(1) }
         binding.etTimelineSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) { applySearchFilter(s.toString()) }
+            override fun afterTextChanged(s: android.text.Editable?) { applyFilters() }
         })
 
-        updateDayLabel()
+        buildDayChips()
         buildTimeHeader()
+        lifecycleScope.launch {
+            accent = RackAccent.load(prefs)
+            adapter.setAccent(accent)
+            RackAccent.paintFillButton(binding.btnDetailPrimary, accent)
+            buildDayChips()
+            categoryNames = try {
+                db.categoryDao().getCategoriesByType("live").first().associate { it.categoryId to it.categoryName }
+            } catch (_: Exception) { emptyMap() }
+            buildGenreChips()
+            applyFilters()
+        }
+        lifecycleScope.launch {
+            val t = prefs.lastEpgRefreshTime.first()
+            binding.tvGuideUpdated.text = when {
+                t <= 0L -> "Guide not updated yet"
+                android.text.format.DateUtils.isToday(t) -> "Guide updated " + SimpleDateFormat("h:mm a", Locale.US).format(Date(t))
+                else -> "Guide updated " + SimpleDateFormat("MMM d", Locale.US).format(Date(t))
+            }
+        }
         observeGuide()
         showEpgDiffAlerts()
+        startClock()
     }
 
     /** Feature B: shows any pending (unshown) EPG diff alerts for favorite channels — schedule
@@ -138,13 +178,101 @@ class EpgTimelineActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateDayLabel() {
-        binding.tvTimelineDay.text = when (dayOffset) {
-            0 -> "Today"
-            1 -> "Tomorrow"
-            -1 -> "Yesterday"
-            else -> SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date(startMs))
+    // ── Day chips + genre pills (v6.91) ──
+
+    private fun dp(v: Float) = dpToPx(v).toInt()
+
+    /** A chip/pill: accent fill when it's the chosen one ([filled]), a light outline when it's
+     * the chosen filter ([outlined]), a grey outline otherwise; D-pad focus adds the white ring. */
+    private fun chip(label: String, filled: Boolean, outlined: Boolean, onClick: () -> Unit) =
+        TextView(this).apply {
+            text = label
+            textSize = if (filled) 14f else 13f
+            typeface = ResourcesCompat.getFont(this@EpgTimelineActivity,
+                if (filled) R.font.barlow_condensed_bold else R.font.barlow_condensed_semibold)
+            letterSpacing = 0.08f
+            isAllCaps = true
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(12f), 0, dp(12f), 0)
+            isClickable = true
+            isFocusable = true
+            fun shape(fill: IntArray, stroke: Int?, strokeDp: Float) =
+                android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fill).apply {
+                    cornerRadius = dpToPx(4f)
+                    if (stroke != null) setStroke(dp(strokeDp), stroke)
+                }
+            val rest = when {
+                filled -> shape(accent.stops, null, 0f)
+                outlined -> shape(intArrayOf(getColor(R.color.rack_control_off), getColor(R.color.rack_control_off)), getColor(R.color.rack_text), 1f)
+                else -> shape(intArrayOf(0, 0), getColor(R.color.rack_control_edge), 1f)
+            }
+            val focused = if (filled) shape(accent.stops, getColor(R.color.rack_focus_ring), 2f)
+                else shape(intArrayOf(getColor(R.color.rack_focus_fill), getColor(R.color.rack_focus_fill)), getColor(R.color.rack_focus_ring), 2f)
+            background = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), focused)
+                addState(intArrayOf(), rest)
+            }
+            setTextColor(when {
+                filled -> accent.onAccent
+                outlined -> getColor(R.color.rack_text)
+                else -> getColor(R.color.rack_text_secondary)
+            })
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(if (filled || !outlined) 36f else 32f)).apply {
+                marginEnd = dp(6f)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            setOnClickListener { onClick() }
         }
+
+    private fun buildDayChips() {
+        val row = binding.dayChipRow
+        row.removeAllViews()
+        for (offset in -1..4) {
+            val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_MONTH, offset) }
+            val day = SimpleDateFormat("EEE d", Locale.US).format(cal.time)
+            val label = when (offset) {
+                -1 -> "Yesterday"
+                0 -> "Today · $day"
+                1 -> "Tomorrow"
+                else -> day
+            }
+            val on = offset == dayOffset
+            row.addView(chip(label, filled = on, outlined = false) {
+                if (offset == dayOffset) { if (offset == 0) scrollToNow() } else changeDay(offset - dayOffset)
+            })
+        }
+    }
+
+    private fun buildGenreChips() {
+        val row = binding.genreChipRow
+        row.removeAllViews()
+        val all = rows()
+        val available = listOf(GENRE_FAVORITES, "Sports", "News", "Movies", "Kids").filter { g -> all.any { matchesGenre(it, g) } }
+        if (genre != GENRE_ALL && genre !in available) genre = GENRE_ALL
+        (listOf(GENRE_ALL) + available).forEach { g ->
+            row.addView(chip(g, filled = false, outlined = g == genre) {
+                genre = g
+                buildGenreChips()
+                applyFilters()
+            })
+        }
+    }
+
+    // Genres are guessed from the category and channel names the providers give (e.g. "US| SPORTS",
+    // "ESPN 2"); a channel can count as more than one, and anything unmatched shows under All only.
+    private fun matchesGenre(row: GuideRow, g: String): Boolean {
+        if (g == GENRE_ALL) return true
+        if (g == GENRE_FAVORITES) return row.channel?.isFavorite == true || row.mergedChannel?.isFavorite == true
+        val cat = row.channel?.categoryId?.let { categoryNames[it] } ?: row.mergedChannel?.categoryName ?: ""
+        val text = "$cat ${row.name}".lowercase(Locale.US)
+        val words = when (g) {
+            "Sports" -> SPORTS_WORDS
+            "News" -> NEWS_WORDS
+            "Movies" -> MOVIE_WORDS
+            "Kids" -> KIDS_WORDS
+            else -> return false
+        }
+        return words.any { it in text }
     }
 
     // Rebuilding both the time header (its labels are computed from startMs) and the
@@ -153,10 +281,10 @@ class EpgTimelineActivity : AppCompatActivity() {
     // program blocks with the header's time labels.
     private fun changeDay(delta: Int) {
         dayOffset += delta
-        updateDayLabel()
+        buildDayChips()
         buildTimeHeader()
         adapter.updateStartMs(startMs)
-        applySearchFilter(binding.etTimelineSearch.text?.toString() ?: "")
+        applyFilters()
         binding.rvTimeline.post {
             if (dayOffset == 0) {
                 scrollToNow()
@@ -164,17 +292,19 @@ class EpgTimelineActivity : AppCompatActivity() {
                 binding.timeHeaderScroll.scrollTo(0, 0)
                 adapter.scrollAllTo(0)
             }
+            updateNowIndicator()
         }
     }
 
     // Previously only matched the CHANNEL name — searching a show/program title (e.g. "NFL")
     // found nothing unless the channel itself happened to be named that, even though every
-    // GuideRow already carries its full programs list. Now matches either.
-    private fun applySearchFilter(query: String) {
-        val q = query.trim()
-        val filtered = if (q.isBlank()) rows() else rows().filter { row ->
-            row.name.contains(q, ignoreCase = true) ||
-                row.programs.any { it.title.contains(q, ignoreCase = true) }
+    // GuideRow already carries its full programs list. Now matches either, within the genre pill.
+    private fun applyFilters() {
+        val q = binding.etTimelineSearch.text?.toString()?.trim().orEmpty()
+        val filtered = rows().filter { row ->
+            matchesGenre(row, genre) && (q.isBlank() ||
+                row.name.contains(q, ignoreCase = true) ||
+                row.programs.any { it.title.contains(q, ignoreCase = true) })
         }
         adapter.submitList(filtered)
     }
@@ -187,7 +317,9 @@ class EpgTimelineActivity : AppCompatActivity() {
                 if (rows.isNotEmpty()) {
                     binding.timelineProgress.visibility = View.GONE
                     binding.tvTimelineEmpty?.visibility = View.GONE
-                    applySearchFilter(binding.etTimelineSearch.text?.toString() ?: "")
+                    buildGenreChips()
+                    applyFilters()
+                    if (selected == null) selectFirstLive(rows)
                     if (dayOffset == 0) binding.rvTimeline.post { scrollToNow() }
                 }
             }
@@ -241,7 +373,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                 text = label
                 setTextColor(getColor(R.color.rack_text_muted))
                 textSize = 12f
-                typeface = androidx.core.content.res.ResourcesCompat.getFont(this@EpgTimelineActivity, R.font.barlow_condensed_semibold)
+                typeface = ResourcesCompat.getFont(this@EpgTimelineActivity, R.font.barlow_condensed_semibold)
                 letterSpacing = 0.06f
                 layoutParams = LinearLayout.LayoutParams(dpToPx(slotWidthDp).toInt(), ViewGroup.LayoutParams.MATCH_PARENT)
                 setPadding(dpToPx(6f).toInt(), 0, 0, 0)
@@ -263,6 +395,7 @@ class EpgTimelineActivity : AppCompatActivity() {
 
     private fun syncScroll(scrollX: Int) {
         binding.timeHeaderScroll.scrollTo(scrollX, 0)
+        updateNowIndicator()
     }
 
     private fun scrollToNow() {
@@ -273,8 +406,166 @@ class EpgTimelineActivity : AppCompatActivity() {
         adapter.scrollAllTo(offsetPx.coerceAtLeast(0))
     }
 
+    // ── The red now-line + NOW pill (v6.91) ──
+
+    /** Positions the now-line over the grid and the NOW pill on the ruler at the current time,
+     * following the shared horizontal scroll; hidden on other days or when now is scrolled off. */
+    private fun updateNowIndicator() {
+        val needle = binding.viewNowNeedle
+        val pill = binding.tvNowPill
+        val col = resources.getDimension(R.dimen.guide_channel_col) + dpToPx(1f)
+        val x = col + dpToPx((nowMs - startMs) / 60_000f * dpPerMin) - adapter.scrollX
+        val show = dayOffset == 0 && x >= col && x <= binding.guideGridArea.width
+        needle.visibility = if (show) View.VISIBLE else View.GONE
+        pill.visibility = if (show) View.VISIBLE else View.GONE
+        if (!show) return
+        needle.translationX = x - dpToPx(1f)
+        pill.text = "NOW " + SimpleDateFormat("h:mm", Locale.US).format(Date(nowMs))
+        pill.post {
+            val maxX = (binding.timelineHeader.width - pill.width).toFloat()
+            pill.translationX = (x - pill.width / 2f).coerceIn(col, maxX.coerceAtLeast(col))
+        }
+    }
+
+    /** Moves the now-line every 30 s and redraws the blocks each minute (LIVE NOW, minutes
+     * left, progress) while the screen is open. */
+    private fun startClock() {
+        lifecycleScope.launch {
+            var lastMinute = -1L
+            while (true) {
+                updateNowIndicator()
+                val minute = nowMs / 60_000L
+                if (lastMinute != -1L && minute != lastMinute) {
+                    adapter.refresh()
+                    renderDetail()
+                }
+                lastMinute = minute
+                delay(30_000)
+            }
+        }
+    }
+
     fun dpToPx(dp: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics)
+
+    // ── Detail panel (v6.91) ──
+
+    /** A tap selects a block (the detail panel shows it with its actions); tapping the selected
+     * block again does what a tap always did (watch / remind / replay). D-pad focus selects, and
+     * OK on the focused block acts — focus already selected it. */
+    private fun onProgramTapped(row: GuideRow, program: EpgEntity) {
+        val current = selected
+        if (current != null && programKey(current.first, current.second) == programKey(row, program)) {
+            handleProgramClick(row, program)
+        } else {
+            select(row, program)
+        }
+    }
+
+    private fun select(row: GuideRow, program: EpgEntity) {
+        selected = row to program
+        adapter.setSelectedKey(programKey(row, program))
+        renderDetail()
+    }
+
+    private fun selectFirstLive(rows: List<GuideRow>) {
+        val now = nowMs
+        for (row in rows) {
+            val live = row.programs.firstOrNull { epgMs(it.startTimestamp) <= now && now < epgMs(it.stopTimestamp) }
+            if (live != null) { select(row, live); return }
+        }
+    }
+
+    private fun renderDetail() {
+        val (row, p) = selected ?: run { binding.guideDetailPanel.visibility = View.GONE; return }
+        binding.guideDetailPanel.visibility = View.VISIBLE
+        val now = nowMs
+        val s = epgMs(p.startTimestamp)
+        val e = epgMs(p.stopTimestamp)
+        val time = SimpleDateFormat("h:mm a", Locale.US)
+        val num = row.channel?.num?.takeIf { it > 0 }
+        val channel = listOfNotNull(num?.toString(), row.name).joinToString(" ")
+        val ch = row.channel
+        fun minutes(ms: Long): String {
+            val m = ((ms + 59_999) / 60_000).toInt()
+            return if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
+        }
+        binding.tvDetailTitle.text = p.title
+        val desc = p.description.lineSequence().firstOrNull { it.isNotBlank() }?.trim()
+        binding.tvDetailMeta.text = listOfNotNull("${time.format(Date(s))} – ${time.format(Date(e))}", desc).joinToString(" · ")
+
+        val primary = binding.btnDetailPrimary
+        val secondary = binding.btnDetailSecondary
+        secondary.visibility = View.VISIBLE
+        when {
+            s <= now && now < e -> {
+                binding.tvDetailEyebrow.text = "On now · $channel · ${minutes(e - now)} left"
+                primary.text = "Watch"
+                primary.setOnClickListener { playChannel(row) }
+                val next = row.programs.firstOrNull { epgMs(it.startTimestamp) >= e }
+                if (ch != null && next != null) {
+                    val nextStart = epgMs(next.startTimestamp)
+                    val set = ChannelTimerScheduler.isScheduled(this, ch.streamId, nextStart)
+                    secondary.text = if (set) "Reminder set" else "Remind next"
+                    secondary.setOnClickListener {
+                        if (!set) {
+                            ChannelTimerScheduler.schedule(this, ch.streamId, ch.name, next.title, nextStart)
+                            Toast.makeText(this, "Reminder set for ${next.title}", Toast.LENGTH_SHORT).show()
+                            adapter.refresh()
+                            renderDetail()
+                        }
+                    }
+                } else secondary.visibility = View.GONE
+            }
+            s > now -> {
+                binding.tvDetailEyebrow.text = "$channel · " +
+                    if (s - now < 24 * 60 * 60_000L) "starts in ${minutes(s - now)}"
+                    else SimpleDateFormat("EEE MMM d", Locale.US).format(Date(s))
+                if (ch != null) {
+                    val set = ChannelTimerScheduler.isScheduled(this, ch.streamId, s)
+                    primary.text = if (set) "Cancel reminder" else "Remind me"
+                    primary.setOnClickListener {
+                        if (set) {
+                            ChannelTimerScheduler.cancel(this, ch.streamId)
+                            Toast.makeText(this, "Reminder cancelled", Toast.LENGTH_SHORT).show()
+                        } else {
+                            ChannelTimerScheduler.schedule(this, ch.streamId, ch.name, p.title, s)
+                            Toast.makeText(this, "Reminder set for ${time.format(Date(s))}", Toast.LENGTH_SHORT).show()
+                        }
+                        adapter.refresh()
+                        renderDetail()
+                    }
+                    secondary.text = "Record"
+                    secondary.setOnClickListener {
+                        startActivity(
+                            Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
+                                .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, ch.streamId)
+                                .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, s)
+                                .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, (e - s).coerceAtLeast(60_000L))
+                        )
+                    }
+                } else {
+                    // Reminders / recordings are primary-provider only (see showTimerDialog).
+                    primary.text = "Watch channel"
+                    primary.setOnClickListener { playChannel(row) }
+                    secondary.visibility = View.GONE
+                }
+            }
+            else -> {
+                binding.tvDetailEyebrow.text = "$channel · ended"
+                if (ch != null && ch.tvArchive == 1 && p.hasArchive == 1) {
+                    primary.text = "Replay"
+                    primary.setOnClickListener { handleProgramClick(row, p) }
+                    secondary.text = "Watch live"
+                    secondary.setOnClickListener { playChannel(row) }
+                } else {
+                    primary.text = "Watch live"
+                    primary.setOnClickListener { playChannel(row) }
+                    secondary.visibility = View.GONE
+                }
+            }
+        }
+    }
 
     // Record/Remind Me are primary-provider-only concepts (RecordingSchedulerActivity/
     // ChannelTimerScheduler have no serverIndex support) — a merged row only ever gets the
@@ -304,6 +595,8 @@ class EpgTimelineActivity : AppCompatActivity() {
             builder.setNeutralButton("Remind Me") { _, _ ->
                 ChannelTimerScheduler.schedule(this, ch.streamId, ch.name, program.title, startMs)
                 android.widget.Toast.makeText(this, "Reminder set for $timeStr", android.widget.Toast.LENGTH_SHORT).show()
+                adapter.refresh()
+                renderDetail()
             }
         }
         builder.show()
@@ -375,6 +668,15 @@ class EpgTimelineActivity : AppCompatActivity() {
             )
         }
     }
+
+    private companion object {
+        const val GENRE_ALL = "All"
+        const val GENRE_FAVORITES = "★ Favorites"
+        val SPORTS_WORDS = listOf("sport", "espn", "nfl", "nba", "mlb", "nhl", "ncaa", "ufc", "wwe", "ppv", "golf", "tennis", "bein", "dazn", "racing", "soccer", "football")
+        val NEWS_WORDS = listOf("news", "cnn", "msnbc", "cnbc", "bloomberg", "weather", "c-span")
+        val MOVIE_WORDS = listOf("movie", "cinema", "film", "hbo", "showtime", "starz", "cinemax", "mgm", "epix", "tcm", "amc", "flix")
+        val KIDS_WORDS = listOf("kid", "family", "cartoon", "disney", "nick", "junior", "boomerang", "baby")
+    }
 }
 
 class TimelineAdapter(
@@ -383,7 +685,8 @@ class TimelineAdapter(
     private val onScrollChanged: (Int) -> Unit,
     private val onChannelClick: (GuideRow) -> Unit,
     private val onProgramClick: (GuideRow, EpgEntity) -> Unit,
-    private val onProgramLongPress: (GuideRow, EpgEntity) -> Unit
+    private val onProgramLongPress: (GuideRow, EpgEntity) -> Unit,
+    private val onProgramFocused: (GuideRow, EpgEntity) -> Unit
 ) : RecyclerView.Adapter<TimelineAdapter.ViewHolder>() {
 
     // Mutable so day-paging can shift the whole grid's time window without recreating the
@@ -396,6 +699,9 @@ class TimelineAdapter(
     private val scrollViews = mutableListOf<HorizontalScrollView>()
     private var isSyncing = false
 
+    /** The rows' shared horizontal scroll, for EpgTimelineActivity's now-line. */
+    val scrollX: Int get() = sharedScrollX
+
     fun submitList(list: List<GuideRow>) {
         rows = list
         notifyDataSetChanged()
@@ -405,6 +711,10 @@ class TimelineAdapter(
         startMs = newStartMs
         notifyDataSetChanged()
     }
+
+    /** Rebinds every row so time-dependent bits (LIVE NOW, minutes left, progress, reminders)
+     * catch up. */
+    fun refresh() = notifyDataSetChanged()
 
     fun setSharedScrollX(x: Int, sourceView: View? = null) {
         if (isSyncing) return
@@ -429,6 +739,19 @@ class TimelineAdapter(
         notifyDataSetChanged()
     }
 
+    // v6.91: the block the detail panel describes, drawn with the same white outline as focus.
+    private var selectedKey: String? = null
+
+    // Updated in place, not by rebinding: rebinding would destroy the block that holds D-pad focus.
+    fun setSelectedKey(key: String) {
+        if (key == selectedKey) return
+        selectedKey = key
+        scrollViews.forEach { sv ->
+            val row = sv.getChildAt(0) as? ViewGroup ?: return@forEach
+            for (i in 0 until row.childCount) row.getChildAt(i).let { it.isSelected = it.tag == key }
+        }
+    }
+
     override fun getItemCount() = rows.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -449,6 +772,8 @@ class TimelineAdapter(
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val ivLogo: ImageView = view.findViewById(R.id.ivTimelineChannelLogo)
         private val tvName: TextView = view.findViewById(R.id.tvTimelineChannelName)
+        private val tvNum: TextView = view.findViewById(R.id.tvTimelineChannelNum)
+        private val tvQuality: TextView = view.findViewById(R.id.tvTimelineQuality)
         private val tvProviderLabel: TextView? = view.findViewById(R.id.tvTimelineProviderLabel)
         val scrollView: HorizontalScrollView = view.findViewById(R.id.programRowScroll)
         private val container: LinearLayout = view.findViewById(R.id.programRowContainer)
@@ -458,6 +783,14 @@ class TimelineAdapter(
         fun bind(row: GuideRow) {
             tvName.text = row.name
             tvName.setOnClickListener { onChannelClick(row) }
+            // Channel number (primary provider only — a merged row's num is just its list
+            // position) and the quality tag the name carries (HD / FHD / 4K), as in the channel list.
+            val num = row.channel?.num?.takeIf { it > 0 }
+            tvNum.visibility = if (num != null) View.VISIBLE else View.GONE
+            tvNum.text = num?.toString() ?: ""
+            val quality = com.iptvapp.util.ChannelQualityTag.labelFor(row.name)
+            tvQuality.visibility = if (quality != null) View.VISIBLE else View.GONE
+            tvQuality.text = quality ?: ""
             tvProviderLabel?.text = row.providerLabel
             providerStripe?.setBackgroundColor(providerColorFor(row.serverIndex) ?: 0x00000000)
             if (!row.streamIcon.isNullOrBlank()) {
@@ -486,48 +819,129 @@ class TimelineAdapter(
             val endMs = startMs + (12 * 60 * 60_000L)
             val dpPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dpPerMin, ctx.resources.displayMetrics)
 
-            // Gap filler before first program
-            if (row.programs.isNotEmpty()) {
-                val firstStartMs = toMs(row.programs.first().startTimestamp)
-                if (firstStartMs > startMs) {
-                    val gapMin = ((firstStartMs - startMs) / 60_000f)
-                    container.addView(makeGap((gapMin * dpPx).toInt(), ctx))
-                }
-            }
-
-            row.programs.forEach { program ->
+            // Each block is placed at its real start time (v6.91): a gap fills any hole before it,
+            // and a show that began before the window, or overlaps the previous one, is clipped to
+            // what's visible. Blocks used to be laid end to end at full length, so one early or
+            // missing slot pushed everything after it out of line with the clock (the now-line
+            // made that obvious).
+            var cursorMs = startMs
+            row.programs.sortedBy { toMs(it.startTimestamp) }.forEach { program ->
                 val pStartMs = toMs(program.startTimestamp)
                 val pStopMs = toMs(program.stopTimestamp)
-                if (pStopMs < startMs || pStartMs > endMs) return@forEach
+                val visStart = maxOf(pStartMs, cursorMs)
+                val visEnd = minOf(pStopMs, endMs)
+                if (visEnd - visStart < 60_000L) return@forEach
+                if (visStart > cursorMs) container.addView(makeGap(((visStart - cursorMs) / 60_000f * dpPx).toInt(), ctx))
+                val widthPx = ((visEnd - visStart) / 60_000f * dpPx).toInt()
+                container.addView(programBlock(row, program, pStartMs, pStopMs, nowMs, widthPx, ctx))
+                cursorMs = visEnd
+            }
+        }
 
-                val durationMin = ((pStopMs - pStartMs) / 60_000f).coerceAtLeast(5f)
-                val widthPx = (durationMin * dpPx).toInt()
-                val isNow = pStartMs <= nowMs && pStopMs > nowMs
-                val isReplay = row.supportsReplay && program.hasArchive == 1
+        /** One program (v6.91): a label line (● LIVE NOW + minutes left / time + bell for a
+         * reminder / REPLAY), the title, and a progress bar for the show on now. Narrow blocks
+         * drop the label line, then the progress bar. */
+        private fun programBlock(row: GuideRow, program: EpgEntity, pStartMs: Long, pStopMs: Long, nowMs: Long, widthPx: Int, ctx: Context): View {
+            val isNow = pStartMs <= nowMs && pStopMs > nowMs
+            val isPast = pStopMs <= nowMs
+            val isReplay = isPast && row.supportsReplay && program.hasArchive == 1
+            val reminder = !isNow && !isPast && row.channel != null &&
+                ChannelTimerScheduler.isScheduled(ctx, row.streamId, pStartMs)
+            val a = accent ?: com.iptvapp.util.RackAccent.Accent(ctx.getColor(R.color.oled_cyan_primary), null)
+            val condensed = ResourcesCompat.getFont(ctx, R.font.barlow_condensed_semibold)
+            val time = SimpleDateFormat("h:mm", Locale.US)
 
-                val block = TextView(ctx).apply {
-                    text = program.title
-                    textSize = 11f
-                    maxLines = 2
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    setPadding(dpToPx(6f, ctx).toInt(), 0, dpToPx(6f, ctx).toInt(), 0)
+            val block = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dpToPx(7f, ctx).toInt(), dpToPx(4f, ctx).toInt(), dpToPx(7f, ctx).toInt(), dpToPx(4f, ctx).toInt())
+                // Studio Rack blocks (v6.85): square-cornered modules with a hairline edge;
+                // the show on now gets a wash and edge in the user's accent (a gradient wash
+                // for a gradient accent); catch-up replay keeps its green tint.
+                background = programBlockBackground(ctx, isNow, isReplay)
+                isClickable = true
+                isFocusable = true
+                tag = programKey(row, program)
+                isSelected = programKey(row, program) == selectedKey
+                // The 1 + 2 dp side margins come out of the width, so blocks stay on the clock.
+                val sides = dpToPx(1f, ctx).toInt() + dpToPx(2f, ctx).toInt()
+                layoutParams = LinearLayout.LayoutParams((widthPx - sides).coerceAtLeast(1), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                    setMargins(dpToPx(1f, ctx).toInt(), dpToPx(4f, ctx).toInt(), dpToPx(2f, ctx).toInt(), dpToPx(4f, ctx).toInt())
+                }
+                setOnClickListener { onProgramClick(row, program) }
+                setOnLongClickListener {
+                    onProgramLongPress(row, program)
+                    true
+                }
+                setOnFocusChangeListener { _, hasFocus -> if (hasFocus) onProgramFocused(row, program) }
+            }
+
+            if (widthPx >= dpToPx(64f, ctx)) {
+                val labelRow = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
-                    // Studio Rack blocks (v6.85): square-cornered modules with a hairline edge;
-                    // the show on now gets a wash and edge in the user's accent (a gradient wash
-                    // for a gradient accent); catch-up replay keeps its green tint.
-                    background = programBlockBackground(ctx, isNow, isReplay)
-                    setTextColor(ctx.getColor(if (isNow) R.color.rack_text else R.color.rack_text_secondary))
-                    if (isNow) typeface = android.graphics.Typeface.create(typeface, android.graphics.Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams(widthPx, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                        setMargins(dpToPx(1f, ctx).toInt(), dpToPx(2f, ctx).toInt(), dpToPx(1f, ctx).toInt(), dpToPx(2f, ctx).toInt())
+                }
+                val label = TextView(ctx).apply {
+                    textSize = 11f
+                    typeface = condensed
+                    letterSpacing = 0.08f
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                labelRow.addView(label)
+                when {
+                    isNow -> {
+                        label.text = "● LIVE NOW"
+                        com.iptvapp.util.AccentText.apply(label, a.start, a.end)
+                        if (widthPx >= dpToPx(150f, ctx)) labelRow.addView(TextView(ctx).apply {
+                            text = "${((pStopMs - nowMs + 59_999) / 60_000)} MIN LEFT"
+                            textSize = 11f
+                            typeface = condensed
+                            letterSpacing = 0.06f
+                            maxLines = 1
+                            setTextColor(ctx.getColor(R.color.rack_text_secondary))
+                        })
                     }
-                    setOnClickListener { onProgramClick(row, program) }
-                    setOnLongClickListener {
-                        onProgramLongPress(row, program)
-                        true
+                    isReplay -> {
+                        label.text = "REPLAY"
+                        label.setTextColor(0xFF6FCF97.toInt())
+                        labelRow.addView(icon(ctx, R.drawable.ic_guide_replay))
+                    }
+                    else -> {
+                        label.text = "${time.format(Date(pStartMs))}–${time.format(Date(pStopMs))}"
+                        label.setTextColor(ctx.getColor(R.color.rack_text_muted))
+                        if (reminder) labelRow.addView(icon(ctx, R.drawable.ic_guide_bell))
                     }
                 }
-                container.addView(block)
+                block.addView(labelRow)
+            }
+
+            block.addView(TextView(ctx).apply {
+                text = program.title
+                textSize = 13f
+                typeface = ResourcesCompat.getFont(ctx, R.font.barlow_semibold)
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(ctx.getColor(if (isPast && !isReplay) R.color.rack_text_secondary else R.color.rack_text))
+                setPadding(0, dpToPx(2f, ctx).toInt(), 0, dpToPx(2f, ctx).toInt())
+            })
+
+            if (isNow && widthPx >= dpToPx(40f, ctx)) {
+                block.addView(ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = 100
+                    progress = (((nowMs - pStartMs) * 100) / (pStopMs - pStartMs).coerceAtLeast(1)).toInt().coerceIn(0, 100)
+                    com.iptvapp.util.RackAccent.paintProgress(this, a)
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(3f, ctx).toInt())
+                })
+            }
+            return block
+        }
+
+        private fun icon(ctx: Context, res: Int) = ImageView(ctx).apply {
+            setImageResource(res)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(12f, ctx).toInt(), dpToPx(12f, ctx).toInt()).apply {
+                marginStart = dpToPx(4f, ctx).toInt()
             }
         }
 
@@ -553,12 +967,15 @@ class TimelineAdapter(
                 isReplay -> shape(intArrayOf(0xFF0E1A10.toInt(), 0xFF0E1A10.toInt()), 0xFF1F3A24.toInt())
                 else -> shape(intArrayOf(surface, surface), ctx.getColor(R.color.rack_border))
             }
+            // Focused (D-pad) and selected (the detail panel's block) share the light outline.
+            fun ring() = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 3 * density
+                setColor(ctx.getColor(R.color.rack_focus_fill))
+                setStroke((2 * density + 0.5f).toInt(), ctx.getColor(R.color.rack_focus_ring))
+            }
             return android.graphics.drawable.StateListDrawable().apply {
-                addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 3 * density
-                    setColor(ctx.getColor(R.color.rack_focus_fill))
-                    setStroke((2 * density + 0.5f).toInt(), ctx.getColor(R.color.rack_focus_ring))
-                })
+                addState(intArrayOf(android.R.attr.state_focused), ring())
+                addState(intArrayOf(android.R.attr.state_selected), ring())
                 addState(intArrayOf(android.R.attr.state_pressed), android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = 3 * density
                     setColor(ctx.getColor(R.color.rack_pressed))

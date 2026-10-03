@@ -1,5 +1,20 @@
 # IPTV App - Changelog
 
+## v6.91 - 2026-10-03
+- **New**: redesigned TV guide grid (phone and car box):
+  - Day chips: Yesterday, Today, Tomorrow and the next few days.
+  - Genre pills: All, Favorites, Sports, News, Movies and Kids, guessed from each channel's
+    category and name.
+  - A red line, with a NOW pill on the timeline, marks the current time and moves as time passes.
+  - Each channel shows its number and quality (HD, FHD, 4K).
+  - Program blocks show "● LIVE NOW" with minutes left and a progress bar, start and end times, a
+    bell when you've set a reminder, and REPLAY for shows you can catch up on.
+  - Tap a show to see it in the panel at the bottom, with Watch, Remind me / Remind next, Record or
+    Replay; tap it again to act on it right away. Long-press still opens the reminder / record menu.
+- **Fixed**: shows in the guide grid now sit at their real times. A show that started before the
+  visible window, or a gap in the schedule, used to push everything after it out of line.
+- **Fixed**: opening the guide no longer pops up the keyboard.
+
 ## v6.90 - 2026-10-03
 - **Fixed**: Settings → Providers no longer looks empty while it counts each provider's channels,
   movies and series, which takes a few seconds with a big catalog (especially on the Shield). It
