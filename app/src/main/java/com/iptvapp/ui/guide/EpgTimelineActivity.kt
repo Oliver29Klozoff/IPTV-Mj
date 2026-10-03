@@ -80,7 +80,11 @@ class EpgTimelineActivity : AppCompatActivity() {
     private var selected: Pair<GuideRow, EpgEntity>? = null
 
     private val nowMs get() = System.currentTimeMillis()
-    private val startMs get() = run {
+    // Fixed when the grid is drawn (and on a day change) — not recomputed on every read, which
+    // moved the now-line an hour off the header and blocks once the clock crossed the hour.
+    private var startMs = computeStartMs()
+
+    private fun computeStartMs(): Long = run {
         val cal = java.util.Calendar.getInstance()
         cal.add(java.util.Calendar.DAY_OF_MONTH, dayOffset)
         cal.add(java.util.Calendar.HOUR_OF_DAY, -hoursBack)
@@ -281,6 +285,7 @@ class EpgTimelineActivity : AppCompatActivity() {
     // program blocks with the header's time labels.
     private fun changeDay(delta: Int) {
         dayOffset += delta
+        startMs = computeStartMs()
         buildDayChips()
         buildTimeHeader()
         adapter.updateStartMs(startMs)
@@ -436,8 +441,13 @@ class EpgTimelineActivity : AppCompatActivity() {
                 updateNowIndicator()
                 val minute = nowMs / 60_000L
                 if (lastMinute != -1L && minute != lastMinute) {
+                    // Rebinding rebuilds every block; put remote focus back on the same program.
+                    val focusedKey = currentFocus?.tag as? String
                     adapter.refresh()
                     renderDetail()
+                    if (focusedKey != null) binding.rvTimeline.post {
+                        binding.rvTimeline.findViewWithTag<View>(focusedKey)?.requestFocus()
+                    }
                 }
                 lastMinute = minute
                 delay(30_000)
