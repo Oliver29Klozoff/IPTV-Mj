@@ -2242,7 +2242,7 @@ class HomeActivity : AppCompatActivity() {
                         putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, streamId)
                         putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, now)
                         putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS,
-                            left?.takeIf { it > 60_000L } ?: 60 * 60_000L)
+                            left?.takeIf { it > 0L } ?: 60 * 60_000L)
                     })
                 }
             }
@@ -2292,7 +2292,8 @@ class HomeActivity : AppCompatActivity() {
                 }
                 // Tap sets or cancels the reminder; long-press offers Remind / Record.
                 setOnClickListener {
-                    if (set) {
+                    // Read now, not from bind time: a long-press may have set it since.
+                    if (ChannelTimerScheduler.isScheduled(this@HomeActivity, streamId, start)) {
                         ChannelTimerScheduler.cancel(this@HomeActivity, streamId)
                         Toast.makeText(this@HomeActivity, "Reminder cancelled", Toast.LENGTH_SHORT).show()
                     } else {
@@ -2302,7 +2303,9 @@ class HomeActivity : AppCompatActivity() {
                     lifecycleScope.launch { refreshMiniExtras(streamId) }
                 }
                 setOnLongClickListener {
-                    showReminderOrRecordChoice(channel, p.title, start, (stop - start).coerceAtLeast(60_000L), time.format(java.util.Date(start)))
+                    showReminderOrRecordChoice(channel, p.title, start, (stop - start).coerceAtLeast(60_000L), time.format(java.util.Date(start))) {
+                        lifecycleScope.launch { refreshMiniExtras(streamId) }
+                    }
                     true
                 }
             })
@@ -5693,7 +5696,8 @@ class HomeActivity : AppCompatActivity() {
      * Recordings and re-entering the channel/time/duration by hand even though this dialog
      * already knows all three — this lets either action reuse the same picked program/time. */
     private fun showReminderOrRecordChoice(
-        channel: ChannelEntity, programTitle: String, startMs: Long, durationMs: Long, label: String
+        channel: ChannelEntity, programTitle: String, startMs: Long, durationMs: Long, label: String,
+        onReminderSet: () -> Unit = {}
     ) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(programTitle)
@@ -5702,6 +5706,7 @@ class HomeActivity : AppCompatActivity() {
                     0 -> {
                         ChannelTimerScheduler.schedule(this, channel.streamId, channel.name, programTitle, startMs)
                         Toast.makeText(this, "Reminder set for $label", Toast.LENGTH_SHORT).show()
+                        onReminderSet()
                     }
                     1 -> startActivity(Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
                         putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, channel.streamId)
