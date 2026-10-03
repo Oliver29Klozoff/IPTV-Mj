@@ -178,6 +178,9 @@ class TvHomeActivity : AppCompatActivity() {
                 }
             } else {
                 playInMiniPlayer(channel)
+                // Same bookkeeping as the old guide panel: highlights + recent / cold-boot resume.
+                viewModel.markChannelWatched(channel.streamId)
+                viewModel.setCurrentlyPlaying(channel.streamId)
             }
         }
     }
