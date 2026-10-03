@@ -140,6 +140,41 @@ class TvHomeActivity : AppCompatActivity() {
         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER
     )
 
+    // What the guide grid picked: a primary channel, a merged (other-provider) channel, or a catch-up
+    // replay — same contract as HomeActivity.timelineLauncher (see EpgTimelineActivity.playChannel).
+    private val guideLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val data = result.data ?: return@registerForActivityResult
+        val streamId = data.getIntExtra("stream_id", -1)
+        val serverIndex = data.getIntExtra("server_index", -1)
+        val mergedStreamId = data.getIntExtra("merged_stream_id", -1)
+        if (streamId == -1 && (serverIndex == -1 || mergedStreamId == -1)) return@registerForActivityResult
+        lifecycleScope.launch {
+            if (streamId == -1) {
+                viewModel.getMergedChannelByIndexAndId(serverIndex, mergedStreamId)?.let { playMergedChannel(it) }
+                return@launch
+            }
+            val channel = viewModel.getChannelById(streamId) ?: return@launch
+            val timeshiftUrl = data.getStringExtra("timeshift_url")
+            val timeshiftTitle = data.getStringExtra("timeshift_title")
+            if (timeshiftUrl != null && timeshiftTitle != null) {
+                currentMiniUrl = timeshiftUrl
+                currentMiniTitle = timeshiftTitle
+                currentMiniStreamId = streamId
+                currentMiniServerIndex = -1
+                currentMiniIsVod = false
+                binding.tvTvChannelName.text = timeshiftTitle
+                miniPlayer?.let {
+                    it.setMediaItem(MediaItem.fromUri(timeshiftUrl))
+                    it.prepare()
+                    it.playWhenReady = true
+                }
+            } else {
+                playInMiniPlayer(channel)
+            }
+        }
+    }
+
     private val playerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val sid = result.data?.getIntExtra("stream_id", -1) ?: -1
@@ -1792,7 +1827,9 @@ class TvHomeActivity : AppCompatActivity() {
             // for over the previous "always show genre tiles first" behavior, which added an
             // extra screen the user didn't want between the sidebar and their actual favorites.
             Section.FAVORITES -> showFavoriteGenreChannels(FAV_GENRE_ALL_ID, "FAVORITES")
-            Section.GUIDE -> showGuidePanel()
+            // v6.92: the Shield opens the same guide grid as the phone (EpgTimelineActivity, with D-pad
+            // support) instead of its own list panel; picks come back through guideLauncher.
+            Section.GUIDE -> guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
             Section.PROVIDERS -> showMergedChannelsPanel()
         }
     }

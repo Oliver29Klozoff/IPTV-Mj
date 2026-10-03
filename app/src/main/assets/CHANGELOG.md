@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.92 - 2026-10-03
+- **Changed**: on the Shield, Guide now opens the new guide grid (the same one as the phone, sized
+  for TV). Focus starts on the show that's on now. Move with the remote and the panel at the
+  bottom follows; press OK to watch the show on now, set a reminder for a later one, or replay a
+  past one. Hold OK for reminder / record options.
+
 ## v6.91 - 2026-10-03
 - **New**: redesigned TV guide grid (phone and car box):
   - Day chips: Yesterday, Today, Tomorrow and the next few days.

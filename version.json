@@ -1,7 +1,7 @@
 {
-  "versionCode": 529,
-  "versionName": "6.91",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.91/MKTV.apk",
-  "apkSha256": "d02772968488f230ee167951373482f7cfbc86b08bf1af60d3595e82cb956bb4",
-  "changelog": "Redesigned guide grid: day chips, genre pills, a live now-line, LIVE NOW blocks with progress, reminder bells, replay tags and a detail panel with Watch / Remind / Record / Replay."
+  "versionCode": 530,
+  "versionName": "6.92",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.92/MKTV.apk",
+  "apkSha256": "ebbca1fbf98c0e5c941cb6e1a1f95fca4803eafe4fea47480def79abae0a5185",
+  "changelog": "Shield: Guide opens the new guide grid with remote support."
 }

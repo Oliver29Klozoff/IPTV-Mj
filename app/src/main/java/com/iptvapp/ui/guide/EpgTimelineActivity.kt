@@ -115,8 +115,10 @@ class EpgTimelineActivity : AppCompatActivity() {
         // Opening the guide shouldn't pop the keyboard up: on a touch screen the search box was the
         // first thing able to take focus. The screen takes it instead (on a remote, focus still
         // starts on the back button).
-        binding.root.isFocusableInTouchMode = true
-        binding.root.requestFocus()
+        if (!usesRemote) {
+            binding.root.isFocusableInTouchMode = true
+            binding.root.requestFocus()
+        }
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
 
         binding.rvTimeline.layoutManager = LinearLayoutManager(this)
@@ -230,6 +232,22 @@ class EpgTimelineActivity : AppCompatActivity() {
             }
             setOnClickListener { onClick() }
         }
+
+    // The Shield / a remote-only device: focus starts on the selected (live) show instead of the screen.
+    private val usesRemote by lazy {
+        resources.configuration.touchscreen == android.content.res.Configuration.TOUCHSCREEN_NOTOUCH
+    }
+    private var remoteFocusPlaced = false
+
+    /** First data on a remote device: put focus on the selected block once it's laid out. */
+    private fun placeRemoteFocus() {
+        if (!usesRemote || remoteFocusPlaced) return
+        val key = selected?.let { programKey(it.first, it.second) } ?: return
+        binding.rvTimeline.postDelayed({
+            val v = binding.rvTimeline.findViewWithTag<View>(key)
+            if (v != null && v.requestFocus()) remoteFocusPlaced = true
+        }, 300)
+    }
 
     // Short screens (a phone on its side, ~360dp tall): the detail panel goes on one line beside its
     // buttons and the genre pills share the day-chip row, or the grid would have under one row left.
@@ -385,6 +403,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                     buildGenreChips()
                     applyFilters()
                     if (dayOffset == 0) binding.rvTimeline.post { scrollToNow() }
+                    placeRemoteFocus()
                 }
             }
         }
