@@ -131,6 +131,9 @@ class TvHomeActivity : AppCompatActivity() {
     // that block's comment for the full story.
     private var coldBootResumeInProgress = false
     private var reminderTuneJob: kotlinx.coroutines.Job? = null
+    // The cold-start "resume the last channel" lookup, kept so a reminder tap can cancel it: it retries
+    // for a few seconds and would otherwise replace the reminded channel when it finally resolves.
+    private var startupResumeJob: kotlinx.coroutines.Job? = null
     private var reminderTuneGen = 0
 
     // Left-panel drill-down state
@@ -477,11 +480,12 @@ class TvHomeActivity : AppCompatActivity() {
             launchReminderTune(tune.streamId, tune.serverIndex, fallBackToLastPlayed = true)
         } else {
             coldBootResumeInProgress = true
-            lifecycleScope.launch {
+            startupResumeJob = lifecycleScope.launch {
                 try {
                     resumeLastPlayedChannel()
                 } finally {
-                    coldBootResumeInProgress = false
+                    // A reminder that took over owns this flag now (see launchReminderTune).
+                    if (reminderTuneGen == 0) coldBootResumeInProgress = false
                 }
             }
         }
@@ -604,6 +608,7 @@ class TvHomeActivity : AppCompatActivity() {
     private fun launchReminderTune(streamId: Int, serverIndex: Int, fallBackToLastPlayed: Boolean = false) {
         val generation = ++reminderTuneGen
         coldBootResumeInProgress = true
+        startupResumeJob?.cancel()
         reminderTuneJob?.cancel()
         reminderTuneJob = lifecycleScope.launch {
             try {

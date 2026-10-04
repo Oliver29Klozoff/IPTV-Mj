@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v6.98 - 2026-10-04
+- **Fixed**: on the Shield, tapping a reminder while the app was still reopening your last channel
+  could end up back on that last channel. The reminder's channel now wins.
+- **Fixed**: only the reminder notification itself can open the reminder screen; other apps on the
+  device can no longer use it to switch MKTV's channel.
+
 ## v6.97 - 2026-10-03
 - **Fixed**: Tapping a reminder notification now switches to that channel. The previous try
   opened the app and left whatever was already playing. This includes a channel from your
