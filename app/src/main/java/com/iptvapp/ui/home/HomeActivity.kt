@@ -2337,9 +2337,17 @@ class HomeActivity : AppCompatActivity() {
     /** REC flashes while the playing channel is being recorded, like the full-screen player's dot. */
     private fun watchMiniRecording(streamId: Int) {
         miniRecWatchJob?.cancel()
+        // Only while Home is on screen: the collector and the animator stop with it (the finally) and
+        // resume from the current state when it comes back.
         miniRecWatchJob = lifecycleScope.launch {
-            viewModel.observeActiveRecording(-1, streamId).collect { rec ->
-                setMiniRecBlinking(rec != null && currentMiniStreamId == streamId)
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                try {
+                    viewModel.observeActiveRecording(-1, streamId).collect { rec ->
+                        setMiniRecBlinking(rec != null && currentMiniStreamId == streamId)
+                    }
+                } finally {
+                    setMiniRecBlinking(false)
+                }
             }
         }
     }

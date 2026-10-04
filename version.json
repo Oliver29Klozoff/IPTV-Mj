@@ -2,6 +2,6 @@
   "versionCode": 538,
   "versionName": "7.00",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.00/MKTV.apk",
-  "apkSha256": "64419b53dadb975e07a4e7dbf36d81c369de65547b291b4726f2c06516aaf3c0",
+  "apkSha256": "726f69229a1c903a3ac9040c895fdda5626f549fc84df868608ce464c1feaf70",
   "changelog": "The mini player's REC button flashes while the channel you're watching is recording."
 }
