@@ -34,6 +34,22 @@ object RecordingCompressor {
         else -> BITRATE_SD
     }
 
+    // Compact tier (v7.01): H.265 at roughly half the H.264 bitrate for about the same picture — a
+    // 45-minute 1080p recording comes out near 450 MB instead of ~950 MB.
+    private fun compactBitrateFor(sourceHeight: Int): Int = when {
+        sourceHeight >= 1000 -> 1_400_000
+        sourceHeight >= 700 -> 800_000
+        else -> 500_000
+    }
+
+    /** Whether this device has a hardware or software H.265 encoder; Compact falls back to the
+     * standard H.264 tier when it doesn't. */
+    fun canEncodeHevc(): Boolean = runCatching {
+        android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+            info.isEncoder && info.supportedTypes.any { it.equals(MimeTypes.VIDEO_H265, ignoreCase = true) }
+        }
+    }.getOrDefault(false)
+
     /** Returns true if [outputPath] was written successfully. [trimStartMs]/[trimEndMs], when
      * both non-null, clip the source to that range (used by "Remove Padding" — see
      * RecordingSchedulerActivity.showTrimPaddingDialog) via the same re-encode pipeline that
@@ -47,10 +63,12 @@ object RecordingCompressor {
         outputPath: String,
         sourceHeight: Int,
         trimStartMs: Long? = null,
-        trimEndMs: Long? = null
+        trimEndMs: Long? = null,
+        compact: Boolean = false
     ): Boolean {
         val appContext = context.applicationContext
-        val bitrate = targetBitrateFor(sourceHeight)
+        val hevc = compact && canEncodeHevc()
+        val bitrate = if (hevc) compactBitrateFor(sourceHeight) else targetBitrateFor(sourceHeight)
 
         return suspendCancellableCoroutine { cont ->
             Handler(Looper.getMainLooper()).post {
@@ -61,7 +79,7 @@ object RecordingCompressor {
                     .build()
 
                 val transformer = Transformer.Builder(appContext)
-                    .setVideoMimeType(MimeTypes.VIDEO_H264)
+                    .setVideoMimeType(if (hevc) MimeTypes.VIDEO_H265 else MimeTypes.VIDEO_H264)
                     .setAudioMimeType(MimeTypes.AUDIO_AAC)
                     .setEncoderFactory(encoderFactory)
                     .addListener(object : Transformer.Listener {

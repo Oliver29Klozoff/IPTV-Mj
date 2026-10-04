@@ -134,8 +134,12 @@ class RecordingService : Service() {
             activeRecordingIds.remove(recordingId)
 
             if (ok) {
-                if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
-                val compressedPath = runCatching { tryCompressRecording(target, name) }.getOrNull()
+                // Recording size (v7.01): Original keeps the raw capture; Compact / Standard re-encode it.
+                val size = runCatching { prefs.recordingSize.first() }.getOrDefault("compact")
+                val compressedPath = if (size == "original") null else {
+                    if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
+                    runCatching { tryCompressRecording(target, name, compact = size == "compact") }.getOrNull()
+                }
                 val finalPath = compressedPath ?: target
                 if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
             } else {
@@ -159,7 +163,7 @@ class RecordingService : Service() {
      * live — so a transcode failure just means the recording stays at its original (larger)
      * size instead of risking the capture itself. Returns the new path, or null to keep the
      * original untouched. */
-    private suspend fun tryCompressRecording(sourceTarget: String, channelName: String): String? {
+    private suspend fun tryCompressRecording(sourceTarget: String, channelName: String, compact: Boolean): String? {
         val tempFile = File(cacheDir, "compress_${System.currentTimeMillis()}.mp4")
         return try {
             val sourceUri = if (sourceTarget.startsWith("content://")) {
@@ -168,7 +172,7 @@ class RecordingService : Service() {
                 Uri.fromFile(File(sourceTarget))
             }
             val height = probeVideoHeight(sourceUri)
-            val success = RecordingCompressor.compress(this, sourceUri, tempFile.absolutePath, height)
+            val success = RecordingCompressor.compress(this, sourceUri, tempFile.absolutePath, height, compact = compact)
             if (!success || tempFile.length() < 1024) return null
 
             val finalTarget = createCompressedOutputTarget(channelName)

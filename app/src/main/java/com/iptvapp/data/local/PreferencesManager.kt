@@ -49,6 +49,9 @@ class PreferencesManager @Inject constructor(
         // 0 = disabled. Otherwise recordings older than this many days are auto-deleted
         // (file + DB row) by RecordingCleanupWorker.
         val AUTO_DELETE_RECORDINGS_DAYS = intPreferencesKey("auto_delete_recordings_days")
+        // How a finished recording is re-encoded (v7.01): "compact" (H.265 where the device can encode it,
+        // about half the size), "standard" (the H.264 tier every recording used before) or "original".
+        val RECORDING_SIZE = stringPreferencesKey("recording_size")
         // 0 = disabled. Otherwise in-progress Continue Watching entries (movies/series) whose
         // last watch activity is older than this many days are auto-cleared (dismissed, same as
         // a manual long-press-to-remove) by ContinueWatchingCleanupWorker.
@@ -385,6 +388,9 @@ class PreferencesManager @Inject constructor(
     val recordingFolderName: Flow<String> = context.dataStore.data
         .map { it[Keys.RECORDING_FOLDER_NAME] ?: "MKTV" }
 
+    val recordingSize: Flow<String> = context.dataStore.data
+        .map { it[Keys.RECORDING_SIZE] ?: "compact" }
+
     val autoDeleteRecordingsDays: Flow<Int> = context.dataStore.data
         .map { it[Keys.AUTO_DELETE_RECORDINGS_DAYS] ?: 0 }
     val autoClearContinueWatchingDays: Flow<Int> = context.dataStore.data
@@ -464,6 +470,10 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setRecordingFolderName(name: String) {
         context.dataStore.edit { prefs -> prefs[Keys.RECORDING_FOLDER_NAME] = name }
+    }
+
+    suspend fun setRecordingSize(size: String) {
+        context.dataStore.edit { prefs -> prefs[Keys.RECORDING_SIZE] = size }
     }
 
     suspend fun setAutoDeleteRecordingsDays(days: Int) {

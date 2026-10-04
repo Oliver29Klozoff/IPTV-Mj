@@ -227,11 +227,31 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         container.addView(folderInput)
         container.addView(retentionLabel)
         container.addView(retentionSpinner)
+        // Recording size (v7.01): how a finished recording is re-encoded.
+        val hevc = com.iptvapp.service.RecordingCompressor.canEncodeHevc()
+        val sizeOptions = listOf(
+            (if (hevc) "Compact (H.265, about half the size)" else "Compact (this device: same as Standard)") to "compact",
+            "Standard (H.264)" to "standard",
+            "Original (not re-encoded, largest)" to "original"
+        )
+        val sizeLabel = android.widget.TextView(this).apply {
+            text = "Recording size"
+            setTextColor(retentionLabel.currentTextColor)
+            setPadding(0, 24, 0, 0)
+        }
+        val sizeSpinner = android.widget.Spinner(this)
+        sizeSpinner.adapter = android.widget.ArrayAdapter(
+            this, android.R.layout.simple_spinner_item, sizeOptions.map { it.first }
+        ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        container.addView(sizeLabel)
+        container.addView(sizeSpinner)
 
         lifecycleScope.launch {
             folderInput.setText(prefs.recordingFolderName.first())
             val savedDays = prefs.autoDeleteRecordingsDays.first()
             retentionSpinner.setSelection(retentionOptions.indexOfFirst { it.second == savedDays }.coerceAtLeast(0))
+            val savedSize = prefs.recordingSize.first()
+            sizeSpinner.setSelection(sizeOptions.indexOfFirst { it.second == savedSize }.coerceAtLeast(0))
         }
 
         AlertDialog.Builder(this)
@@ -241,9 +261,11 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 val folderName = folderInput.text.toString().trim().ifEmpty { "MKTV" }
                     .replace(Regex("[^a-zA-Z0-9 _-]"), "_")
                 val days = retentionOptions[retentionSpinner.selectedItemPosition].second
+                val size = sizeOptions[sizeSpinner.selectedItemPosition].second
                 lifecycleScope.launch {
                     prefs.setRecordingFolderName(folderName)
                     prefs.setAutoDeleteRecordingsDays(days)
+                    prefs.setRecordingSize(size)
                     if (days > 0) {
                         val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.RecordingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
                         androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).enqueueUniquePeriodicWork(

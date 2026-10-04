@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.01 - 2026-10-04
+- **New**: recordings are about half the size. After a recording finishes it's now re-encoded as
+  H.265, so a 45-minute 1080p show comes out around 450-500 MB instead of about 1 GB, with about
+  the same picture. Devices that can't encode H.265 keep using the previous format.
+- **New**: Recordings → storage settings → **Recording size**: Compact (the new default), Standard
+  (the previous size) or Original (kept exactly as recorded, largest). Recordings you already have
+  are not changed.
+
 ## v7.00 - 2026-10-04
 - **New**: the mini player's REC button flashes while the channel you're watching is being
   recorded, the same way the full-screen player's record dot does. It stops when the recording
