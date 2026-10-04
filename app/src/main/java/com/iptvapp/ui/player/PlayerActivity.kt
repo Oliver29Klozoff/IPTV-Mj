@@ -82,6 +82,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private val hideRunnable = Runnable {
         isOverlayVisible = false
+        binding.liveProgramBar.visibility = View.GONE
         binding.osdTopBar.visibility = View.GONE
         binding.playerTopScrim.visibility = View.GONE
         binding.playerBottomScrim.visibility = View.GONE
@@ -3331,6 +3332,7 @@ class PlayerActivity : AppCompatActivity() {
                 binding.tvEpgNow.text = if (now != null) now.title + " · " + minutesLeftLabel(stopMs(now) - nowMs) + " left" else ""
                 binding.tvEpgNext.text = if (next != null) "Next · " + clockLabel(startMs(next)) + " · " + next.title else ""
                 binding.tvEpgNext.visibility = if (next != null) View.VISIBLE else View.GONE
+                showLiveProgress(now?.let { startMs(it) }, now?.let { stopMs(it) })
             }
         } else if (!isVod && serverIndex != -1) {
             lifecycleScope.launch {
@@ -3338,8 +3340,24 @@ class PlayerActivity : AppCompatActivity() {
                 binding.tvEpgNow.text = if (nowNext != null) nowNext.nowTitle + " · " + minutesLeftLabel(nowNext.nowStopMs - System.currentTimeMillis()) + " left" else ""
                 binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "Next · " + clockLabel(nowNext.nowStopMs) + " · " + nowNext.nextTitle else ""
                 binding.tvEpgNext.visibility = if (nowNext?.nextTitle != null) View.VISIBLE else View.GONE
+                showLiveProgress(nowNext?.nowStartMs, nowNext?.nowStopMs)
             }
         }
+    }
+
+    /** The live show's progress bar (v6.99): start — progress in the accent — end, while the overlay is
+     * up and the guide knows what's on; hidden otherwise. */
+    private fun showLiveProgress(startMs: Long?, stopMs: Long?) {
+        if (startMs == null || stopMs == null || stopMs <= startMs || !isOverlayVisible || isVod) {
+            binding.liveProgramBar.visibility = View.GONE
+            return
+        }
+        val now = System.currentTimeMillis()
+        binding.tvLiveProgramStart.text = clockLabel(startMs)
+        binding.tvLiveProgramEnd.text = clockLabel(stopMs)
+        com.iptvapp.util.RackAccent.paintProgress(binding.liveProgramProgress, playerAccent)
+        binding.liveProgramProgress.progress = (((now - startMs) * 1000) / (stopMs - startMs)).toInt().coerceIn(0, 1000)
+        binding.liveProgramBar.visibility = View.VISIBLE
     }
 
     private fun setLocked(locked: Boolean) {
@@ -3755,6 +3773,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
             isOverlayVisible = false
+            binding.liveProgramBar.visibility = View.GONE
             binding.osdTopBar.visibility = View.GONE
             binding.playerTopScrim.visibility = View.GONE
             binding.playerBottomScrim.visibility = View.GONE

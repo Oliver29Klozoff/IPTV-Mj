@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v6.99 - 2026-10-04
+- **Changed**: on the full-screen player, back / play-pause / LIVE now sit near the bottom of the
+  screen instead of over the middle of the picture. They move up above the seek bar and the Quick
+  Zap strip when those are showing.
+- **New**: live channels with guide data show the show's progress on the full-screen player: its
+  start time, a progress bar in your accent color, and its end time, just above the play controls.
+
 ## v6.98 - 2026-10-04
 - **Fixed**: on the Shield, tapping a reminder while the app was still reopening your last channel
   could end up back on that last channel. The reminder's channel now wins.

@@ -1,7 +1,7 @@
 {
-  "versionCode": 536,
-  "versionName": "6.98",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.98/MKTV.apk",
-  "apkSha256": "933ef8abc3b799ab43682bb495568d332e56eb731ee17fe2b7750087911f456d",
-  "changelog": "Reminder taps on the Shield no longer get overridden by the last-channel restore; the reminder screen is private to the app."
+  "versionCode": 537,
+  "versionName": "6.99",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.99/MKTV.apk",
+  "apkSha256": "da49de5288069782d6571f3337d25b0e1e8f9347656b3d4a3b2b148de627fd2e",
+  "changelog": "Player controls moved near the bottom; live channels show the show's progress (start, bar, end)."
 }
