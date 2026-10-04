@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.00 - 2026-10-04
+- **New**: the mini player's REC button flashes while the channel you're watching is being
+  recorded, the same way the full-screen player's record dot does. It stops when the recording
+  ends or you switch channels.
+
 ## v6.99 - 2026-10-04
 - **Changed**: on the full-screen player, back / play-pause / LIVE now sit near the bottom of the
   screen instead of over the middle of the picture. They move up above the seek bar and the Quick

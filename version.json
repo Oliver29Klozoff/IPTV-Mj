@@ -1,7 +1,7 @@
 {
-  "versionCode": 537,
-  "versionName": "6.99",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v6.99/MKTV.apk",
-  "apkSha256": "da49de5288069782d6571f3337d25b0e1e8f9347656b3d4a3b2b148de627fd2e",
-  "changelog": "Player controls moved near the bottom; live channels show the show's progress (start, bar, end)."
+  "versionCode": 538,
+  "versionName": "7.00",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.00/MKTV.apk",
+  "apkSha256": "64419b53dadb975e07a4e7dbf36d81c369de65547b291b4726f2c06516aaf3c0",
+  "changelog": "The mini player's REC button flashes while the channel you're watching is recording."
 }

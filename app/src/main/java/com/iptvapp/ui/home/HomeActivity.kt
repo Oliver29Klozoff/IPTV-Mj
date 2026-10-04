@@ -1327,6 +1327,8 @@ class HomeActivity : AppCompatActivity() {
                 binding.miniTimeLeftCell?.visibility = View.GONE
                 // REC / FAV / Later are for a main-provider live channel; refreshMiniExtras brings them back.
                 binding.btnMiniRec?.visibility = View.GONE
+                miniRecWatchJob?.cancel()
+                setMiniRecBlinking(false)
                 binding.btnMiniFav?.visibility = View.GONE
                 binding.miniLaterRow?.visibility = View.GONE
             }
@@ -2329,6 +2331,36 @@ class HomeActivity : AppCompatActivity() {
         }
     }
     private var miniFavOn = false
+    private var miniRecWatchJob: kotlinx.coroutines.Job? = null
+    private var miniRecBlink: android.animation.ObjectAnimator? = null
+
+    /** REC flashes while the playing channel is being recorded, like the full-screen player's dot. */
+    private fun watchMiniRecording(streamId: Int) {
+        miniRecWatchJob?.cancel()
+        miniRecWatchJob = lifecycleScope.launch {
+            viewModel.observeActiveRecording(-1, streamId).collect { rec ->
+                setMiniRecBlinking(rec != null && currentMiniStreamId == streamId)
+            }
+        }
+    }
+
+    private fun setMiniRecBlinking(on: Boolean) {
+        val b = binding.btnMiniRec ?: return
+        if (on) {
+            if (miniRecBlink == null) miniRecBlink = android.animation.ObjectAnimator.ofFloat(b, "alpha", 1f, 0.2f).apply {
+                duration = 600
+                repeatMode = android.animation.ValueAnimator.REVERSE
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                start()
+            }
+            b.contentDescription = "Recording"
+        } else {
+            miniRecBlink?.cancel()
+            miniRecBlink = null
+            b.alpha = 1f
+            b.contentDescription = "Record what's on"
+        }
+    }
 
     private fun paintMiniFav() {
         binding.btnMiniFav?.apply {
@@ -2349,6 +2381,7 @@ class HomeActivity : AppCompatActivity() {
         fun ms(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
         val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
 
+        watchMiniRecording(streamId)
         binding.btnMiniRec?.apply {
             visibility = View.VISIBLE
             setOnClickListener {

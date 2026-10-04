@@ -2286,6 +2286,9 @@ class HomeViewModel @Inject constructor(
 
     // ── Mini player extras (v6.94): REC / FAV, Later on this channel, Quick Zap ──
 
+    /** The recording in progress on this channel, or null — drives the mini player's flashing REC. */
+    fun observeActiveRecording(serverIndex: Int, streamId: Int) = repository.observeActiveRecording(serverIndex, streamId)
+
     suspend fun getCurrentProgram(streamId: Int): EpgEntity? =
         repository.getEpgForStream(streamId).first().nowProgram()
 
