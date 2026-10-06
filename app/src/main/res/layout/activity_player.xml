@@ -424,6 +424,13 @@
             android:text="Marks"
             android:visibility="gone" />
 
+        <!-- Audio only — live channels; hands the stream to AudioOnlyService (see audioOnlyPanel) -->
+        <Button
+            android:id="@+id/btnAudioOnly"
+            style="@style/PlayerChip"
+            android:text="Listen"
+            android:visibility="gone" />
+
         <!-- Lock (v6.93): ignores touches so the screen can't be bumped; touch-screens only -->
         <Button
             android:id="@+id/btnLock"
@@ -784,6 +791,70 @@
             android:clipToPadding="false"
             android:paddingHorizontal="16dp" />
 
+    </LinearLayout>
+
+    <!-- Audio only: covers the (released) video while AudioOnlyService plays the channel's sound -->
+    <LinearLayout
+        android:id="@+id/audioOnlyPanel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/rack_bg"
+        android:clickable="true"
+        android:focusable="false"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.16"
+            android:text="AUDIO ONLY"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvAudioOnlyTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="@font/barlow_semibold"
+            android:gravity="center"
+            android:maxLines="2"
+            android:textColor="@color/rack_text"
+            android:textSize="24sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/barlow"
+            android:gravity="center"
+            android:text="Keeps playing with the screen off or in another app. Controls are in your notifications."
+            android:textColor="@color/rack_text_secondary"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnShowPicture"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginTop="20dp"
+            app:backgroundTint="@null"
+            android:background="@drawable/player_round_bg"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:letterSpacing="0.1"
+            android:paddingHorizontal="22dp"
+            android:text="SHOW PICTURE"
+            android:textColor="@color/rack_text"
+            android:textSize="15sp" />
     </LinearLayout>
 
     <!-- Locked (v6.93): the only touch that gets through while the screen is locked -->

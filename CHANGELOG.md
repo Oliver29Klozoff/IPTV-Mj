@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.04 - 2026-10-06
+- **New**: audio-only listening for live channels. Tap **Listen** at the top of the full-screen
+  player: the picture goes away, the sound keeps playing with the screen off or while you use
+  other apps, and play/pause sits in your notifications, on the lock screen and on Bluetooth
+  controls. Where a channel offers lower-quality versions, the smallest one is used to save data.
+  Tap **Show picture** (or go back to the app's home screen) to return to video.
+
 ## v7.03 - 2026-10-06
 - **New**: catch-up replays now play properly. Picking a past show from the guide opens it full
   screen with a seek bar for the whole programme, pause, and skip buttons. Seeking, pausing, or

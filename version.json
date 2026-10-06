@@ -1,7 +1,7 @@
 {
-  "versionCode": 541,
-  "versionName": "7.03",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.03/MKTV.apk",
-  "apkSha256": "e0179fc8f12977efec11cc45d2632c0b4405091315bbc64ae62bab11fe4f1cc7",
-  "changelog": "Catch-up replays with a real seek bar and pause, skip buttons (-10 / +30 / +2 min), and chapter marks for recordings."
+  "versionCode": 542,
+  "versionName": "7.04",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.04/MKTV.apk",
+  "apkSha256": "2a424868b80ec9db98f1d1ade17164d2fbcee633190c3762535e90d46b0e1de1",
+  "changelog": "Listen: audio-only live channels that keep playing with the screen off, with notification and lock-screen controls."
 }

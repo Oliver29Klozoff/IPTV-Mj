@@ -157,6 +157,16 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
+        <!-- Audio-only live playback (screen off / background), with media notification controls -->
+        <service
+            android:name=".service.AudioOnlyService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".service.RecordingService"
             android:exported="false"

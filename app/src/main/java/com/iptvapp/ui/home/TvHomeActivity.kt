@@ -698,6 +698,13 @@ class TvHomeActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Runs before a returning player result restarts the mini player: an audio-only session
+        // still playing would be a second stream on a one-stream account.
+        com.iptvapp.service.AudioOnlyService.stop(this)
+    }
+
     override fun onResume() {
         super.onResume()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)

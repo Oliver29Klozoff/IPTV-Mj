@@ -1,0 +1,188 @@
+package com.iptvapp.service
+
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaSessionService
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import okhttp3.OkHttpClient
+import javax.inject.Inject
+
+/**
+ * Audio-only playback of a live channel: no picture, the lowest-bitrate variant where the stream
+ * offers a choice, and it keeps going with the screen off or the app in the background. Media3's
+ * session service supplies the media notification and lock-screen / Bluetooth controls.
+ *
+ * Started from the full-screen player while it's still on screen (background starts of a
+ * foreground service are blocked on newer Android), and the player releases its own stream
+ * first — most plans allow one connection, so the two never play at once. Anything that is about
+ * to play video again (the player's SHOW PICTURE, the home screens) calls [stop] first.
+ */
+@AndroidEntryPoint
+class AudioOnlyService : MediaSessionService() {
+
+    @Inject lateinit var okHttpClient: OkHttpClient
+
+    private var session: MediaSession? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var retries = 0
+    private val retryRunnable = Runnable {
+        session?.player?.let { it.prepare(); it.playWhenReady = true }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        val dataSource = OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        val player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(dataSource))
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
+                true
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+            .setForceLowestBitrate(true)
+            .build()
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) retries = 0
+            }
+            // Live streams drop now and then; reconnect with a growing pause, like the player does.
+            override fun onPlayerError(error: PlaybackException) {
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "AUDIO ONLY ERROR: errorCode=${error.errorCodeName} retries=$retries"
+                )
+                if (retries >= MAX_RETRIES) return
+                retries++
+                handler.removeCallbacks(retryRunnable)
+                handler.postDelayed(retryRunnable, (2_000L * retries).coerceAtMost(15_000L))
+            }
+        })
+        val builder = MediaSession.Builder(this, player)
+        packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
+            // Brings the existing task (with the player on top) back rather than starting fresh.
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            builder.setSessionActivity(
+                PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            )
+        }
+        session = builder.build().also {
+            // Started with startService, so no controller has connected to register the session —
+            // without this Media3 never posts the notification or goes foreground, and the system
+            // may kill the playback once the app is in the background.
+            addSession(it)
+        }
+        _running.value = true
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        when (intent?.action) {
+            ACTION_STOP -> shutDown()
+            ACTION_PLAY -> {
+                val url = intent.getStringExtra(EXTRA_URL)
+                if (url.isNullOrEmpty()) return START_NOT_STICKY
+                val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+                _playingTitle.value = title
+                retries = 0
+                session?.player?.let {
+                    it.setMediaItem(
+                        MediaItem.Builder()
+                            .setUri(url)
+                            .setMediaMetadata(
+                                MediaMetadata.Builder().setTitle(title).setArtist("Audio only · MKTV").build()
+                            )
+                            .build()
+                    )
+                    it.prepare()
+                    it.playWhenReady = true
+                }
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+
+    // Swiping the app away from recents ends it, like closing the player would.
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        shutDown()
+    }
+
+    override fun onDestroy() {
+        releaseSession()
+        _running.value = false
+        _playingTitle.value = ""
+        super.onDestroy()
+    }
+
+    /** Releasing the session drops the notification's own controller connection too, so the
+     * service can actually stop — stopService alone leaves it bound and running. */
+    private fun shutDown() {
+        releaseSession()
+        _running.value = false
+        stopSelf()
+    }
+
+    private fun releaseSession() {
+        handler.removeCallbacks(retryRunnable)
+        session?.let {
+            it.player.release()
+            it.release()
+        }
+        session = null
+    }
+
+    companion object {
+        private const val ACTION_PLAY = "com.iptvapp.audioonly.PLAY"
+        private const val ACTION_STOP = "com.iptvapp.audioonly.STOP"
+        private const val EXTRA_URL = "url"
+        private const val EXTRA_TITLE = "title"
+        private const val MAX_RETRIES = 20
+
+        private val _running = MutableStateFlow(false)
+        val running: StateFlow<Boolean> = _running
+        private val _playingTitle = MutableStateFlow("")
+        val playingTitle: StateFlow<String> = _playingTitle
+
+        fun play(context: Context, url: String, title: String) {
+            context.startService(
+                Intent(context, AudioOnlyService::class.java)
+                    .setAction(ACTION_PLAY)
+                    .putExtra(EXTRA_URL, url)
+                    .putExtra(EXTRA_TITLE, title)
+            )
+        }
+
+        /** No-op unless it's running, so callers can use it freely before starting video. */
+        fun stop(context: Context) {
+            if (!_running.value) return
+            _running.value = false
+            try {
+                context.startService(Intent(context, AudioOnlyService::class.java).setAction(ACTION_STOP))
+            } catch (_: IllegalStateException) {
+                // Background start refused — nothing to stop from here; it ends with the task.
+            }
+        }
+    }
+}

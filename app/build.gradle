@@ -15,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 541
-        versionName "7.03"
+        versionCode 542
+        versionName "7.04"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -120,6 +120,7 @@ dependencies {
     implementation 'androidx.media3:media3-datasource-okhttp:1.4.1'
     implementation 'androidx.media3:media3-database:1.4.1'
     implementation 'androidx.media3:media3-ui:1.4.1'
+    implementation 'androidx.media3:media3-session:1.4.1'
     implementation 'androidx.media3:media3-transformer:1.4.1'
     implementation 'androidx.media3:media3-effect:1.4.1'
     implementation 'androidx.leanback:leanback:1.2.0-alpha04'

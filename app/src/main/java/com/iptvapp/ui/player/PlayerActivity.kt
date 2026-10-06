@@ -6,6 +6,7 @@ import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.util.Log
 import android.widget.Toast
+import com.iptvapp.service.AudioOnlyService
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -143,6 +144,9 @@ class PlayerActivity : AppCompatActivity() {
     // current URL begins, and a seek ExoPlayer can't do inside that URL reopens it at the target
     // minute (see vodSeekTo). Movie-only features — resume progress, Trakt, watch party, finding
     // the "same movie" on another provider — stay off.
+    // Audio only: the activity's own player is released and AudioOnlyService plays the channel
+    // (see enterAudioOnly). Live channels only.
+    private var audioOnly = false
     private var isCatchup = false
     private var catchupStartSec = 0L
     private var catchupDurationMin = 0
@@ -438,6 +442,9 @@ class PlayerActivity : AppCompatActivity() {
         if (isCatchup) binding.btnWatchParty.visibility = View.GONE
         if (partyLaunchCode.isNotEmpty()) joinWatchParty(partyLaunchCode, showToast = false)
         updateRewatchNotesButtonVisibility()
+        binding.btnAudioOnly.visibility = if (isVod) View.GONE else View.VISIBLE
+        binding.btnAudioOnly.setOnClickListener { enterAudioOnly() }
+        binding.btnShowPicture.setOnClickListener { exitAudioOnly() }
 
         setupChannelZones()
         setupVodSkipButtons()
@@ -2166,6 +2173,45 @@ class PlayerActivity : AppCompatActivity() {
         return if (vodSkipPressCount > 10) 30_000L else 10_000L
     }
 
+    /** Hands the live channel to AudioOnlyService: this player lets go of the stream first (one
+     * connection per account on most plans), the screen may sleep, and the sound carries on in
+     * the background with notification controls. */
+    private fun enterAudioOnly() {
+        if (isVod || audioOnly || castSession != null || streamUrl.isEmpty()) return
+        audioOnly = true
+        retryJob?.cancel()
+        hideHandler.removeCallbacks(hideRunnable)
+        hideRunnable.run()
+        binding.playerView.player = null
+        player?.release()
+        player = null
+        bandwidthTracker?.stop()
+        AudioOnlyService.play(this, streamUrl, streamTitle)
+        com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "AUDIO ONLY START: streamId=$streamId title=$streamTitle")
+        binding.tvAudioOnlyTitle.text = streamTitle
+        binding.tvRetryStatus.visibility = View.GONE
+        binding.progressBuffering.visibility = View.GONE
+        binding.audioOnlyPanel.visibility = View.VISIBLE
+        binding.btnShowPicture.requestFocus()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun exitAudioOnly() {
+        if (!audioOnly) return
+        AudioOnlyService.stop(this)
+        leaveAudioOnlyPanel()
+        if (player == null) {
+            player = buildPlayer()
+            loadStream(streamUrl)
+        }
+    }
+
+    private fun leaveAudioOnlyPanel() {
+        audioOnly = false
+        binding.audioOnlyPanel.visibility = View.GONE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
     private fun setupVodSkipButtons() {
         fun skip(deltaMs: Long) {
             resetHideTimer()
@@ -2985,6 +3031,7 @@ class PlayerActivity : AppCompatActivity() {
     /** [accountInUse] means the provider explicitly said the login is busy on another device
      * (see StreamErrors) — the status line names that instead of a generic reconnect/give-up. */
     private fun scheduleRetry(suspectConnectionLimit: Boolean = false, accountInUse: Boolean = false) {
+        if (audioOnly) return
         val givenUpText = if (accountInUse) com.iptvapp.util.StreamErrors.ACCOUNT_IN_USE_MESSAGE
             else "Stream unavailable after $maxRetries attempts"
         noteStallEvent()
@@ -3830,6 +3877,14 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Audio only shows one button (SHOW PICTURE); channel and seek keys have nothing to act on.
+        if (audioOnly) return when (keyCode) {
+            KeyEvent.KEYCODE_BACK -> { finish(); true }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> super.onKeyDown(keyCode, event)
+            else -> true
+        }
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
                 val now = System.currentTimeMillis()
@@ -3978,7 +4033,7 @@ class PlayerActivity : AppCompatActivity() {
         // guessed Back-button sequence. Skip auto-entering PiP entirely on TV/large-screen
         // devices; phone keeps it since the standard Android PiP exit gestures work fine there.
         val pipAllowed = kotlinx.coroutines.runBlocking { prefs.pipEnabled.first() }
-        if (!isVod && pipAllowed && !isLargeScreenDevice()) enterPip()
+        if (!isVod && pipAllowed && !isLargeScreenDevice() && !audioOnly) enterPip()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
@@ -4068,6 +4123,16 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (player == null) {
+            if (audioOnly) {
+                // Still playing in the background: stay on the audio panel. If it was stopped from
+                // the notification meanwhile, come back with the picture instead.
+                if (AudioOnlyService.running.value) return
+                leaveAudioOnlyPanel()
+            } else {
+                // A session left over from before this activity was recreated would be a second
+                // stream on a one-stream account.
+                AudioOnlyService.stop(this)
+            }
             com.iptvapp.IptvApplication.logPlaybackEvent(
                 applicationContext,
                 "SESSION START: isVod=$isVod streamId=$streamId title=$streamTitle url=$streamUrl resumeMs=$resumePositionMs"
@@ -4136,6 +4201,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun finish() {
+        if (audioOnly) AudioOnlyService.stop(this)
         setResult(Activity.RESULT_OK, android.content.Intent().apply {
             putExtra("stream_id", streamId)
             // A replay hands back the channel live (or nothing to play if that URL never

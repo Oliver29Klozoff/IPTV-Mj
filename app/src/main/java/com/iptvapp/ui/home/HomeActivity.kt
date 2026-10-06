@@ -1987,6 +1987,8 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        // The mini player is about to take the stream; an audio-only session would be a second one.
+        com.iptvapp.service.AudioOnlyService.stop(this)
         if (miniPlayer == null) {
             initMiniPlayer()
         } else {
