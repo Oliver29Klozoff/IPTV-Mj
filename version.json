@@ -2,6 +2,6 @@
   "versionCode": 542,
   "versionName": "7.04",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.04/MKTV.apk",
-  "apkSha256": "4d2b8f4b6f5d23a053d5919ea9809601d1329323d0aa7a9ab3a289d4f789f88f",
+  "apkSha256": "d2d71b6e48f2182240c8fa1f26cf22cabd352e2af807abeb8bee30855aa39229",
   "changelog": "Listen: audio-only live channels that keep playing with the screen off, with notification and lock-screen controls."
 }

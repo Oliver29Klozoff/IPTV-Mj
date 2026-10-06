@@ -2771,6 +2771,9 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
                     override fun onPlayerError(error: PlaybackException) {
+                        // Releasing this player for Listen can itself report an error (a release
+                        // timeout on a slow device) — not the channel's fault, and nothing to retry.
+                        if (audioOnly) return
                         binding.progressBuffering.visibility = View.GONE
                         // A busy account says nothing about this channel's own reliability.
                         if (!outcomeRecordedForThisPlayback && !com.iptvapp.util.StreamErrors.isAccountInUse(error)) {
