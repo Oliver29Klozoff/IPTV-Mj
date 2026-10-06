@@ -60,8 +60,18 @@ class AudioOnlyService : MediaSessionService() {
         session?.player?.let { p -> p.currentMediaItem?.let { item -> p.setMediaItem(item); p.prepare() } }
     }
 
+    // The generation of the PLAY this instance accepted last (see the companion's generation).
+    private var playedGeneration = -1
+
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        buildSession()
+    }
+
+    /** Player + session (+ data-usage tracker). Built on create, and again if a PLAY reaches an
+     * instance whose session was already released by a stop. */
+    private fun buildSession() {
         val dataSource = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
         val tracked = com.iptvapp.ui.player.BandwidthTracker(db.bandwidthUsageDao(), serverIndex, scope) {
@@ -127,14 +137,12 @@ class AudioOnlyService : MediaSessionService() {
                 PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             )
         }
-        instance = this
         session = builder.build().also {
             // Started with startService, so no controller has connected to register the session —
             // without this Media3 never posts the notification or goes foreground, and the system
             // may kill the playback once the app is in the background.
             addSession(it)
         }
-        _running.value = true
     }
 
     private fun scheduleRetry() {
@@ -147,10 +155,19 @@ class AudioOnlyService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
-            ACTION_STOP -> shutDown()
+            // Skipped when a newer play was requested after this stop.
+            ACTION_STOP -> if (!_running.value) shutDown()
             ACTION_PLAY -> {
+                // A stop (or a newer play) came after this request was queued: it's stale. Shut
+                // down unless a newer play is on its way to this same service.
+                if (intent.getIntExtra(EXTRA_GENERATION, -1) != generation) {
+                    if (!_running.value) shutDown()
+                    return START_NOT_STICKY
+                }
                 val url = intent.getStringExtra(EXTRA_URL)
                 if (url.isNullOrEmpty()) return START_NOT_STICKY
+                playedGeneration = generation
+                if (session == null) buildSession()
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
                 serverIndex = intent.getIntExtra(EXTRA_SERVER_INDEX, -1)
                 tracker?.updateServerIndex(serverIndex)
@@ -183,6 +200,8 @@ class AudioOnlyService : MediaSessionService() {
 
     // Swiping the app away from recents ends it, like closing the player would.
     override fun onTaskRemoved(rootIntent: Intent?) {
+        generation++
+        _running.value = false
         shutDown()
     }
 
@@ -190,8 +209,11 @@ class AudioOnlyService : MediaSessionService() {
         releaseSession()
         if (instance === this) instance = null
         scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
-        _running.value = false
-        _playingTitle.value = ""
+        // Only if no newer play is queued behind this instance going away.
+        if (playedGeneration == generation) {
+            _running.value = false
+            _playingTitle.value = ""
+        }
         super.onDestroy()
     }
 
@@ -199,7 +221,6 @@ class AudioOnlyService : MediaSessionService() {
      * service can actually stop — stopService alone leaves it bound and running. */
     private fun shutDown() {
         releaseSession()
-        _running.value = false
         stopSelf()
     }
 
@@ -226,6 +247,12 @@ class AudioOnlyService : MediaSessionService() {
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_SLEEP_MS = "sleep_ms"
         private const val EXTRA_SERVER_INDEX = "server_index"
+        private const val EXTRA_GENERATION = "generation"
+
+        // Bumped by every play and stop (main thread only). A queued PLAY carrying an older value
+        // was overtaken — e.g. Show picture tapped before the service even started — and is
+        // ignored, so it can't start audio behind the video that replaced it.
+        private var generation = 0
 
         // The running instance (same process, main thread only) — lets [stop] release the
         // stream synchronously instead of queueing an intent.
@@ -238,12 +265,14 @@ class AudioOnlyService : MediaSessionService() {
         private val _playingTitle = MutableStateFlow("")
         val playingTitle: StateFlow<String> = _playingTitle
 
-        /** [sleepAfterMs] > 0 pauses playback after that long — a sleep timer the player had armed. */
         /** Time left on a sleep timer the service is running (0 = none), for handing back to video. */
         fun remainingSleepMs(): Long =
             instance?.sleepDeadlineMs?.let { it - System.currentTimeMillis() }?.takeIf { it > 0L } ?: 0L
 
+        /** [sleepAfterMs] > 0 pauses playback after that long — a sleep timer the player had armed. */
         fun play(context: Context, url: String, title: String, serverIndex: Int, sleepAfterMs: Long = 0L) {
+            generation++
+            _running.value = true
             context.startService(
                 Intent(context, AudioOnlyService::class.java)
                     .setAction(ACTION_PLAY)
@@ -251,6 +280,7 @@ class AudioOnlyService : MediaSessionService() {
                     .putExtra(EXTRA_TITLE, title)
                     .putExtra(EXTRA_SLEEP_MS, sleepAfterMs)
                     .putExtra(EXTRA_SERVER_INDEX, serverIndex)
+                    .putExtra(EXTRA_GENERATION, generation)
             )
         }
 
@@ -259,6 +289,7 @@ class AudioOnlyService : MediaSessionService() {
          * player that follows never overlaps it on a one-connection account. */
         fun stop(context: Context) {
             if (!_running.value) return
+            generation++
             _running.value = false
             instance?.let { it.shutDown(); return }
             try {
