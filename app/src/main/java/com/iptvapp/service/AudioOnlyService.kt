@@ -21,6 +21,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import javax.inject.Inject
 
@@ -39,6 +40,12 @@ class AudioOnlyService : MediaSessionService() {
 
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
+
+    // Counts listening toward Settings > Data Usage and the per-provider budget, like the player.
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private var tracker: com.iptvapp.ui.player.BandwidthTracker? = null
+    private var serverIndex = -1
 
     private var session: MediaSession? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -47,12 +54,18 @@ class AudioOnlyService : MediaSessionService() {
     private val sleepRunnable = Runnable { session?.player?.pause() }
     // Re-prepares only; play/pause stays whatever the listener last chose (an error doesn't
     // clear it), so a pause during the backoff isn't undone.
-    private val retryRunnable = Runnable { session?.player?.prepare() }
+    // Reopening the item (not just prepare) also restarts a live stream that ended cleanly.
+    private val retryRunnable = Runnable {
+        session?.player?.let { p -> p.currentMediaItem?.let { item -> p.setMediaItem(item); p.prepare() } }
+    }
 
     override fun onCreate() {
         super.onCreate()
         val dataSource = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        val tracked = com.iptvapp.ui.player.BandwidthTracker(db.bandwidthUsageDao(), serverIndex, scope) {
+            com.iptvapp.ui.player.BandwidthBudgetManager(db, prefs).checkAndWarn(applicationContext, serverIndex)
+        }.also { it.startPeriodicFlush(); tracker = it }
         // Same audio settings as the video player (PlayerActivity.buildPlayer): the preferred
         // language, and the stereo-PCM sink for boxes that go silent with passthrough.
         val passthroughFallback = kotlinx.coroutines.runBlocking { prefs.audioPassthroughFallbackEnabled.first() }
@@ -74,7 +87,7 @@ class AudioOnlyService : MediaSessionService() {
             androidx.media3.exoplayer.DefaultRenderersFactory(this)
         }
         val player = ExoPlayer.Builder(this, renderersFactory)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(dataSource))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(tracked.wrap(dataSource)))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
                 true
@@ -90,6 +103,8 @@ class AudioOnlyService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) retries = 0
+                // A live stream has no end: the provider closed it, so reconnect like after an error.
+                if (state == Player.STATE_ENDED) scheduleRetry()
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (!playWhenReady) handler.removeCallbacks(retryRunnable)
@@ -100,10 +115,7 @@ class AudioOnlyService : MediaSessionService() {
                     applicationContext,
                     "AUDIO ONLY ERROR: errorCode=${error.errorCodeName} retries=$retries"
                 )
-                if (retries >= MAX_RETRIES) return
-                retries++
-                handler.removeCallbacks(retryRunnable)
-                handler.postDelayed(retryRunnable, (2_000L * retries).coerceAtMost(15_000L))
+                scheduleRetry()
             }
         })
         val builder = MediaSession.Builder(this, player)
@@ -124,6 +136,13 @@ class AudioOnlyService : MediaSessionService() {
         _running.value = true
     }
 
+    private fun scheduleRetry() {
+        if (retries >= MAX_RETRIES) return
+        retries++
+        handler.removeCallbacks(retryRunnable)
+        handler.postDelayed(retryRunnable, (2_000L * retries).coerceAtMost(15_000L))
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
@@ -132,6 +151,8 @@ class AudioOnlyService : MediaSessionService() {
                 val url = intent.getStringExtra(EXTRA_URL)
                 if (url.isNullOrEmpty()) return START_NOT_STICKY
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+                serverIndex = intent.getIntExtra(EXTRA_SERVER_INDEX, -1)
+                tracker?.updateServerIndex(serverIndex)
                 handler.removeCallbacks(sleepRunnable)
                 intent.getLongExtra(EXTRA_SLEEP_MS, 0L).takeIf { it > 0L }?.let { handler.postDelayed(sleepRunnable, it) }
                 _playingTitle.value = title
@@ -163,6 +184,7 @@ class AudioOnlyService : MediaSessionService() {
     override fun onDestroy() {
         releaseSession()
         if (instance === this) instance = null
+        scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
         _running.value = false
         _playingTitle.value = ""
         super.onDestroy()
@@ -179,6 +201,12 @@ class AudioOnlyService : MediaSessionService() {
     private fun releaseSession() {
         handler.removeCallbacks(retryRunnable)
         handler.removeCallbacks(sleepRunnable)
+        tracker?.let { t ->
+            t.stop()
+            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+            kotlinx.coroutines.GlobalScope.launch { t.flush() }
+        }
+        tracker = null
         session?.let {
             it.player.release()
             it.release()
@@ -192,6 +220,7 @@ class AudioOnlyService : MediaSessionService() {
         private const val EXTRA_URL = "url"
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_SLEEP_MS = "sleep_ms"
+        private const val EXTRA_SERVER_INDEX = "server_index"
 
         // The running instance (same process, main thread only) — lets [stop] release the
         // stream synchronously instead of queueing an intent.
@@ -205,13 +234,14 @@ class AudioOnlyService : MediaSessionService() {
         val playingTitle: StateFlow<String> = _playingTitle
 
         /** [sleepAfterMs] > 0 pauses playback after that long — a sleep timer the player had armed. */
-        fun play(context: Context, url: String, title: String, sleepAfterMs: Long = 0L) {
+        fun play(context: Context, url: String, title: String, serverIndex: Int, sleepAfterMs: Long = 0L) {
             context.startService(
                 Intent(context, AudioOnlyService::class.java)
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_URL, url)
                     .putExtra(EXTRA_TITLE, title)
                     .putExtra(EXTRA_SLEEP_MS, sleepAfterMs)
+                    .putExtra(EXTRA_SERVER_INDEX, serverIndex)
             )
         }
 

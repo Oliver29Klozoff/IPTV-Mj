@@ -2198,7 +2198,7 @@ class PlayerActivity : AppCompatActivity() {
         sleepDeadlineMs = 0L
         binding.btnSleep.text = "Sleep"
         binding.btnSleep.setTextColor(getColor(R.color.rack_text))
-        AudioOnlyService.play(this, streamUrl, streamTitle, sleepLeftMs)
+        AudioOnlyService.play(this, streamUrl, streamTitle, serverIndex, sleepLeftMs)
         com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "AUDIO ONLY START: streamId=$streamId title=$streamTitle")
         binding.tvAudioOnlyTitle.text = streamTitle
         binding.tvRetryStatus.visibility = View.GONE
