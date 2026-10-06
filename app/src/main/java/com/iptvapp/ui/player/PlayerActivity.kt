@@ -2455,6 +2455,10 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // Audio only: touches go to the panel (SHOW PICTURE) and nowhere else — the player's
+        // gestures (double-tap channel recall, swipes) would change what the activity thinks is
+        // playing while the service carries on with the original channel.
+        if (audioOnly) return super.dispatchTouchEvent(ev)
         if (isLocked) {
             // Locked: only the unlock button gets touches; any other tap brings it back up.
             val b = binding.btnUnlock
