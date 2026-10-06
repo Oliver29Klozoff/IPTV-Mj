@@ -2080,23 +2080,30 @@ class PlayerActivity : AppCompatActivity() {
                     binding.btnSleep.setTextColor(getColor(R.color.rack_text))
                 } else {
                     binding.btnSleep.setTextColor(playerAccent.start)
-                    sleepDeadlineMs = System.currentTimeMillis() + chosen * 60_000L
-                    sleepTimer = object : CountDownTimer(chosen * 60_000L, 60_000L) {
-                        override fun onTick(ms: Long) {
-                            binding.btnSleep.text = "Sleep ${ms / 60_000}m"
-                        }
-                        override fun onFinish() {
-                            player?.pause()
-                            sleepDeadlineMs = 0L
-                            binding.btnSleep.text = "Sleep"
-                            binding.btnSleep.setTextColor(getColor(R.color.rack_text))
-                        }
-                    }.start()
-                    binding.btnSleep.text = "Sleep ${chosen}m"
+                    armSleepTimer(chosen * 60_000L)
                 }
                 resetHideTimer()
             }
             .show()
+    }
+
+    /** Pauses playback after [totalMs]; the Sleep chip counts down the minutes left. */
+    private fun armSleepTimer(totalMs: Long) {
+        sleepTimer?.cancel()
+        sleepDeadlineMs = System.currentTimeMillis() + totalMs
+        binding.btnSleep.setTextColor(playerAccent.start)
+        sleepTimer = object : CountDownTimer(totalMs, 60_000L) {
+            override fun onTick(ms: Long) {
+                binding.btnSleep.text = "Sleep ${(ms + 59_999L) / 60_000}m"
+            }
+            override fun onFinish() {
+                player?.pause()
+                sleepDeadlineMs = 0L
+                binding.btnSleep.text = "Sleep"
+                binding.btnSleep.setTextColor(getColor(R.color.rack_text))
+            }
+        }.start()
+        binding.btnSleep.text = "Sleep ${(totalMs + 59_999L) / 60_000}m"
     }
 
     private fun showTrackSelectorDialog() {
@@ -2190,7 +2197,13 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.player = null
         player?.release()
         player = null
-        bandwidthTracker?.stop()
+        // buildPlayer replaces the tracker on the way back, so count what it holds now.
+        bandwidthTracker?.let { t ->
+            t.stop()
+            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+            kotlinx.coroutines.GlobalScope.launch { t.flush() }
+        }
+        bandwidthTracker = null
         // An armed sleep timer goes with the sound — this player (and its timer) is going away.
         val sleepLeftMs = (sleepDeadlineMs - System.currentTimeMillis()).takeIf { sleepTimer != null && it > 0L } ?: 0L
         sleepTimer?.cancel()
@@ -2210,12 +2223,15 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun exitAudioOnly() {
         if (!audioOnly) return
+        // A sleep timer still running in the service comes back with the picture.
+        val sleepLeftMs = AudioOnlyService.remainingSleepMs()
         AudioOnlyService.stop(this)
         leaveAudioOnlyPanel()
         if (player == null) {
             player = buildPlayer()
             loadStream(streamUrl)
         }
+        if (sleepLeftMs > 0L) armSleepTimer(sleepLeftMs)
     }
 
     private fun leaveAudioOnlyPanel() {

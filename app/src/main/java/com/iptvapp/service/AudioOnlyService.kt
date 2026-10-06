@@ -51,7 +51,8 @@ class AudioOnlyService : MediaSessionService() {
     private val handler = Handler(Looper.getMainLooper())
     private var retries = 0
     // A sleep timer carried over from the player (see play's sleepAfterMs).
-    private val sleepRunnable = Runnable { session?.player?.pause() }
+    private var sleepDeadlineMs = 0L
+    private val sleepRunnable = Runnable { sleepDeadlineMs = 0L; session?.player?.pause() }
     // Re-prepares only; play/pause stays whatever the listener last chose (an error doesn't
     // clear it), so a pause during the backoff isn't undone.
     // Reopening the item (not just prepare) also restarts a live stream that ended cleanly.
@@ -153,8 +154,12 @@ class AudioOnlyService : MediaSessionService() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
                 serverIndex = intent.getIntExtra(EXTRA_SERVER_INDEX, -1)
                 tracker?.updateServerIndex(serverIndex)
+                sleepDeadlineMs = 0L
                 handler.removeCallbacks(sleepRunnable)
-                intent.getLongExtra(EXTRA_SLEEP_MS, 0L).takeIf { it > 0L }?.let { handler.postDelayed(sleepRunnable, it) }
+                intent.getLongExtra(EXTRA_SLEEP_MS, 0L).takeIf { it > 0L }?.let { 
+                    sleepDeadlineMs = System.currentTimeMillis() + it
+                    handler.postDelayed(sleepRunnable, it)
+                }
                 _playingTitle.value = title
                 retries = 0
                 session?.player?.let {
@@ -234,6 +239,10 @@ class AudioOnlyService : MediaSessionService() {
         val playingTitle: StateFlow<String> = _playingTitle
 
         /** [sleepAfterMs] > 0 pauses playback after that long — a sleep timer the player had armed. */
+        /** Time left on a sleep timer the service is running (0 = none), for handing back to video. */
+        fun remainingSleepMs(): Long =
+            instance?.sleepDeadlineMs?.let { it - System.currentTimeMillis() }?.takeIf { it > 0L } ?: 0L
+
         fun play(context: Context, url: String, title: String, serverIndex: Int, sleepAfterMs: Long = 0L) {
             context.startService(
                 Intent(context, AudioOnlyService::class.java)
