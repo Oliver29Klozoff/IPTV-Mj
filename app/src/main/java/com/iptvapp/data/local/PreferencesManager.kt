@@ -180,6 +180,7 @@ class PreferencesManager @Inject constructor(
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
         val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
+        val PREFER_RELIABLE_COPY = booleanPreferencesKey("prefer_reliable_copy")
         val CHANNEL_ZAP_DEBOUNCE_MS = intPreferencesKey("channel_zap_debounce_ms")
         val LIVE_RECONNECT_SPEED = stringPreferencesKey("live_reconnect_speed")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
@@ -250,6 +251,12 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.AUTOPLAY_NEXT_EPISODE_ENABLED] ?: true }
     suspend fun setAutoplayNextEpisodeEnabled(v: Boolean) = context.dataStore.edit { it[Keys.AUTOPLAY_NEXT_EPISODE_ENABLED] = v }
+    // Tuning a channel that keeps failing plays a more reliable copy of it instead (see
+    // XtreamRepository.findMoreReliableCopy).
+    val preferReliableCopy: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.PREFER_RELIABLE_COPY] ?: true }
+    suspend fun setPreferReliableCopy(v: Boolean) = context.dataStore.edit { it[Keys.PREFER_RELIABLE_COPY] = v }
 
     // 0 = instant/off (every D-pad press switches immediately, the original behavior). A
     // non-zero value waits that many ms after the LAST press before actually resolving/loading

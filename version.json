@@ -1,7 +1,7 @@
 {
-  "versionCode": 542,
-  "versionName": "7.04",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.04/MKTV.apk",
-  "apkSha256": "1bf5265d6d1af2a133074f32af28c6c3a6d3c449da3cfeff3c6d63b1619df181",
-  "changelog": "Listen: audio-only live channels that keep playing with the screen off, with notification and lock-screen controls."
+  "versionCode": 543,
+  "versionName": "7.05",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.05/MKTV.apk",
+  "apkSha256": "7b0994715f95146b80e982cd5210f295f2a9421cb3a51a9f728ec515db687802",
+  "changelog": "A channel that keeps failing now plays a more reliable copy of itself instead (Settings: Use the most reliable copy)."
 }

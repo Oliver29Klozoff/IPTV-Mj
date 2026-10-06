@@ -2349,6 +2349,7 @@ class HomeViewModel @Inject constructor(
     suspend fun getVodProgress(streamId: Int): Pair<Long, Long> = repository.getVodProgress(streamId)
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)
+    suspend fun findMoreReliableCopy(streamId: Int) = repository.findMoreReliableCopy(streamId)
 
     // Live-playback failover — see XtreamRepository.findFailoverChannel kdoc.
     suspend fun findFailoverChannel(name: String, excludeServerIndex: Int) =

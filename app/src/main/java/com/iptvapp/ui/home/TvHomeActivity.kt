@@ -843,6 +843,14 @@ class TvHomeActivity : AppCompatActivity() {
     private fun playInMiniPlayer(channel: ChannelEntity) {
         miniPlayJob?.cancel()
         miniPlayJob = lifecycleScope.launch {
+            // This copy keeps failing and another copy of the same channel has been playing fine:
+            // play that one (Settings > Playback > Use the most reliable copy).
+            val better = if (prefs.preferReliableCopy.first()) viewModel.findMoreReliableCopy(channel.streamId) else null
+            if (better != null) {
+                Toast.makeText(this@TvHomeActivity, "Playing \"${better.name}\" — \"${channel.name}\" has been failing lately", Toast.LENGTH_LONG).show()
+                playInMiniPlayer(better)
+                return@launch
+            }
             val url = viewModel.getLiveStreamUrl(channel.streamId)
             currentMiniUrl = url
             currentMiniTitle = miniPlayerTitleFor(channel)

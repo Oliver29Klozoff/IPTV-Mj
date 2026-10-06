@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.05 - 2026-10-06
+- **New**: if you tune a channel that has been failing lately and another copy of the same channel
+  (another quality or feed of it) has been playing reliably, MKTV plays that copy instead and
+  tells you. It only does this with real evidence: the channel you picked failed most of its last
+  few plays and the other copy worked in at least 8 of 10. Turn it off in Settings with **Use the
+  most reliable copy**.
+
 ## v7.04 - 2026-10-06
 - **New**: audio-only listening for live channels. Tap **Listen** at the top of the full-screen
   player: the picture goes away, the sound keeps playing with the screen off or while you use

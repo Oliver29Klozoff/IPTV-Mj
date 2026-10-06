@@ -1226,6 +1226,28 @@ class XtreamRepository @Inject constructor(
         db.providerHourlyStatsDao().recordOutcome(serverIndex, hour, if (success) 0 else 1)
     }
 
+    /** A more reliable copy of primary channel [streamId] — the same channel by normalized name
+     * (another quality or feed of it), not hidden, with at least 80% of its last 3+ plays
+     * succeeding — but only when [streamId] itself has been failing (under 50% of its last 3+
+     * plays). Null when this copy is fine, has too little history to judge, or nothing better
+     * exists. Only the primary provider has per-channel history, so only it is searched. */
+    suspend fun findMoreReliableCopy(streamId: Int): com.iptvapp.data.local.entities.ChannelEntity? = withContext(Dispatchers.IO) {
+        fun pct(outcomes: String) = outcomes.count { it == '1' } * 100 / outcomes.length
+        val own = db.reliabilityDao().get(streamId)?.outcomes ?: return@withContext null
+        if (own.length < 3 || pct(own) >= 50) return@withContext null
+        val channel = db.channelDao().getChannelById(streamId) ?: return@withContext null
+        val key = com.iptvapp.util.ChannelNameMatcher.normalize(channel.name)
+        if (key.isEmpty()) return@withContext null
+        val copies = db.channelDao().getAllChannels().first().filter {
+            it.streamId != streamId && !it.isHidden && com.iptvapp.util.ChannelNameMatcher.normalize(it.name) == key
+        }
+        if (copies.isEmpty()) return@withContext null
+        val scores = db.reliabilityDao().getForStreamIds(copies.map { it.streamId })
+            .filter { it.outcomes.length >= 3 }
+            .associate { it.streamId to pct(it.outcomes) }
+        copies.filter { (scores[it.streamId] ?: 0) >= 80 }.maxByOrNull { scores[it.streamId] ?: 0 }
+    }
+
     /** e.g. "7/10 succeeded recently" — null if there's no history yet for this channel. */
     suspend fun getReliabilityLabel(streamId: Int): String? {
         val outcomes = db.reliabilityDao().get(streamId)?.outcomes ?: return null

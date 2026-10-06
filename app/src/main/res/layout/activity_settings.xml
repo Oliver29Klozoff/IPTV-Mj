@@ -659,6 +659,31 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
+                                    android:text="Use the most reliable copy" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="When a channel keeps failing, play another copy of it that has been working" />
+                            </LinearLayout>
+                            <Switch
+                                android:id="@+id/switchPreferReliableCopy"
+                                style="@style/Rack.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
                                     android:text="Tunneled playback" />
                                 <TextView
                                     style="@style/Rack.Helper"

@@ -252,6 +252,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Stream Format", 0, null, R.id.rgFormat),
             SettingSearchEntry("Video Player", 0, null, R.id.rgPlayer),
             SettingSearchEntry("Autoplay Next Episode", 0, null, R.id.switchAutoplayNextEpisode),
+            SettingSearchEntry("Use the Most Reliable Copy", 0, null, R.id.switchPreferReliableCopy),
             SettingSearchEntry("Tunneled Playback", 0, null, R.id.switchTunneledPlayback),
             SettingSearchEntry("DV7 HEVC Fallback", 0, null, R.id.switchDv7Fallback),
             SettingSearchEntry("Audio Passthrough Fallback", 0, null, R.id.switchAudioPassthroughFallback),
@@ -2667,6 +2668,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchDv7Fallback.isChecked = prefs.dv7FallbackEnabled.first()
                 binding.switchAudioPassthroughFallback.isChecked = prefs.audioPassthroughFallbackEnabled.first()
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
+                binding.switchPreferReliableCopy.isChecked = prefs.preferReliableCopy.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
                 binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
@@ -3877,6 +3879,10 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setAutoplayNextEpisodeEnabled(enabled) }
         }
+        binding.switchPreferReliableCopy.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setPreferReliableCopy(enabled) }
+        }
         binding.switchExtraBuffering.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
@@ -4256,6 +4262,7 @@ class SettingsActivity : AppCompatActivity() {
             put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
             put("audioPassthroughFallbackEnabled", prefs.audioPassthroughFallbackEnabled.first())
             put("autoplayNextEpisodeEnabled", prefs.autoplayNextEpisodeEnabled.first())
+            put("preferReliableCopy", prefs.preferReliableCopy.first())
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
             put("crashReportingEnabled", prefs.crashReportingEnabled.first())
@@ -4471,6 +4478,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("dv7FallbackEnabled")) prefs.setDv7FallbackEnabled(json.optBoolean("dv7FallbackEnabled", false))
         if (json.has("audioPassthroughFallbackEnabled")) prefs.setAudioPassthroughFallbackEnabled(json.optBoolean("audioPassthroughFallbackEnabled", false))
         if (json.has("autoplayNextEpisodeEnabled")) prefs.setAutoplayNextEpisodeEnabled(json.optBoolean("autoplayNextEpisodeEnabled", true))
+        if (json.has("preferReliableCopy")) prefs.setPreferReliableCopy(json.optBoolean("preferReliableCopy", true))
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
         if (json.has("crashReportingEnabled")) prefs.setCrashReportingEnabled(json.optBoolean("crashReportingEnabled", true))
