@@ -333,6 +333,8 @@ class PlayerActivity : AppCompatActivity() {
     private var lastKnownNetwork: android.net.Network? = null
 
     private var sleepTimer: CountDownTimer? = null
+    // When the armed sleep timer fires (0 = none) — handed to AudioOnlyService on Listen.
+    private var sleepDeadlineMs = 0L
     private var isAdjustingGesture = false
     private var gestureAccumY = 0f
     private val seekHandler = Handler(Looper.getMainLooper())
@@ -2071,18 +2073,21 @@ class PlayerActivity : AppCompatActivity() {
             .setTitle("Sleep Timer")
             .setItems(labels) { _, which ->
                 sleepTimer?.cancel()
+                sleepDeadlineMs = 0L
                 val chosen = mins[which]
                 if (chosen == 0) {
                     binding.btnSleep.text = "Sleep"
                     binding.btnSleep.setTextColor(getColor(R.color.rack_text))
                 } else {
                     binding.btnSleep.setTextColor(playerAccent.start)
+                    sleepDeadlineMs = System.currentTimeMillis() + chosen * 60_000L
                     sleepTimer = object : CountDownTimer(chosen * 60_000L, 60_000L) {
                         override fun onTick(ms: Long) {
                             binding.btnSleep.text = "Sleep ${ms / 60_000}m"
                         }
                         override fun onFinish() {
                             player?.pause()
+                            sleepDeadlineMs = 0L
                             binding.btnSleep.text = "Sleep"
                             binding.btnSleep.setTextColor(getColor(R.color.rack_text))
                         }
@@ -2186,7 +2191,14 @@ class PlayerActivity : AppCompatActivity() {
         player?.release()
         player = null
         bandwidthTracker?.stop()
-        AudioOnlyService.play(this, streamUrl, streamTitle)
+        // An armed sleep timer goes with the sound — this player (and its timer) is going away.
+        val sleepLeftMs = (sleepDeadlineMs - System.currentTimeMillis()).takeIf { sleepTimer != null && it > 0L } ?: 0L
+        sleepTimer?.cancel()
+        sleepTimer = null
+        sleepDeadlineMs = 0L
+        binding.btnSleep.text = "Sleep"
+        binding.btnSleep.setTextColor(getColor(R.color.rack_text))
+        AudioOnlyService.play(this, streamUrl, streamTitle, sleepLeftMs)
         com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "AUDIO ONLY START: streamId=$streamId title=$streamTitle")
         binding.tvAudioOnlyTitle.text = streamTitle
         binding.tvRetryStatus.visibility = View.GONE
@@ -4184,6 +4196,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         saveVodProgress()
         sleepTimer?.cancel()
+        sleepDeadlineMs = 0L
         retryJob?.cancel()
         seekRunnable?.let { seekHandler.removeCallbacks(it) }
         statsHandler.removeCallbacks(statsRunnable)

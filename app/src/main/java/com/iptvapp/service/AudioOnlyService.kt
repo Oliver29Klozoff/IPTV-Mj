@@ -20,6 +20,7 @@ import androidx.media3.session.MediaSessionService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import javax.inject.Inject
 
@@ -37,10 +38,13 @@ import javax.inject.Inject
 class AudioOnlyService : MediaSessionService() {
 
     @Inject lateinit var okHttpClient: OkHttpClient
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private var session: MediaSession? = null
     private val handler = Handler(Looper.getMainLooper())
     private var retries = 0
+    // A sleep timer carried over from the player (see play's sleepAfterMs).
+    private val sleepRunnable = Runnable { session?.player?.pause() }
     // Re-prepares only; play/pause stays whatever the listener last chose (an error doesn't
     // clear it), so a pause during the backoff isn't undone.
     private val retryRunnable = Runnable { session?.player?.prepare() }
@@ -49,7 +53,27 @@ class AudioOnlyService : MediaSessionService() {
         super.onCreate()
         val dataSource = OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
-        val player = ExoPlayer.Builder(this)
+        // Same audio settings as the video player (PlayerActivity.buildPlayer): the preferred
+        // language, and the stereo-PCM sink for boxes that go silent with passthrough.
+        val passthroughFallback = kotlinx.coroutines.runBlocking { prefs.audioPassthroughFallbackEnabled.first() }
+        val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
+        val renderersFactory = if (passthroughFallback) {
+            object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
+                override fun buildAudioSink(
+                    context: Context,
+                    enableFloatOutput: Boolean,
+                    enableAudioTrackPlaybackParams: Boolean
+                ): androidx.media3.exoplayer.audio.AudioSink =
+                    androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                        .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                        .setEnableFloatOutput(enableFloatOutput)
+                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                        .build()
+            }
+        } else {
+            androidx.media3.exoplayer.DefaultRenderersFactory(this)
+        }
+        val player = ExoPlayer.Builder(this, renderersFactory)
             .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(dataSource))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
@@ -61,6 +85,7 @@ class AudioOnlyService : MediaSessionService() {
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
             .setForceLowestBitrate(true)
+            .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
             .build()
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -89,6 +114,7 @@ class AudioOnlyService : MediaSessionService() {
                 PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             )
         }
+        instance = this
         session = builder.build().also {
             // Started with startService, so no controller has connected to register the session —
             // without this Media3 never posts the notification or goes foreground, and the system
@@ -106,6 +132,8 @@ class AudioOnlyService : MediaSessionService() {
                 val url = intent.getStringExtra(EXTRA_URL)
                 if (url.isNullOrEmpty()) return START_NOT_STICKY
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+                handler.removeCallbacks(sleepRunnable)
+                intent.getLongExtra(EXTRA_SLEEP_MS, 0L).takeIf { it > 0L }?.let { handler.postDelayed(sleepRunnable, it) }
                 _playingTitle.value = title
                 retries = 0
                 session?.player?.let {
@@ -134,6 +162,7 @@ class AudioOnlyService : MediaSessionService() {
 
     override fun onDestroy() {
         releaseSession()
+        if (instance === this) instance = null
         _running.value = false
         _playingTitle.value = ""
         super.onDestroy()
@@ -149,6 +178,7 @@ class AudioOnlyService : MediaSessionService() {
 
     private fun releaseSession() {
         handler.removeCallbacks(retryRunnable)
+        handler.removeCallbacks(sleepRunnable)
         session?.let {
             it.player.release()
             it.release()
@@ -161,6 +191,12 @@ class AudioOnlyService : MediaSessionService() {
         private const val ACTION_STOP = "com.iptvapp.audioonly.STOP"
         private const val EXTRA_URL = "url"
         private const val EXTRA_TITLE = "title"
+        private const val EXTRA_SLEEP_MS = "sleep_ms"
+
+        // The running instance (same process, main thread only) — lets [stop] release the
+        // stream synchronously instead of queueing an intent.
+        @android.annotation.SuppressLint("StaticFieldLeak")
+        private var instance: AudioOnlyService? = null
         private const val MAX_RETRIES = 20
 
         private val _running = MutableStateFlow(false)
@@ -168,19 +204,24 @@ class AudioOnlyService : MediaSessionService() {
         private val _playingTitle = MutableStateFlow("")
         val playingTitle: StateFlow<String> = _playingTitle
 
-        fun play(context: Context, url: String, title: String) {
+        /** [sleepAfterMs] > 0 pauses playback after that long — a sleep timer the player had armed. */
+        fun play(context: Context, url: String, title: String, sleepAfterMs: Long = 0L) {
             context.startService(
                 Intent(context, AudioOnlyService::class.java)
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_URL, url)
                     .putExtra(EXTRA_TITLE, title)
+                    .putExtra(EXTRA_SLEEP_MS, sleepAfterMs)
             )
         }
 
-        /** No-op unless it's running, so callers can use it freely before starting video. */
+        /** No-op unless it's running, so callers can use it freely before starting video. When the
+         * service is up, its player is released right here, before this returns, so the video
+         * player that follows never overlaps it on a one-connection account. */
         fun stop(context: Context) {
             if (!_running.value) return
             _running.value = false
+            instance?.let { it.shutDown(); return }
             try {
                 context.startService(Intent(context, AudioOnlyService::class.java).setAction(ACTION_STOP))
             } catch (_: IllegalStateException) {
