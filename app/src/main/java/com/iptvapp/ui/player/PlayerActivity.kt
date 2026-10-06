@@ -4103,7 +4103,13 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (isCatchup && !isChangingConfigurations && player != null) catchupResumeMs = vodPositionMs()
+        if (isCatchup && !isChangingConfigurations && player != null) {
+            // vodPositionMs includes a queued reopen's target; the resume path in onStart takes
+            // over from here, so the queued reopen must not also fire on the new player.
+            catchupResumeMs = vodPositionMs()
+            catchupReloadJob?.cancel()
+            catchupPendingTargetMs = -1L
+        }
         saveVodProgress()
         sleepTimer?.cancel()
         retryJob?.cancel()
