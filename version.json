@@ -1,7 +1,7 @@
 {
-  "versionCode": 540,
-  "versionName": "7.02",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.02/MKTV.apk",
-  "apkSha256": "ab15d41f2bb5012cef89fbbbb51fe49a7f7ace3e6a22ca0849870d67678f25b8",
-  "changelog": "Clear \"account in use on another device\" message, and a backup public guide when your provider's guide is empty."
+  "versionCode": 541,
+  "versionName": "7.03",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.03/MKTV.apk",
+  "apkSha256": "e984013e453bb0f91d3c833e9db60cbb52b32b05a9ddd5c83e702fa532aca470",
+  "changelog": "Catch-up replays with a real seek bar and pause, skip buttons (-10 / +30 / +2 min), and chapter marks for recordings."
 }

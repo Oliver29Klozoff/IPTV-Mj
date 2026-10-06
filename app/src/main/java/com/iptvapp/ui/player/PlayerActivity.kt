@@ -94,6 +94,9 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnDvrRewind.visibility = View.GONE
         binding.btnDvrLive.visibility = View.GONE
         binding.btnRecordDot.visibility = View.GONE
+        binding.btnVodBack.visibility = View.GONE
+        binding.btnVodFwd.visibility = View.GONE
+        binding.btnVodFwdBig.visibility = View.GONE
         binding.btnCast.visibility = View.GONE
         binding.bufferHealthBadge.visibility = View.GONE
         // VOD's seek bar/elapsed-remaining time used to be deliberately exempt from auto-hide
@@ -134,6 +137,24 @@ class PlayerActivity : AppCompatActivity() {
     // stream_title). This flag exists only to pick a different ExoPlayer data source in
     // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
     private var isRecordingPlayback: Boolean = false
+    // Catch-up: a past programme replayed from the provider's archive. It runs as VOD (seek bar,
+    // pause, skip buttons) but the provider serves it from a timeshift URL that begins at a whole
+    // minute, so positions here are relative to the programme start: catchupOffsetSec is where the
+    // current URL begins, and a seek ExoPlayer can't do inside that URL reopens it at the target
+    // minute (see vodSeekTo). Movie-only features — resume progress, Trakt, watch party, finding
+    // the "same movie" on another provider — stay off.
+    private var isCatchup = false
+    private var catchupStartSec = 0L
+    private var catchupDurationMin = 0
+    private var catchupOffsetSec = 0L
+    private var catchupChannelName = ""
+    private var catchupLiveUrl = ""
+    // Seconds-precise remainder of a seek that reopened the URL at a whole minute; applied once
+    // the new URL is ready if the stream turns out to be seekable.
+    private var catchupPendingSeekMs = 0L
+    // Position to come back to after onStop released the player (backgrounding, screen off).
+    private var catchupResumeMs = 0L
+    private var catchupReloadJob: kotlinx.coroutines.Job? = null
     private var resumePositionMs: Long = 0L
     // Set only when playing a series episode (from series_id extra) — progress for episodes
     // saves into episode_watched (keyed by seriesId/season/episode), never vod_streams, since
@@ -380,6 +401,16 @@ class PlayerActivity : AppCompatActivity() {
         mergedStreamId = intent.getIntExtra("merged_stream_id", -1)
         isVod = intent.getBooleanExtra("is_vod", false)
         isRecordingPlayback = intent.getBooleanExtra("is_recording", false)
+        catchupDurationMin = intent.getIntExtra("catchup_duration_min", 0)
+        if (catchupDurationMin > 0 && streamId != -1) {
+            isCatchup = true
+            isVod = true
+            catchupStartSec = intent.getLongExtra("catchup_start_sec", 0L)
+            catchupChannelName = intent.getStringExtra("catchup_channel_name") ?: ""
+            lifecycleScope.launch {
+                catchupLiveUrl = try { repository.getLiveStreamUrl(streamId) } catch (_: Exception) { "" }
+            }
+        }
         resumePositionMs = intent.getLongExtra("resume_ms", 0L)
         epIds    = intent.getStringArrayListExtra("ep_ids")    ?: emptyList()
         epTitles = intent.getStringArrayListExtra("ep_titles") ?: emptyList()
@@ -399,10 +430,12 @@ class PlayerActivity : AppCompatActivity() {
         partyStartPaused = intent.getBooleanExtra("watch_party_start_paused", false)
 
         setupWatchPartyButton()
+        if (isCatchup) binding.btnWatchParty.visibility = View.GONE
         if (partyLaunchCode.isNotEmpty()) joinWatchParty(partyLaunchCode, showToast = false)
         updateRewatchNotesButtonVisibility()
 
         setupChannelZones()
+        setupVodSkipButtons()
         setupGestureDetector()
         setupNetworkChangeReconnect()
         binding.tvChannelTitle.text = streamTitle
@@ -1734,7 +1767,7 @@ class PlayerActivity : AppCompatActivity() {
     // same way a live broadcast has no fixed position to anchor a note to for a later viewer.
 
     private fun updateRewatchNotesButtonVisibility() {
-        binding.btnRewatchNotes.visibility = if (isVod) View.VISIBLE else View.GONE
+        binding.btnRewatchNotes.visibility = if (isVod && !isCatchup) View.VISIBLE else View.GONE
     }
 
     private fun setupRewatchNotesButton() {
@@ -2128,12 +2161,61 @@ class PlayerActivity : AppCompatActivity() {
         return if (vodSkipPressCount > 10) 30_000L else 10_000L
     }
 
+    private fun setupVodSkipButtons() {
+        fun skip(deltaMs: Long) {
+            resetHideTimer()
+            vodSeekTo(vodPositionMs() + deltaMs)
+            notifyPartyStateChange()
+            updateSeekBar()
+        }
+        binding.btnVodBack.setOnClickListener { skip(-10_000L) }
+        binding.btnVodFwd.setOnClickListener { skip(30_000L) }
+        binding.btnVodFwdBig.setOnClickListener { skip(120_000L) }
+        if (isRecordingPlayback) {
+            binding.btnMarks.visibility = View.VISIBLE
+            binding.btnMarks.setOnClickListener { resetHideTimer(); showMarksDialog() }
+        }
+    }
+
+    // Chapter marks for a recording: spots saved per file (keyed by its path) to jump straight
+    // back to — the start of the game, after the ads, a scene to show someone.
+    private val marksPrefs by lazy { getSharedPreferences("recording_marks", MODE_PRIVATE) }
+
+    private fun loadMarks(): List<Long> =
+        (marksPrefs.getString(streamUrl, "") ?: "").split(',').mapNotNull { it.toLongOrNull() }.sorted()
+
+    private fun saveMarks(marks: List<Long>) {
+        marksPrefs.edit().apply {
+            if (marks.isEmpty()) remove(streamUrl) else putString(streamUrl, marks.distinct().sorted().joinToString(","))
+        }.apply()
+    }
+
+    private fun showMarksDialog() {
+        val here = vodPositionMs()
+        val marks = loadMarks()
+        val labels = listOf("＋ Mark this spot (${formatDuration(here)})") + marks.map { "▸ ${formatDuration(it)}" }
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Marks")
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == 0) {
+                    // Within 5 s of an existing mark counts as the same spot.
+                    if (marks.none { kotlin.math.abs(it - here) < 5_000L }) saveMarks(marks + here)
+                    Toast.makeText(this, "Marked ${formatDuration(here)}", Toast.LENGTH_SHORT).show()
+                } else {
+                    vodSeekTo(marks[which - 1])
+                    updateSeekBar()
+                }
+            }
+            .setNegativeButton("Close", null)
+        if (marks.isNotEmpty()) builder.setNeutralButton("Clear all") { _, _ -> saveMarks(emptyList()) }
+        builder.show()
+    }
+
     private fun setupChannelZones() {
         binding.zonePrevious.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
             if (isVod) {
-                val pos = (player?.currentPosition ?: 0L) - nextVodSkipAmountMs()
-                player?.seekTo(pos.coerceAtLeast(0L))
+                vodSeekTo(vodPositionMs() - nextVodSkipAmountMs())
                 notifyPartyStateChange()
                 updateSeekBar()
                 showOverlay()
@@ -2145,9 +2227,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.zoneNext.setOnClickListener {
             if (binding.guideContainer.visibility == View.VISIBLE) return@setOnClickListener
             if (isVod) {
-                val pos = (player?.currentPosition ?: 0L) + nextVodSkipAmountMs()
-                val duration = player?.duration ?: Long.MAX_VALUE
-                player?.seekTo(pos.coerceAtMost(duration))
+                vodSeekTo(vodPositionMs() + nextVodSkipAmountMs())
                 notifyPartyStateChange()
                 updateSeekBar()
                 showOverlay()
@@ -2564,6 +2644,11 @@ class PlayerActivity : AppCompatActivity() {
                                     exoPlayer.seekTo(resumePositionMs)
                                     resumePositionMs = 0L
                                 }
+                                if (isCatchup && catchupPendingSeekMs > 0L) {
+                                    val fine = catchupPendingSeekMs
+                                    catchupPendingSeekMs = 0L
+                                    if (exoPlayer.isCurrentMediaItemSeekable) exoPlayer.seekTo(fine)
+                                }
                                 if (isVod && !traktScrobbleStarted) {
                                     traktScrobbleStarted = true
                                     traktScrobble(::scrobbleStartCall)
@@ -2687,7 +2772,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun traktScrobble(call: suspend (Float) -> Unit, progressOverride: Float? = null) {
-        if (!isVod) return
+        if (!isVod || isCatchup) return
         val progress = progressOverride ?: scrobbleProgress()
         // Uses a process-wide scope, not lifecycleScope — finish()'s stop-scrobble call must
         // survive the activity being destroyed right after this is fired.
@@ -2949,7 +3034,8 @@ class PlayerActivity : AppCompatActivity() {
             // (findWatchPartyVodMatches/findWatchPartyEpisodeMatch) — that's genuinely just a
             // by-name cross-catalog lookup with a party-flavored name; nothing here is party-
             // specific, so a solo give-up gets the identical benefit for free.
-            attemptVodFailover()
+            // A replay has no "same title on another provider" to look for.
+            if (!isCatchup) attemptVodFailover()
             return
         }
         // Live channels previously had no give-up path at all here — retry just kept ramping up
@@ -3010,6 +3096,7 @@ class PlayerActivity : AppCompatActivity() {
         // Captured now, before the delay below — otherwise a paused/stalled player's
         // currentPosition could drift or reset by the time the retry actually reloads.
         val resumeAt = if (isVod) (player?.currentPosition ?: 0L) else 0L
+        val catchupResumeAt = if (isCatchup) vodPositionMs() else 0L
         retryJob = lifecycleScope.launch {
             val backoffMs = if (isVod) {
                 (2000L * (retryCount + 1)).coerceAtMost(16000L)
@@ -3049,6 +3136,11 @@ class PlayerActivity : AppCompatActivity() {
             )
             delay(backoffMs)
             retryCount++
+            if (isCatchup) {
+                loadCatchupAt(catchupResumeAt)
+                player?.playWhenReady = true
+                return@launch
+            }
             player?.let {
                 if (isVod && resumeAt > 0L) it.setMediaItem(MediaItem.fromUri(streamUrl), resumeAt)
                 else it.setMediaItem(MediaItem.fromUri(streamUrl))
@@ -3238,7 +3330,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun saveVodProgress() {
-        if (!isVod) return
+        if (!isVod || isCatchup) return
         val watched = player?.currentPosition ?: return
         val duration = player?.duration ?: return
         if (duration <= 0) return
@@ -3268,11 +3360,76 @@ class PlayerActivity : AppCompatActivity() {
         else "%d:%02d".format(minutes, seconds)
     }
 
+    /** Position/duration of what's playing as the viewer sees it — for catch-up that's the whole
+     * programme, not just the timeshift URL currently open. */
+    private fun vodPositionMs(): Long {
+        val pos = player?.currentPosition ?: 0L
+        return if (isCatchup) catchupOffsetSec * 1000L + pos else pos
+    }
+
+    private fun vodDurationMs(): Long =
+        if (isCatchup) catchupDurationMin * 60_000L else (player?.duration ?: C.TIME_UNSET)
+
+    /** Every VOD seek goes through here. For catch-up, a target the open timeshift URL can't seek
+     * to reopens the URL at the target's minute — rounded towards the direction of travel so
+     * repeated +10s presses on an unseekable stream still move forward a minute instead of
+     * snapping back to the same one — after a short pause so a run of presses opens it once. */
+    private fun vodSeekTo(targetMs: Long) {
+        val p = player ?: return
+        if (!isCatchup) {
+            val dur = p.duration
+            p.seekTo(if (dur != C.TIME_UNSET && dur > 0) targetMs.coerceIn(0L, dur) else targetMs.coerceAtLeast(0L))
+            return
+        }
+        val target = targetMs.coerceIn(0L, (vodDurationMs() - 5_000L).coerceAtLeast(0L))
+        val rel = target - catchupOffsetSec * 1000L
+        val segDur = p.duration
+        if (catchupReloadJob?.isActive != true && rel >= 0 && p.isCurrentMediaItemSeekable &&
+            segDur != C.TIME_UNSET && rel < segDur
+        ) {
+            p.seekTo(rel)
+            return
+        }
+        val forward = target >= vodPositionMs()
+        catchupReloadJob?.cancel()
+        catchupReloadJob = lifecycleScope.launch {
+            binding.tvTimeElapsed.text = formatDuration(target)
+            delay(700L)
+            loadCatchupAt(target, roundUp = forward)
+        }
+    }
+
+    /** Reopens the programme's timeshift URL at [targetMs] (from the programme start), keeping
+     * the play/pause state and the URL's format (.ts, or .m3u8 after the format fallback). */
+    private suspend fun loadCatchupAt(targetMs: Long, roundUp: Boolean = false) {
+        val maxMin = (catchupDurationMin - 1).coerceAtLeast(0)
+        val wholeMin = (targetMs / 60_000L).toInt()
+        val offsetMin = (if (roundUp && targetMs % 60_000L != 0L) wholeMin + 1 else wholeMin).coerceIn(0, maxMin)
+        val base = try {
+            repository.getTimeshiftUrl(streamId, catchupStartSec + offsetMin * 60L, catchupDurationMin - offsetMin)
+        } catch (_: Exception) { return }
+        val url = if (streamUrl.endsWith(".m3u8", ignoreCase = true)) base.substringBeforeLast('.') + ".m3u8" else base
+        catchupOffsetSec = offsetMin * 60L
+        catchupPendingSeekMs = (targetMs - offsetMin * 60_000L).coerceAtLeast(0L)
+        streamUrl = url
+        com.iptvapp.IptvApplication.logPlaybackEvent(
+            applicationContext, "CATCHUP OPEN: streamId=$streamId offsetMin=$offsetMin url=$url"
+        )
+        player?.let {
+            val keepPlaying = it.playWhenReady
+            it.setMediaItem(MediaItem.fromUri(url))
+            it.prepare()
+            it.playWhenReady = keepPlaying
+        }
+        updateSeekBar()
+    }
+
     private fun updateSeekBar() {
         if (!isVod) return
-        val duration = player?.duration ?: return
-        if (duration <= 0) return
-        val position = player?.currentPosition ?: 0L
+        if (catchupReloadJob?.isActive == true) return
+        val duration = vodDurationMs()
+        if (duration == C.TIME_UNSET || duration <= 0) return
+        val position = vodPositionMs().coerceAtMost(duration)
         binding.seekBar.max = duration.toInt()
         binding.seekBar.progress = position.toInt()
         binding.tvTimeElapsed.text = formatDuration(position)
@@ -3284,13 +3441,23 @@ class PlayerActivity : AppCompatActivity() {
         binding.vodSeekContainer.visibility = View.VISIBLE
         binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
+                if (!fromUser) return
+                // Catch-up seeks on release: dragging would otherwise reopen the stream at
+                // every minute the thumb passes. D-pad nudges (no touch) go through vodSeekTo,
+                // which already waits for the presses to stop.
+                if (isCatchup) {
+                    binding.tvTimeElapsed.text = formatDuration(progress.toLong())
+                    if (!sb.isPressed) vodSeekTo(progress.toLong())
+                } else {
                     player?.seekTo(progress.toLong())
                     notifyPartyStateChange()
                 }
             }
             override fun onStartTrackingTouch(sb: android.widget.SeekBar) { hideHandler.removeCallbacks(hideRunnable) }
-            override fun onStopTrackingTouch(sb: android.widget.SeekBar) { resetHideTimer() }
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar) {
+                if (isCatchup) vodSeekTo(sb.progress.toLong())
+                resetHideTimer()
+            }
         })
         seekRunnable = object : Runnable {
             override fun run() { updateSeekBar(); seekHandler.postDelayed(this, 1000) }
@@ -3319,7 +3486,12 @@ class PlayerActivity : AppCompatActivity() {
         // transient controls now, so it needs to come back here too, not just once at playback
         // start (startSeekBarUpdater already set it VISIBLE that one time, but every hide/show
         // cycle after that needs to re-show it explicitly, same as every other control below).
-        if (isVod) binding.vodSeekContainer.visibility = View.VISIBLE
+        if (isVod) {
+            binding.vodSeekContainer.visibility = View.VISIBLE
+            binding.btnVodBack.visibility = View.VISIBLE
+            binding.btnVodFwd.visibility = View.VISIBLE
+            binding.btnVodFwdBig.visibility = View.VISIBLE
+        }
         if (!isVod) {
             binding.btnDvrRewind.visibility = View.VISIBLE
             binding.btnDvrLive.visibility = View.VISIBLE
@@ -3670,12 +3842,12 @@ class PlayerActivity : AppCompatActivity() {
             // does that; a bare Left/Right with the overlay hidden is simply swallowed.
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) - nextVodSkipAmountMs()).coerceAtLeast(0L)); notifyPartyStateChange(); true }
+                isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() - nextVodSkipAmountMs()); notifyPartyStateChange(); true }
                 else -> true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> { resetHideTimer(); player?.seekTo(((player?.currentPosition ?: 0L) + nextVodSkipAmountMs()).coerceAtMost(player?.duration ?: Long.MAX_VALUE)); notifyPartyStateChange(); true }
+                isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() + nextVodSkipAmountMs()); notifyPartyStateChange(); true }
                 else -> true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
@@ -3872,7 +4044,13 @@ class PlayerActivity : AppCompatActivity() {
                 "SESSION START: isVod=$isVod streamId=$streamId title=$streamTitle url=$streamUrl resumeMs=$resumePositionMs"
             )
             player = buildPlayer()
-            if (isVod && resumePositionMs > 0L) {
+            if (isCatchup && catchupResumeMs > 0L) {
+                // Back from the background: the old player was released in onStop, and the
+                // open URL only knows its own start, so reopen the programme where it was.
+                val at = catchupResumeMs
+                catchupResumeMs = 0L
+                lifecycleScope.launch { loadCatchupAt(at); player?.playWhenReady = true }
+            } else if (isVod && resumePositionMs > 0L) {
                 // Applying this as a seekTo() *after* the player had already buffered and
                 // become ready at position 0 forced a mid-stream HTTP range renegotiation for
                 // progressively-served files (.mkv movies) — some providers hang on that
@@ -3896,6 +4074,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        if (isCatchup && !isChangingConfigurations && player != null) catchupResumeMs = vodPositionMs()
         saveVodProgress()
         sleepTimer?.cancel()
         retryJob?.cancel()
@@ -3924,8 +4103,10 @@ class PlayerActivity : AppCompatActivity() {
     override fun finish() {
         setResult(Activity.RESULT_OK, android.content.Intent().apply {
             putExtra("stream_id", streamId)
-            putExtra("stream_url", streamUrl)
-            putExtra("stream_title", streamTitle)
+            // A replay hands back the channel live (or nothing to play if that URL never
+            // resolved) — the timeshift URL would replay the show again as if it were live TV.
+            putExtra("stream_url", if (isCatchup) catchupLiveUrl else streamUrl)
+            putExtra("stream_title", if (isCatchup) catchupChannelName.ifBlank { streamTitle } else streamTitle)
             // Previously dropped entirely — HomeActivity's playerLauncher result handler had no
             // way to tell a merged-provider channel apart from a primary one on return, so
             // exiting fullscreen for a merged channel always routed back to Favorites instead

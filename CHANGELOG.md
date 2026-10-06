@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v7.03 - 2026-10-06
+- **New**: catch-up replays now play properly. Picking a past show from the guide opens it full
+  screen with a seek bar for the whole programme, pause, and skip buttons. Seeking, pausing, or
+  leaving the app and coming back picks up where you were instead of restarting the show. When you
+  close it, the channel continues live in the mini player.
+- **New**: skip buttons for movies, episodes, recordings and replays: **−10**, **+30** and
+  **+2 MIN** beside play/pause.
+- **New**: chapter marks for recordings. Tap **Marks** at the top of the player to mark the spot
+  you're at, then jump back to any mark later (the start of the game, after the ads). Marks are
+  saved per recording.
+
 ## v7.02 - 2026-10-06
 - **New**: when a channel won't play because your provider's one stream is already in use on
   another device, the player now says so ("Account in use on another device") instead of a generic

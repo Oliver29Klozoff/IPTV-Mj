@@ -167,24 +167,14 @@ class TvHomeActivity : AppCompatActivity() {
             val timeshiftUrl = data.getStringExtra("timeshift_url")
             val timeshiftTitle = data.getStringExtra("timeshift_title")
             if (timeshiftUrl != null && timeshiftTitle != null) {
-                currentMiniUrl = timeshiftUrl
-                currentMiniTitle = timeshiftTitle
-                currentMiniStreamId = streamId
-                currentMiniServerIndex = -1
-                // Same as the phone: a replay is played through the live path. Known gap — it restarts
-                // after a pause / full-screen round trip and can't be scrubbed; a proper catch-up mode
-                // (own identity, no movie-progress saving) is still to do.
-                currentMiniIsVod = false
-                binding.tvTvChannelName.text = timeshiftTitle
-                // The previous live channel's now/next refresh would keep writing under the replay.
-                epgRefreshJob?.cancel()
-                binding.tvTvEpg.text = "Replay"
-                binding.tvEpgProgress.visibility = View.GONE
-                miniPlayer?.let {
-                    it.setMediaItem(MediaItem.fromUri(timeshiftUrl))
-                    it.prepare()
-                    it.playWhenReady = true
-                }
+                // Replays open full screen in catch-up mode (seek bar, pause, skip) — the mini
+                // player can only play them like a live channel.
+                openPlayer(
+                    timeshiftUrl, timeshiftTitle, streamId,
+                    catchupStartSec = data.getLongExtra("catchup_start_sec", 0L),
+                    catchupDurationMin = data.getIntExtra("catchup_duration_min", 0),
+                    catchupChannelName = channel.name
+                )
             } else {
                 playInMiniPlayer(channel)
                 // Same bookkeeping as the old guide panel: highlights + recent / cold-boot resume.
@@ -3733,7 +3723,10 @@ class TvHomeActivity : AppCompatActivity() {
         isVod: Boolean = false,
         resumeMs: Long = 0L,
         serverIndex: Int = -1,
-        mergedStreamId: Int = -1
+        mergedStreamId: Int = -1,
+        catchupStartSec: Long = 0L,
+        catchupDurationMin: Int = 0,
+        catchupChannelName: String = ""
     ) {
         if (externalPlayerChoice != "internal") {
             launchExternalPlayer(url, title, externalPlayerChoice)
@@ -3753,6 +3746,11 @@ class TvHomeActivity : AppCompatActivity() {
                 putExtra("resume_ms", resumeMs)
                 putExtra("server_index", serverIndex)
                 putExtra("merged_stream_id", mergedStreamId)
+                if (catchupDurationMin > 0) {
+                    putExtra("catchup_start_sec", catchupStartSec)
+                    putExtra("catchup_duration_min", catchupDurationMin)
+                    putExtra("catchup_channel_name", catchupChannelName)
+                }
             })
         }
     }

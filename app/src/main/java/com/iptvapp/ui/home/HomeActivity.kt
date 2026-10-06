@@ -1183,18 +1183,14 @@ class HomeActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 val channel = viewModel.getChannelById(streamId) ?: return@launch
                 if (timeshiftUrl != null && timeshiftTitle != null) {
-                    currentMiniUrl = timeshiftUrl
-                    currentMiniTitle = timeshiftTitle
-                    currentMiniStreamId = streamId
-                    currentMiniServerIndex = -1
-                    currentMiniIsVod = false
-                    binding.tvMiniChannelName.text = timeshiftTitle
-                    binding.tvPipChannelName?.text = timeshiftTitle
-                    miniPlayer?.let {
-                        it.setMediaItem(androidx.media3.common.MediaItem.fromUri(timeshiftUrl))
-                        it.prepare()
-                        it.playWhenReady = true
-                    }
+                    // Replays open full screen in catch-up mode (seek bar, pause, skip) — the mini
+                    // player can only play them like a live channel.
+                    openPlayer(
+                        timeshiftUrl, timeshiftTitle, streamId,
+                        catchupStartSec = data.getLongExtra("catchup_start_sec", 0L),
+                        catchupDurationMin = data.getIntExtra("catchup_duration_min", 0),
+                        catchupChannelName = channel.name
+                    )
                 } else {
                     playInMiniPlayer(channel)
                 }
@@ -3461,7 +3457,10 @@ class HomeActivity : AppCompatActivity() {
                         val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
                         val url = viewModel.getTimeshiftUrl(ch.streamId, startSec, durationMin)
                         val title = "${ch.name} — ${program.title}"
-                        openPlayer(url, title, ch.streamId)
+                        openPlayer(
+                            url, title, ch.streamId,
+                            catchupStartSec = startSec, catchupDurationMin = durationMin, catchupChannelName = ch.name
+                        )
                     }
                 }
             }
@@ -5005,7 +5004,8 @@ class HomeActivity : AppCompatActivity() {
         url: String, title: String, streamId: Int,
         streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(),
         isVod: Boolean = false, resumeMs: Long = 0L,
-        serverIndex: Int = -1, mergedStreamId: Int = -1
+        serverIndex: Int = -1, mergedStreamId: Int = -1,
+        catchupStartSec: Long = 0L, catchupDurationMin: Int = 0, catchupChannelName: String = ""
     ) {
         if (externalPlayerChoice != "internal") {
             launchExternalPlayer(url, title, externalPlayerChoice, isVod)
@@ -5028,6 +5028,11 @@ class HomeActivity : AppCompatActivity() {
                 putExtra("resume_ms", resumeMs)
                 putExtra("server_index", serverIndex)
                 putExtra("merged_stream_id", mergedStreamId)
+                if (catchupDurationMin > 0) {
+                    putExtra("catchup_start_sec", catchupStartSec)
+                    putExtra("catchup_duration_min", catchupDurationMin)
+                    putExtra("catchup_channel_name", catchupChannelName)
+                }
             })
         }
     }

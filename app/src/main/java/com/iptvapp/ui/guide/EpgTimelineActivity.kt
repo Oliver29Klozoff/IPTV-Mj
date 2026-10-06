@@ -776,7 +776,10 @@ class EpgTimelineActivity : AppCompatActivity() {
                     setResult(RESULT_OK, Intent()
                         .putExtra("stream_id", ch.streamId)
                         .putExtra("timeshift_url", url)
-                        .putExtra("timeshift_title", "${ch.name} — ${program.title}"))
+                        .putExtra("timeshift_title", "${ch.name} — ${program.title}")
+                        .putExtra("catchup_start_sec", startSec)
+                        .putExtra("catchup_duration_min", durationMin)
+                        .putExtra("catchup_channel_name", ch.name))
                     finish()
                 }
             }

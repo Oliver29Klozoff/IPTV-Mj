@@ -417,6 +417,13 @@
             android:text="Notes"
             android:visibility="gone" />
 
+        <!-- Chapter marks — recordings only (shown at runtime): save spots to jump back to -->
+        <Button
+            android:id="@+id/btnMarks"
+            style="@style/PlayerChip"
+            android:text="Marks"
+            android:visibility="gone" />
+
         <!-- Lock (v6.93): ignores touches so the screen can't be bumped; touch-screens only -->
         <Button
             android:id="@+id/btnLock"
@@ -478,6 +485,14 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
+        <!-- VOD skip buttons (movies, episodes, recordings, catch-up), shown at runtime -->
+        <Button
+            android:id="@+id/btnVodBack"
+            style="@style/PlayerSkipButton"
+            android:layout_marginEnd="20dp"
+            android:contentDescription="Back 10 seconds"
+            android:text="−10" />
+
         <ImageButton
             android:id="@+id/btnDvrRewind"
             android:layout_width="56dp"
@@ -518,6 +533,20 @@
             android:textColor="@color/rack_danger_text"
             android:textSize="15sp"
             android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnVodFwd"
+            style="@style/PlayerSkipButton"
+            android:layout_marginStart="20dp"
+            android:contentDescription="Forward 30 seconds"
+            android:text="+30" />
+
+        <Button
+            android:id="@+id/btnVodFwdBig"
+            style="@style/PlayerSkipButton"
+            android:layout_marginStart="12dp"
+            android:contentDescription="Forward 2 minutes"
+            android:text="+2 MIN" />
     </LinearLayout>
 
     <!-- Streaming stats overlay -->
