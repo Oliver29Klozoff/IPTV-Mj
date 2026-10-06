@@ -155,6 +155,11 @@ class PlayerActivity : AppCompatActivity() {
     // Position to come back to after onStop released the player (backgrounding, screen off).
     private var catchupResumeMs = 0L
     private var catchupReloadJob: kotlinx.coroutines.Job? = null
+    // Where a debounced reopen is headed, so further skips add on to it rather than to the old
+    // position (-1 = none pending).
+    private var catchupPendingTargetMs = -1L
+    // True while the seek bar thumb is held, so the 1 s updater doesn't drag it back.
+    private var seekBarDragging = false
     private var resumePositionMs: Long = 0L
     // Set only when playing a series episode (from series_id extra) — progress for episodes
     // saves into episode_watched (keyed by seriesId/season/episode), never vod_streams, since
@@ -3363,6 +3368,7 @@ class PlayerActivity : AppCompatActivity() {
     /** Position/duration of what's playing as the viewer sees it — for catch-up that's the whole
      * programme, not just the timeshift URL currently open. */
     private fun vodPositionMs(): Long {
+        if (isCatchup && catchupPendingTargetMs >= 0L) return catchupPendingTargetMs
         val pos = player?.currentPosition ?: 0L
         return if (isCatchup) catchupOffsetSec * 1000L + pos else pos
     }
@@ -3392,6 +3398,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         val forward = target >= vodPositionMs()
         catchupReloadJob?.cancel()
+        catchupPendingTargetMs = target
         catchupReloadJob = lifecycleScope.launch {
             binding.tvTimeElapsed.text = formatDuration(target)
             delay(700L)
@@ -3407,10 +3414,11 @@ class PlayerActivity : AppCompatActivity() {
         val offsetMin = (if (roundUp && targetMs % 60_000L != 0L) wholeMin + 1 else wholeMin).coerceIn(0, maxMin)
         val base = try {
             repository.getTimeshiftUrl(streamId, catchupStartSec + offsetMin * 60L, catchupDurationMin - offsetMin)
-        } catch (_: Exception) { return }
+        } catch (_: Exception) { catchupPendingTargetMs = -1L; return }
         val url = if (streamUrl.endsWith(".m3u8", ignoreCase = true)) base.substringBeforeLast('.') + ".m3u8" else base
         catchupOffsetSec = offsetMin * 60L
         catchupPendingSeekMs = (targetMs - offsetMin * 60_000L).coerceAtLeast(0L)
+        catchupPendingTargetMs = -1L
         streamUrl = url
         com.iptvapp.IptvApplication.logPlaybackEvent(
             applicationContext, "CATCHUP OPEN: streamId=$streamId offsetMin=$offsetMin url=$url"
@@ -3427,6 +3435,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun updateSeekBar() {
         if (!isVod) return
         if (catchupReloadJob?.isActive == true) return
+        if (seekBarDragging) return
         val duration = vodDurationMs()
         if (duration == C.TIME_UNSET || duration <= 0) return
         val position = vodPositionMs().coerceAtMost(duration)
@@ -3453,8 +3462,12 @@ class PlayerActivity : AppCompatActivity() {
                     notifyPartyStateChange()
                 }
             }
-            override fun onStartTrackingTouch(sb: android.widget.SeekBar) { hideHandler.removeCallbacks(hideRunnable) }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar) {
+                seekBarDragging = true
+                hideHandler.removeCallbacks(hideRunnable)
+            }
             override fun onStopTrackingTouch(sb: android.widget.SeekBar) {
+                seekBarDragging = false
                 if (isCatchup) vodSeekTo(sb.progress.toLong())
                 resetHideTimer()
             }
