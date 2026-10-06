@@ -840,14 +840,24 @@ class TvHomeActivity : AppCompatActivity() {
     private fun miniPlayerTitleFor(channel: ChannelEntity): String =
         channel.customNum?.let { "$it · ${channel.name}" } ?: channel.name
 
+    /** [channel], or — when it keeps failing and another copy of the same channel has been
+     * playing fine — that copy, with a toast saying so (Settings: Use the most reliable copy).
+     * Every primary live tune path goes through this, full screen included, so opening the
+     * player directly can't bring back the failing original. */
+    private suspend fun reliableCopyOrSelf(channel: ChannelEntity): ChannelEntity {
+        if (!prefs.preferReliableCopy.first()) return channel
+        val better = viewModel.findMoreReliableCopy(channel.streamId) ?: return channel
+        Toast.makeText(this@TvHomeActivity, "Playing \"${better.name}\" — \"${channel.name}\" has been failing lately", Toast.LENGTH_LONG).show()
+        return better
+    }
+
     private fun playInMiniPlayer(channel: ChannelEntity) {
         miniPlayJob?.cancel()
         miniPlayJob = lifecycleScope.launch {
-            // This copy keeps failing and another copy of the same channel has been playing fine:
-            // play that one (Settings > Playback > Use the most reliable copy).
-            val better = if (prefs.preferReliableCopy.first()) viewModel.findMoreReliableCopy(channel.streamId) else null
-            if (better != null) {
-                Toast.makeText(this@TvHomeActivity, "Playing \"${better.name}\" — \"${channel.name}\" has been failing lately", Toast.LENGTH_LONG).show()
+            val better = reliableCopyOrSelf(channel)
+            if (better.streamId != channel.streamId) {
+                // The click handler marked the original as playing; the list should show this one.
+                viewModel.setCurrentlyPlaying(better.streamId)
                 playInMiniPlayer(better)
                 return@launch
             }
@@ -1039,8 +1049,9 @@ class TvHomeActivity : AppCompatActivity() {
             onChannelDoubleClick = { channel ->
                 val ids = viewModel.channels.value.map { it.streamId }.toIntArray()
                 lifecycleScope.launch {
-                    val url = viewModel.getLiveStreamUrl(channel.streamId)
-                    openPlayer(url, channel.name, channel.streamId, ids)
+                    val ch = reliableCopyOrSelf(channel)
+                    val url = viewModel.getLiveStreamUrl(ch.streamId)
+                    openPlayer(url, ch.name, ch.streamId, ids)
                 }
             },
             onFavoriteClick = { channel ->
