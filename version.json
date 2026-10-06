@@ -2,6 +2,6 @@
   "versionCode": 540,
   "versionName": "7.02",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.02/MKTV.apk",
-  "apkSha256": "20c26a0f644b04e212d13e33e350c482423e47d6a4513b278c373a7d6b399026",
+  "apkSha256": "ab15d41f2bb5012cef89fbbbb51fe49a7f7ace3e6a22ca0849870d67678f25b8",
   "changelog": "Clear \"account in use on another device\" message, and a backup public guide when your provider's guide is empty."
 }

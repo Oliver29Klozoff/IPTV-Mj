@@ -974,9 +974,10 @@ class XtreamRepository @Inject constructor(
         // Id matches first, then names for whatever is left, one feed channel per local channel:
         // a feed can list one network twice ("Bravo" and "Bravo HD" both normalize to "bravo"),
         // and letting both write to the same channel interleaves two overlapping schedules.
-        // Only feed channels that actually have programs may claim one, so an empty duplicate
-        // entry can't shadow the populated one.
-        val withPrograms = xmlPrograms.mapTo(HashSet()) { it.channelId }
+        // Only feed channels with programs that haven't ended yet may claim one, so an empty or
+        // stale duplicate entry can't shadow the one carrying the current schedule.
+        val claimNowSec = System.currentTimeMillis() / 1000
+        val withPrograms = xmlPrograms.filter { it.stopSec > claimNowSec }.mapTo(HashSet()) { it.channelId }
         val candidates = xmlChannels.filter { it.id in withPrograms }
         val claimed = mutableSetOf<Int>()
         candidates.forEach { xmlCh ->
@@ -2594,12 +2595,13 @@ class XtreamRepository @Inject constructor(
         // picked the wrong channel and silently wrote one network's schedule under a
         // completely different channel's streamId.
         // Id matches first, then names for unclaimed channels only, and only feed channels that
-        // actually have programs may claim one — see fetchXmltvFromUrl.
+        // have current or upcoming programs may claim one — see fetchXmltvFromUrl.
         fun matchFeed(
             xmlChannels: List<com.iptvapp.util.XmltvChannel>,
             xmlPrograms: List<com.iptvapp.util.XmltvProgram>
         ): Map<String, List<Int>> {
-            val withPrograms = xmlPrograms.mapTo(HashSet()) { it.channelId }
+            val claimNowSec = System.currentTimeMillis() / 1000
+            val withPrograms = xmlPrograms.filter { it.stopSec > claimNowSec }.mapTo(HashSet()) { it.channelId }
             val candidates = xmlChannels.filter { it.id in withPrograms }
             val matches = mutableMapOf<String, List<Int>>()
             val claimed = mutableSetOf<Int>()
