@@ -974,11 +974,15 @@ class XtreamRepository @Inject constructor(
         // Id matches first, then names for whatever is left, one feed channel per local channel:
         // a feed can list one network twice ("Bravo" and "Bravo HD" both normalize to "bravo"),
         // and letting both write to the same channel interleaves two overlapping schedules.
+        // Only feed channels that actually have programs may claim one, so an empty duplicate
+        // entry can't shadow the populated one.
+        val withPrograms = xmlPrograms.mapTo(HashSet()) { it.channelId }
+        val candidates = xmlChannels.filter { it.id in withPrograms }
         val claimed = mutableSetOf<Int>()
-        xmlChannels.forEach { xmlCh ->
+        candidates.forEach { xmlCh ->
             byEpgId[xmlCh.id.lowercase()]?.let { xmlChannelToStreamId[xmlCh.id] = it; claimed += it }
         }
-        xmlChannels.forEach { xmlCh ->
+        candidates.forEach { xmlCh ->
             if (xmlCh.id in xmlChannelToStreamId) return@forEach
             val resolved = byName[normalizeForMatch(xmlCh.displayName)] ?: return@forEach
             if (claimed.add(resolved)) xmlChannelToStreamId[xmlCh.id] = resolved
@@ -2579,16 +2583,55 @@ class XtreamRepository @Inject constructor(
         }
         val byName: Map<String, List<Int>> = byNameRaw.filterValues { it.size == 1 }
 
+        // Same byEpgId-first matching the primary provider's fetchXmltvFromUrl already used
+        // (see MergedChannelEntity.epgChannelId kdoc for why this was missing here) — a
+        // stable provider-assigned ID match is far more reliable than fuzzy channel-name
+        // matching, which previously could resolve XMLTV entries to entirely different local
+        // channels than the ones actually favorited on a provider with a large/messy feed.
+        // The substring fallback that used to sit here (matching e.g. "ESPN" against
+        // "ESPN2"/"ESPN News"/"ESPN Deportes" and grabbing whichever happened to be first)
+        // is gone for the same reason as fetchXmltvFromUrl's: on a large catalog it routinely
+        // picked the wrong channel and silently wrote one network's schedule under a
+        // completely different channel's streamId.
+        // Id matches first, then names for unclaimed channels only, and only feed channels that
+        // actually have programs may claim one — see fetchXmltvFromUrl.
+        fun matchFeed(
+            xmlChannels: List<com.iptvapp.util.XmltvChannel>,
+            xmlPrograms: List<com.iptvapp.util.XmltvProgram>
+        ): Map<String, List<Int>> {
+            val withPrograms = xmlPrograms.mapTo(HashSet()) { it.channelId }
+            val candidates = xmlChannels.filter { it.id in withPrograms }
+            val matches = mutableMapOf<String, List<Int>>()
+            val claimed = mutableSetOf<Int>()
+            candidates.forEach { xmlCh ->
+                byEpgId[xmlCh.id.lowercase()]?.let { matches[xmlCh.id] = it; claimed += it }
+            }
+            candidates.forEach { xmlCh ->
+                if (xmlCh.id in matches) return@forEach
+                val resolved = byName[normalizeForMatch(xmlCh.displayName)]?.filter { claimed.add(it) } ?: return@forEach
+                if (resolved.isNotEmpty()) matches[xmlCh.id] = resolved
+            }
+            return matches
+        }
+
         try {
-            var xmlChannels = emptyList<com.iptvapp.util.XmltvChannel>()
             var xmlPrograms = emptyList<com.iptvapp.util.XmltvProgram>()
+            var xmlChannelToStreamIds = emptyMap<String, List<Int>>()
             for (url in sources) {
                 val (ch, pr) = XmltvFetcher.fetch(url)
                 android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): source ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} returned ${ch.size} channels, ${pr.size} programs")
-                if (pr.isNotEmpty()) { xmlChannels = ch; xmlPrograms = pr; break }
+                if (pr.isEmpty()) continue
+                // Matched before anything is deleted: the public backup feed always has programs but
+                // may match none of this provider's channels, and that must not wipe a good cache.
+                val matches = matchFeed(ch, pr)
+                if (matches.isEmpty()) {
+                    android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): source matched no local channels — trying the next")
+                    continue
+                }
+                xmlPrograms = pr; xmlChannelToStreamIds = matches; break
             }
             if (xmlPrograms.isEmpty()) {
-                android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): every source gave zero programs — provider may not offer XMLTV at these URLs, or the request failed silently (see XmltvFetcher.fetch, which swallows errors and returns empty)")
+                android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): every source gave zero matched programs — provider may not offer XMLTV at these URLs, none of its channels matched, or the request failed silently (see XmltvFetcher.fetch, which swallows errors and returns empty)")
                 return@withContext 0
             }
 
@@ -2603,28 +2646,7 @@ class XtreamRepository @Inject constructor(
             // fetch doesn't wipe out this server's still-good previous data for nothing.
             db.epgDao().deleteAllForServer(serverIndex)
 
-            // Same byEpgId-first matching the primary provider's fetchXmltvFromUrl already used
-            // (see MergedChannelEntity.epgChannelId kdoc for why this was missing here) — a
-            // stable provider-assigned ID match is far more reliable than fuzzy channel-name
-            // matching, which previously could resolve XMLTV entries to entirely different local
-            // channels than the ones actually favorited on a provider with a large/messy feed.
-            // The substring fallback that used to sit here (matching e.g. "ESPN" against
-            // "ESPN2"/"ESPN News"/"ESPN Deportes" and grabbing whichever happened to be first)
-            // is gone for the same reason as fetchXmltvFromUrl's: on a large catalog it routinely
-            // picked the wrong channel and silently wrote one network's schedule under a
-            // completely different channel's streamId.
-            val xmlChannelToStreamIds = mutableMapOf<String, List<Int>>()
-            // Id matches first, then names for unclaimed channels only — see fetchXmltvFromUrl.
-            val claimed = mutableSetOf<Int>()
-            xmlChannels.forEach { xmlCh ->
-                byEpgId[xmlCh.id.lowercase()]?.let { xmlChannelToStreamIds[xmlCh.id] = it; claimed += it }
-            }
-            xmlChannels.forEach { xmlCh ->
-                if (xmlCh.id in xmlChannelToStreamIds) return@forEach
-                val resolved = byName[normalizeForMatch(xmlCh.displayName)]?.filter { claimed.add(it) } ?: return@forEach
-                if (resolved.isNotEmpty()) xmlChannelToStreamIds[xmlCh.id] = resolved
-            }
-            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size}/${xmlChannels.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")
+            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")
 
             val nowSec = System.currentTimeMillis() / 1000
             val entities = mutableListOf<EpgEntity>()
