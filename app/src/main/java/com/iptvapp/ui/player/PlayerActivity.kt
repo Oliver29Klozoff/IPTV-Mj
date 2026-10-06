@@ -3877,13 +3877,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Audio only shows one button (SHOW PICTURE); channel and seek keys have nothing to act on.
+        // Audio only shows one button (SHOW PICTURE); channel, number and seek keys have nothing to
+        // act on, but volume and media keys must still reach the system and the media session.
         if (audioOnly) return when (keyCode) {
             KeyEvent.KEYCODE_BACK -> { finish(); true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> super.onKeyDown(keyCode, event)
-            else -> true
+            KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_UP,
+            KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_GUIDE,
+            KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_MENU -> true
+            in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> true
+            // Volume and play/pause fall through to the system, which sends them to the session.
+            else -> super.onKeyDown(keyCode, event)
         }
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {

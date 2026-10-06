@@ -157,10 +157,12 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
-        <!-- Audio-only live playback (screen off / background), with media notification controls -->
+        <!-- Audio-only live playback (screen off / background), with media notification controls.
+             Not exported: lock-screen, notification and Bluetooth controls reach it through the
+             media session, and its start commands (play a URL, stop) are app-private. -->
         <service
             android:name=".service.AudioOnlyService"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />

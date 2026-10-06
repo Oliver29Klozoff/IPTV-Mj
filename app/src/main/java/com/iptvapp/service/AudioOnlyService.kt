@@ -41,9 +41,9 @@ class AudioOnlyService : MediaSessionService() {
     private var session: MediaSession? = null
     private val handler = Handler(Looper.getMainLooper())
     private var retries = 0
-    private val retryRunnable = Runnable {
-        session?.player?.let { it.prepare(); it.playWhenReady = true }
-    }
+    // Re-prepares only; play/pause stays whatever the listener last chose (an error doesn't
+    // clear it), so a pause during the backoff isn't undone.
+    private val retryRunnable = Runnable { session?.player?.prepare() }
 
     override fun onCreate() {
         super.onCreate()
@@ -65,6 +65,9 @@ class AudioOnlyService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_READY) retries = 0
+            }
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady) handler.removeCallbacks(retryRunnable)
             }
             // Live streams drop now and then; reconnect with a growing pause, like the player does.
             override fun onPlayerError(error: PlaybackException) {
