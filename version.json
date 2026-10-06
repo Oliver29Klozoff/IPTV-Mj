@@ -2,6 +2,6 @@
   "versionCode": 541,
   "versionName": "7.03",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.03/MKTV.apk",
-  "apkSha256": "600d27fdc5fd5eb9cf7edc42afc4d51364c29c55bff7cd104c644bf6b4e15938",
+  "apkSha256": "cfea7f3bcc1c7ae58c355515fb66cd3409dafa63d2d392ae7844509428d5837c",
   "changelog": "Catch-up replays with a real seek bar and pause, skip buttons (-10 / +30 / +2 min), and chapter marks for recordings."
 }

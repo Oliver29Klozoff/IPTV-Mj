@@ -3393,10 +3393,16 @@ class PlayerActivity : AppCompatActivity() {
         if (catchupReloadJob?.isActive != true && rel >= 0 && p.isCurrentMediaItemSeekable &&
             segDur != C.TIME_UNSET && rel < segDur
         ) {
+            retryJob?.cancel()
             p.seekTo(rel)
             return
         }
         val forward = target >= vodPositionMs()
+        // Near the end, a forward skip can only reopen at the last whole minute; if that isn't
+        // ahead of where playback already is, it would jump backwards, so stay put instead.
+        if (forward && catchupOffsetMinFor(target, roundUp = true) * 60_000L <= vodPositionMs()) return
+        // A reconnect queued before this seek would reopen the old position over it.
+        retryJob?.cancel()
         catchupReloadJob?.cancel()
         catchupPendingTargetMs = target
         catchupReloadJob = lifecycleScope.launch {
@@ -3408,10 +3414,16 @@ class PlayerActivity : AppCompatActivity() {
 
     /** Reopens the programme's timeshift URL at [targetMs] (from the programme start), keeping
      * the play/pause state and the URL's format (.ts, or .m3u8 after the format fallback). */
-    private suspend fun loadCatchupAt(targetMs: Long, roundUp: Boolean = false) {
+    /** The whole minute a timeshift URL for [targetMs] starts at — rounded up for forward moves,
+     * never past the programme's last minute. */
+    private fun catchupOffsetMinFor(targetMs: Long, roundUp: Boolean): Int {
         val maxMin = (catchupDurationMin - 1).coerceAtLeast(0)
         val wholeMin = (targetMs / 60_000L).toInt()
-        val offsetMin = (if (roundUp && targetMs % 60_000L != 0L) wholeMin + 1 else wholeMin).coerceIn(0, maxMin)
+        return (if (roundUp && targetMs % 60_000L != 0L) wholeMin + 1 else wholeMin).coerceIn(0, maxMin)
+    }
+
+    private suspend fun loadCatchupAt(targetMs: Long, roundUp: Boolean = false) {
+        val offsetMin = catchupOffsetMinFor(targetMs, roundUp)
         val base = try {
             repository.getTimeshiftUrl(streamId, catchupStartSec + offsetMin * 60L, catchupDurationMin - offsetMin)
         } catch (_: Exception) { catchupPendingTargetMs = -1L; return }
