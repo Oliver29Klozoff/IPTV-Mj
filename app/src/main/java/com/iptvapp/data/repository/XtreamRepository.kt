@@ -2617,6 +2617,7 @@ class XtreamRepository @Inject constructor(
         try {
             var xmlPrograms = emptyList<com.iptvapp.util.XmltvProgram>()
             var xmlChannelToStreamIds = emptyMap<String, List<Int>>()
+            var usedBackup = false
             for (url in sources) {
                 val (ch, pr) = XmltvFetcher.fetch(url)
                 android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): source ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} returned ${ch.size} channels, ${pr.size} programs")
@@ -2628,7 +2629,10 @@ class XtreamRepository @Inject constructor(
                     android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): source matched no local channels — trying the next")
                     continue
                 }
-                xmlPrograms = pr; xmlChannelToStreamIds = matches; break
+                xmlPrograms = pr; xmlChannelToStreamIds = matches
+                usedBackup = url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL &&
+                    url != server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl)
+                break
             }
             if (xmlPrograms.isEmpty()) {
                 android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): every source gave zero matched programs — provider may not offer XMLTV at these URLs, none of its channels matched, or the request failed silently (see XmltvFetcher.fetch, which swallows errors and returns empty)")
@@ -2644,7 +2648,16 @@ class XtreamRepository @Inject constructor(
             // behind under an old streamId when re-matching resolves a channel differently than a
             // previous fetch did. Placed after the empty-programs guard above so a failed/empty
             // fetch doesn't wipe out this server's still-good previous data for nothing.
-            db.epgDao().deleteAllForServer(serverIndex)
+            // The backup guide stands in for a provider guide that failed and only covers some of
+            // its channels, so it replaces just the channels it matched; the rest keep their cache
+            // until it expires or the provider's own guide comes back.
+            if (usedBackup) {
+                xmlChannelToStreamIds.values.flatten().distinct().chunked(500).forEach {
+                    db.epgDao().deleteForServerStreams(serverIndex, it)
+                }
+            } else {
+                db.epgDao().deleteAllForServer(serverIndex)
+            }
 
             android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")
 

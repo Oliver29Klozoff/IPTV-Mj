@@ -402,6 +402,11 @@ interface EpgDao {
     // dataset — there's no partial-update case where keeping old rows around is correct.
     @Query("DELETE FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun deleteAllForServer(serverIndex: Int = -1)
+
+    // The exception to the above: the public backup guide only covers some of a provider's
+    // channels, so it replaces just those and the rest keep their cached schedules.
+    @Query("DELETE FROM epg_entries WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)")
+    suspend fun deleteForServerStreams(serverIndex: Int, streamIds: List<Int>)
 }
 
 @Dao
