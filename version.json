@@ -1,7 +1,7 @@
 {
-  "versionCode": 539,
-  "versionName": "7.01",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.01/MKTV.apk",
-  "apkSha256": "afb9a7525978b303b66ec4bb2c4d118150d6bac74567a507048dfc2458e378f9",
-  "changelog": "Recordings about half the size (H.265), plus a Recording size setting: Compact, Standard or Original."
+  "versionCode": 540,
+  "versionName": "7.02",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.02/MKTV.apk",
+  "apkSha256": "dbc468f0893d06c6c682b781f7771cbe1d403c345bb6c7cd69da76cf284d58ed",
+  "changelog": "Clear \"account in use on another device\" message, and a backup public guide when your provider's guide is empty."
 }

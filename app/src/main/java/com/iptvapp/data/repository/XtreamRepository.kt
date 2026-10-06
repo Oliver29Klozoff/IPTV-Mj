@@ -892,7 +892,7 @@ class XtreamRepository @Inject constructor(
         if (c.isLoggedIn && c.serverUrl.isNotEmpty()) {
             sources.add(XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password))
         }
-        sources.addAll(prefs.getEpgUrls().filter { it.isNotBlank() })
+        sources.addAll(prefs.getEpgUrls().filter { it.isNotBlank() }.map(com.iptvapp.AppConstants::currentEpgUrl))
         if (sources.isEmpty()) return@withContext 0
 
         // Build lookup once, shared across every source — the same primary-server channel
@@ -939,6 +939,14 @@ class XtreamRepository @Inject constructor(
                 fetchXmltvFromUrl(url, byEpgId, byName)
             } catch (_: Exception) { 0 }
         }
+        // Provider guide down or empty (T-Rex's xmltv.php 404s, for one) — fall back to the public
+        // US feed rather than leaving the guide blank. Skipped on a fresh install with no channels
+        // cached yet, where nothing could match and it would just be a wasted 6.5 MB download.
+        val backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
+        if (totalCount == 0 && allChannels.isNotEmpty() && backupUrl !in sources) {
+            totalCount = try { fetchXmltvFromUrl(backupUrl, byEpgId, byName) } catch (_: Exception) { 0 }
+            android.util.Log.i("Xmltv", "primary: provider guide empty — backup guide matched $totalCount programs")
+        }
         recordFavoriteEpgDiffs(-1, beforeSnapshot)
         totalCount
     }
@@ -963,10 +971,17 @@ class XtreamRepository @Inject constructor(
         // EPG data for a channel with an ambiguous/non-matching name is far better than showing
         // confidently wrong data for it.
         val xmlChannelToStreamId = mutableMapOf<String, Int>()
+        // Id matches first, then names for whatever is left, one feed channel per local channel:
+        // a feed can list one network twice ("Bravo" and "Bravo HD" both normalize to "bravo"),
+        // and letting both write to the same channel interleaves two overlapping schedules.
+        val claimed = mutableSetOf<Int>()
         xmlChannels.forEach { xmlCh ->
-            val normXml = normalizeForMatch(xmlCh.displayName)
-            val resolved = byEpgId[xmlCh.id.lowercase()] ?: byName[normXml]
-            if (resolved != null) xmlChannelToStreamId[xmlCh.id] = resolved
+            byEpgId[xmlCh.id.lowercase()]?.let { xmlChannelToStreamId[xmlCh.id] = it; claimed += it }
+        }
+        xmlChannels.forEach { xmlCh ->
+            if (xmlCh.id in xmlChannelToStreamId) return@forEach
+            val resolved = byName[normalizeForMatch(xmlCh.displayName)] ?: return@forEach
+            if (claimed.add(resolved)) xmlChannelToStreamId[xmlCh.id] = resolved
         }
 
         val nowSec = System.currentTimeMillis() / 1000
@@ -2529,8 +2544,10 @@ class XtreamRepository @Inject constructor(
         // the default path either 404s or serves an empty feed for that panel. Falls back to the
         // default path if no custom URL is set, or if the custom one returns nothing.
         val sources = listOfNotNull(
-            server.epgUrl.takeIf { it.isNotBlank() },
-            XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password)
+            server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl),
+            XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password),
+            // Last resort when the provider's own guide is down or empty — see fetchXmltvEpg.
+            com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
         ).distinct()
 
         val channels = db.mergedChannelDao().getAllForServer(serverIndex)
@@ -2597,10 +2614,15 @@ class XtreamRepository @Inject constructor(
             // picked the wrong channel and silently wrote one network's schedule under a
             // completely different channel's streamId.
             val xmlChannelToStreamIds = mutableMapOf<String, List<Int>>()
+            // Id matches first, then names for unclaimed channels only — see fetchXmltvFromUrl.
+            val claimed = mutableSetOf<Int>()
             xmlChannels.forEach { xmlCh ->
-                val normXml = normalizeForMatch(xmlCh.displayName)
-                val resolved = byEpgId[xmlCh.id.lowercase()] ?: byName[normXml]
-                if (resolved != null) xmlChannelToStreamIds[xmlCh.id] = resolved
+                byEpgId[xmlCh.id.lowercase()]?.let { xmlChannelToStreamIds[xmlCh.id] = it; claimed += it }
+            }
+            xmlChannels.forEach { xmlCh ->
+                if (xmlCh.id in xmlChannelToStreamIds) return@forEach
+                val resolved = byName[normalizeForMatch(xmlCh.displayName)]?.filter { claimed.add(it) } ?: return@forEach
+                if (resolved.isNotEmpty()) xmlChannelToStreamIds[xmlCh.id] = resolved
             }
             android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size}/${xmlChannels.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")
 

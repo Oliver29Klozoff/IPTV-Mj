@@ -563,7 +563,7 @@ class SettingsActivity : AppCompatActivity() {
                 val url = binding.etEpgUrl.text.toString().trim()
                 prefs.setEpgUrl(url)
                 Toast.makeText(this@SettingsActivity, "EPG URL saved", Toast.LENGTH_SHORT).show()
-                binding.cbUseDefaultUsEpg.isChecked = (url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
+                binding.cbUseDefaultUsEpg.isChecked = (com.iptvapp.AppConstants.currentEpgUrl(url) == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
             }
         }
         binding.cbUseDefaultUsEpg.setOnCheckedChangeListener { _, checked ->
@@ -2625,7 +2625,7 @@ class SettingsActivity : AppCompatActivity() {
 
             isLoadingSettings = true
             try {
-                val savedEpgUrl = prefs.epgUrl.first()
+                val savedEpgUrl = com.iptvapp.AppConstants.currentEpgUrl(prefs.epgUrl.first())
                 binding.etEpgUrl.setText(savedEpgUrl)
                 binding.cbUseDefaultUsEpg.isChecked = (savedEpgUrl == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL)
                 when (prefs.preferredFormat.first()) {

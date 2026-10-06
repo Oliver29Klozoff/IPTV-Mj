@@ -1269,6 +1269,8 @@ class HomeActivity : AppCompatActivity() {
     // fullscreen button to treat series as live and skip resume-position entirely.
     private var currentMiniIsVod: Boolean = false
     private var miniRetryCount: Int = 0
+    // URL the "account in use" toast was last shown for — once per channel, not once per retry.
+    private var miniAccountInUseNoticeUrl = ""
     // Guards against recording a reliability outcome more than once per channel selection —
     // reset by playInMiniPlayer() whenever a *new* channel is chosen.
     private var lastReliabilityOutcomeStreamId: Int = -1
@@ -2066,6 +2068,7 @@ class HomeActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     binding.miniPlayerProgress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                    if (state == Player.STATE_READY) miniAccountInUseNoticeUrl = ""
                     // One reliability outcome per channel selection (guarded below) — reflects
                     // real usage, not just an explicit "check favorites health" ping.
                     if (state == Player.STATE_READY && !currentMiniIsVod &&
@@ -2083,7 +2086,15 @@ class HomeActivity : AppCompatActivity() {
                             "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
                             "message=${error.message} retryCount=$miniRetryCount url=$currentMiniUrl"
                     )
-                    if (!currentMiniIsVod && lastReliabilityOutcomeStreamId != currentMiniStreamId) {
+                    if (com.iptvapp.util.StreamErrors.isAccountInUse(error) && currentMiniUrl.isNotEmpty() &&
+                        miniAccountInUseNoticeUrl != currentMiniUrl
+                    ) {
+                        miniAccountInUseNoticeUrl = currentMiniUrl
+                        Toast.makeText(applicationContext, com.iptvapp.util.StreamErrors.ACCOUNT_IN_USE_MESSAGE, Toast.LENGTH_LONG).show()
+                    }
+                    if (!currentMiniIsVod && lastReliabilityOutcomeStreamId != currentMiniStreamId &&
+                        !com.iptvapp.util.StreamErrors.isAccountInUse(error)
+                    ) {
                         lastReliabilityOutcomeStreamId = currentMiniStreamId
                         val streamId = currentMiniStreamId
                         lifecycleScope.launch { viewModel.recordChannelOutcome(streamId, false) }

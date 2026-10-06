@@ -2608,7 +2608,8 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     override fun onPlayerError(error: PlaybackException) {
                         binding.progressBuffering.visibility = View.GONE
-                        if (!outcomeRecordedForThisPlayback) {
+                        // A busy account says nothing about this channel's own reliability.
+                        if (!outcomeRecordedForThisPlayback && !com.iptvapp.util.StreamErrors.isAccountInUse(error)) {
                             outcomeRecordedForThisPlayback = true
                             recordPlaybackOutcome(success = false)
                         }
@@ -2621,7 +2622,10 @@ class PlayerActivity : AppCompatActivity() {
                         // (see below) — this used to dead-end VOD here instead of using it,
                         // so a transient network blip on a movie meant manually backing out
                         // and reopening it instead of recovering on its own like live TV does.
-                        scheduleRetry(looksLikeConnectionLimitRejection(error))
+                        scheduleRetry(
+                            suspectConnectionLimit = looksLikeConnectionLimitRejection(error),
+                            accountInUse = com.iptvapp.util.StreamErrors.isAccountInUse(error)
+                        )
                     }
                 })
             }
@@ -2751,7 +2755,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun looksLikeConnectionLimitRejection(error: PlaybackException): Boolean {
         if (error.errorCode != PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) return false
         val cause = error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException ?: return false
-        return cause.responseCode == 403 || cause.responseCode == 429
+        return cause.responseCode == 403 || cause.responseCode == 429 ||
+            com.iptvapp.util.StreamErrors.isAccountInUse(error)
     }
 
     private var vodFormatFallbackTried = false
@@ -2887,7 +2892,11 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun scheduleRetry(suspectConnectionLimit: Boolean = false) {
+    /** [accountInUse] means the provider explicitly said the login is busy on another device
+     * (see StreamErrors) — the status line names that instead of a generic reconnect/give-up. */
+    private fun scheduleRetry(suspectConnectionLimit: Boolean = false, accountInUse: Boolean = false) {
+        val givenUpText = if (accountInUse) com.iptvapp.util.StreamErrors.ACCOUNT_IN_USE_MESSAGE
+            else "Stream unavailable after $maxRetries attempts"
         noteStallEvent()
         if (isVod && retryCount >= maxRetries) {
             val fallbackUrl = vodFormatFallbackUrl()
@@ -2912,7 +2921,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 return
             }
-            binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
+            binding.tvRetryStatus.text = givenUpText
             binding.tvRetryStatus.visibility = View.VISIBLE
             com.iptvapp.IptvApplication.logPlaybackEvent(
                 applicationContext,
@@ -2975,7 +2984,7 @@ class PlayerActivity : AppCompatActivity() {
                         if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
                         else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
                     } catch (_: Exception) {
-                        binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
+                        binding.tvRetryStatus.text = givenUpText
                         binding.tvRetryStatus.visibility = View.VISIBLE
                         return@launch
                     }
@@ -2987,7 +2996,7 @@ class PlayerActivity : AppCompatActivity() {
                         it.playWhenReady = true
                     }
                 } else {
-                    binding.tvRetryStatus.text = "Stream unavailable after $maxRetries attempts"
+                    binding.tvRetryStatus.text = givenUpText
                     binding.tvRetryStatus.visibility = View.VISIBLE
                     com.iptvapp.IptvApplication.logPlaybackEvent(
                         applicationContext,
@@ -3027,6 +3036,8 @@ class PlayerActivity : AppCompatActivity() {
             } else null
             binding.tvRetryStatus.text = if (activeRecording != null) {
                 "⏺ Can't connect — \"${activeRecording.channelName}\" is recording and your provider allows only one stream at a time"
+            } else if (accountInUse) {
+                "⚠ Account in use on another device — your provider allows one stream at a time. Retrying in ${delaySec}s…"
             } else {
                 "● Reconnecting in ${delaySec}s$suffix…"
             }
@@ -3034,7 +3045,7 @@ class PlayerActivity : AppCompatActivity() {
             com.iptvapp.IptvApplication.logPlaybackEvent(
                 applicationContext,
                 "RETRY SCHEDULED: isVod=$isVod streamId=$streamId url=$streamUrl attempt=$attempt delayMs=$backoffMs " +
-                    "playerState=${player?.playbackState} suspectConnectionLimit=$suspectConnectionLimit activeRecording=${activeRecording?.channelName}"
+                    "playerState=${player?.playbackState} suspectConnectionLimit=$suspectConnectionLimit accountInUse=$accountInUse activeRecording=${activeRecording?.channelName}"
             )
             delay(backoffMs)
             retryCount++

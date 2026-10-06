@@ -118,6 +118,8 @@ class TvHomeActivity : AppCompatActivity() {
     // fixed on phone in HomeActivity).
     private var currentMiniIsVod: Boolean = false
     private var miniRetryCount: Int = 0
+    // URL the "account in use" toast was last shown for — once per channel, not once per retry.
+    private var miniAccountInUseNoticeUrl = ""
     private var miniPlayJob: kotlinx.coroutines.Job? = null
     private var epgRefreshJob: kotlinx.coroutines.Job? = null
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
@@ -784,7 +786,7 @@ class TvHomeActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(state: Int) {
                     binding.tvMiniPlayerProgress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
-                    if (state == Player.STATE_READY) miniRetryCount = 0
+                    if (state == Player.STATE_READY) { miniRetryCount = 0; miniAccountInUseNoticeUrl = "" }
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     com.iptvapp.IptvApplication.logPlaybackEvent(
@@ -793,6 +795,12 @@ class TvHomeActivity : AppCompatActivity() {
                             "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
                             "message=${error.message} retryCount=$miniRetryCount url=$currentMiniUrl"
                     )
+                    if (com.iptvapp.util.StreamErrors.isAccountInUse(error) && currentMiniUrl.isNotEmpty() &&
+                        miniAccountInUseNoticeUrl != currentMiniUrl
+                    ) {
+                        miniAccountInUseNoticeUrl = currentMiniUrl
+                        Toast.makeText(applicationContext, com.iptvapp.util.StreamErrors.ACCOUNT_IN_USE_MESSAGE, Toast.LENGTH_LONG).show()
+                    }
                     if (miniRetryCount >= 5 || currentMiniUrl.isEmpty()) return
                     miniRetryCount++
                     miniPlayJob?.cancel()

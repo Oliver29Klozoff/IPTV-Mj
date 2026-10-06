@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v7.02 - 2026-10-06
+- **New**: when a channel won't play because your provider's one stream is already in use on
+  another device, the player now says so ("Account in use on another device") instead of a generic
+  "Reconnecting…" or "Stream unavailable". The phone and TV mini players show the same message
+  once per channel. These failures no longer count against the channel's reliability score.
+- **New**: backup guide. If a provider's own guide is down or empty, MKTV now fills the guide from
+  a free public US listing (about 770 networks, around 4 days ahead) instead of leaving it blank.
+- **Fixed**: the "Use the default US guide" option in EPG settings loaded nothing. Its feed had
+  grown to over 500 MB and timed out; it now uses a 6.5 MB feed. If you had it on, it switches over
+  by itself.
+- **Fixed**: a guide feed that lists the same network twice (for example "Bravo" and "Bravo HD")
+  could show two overlapping schedules on one channel.
+
 ## v7.01 - 2026-10-04
 - **New**: recordings are about half the size. After a recording finishes it's now re-encoded as
   H.265, so a 45-minute 1080p show comes out around 450-500 MB instead of about 1 GB, with about
