@@ -106,9 +106,13 @@ class AudioOnlyService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        // Video stays selected — at the smallest variant — but is never shown (there's no surface).
+        // Most IPTV HLS variants carry audio and video together, and the variant is chosen through
+        // the video selection: disabling video outright would leave the bitrate unconstrained.
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
             .setForceLowestBitrate(true)
+            .setMaxVideoSize(1, 1)
+            .setMaxVideoBitrate(1)
             .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
             .build()
         player.addListener(object : Player.Listener {
