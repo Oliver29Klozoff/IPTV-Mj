@@ -3387,7 +3387,12 @@ class PlayerActivity : AppCompatActivity() {
             p.seekTo(if (dur != C.TIME_UNSET && dur > 0) targetMs.coerceIn(0L, dur) else targetMs.coerceAtLeast(0L))
             return
         }
+        // Direction is the request's, decided before clamping: a forward skip clamped behind the
+        // current position near the end must not turn into a rewind.
+        val current = vodPositionMs()
+        val forward = targetMs >= current
         val target = targetMs.coerceIn(0L, (vodDurationMs() - 5_000L).coerceAtLeast(0L))
+        if (forward && target <= current) return
         val rel = target - catchupOffsetSec * 1000L
         val segDur = p.duration
         if (catchupReloadJob?.isActive != true && rel >= 0 && p.isCurrentMediaItemSeekable &&
@@ -3397,10 +3402,9 @@ class PlayerActivity : AppCompatActivity() {
             p.seekTo(rel)
             return
         }
-        val forward = target >= vodPositionMs()
         // Near the end, a forward skip can only reopen at the last whole minute; if that isn't
         // ahead of where playback already is, it would jump backwards, so stay put instead.
-        if (forward && catchupOffsetMinFor(target, roundUp = true) * 60_000L <= vodPositionMs()) return
+        if (forward && catchupOffsetMinFor(target, roundUp = true) * 60_000L <= current) return
         // A reconnect queued before this seek would reopen the old position over it.
         retryJob?.cancel()
         catchupReloadJob?.cancel()
