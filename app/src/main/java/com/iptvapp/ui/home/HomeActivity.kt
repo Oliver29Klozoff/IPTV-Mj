@@ -2214,6 +2214,11 @@ class HomeActivity : AppCompatActivity() {
                 // Rotated while listening: the sound is still playing in AudioOnlyService.
                 if (miniListening && com.iptvapp.service.AudioOnlyService.running.value) {
                     paintMiniListen()
+                    // Setting the label above hid the extras (headphones included); bring them back.
+                    if (!currentMiniIsVod && currentMiniServerIndex == -1 && currentMiniStreamId >= 0) {
+                        val sid = currentMiniStreamId
+                        lifecycleScope.launch { refreshMiniExtras(sid) }
+                    }
                     return
                 }
                 miniPlayer?.setMediaItem(
@@ -5094,6 +5099,9 @@ class HomeActivity : AppCompatActivity() {
         catchupStartSec: Long = 0L, catchupDurationMin: Int = 0, catchupChannelName: String = "",
         zapFromStreamId: Int = -1
     ) {
+        // Full screen takes the stream — in an external player (VLC, MX) too, which can't stop the
+        // audio-only session itself.
+        stopMiniListening(resumeVideo = false)
         if (externalPlayerChoice != "internal") {
             launchExternalPlayer(url, title, externalPlayerChoice, isVod)
             return
