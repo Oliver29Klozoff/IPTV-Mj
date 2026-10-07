@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.09 - 2026-10-06
+- **Fixed**: replays started at the wrong time, so the show playing didn't match the one you picked
+  in the guide. The replay start was sent in UTC, but providers read it in their server's own time
+  zone. MKTV now asks your provider for its time zone and uses it.
+
 ## v7.08 - 2026-10-06
 - **Fixed**: show alerts missed titles with accented or non-English letters when the capitals
   differed from your word (for example "Fútbol" and "FÚTBOL").

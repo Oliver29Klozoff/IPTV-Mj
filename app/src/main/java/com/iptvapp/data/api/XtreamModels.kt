@@ -24,7 +24,8 @@ data class ServerInfo(
     @SerializedName("https_port") val httpsPort: String?,
     @SerializedName("server_protocol") val protocol: String,
     @SerializedName("rtmp_port") val rtmpPort: String?,
-    @SerializedName("timezone") val timezone: String,
+    // Nullable: some panels omit it, and Gson would otherwise leave a null in a non-null field.
+    @SerializedName("timezone") val timezone: String?,
     @SerializedName("timestamp_now") val timestampNow: Long
 )
 

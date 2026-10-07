@@ -1129,7 +1129,25 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun getTimeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
-        urlBuilder().timeshiftUrl(streamId, startTimestampSec, durationMinutes)
+        urlBuilder().timeshiftUrl(streamId, startTimestampSec, durationMinutes, serverTimeZone())
+
+    // The primary panel's time zone (server_info.timezone), cached per server URL for the session.
+    @Volatile private var serverTimeZoneCache: Pair<String, java.util.TimeZone>? = null
+
+    /** Time zone the primary panel reads timeshift start times in. Asked once per server and
+     * cached; UTC (the old behavior) if the panel doesn't say or can't be reached. */
+    private suspend fun serverTimeZone(): java.util.TimeZone = withContext(Dispatchers.IO) {
+        val c = creds()
+        serverTimeZoneCache?.takeIf { it.first == c.serverUrl }?.let { return@withContext it.second }
+        val id = try {
+            api.authenticate(XtreamUrlBuilder(c.serverUrl, c.username, c.password).apiUrl(), c.username, c.password)
+                .body()?.serverInfo?.timezone?.trim()?.takeIf { it.isNotEmpty() }
+        } catch (_: Exception) { null }
+        val utc = java.util.TimeZone.getTimeZone("UTC")
+        if (id == null) return@withContext utc
+        // getTimeZone falls back to GMT for an ID it doesn't know; GMT is UTC, the old behavior.
+        java.util.TimeZone.getTimeZone(id).also { serverTimeZoneCache = c.serverUrl to it }
+    }
 
     suspend fun saveFavOrder(orderedIds: List<Int>) {
         orderedIds.forEachIndexed { index, streamId ->

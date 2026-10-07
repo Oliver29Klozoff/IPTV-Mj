@@ -21,9 +21,17 @@ class XtreamUrlBuilder(
     fun seriesStreamUrl(episodeId: String, containerExtension: String): String =
         "${serverUrl.trimEnd('/')}/series/$username/$password/$episodeId.$containerExtension"
 
-    fun timeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String {
+    /** The start goes in as wall-clock time in the panel's own time zone ([serverTimeZone], from
+     * player_api's server_info.timezone) — that's how Xtream panels read it. Formatting it in UTC
+     * started every replay hours away from the show picked in the guide. */
+    fun timeshiftUrl(
+        streamId: Int,
+        startTimestampSec: Long,
+        durationMinutes: Int,
+        serverTimeZone: TimeZone = TimeZone.getTimeZone("UTC")
+    ): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd:HH-mm", Locale.US)
-        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        sdf.timeZone = serverTimeZone
         val startStr = sdf.format(Date(startTimestampSec * 1000L))
         return "${serverUrl.trimEnd('/')}/timeshift/$username/$password/$durationMinutes/$startStr/$streamId.ts"
     }
