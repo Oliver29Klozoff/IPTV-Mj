@@ -2220,13 +2220,17 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         if (isVod || serverIndex != -1 || streamId == -1 || castSession != null || audioOnly) return
-        lifecycleScope.launch {
-            val ch = repository.getChannelById(streamId)
+        val sid = streamId
+        // Tracked as catchupReloadJob so LIVE (backToLive) can cancel a start that's still loading.
+        catchupReloadJob?.cancel()
+        catchupReloadJob = lifecycleScope.launch {
+            val ch = repository.getChannelById(sid)
             if (ch?.tvArchive != 1) {
                 Toast.makeText(this@PlayerActivity, "This channel doesn't keep past shows, so it can't start over", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            if (isVod) return@launch
+            // Still the same live channel? (It can change while the lookup above runs.)
+            if (isVod || streamId != sid || serverIndex != -1) return@launch
             startedOverFromLive = true
             liveTitleBeforeStartOver = streamTitle
             catchupLiveUrl = streamUrl
@@ -3627,6 +3631,8 @@ class PlayerActivity : AppCompatActivity() {
         val base = try {
             repository.getTimeshiftUrl(streamId, catchupStartSec + offsetMin * 60L, catchupDurationMin - offsetMin)
         } catch (_: Exception) { catchupPendingTargetMs = -1L; return }
+        // Left the replay (LIVE, or a Start Over cancelled) while the URL was being built.
+        if (!isCatchup) return
         val url = if (streamUrl.endsWith(".m3u8", ignoreCase = true)) base.substringBeforeLast('.') + ".m3u8" else base
         catchupOffsetSec = offsetMin * 60L
         catchupPendingSeekMs = (targetMs - offsetMin * 60_000L).coerceAtLeast(0L)
