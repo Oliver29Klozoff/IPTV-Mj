@@ -1159,6 +1159,46 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    // ── Voice tune (v7.14): the mic in the search box (util/VoiceTuner) ──
+
+    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val heard = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+        if (result.resultCode != Activity.RESULT_OK || heard.isNullOrEmpty()) return@registerForActivityResult
+        lifecycleScope.launch {
+            val target = viewModel.resolveVoice(heard)
+            if (target == null) {
+                Toast.makeText(this@HomeActivity, "Couldn't find a channel or show for \"${heard.first()}\"", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            Toast.makeText(
+                this@HomeActivity,
+                target.showTitle?.let { "$it — on ${target.channelName}" } ?: "Tuning ${target.channelName}",
+                Toast.LENGTH_SHORT
+            ).show()
+            if (target.serverIndex == -1) {
+                val ch = viewModel.getChannelById(target.streamId) ?: return@launch
+                playInMiniPlayer(ch)
+                viewModel.markChannelWatched(ch.streamId)
+                viewModel.setCurrentlyPlaying(ch.streamId)
+            } else {
+                viewModel.getMergedChannelByIndexAndId(target.serverIndex, target.streamId)?.let { playMergedChannel(it) }
+            }
+        }
+    }
+
+    private fun startVoiceTune() {
+        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Say a channel or a show")
+            putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+        }
+        try {
+            voiceLauncher.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(this, "Voice input isn't available on this device", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private val timelineLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@registerForActivityResult
@@ -3692,6 +3732,8 @@ class HomeActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) {
                 val query = s.toString()
                 binding.btnClearSearch?.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+                // The mic and the clear button share the end of the box: mic when it's empty.
+                binding.btnVoiceSearch?.visibility = if (query.isEmpty()) View.VISIBLE else View.GONE
                 if (query.length >= 2 || query.isEmpty()) {
                     searchDebounceJob?.cancel()
                     searchDebounceJob = lifecycleScope.launch {
@@ -3701,6 +3743,7 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         })
+        binding.btnVoiceSearch?.setOnClickListener { startVoiceTune() }
         binding.btnClearSearch?.setOnClickListener {
             binding.etSearch.setText("")
             binding.etSearch.clearFocus()

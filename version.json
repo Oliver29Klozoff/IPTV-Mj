@@ -1,7 +1,7 @@
 {
-  "versionCode": 551,
-  "versionName": "7.13",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.13/MKTV.apk",
-  "apkSha256": "3b7c642d596f89e6033660b0a25c9ad321d753677f05c0fc726623c66eff7d99",
-  "changelog": "Sports Now: every game on now and coming up, across your providers, grouped by league. Tap to tune."
+  "versionCode": 552,
+  "versionName": "7.14",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.14/MKTV.apk",
+  "apkSha256": "d2de626dced209788a05cb29b855471584f0c9ac9610040b6f7f7662ac920771",
+  "changelog": "Voice tune: say a channel, a number, or what's on (Yankees game) and MKTV tunes it."
 }

@@ -1134,6 +1134,15 @@ class HomeViewModel @Inject constructor(
     suspend fun getSeriesEpisodeUrl(episodeId: String, containerExtension: String): String =
         repository.getSeriesEpisodeUrl(episodeId, containerExtension)
 
+    /** Voice tune: what was said -> a channel (util/VoiceTuner), over the main provider's channels
+     * and the enabled other providers' (a disabled provider's rows stay in the table). */
+    suspend fun resolveVoice(phrases: List<String>): com.iptvapp.util.VoiceTuner.Target? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val enabled = prefs.enabledExtraServerIndices.first()
+            val merged = db.mergedChannelDao().getAll().first().filter { it.serverIndex == -1 || it.serverIndex in enabled }
+            com.iptvapp.util.VoiceTuner.resolve(db, phrases, repository.getAllChannels().first(), merged)
+        }
+
     suspend fun getMergedChannelByIndexAndId(serverIndex: Int, streamId: Int) =
         repository.getMergedChannelByIndexAndId(serverIndex, streamId)
 

@@ -154,6 +154,46 @@ class TvHomeActivity : AppCompatActivity() {
 
     // What the guide grid picked: a primary channel, a merged (other-provider) channel, or a catch-up
     // replay — same contract as HomeActivity.timelineLauncher (see EpgTimelineActivity.playChannel).
+    // ── Voice tune (v7.14): VOICE in the sidebar, or the remote's search key (util/VoiceTuner) ──
+
+    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val heard = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+        if (result.resultCode != Activity.RESULT_OK || heard.isNullOrEmpty()) return@registerForActivityResult
+        lifecycleScope.launch {
+            val target = viewModel.resolveVoice(heard)
+            if (target == null) {
+                Toast.makeText(this@TvHomeActivity, "Couldn't find a channel or show for \"${heard.first()}\"", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            Toast.makeText(
+                this@TvHomeActivity,
+                target.showTitle?.let { "$it — on ${target.channelName}" } ?: "Tuning ${target.channelName}",
+                Toast.LENGTH_SHORT
+            ).show()
+            if (target.serverIndex == -1) {
+                val ch = viewModel.getChannelById(target.streamId) ?: return@launch
+                playInMiniPlayer(ch)
+                viewModel.markChannelWatched(ch.streamId)
+                viewModel.setCurrentlyPlaying(ch.streamId)
+            } else {
+                viewModel.getMergedChannelByIndexAndId(target.serverIndex, target.streamId)?.let { playMergedChannel(it) }
+            }
+        }
+    }
+
+    private fun startVoiceTune() {
+        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Say a channel or a show")
+            putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+        }
+        try {
+            voiceLauncher.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(this, "Voice input isn't available on this device", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private val guideLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
         val data = result.data ?: return@registerForActivityResult
@@ -1521,7 +1561,7 @@ class TvHomeActivity : AppCompatActivity() {
         if (sidebarContentWidthPx > 0) return sidebarContentWidthPx
         val buttons = listOf(
             binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
-            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvSports, binding.btnTvRecordings, binding.btnTvSettings
+            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvSports, binding.btnTvVoice, binding.btnTvRecordings, binding.btnTvSettings
         )
         val density = resources.displayMetrics.density
         val paint = android.graphics.Paint().apply {
@@ -1812,6 +1852,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvSeries,
             binding.btnTvGuide,
             binding.btnTvSports,
+            binding.btnTvVoice,
             binding.btnTvRecordings,
             binding.btnTvSettings
         ).filter { it.visibility == View.VISIBLE }
@@ -1848,6 +1889,7 @@ class TvHomeActivity : AppCompatActivity() {
         binding.btnTvSports.setOnClickListener {
             guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.SportsActivity::class.java))
         }
+        binding.btnTvVoice.setOnClickListener { startVoiceTune() }
         binding.btnTvProviders.setOnClickListener { selectSection(Section.PROVIDERS) }
         // Phone reaches these via a dedicated What's On button's click/long-click — TV has no
         // such button (Guide is a sidebar entry, not a tab), so both live behind one long-press
@@ -2376,6 +2418,11 @@ class TvHomeActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The remote's search / mic key, where the box passes it to the app: voice tune.
+        if (event.keyCode == KeyEvent.KEYCODE_SEARCH) {
+            if (event.action == KeyEvent.ACTION_UP) startVoiceTune()
+            return true
+        }
         // Movies full-screen browse (tvMoviesFullScreen) is a separate, simpler screen that
         // doesn't participate in navState/tvLeftPanel/tvChanPanel at all — it's just a search
         // bar, a chip row, and a grid, all of which default Android focus search already handles

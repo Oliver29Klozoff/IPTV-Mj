@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.14 - 2026-10-07
+- **New**: Voice tune. Tap the **mic** in the search box (phone and car box), or **VOICE** in the
+  TV sidebar (or the remote's search button, where the box passes it on), and say:
+  - a channel ("ESPN", "Fox News"),
+  - a channel number ("205"), or
+  - something that's on ("Yankees game").
+
+  MKTV tunes the match in the mini player, preferring your favorites.
+
 ## v7.13 - 2026-10-07
 - **New**: Sports Now. Every game on now and in the next 18 hours, across all your providers, in
   one list: what's live first, then upcoming games by league (NFL, college football, NBA, MLB,

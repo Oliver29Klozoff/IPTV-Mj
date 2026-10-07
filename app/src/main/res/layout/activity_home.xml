@@ -139,6 +139,19 @@
                 android:tint="#888888"
                 android:contentDescription="Clear search"
                 android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/btnVoiceSearch"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center_vertical|end"
+                android:layout_marginEnd="2dp"
+                android:background="@drawable/home_tab_bg"
+                android:src="@drawable/ic_mic"
+                android:tint="#AAAAAA"
+                android:contentDescription="Voice tune: say a channel or a show"
+                android:padding="5dp"
+                android:scaleType="fitCenter" />
         </FrameLayout>
 
     </LinearLayout>
