@@ -92,14 +92,31 @@ class SportsActivity : AppCompatActivity() {
         }
         binding.tvSportsEmpty.visibility = View.GONE
         binding.rvSports.visibility = View.VISIBLE
-        val first = binding.rvSports.adapter == null
-        // Keep the remote's place across an update.
-        val focusedPos = binding.rvSports.focusedChild?.let { binding.rvSports.getChildAdapterPosition(it) } ?: -1
-        binding.rvSports.adapter = SportsAdapter(items, accent) { pick(it) }
-        val target = if (first) 1 else focusedPos.coerceAtMost(items.size - 1)
-        if (target >= 0) binding.rvSports.post {
-            (binding.rvSports.findViewHolderForAdapterPosition(target)?.itemView
-                ?: binding.rvSports.getChildAt(1))?.requestFocus()
+        val existing = binding.rvSports.adapter as? SportsAdapter
+        if (existing == null) {
+            binding.rvSports.adapter = SportsAdapter(items, accent) { pick(it) }
+            binding.rvSports.post { binding.rvSports.getChildAt(1)?.requestFocus() }
+            return
+        }
+        // An update while browsing: same adapter, same scroll, and focus back on the same game
+        // (by identity — rows above it may have come or gone), wherever it now sits.
+        val focused = binding.rvSports.focusedChild
+            ?.let { binding.rvSports.getChildAdapterPosition(it) }
+            ?.let { existing.itemAt(it) as? SportsFinder.Game }
+        val scroll = binding.rvSports.layoutManager?.onSaveInstanceState()
+        existing.update(items)
+        binding.rvSports.layoutManager?.onRestoreInstanceState(scroll)
+        if (focused != null) {
+            val pos = items.indexOfFirst {
+                it is SportsFinder.Game && it.title == focused.title && it.startMs == focused.startMs &&
+                    it.channel.serverIndex == focused.channel.serverIndex && it.channel.streamId == focused.channel.streamId
+            }
+            if (pos >= 0) binding.rvSports.post {
+                binding.rvSports.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus()
+                    ?: run { binding.rvSports.scrollToPosition(pos); binding.rvSports.post {
+                        binding.rvSports.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus()
+                    } }
+            }
         }
     }
 
@@ -140,12 +157,20 @@ class SportsActivity : AppCompatActivity() {
 
     /** League headers (String) and game rows (SportsFinder.Game). Rows are focusable for a remote. */
     private class SportsAdapter(
-        private val items: List<Any>,
+        private var items: List<Any>,
         private val accent: Int,
         private val onPick: (SportsFinder.Game) -> Unit
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
         private class Holder(view: View) : RecyclerView.ViewHolder(view)
+
+        fun itemAt(position: Int): Any? = items.getOrNull(position)
+
+        .annotation.SuppressLint("NotifyDataSetChanged")
+        fun update(newItems: List<Any>) {
+            items = newItems
+            notifyDataSetChanged()
+        }
 
         private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
 
