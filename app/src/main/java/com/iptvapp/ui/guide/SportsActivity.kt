@@ -79,7 +79,7 @@ class SportsActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
         // What's on screen depends on these: which rows, in which section, live or not.
         val signature = items.joinToString("|") {
-            if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.streamId}:${it.isLive(now)}" else it.toString()
+            if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.serverIndex}:${it.channel.streamId}:${it.isLive(now)}" else it.toString()
         }
         if (signature == shownSignature) return
         shownSignature = signature
@@ -166,7 +166,7 @@ class SportsActivity : AppCompatActivity() {
 
         fun itemAt(position: Int): Any? = items.getOrNull(position)
 
-        .annotation.SuppressLint("NotifyDataSetChanged")
+        @android.annotation.SuppressLint("NotifyDataSetChanged")
         fun update(newItems: List<Any>) {
             items = newItems
             notifyDataSetChanged()
