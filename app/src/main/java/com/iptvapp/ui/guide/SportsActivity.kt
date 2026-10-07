@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.R
@@ -60,16 +61,45 @@ class SportsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val accent = com.iptvapp.util.RackAccent.load(prefs)
             binding.tvSportsTitle.setTextColor(accent.start)
-            val games = withContext(Dispatchers.IO) { SportsFinder.find(db) }
-            if (games.isEmpty()) {
-                binding.tvSportsEmpty.text =
-                    "No games found in the guide right now. If the guide is empty or old, refresh it from the Guide tab and look again."
-                return@launch
+            // Games start and end while this is open: look again every minute while it's on screen
+            // (and on coming back to it), updating only when the list actually changed.
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (true) {
+                    show(withContext(Dispatchers.IO) { SportsFinder.find(db) }, accent.start)
+                    kotlinx.coroutines.delay(60_000L)
+                }
             }
-            binding.tvSportsEmpty.visibility = View.GONE
-            binding.rvSports.visibility = View.VISIBLE
-            binding.rvSports.adapter = SportsAdapter(buildItems(games), accent.start) { pick(it) }
-            binding.rvSports.post { binding.rvSports.getChildAt(1)?.requestFocus() }
+        }
+    }
+
+    private var shownSignature: String? = null
+
+    private fun show(games: List<SportsFinder.Game>, accent: Int) {
+        val items = buildItems(games)
+        val now = System.currentTimeMillis()
+        // What's on screen depends on these: which rows, in which section, live or not.
+        val signature = items.joinToString("|") {
+            if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.streamId}:${it.isLive(now)}" else it.toString()
+        }
+        if (signature == shownSignature) return
+        shownSignature = signature
+        if (games.isEmpty()) {
+            binding.rvSports.visibility = View.GONE
+            binding.tvSportsEmpty.visibility = View.VISIBLE
+            binding.tvSportsEmpty.text =
+                "No games found in the guide right now. If the guide is empty or old, refresh it from the Guide tab and look again."
+            return
+        }
+        binding.tvSportsEmpty.visibility = View.GONE
+        binding.rvSports.visibility = View.VISIBLE
+        val first = binding.rvSports.adapter == null
+        // Keep the remote's place across an update.
+        val focusedPos = binding.rvSports.focusedChild?.let { binding.rvSports.getChildAdapterPosition(it) } ?: -1
+        binding.rvSports.adapter = SportsAdapter(items, accent) { pick(it) }
+        val target = if (first) 1 else focusedPos.coerceAtMost(items.size - 1)
+        if (target >= 0) binding.rvSports.post {
+            (binding.rvSports.findViewHolderForAdapterPosition(target)?.itemView
+                ?: binding.rvSports.getChildAt(1))?.requestFocus()
         }
     }
 
