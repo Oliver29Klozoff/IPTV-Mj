@@ -181,6 +181,7 @@ class PreferencesManager @Inject constructor(
         val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
         val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
         val PREFER_RELIABLE_COPY = booleanPreferencesKey("prefer_reliable_copy")
+        val SHOW_ALERT_KEYWORDS = stringPreferencesKey("show_alert_keywords")
         val CHANNEL_ZAP_DEBOUNCE_MS = intPreferencesKey("channel_zap_debounce_ms")
         val LIVE_RECONNECT_SPEED = stringPreferencesKey("live_reconnect_speed")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
@@ -511,6 +512,18 @@ class PreferencesManager @Inject constructor(
             if (primary.isNotEmpty()) urls.add(primary)
         }
         return urls
+    }
+
+    // Show alerts: words or titles to watch the guide for (see util/ShowAlerts). JSON array.
+    suspend fun getShowAlertKeywords(): List<String> {
+        val arr = org.json.JSONArray(context.dataStore.data.first()[Keys.SHOW_ALERT_KEYWORDS] ?: "[]")
+        return (0 until arr.length()).map { arr.getString(it) }.filter { it.isNotBlank() }
+    }
+
+    suspend fun setShowAlertKeywords(keywords: List<String>) {
+        val arr = org.json.JSONArray()
+        keywords.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }.forEach { arr.put(it) }
+        context.dataStore.edit { it[Keys.SHOW_ALERT_KEYWORDS] = arr.toString() }
     }
 
     suspend fun saveEpgUrls(urls: List<String>) {

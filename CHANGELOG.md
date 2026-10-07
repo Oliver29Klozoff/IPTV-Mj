@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.06 - 2026-10-06
+- **New**: show alerts. In Settings → Stream & EPG → **Show alerts**, add words or show names
+  ("Yankees", "Chicago P.D."). When a show with that in its title turns up in the guide within the
+  next two days, you get a notification with **Watch** and **Record**. The same game on several
+  channels is one alert, naming your favorite channel first. You won't get the same airing twice.
+  Alerts are checked whenever the guide refreshes, and right away when you add a word.
+
 ## v7.05 - 2026-10-06
 - **New**: if you tune a channel that has been failing lately and another copy of the same channel
   (another quality or feed of it) has been playing reliably, MKTV plays that copy instead and

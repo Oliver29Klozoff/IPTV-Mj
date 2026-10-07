@@ -446,6 +446,33 @@
                                 android:layout_height="wrap_content"
                                 android:text="5 min before" />
                         </LinearLayout>
+                        <LinearLayout
+                            android:id="@+id/rowShowAlerts"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Show alerts" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Get notified when a show matching your words is in the guide" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvShowAlertsValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Off" />
+                        </LinearLayout>
                         <!-- Disclosure row: opens the URL field below it. -->
                         <LinearLayout
                             android:id="@+id/hdrEpgUrl"

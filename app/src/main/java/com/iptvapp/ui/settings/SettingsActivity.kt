@@ -247,6 +247,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Refresh Only Missing Guide Data", 0, null, R.id.cbRefreshMissingOnly),
             SettingSearchEntry("Auto Refresh Schedule", 0, null, R.id.rgAutoEpgRefresh),
             SettingSearchEntry("Remind Me Lead Time", 0, null, R.id.rowReminderLeadTime),
+            SettingSearchEntry("Show Alerts", 0, null, R.id.rowShowAlerts),
             SettingSearchEntry("EPG URL", 0, R.id.hdrEpgUrl, R.id.hdrEpgUrl),
             SettingSearchEntry("Default US Guide", 0, R.id.hdrEpgUrl, R.id.cbUseDefaultUsEpg),
             SettingSearchEntry("Stream Format", 0, null, R.id.rgFormat),
@@ -2487,6 +2488,73 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun reminderLeadTimeLabel(minutes: Int) = if (minutes <= 0) "At start time" else "$minutes min before"
 
+    private suspend fun refreshShowAlertsValue() {
+        val n = prefs.getShowAlertKeywords().size
+        binding.tvShowAlertsValue.text = when (n) { 0 -> "Off"; 1 -> "1 word"; else -> "$n words" }
+    }
+
+    /** Show alerts (util/ShowAlerts): the words list — tap one to remove it, or add another. */
+    private fun showShowAlertsDialog() {
+        lifecycleScope.launch {
+            val keywords = prefs.getShowAlertKeywords().toMutableList()
+            val labels = (listOf("＋ Add a word or show") + keywords.map { "✕  $it" }).toTypedArray()
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle(if (keywords.isEmpty()) "Show alerts" else "Show alerts — tap a word to remove it")
+                .setItems(labels) { _, which ->
+                    if (which == 0) {
+                        promptAddShowAlert(keywords)
+                    } else {
+                        lifecycleScope.launch {
+                            keywords.removeAt(which - 1)
+                            prefs.setShowAlertKeywords(keywords)
+                            refreshShowAlertsValue()
+                            showShowAlertsDialog()
+                        }
+                    }
+                }
+                .setNegativeButton("Done", null)
+                .show()
+        }
+    }
+
+    private fun promptAddShowAlert(current: List<String>) {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. Yankees, Chicago P.D."
+            isSingleLine = true
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Alert me about")
+            .setMessage("You'll get a notification when a show with this in its title is in the guide in the next two days.")
+            .setView(android.widget.FrameLayout(this).apply {
+                val pad = (20 * resources.displayMetrics.density).toInt()
+                setPadding(pad, 0, pad, 0)
+                addView(input)
+            })
+            .setPositiveButton("Add") { _, _ ->
+                val word = input.text.toString().trim()
+                if (word.length < 3) {
+                    Toast.makeText(this, "Use at least 3 letters", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                lifecycleScope.launch {
+                    prefs.setShowAlertKeywords(current + word)
+                    refreshShowAlertsValue()
+                    // Check the guide that's already loaded right away, not at the next refresh.
+                    val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.iptvapp.util.ShowAlerts.scan(applicationContext, db, prefs)
+                    }
+                    Toast.makeText(
+                        this@SettingsActivity,
+                        if (found > 0) "Added — $found matching show(s) in the guide now" else "Added — you'll be notified when it shows up",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    showShowAlertsDialog()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showReminderLeadTimeDialog() {
         lifecycleScope.launch {
             val current = prefs.reminderLeadMinutes.first()
@@ -2673,6 +2741,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
                 binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
                 binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
+                refreshShowAlertsValue()
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
                 val dohEnabled = prefs.dohEnabled.first()
                 binding.cbDohEnabled.isChecked = dohEnabled
@@ -3892,6 +3961,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.rowHiddenChannels.setOnClickListener { showHiddenChannelsDialog() }
         refreshHiddenChannelsCount()
         binding.rowReminderLeadTime.setOnClickListener { showReminderLeadTimeDialog() }
+        binding.rowShowAlerts.setOnClickListener { showShowAlertsDialog() }
         binding.switchPipEnabled.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setPipEnabled(enabled) }
@@ -4263,6 +4333,7 @@ class SettingsActivity : AppCompatActivity() {
             put("audioPassthroughFallbackEnabled", prefs.audioPassthroughFallbackEnabled.first())
             put("autoplayNextEpisodeEnabled", prefs.autoplayNextEpisodeEnabled.first())
             put("preferReliableCopy", prefs.preferReliableCopy.first())
+            put("showAlertKeywords", org.json.JSONArray(prefs.getShowAlertKeywords()))
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
             put("crashReportingEnabled", prefs.crashReportingEnabled.first())
@@ -4479,6 +4550,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("audioPassthroughFallbackEnabled")) prefs.setAudioPassthroughFallbackEnabled(json.optBoolean("audioPassthroughFallbackEnabled", false))
         if (json.has("autoplayNextEpisodeEnabled")) prefs.setAutoplayNextEpisodeEnabled(json.optBoolean("autoplayNextEpisodeEnabled", true))
         if (json.has("preferReliableCopy")) prefs.setPreferReliableCopy(json.optBoolean("preferReliableCopy", true))
+        json.optJSONArray("showAlertKeywords")?.let { arr -> prefs.setShowAlertKeywords((0 until arr.length()).map { arr.optString(it) }) }
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
         if (json.has("crashReportingEnabled")) prefs.setCrashReportingEnabled(json.optBoolean("crashReportingEnabled", true))

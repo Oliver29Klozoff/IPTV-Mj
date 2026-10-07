@@ -1,7 +1,7 @@
 {
-  "versionCode": 543,
-  "versionName": "7.05",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.05/MKTV.apk",
-  "apkSha256": "44b98123e5977287843d668877069b7cba866bd76befd24b9a9f454ec5228877",
-  "changelog": "A channel that keeps failing now plays a more reliable copy of itself instead (Settings: Use the most reliable copy)."
+  "versionCode": 544,
+  "versionName": "7.06",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.06/MKTV.apk",
+  "apkSha256": "ae9e9619700802f77b1fbf26189ba106d0e7477feb4f5ab4379130dd7bc441ad",
+  "changelog": "Show alerts: save words like Yankees and get a Watch / Record notification when a matching show is in the guide."
 }
