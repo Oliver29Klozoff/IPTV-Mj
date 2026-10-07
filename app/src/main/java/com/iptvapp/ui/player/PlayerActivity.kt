@@ -3782,7 +3782,9 @@ class PlayerActivity : AppCompatActivity() {
             prefs.setLivePlaybackActive(-1)
             val url = repository.getLiveStreamUrl(channel.streamId)
             binding.tvChannelTitle.text = streamTitle
-            val idx = channels.indexOfFirst { it.streamId == channel.streamId }
+            // Position follows the channel asked for, not a substituted copy elsewhere in the list —
+            // otherwise Next could jump past channels or keep landing back on the copy.
+            val idx = channels.indexOfFirst { it.streamId == requested.streamId }
             if (idx >= 0) currentIndex = idx
             loadStream(url)
             notifyPartyChannelChange()
