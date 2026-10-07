@@ -1,7 +1,7 @@
 {
-  "versionCode": 545,
-  "versionName": "7.07",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.07/MKTV.apk",
-  "apkSha256": "4c4296e071d0b5b98cd23ee3f6c455efb090c48e83dd67e2eaaa5f49730dc27e",
-  "changelog": "Past shows in the guide now replay on channels with catch-up, instead of jumping to the channel live."
+  "versionCode": 546,
+  "versionName": "7.08",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.08/MKTV.apk",
+  "apkSha256": "d5552930bda5d719b368113778fa7a36810782ef3895a61c276dadea2d6736f5",
+  "changelog": "Show alerts now match accented and non-English titles regardless of capitals."
 }

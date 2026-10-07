@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.08 - 2026-10-06
+- **Fixed**: show alerts missed titles with accented or non-English letters when the capitals
+  differed from your word (for example "Fútbol" and "FÚTBOL").
+
 ## v7.07 - 2026-10-06
 - **Fixed**: tapping a show that already aired in the guide went to the channel live instead of
   replaying it. Listings from the full guide file never say which shows are replayable, so most

@@ -351,10 +351,12 @@ interface EpgDao {
     @Query("SELECT COUNT(*) FROM epg_entries")
     suspend fun getEpgCount(): Int
 
-    // Show alerts: guide entries whose title contains [text], case-insensitively (instr, not
-    // LIKE, so a "%" or "_" a user types is matched literally).
-    @Query("SELECT * FROM epg_entries WHERE instr(lower(title), lower(:text)) > 0")
-    suspend fun findByTitleContaining(text: String): List<EpgEntity>
+    // Show alerts: just the fields matching needs, for entries not yet over. Rows are in seconds or
+    // milliseconds; a millisecond value is always above :nowSec, so those all come back and the
+    // caller sorts out the units. Title matching happens in Kotlin, not SQL — SQLite's lower()
+    // only folds ASCII, so "Fútbol" would never match "FÚTBOL".
+    @Query("SELECT serverIndex, streamId, title, startTimestamp, stopTimestamp FROM epg_entries WHERE stopTimestamp > :nowSec")
+    suspend fun getUpcomingTitles(nowSec: Long): List<com.iptvapp.data.local.entities.EpgTitleRow>
     // serverIndex defaults to -1 (primary provider) so every existing call site keeps
     // compiling/behaving unchanged — only new merged-provider code passes it explicitly.
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId ORDER BY startTimestamp ASC")

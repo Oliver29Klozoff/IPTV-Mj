@@ -400,3 +400,13 @@ data class EpgDiffAlertEntity(
     val timestamp: Long,
     val shown: Boolean = false
 )
+
+// Show alerts' lightweight view of an EPG row (EpgDao.getUpcomingTitles) — no descriptions, so a
+// whole guide's worth of upcoming entries stays small in memory.
+data class EpgTitleRow(
+    val serverIndex: Int,
+    val streamId: Int,
+    val title: String,
+    val startTimestamp: Long,
+    val stopTimestamp: Long
+)

@@ -95,8 +95,10 @@ object ShowAlerts {
         val notifiedKeys = notified.map { it.substringBeforeLast('|') }.toSet()
 
         val airings = linkedMapOf<String, Airing>()
+        val upcoming = db.epgDao().getUpcomingTitles(nowSec)
         for (keyword in keywords) {
-            for (row in db.epgDao().findByTitleContaining(keyword)) {
+            // Kotlin's ignoreCase folds every alphabet, not just ASCII (see getUpcomingTitles).
+            for (row in upcoming.filter { it.title.contains(keyword, ignoreCase = true) }) {
                 val start = toSec(row.startTimestamp)
                 val stop = toSec(row.stopTimestamp)
                 if (stop <= nowSec || start > nowSec + WINDOW_SEC) continue
