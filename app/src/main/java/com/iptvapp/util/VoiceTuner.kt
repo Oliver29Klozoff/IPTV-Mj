@@ -51,9 +51,23 @@ object VoiceTuner {
 
             NUMBER_WORDS.matchEntire(spoken)?.let { m ->
                 val n = m.groupValues[2].toInt()
-                val hit = primary.firstOrNull { !it.isHidden && it.customNum == n }
-                    ?: primary.firstOrNull { !it.isHidden && it.num == n }
-                if (hit != null) result = Target(-1, hit.streamId, hit.name, null)
+                val custom = primary.firstOrNull { !it.isHidden && it.customNum == n }
+                result = if (custom != null) Target(-1, custom.streamId, custom.name, null)
+                else {
+                    // Provider numbers: the main provider's or an enabled other provider's, same preference order.
+                    val byNum = (primary.filter { !it.isHidden && it.num == n }.map { it.streamId to -1 } +
+                        merged.filter { !it.isHidden && it.num == n }.map { it.streamId to it.serverIndex }).toSet()
+                    candidates.filter { (it.streamId to it.serverIndex) in byNum }.sortedWith(byPreference).firstOrNull()
+                        ?.let { Target(it.serverIndex, it.streamId, it.name, null) }
+                }
+            }
+            if (result != null) break
+
+            // The name exactly as said first — "The Weather Channel" and "The CW" keep their filler words.
+            val intact = ChannelNameMatcher.normalize(spoken)
+            if (intact.length >= 2) {
+                candidates.filter { it.norm == intact }.sortedWith(byPreference).firstOrNull()
+                    ?.let { result = Target(it.serverIndex, it.streamId, it.name, null) }
             }
             if (result != null) break
 
