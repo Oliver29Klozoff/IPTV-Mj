@@ -4026,7 +4026,6 @@ class PlayerActivity : AppCompatActivity() {
      * previous channel no longer resolves) rather than showing an error — a LAST press with
      * nothing to go back to should just do nothing, same as a real remote. */
     private fun recallLastChannel() {
-        exitStartOverState()
         if (isVod || previousStreamId == -1) return
         val targetServerIndex = previousServerIndex
         val targetStreamId = previousStreamId
