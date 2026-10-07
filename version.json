@@ -1,7 +1,7 @@
 {
-  "versionCode": 552,
-  "versionName": "7.14",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.14/MKTV.apk",
-  "apkSha256": "917952288a90a89f7552aa58ada0ff923a362cb08988faab488e88066df29dc8",
-  "changelog": "Voice tune: say a channel, a number, or what's on (Yankees game) and MKTV tunes it."
+  "versionCode": 553,
+  "versionName": "7.15",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.15/MKTV.apk",
+  "apkSha256": "50cd573e0f9957d6ec1a997a619df7fd31494b76b4d3d2a62ca47b9edd35a63d",
+  "changelog": "Skip break: recordings get a button to jump past detected commercial breaks."
 }

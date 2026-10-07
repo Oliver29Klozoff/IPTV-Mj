@@ -1006,4 +1006,26 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Ad skip (v7.15): shown while a recording plays through a detected commercial break -->
+    <Button
+        android:id="@+id/btnSkipBreak"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="48dp"
+        android:layout_marginEnd="24dp"
+        app:backgroundTint="@null"
+        android:background="@drawable/player_chip_bg"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:letterSpacing="0.1"
+        android:paddingHorizontal="16dp"
+        android:text="Skip break  ⏭"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

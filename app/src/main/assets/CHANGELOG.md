@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.15 - 2026-10-07
+- **New**: Skip break in recordings. After a recording finishes, MKTV listens through it for
+  commercial breaks: the short silences between ads, spaced at ad lengths. When you play the
+  recording, a **Skip break** button appears while you're in one. Tap it, or press OK on a remote,
+  to jump to the end of the break. Recordings you already have are checked the first time you play
+  them. It's a best guess: channels that don't leave silences between ads won't get the button.
+
 ## v7.14 - 2026-10-07
 - **New**: Voice tune. Tap the **mic** in the search box (phone and car box), or **VOICE** in the
   TV sidebar (or the remote's search button, where the box passes it on), and say:

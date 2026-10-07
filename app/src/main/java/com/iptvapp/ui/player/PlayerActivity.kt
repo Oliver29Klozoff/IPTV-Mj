@@ -2368,6 +2368,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnStartOver.setOnClickListener { resetHideTimer(); startOverCurrentShow() }
         if (isRecordingPlayback) {
             binding.btnMarks.visibility = View.VISIBLE
+            // Commercial breaks (Skip break): an older recording is analyzed the first time it's played.
+            if (streamId >= 0 && !com.iptvapp.util.AdBreakDetector.isAnalyzed(this, streamId)) {
+                com.iptvapp.worker.AdBreakWorker.enqueue(this, streamId, streamUrl)
+            }
+            binding.btnSkipBreak.setOnClickListener { skipCurrentBreak() }
             binding.btnMarks.setOnClickListener { resetHideTimer(); showMarksDialog() }
         }
     }
@@ -3670,6 +3675,36 @@ class PlayerActivity : AppCompatActivity() {
         binding.seekBar.progress = position.toInt()
         binding.tvTimeElapsed.text = formatDuration(position)
         binding.tvTimeRemaining.text = "-" + formatDuration((duration - position).coerceAtLeast(0L))
+        updateSkipBreak(position)
+    }
+
+    // Ad skip: the recording's commercial breaks (AdBreakDetector), re-read now and then until the
+    // background analysis has stored some.
+    private var adBreaks: List<LongRange> = emptyList()
+    private var adBreaksCheckedAt = 0L
+
+    private fun updateSkipBreak(positionMs: Long) {
+        if (!isRecordingPlayback || streamId < 0) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (adBreaks.isEmpty() && now - adBreaksCheckedAt > 15_000L) {
+            adBreaksCheckedAt = now
+            adBreaks = com.iptvapp.util.AdBreakDetector.breaksFor(this, streamId)
+        }
+        // Not in the last few seconds of a break — it would be gone before you could tap it.
+        val inBreak = adBreaks.any { positionMs >= it.first && positionMs < it.last - 3_000L }
+        val shown = binding.btnSkipBreak.visibility == View.VISIBLE
+        if (inBreak != shown) {
+            binding.btnSkipBreak.visibility = if (inBreak) View.VISIBLE else View.GONE
+            if (inBreak && !isOverlayVisible) binding.btnSkipBreak.requestFocus()
+        }
+    }
+
+    private fun skipCurrentBreak() {
+        val pos = player?.currentPosition ?: return
+        val brk = adBreaks.firstOrNull { pos >= it.first && pos <= it.last } ?: return
+        player?.seekTo(brk.last + 1)
+        binding.btnSkipBreak.visibility = View.GONE
+        updateSeekBar()
     }
 
     private fun startSeekBarUpdater() {
@@ -4156,6 +4191,8 @@ class PlayerActivity : AppCompatActivity() {
                 updatePlayPauseButton(); notifyPartyStateChange(); true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
+                // Skip break showing over a recording: OK skips it, without opening the controls first.
+                if (!isOverlayVisible && binding.btnSkipBreak.visibility == View.VISIBLE) { skipCurrentBreak(); return true }
                 if (!isOverlayVisible) { showOverlay(); true }
                 else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }

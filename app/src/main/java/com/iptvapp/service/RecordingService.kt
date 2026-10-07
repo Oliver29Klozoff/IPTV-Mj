@@ -142,6 +142,8 @@ class RecordingService : Service() {
                 }
                 val finalPath = compressedPath ?: target
                 if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
+                // Look for commercial breaks in the background (Skip break in the player).
+                if (recordingId != -1) com.iptvapp.worker.AdBreakWorker.enqueue(applicationContext, recordingId, com.iptvapp.worker.AdBreakWorker.uriForPath(finalPath))
             } else {
                 if (recordingId != -1) {
                     val reason = classifyFailureReason(result.exceptionOrNull())
