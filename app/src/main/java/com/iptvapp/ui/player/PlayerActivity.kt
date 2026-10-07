@@ -167,8 +167,9 @@ class PlayerActivity : AppCompatActivity() {
     // startOverCurrentShow); LIVE / the show ending returns to the broadcast (backToLive).
     private var startedOverFromLive = false
     private var liveTitleBeforeStartOver = ""
-    // The show on now from the overlay's guide lookup: start ms, stop ms, title.
-    private var liveNowShow: Triple<Long, Long, String>? = null
+    // The show on now from the overlay's guide lookup, tied to the channel it was looked up for.
+    private data class LiveShow(val streamId: Int, val startMs: Long, val stopMs: Long, val title: String)
+    private var liveNowShow: LiveShow? = null
     // Where a debounced reopen is headed, so further skips add on to it rather than to the old
     // position (-1 = none pending).
     private var catchupPendingTargetMs = -1L
@@ -2210,7 +2211,14 @@ class PlayerActivity : AppCompatActivity() {
      * first minute — the same catch-up mode a guide replay uses (seek bar, pause, skip). LIVE, or
      * the replay running out, comes back to the broadcast (backToLive). Catch-up channels only. */
     private fun startOverCurrentShow() {
-        val (startMs, stopMs, title) = liveNowShow ?: return
+        val show = liveNowShow?.takeIf { it.streamId == streamId } ?: return
+        val startMs = show.startMs
+        val stopMs = show.stopMs
+        val title = show.title
+        if (partyCode.isNotEmpty()) {
+            Toast.makeText(this, "Leave the watch party to start over", Toast.LENGTH_LONG).show()
+            return
+        }
         if (isVod || serverIndex != -1 || streamId == -1 || castSession != null || audioOnly) return
         lifecycleScope.launch {
             val ch = repository.getChannelById(streamId)
@@ -3571,6 +3579,14 @@ class PlayerActivity : AppCompatActivity() {
         // current position near the end must not turn into a rewind.
         val current = vodPositionMs()
         val forward = targetMs >= current
+        // Started over from live: past what has aired so far there's nothing to replay — that's live.
+        // (A minute of slack: the provider's archive trails the broadcast a little.)
+        if (startedOverFromLive && forward &&
+            targetMs >= System.currentTimeMillis() - catchupStartSec * 1000L - 60_000L
+        ) {
+            backToLive()
+            return
+        }
         val target = targetMs.coerceIn(0L, (vodDurationMs() - 5_000L).coerceAtLeast(0L))
         if (forward && target <= current) return
         val rel = target - catchupOffsetSec * 1000L
@@ -3719,6 +3735,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnPlayPause.post { binding.btnPlayPause.requestFocus() }
         if (!isVod && streamId != -1) {
             lifecycleScope.launch {
+                val lookupStreamId = streamId
                 repository.fetchEpg(streamId)
                 val epg = repository.getEpgForStream(streamId).first()
                 val nowMs = System.currentTimeMillis()
@@ -3730,10 +3747,13 @@ class PlayerActivity : AppCompatActivity() {
                 binding.tvEpgNext.text = if (next != null) "Next · " + clockLabel(startMs(next)) + " · " + next.title else ""
                 binding.tvEpgNext.visibility = if (next != null) View.VISIBLE else View.GONE
                 showLiveProgress(now?.let { startMs(it) }, now?.let { stopMs(it) })
-                liveNowShow = now?.let { Triple(startMs(it), stopMs(it), it.title) }
+                // The lookup is async; a channel change meanwhile makes this result stale.
+                if (isVod || lookupStreamId != streamId) return@launch
+                liveNowShow = now?.let { LiveShow(lookupStreamId, startMs(it), stopMs(it), it.title) }
                 // Start Over needs catch-up on this channel and a show that's been on a minute or more.
                 val canStartOver = now != null && nowMs - startMs(now) > 60_000L &&
-                    repository.getChannelById(streamId)?.tvArchive == 1
+                    repository.getChannelById(lookupStreamId)?.tvArchive == 1
+                if (isVod || lookupStreamId != streamId) return@launch
                 binding.btnStartOver.visibility = if (canStartOver && !isVod) View.VISIBLE else View.GONE
             }
         } else if (!isVod && serverIndex != -1) {
@@ -3869,6 +3889,9 @@ class PlayerActivity : AppCompatActivity() {
             // Snapshot the outgoing channel as the new recall target — after the guard below
             // (skip if this "change" is actually just re-selecting the same channel already
             // playing, which would otherwise make LAST just toggle in place doing nothing).
+            // The show cached for Start Over belongs to the channel being left.
+            liveNowShow = null
+            binding.btnStartOver.visibility = View.GONE
             if (streamId != channel.streamId || serverIndex != -1) {
                 previousServerIndex = serverIndex
                 previousStreamId = streamId
