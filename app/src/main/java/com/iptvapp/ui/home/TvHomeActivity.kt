@@ -118,6 +118,9 @@ class TvHomeActivity : AppCompatActivity() {
     // fixed on phone in HomeActivity).
     private var currentMiniIsVod: Boolean = false
     private var miniRetryCount: Int = 0
+    // (tuned, requested) when the mini player substituted a more reliable copy, so full screen can
+    // zap from where the requested channel sits in the list (see openPlayer).
+    private var miniSubstitution: Pair<Int, Int>? = null
     // URL the "account in use" toast was last shown for — once per channel, not once per retry.
     private var miniAccountInUseNoticeUrl = ""
     private var miniPlayJob: kotlinx.coroutines.Job? = null
@@ -860,6 +863,7 @@ class TvHomeActivity : AppCompatActivity() {
             // the channel that actually plays.
             val requested = channel
             val channel = reliableCopyOrSelf(requested)
+            miniSubstitution = if (channel.streamId != requested.streamId) channel.streamId to requested.streamId else null
             if (channel.streamId != requested.streamId) {
                 // The click handler marked the original as playing; the list should show this one.
                 viewModel.setCurrentlyPlaying(channel.streamId)
@@ -1054,7 +1058,7 @@ class TvHomeActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val ch = reliableCopyOrSelf(channel)
                     val url = viewModel.getLiveStreamUrl(ch.streamId)
-                    openPlayer(url, ch.name, ch.streamId, ids)
+                    openPlayer(url, ch.name, ch.streamId, ids, zapFromStreamId = channel.streamId)
                 }
             },
             onFavoriteClick = { channel ->
@@ -3755,7 +3759,8 @@ class TvHomeActivity : AppCompatActivity() {
         mergedStreamId: Int = -1,
         catchupStartSec: Long = 0L,
         catchupDurationMin: Int = 0,
-        catchupChannelName: String = ""
+        catchupChannelName: String = "",
+        zapFromStreamId: Int = -1
     ) {
         if (externalPlayerChoice != "internal") {
             launchExternalPlayer(url, title, externalPlayerChoice)
@@ -3775,6 +3780,11 @@ class TvHomeActivity : AppCompatActivity() {
                 putExtra("resume_ms", resumeMs)
                 putExtra("server_index", serverIndex)
                 putExtra("merged_stream_id", mergedStreamId)
+                putExtra(
+                    "zap_from_stream_id",
+                    if (zapFromStreamId != -1) zapFromStreamId
+                    else miniSubstitution?.takeIf { it.first == streamId }?.second ?: -1
+                )
                 if (catchupDurationMin > 0) {
                     putExtra("catchup_start_sec", catchupStartSec)
                     putExtra("catchup_duration_min", catchupDurationMin)

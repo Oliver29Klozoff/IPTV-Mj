@@ -1265,6 +1265,9 @@ class HomeActivity : AppCompatActivity() {
     // fullscreen button to treat series as live and skip resume-position entirely.
     private var currentMiniIsVod: Boolean = false
     private var miniRetryCount: Int = 0
+    // (tuned, requested) when the mini player substituted a more reliable copy, so full screen can
+    // zap from where the requested channel sits in the list (see openPlayer).
+    private var miniSubstitution: Pair<Int, Int>? = null
     // URL the "account in use" toast was last shown for — once per channel, not once per retry.
     private var miniAccountInUseNoticeUrl = ""
     // Guards against recording a reliability outcome more than once per channel selection —
@@ -2274,6 +2277,7 @@ class HomeActivity : AppCompatActivity() {
             // the channel that actually plays.
             val requested = channel
             val channel = reliableCopyOrSelf(requested)
+            miniSubstitution = if (channel.streamId != requested.streamId) channel.streamId to requested.streamId else null
             if (channel.streamId != requested.streamId) {
                 // The click handler highlighted the original in Favorites; move it to this one.
                 currentMiniCombinedFavoriteId = "primary:${channel.streamId}"
@@ -2979,7 +2983,7 @@ class HomeActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val ch = reliableCopyOrSelf(channel)
                     val url = viewModel.getLiveStreamUrl(ch.streamId)
-                    openPlayer(url, ch.name, ch.streamId, currentIds)
+                    openPlayer(url, ch.name, ch.streamId, currentIds, zapFromStreamId = channel.streamId)
                 }
             },
             onFavoriteClick = { channel ->
@@ -3174,7 +3178,7 @@ class HomeActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             val ch = reliableCopyOrSelf(item.channel)
                             val url = viewModel.getLiveStreamUrl(ch.streamId)
-                            openPlayer(url, ch.name, ch.streamId, currentIds)
+                            openPlayer(url, ch.name, ch.streamId, currentIds, zapFromStreamId = item.channel.streamId)
                         }
                     }
                     is CombinedFavorite.Merged -> {
@@ -5030,7 +5034,8 @@ class HomeActivity : AppCompatActivity() {
         streamIds: IntArray = viewModel.channels.value.map { it.streamId }.toIntArray(),
         isVod: Boolean = false, resumeMs: Long = 0L,
         serverIndex: Int = -1, mergedStreamId: Int = -1,
-        catchupStartSec: Long = 0L, catchupDurationMin: Int = 0, catchupChannelName: String = ""
+        catchupStartSec: Long = 0L, catchupDurationMin: Int = 0, catchupChannelName: String = "",
+        zapFromStreamId: Int = -1
     ) {
         if (externalPlayerChoice != "internal") {
             launchExternalPlayer(url, title, externalPlayerChoice, isVod)
@@ -5053,6 +5058,11 @@ class HomeActivity : AppCompatActivity() {
                 putExtra("resume_ms", resumeMs)
                 putExtra("server_index", serverIndex)
                 putExtra("merged_stream_id", mergedStreamId)
+                putExtra(
+                    "zap_from_stream_id",
+                    if (zapFromStreamId != -1) zapFromStreamId
+                    else miniSubstitution?.takeIf { it.first == streamId }?.second ?: -1
+                )
                 if (catchupDurationMin > 0) {
                     putExtra("catchup_start_sec", catchupStartSec)
                     putExtra("catchup_duration_min", catchupDurationMin)

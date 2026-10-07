@@ -462,6 +462,8 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
+        // Home substituted a more reliable copy: zap from where the requested channel sits.
+        val zapFromStreamId = intent.getIntExtra("zap_from_stream_id", -1)
         if (!isVod && serverIndex != -1 && mergedStreamId != -1) {
             // Merged channel — fetch the same category list Providers/Guide/etc. would show,
             // so DPAD up/down and the on-screen zones zap through it exactly like primary does.
@@ -482,7 +484,9 @@ class PlayerActivity : AppCompatActivity() {
                 } else {
                     repository.getAllChannels().first()
                 }
-                currentIndex = channels.indexOfFirst { it.streamId == streamId }
+                currentIndex = channels.indexOfFirst { it.streamId == zapFromStreamId }
+                    .takeIf { zapFromStreamId != -1 && it >= 0 }
+                    ?: channels.indexOfFirst { it.streamId == streamId }
                     // Playing a more reliable copy of a channel that isn't in this list itself (Home
                     // substituted it): zap from where its same-named copy sits, or up/down would do nothing.
                     .takeIf { it >= 0 }
