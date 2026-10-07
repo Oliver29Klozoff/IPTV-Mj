@@ -46,6 +46,15 @@ class SportsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySportsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Edge-to-edge (target SDK 35): keep the header and list clear of the status bar, cutout
+        // and navigation bar.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
+            val bars = insets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+            )
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
         binding.btnSportsBack.setOnClickListener { finish() }
         binding.rvSports.layoutManager = LinearLayoutManager(this)
         lifecycleScope.launch {

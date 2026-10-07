@@ -100,7 +100,10 @@ object SportsFinder {
             val channel = channelCache.getOrPut(row.serverIndex to row.streamId) {
                 resolveChannel(db, row.serverIndex, row.streamId)
             } ?: continue
-            val key = "${title.lowercase()}@$start"
+            // Teams in the title make it one game wherever it airs. A generic title ("NFL Football")
+            // at the same time can be different regional games, so those stay one row per channel.
+            val key = "${title.lowercase()}@$start" +
+                if (MATCHUP.containsMatchIn(title)) "" else "#${row.serverIndex}:${row.streamId}"
             val airing = airings.getOrPut(key) { Airing(league, title, start, stop, mutableListOf()) }
             if (stop > airing.stopMs) airing.stopMs = stop
             if (airing.channels.none { it.serverIndex == channel.serverIndex && it.streamId == channel.streamId }) {
