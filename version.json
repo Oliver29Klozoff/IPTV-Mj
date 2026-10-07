@@ -2,6 +2,6 @@
   "versionCode": 543,
   "versionName": "7.05",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.05/MKTV.apk",
-  "apkSha256": "07d63c6c8e10eb4fc23e158389ad185b6b596518026935af579699d11f94bf96",
+  "apkSha256": "44b98123e5977287843d668877069b7cba866bd76befd24b9a9f454ec5228877",
   "changelog": "A channel that keeps failing now plays a more reliable copy of itself instead (Settings: Use the most reliable copy)."
 }

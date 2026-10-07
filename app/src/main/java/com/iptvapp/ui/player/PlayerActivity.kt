@@ -130,6 +130,10 @@ class PlayerActivity : AppCompatActivity() {
     // "back to the movie you were watching" doesn't fit the same button as channel-surfing.
     private var previousServerIndex: Int = -1
     private var previousStreamId: Int = -1
+    // The channel whose list position zapping goes by: the one asked for, which differs from
+    // streamId when a more reliable copy is playing in its place. Swapped with LAST like the rest.
+    private var currentZapStreamId: Int = -1
+    private var previousZapStreamId: Int = -1
     private var previousTitle: String = ""
     private var isVod: Boolean = false
     // A locally recorded file played back from the Recordings screen — always launched with
@@ -464,6 +468,7 @@ class PlayerActivity : AppCompatActivity() {
         val streamIds = intent.getIntArrayExtra("stream_ids")
         // Home substituted a more reliable copy: zap from where the requested channel sits.
         val zapFromStreamId = intent.getIntExtra("zap_from_stream_id", -1)
+        currentZapStreamId = if (zapFromStreamId != -1) zapFromStreamId else streamId
         if (!isVod && serverIndex != -1 && mergedStreamId != -1) {
             // Merged channel — fetch the same category list Providers/Guide/etc. would show,
             // so DPAD up/down and the on-screen zones zap through it exactly like primary does.
@@ -3775,6 +3780,7 @@ class PlayerActivity : AppCompatActivity() {
                 previousServerIndex = serverIndex
                 previousStreamId = streamId
                 previousTitle = streamTitle
+                previousZapStreamId = currentZapStreamId
             }
             streamId = channel.streamId
             streamTitle = channel.name
@@ -3788,6 +3794,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.tvChannelTitle.text = streamTitle
             // Position follows the channel asked for, not a substituted copy elsewhere in the list —
             // otherwise Next could jump past channels or keep landing back on the copy.
+            currentZapStreamId = requested.streamId
             val idx = channels.indexOfFirst { it.streamId == requested.streamId }
             if (idx >= 0) currentIndex = idx
             loadStream(url)
@@ -3811,7 +3818,9 @@ class PlayerActivity : AppCompatActivity() {
                     previousServerIndex = serverIndex
                     previousStreamId = if (serverIndex == -1) streamId else mergedStreamId
                     previousTitle = streamTitle
+                    previousZapStreamId = currentZapStreamId
                 }
+                currentZapStreamId = -1
                 bandwidthTracker?.updateServerIndex(channel.serverIndex)
                 serverIndex = channel.serverIndex
                 mergedStreamId = channel.streamId
@@ -3887,6 +3896,7 @@ class PlayerActivity : AppCompatActivity() {
         val targetServerIndex = previousServerIndex
         val targetStreamId = previousStreamId
         val targetTitle = previousTitle
+        val targetZapStreamId = previousZapStreamId
         channelSwitchJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             val url = try {
@@ -3903,13 +3913,15 @@ class PlayerActivity : AppCompatActivity() {
             previousStreamId = if (serverIndex == -1) streamId else mergedStreamId
             previousTitle = streamTitle
             serverIndex = targetServerIndex
+            previousZapStreamId = currentZapStreamId
+            currentZapStreamId = if (targetServerIndex == -1) targetZapStreamId.takeIf { it != -1 } ?: targetStreamId else -1
             streamId = if (targetServerIndex == -1) targetStreamId else -1
             mergedStreamId = if (targetServerIndex == -1) -1 else targetStreamId
             streamTitle = targetTitle
             bandwidthTracker?.updateServerIndex(targetServerIndex)
             binding.tvChannelTitle.text = streamTitle
             if (targetServerIndex == -1) {
-                val idx = channels.indexOfFirst { it.streamId == targetStreamId }
+                val idx = channels.indexOfFirst { it.streamId == currentZapStreamId }
                 if (idx >= 0) currentIndex = idx
             } else {
                 val idx = mergedChannels.indexOfFirst { it.streamId == targetStreamId }
