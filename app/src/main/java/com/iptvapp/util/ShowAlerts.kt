@@ -17,6 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Show alerts: the user saves words or titles ("Yankees", "Chicago P.D.") and gets a notification
@@ -39,6 +40,9 @@ object ShowAlerts {
         val streamId: Int,
         val channelName: String,
         val isFavorite: Boolean
+,
+        // This channel's own end time — feeds can differ by a few minutes for the same airing.
+        val stopSec: Long = 0L
     )
 
     private data class Airing(
@@ -46,9 +50,13 @@ object ShowAlerts {
         val title: String,
         val keyword: String,
         val startSec: Long,
-        val stopSec: Long,
+        var stopSec: Long,
         val channels: MutableList<Candidate> = mutableListOf()
     )
+
+    // The worker, the Guide screen's refresh and Settings can all scan at once; overlapping scans
+    // would each read the sent list before the other wrote it and alert the same airing twice.
+    private val scanMutex = kotlinx.coroutines.sync.Mutex()
 
     // Guide rows hold seconds (XMLTV) or milliseconds (some short-EPG paths); see the guide code.
     private fun toSec(t: Long) = if (t < 100_000_000_000L) t else t / 1000L
@@ -68,7 +76,7 @@ object ShowAlerts {
 
     /** Returns how many alerts were posted. Never throws. */
     suspend fun scan(context: Context, db: IptvDatabase, prefs: PreferencesManager): Int = try {
-        scanInternal(context.applicationContext, db, prefs)
+        scanMutex.withLock { scanInternal(context.applicationContext, db, prefs) }
     } catch (e: Exception) {
         android.util.Log.w("ShowAlerts", "scan failed: ${e.message}")
         0
@@ -95,11 +103,13 @@ object ShowAlerts {
                 val title = row.title.trim()
                 val key = "${title.lowercase()}@$start"
                 if (key in notifiedKeys) continue
-                val candidate = resolveChannel(db, row.serverIndex, row.streamId) ?: continue
+                val candidate = resolveChannel(db, row.serverIndex, row.streamId)?.copy(stopSec = stop) ?: continue
                 val airing = airings.getOrPut(key) { Airing(key, title, keyword, start, stop) }
                 if (airing.channels.none { it.serverIndex == candidate.serverIndex && it.streamId == candidate.streamId }) {
                     airing.channels += candidate
                 }
+                // Remembered as sent until the last of its copies ends.
+                if (stop > airing.stopSec) airing.stopSec = stop
             }
         }
         if (airings.isEmpty()) return 0
@@ -161,7 +171,7 @@ object ShowAlerts {
             putExtra(
                 if (tv) com.iptvapp.ui.recordings.TvRecordingActivity.EXTRA_PREFILL_DURATION_MS
                 else com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS,
-                ((airing.stopSec - airing.startSec) * 1000L).coerceAtLeast(60_000L)
+                ((best.stopSec - airing.startSec) * 1000L).coerceAtLeast(60_000L)
             )
             if (best.serverIndex == -1) {
                 putExtra(
@@ -200,7 +210,7 @@ object ShowAlerts {
             .setAutoCancel(true)
             // Gone when the show ends — an old alert's Record would otherwise schedule a recording
             // of whatever is on by then.
-            .setTimeoutAfter((airing.stopSec * 1000L - System.currentTimeMillis()).coerceAtLeast(1_000L))
+            .setTimeoutAfter((best.stopSec * 1000L - System.currentTimeMillis()).coerceAtLeast(1_000L))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
         nm.notify(requestCode, notification)
