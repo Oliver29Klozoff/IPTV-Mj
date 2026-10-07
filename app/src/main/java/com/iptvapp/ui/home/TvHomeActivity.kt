@@ -1521,7 +1521,7 @@ class TvHomeActivity : AppCompatActivity() {
         if (sidebarContentWidthPx > 0) return sidebarContentWidthPx
         val buttons = listOf(
             binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
-            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvRecordings, binding.btnTvSettings
+            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvSports, binding.btnTvRecordings, binding.btnTvSettings
         )
         val density = resources.displayMetrics.density
         val paint = android.graphics.Paint().apply {
@@ -1811,6 +1811,7 @@ class TvHomeActivity : AppCompatActivity() {
             binding.btnTvMovies,
             binding.btnTvSeries,
             binding.btnTvGuide,
+            binding.btnTvSports,
             binding.btnTvRecordings,
             binding.btnTvSettings
         ).filter { it.visibility == View.VISIBLE }
@@ -1842,6 +1843,10 @@ class TvHomeActivity : AppCompatActivity() {
         // the panel, search target and observers are exactly as they were when you come back.
         binding.btnTvGuide.setOnClickListener {
             guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+        }
+        // Sports Now hands back the same result as the guide grid, so guideLauncher tunes the pick.
+        binding.btnTvSports.setOnClickListener {
+            guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.SportsActivity::class.java))
         }
         binding.btnTvProviders.setOnClickListener { selectSection(Section.PROVIDERS) }
         // Phone reaches these via a dedicated What's On button's click/long-click — TV has no

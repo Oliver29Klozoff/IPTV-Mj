@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.13 - 2026-10-07
+- **New**: Sports Now. Every game on now and in the next 18 hours, across all your providers, in
+  one list: what's live first, then upcoming games by league (NFL, college football, NBA, MLB,
+  NHL, soccer, fighting, racing, golf, tennis). Tap a game to tune it. Studio shows like
+  SportsCenter are left out, and a game on several channels is listed once, on your favorite.
+  Open it with **Sports** next to Grid on the Guide tab, or **SPORTS** in the TV sidebar.
+
 ## v7.12 - 2026-10-07
 - **New**: Start Over. Tuned in late? On channels with catch-up, the full-screen player shows
   **⟲ Start over** beside the live show's progress bar. Tap it to watch the show from the

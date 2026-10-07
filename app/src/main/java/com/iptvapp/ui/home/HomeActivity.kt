@@ -5031,6 +5031,10 @@ class HomeActivity : AppCompatActivity() {
         binding.btnTimelineViewRow?.setOnClickListener {
             timelineLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
         }
+        // Sports Now returns the same result as the guide grid, so timelineLauncher tunes the pick.
+        binding.btnSportsRow?.setOnClickListener {
+            timelineLauncher.launch(Intent(this, com.iptvapp.ui.guide.SportsActivity::class.java))
+        }
         binding.btnGuideRefreshRow?.setOnClickListener {
             Toast.makeText(this, "Refreshing guide…", Toast.LENGTH_SHORT).show()
             viewModel.loadGuide(forceRefresh = true)

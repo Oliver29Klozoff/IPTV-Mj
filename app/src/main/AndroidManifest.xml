@@ -142,6 +142,11 @@
             android:configChanges="orientation|screenSize" />
 
         <activity
+            android:name=".ui.guide.SportsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".ui.guide.EpgTimelineActivity"
             android:exported="false"
             android:screenOrientation="unspecified"

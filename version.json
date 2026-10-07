@@ -1,7 +1,7 @@
 {
-  "versionCode": 550,
-  "versionName": "7.12",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.12/MKTV.apk",
-  "apkSha256": "0f4726b2c5eaa52e23718f8c1f0763350e461255ce75147528f2ac204cee69b8",
-  "changelog": "Start Over: watch the show that's on from its beginning, on channels with catch-up."
+  "versionCode": 551,
+  "versionName": "7.13",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.13/MKTV.apk",
+  "apkSha256": "d55b635b8063d5416138e215753559693fbf88000b044a5809c6e486bf95375c",
+  "changelog": "Sports Now: every game on now and coming up, across your providers, grouped by league. Tap to tune."
 }
