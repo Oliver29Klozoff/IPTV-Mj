@@ -3277,8 +3277,9 @@ class HomeActivity : AppCompatActivity() {
                 if (ch != null) {
                     val currentIds = viewModel.combinedLiveChannels.value.mapNotNull { it.channel?.streamId }.toIntArray()
                     lifecycleScope.launch {
-                        val url = viewModel.getLiveStreamUrl(ch.streamId)
-                        openPlayer(url, ch.name, ch.streamId, currentIds)
+                        val tuned = reliableCopyOrSelf(ch)
+                        val url = viewModel.getLiveStreamUrl(tuned.streamId)
+                        openPlayer(url, tuned.name, tuned.streamId, currentIds, zapFromStreamId = ch.streamId)
                     }
                 } else if (merged != null) {
                     lifecycleScope.launch {
