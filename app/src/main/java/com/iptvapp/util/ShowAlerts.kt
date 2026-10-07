@@ -53,6 +53,19 @@ object ShowAlerts {
     // Guide rows hold seconds (XMLTV) or milliseconds (some short-EPG paths); see the guide code.
     private fun toSec(t: Long) = if (t < 100_000_000_000L) t else t / 1000L
 
+    /** Whether an alert posted now would actually show: app notifications allowed and the
+     * "Show alerts" channel not turned off. Nothing is marked as sent while this is false, so
+     * matches are still delivered once notifications are allowed again. */
+    fun canNotify(context: Context): Boolean {
+        if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            ensureChannel(nm)
+            if (nm.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) return false
+        }
+        return true
+    }
+
     /** Returns how many alerts were posted. Never throws. */
     suspend fun scan(context: Context, db: IptvDatabase, prefs: PreferencesManager): Int = try {
         scanInternal(context.applicationContext, db, prefs)
@@ -64,6 +77,7 @@ object ShowAlerts {
     private suspend fun scanInternal(context: Context, db: IptvDatabase, prefs: PreferencesManager): Int {
         val keywords = prefs.getShowAlertKeywords()
         if (keywords.isEmpty()) return 0
+        if (!canNotify(context)) return 0
         val nowSec = System.currentTimeMillis() / 1000L
         val state = context.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE)
         // "airingKey|stopSec" — pruned once an airing is over, so the set stays small.
@@ -184,6 +198,9 @@ object ShowAlerts {
             .addAction(0, "Watch", watchPi)
             .addAction(0, "Record", recordPi)
             .setAutoCancel(true)
+            // Gone when the show ends — an old alert's Record would otherwise schedule a recording
+            // of whatever is on by then.
+            .setTimeoutAfter((airing.stopSec * 1000L - System.currentTimeMillis()).coerceAtLeast(1_000L))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
         nm.notify(requestCode, notification)

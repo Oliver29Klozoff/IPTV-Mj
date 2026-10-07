@@ -2539,6 +2539,18 @@ class SettingsActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     prefs.setShowAlertKeywords(current + word)
                     refreshShowAlertsValue()
+                    if (!com.iptvapp.util.ShowAlerts.canNotify(this@SettingsActivity)) {
+                        Toast.makeText(
+                            this@SettingsActivity,
+                            "Added — turn on notifications for MKTV to get show alerts",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4711)
+                        }
+                        showShowAlertsDialog()
+                        return@launch
+                    }
                     // Check the guide that's already loaded right away, not at the next refresh.
                     val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         com.iptvapp.util.ShowAlerts.scan(applicationContext, db, prefs)
