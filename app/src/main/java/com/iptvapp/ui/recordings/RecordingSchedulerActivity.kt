@@ -388,7 +388,11 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             val prefillDurationMs = if (rawPrefillStartMs in 1 until prefillNowMs)
                 (rawPrefillStartMs + rawPrefillDurationMs - prefillNowMs).coerceAtLeast(60_000L)
             else rawPrefillDurationMs
-            lifecycleScope.launch {
+            if (rawPrefillStartMs > 0L && rawPrefillStartMs + rawPrefillDurationMs <= prefillNowMs) {
+                // An old show alert or guide entry: the show is over, and scheduling it now would
+                // record whatever is on instead.
+                Toast.makeText(this@RecordingSchedulerActivity, "That show has already ended", Toast.LENGTH_LONG).show()
+            } else             lifecycleScope.launch {
                 val channel = repository.getMergedChannelByIndexAndId(prefillServerIndex, prefillMergedStreamId)
                 if (channel == null) {
                     Toast.makeText(this@RecordingSchedulerActivity, "Channel not found", Toast.LENGTH_SHORT).show()
@@ -406,7 +410,11 @@ class RecordingSchedulerActivity : AppCompatActivity() {
             val prefillDurationMs = if (rawPrefillStartMs in 1 until prefillNowMs)
                 (rawPrefillStartMs + rawPrefillDurationMs - prefillNowMs).coerceAtLeast(60_000L)
             else rawPrefillDurationMs
-            lifecycleScope.launch {
+            if (rawPrefillStartMs > 0L && rawPrefillStartMs + rawPrefillDurationMs <= prefillNowMs) {
+                // An old show alert or guide entry: the show is over, and scheduling it now would
+                // record whatever is on instead.
+                Toast.makeText(this@RecordingSchedulerActivity, "That show has already ended", Toast.LENGTH_LONG).show()
+            } else             lifecycleScope.launch {
                 val channel = database.channelDao().getAllChannels().first()
                     .firstOrNull { it.streamId == prefillStreamId }
                 if (channel == null) {

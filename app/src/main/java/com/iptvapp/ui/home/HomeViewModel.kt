@@ -73,7 +73,8 @@ sealed class GlobalSearchResult {
 class HomeViewModel @Inject constructor(
     private val repository: XtreamRepository,
     private val prefs: PreferencesManager,
-    private val db: IptvDatabase
+    private val db: IptvDatabase,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context
 ) : ViewModel() {
 
     private val bandwidthBudgetManager by lazy { BandwidthBudgetManager(db, prefs) }
@@ -2022,6 +2023,9 @@ class HomeViewModel @Inject constructor(
                     _loading.value = false
                     _syncProgress.value = null
                 }
+                // Fresh listings from this refresh: check them against the show alerts too (the
+                // background EpgRefreshWorker does the same after its own refreshes).
+                launch(kotlinx.coroutines.Dispatchers.IO) { com.iptvapp.util.ShowAlerts.scan(appContext, db, prefs) }
                 // Reload from DB after network fetch and update rows
                 val fresh = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
                 val mergedFresh = if (serverPairs.isEmpty()) emptyList() else repository.getEpgForServerStreams(serverPairs).first()
