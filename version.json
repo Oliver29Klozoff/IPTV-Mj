@@ -1,7 +1,7 @@
 {
-  "versionCode": 549,
-  "versionName": "7.11",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.11/MKTV.apk",
-  "apkSha256": "5f6c1a2cae1ac1d0606c7e03290bec4d301f0a1ec994209297eeab53ea5a25a6",
-  "changelog": "Removed the Quick Zap strip under the portrait mini player; your favorites list gets the space back."
+  "versionCode": 550,
+  "versionName": "7.12",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.12/MKTV.apk",
+  "apkSha256": "c7010eb8479998a435e248794fb75b3a0a332477299a7e0eb4f31529ebdc18ee",
+  "changelog": "Start Over: watch the show that's on from its beginning, on channels with catch-up."
 }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.12 - 2026-10-07
+- **New**: Start Over. Tuned in late? On channels with catch-up, the full-screen player shows
+  **⟲ Start over** beside the live show's progress bar. Tap it to watch the show from the
+  beginning, with the seek bar, pause and skip buttons. **● LIVE** takes you back to the broadcast,
+  and so does reaching the end of the replay.
+
 ## v7.11 - 2026-10-07
 - **Changed**: the Quick Zap strip under the mini player in portrait is gone. It repeated the
   favorites listed right below it, so the list gets that space back. The full-screen player's

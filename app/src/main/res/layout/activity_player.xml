@@ -523,6 +523,23 @@
             android:padding="16dp"
             app:tint="#FF000000" />
 
+
+        <Button
+            android:id="@+id/btnVodFwd"
+            style="@style/PlayerSkipButton"
+            android:layout_marginStart="20dp"
+            android:contentDescription="Forward 30 seconds"
+            android:text="+30" />
+
+        <Button
+            android:id="@+id/btnVodFwdBig"
+            style="@style/PlayerSkipButton"
+            android:layout_marginStart="12dp"
+            android:contentDescription="Forward 2 minutes"
+            android:text="+2 MIN" />
+
+        <!-- After the skip buttons so a Start Over replay reads −10 · play · +30 · +2 MIN · LIVE;
+             live mode only shows back-30 · play · LIVE, unchanged. -->
         <Button
             android:id="@+id/btnDvrLive"
             android:layout_width="wrap_content"
@@ -540,20 +557,6 @@
             android:textColor="@color/rack_danger_text"
             android:textSize="15sp"
             android:visibility="gone" />
-
-        <Button
-            android:id="@+id/btnVodFwd"
-            style="@style/PlayerSkipButton"
-            android:layout_marginStart="20dp"
-            android:contentDescription="Forward 30 seconds"
-            android:text="+30" />
-
-        <Button
-            android:id="@+id/btnVodFwdBig"
-            style="@style/PlayerSkipButton"
-            android:layout_marginStart="12dp"
-            android:contentDescription="Forward 2 minutes"
-            android:text="+2 MIN" />
     </LinearLayout>
 
     <!-- Streaming stats overlay -->
@@ -588,6 +591,18 @@
         app:layout_constraintBottom_toTopOf="@id/vodSeekContainer"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
+
+        <!-- Start Over: replays the show on now from its beginning (catch-up channels only;
+             PlayerActivity.startOverCurrentShow). Shown only when it can work. -->
+        <Button
+            android:id="@+id/btnStartOver"
+            style="@style/PlayerChip"
+            android:layout_height="32dp"
+            android:layout_marginStart="0dp"
+            android:layout_marginEnd="12dp"
+            android:text="⟲ Start over"
+            android:textSize="12sp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvLiveProgramStart"

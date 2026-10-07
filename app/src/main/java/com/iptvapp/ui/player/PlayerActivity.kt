@@ -163,6 +163,12 @@ class PlayerActivity : AppCompatActivity() {
     // Position to come back to after onStop released the player (backgrounding, screen off).
     private var catchupResumeMs = 0L
     private var catchupReloadJob: kotlinx.coroutines.Job? = null
+    // Start Over: the live channel was switched in place to a replay of the show on now (see
+    // startOverCurrentShow); LIVE / the show ending returns to the broadcast (backToLive).
+    private var startedOverFromLive = false
+    private var liveTitleBeforeStartOver = ""
+    // The show on now from the overlay's guide lookup: start ms, stop ms, title.
+    private var liveNowShow: Triple<Long, Long, String>? = null
     // Where a debounced reopen is headed, so further skips add on to it rather than to the old
     // position (-1 = none pending).
     private var catchupPendingTargetMs = -1L
@@ -2200,6 +2206,79 @@ class PlayerActivity : AppCompatActivity() {
         return if (vodSkipPressCount > 10) 30_000L else 10_000L
     }
 
+    /** Start Over: switches this live channel, in place, to a replay of the show on now from its
+     * first minute — the same catch-up mode a guide replay uses (seek bar, pause, skip). LIVE, or
+     * the replay running out, comes back to the broadcast (backToLive). Catch-up channels only. */
+    private fun startOverCurrentShow() {
+        val (startMs, stopMs, title) = liveNowShow ?: return
+        if (isVod || serverIndex != -1 || streamId == -1 || castSession != null || audioOnly) return
+        lifecycleScope.launch {
+            val ch = repository.getChannelById(streamId)
+            if (ch?.tvArchive != 1) {
+                Toast.makeText(this@PlayerActivity, "This channel doesn't keep past shows, so it can't start over", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (isVod) return@launch
+            startedOverFromLive = true
+            liveTitleBeforeStartOver = streamTitle
+            catchupLiveUrl = streamUrl
+            catchupChannelName = ch.name
+            isCatchup = true
+            isVod = true
+            catchupStartSec = startMs / 1000L
+            catchupDurationMin = ((stopMs - startMs) / 60_000L).toInt().coerceAtLeast(1)
+            catchupOffsetSec = 0L
+            catchupPendingSeekMs = 0L
+            catchupPendingTargetMs = -1L
+            retryJob?.cancel()
+            retryCount = 0
+            vodFormatFallbackTried = false
+            streamTitle = "${ch.name} — $title"
+            binding.tvChannelTitle.text = streamTitle
+            // The line under the title described the live broadcast ("28 min left").
+            binding.tvEpgNow.text = "From the start"
+            binding.tvEpgNext.visibility = View.GONE
+            // Live-only controls off; showOverlay brings back the replay ones.
+            hideHandler.removeCallbacks(hideRunnable)
+            hideRunnable.run()
+            binding.btnStartOver.visibility = View.GONE
+            binding.btnAudioOnly.visibility = View.GONE
+            binding.btnWatchParty.visibility = View.GONE
+            updateRewatchNotesButtonVisibility()
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext, "START OVER: streamId=$streamId title=$title startSec=$catchupStartSec durationMin=$catchupDurationMin"
+            )
+            // The replay URL is built as .ts (what the guide's replays use), not in the live
+            // stream's own format — loadCatchupAt follows streamUrl's extension.
+            streamUrl = ""
+            loadCatchupAt(0L)
+            player?.playWhenReady = true
+            showOverlay()
+        }
+    }
+
+    /** Back from a Start Over replay to the live broadcast. */
+    private fun backToLive() {
+        if (!startedOverFromLive) return
+        startedOverFromLive = false
+        catchupReloadJob?.cancel()
+        catchupPendingTargetMs = -1L
+        catchupPendingSeekMs = 0L
+        isCatchup = false
+        isVod = false
+        seekRunnable?.let { seekHandler.removeCallbacks(it) }
+        hideHandler.removeCallbacks(hideRunnable)
+        hideRunnable.run()
+        binding.vodSeekContainer.visibility = View.GONE
+        streamTitle = liveTitleBeforeStartOver
+        binding.tvChannelTitle.text = streamTitle
+        binding.btnAudioOnly.visibility = View.VISIBLE
+        binding.btnWatchParty.visibility = View.VISIBLE
+        updateRewatchNotesButtonVisibility()
+        loadStream(catchupLiveUrl)
+        showOverlay()
+    }
+
     /** Hands the live channel to AudioOnlyService: this player lets go of the stream first (one
      * connection per account on most plans), the screen may sleep, and the sound carries on in
      * the background with notification controls. */
@@ -2265,6 +2344,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnVodBack.setOnClickListener { skip(-10_000L) }
         binding.btnVodFwd.setOnClickListener { skip(30_000L) }
         binding.btnVodFwdBig.setOnClickListener { skip(120_000L) }
+        binding.btnStartOver.setOnClickListener { resetHideTimer(); startOverCurrentShow() }
         if (isRecordingPlayback) {
             binding.btnMarks.visibility = View.VISIBLE
             binding.btnMarks.setOnClickListener { resetHideTimer(); showMarksDialog() }
@@ -2678,6 +2758,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
 
                 binding.btnDvrLive.setOnClickListener {
+                    if (startedOverFromLive) { backToLive(); return@setOnClickListener }
                     if (!isVod) {
                         // seekToDefaultPosition() relies on ExoPlayer's live-window detection,
                         // which some providers' HLS playlists don't signal correctly — it was
@@ -2782,7 +2863,9 @@ class PlayerActivity : AppCompatActivity() {
                             }
                             Player.STATE_ENDED -> {
                                 binding.progressBuffering.visibility = View.GONE
-                                if (!isVod) scheduleRetry()
+                                // A Start Over replay ran out (the show ended or it caught up with now).
+                                if (startedOverFromLive) backToLive()
+                                else if (!isVod) scheduleRetry()
                                 else showUpNextIfAvailable()
                                 if (isVod) traktScrobble(::scrobbleStopCall, progressOverride = 100f)
                             }
@@ -3617,6 +3700,11 @@ class PlayerActivity : AppCompatActivity() {
             binding.btnVodBack.visibility = View.VISIBLE
             binding.btnVodFwd.visibility = View.VISIBLE
             binding.btnVodFwdBig.visibility = View.VISIBLE
+            // Started over from live: LIVE goes back to the broadcast (red: you're behind it).
+            if (startedOverFromLive) {
+                binding.btnDvrLive.visibility = View.VISIBLE
+                binding.btnDvrLive.setTextColor(getColor(R.color.rack_danger_text))
+            }
         }
         if (!isVod) {
             binding.btnDvrRewind.visibility = View.VISIBLE
@@ -3642,6 +3730,11 @@ class PlayerActivity : AppCompatActivity() {
                 binding.tvEpgNext.text = if (next != null) "Next · " + clockLabel(startMs(next)) + " · " + next.title else ""
                 binding.tvEpgNext.visibility = if (next != null) View.VISIBLE else View.GONE
                 showLiveProgress(now?.let { startMs(it) }, now?.let { stopMs(it) })
+                liveNowShow = now?.let { Triple(startMs(it), stopMs(it), it.title) }
+                // Start Over needs catch-up on this channel and a show that's been on a minute or more.
+                val canStartOver = now != null && nowMs - startMs(now) > 60_000L &&
+                    repository.getChannelById(streamId)?.tvArchive == 1
+                binding.btnStartOver.visibility = if (canStartOver && !isVod) View.VISIBLE else View.GONE
             }
         } else if (!isVod && serverIndex != -1) {
             lifecycleScope.launch {
