@@ -483,6 +483,12 @@ class PlayerActivity : AppCompatActivity() {
                     repository.getAllChannels().first()
                 }
                 currentIndex = channels.indexOfFirst { it.streamId == streamId }
+                    // Playing a more reliable copy of a channel that isn't in this list itself (Home
+                    // substituted it): zap from where its same-named copy sits, or up/down would do nothing.
+                    .takeIf { it >= 0 }
+                    ?: repository.getChannelById(streamId)?.name?.let { playingName ->
+                        channels.indexOfFirst { com.iptvapp.util.ChannelNameMatcher.matches(it.name, playingName) }
+                    } ?: -1
             }
         }
 
