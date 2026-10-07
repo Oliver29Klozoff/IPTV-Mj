@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.11 - 2026-10-07
+- **Changed**: the Quick Zap strip under the mini player in portrait is gone. It repeated the
+  favorites listed right below it, so the list gets that space back. The full-screen player's
+  Quick Zap is unchanged.
+
 ## v7.10 - 2026-10-07
 - **New**: Listen from the mini player. The star next to REC is now a headphones button: tap it and
   the picture stops while the channel's sound keeps playing, with the screen off or in other apps,

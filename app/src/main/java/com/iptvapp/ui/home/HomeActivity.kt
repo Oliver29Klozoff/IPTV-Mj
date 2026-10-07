@@ -1334,10 +1334,6 @@ class HomeActivity : AppCompatActivity() {
                 binding.miniLaterRow?.visibility = View.GONE
             }
         })
-        binding.rvMiniZap?.apply {
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
-            adapter = miniZapAdapter
-        }
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1901,7 +1897,6 @@ class HomeActivity : AppCompatActivity() {
         setProvidersModeButtonHighlight()
         if (::channelAdapter.isInitialized) channelAdapter.setAccent(colorInt, gradientEndColorInt)
         if (::guideAdapter.isInitialized) guideAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
-        miniZapAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
         paintMiniListen()
         binding.homeStatusDot?.background = android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
@@ -2377,20 +2372,10 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.miniTimeLeftCell?.visibility = if (minutesLeft != null) View.VISIBLE else View.GONE
         refreshMiniExtras(streamId)
-        refreshMiniZap()
     }
 
-    // ── Mini player extras (v6.94): REC / FAV, Later on this channel, Quick Zap ──
+    // ── Mini player extras: REC / Listen, Later on this channel (Quick Zap removed in v7.11) ──
 
-    private val miniZapAdapter by lazy {
-        com.iptvapp.ui.player.QuickZapAdapter { ch ->
-            playInMiniPlayer(ch)
-            lifecycleScope.launch {
-                viewModel.markChannelWatched(ch.streamId)
-                viewModel.setCurrentlyPlaying(ch.streamId)
-            }
-        }
-    }
     // Listen from the mini player: its own player let go of the stream and AudioOnlyService plays
     // the channel's sound instead (the headphones button, where the favorite star used to be).
     private var miniListening: Boolean
@@ -2570,15 +2555,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /** Quick Zap (portrait only — rvMiniZap exists in that layout): favorites with what's on. */
-    private suspend fun refreshMiniZap() {
-        val row = binding.rvMiniZap ?: return
-        if (resources.configuration.screenHeightDp < 720) { row.visibility = View.GONE; return }
-        val (favs, showing) = viewModel.getQuickZap()
-        miniZapAdapter.submit(favs, showing, currentMiniStreamId)
-        row.visibility = if (favs.isEmpty()) View.GONE else View.VISIBLE
-    }
-
     private fun startEpgRefreshLoop(streamId: Int) {
         epgRefreshJob?.cancel()
         epgRefreshJob = lifecycleScope.launch {
@@ -2607,7 +2583,6 @@ class HomeActivity : AppCompatActivity() {
             if (it >= 60) "${it / 60} h ${it % 60} min" else "$it min"
         }
         binding.miniTimeLeftCell?.visibility = if (minutesLeft != null) View.VISIBLE else View.GONE
-        refreshMiniZap()
     }
 
     private fun startMergedEpgRefreshLoop(serverIndex: Int, streamId: Int) {

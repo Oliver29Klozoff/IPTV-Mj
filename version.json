@@ -1,7 +1,7 @@
 {
-  "versionCode": 548,
-  "versionName": "7.10",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.10/MKTV.apk",
-  "apkSha256": "7f66faa8407365da6d8310750337af1c72bb28ff23e656c7b4f8d1b027939b84",
-  "changelog": "Listen from the mini player: the headphones button (where the star was) plays just the sound, even with the screen off."
+  "versionCode": 549,
+  "versionName": "7.11",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.11/MKTV.apk",
+  "apkSha256": "5f6c1a2cae1ac1d0606c7e03290bec4d301f0a1ec994209297eeab53ea5a25a6",
+  "changelog": "Removed the Quick Zap strip under the portrait mini player; your favorites list gets the space back."
 }

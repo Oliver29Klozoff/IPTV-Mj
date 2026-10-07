@@ -2309,21 +2309,6 @@ class HomeViewModel @Inject constructor(
 
     suspend fun isChannelFavorite(streamId: Int): Boolean = repository.isChannelFavorite(streamId)
 
-    /** Favorite channels and what's on each (title, progress) for the Quick Zap cards. */
-    suspend fun getQuickZap(): Pair<List<ChannelEntity>, Map<Int, com.iptvapp.ui.player.QuickZapAdapter.NowShowing>> {
-        val favs = repository.getFavoriteChannels().first()
-        if (favs.isEmpty()) return favs to emptyMap()
-        val now = System.currentTimeMillis()
-        val byStream = favs.map { it.streamId }.chunked(500)
-            .flatMap { repository.getEpgForStreams(it).first() }.groupBy { it.streamId }
-        val showing = favs.mapNotNull { ch ->
-            val p = byStream[ch.streamId].orEmpty().nowProgram() ?: return@mapNotNull null
-            val pct = if (p.stopMs() > p.startMs()) ((now - p.startMs()) * 100 / (p.stopMs() - p.startMs())).toInt().coerceIn(0, 100) else 0
-            ch.streamId to com.iptvapp.ui.player.QuickZapAdapter.NowShowing(p.title, pct)
-        }.toMap()
-        return favs to showing
-    }
-
     /** What the mini player's readout strip shows for a channel from a secondary provider
      * (merged channel). Those channels' guide rows live in epg_entries stamped with their
      * serverIndex (fetchXmltvEpgForMergedServer), not under the primary streamId lookups the
