@@ -3752,6 +3752,18 @@ class PlayerActivity : AppCompatActivity() {
             // network resolve + player reload instead of firing one per press.
             val debounceMs = prefs.channelZapDebounceMs.first()
             if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+            // Same as Home's mini players: a channel that keeps failing plays a more reliable copy of
+            // itself. The zap position stays where the requested channel sits in the list.
+            val requested = channel
+            val channel = if (prefs.preferReliableCopy.first()) {
+                repository.findMoreReliableCopy(requested.streamId)?.also { better ->
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "Playing \"${better.name}\" — \"${requested.name}\" has been failing lately",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } ?: requested
+            } else requested
             // Snapshot the outgoing channel as the new recall target — after the guard below
             // (skip if this "change" is actually just re-selecting the same channel already
             // playing, which would otherwise make LAST just toggle in place doing nothing).

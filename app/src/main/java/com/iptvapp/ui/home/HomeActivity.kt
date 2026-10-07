@@ -1524,7 +1524,8 @@ class HomeActivity : AppCompatActivity() {
                         playInMiniPlayer(target.channel)
                         if (!joinTune(generation)) return@launch
                         viewModel.markChannelWatched(target.channel.streamId)
-                        viewModel.setCurrentlyPlaying(target.channel.streamId)
+                        // The mini player may have tuned a more reliable copy instead (reliableCopyOrSelf).
+                        viewModel.setCurrentlyPlaying(currentMiniStreamId.takeIf { it >= 0 } ?: target.channel.streamId)
                         revealRemindedChannel(target.channel)
                     }
                     is ReminderTarget.Merged -> {
@@ -2269,13 +2270,14 @@ class HomeActivity : AppCompatActivity() {
         miniPlayJob?.cancel()
         miniRetryCount = 0
         miniPlayJob = lifecycleScope.launch {
-            val better = reliableCopyOrSelf(channel)
-            if (better.streamId != channel.streamId) {
+            // Substituted inside this job, so whoever awaits miniPlayJob (reminder tunes) waits for
+            // the channel that actually plays.
+            val requested = channel
+            val channel = reliableCopyOrSelf(requested)
+            if (channel.streamId != requested.streamId) {
                 // The click handler highlighted the original in Favorites; move it to this one.
-                currentMiniCombinedFavoriteId = "primary:${better.streamId}"
+                currentMiniCombinedFavoriteId = "primary:${channel.streamId}"
                 combinedFavoriteAdapter.setCurrentlyPlayingId(currentMiniCombinedFavoriteId)
-                playInMiniPlayer(better)
-                return@launch
             }
             val url = viewModel.getLiveStreamUrl(channel.streamId)
             currentMiniUrl = url
