@@ -1332,10 +1332,6 @@ class HomeActivity : AppCompatActivity() {
                 setMiniRecBlinking(false)
                 binding.btnMiniListen?.visibility = View.GONE
                 binding.miniLaterRow?.visibility = View.GONE
-                // Another channel is about to play in the mini player: listening to the old one
-                // ends first (stop releases the audio stream before this returns), or a one-stream
-                // account would be asked for two.
-                if (miniListening && s?.toString() != miniListeningTitle) stopMiniListening(resumeVideo = false)
             }
         })
         binding.rvMiniZap?.apply {
@@ -2083,6 +2079,9 @@ class HomeActivity : AppCompatActivity() {
             binding.miniPlayerView.player = player
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
+                    // Catch-all for the other play paths (resume, retries, cast handoff…): the mini
+                    // player starting to load means video is back, so listening is over.
+                    if (state == Player.STATE_BUFFERING && miniListening) stopMiniListening(resumeVideo = false)
                     binding.miniPlayerProgress.visibility =
                         if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                     if (state == Player.STATE_READY) miniAccountInUseNoticeUrl = ""
@@ -2290,6 +2289,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun playInMiniPlayer(channel: ChannelEntity) {
+        // Any tune ends listening first — stop releases the audio stream before this returns, so a
+        // one-stream account is never asked for two.
+        stopMiniListening(resumeVideo = false)
         miniPlayJob?.cancel()
         miniRetryCount = 0
         miniPlayJob = lifecycleScope.launch {
@@ -2389,8 +2391,7 @@ class HomeActivity : AppCompatActivity() {
     private var miniListening: Boolean
         get() = viewModel.miniListening
         set(v) { viewModel.miniListening = v }
-    // The mini player's channel label when listening started — a different label means another
-    // channel is being tuned (see the tvMiniChannelName watcher).
+    // The mini player's channel label when listening started (restored after a rotation).
     private var miniListeningTitle: String?
         get() = viewModel.miniListeningTitle
         set(v) { viewModel.miniListeningTitle = v }
@@ -2445,6 +2446,8 @@ class HomeActivity : AppCompatActivity() {
      * notification / lock-screen controls. Live channels only. */
     private fun startMiniListening() {
         if (miniListening || currentMiniUrl.isEmpty() || currentMiniIsVod) return
+        // A retry waiting out its backoff would restart video under the audio.
+        miniPlayJob?.cancel()
         miniPlayer?.stop()
         miniPlayer?.clearMediaItems()
         com.iptvapp.service.AudioOnlyService.play(this, currentMiniUrl, currentMiniTitle, currentMiniServerIndex)
@@ -4683,6 +4686,7 @@ class HomeActivity : AppCompatActivity() {
     // already just read those fields — so setting them here is all that's needed for both to
     // work correctly with zero extra wiring.
     private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        stopMiniListening(resumeVideo = false)
         miniPlayJob?.cancel()
         miniRetryCount = 0
         miniPlayJob = lifecycleScope.launch {
