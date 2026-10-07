@@ -25,6 +25,20 @@ data class GuideRow(
     /** Timeshift/replay only exists for primary-provider channels right now — merged channels
      * have no tvArchive flag at all (MergedChannelEntity doesn't track it). */
     val supportsReplay: Boolean get() = channel?.tvArchive == 1
+
+    /** Whether past [program] can be replayed: the channel has catch-up and the show started inside
+     * its archive window. Listings from an XMLTV guide never carry the provider's per-show
+     * has_archive flag, so for them the channel's window decides (tv_archive_duration days; 3
+     * when the provider doesn't say). */
+    fun canReplay(program: com.iptvapp.data.local.entities.EpgEntity, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val ch = channel ?: return false
+        if (ch.tvArchive != 1) return false
+        fun ms(t: Long) = if (t < 100_000_000_000L) t * 1000L else t
+        if (ms(program.stopTimestamp) > nowMs) return false
+        if (program.hasArchive == 1) return true
+        val days = ch.tvArchiveDuration.takeIf { it > 0 } ?: 3
+        return ms(program.startTimestamp) >= nowMs - days * 86_400_000L
+    }
     /** Display label for the provider color legend — "Primary" or the configured nickname. */
     val providerLabel: String get() = mergedChannel?.serverNickname ?: "Primary"
 }

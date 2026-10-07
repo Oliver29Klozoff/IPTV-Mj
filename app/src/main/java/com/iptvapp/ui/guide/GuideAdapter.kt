@@ -61,7 +61,7 @@ class GuideAdapter(
                     if (isNow) nowAlreadyShown = true
                     val start = if (isNow) "▶ NOW" else formatTime(program.startTimestamp)
                     val stop = formatTime(program.stopTimestamp)
-                    val isReplay = !isNow && row.supportsReplay && program.hasArchive == 1
+                    val isReplay = !isNow && row.canReplay(program, nowMs)
                     val label = when {
                         isNow    -> "$start  ${program.title}  (until $stop)"
                         isReplay -> "$start - $stop  ${program.title}  ▶ Replay"

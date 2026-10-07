@@ -38,6 +38,9 @@ data class LiveStream(
     @SerializedName("added") val added: String?,
     @SerializedName("category_id") val categoryId: String?,
     @SerializedName("tv_archive") val tvArchive: Int,
+    // Days of catch-up the channel keeps. A String because panels send it as a number, a quoted
+    // number or "" — an Int field would fail the whole channel list on the empty case.
+    @SerializedName("tv_archive_duration") val tvArchiveDuration: String? = null,
     @SerializedName("direct_source") val directSource: String?
 )
 

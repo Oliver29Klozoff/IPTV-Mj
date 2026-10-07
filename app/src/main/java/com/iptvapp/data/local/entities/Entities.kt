@@ -13,6 +13,8 @@ data class ChannelEntity(
     val categoryId: String?,
     val epgChannelId: String?,
     val tvArchive: Int,
+    // Catch-up window in days from the provider (tv_archive_duration); 0 = not reported.
+    val tvArchiveDuration: Int = 0,
     val num: Int,
     val isFavorite: Boolean = false,
     val lastWatched: Long? = null,

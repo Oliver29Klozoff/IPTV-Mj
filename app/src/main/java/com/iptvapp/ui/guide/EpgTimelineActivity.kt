@@ -687,7 +687,7 @@ class EpgTimelineActivity : AppCompatActivity() {
             }
             else -> {
                 binding.tvDetailEyebrow.text = "$channel · ended"
-                if (ch != null && ch.tvArchive == 1 && p.hasArchive == 1) {
+                if (row.canReplay(p)) {
                     primary.text = "Replay"
                     primary.setOnClickListener { handleProgramClick(row, p) }
                     secondary.text = "Watch live"
@@ -764,7 +764,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                 // Upcoming — offer to set a reminder (stay in grid)
                 showTimerDialog(row, program)
             }
-            ch != null && ch.tvArchive == 1 && program.hasArchive == 1 -> {
+            ch != null && row.canReplay(program, nowMs) -> {
                 // Past with replay archive — return to home and play timeshift in mini player.
                 // Timeshift is primary-only (merged channels have no tvArchive), so this branch
                 // never applies to a merged row — ch is smart-cast non-null here.
@@ -784,8 +784,15 @@ class EpgTimelineActivity : AppCompatActivity() {
                 }
             }
             else -> {
-                // Past, no archive — return to home and play live
-                playChannel(row)
+                // Past and not replayable. This used to tune the channel live without a word, which
+                // looked like the replay was broken — say why and stay in the guide (the detail
+                // panel still offers Watch live).
+                val why = when {
+                    ch == null -> "Replays aren't available for other-provider channels"
+                    ch.tvArchive != 1 -> "${ch.name} doesn't offer replays"
+                    else -> "That's older than the ${ch.tvArchiveDuration.takeIf { it > 0 } ?: 3} days ${ch.name} keeps"
+                }
+                Toast.makeText(this, why, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -991,7 +998,7 @@ class TimelineAdapter(
         private fun programBlock(row: GuideRow, program: EpgEntity, pStartMs: Long, pStopMs: Long, nowMs: Long, widthPx: Int, ctx: Context): View {
             val isNow = pStartMs <= nowMs && pStopMs > nowMs
             val isPast = pStopMs <= nowMs
-            val isReplay = isPast && row.supportsReplay && program.hasArchive == 1
+            val isReplay = isPast && row.canReplay(program, nowMs)
             val reminder = !isNow && !isPast && row.channel != null &&
                 ChannelTimerScheduler.isScheduled(ctx, row.streamId, pStartMs)
             val a = accent ?: com.iptvapp.util.RackAccent.Accent(ctx.getColor(R.color.oled_cyan_primary), null)

@@ -242,6 +242,7 @@ class XtreamRepository @Inject constructor(
                     categoryId = it.categoryId,
                     epgChannelId = it.epgChannelId,
                     tvArchive = it.tvArchive,
+                    tvArchiveDuration = it.tvArchiveDuration?.trim()?.toIntOrNull() ?: 0,
                     num = it.num,
                     isFavorite = prev?.isFavorite ?: false,
                     lastWatched = prev?.lastWatched,

@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.07 - 2026-10-06
+- **Fixed**: tapping a show that already aired in the guide went to the channel live instead of
+  replaying it. Listings from the full guide file never say which shows are replayable, so most
+  past shows looked unavailable. Now any past show on a channel with catch-up is replayable if it's
+  within the days that channel keeps (as reported by your provider; 3 days if it doesn't say).
+- **Changed**: if a past show can't be replayed, the guide now tells you why (the channel has no
+  replays, or the show is too old) instead of silently switching to live. **Watch live** is still
+  in the show's details.
+
 ## v7.06 - 2026-10-06
 - **New**: show alerts. In Settings → Stream & EPG → **Show alerts**, add words or show names
   ("Yankees", "Chicago P.D."). When a show with that in its title turns up in the guide within the

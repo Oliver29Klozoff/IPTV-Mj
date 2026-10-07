@@ -1,7 +1,7 @@
 {
-  "versionCode": 544,
-  "versionName": "7.06",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.06/MKTV.apk",
-  "apkSha256": "d5eddbb73aafcb06628227793a290a2df1d602331f92ff4d22903c8bb373675a",
-  "changelog": "Show alerts: save words like Yankees and get a Watch / Record notification when a matching show is in the guide."
+  "versionCode": 545,
+  "versionName": "7.07",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.07/MKTV.apk",
+  "apkSha256": "4c4296e071d0b5b98cd23ee3f6c455efb090c48e83dd67e2eaaa5f49730dc27e",
+  "changelog": "Past shows in the guide now replay on channels with catch-up, instead of jumping to the channel live."
 }
