@@ -2517,6 +2517,19 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    // Show alerts asked for notification permission (promptAddShowAlert): once allowed, run the
+    // check the new word was promised.
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != 4711 || grantResults.firstOrNull() != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        lifecycleScope.launch {
+            val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.iptvapp.util.ShowAlerts.scan(applicationContext, db, prefs)
+            }
+            if (found > 0) Toast.makeText(this@SettingsActivity, "$found matching show(s) in the guide now", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun promptAddShowAlert(current: List<String>) {
         val input = android.widget.EditText(this).apply {
             hint = "e.g. Yankees, Chicago P.D."

@@ -113,8 +113,15 @@ class TvRecordingActivity : AppCompatActivity() {
         val prefillStreamId = intent.getIntExtra(EXTRA_PREFILL_STREAM_ID, -1)
         val prefillMergedStreamId = intent.getIntExtra(EXTRA_PREFILL_MERGED_STREAM_ID, -1)
         if (prefillServerIndex != -1 && prefillMergedStreamId != -1) {
-            val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
-            val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            val rawPrefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
+            val rawPrefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            // Already under way (Record tapped mid-show from the guide or a show alert): record what
+            // is left, up to the same end time, rather than the full length starting now.
+            val prefillNowMs = System.currentTimeMillis()
+            val prefillStartMs = if (rawPrefillStartMs in 1 until prefillNowMs) prefillNowMs else rawPrefillStartMs
+            val prefillDurationMs = if (rawPrefillStartMs in 1 until prefillNowMs)
+                (rawPrefillStartMs + rawPrefillDurationMs - prefillNowMs).coerceAtLeast(60_000L)
+            else rawPrefillDurationMs
             lifecycleScope.launch {
                 val channel = repository.getMergedChannelByIndexAndId(prefillServerIndex, prefillMergedStreamId)
                 if (channel == null) {
@@ -124,8 +131,15 @@ class TvRecordingActivity : AppCompatActivity() {
                 scheduleMergedRecording(channel, prefillStartMs, prefillDurationMs)
             }
         } else if (prefillStreamId != -1) {
-            val prefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
-            val prefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            val rawPrefillStartMs = intent.getLongExtra(EXTRA_PREFILL_START_MS, 0L)
+            val rawPrefillDurationMs = intent.getLongExtra(EXTRA_PREFILL_DURATION_MS, 60 * 60_000L)
+            // Already under way (Record tapped mid-show from the guide or a show alert): record what
+            // is left, up to the same end time, rather than the full length starting now.
+            val prefillNowMs = System.currentTimeMillis()
+            val prefillStartMs = if (rawPrefillStartMs in 1 until prefillNowMs) prefillNowMs else rawPrefillStartMs
+            val prefillDurationMs = if (rawPrefillStartMs in 1 until prefillNowMs)
+                (rawPrefillStartMs + rawPrefillDurationMs - prefillNowMs).coerceAtLeast(60_000L)
+            else rawPrefillDurationMs
             lifecycleScope.launch {
                 val channel = database.channelDao().getAllChannels().first()
                     .firstOrNull { it.streamId == prefillStreamId }
