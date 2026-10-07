@@ -646,15 +646,15 @@
                 android:visibility="gone" />
 
             <ImageButton
-                android:id="@+id/btnMiniFav"
+                android:id="@+id/btnMiniListen"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginStart="6dp"
                 android:background="@drawable/home_chip_bg"
-                android:contentDescription="Favorite"
+                android:contentDescription="Listen (audio only)"
                 android:padding="9dp"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_mini_star"
+                android:src="@drawable/ic_mini_listen"
                 android:visibility="gone" />
 
                 </LinearLayout>

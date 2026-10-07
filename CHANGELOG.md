@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.10 - 2026-10-07
+- **New**: Listen from the mini player. The star next to REC is now a headphones button: tap it and
+  the picture stops while the channel's sound keeps playing, with the screen off or in other apps,
+  and controls in your notifications and on the lock screen. Tap it again for video. Picking
+  another channel ends listening. Favorites are still a long-press on any channel.
+
 ## v7.09 - 2026-10-06
 - **Fixed**: replays started at the wrong time, so the show playing didn't match the one you picked
   in the guide. The replay start was sent in UTC, but providers read it in their server's own time

@@ -1326,12 +1326,16 @@ class HomeActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) {
                 binding.tvHomeStatusNow?.text = s?.toString()?.takeIf { it.isNotBlank() } ?: "—"
                 binding.miniTimeLeftCell?.visibility = View.GONE
-                // REC / FAV / Later are for a main-provider live channel; refreshMiniExtras brings them back.
+                // REC / Listen / Later are for a main-provider live channel; refreshMiniExtras brings them back.
                 binding.btnMiniRec?.visibility = View.GONE
                 miniRecWatchJob?.cancel()
                 setMiniRecBlinking(false)
-                binding.btnMiniFav?.visibility = View.GONE
+                binding.btnMiniListen?.visibility = View.GONE
                 binding.miniLaterRow?.visibility = View.GONE
+                // Another channel is about to play in the mini player: listening to the old one
+                // ends first (stop releases the audio stream before this returns), or a one-stream
+                // account would be asked for two.
+                if (miniListening && s?.toString() != miniListeningTitle) stopMiniListening(resumeVideo = false)
             }
         })
         binding.rvMiniZap?.apply {
@@ -1902,7 +1906,7 @@ class HomeActivity : AppCompatActivity() {
         if (::channelAdapter.isInitialized) channelAdapter.setAccent(colorInt, gradientEndColorInt)
         if (::guideAdapter.isInitialized) guideAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
         miniZapAdapter.setAccent(com.iptvapp.util.RackAccent.Accent(colorInt, gradientEndColorInt))
-        paintMiniFav()
+        paintMiniListen()
         binding.homeStatusDot?.background = android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
             intArrayOf(colorInt, gradientEndColorInt ?: colorInt)
@@ -1966,6 +1970,8 @@ class HomeActivity : AppCompatActivity() {
             suppressMiniAutoResume = false
             return
         }
+        // Still listening (onStart checked the service): leave the mini player stopped.
+        if (miniListening) return
         lifecycleScope.launch {
             // Cold-boot merged-channel resume is handled by loadLastWatchedChannel() (called
             // from onStart, which always runs before this), so currentMiniUrl is already
@@ -1991,8 +1997,17 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // The mini player is about to take the stream; an audio-only session would be a second one.
-        com.iptvapp.service.AudioOnlyService.stop(this)
+        // Listening from the mini player carries on while the app is away. Anything else — an
+        // audio-only session from the full-screen player, or listening that was stopped from the
+        // notification meanwhile — ends here, since the mini player is about to take the stream.
+        if (!(miniListening && com.iptvapp.service.AudioOnlyService.running.value)) {
+            if (miniListening) {
+                miniListening = false
+                miniListeningTitle = null
+                paintMiniListen()
+            }
+            com.iptvapp.service.AudioOnlyService.stop(this)
+        }
         if (miniPlayer == null) {
             initMiniPlayer()
         } else {
@@ -2197,6 +2212,11 @@ class HomeActivity : AppCompatActivity() {
                 val state = restoredMiniState!!
                 restoredMiniState = null
                 binding.tvMiniChannelName.text = state.title
+                // Rotated while listening: the sound is still playing in AudioOnlyService.
+                if (miniListening && com.iptvapp.service.AudioOnlyService.running.value) {
+                    paintMiniListen()
+                    return
+                }
                 miniPlayer?.setMediaItem(
                     androidx.media3.common.MediaItem.fromUri(state.url),
                     if (state.isVod) state.positionMs else 0L
@@ -2364,7 +2384,16 @@ class HomeActivity : AppCompatActivity() {
             }
         }
     }
-    private var miniFavOn = false
+    // Listen from the mini player: its own player let go of the stream and AudioOnlyService plays
+    // the channel's sound instead (the headphones button, where the favorite star used to be).
+    private var miniListening: Boolean
+        get() = viewModel.miniListening
+        set(v) { viewModel.miniListening = v }
+    // The mini player's channel label when listening started — a different label means another
+    // channel is being tuned (see the tvMiniChannelName watcher).
+    private var miniListeningTitle: String?
+        get() = viewModel.miniListeningTitle
+        set(v) { viewModel.miniListeningTitle = v }
     private var miniRecWatchJob: kotlinx.coroutines.Job? = null
     private var miniRecBlink: android.animation.ObjectAnimator? = null
 
@@ -2404,11 +2433,40 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun paintMiniFav() {
-        binding.btnMiniFav?.apply {
-            setImageResource(if (miniFavOn) R.drawable.ic_mini_star_on else R.drawable.ic_mini_star)
-            imageTintList = if (miniFavOn) android.content.res.ColorStateList.valueOf(currentAccent) else null
-            contentDescription = if (miniFavOn) "Remove from favorites" else "Add to favorites"
+    private fun paintMiniListen() {
+        binding.btnMiniListen?.apply {
+            imageTintList = if (miniListening) android.content.res.ColorStateList.valueOf(currentAccent) else null
+            contentDescription = if (miniListening) "Listening — tap to bring the picture back" else "Listen (audio only)"
+        }
+    }
+
+    /** The mini player stops (releasing its stream on one-connection accounts) and its channel's
+     * sound carries on in AudioOnlyService — with the screen off, in other apps, and with
+     * notification / lock-screen controls. Live channels only. */
+    private fun startMiniListening() {
+        if (miniListening || currentMiniUrl.isEmpty() || currentMiniIsVod) return
+        miniPlayer?.stop()
+        miniPlayer?.clearMediaItems()
+        com.iptvapp.service.AudioOnlyService.play(this, currentMiniUrl, currentMiniTitle, currentMiniServerIndex)
+        miniListening = true
+        miniListeningTitle = binding.tvMiniChannelName?.text?.toString()
+        paintMiniListen()
+        Toast.makeText(this, "Listening — the picture is off. Tap the headphones again for video.", Toast.LENGTH_LONG).show()
+    }
+
+    /** Ends listening; [resumeVideo] puts the same channel back in the mini player. */
+    private fun stopMiniListening(resumeVideo: Boolean) {
+        if (!miniListening) return
+        com.iptvapp.service.AudioOnlyService.stop(this)
+        miniListening = false
+        miniListeningTitle = null
+        paintMiniListen()
+        if (resumeVideo && currentMiniUrl.isNotEmpty()) {
+            miniPlayer?.let {
+                it.setMediaItem(androidx.media3.common.MediaItem.fromUri(currentMiniUrl))
+                it.prepare()
+                it.playWhenReady = true
+            }
         }
     }
 
@@ -2440,18 +2498,12 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-        val isFav = viewModel.isChannelFavorite(streamId)
-        if (!stillPlaying()) return
-        miniFavOn = isFav
-        paintMiniFav()
-        binding.btnMiniFav?.apply {
+        // Listen took the favorite star's place (favorites are still a long-press on any channel).
+        paintMiniListen()
+        binding.btnMiniListen?.apply {
             visibility = View.VISIBLE
             setOnClickListener {
-                viewModel.toggleChannelFavorite(streamId)
-                miniFavOn = !miniFavOn
-                paintMiniFav()
-                Toast.makeText(this@HomeActivity, if (miniFavOn) "Added to favorites" else "Removed from favorites", Toast.LENGTH_SHORT).show()
-                binding.root.postDelayed({ lifecycleScope.launch { refreshMiniZap() } }, 500)
+                if (miniListening) stopMiniListening(resumeVideo = true) else startMiniListening()
             }
         }
 

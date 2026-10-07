@@ -124,6 +124,10 @@ class HomeViewModel @Inject constructor(
         val serverIndex: Int = -1, val mergedStreamId: Int = -1
     )
     var savedMiniPlayerState: MiniPlayerState? = null
+    // Listen from the mini player (HomeActivity.startMiniListening) — kept here so a rotation
+    // doesn't lose it and restart video under the audio.
+    var miniListening = false
+    var miniListeningTitle: String? = null
 
     private val _liveCategories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val liveCategories: StateFlow<List<CategoryEntity>> = _liveCategories

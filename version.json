@@ -1,7 +1,7 @@
 {
-  "versionCode": 547,
-  "versionName": "7.09",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.09/MKTV.apk",
-  "apkSha256": "38fd85b3b31d84a0962a9a0e4c387c09371ec78ebcda8fb079c883a628614e98",
-  "changelog": "Replays now start at the right time: the start is sent in your provider's time zone instead of UTC."
+  "versionCode": 548,
+  "versionName": "7.10",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.10/MKTV.apk",
+  "apkSha256": "abd5667aca7a052d5d2c1c9eace9c437c44af228a0fe3faa22e4c99ee0769eac",
+  "changelog": "Listen from the mini player: the headphones button (where the star was) plays just the sound, even with the screen off."
 }
