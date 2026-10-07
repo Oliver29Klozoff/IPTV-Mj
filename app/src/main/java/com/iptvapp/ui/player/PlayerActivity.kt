@@ -2272,6 +2272,17 @@ class PlayerActivity : AppCompatActivity() {
     /** Back from a Start Over replay to the live broadcast. */
     private fun backToLive() {
         if (!startedOverFromLive) return
+        exitStartOverState()
+        loadStream(catchupLiveUrl)
+        showOverlay()
+    }
+
+    /** Drops Start Over's replay state and controls without loading anything — for backToLive,
+     * and for a channel change made from the replay, which loads its own channel. */
+    private fun exitStartOverState() {
+        // A Start Over still loading (flag not set yet) is the only reload that can be pending here.
+        if (!isCatchup) catchupReloadJob?.cancel()
+        if (!startedOverFromLive) return
         startedOverFromLive = false
         catchupReloadJob?.cancel()
         catchupPendingTargetMs = -1L
@@ -2287,8 +2298,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnAudioOnly.visibility = View.VISIBLE
         binding.btnWatchParty.visibility = View.VISIBLE
         updateRewatchNotesButtonVisibility()
-        loadStream(catchupLiveUrl)
-        showOverlay()
     }
 
     /** Hands the live channel to AudioOnlyService: this player lets go of the stream first (one
@@ -3871,6 +3880,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun playChannel(channel: ChannelEntity) {
+        // Changing channel from a Start Over replay: the replay ends here, the new channel plays live.
+        exitStartOverState()
         channelSwitchJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             // 0 by default (instant, unchanged behavior). A non-zero Channel Change Speed
@@ -3930,6 +3941,7 @@ class PlayerActivity : AppCompatActivity() {
      * mergedStreamId instead of streamId, matching every other merged-aware code path in this
      * Activity (saveVodProgress's serverIndex/mergedStreamId branch, MediaInfo cast metadata). */
     private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+        exitStartOverState()
         channelSwitchJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             try {
@@ -4014,6 +4026,7 @@ class PlayerActivity : AppCompatActivity() {
      * previous channel no longer resolves) rather than showing an error — a LAST press with
      * nothing to go back to should just do nothing, same as a real remote. */
     private fun recallLastChannel() {
+        exitStartOverState()
         if (isVod || previousStreamId == -1) return
         val targetServerIndex = previousServerIndex
         val targetStreamId = previousStreamId
