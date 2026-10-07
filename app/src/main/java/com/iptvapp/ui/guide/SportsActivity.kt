@@ -77,8 +77,9 @@ class SportsActivity : AppCompatActivity() {
     private fun show(games: List<SportsFinder.Game>, accent: Int) {
         val items = buildItems(games)
         val now = System.currentTimeMillis()
-        // What's on screen depends on these: which rows, in which section, live or not.
-        val signature = items.joinToString("|") {
+        // What's on screen depends on these: which rows, in which section, live or not — and the
+        // date, which decides the "Tmrw" labels.
+        val signature = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date(now)) + "|" + items.joinToString("|") {
             if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.serverIndex}:${it.channel.streamId}:${it.isLive(now)}" else it.toString()
         }
         if (signature == shownSignature) return
