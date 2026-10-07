@@ -1132,21 +1132,28 @@ class XtreamRepository @Inject constructor(
         urlBuilder().timeshiftUrl(streamId, startTimestampSec, durationMinutes, serverTimeZone())
 
     // The primary panel's time zone (server_info.timezone), cached per server URL for the session.
-    @Volatile private var serverTimeZoneCache: Pair<String, java.util.TimeZone>? = null
+    // (server URL, zone, valid until): a reported zone is kept for the session, the UTC fallback
+    // for 10 minutes, so a panel that doesn't answer isn't asked again on every replay or seek.
+    @Volatile private var serverTimeZoneCache: Triple<String, java.util.TimeZone, Long>? = null
 
     /** Time zone the primary panel reads timeshift start times in. Asked once per server and
      * cached; UTC (the old behavior) if the panel doesn't say or can't be reached. */
     private suspend fun serverTimeZone(): java.util.TimeZone = withContext(Dispatchers.IO) {
         val c = creds()
-        serverTimeZoneCache?.takeIf { it.first == c.serverUrl }?.let { return@withContext it.second }
+        serverTimeZoneCache?.takeIf { it.first == c.serverUrl && System.currentTimeMillis() < it.third }
+            ?.let { return@withContext it.second }
+        // Bounded: this sits in front of opening a replay, and the shared client's timeouts are long.
         val id = try {
-            api.authenticate(XtreamUrlBuilder(c.serverUrl, c.username, c.password).apiUrl(), c.username, c.password)
-                .body()?.serverInfo?.timezone?.trim()?.takeIf { it.isNotEmpty() }
+            kotlinx.coroutines.withTimeoutOrNull(5_000L) { api.authenticate(XtreamUrlBuilder(c.serverUrl, c.username, c.password).apiUrl(), c.username, c.password) }
+                ?.body()?.serverInfo?.timezone?.trim()?.takeIf { it.isNotEmpty() }
         } catch (_: Exception) { null }
         val utc = java.util.TimeZone.getTimeZone("UTC")
-        if (id == null) return@withContext utc
+        if (id == null) {
+            serverTimeZoneCache = Triple(c.serverUrl, utc, System.currentTimeMillis() + 10 * 60_000L)
+            return@withContext utc
+        }
         // getTimeZone falls back to GMT for an ID it doesn't know; GMT is UTC, the old behavior.
-        java.util.TimeZone.getTimeZone(id).also { serverTimeZoneCache = c.serverUrl to it }
+        java.util.TimeZone.getTimeZone(id).also { serverTimeZoneCache = Triple(c.serverUrl, it, Long.MAX_VALUE) }
     }
 
     suspend fun saveFavOrder(orderedIds: List<Int>) {

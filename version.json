@@ -2,6 +2,6 @@
   "versionCode": 547,
   "versionName": "7.09",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.09/MKTV.apk",
-  "apkSha256": "2fad8355c46f6c1a76b75a263c2d07026ebb4aeaf7ea5ed0ac8afef4897162a5",
+  "apkSha256": "38fd85b3b31d84a0962a9a0e4c387c09371ec78ebcda8fb079c883a628614e98",
   "changelog": "Replays now start at the right time: the start is sent in your provider's time zone instead of UTC."
 }
