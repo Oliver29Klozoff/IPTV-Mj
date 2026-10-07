@@ -5,6 +5,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import kotlin.coroutines.cancellation.CancellationException
 import java.nio.ByteOrder
 import kotlin.math.abs
 import kotlin.math.sqrt
@@ -54,15 +55,19 @@ object AdBreakDetector {
     }
 
     /** Breaks found in the recording at [uri]; empty if none or the audio can't be read. */
-    fun detect(context: Context, uri: Uri): List<LongRange> {
-        val levels = audioLevels(context, uri) ?: return emptyList()
+    fun detect(context: Context, uri: Uri, isStopped: () -> Boolean = { false }): List<LongRange> {
+        val levels = audioLevels(context, uri, isStopped) ?: return emptyList()
         if (levels.size < 600) return emptyList()   // under a minute of audio
         val silences = silenceTimes(levels)
         return breaksFrom(silences)
     }
 
-    /** RMS level (0..32768) of each 100 ms of audio, all channels mixed. */
-    private fun audioLevels(context: Context, uri: Uri): FloatArray? {
+    /** RMS level (0..32768) of each 100 ms of the playback timeline, all channels mixed. Windows
+     * are placed by the decoder's presentation timestamps (from the first one, which is where
+     * playback starts), so a gap in a recording — a reconnect mid-capture — stays a gap (NaN, never
+     * counted as silence) instead of shifting every later break earlier. [isStopped] is checked
+     * as it decodes; a stop throws CancellationException. */
+    private fun audioLevels(context: Context, uri: Uri, isStopped: () -> Boolean): FloatArray? {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -79,14 +84,15 @@ object AdBreakDetector {
 
             var sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-            val levels = ArrayList<Float>(40_000)
-            var windowSumSq = 0.0
-            var windowCount = 0L
-            var samplesPerWindow = sampleRate * channels * WINDOW_MS / 1000
+            var sums = DoubleArray(40_000)
+            var counts = IntArray(40_000)
+            var lastWindow = -1
+            var firstPtsUs = Long.MIN_VALUE
             val info = MediaCodec.BufferInfo()
             var inputDone = false
             var outputDone = false
             while (!outputDone) {
+                if (isStopped()) throw CancellationException("ad break analysis stopped")
                 if (!inputDone) {
                     val inIndex = codec.dequeueInputBuffer(10_000)
                     if (inIndex >= 0) {
@@ -107,21 +113,32 @@ object AdBreakDetector {
                         val f = codec.outputFormat
                         sampleRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                         channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                        samplesPerWindow = sampleRate * channels * WINDOW_MS / 1000
                     }
                     outIndex >= 0 -> {
-                        val out = codec.getOutputBuffer(outIndex)!!
-                        out.position(info.offset)
-                        out.limit(info.offset + info.size)
-                        val shorts = out.order(ByteOrder.nativeOrder()).asShortBuffer()
-                        while (shorts.hasRemaining()) {
-                            val v = shorts.get().toDouble()
-                            windowSumSq += v * v
-                            windowCount++
-                            if (windowCount >= samplesPerWindow) {
-                                levels += sqrt(windowSumSq / windowCount).toFloat()
-                                windowSumSq = 0.0
-                                windowCount = 0
+                        if (info.size > 0) {
+                            if (firstPtsUs == Long.MIN_VALUE) firstPtsUs = info.presentationTimeUs
+                            val out = codec.getOutputBuffer(outIndex)!!
+                            out.position(info.offset)
+                            out.limit(info.offset + info.size)
+                            val shorts = out.order(ByteOrder.nativeOrder()).asShortBuffer()
+                            val startUs = info.presentationTimeUs - firstPtsUs
+                            var frame = 0L
+                            var ch = 0
+                            while (shorts.hasRemaining()) {
+                                val v = shorts.get().toDouble()
+                                val tUs = startUs + frame * 1_000_000L / sampleRate
+                                val w = (tUs / (WINDOW_MS * 1000L)).toInt()
+                                if (w >= 0) {
+                                    if (w >= sums.size) {
+                                        val n = maxOf(w + 1, sums.size * 2)
+                                        sums = sums.copyOf(n)
+                                        counts = counts.copyOf(n)
+                                    }
+                                    sums[w] += v * v
+                                    counts[w]++
+                                    if (w > lastWindow) lastWindow = w
+                                }
+                                if (++ch == channels) { ch = 0; frame++ }
                             }
                         }
                         codec.releaseOutputBuffer(outIndex, false)
@@ -129,7 +146,12 @@ object AdBreakDetector {
                     }
                 }
             }
-            return levels.toFloatArray()
+            if (lastWindow < 0) return null
+            return FloatArray(lastWindow + 1) { i ->
+                if (counts[i] == 0) Float.NaN else sqrt(sums[i] / counts[i]).toFloat()
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             android.util.Log.w("AdBreakDetector", "audio read failed: ${e.message}")
             return null
@@ -142,7 +164,8 @@ object AdBreakDetector {
 
     /** Middle of each silence (ms): 200 ms or more well below the recording's normal level. */
     private fun silenceTimes(levels: FloatArray): List<Long> {
-        val sorted = levels.copyOf().also { it.sort() }
+        val sorted = levels.filter { !it.isNaN() }.sorted()
+        if (sorted.isEmpty()) return emptyList()
         val median = sorted[sorted.size / 2]
         // Digital silence between ads sits far below programme audio; cap it so a quiet show
         // doesn't turn its whole soundtrack into "silence".
@@ -150,7 +173,8 @@ object AdBreakDetector {
         val out = mutableListOf<Long>()
         var runStart = -1
         for (i in levels.indices) {
-            val quiet = abs(levels[i]) < threshold
+            // A gap in the recording (NaN) is not a silence.
+            val quiet = !levels[i].isNaN() && abs(levels[i]) < threshold
             if (quiet && runStart < 0) runStart = i
             if ((!quiet || i == levels.lastIndex) && runStart >= 0) {
                 val runEnd = if (quiet) i else i - 1
