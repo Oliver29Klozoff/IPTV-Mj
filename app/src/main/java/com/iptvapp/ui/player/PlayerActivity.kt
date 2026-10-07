@@ -3891,6 +3891,8 @@ class PlayerActivity : AppCompatActivity() {
             // network resolve + player reload instead of firing one per press.
             val debounceMs = prefs.channelZapDebounceMs.first()
             if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+            // Again at commit: a Start Over tapped during the Channel Change Speed delay is overtaken.
+            exitStartOverState()
             // Same as Home's mini players: a channel that keeps failing plays a more reliable copy of
             // itself. The zap position stays where the requested channel sits in the list.
             val requested = channel
@@ -3947,6 +3949,7 @@ class PlayerActivity : AppCompatActivity() {
             try {
                 val debounceMs = prefs.channelZapDebounceMs.first()
                 if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+                exitStartOverState()
                 // Same recall-snapshot guard as playChannel — see its own kdoc.
                 if (serverIndex != channel.serverIndex || mergedStreamId != channel.streamId) {
                     previousServerIndex = serverIndex
@@ -3998,6 +4001,8 @@ class PlayerActivity : AppCompatActivity() {
             // Same debounce as playChannel, so holding the button settles on one load.
             val debounceMs = prefs.channelZapDebounceMs.first()
             if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
+            // Again at commit: a Start Over tapped during the Channel Change Speed delay is overtaken.
+            exitStartOverState()
             loadStream(ch.url)
         }
         return true
