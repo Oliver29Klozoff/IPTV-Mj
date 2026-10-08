@@ -1430,7 +1430,8 @@ class HomeActivity : AppCompatActivity() {
             // reported-crash kdoc — this was the reliable, every-launch trigger for it on an
             // account with a disabled secondary and no other providers).
             val hasEnabledExtraServer = prefs.getExtraServersWithNick().any { it.getOrElse(5) { "true" }.toBoolean() }
-            if (hasEnabledExtraServer && sinceLastRefresh >= staleMs) {
+            // Or the lists were downloaded under a different USA Only setting (e.g. before v7.17).
+            if (hasEnabledExtraServer && (sinceLastRefresh >= staleMs || viewModel.mergedListsUsaOnlyChanged())) {
                 viewModel.refreshMergedChannels()
             }
         }

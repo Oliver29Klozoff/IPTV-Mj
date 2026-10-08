@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.17 - 2026-10-08
+- **Changed**: with **Show USA channels only** on, MKTV now downloads and keeps only the US
+  channels, for your main provider and your other providers. Before, it loaded every channel
+  worldwide (about 57,000) and just hid the rest. Startup, the guide, search, Sports Now and voice
+  tune all work on far fewer channels, which makes the biggest difference on the Shield. The first
+  start after updating reloads the lists once. Turning the setting off downloads the full lists
+  again.
+
 ## v7.16 - 2026-10-07
 - **Fixed**: opening the guide could crash the app on the Shield (Android 11) when lots of "guide
   changes" were waiting to be shown.

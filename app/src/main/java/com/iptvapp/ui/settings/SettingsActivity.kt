@@ -615,7 +615,23 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.cbUsaOnlyChannels.setOnCheckedChangeListener { _, isChecked ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
-            lifecycleScope.launch { prefs.setUsaOnlyChannels(isChecked) }
+            // USA Only now decides what's downloaded, not just what's shown, so the channel lists
+            // are reloaded under the new setting — in the background, finishing even if you leave.
+            lifecycleScope.launch {
+                prefs.setUsaOnlyChannels(isChecked)
+                Toast.makeText(this@SettingsActivity, "Reloading channel lists…", Toast.LENGTH_SHORT).show()
+                val app = applicationContext
+                @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+                kotlinx.coroutines.GlobalScope.launch {
+                    repository.fetchLiveStreams()
+                    val errors = repository.refreshMergedChannels()
+                    if (errors.isEmpty()) repository.markMergedListsUsaOnly()
+                    prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        Toast.makeText(app, "Channel lists updated", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
         }
 
         binding.cbEnglishOnlyMovies.setOnCheckedChangeListener { _, isChecked ->

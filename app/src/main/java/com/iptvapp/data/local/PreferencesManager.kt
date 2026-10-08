@@ -62,6 +62,10 @@ class PreferencesManager @Inject constructor(
         val EPG_AUTO_REFRESH_HOURS = intPreferencesKey("epg_auto_refresh_hours")
         val EPG_REFRESH_MISSING_ONLY = booleanPreferencesKey("epg_refresh_missing_only")
         val USA_ONLY_CHANNELS = booleanPreferencesKey("usa_only_channels")
+        // The USA Only setting each stored channel list was downloaded with ("on"/"off"; unset = before
+        // v7.17, when USA Only only hid channels) — a mismatch makes that list stale.
+        val LISTS_USA_ONLY_PRIMARY = stringPreferencesKey("lists_usa_only_primary")
+        val LISTS_USA_ONLY_MERGED = stringPreferencesKey("lists_usa_only_merged")
         // Community Stream Health Feed opt-in — OFF by default. Gates every single Firestore
         // write CommunityHealthManager makes; see its kdoc for exactly what is/isn't uploaded
         // (never raw provider URLs/credentials, only a hashed host + channel name + error type).
@@ -552,6 +556,11 @@ class PreferencesManager @Inject constructor(
             prefs[Keys.EPG_REFRESH_MISSING_ONLY] = enabled
         }
     }
+
+    suspend fun listsUsaOnlyPrimary(): String = context.dataStore.data.first()[Keys.LISTS_USA_ONLY_PRIMARY] ?: ""
+    suspend fun setListsUsaOnlyPrimary(tag: String) = context.dataStore.edit { it[Keys.LISTS_USA_ONLY_PRIMARY] = tag }
+    suspend fun listsUsaOnlyMerged(): String = context.dataStore.data.first()[Keys.LISTS_USA_ONLY_MERGED] ?: ""
+    suspend fun setListsUsaOnlyMerged(tag: String) = context.dataStore.edit { it[Keys.LISTS_USA_ONLY_MERGED] = tag }
 
     suspend fun setUsaOnlyChannels(enabled: Boolean) {
         context.dataStore.edit { prefs ->

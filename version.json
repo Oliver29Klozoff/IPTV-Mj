@@ -1,7 +1,7 @@
 {
-  "versionCode": 554,
-  "versionName": "7.16",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.16/MKTV.apk",
-  "apkSha256": "4274cf8140822e4675666081600ec0b143bcdc264e77a3485a6ae0272313fb79",
-  "changelog": "Fixes a guide crash on the Shield and the flood of bogus 'Guide Changes' alerts."
+  "versionCode": 555,
+  "versionName": "7.17",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.17/MKTV.apk",
+  "apkSha256": "a57a86b3cae3f67e2ea1bc005a133272b0c7c3aa3983fb77b5c43eec51342962",
+  "changelog": "USA only now keeps only US channels instead of loading all ~57,000: much faster startup, especially on the Shield."
 }

@@ -495,7 +495,8 @@ class TvHomeActivity : AppCompatActivity() {
             // server now, not just a non-empty list — a disabled-but-not-removed provider was
             // still enough to fire this on every cold start with nothing to actually merge.
             val hasEnabledExtraServer = prefs.getExtraServersWithNick().any { it.getOrElse(5) { "true" }.toBoolean() }
-            if (hasEnabledExtraServer && sinceLastRefresh >= staleMs) {
+            // Or the lists were downloaded under a different USA Only setting (e.g. before v7.17).
+            if (hasEnabledExtraServer && (sinceLastRefresh >= staleMs || viewModel.mergedListsUsaOnlyChanged())) {
                 viewModel.refreshMergedChannels()
             }
         }

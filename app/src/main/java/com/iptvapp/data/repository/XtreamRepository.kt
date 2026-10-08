@@ -231,7 +231,10 @@ class XtreamRepository @Inject constructor(
         return safeApiCall {
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            val list = response.body() ?: emptyList()
+            val list = keepUsaOnlyIfSet(response.body() ?: emptyList()) {
+                val cats = api.getLiveCategories(b.apiUrl(), c.username, c.password)
+                if (cats.isSuccessful) (cats.body() ?: emptyList()).associate { it.categoryId to it.categoryName } else emptyMap()
+            }
             val userData = db.channelDao().getUserData().associateBy { it.streamId }
             db.channelDao().upsertChannels(list.map {
                 val prev = userData[it.streamId]
@@ -272,14 +275,39 @@ class XtreamRepository @Inject constructor(
             }
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
             applyPendingPrimaryFavorites()
+            prefs.setListsUsaOnlyPrimary(usaOnlyTag())
             list
         }
     }
 
+    /** USA Only (Settings): with it on, only US categories' channels are kept — not just hidden —
+     * so cold boot, memory, guide matching and search work on a few thousand channels instead of a
+     * provider's whole worldwide catalog. Everything is kept when it's off, or when the category
+     * names couldn't be had ([categoryNames] empty) and there's nothing to judge by. */
+    private suspend fun keepUsaOnlyIfSet(
+        all: List<LiveStream>,
+        categoryNames: suspend () -> Map<String, String>
+    ): List<LiveStream> {
+        if (!prefs.usaOnlyChannels.first()) return all
+        val names = try { categoryNames() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyMap() }
+        if (names.isEmpty()) return all
+        return all.filter { s -> s.categoryId?.let { names[it] }.let { com.iptvapp.util.CategoryFilters.isUsCategory(it) } }
+    }
+
     suspend fun isChannelCacheStale(maxAgeMs: Long = 4 * 60 * 60 * 1000L): Boolean {
         val lastFetch = prefs.lastChannelsFetchTime.first()
+        // Downloaded under a different USA Only setting (or before it filtered at all): reload.
+        if (prefs.listsUsaOnlyPrimary() != usaOnlyTag()) return true
         return lastFetch == 0L || System.currentTimeMillis() - lastFetch > maxAgeMs
     }
+
+    private suspend fun usaOnlyTag() = if (prefs.usaOnlyChannels.first()) "on" else "off"
+
+    /** Whether the other providers' stored lists were downloaded under a different USA Only setting. */
+    suspend fun mergedListsUsaOnlyChanged(): Boolean = prefs.listsUsaOnlyMerged() != usaOnlyTag()
+
+    /** Marks the other providers' lists as downloaded under the current USA Only setting. */
+    suspend fun markMergedListsUsaOnly() = prefs.setListsUsaOnlyMerged(usaOnlyTag())
 
     fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()
 
@@ -1895,7 +1923,7 @@ class XtreamRepository @Inject constructor(
                         } else emptyMap()
                         val response = api.getLiveStreams(builder.apiUrl(), server.username, server.password)
                         if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-                        val list = response.body() ?: emptyList()
+                        val list = keepUsaOnlyIfSet(response.body() ?: emptyList()) { categoryNames }
                         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) fetched ${list.size} channels, ${categoryNames.size} categories")
                         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} sample category names: ${categoryNames.values.take(30)}")
                         synchronized(results) {

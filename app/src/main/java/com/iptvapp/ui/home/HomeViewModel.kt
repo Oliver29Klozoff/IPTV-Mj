@@ -358,6 +358,8 @@ class HomeViewModel @Inject constructor(
      * cold-start check (which only calls this when the last refresh is stale, via
      * [PreferencesManager.lastMergedChannelsRefresh]). Stamps the refresh time on completion
      * either way, since both call sites count as "freshened the cache" equally. */
+    suspend fun mergedListsUsaOnlyChanged() = repository.mergedListsUsaOnlyChanged()
+
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
         mergedChannelsRefreshJob?.takeIf { it.isActive }?.let { return }
         // _syncProgress drives the same visible blue bar + "N/Total" text the primary
@@ -382,6 +384,8 @@ class HomeViewModel @Inject constructor(
                 // already found for every OTHER server it didn't just re-check.
                 if (targetServerIndex == null) _providersDownCount.value = errors.size
                 prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+                // A full pass with every provider through is a list set under today's USA Only setting.
+                if (targetServerIndex == null && errors.isEmpty()) repository.markMergedListsUsaOnly()
             } finally {
                 _syncProgress.value = null
                 _loading.value = false
