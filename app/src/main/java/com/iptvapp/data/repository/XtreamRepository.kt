@@ -180,7 +180,10 @@ class XtreamRepository @Inject constructor(
      * serverIndex and stays valid across a primary-provider switch. Series/VOD/reliability
      * history for the OLD primary is still cleared here since those ids aren't portable to
      * whatever the new primary provider is anyway. */
-    suspend fun clearPrimaryProviderData() = withContext(Dispatchers.IO) {
+    // Under the channel-list lock: a refresh in flight finishes (or bails) before the switch clears.
+    suspend fun clearPrimaryProviderData() = primaryChannelsMutex.withLock { clearPrimaryProviderDataLocked() }
+
+    private suspend fun clearPrimaryProviderDataLocked() = withContext(Dispatchers.IO) {
         val sql = db.openHelper.writableDatabase
         sql.execSQL("DELETE FROM channels")
         sql.execSQL("DELETE FROM categories")
@@ -253,6 +256,11 @@ class XtreamRepository @Inject constructor(
             ) {
                 val cats = api.getLiveCategories(b.apiUrl(), c.username, c.password)
                 if (cats.isSuccessful) (cats.body() ?: emptyList()).associate { it.categoryId to it.categoryName } else emptyMap()
+            }
+            // The main provider changed while this was downloading (a switch, a new login): these
+            // channels belong to the old one — don't write them over the new provider's.
+            if (creds().let { it.serverUrl != c.serverUrl || it.username != c.username }) {
+                throw Exception("The provider changed during the refresh")
             }
             db.channelDao().upsertChannels(list.map {
                 val prev = userData[it.streamId]
