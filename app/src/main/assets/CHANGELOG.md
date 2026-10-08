@@ -4,7 +4,9 @@
 - **Changed**: with **Show USA channels only** on, MKTV now downloads and keeps only the US
   channels, for your main provider and your other providers. Before, it loaded every channel
   worldwide (about 57,000) and just hid the rest. Startup, the guide, search, Sports Now and voice
-  tune all work on far fewer channels, which makes the biggest difference on the Shield. The first
+  tune all work on far fewer channels, which makes the biggest difference on the Shield. Channels
+  you've favorited, hidden or watched are kept whatever their category, so nothing you set up is
+  lost. The first
   start after updating reloads the lists once. Turning the setting off downloads the full lists
   again.
 

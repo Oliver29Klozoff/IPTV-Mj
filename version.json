@@ -2,6 +2,6 @@
   "versionCode": 555,
   "versionName": "7.17",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.17/MKTV.apk",
-  "apkSha256": "6eb80b1792e9c80a215a95dff6d39a778dffb036bf4540fdb6f4d4a410ad2006",
+  "apkSha256": "b676b31c3fcfd291744b12ecd56bfb7c1223ed095b97adae939e0558514c0df4",
   "changelog": "USA only now keeps only US channels instead of loading all ~57,000: much faster startup, especially on the Shield."
 }
