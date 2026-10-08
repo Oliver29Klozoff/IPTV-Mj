@@ -171,6 +171,12 @@ class EpgTimelineActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val pending = try { db.epgDiffAlertDao().getUnshown() } catch (_: Exception) { emptyList() }
             if (pending.isEmpty()) return@launch
+            // A pile this big is the bogus backlog from before v7.16 (every past show counted as
+            // "pulled"), not real schedule changes — clear it without showing it.
+            if (pending.size > 40) {
+                db.epgDiffAlertDao().markShownUpTo(pending.maxOf { it.id })
+                return@launch
+            }
             val lines = pending.take(5).map { alert ->
                 if (alert.newTitle != null)
                     "${alert.channelName}: \"${alert.oldTitle}\" changed to \"${alert.newTitle}\""
@@ -183,7 +189,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                 .setMessage(lines.joinToString("\n") + extra)
                 .setPositiveButton("OK", null)
                 .show()
-            db.epgDiffAlertDao().markShown(pending.map { it.id })
+            db.epgDiffAlertDao().markShownUpTo(pending.maxOf { it.id })
         }
     }
 

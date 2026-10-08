@@ -930,6 +930,11 @@ interface EpgDiffAlertDao {
     @Query("UPDATE epg_diff_alerts SET shown = 1 WHERE id IN (:ids)")
     suspend fun markShown(ids: List<Long>)
 
+    // Everything up to the newest alert just shown — no id list, so no SQLite variable limit
+    // (an IN list of 1000+ ids crashed the guide on Android 11).
+    @Query("UPDATE epg_diff_alerts SET shown = 1 WHERE shown = 0 AND id <= :maxId")
+    suspend fun markShownUpTo(maxId: Long)
+
     // Keeps the table from growing forever — only unshown rows and a short recent tail of
     // already-shown ones are worth keeping around.
     @Query("DELETE FROM epg_diff_alerts WHERE shown = 1 AND timestamp < :beforeMs")

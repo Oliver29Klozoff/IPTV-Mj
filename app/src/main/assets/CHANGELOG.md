@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.16 - 2026-10-07
+- **Fixed**: opening the guide could crash the app on the Shield (Android 11) when lots of "guide
+  changes" were waiting to be shown.
+- **Fixed**: "Guide Changes — Favorites" counted every show that had already aired as "pulled
+  from the schedule", and a change of guide source as hundreds of changes. Only shows still to
+  come count now, and a wholesale guide switch isn't reported. The old pile of bogus changes is
+  cleared the next time you open the guide.
+
 ## v7.15 - 2026-10-07
 - **New**: Skip break in recordings. After a recording finishes, MKTV listens through it for
   commercial breaks: the short silences between ads, spaced at ad lengths. When you play the

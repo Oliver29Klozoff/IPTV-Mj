@@ -827,6 +827,8 @@ class XtreamRepository @Inject constructor(
      *     the new set at all -> show pulled (newTitle = null)
      * No-ops entirely if `before` is empty (nothing favorited was in this batch).
      */
+    private val MAX_DIFFS_PER_CHANNEL = 8
+
     private suspend fun recordFavoriteEpgDiffs(serverIndex: Int, before: Map<Int, List<EpgEntity>>) {
         if (before.isEmpty()) return
         val now = System.currentTimeMillis()
@@ -836,11 +838,15 @@ class XtreamRepository @Inject constructor(
             val newTitles = newEntries.map { it.title }.toSet()
             val channelName = channelNameForDiff(serverIndex, streamId) ?: return@forEach
 
-            oldEntries.forEach { old ->
+            // Shows that already aired drop out of a fresh guide as a matter of course — they weren't
+            // pulled, so they're not compared (this was flooding the list with every past show).
+            fun endMs(e: EpgEntity) = if (e.stopTimestamp < 100_000_000_000L) e.stopTimestamp * 1000L else e.stopTimestamp
+            val alerts = mutableListOf<EpgDiffAlertEntity>()
+            oldEntries.filter { endMs(it) > now }.forEach { old ->
                 val sameSlot = newBySlot[old.startTimestamp to old.stopTimestamp]
                 when {
                     sameSlot != null && sameSlot.title != old.title -> {
-                        db.epgDiffAlertDao().insert(
+                        alerts.add(
                             EpgDiffAlertEntity(
                                 serverIndex = serverIndex,
                                 streamId = streamId,
@@ -852,7 +858,7 @@ class XtreamRepository @Inject constructor(
                         )
                     }
                     sameSlot == null && old.title !in newTitles -> {
-                        db.epgDiffAlertDao().insert(
+                        alerts.add(
                             EpgDiffAlertEntity(
                                 serverIndex = serverIndex,
                                 streamId = streamId,
@@ -865,6 +871,9 @@ class XtreamRepository @Inject constructor(
                     }
                 }
             }
+            // Dozens of changes on one channel at once is the guide source changing (e.g. the provider
+            // guide replaced by the backup guide), not the schedule — not worth an alert each.
+            if (alerts.size <= MAX_DIFFS_PER_CHANNEL) alerts.forEach { db.epgDiffAlertDao().insert(it) }
         }
     }
 
