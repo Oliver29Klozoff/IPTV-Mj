@@ -226,16 +226,28 @@ class XtreamRepository @Inject constructor(
     fun getLiveCategories(): Flow<List<CategoryEntity>> =
         db.categoryDao().getCategoriesByType("live")
 
-    suspend fun fetchLiveStreams(): Resource<List<LiveStream>> {
+    // One primary channel-list write at a time: a refresh started by a USA Only change must not be
+    // overwritten by an older one finishing after it.
+    private val primaryChannelsMutex = kotlinx.coroutines.sync.Mutex()
+
+    suspend fun fetchLiveStreams(): Resource<List<LiveStream>> = primaryChannelsMutex.withLock {
         val b = urlBuilder(); val c = creds()
-        return safeApiCall {
+        // Read once: the list is filtered and tagged with the same value even if it changes meanwhile.
+        val usaOnly = prefs.usaOnlyChannels.first()
+        return@withLock safeApiCall {
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            val list = keepUsaOnlyIfSet(response.body() ?: emptyList()) {
+            val userData = db.channelDao().getUserData().associateBy { it.streamId }
+            val list = keepUsaOnlyIfSet(
+                response.body() ?: emptyList(), usaOnly,
+                customized = { s ->
+                    val u = userData[s.streamId]
+                    u != null && (u.isFavorite || u.favoriteFolderId != null || u.manualGenre != null)
+                }
+            ) {
                 val cats = api.getLiveCategories(b.apiUrl(), c.username, c.password)
                 if (cats.isSuccessful) (cats.body() ?: emptyList()).associate { it.categoryId to it.categoryName } else emptyMap()
             }
-            val userData = db.channelDao().getUserData().associateBy { it.streamId }
             db.channelDao().upsertChannels(list.map {
                 val prev = userData[it.streamId]
                 ChannelEntity(
@@ -275,23 +287,29 @@ class XtreamRepository @Inject constructor(
             }
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
             applyPendingPrimaryFavorites()
-            prefs.setListsUsaOnlyPrimary(usaOnlyTag())
+            prefs.setListsUsaOnlyPrimary(if (usaOnly) "on" else "off")
             list
         }
     }
 
-    /** USA Only (Settings): with it on, only US categories' channels are kept — not just hidden —
+    /** USA Only (Settings): with it on, only US categories' channels are kept (plus any you've customized) — not just hidden —
      * so cold boot, memory, guide matching and search work on a few thousand channels instead of a
      * provider's whole worldwide catalog. Everything is kept when it's off, or when the category
      * names couldn't be had ([categoryNames] empty) and there's nothing to judge by. */
     private suspend fun keepUsaOnlyIfSet(
         all: List<LiveStream>,
+        usaOnly: Boolean,
+        customized: (LiveStream) -> Boolean,
         categoryNames: suspend () -> Map<String, String>
     ): List<LiveStream> {
-        if (!prefs.usaOnlyChannels.first()) return all
+        if (!usaOnly) return all
         val names = try { categoryNames() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyMap() }
         if (names.isEmpty()) return all
-        return all.filter { s -> s.categoryId?.let { names[it] }.let { com.iptvapp.util.CategoryFilters.isUsCategory(it) } }
+        // A channel you favorited, foldered or re-genred (custom numbers go with favorites) stays whatever its category —
+        // dropping it would lose that for good (it'd come back blank if USA Only were turned off).
+        return all.filter { s ->
+            customized(s) || s.categoryId?.let { names[it] }.let { com.iptvapp.util.CategoryFilters.isUsCategory(it) }
+        }
     }
 
     suspend fun isChannelCacheStale(maxAgeMs: Long = 4 * 60 * 60 * 1000L): Boolean {
@@ -306,8 +324,6 @@ class XtreamRepository @Inject constructor(
     /** Whether the other providers' stored lists were downloaded under a different USA Only setting. */
     suspend fun mergedListsUsaOnlyChanged(): Boolean = prefs.listsUsaOnlyMerged() != usaOnlyTag()
 
-    /** Marks the other providers' lists as downloaded under the current USA Only setting. */
-    suspend fun markMergedListsUsaOnly() = prefs.setListsUsaOnlyMerged(usaOnlyTag())
 
     fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()
 
@@ -1896,6 +1912,10 @@ class XtreamRepository @Inject constructor(
         // Wholesale re-fetch must not silently un-favorite/un-folder every merged channel —
         // same class of bug just fixed for the primary provider's ChannelEntity table.
         val mergedUserData = db.mergedChannelDao().getUserData().associateBy { it.serverIndex to it.streamId }
+        val usaOnly = prefs.usaOnlyChannels.first()
+        // Servers fetched successfully — cleared even when USA Only leaves them no rows, or their old
+        // worldwide list would stay behind.
+        val succeeded = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
         coroutineScope {
             servers.map { server ->
                 async {
@@ -1923,7 +1943,14 @@ class XtreamRepository @Inject constructor(
                         } else emptyMap()
                         val response = api.getLiveStreams(builder.apiUrl(), server.username, server.password)
                         if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-                        val list = keepUsaOnlyIfSet(response.body() ?: emptyList()) { categoryNames }
+                        val list = keepUsaOnlyIfSet(
+                            response.body() ?: emptyList(), usaOnly,
+                            customized = { s ->
+                                val u = mergedUserData[server.serverIndex to s.streamId]
+                                u != null && (u.isFavorite || u.favoriteFolderId != null || u.manualGenre != null)
+                            }
+                        ) { categoryNames }
+                        succeeded += server.serverIndex
                         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) fetched ${list.size} channels, ${categoryNames.size} categories")
                         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("MergedChannels", "serverIndex=${server.serverIndex} sample category names: ${categoryNames.values.take(30)}")
                         synchronized(results) {
@@ -1976,7 +2003,7 @@ class XtreamRepository @Inject constructor(
         // always includes the primary provider at index -1, so this runs (and this exact crash
         // has always been reachable) even with zero secondary providers configured.
         withContext(NonCancellable) {
-            results.map { it.serverIndex }.distinct().forEach { serverIndex ->
+            (results.map { it.serverIndex } + succeeded).distinct().forEach { serverIndex ->
                 val count = results.count { it.serverIndex == serverIndex }
                 FirebaseCrashlytics.getInstance().log("refreshMergedChannels: clearForServer(serverIndex=$serverIndex, incomingRows=$count)")
                 db.mergedChannelDao().clearForServer(serverIndex)
@@ -1997,6 +2024,8 @@ class XtreamRepository @Inject constructor(
             FirebaseCrashlytics.getInstance().log("refreshMergedChannels: write phase complete, ${results.size} total rows across ${servers.size} servers")
             applyPendingMergedRestoreData(servers)
         }
+        // A full pass with every provider through: these lists match the setting they were fetched under.
+        if (targetServerIndex == null && errors.isEmpty()) prefs.setListsUsaOnlyMerged(if (usaOnly) "on" else "off")
         return errors
     }
 

@@ -384,8 +384,6 @@ class HomeViewModel @Inject constructor(
                 // already found for every OTHER server it didn't just re-check.
                 if (targetServerIndex == null) _providersDownCount.value = errors.size
                 prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
-                // A full pass with every provider through is a list set under today's USA Only setting.
-                if (targetServerIndex == null && errors.isEmpty()) repository.markMergedListsUsaOnly()
             } finally {
                 _syncProgress.value = null
                 _loading.value = false

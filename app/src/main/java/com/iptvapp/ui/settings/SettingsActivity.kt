@@ -624,8 +624,7 @@ class SettingsActivity : AppCompatActivity() {
                 @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
                 kotlinx.coroutines.GlobalScope.launch {
                     repository.fetchLiveStreams()
-                    val errors = repository.refreshMergedChannels()
-                    if (errors.isEmpty()) repository.markMergedListsUsaOnly()
+                    repository.refreshMergedChannels()
                     prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         Toast.makeText(app, "Channel lists updated", Toast.LENGTH_SHORT).show()
