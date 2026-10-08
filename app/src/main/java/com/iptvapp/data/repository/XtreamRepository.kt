@@ -238,11 +238,16 @@ class XtreamRepository @Inject constructor(
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val userData = db.channelDao().getUserData().associateBy { it.streamId }
+            // Favorites / folders still waiting to be applied (a backup restore, or a provider switched to
+            // primary) must survive the filter too, or they'd never find their channel.
+            val pendingPrimary = prefs.pendingFavoriteChannelIds.first().mapNotNull { it.toIntOrNull() }.toSet() +
+                prefs.pendingPrimaryChannelFolders.first().mapNotNull { it.substringBefore("|").toIntOrNull() }
             val list = keepUsaOnlyIfSet(
                 response.body() ?: emptyList(), usaOnly,
                 customized = { s ->
                     val u = userData[s.streamId]
-                    u != null && (u.isFavorite || u.favoriteFolderId != null || u.manualGenre != null)
+                    s.streamId in pendingPrimary ||
+                        u != null && (u.isFavorite || u.isHidden || u.favoriteFolderId != null || u.manualGenre != null)
                 }
             ) {
                 val cats = api.getLiveCategories(b.apiUrl(), c.username, c.password)
@@ -1912,6 +1917,9 @@ class XtreamRepository @Inject constructor(
         // Wholesale re-fetch must not silently un-favorite/un-folder every merged channel —
         // same class of bug just fixed for the primary provider's ChannelEntity table.
         val mergedUserData = db.mergedChannelDao().getUserData().associateBy { it.serverIndex to it.streamId }
+        // Restored favorites / folders still waiting for their channel ("serverUrl|streamId|…").
+        val pendingMerged = (prefs.pendingMergedFavorites.first() + prefs.pendingMergedChannelFolders.first())
+            .map { it.split("|").take(2).joinToString("|") }.toSet()
         val usaOnly = prefs.usaOnlyChannels.first()
         // Servers fetched successfully — cleared even when USA Only leaves them no rows, or their old
         // worldwide list would stay behind.
@@ -1947,7 +1955,8 @@ class XtreamRepository @Inject constructor(
                             response.body() ?: emptyList(), usaOnly,
                             customized = { s ->
                                 val u = mergedUserData[server.serverIndex to s.streamId]
-                                u != null && (u.isFavorite || u.favoriteFolderId != null || u.manualGenre != null)
+                                "${server.serverUrl}|${s.streamId}" in pendingMerged ||
+                                    u != null && (u.isFavorite || u.favoriteFolderId != null || u.manualGenre != null)
                             }
                         ) { categoryNames }
                         succeeded += server.serverIndex
