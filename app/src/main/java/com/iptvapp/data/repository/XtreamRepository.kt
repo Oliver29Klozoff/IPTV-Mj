@@ -247,7 +247,8 @@ class XtreamRepository @Inject constructor(
                 customized = { s ->
                     val u = userData[s.streamId]
                     s.streamId in pendingPrimary ||
-                        u != null && (u.isFavorite || u.isHidden || u.favoriteFolderId != null || u.manualGenre != null)
+                        u != null && (u.isFavorite || u.isHidden || u.favoriteFolderId != null || u.manualGenre != null ||
+                            u.lastWatched != null || u.viewCount > 0)
                 }
             ) {
                 val cats = api.getLiveCategories(b.apiUrl(), c.username, c.password)
@@ -310,7 +311,7 @@ class XtreamRepository @Inject constructor(
         if (!usaOnly) return all
         val names = try { categoryNames() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyMap() }
         if (names.isEmpty()) return all
-        // A channel you favorited, foldered or re-genred (custom numbers go with favorites) stays whatever its category —
+        // A channel you favorited, foldered, hid, re-genred or watched (custom numbers go with favorites) stays whatever its category —
         // dropping it would lose that for good (it'd come back blank if USA Only were turned off).
         return all.filter { s ->
             customized(s) || s.categoryId?.let { names[it] }.let { com.iptvapp.util.CategoryFilters.isUsCategory(it) }

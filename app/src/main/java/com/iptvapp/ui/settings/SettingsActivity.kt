@@ -623,11 +623,15 @@ class SettingsActivity : AppCompatActivity() {
                 val app = applicationContext
                 @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
                 kotlinx.coroutines.GlobalScope.launch {
-                    repository.fetchLiveStreams()
-                    repository.refreshMergedChannels()
-                    prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+                    val primaryOk = repository.fetchLiveStreams() is com.iptvapp.util.Resource.Success
+                    val mergedErrors = repository.refreshMergedChannels()
+                    if (mergedErrors.isEmpty()) prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+                    // A list that didn't reload keeps its old "downloaded with" mark, so the next start
+                    // retries it on its own.
+                    val msg = if (primaryOk && mergedErrors.isEmpty()) "Channel lists updated"
+                        else "Couldn't reload every channel list — it'll try again next time MKTV starts"
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        Toast.makeText(app, "Channel lists updated", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(app, msg, Toast.LENGTH_LONG).show()
                     }
                 }
             }
