@@ -23,6 +23,8 @@ class AdBreakWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // Stops (and saves nothing) if WorkManager stops this worker partway.
         val breaks = AdBreakDetector.detect(applicationContext, android.net.Uri.parse(uriString)) { isStopped }
         if (isStopped) return@withContext Result.retry()
+        // Couldn't read the audio: save nothing, so the next playback tries again.
+        if (breaks == null) return@withContext Result.failure()
         // Saved even when empty, so a recording with no breaks found isn't analyzed again.
         AdBreakDetector.save(applicationContext, id, breaks)
         com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, "AD BREAKS: recordingId=$id found=${breaks.size}")

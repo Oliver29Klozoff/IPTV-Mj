@@ -54,9 +54,10 @@ object AdBreakDetector {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(recordingId.toString()).apply()
     }
 
-    /** Breaks found in the recording at [uri]; empty if none or the audio can't be read. */
-    fun detect(context: Context, uri: Uri, isStopped: () -> Boolean = { false }): List<LongRange> {
-        val levels = audioLevels(context, uri, isStopped) ?: return emptyList()
+    /** Breaks found in the recording at [uri] (empty when there are none), or null when its audio
+     * couldn't be read — a failure, not a result, so it isn't saved and is tried again later. */
+    fun detect(context: Context, uri: Uri, isStopped: () -> Boolean = { false }): List<LongRange>? {
+        val levels = audioLevels(context, uri, isStopped) ?: return null
         if (levels.size < 600) return emptyList()   // under a minute of audio
         val silences = silenceTimes(levels)
         return breaksFrom(silences)
