@@ -67,6 +67,12 @@ object RecordingTrimmer {
         // version.
         RecordingFileUtils.deleteFile(context, rec.outputPath)
         db.recordingDao().updatePathDurationAndStatus(rec.id, finalTarget, trimmedDurationMs, "DONE")
+        // The trim moved every moment 20 s earlier: old break times would be wrong. Re-analyze the
+        // new file (replacing any analysis of the old one still running).
+        com.iptvapp.util.AdBreakDetector.forget(context, rec.id)
+        com.iptvapp.worker.AdBreakWorker.enqueue(
+            context, rec.id, com.iptvapp.worker.AdBreakWorker.uriForPath(finalTarget), replace = true
+        )
         return true
     }
 

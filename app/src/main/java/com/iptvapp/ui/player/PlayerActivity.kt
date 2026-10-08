@@ -3685,6 +3685,11 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updateSkipBreak(positionMs: Long) {
         if (!isRecordingPlayback || streamId < 0) return
+        // No room for it over a picture-in-picture window.
+        if (isInPictureInPictureMode) {
+            binding.btnSkipBreak.visibility = View.GONE
+            return
+        }
         val now = android.os.SystemClock.elapsedRealtime()
         if (adBreaks.isEmpty() && now - adBreaksCheckedAt > 15_000L) {
             adBreaksCheckedAt = now
@@ -4294,6 +4299,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
             isOverlayVisible = false
+            binding.btnSkipBreak.visibility = View.GONE
             binding.liveProgramBar.visibility = View.GONE
             binding.osdTopBar.visibility = View.GONE
             binding.playerTopScrim.visibility = View.GONE

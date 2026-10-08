@@ -2,6 +2,6 @@
   "versionCode": 553,
   "versionName": "7.15",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.15/MKTV.apk",
-  "apkSha256": "71bb1d12cc122c429272c1b53fd79eb04603335bf72c4c5478406cb8938d8413",
+  "apkSha256": "181a2ed831be5ea3e966955055ad4ba7ff17db9317140e23686bf9869781c149",
   "changelog": "Skip break: recordings get a button to jump past detected commercial breaks."
 }

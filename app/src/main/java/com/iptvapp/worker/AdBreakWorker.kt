@@ -38,10 +38,11 @@ class AdBreakWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         private const val KEY_URI = "uri"
 
         /** [uri]: content:// (MediaStore, FileProvider) or file:// — see uriForPath. */
-        fun enqueue(context: Context, recordingId: Int, uri: String) {
+        // [replace]: the file changed (trimmed) — cancel an analysis of the old one instead of keeping it.
+        fun enqueue(context: Context, recordingId: Int, uri: String, replace: Boolean = false) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "ad-breaks-$recordingId",
-                ExistingWorkPolicy.KEEP,
+                if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
                 OneTimeWorkRequestBuilder<AdBreakWorker>()
                     .setInputData(workDataOf(KEY_ID to recordingId, KEY_URI to uri))
                     .build()
