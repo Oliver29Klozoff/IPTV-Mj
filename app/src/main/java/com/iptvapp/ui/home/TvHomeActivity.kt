@@ -170,14 +170,35 @@ class TvHomeActivity : AppCompatActivity() {
                 target.showTitle?.let { "$it — on ${target.channelName}" } ?: "Tuning ${target.channelName}",
                 Toast.LENGTH_SHORT
             ).show()
-            if (target.serverIndex == -1) {
-                val ch = viewModel.getChannelById(target.streamId) ?: return@launch
-                playInMiniPlayer(ch)
-                viewModel.markChannelWatched(ch.streamId)
-                viewModel.setCurrentlyPlaying(ch.streamId)
-            } else {
-                viewModel.getMergedChannelByIndexAndId(target.serverIndex, target.streamId)?.let { playMergedChannel(it) }
-            }
+            tuneTarget(target)
+        }
+    }
+
+    /** Plays a voice-tune / phone-remote match in the mini player; false when it's gone. */
+    private suspend fun tuneTarget(target: com.iptvapp.util.VoiceTuner.Target): Boolean {
+        if (target.serverIndex == -1) {
+            val ch = viewModel.getChannelById(target.streamId) ?: return false
+            playInMiniPlayer(ch)
+            viewModel.markChannelWatched(ch.streamId)
+            viewModel.setCurrentlyPlaying(ch.streamId)
+        } else {
+            val ch = viewModel.getMergedChannelByIndexAndId(target.serverIndex, target.streamId) ?: return false
+            playMergedChannel(ch)
+        }
+        return true
+    }
+
+    /** A channel picked on the phone remote: this TV's own copy of it (found by name, as the phone
+     * may use another provider), straight to full screen. */
+    private suspend fun remoteTune(name: String) {
+        val target = viewModel.resolveVoice(listOf(name))
+        if (target == null || !tuneTarget(target)) {
+            Toast.makeText(this, "Couldn't find \"$name\" on this TV", Toast.LENGTH_LONG).show()
+            return
+        }
+        miniPlayJob?.join()
+        if (currentMiniUrl.isNotEmpty() && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+            binding.tvMiniPlayerContainer.performClick()
         }
     }
 
@@ -239,6 +260,7 @@ class TvHomeActivity : AppCompatActivity() {
                 currentMiniTitle = title
                 currentMiniIsVod = false
                 binding.tvTvChannelName.text = title
+                com.iptvapp.remote.RemoteControlServer.nowPlaying = title
                 miniPlayer?.let {
                     it.setMediaItem(MediaItem.fromUri(url))
                     it.prepare()
@@ -477,6 +499,9 @@ class TvHomeActivity : AppCompatActivity() {
         setupSeriesFullScreen()
         setupMiniPlayer()
         observeViewModel()
+        // Phone as remote (v7.18): the phone finds this screen on the home network and drives it.
+        com.iptvapp.remote.RemoteControlServer.start(this)
+        com.iptvapp.remote.RemoteControlHooks.attach(this) { name -> remoteTune(name) }
         observeEpgGuide()
         observeSidebarVisibility()
         viewModel.loadAll()
@@ -754,6 +779,11 @@ class TvHomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
+        // A channel the phone picked while the full-screen player was showing a movie or a replay.
+        com.iptvapp.remote.RemoteControlServer.pendingTune?.let { name ->
+            com.iptvapp.remote.RemoteControlServer.pendingTune = null
+            lifecycleScope.launch { remoteTune(name) }
+        }
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
         lifecycleScope.launch {
@@ -809,6 +839,7 @@ class TvHomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        com.iptvapp.remote.RemoteControlServer.stop()
         miniPlayer?.release()
         miniPlayer = null
     }
@@ -916,6 +947,7 @@ class TvHomeActivity : AppCompatActivity() {
             currentMiniServerIndex = -1
             currentMiniIsVod = false
             binding.tvTvChannelName.text = currentMiniTitle
+            com.iptvapp.remote.RemoteControlServer.nowPlaying = currentMiniTitle
             miniPlayer?.let {
                 it.setMediaItem(MediaItem.fromUri(url))
                 it.prepare()
@@ -2405,6 +2437,7 @@ class TvHomeActivity : AppCompatActivity() {
                 currentMiniMergedStreamId = channel.streamId
                 currentMiniIsVod = false
                 binding.tvTvChannelName.text = title
+                com.iptvapp.remote.RemoteControlServer.nowPlaying = title
                 miniPlayer?.let {
                     it.setMediaItem(MediaItem.fromUri(url))
                     it.prepare()

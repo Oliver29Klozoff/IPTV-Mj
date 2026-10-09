@@ -2791,6 +2791,9 @@ class HomeActivity : AppCompatActivity() {
         binding.btnMultiView?.setOnClickListener {
             startActivity(Intent(this, MultiViewActivity::class.java))
         }
+        binding.btnPhoneRemote?.setOnClickListener {
+            startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))
+        }
         binding.btnSearchAllProviders?.setOnClickListener { showGlobalSearchDialog() }
         binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
         binding.root.findViewById<android.widget.TextView?>(R.id.btnPipRestore)

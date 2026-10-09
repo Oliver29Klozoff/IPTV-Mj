@@ -405,6 +405,8 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Phone as remote (v7.18): while this is in front on the TV, the phone's buttons and channel picks land here.
+        com.iptvapp.remote.RemoteControlHooks.attach(this) { name -> remoteTune(name) }
         hideSystemBars()
         setupFavoritesGuide()
         setupResizeButton()
@@ -3524,6 +3526,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun loadStream(url: String) {
+        com.iptvapp.remote.RemoteControlServer.nowPlaying = streamTitle
         retryCount = 0
         vodFormatFallbackTried = false
         retryJob?.cancel()
@@ -4070,6 +4073,35 @@ class PlayerActivity : AppCompatActivity() {
      * enough here. No-ops silently if there's nothing to recall yet (fresh launch, or the
      * previous channel no longer resolves) rather than showing an error — a LAST press with
      * nothing to go back to should just do nothing, same as a real remote. */
+    /** A channel picked on the phone remote. Live TV switches here, found by name the way voice
+     * tune finds it (the phone may use another provider); a movie, replay, recording, audio-only
+     * or received cast closes, and the TV home screen plays the channel instead. */
+    private suspend fun remoteTune(name: String) {
+        if (isVod || isRecordingPlayback || audioOnly || castChannels.isNotEmpty()) {
+            com.iptvapp.remote.RemoteControlServer.pendingTune = name
+            finish()
+            return
+        }
+        val target = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val enabled = prefs.enabledExtraServerIndices.first()
+            val merged = db.mergedChannelDao().getAll().first().filter { it.serverIndex == -1 || it.serverIndex in enabled }
+            com.iptvapp.util.VoiceTuner.resolve(db, listOf(name), repository.getAllChannels().first(), merged)
+        }
+        if (target == null) {
+            Toast.makeText(this, "Couldn't find \"$name\" on this TV", Toast.LENGTH_LONG).show()
+            return
+        }
+        suppressOverlayOnReady = true
+        if (target.serverIndex == -1) {
+            playChannel(repository.getChannelById(target.streamId) ?: return)
+        } else {
+            playMergedChannel(repository.getMergedChannelByIndexAndId(target.serverIndex, target.streamId) ?: return)
+        }
+        // After the switch commits, so the banner names the new channel.
+        channelSwitchJob?.join()
+        showChannelOsd()
+    }
+
     private fun recallLastChannel() {
         if (isVod || previousStreamId == -1) return
         val targetServerIndex = previousServerIndex
@@ -4191,6 +4223,9 @@ class PlayerActivity : AppCompatActivity() {
                 isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() + nextVodSkipAmountMs()); notifyPartyStateChange(); true }
                 else -> true
             }
+            // Dedicated channel keys (and the phone remote's CH buttons): zap even with the controls open.
+            KeyEvent.KEYCODE_CHANNEL_UP -> { if (!isVod) { suppressOverlayOnReady = true; nextChannel(); showChannelOsd() }; true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (!isVod) { suppressOverlayOnReady = true; previousChannel(); showChannelOsd() }; true }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()
                 updatePlayPauseButton(); notifyPartyStateChange(); true

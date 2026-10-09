@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v7.18 - 2026-10-08
+- **New**: **Phone remote**. Your phone can now control MKTV on the Shield over your home Wi-Fi.
+  On the phone, tap the new remote button at the top of the Home screen. It finds the Shield by
+  itself, as long as MKTV is open on it. The first time, the Shield shows a 4-digit code: type it
+  on the phone to pair. After that the phone has the Shield remote's buttons: arrows, OK, Back,
+  CH + / CH −, Last, Guide and Play / Pause. They work on every MKTV screen, menus and pop-ups
+  included. Below the buttons are your favorites and a search box. Tap a channel and the Shield
+  puts it on full screen, playing from the Shield's own provider. If the Wi-Fi network hides the
+  Shield, choose **Type the TV's address…** and enter the Shield's IP address.
+- **New**: the TV player's dedicated **CH + / CH −** keys now change channels even while the
+  controls are open.
+
 ## v7.17 - 2026-10-08
 - **Changed**: with **Show USA channels only** on, MKTV now downloads and keeps only the US
   channels, for your main provider and your other providers. Before, it loaded every channel

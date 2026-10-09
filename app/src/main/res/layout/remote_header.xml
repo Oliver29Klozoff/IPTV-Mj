@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote header: back, title + which TV / what's on, and the TV picker. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="8dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="8dp">
+
+    <ImageButton
+        android:id="@+id/btnRemoteBack"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="@drawable/rack_row_bg"
+        android:contentDescription="Back"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_player_back"
+        app:tint="@color/rack_text" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvRemoteTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.12"
+            android:text="PHONE REMOTE"
+            android:textColor="@color/oled_cyan_primary"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/tvRemoteStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/barlow"
+            android:maxLines="2"
+            android:text="Looking for MKTV on your Wi-Fi…"
+            android:textColor="@color/rack_text_secondary"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/btnRemoteChangeTv"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:background="@drawable/home_chip_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:gravity="center"
+        android:letterSpacing="0.1"
+        android:paddingHorizontal="12dp"
+        android:text="Pick TV"
+        android:textAllCaps="true"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp" />
+</LinearLayout>

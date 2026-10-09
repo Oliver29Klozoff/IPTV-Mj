@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote (v7.18): a TV remote — body, a D-pad ring and two buttons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M9,2h6a3,3 0,0 1,3 3v14a3,3 0,0 1,-3 3h-6a3,3 0,0 1,-3 -3v-14a3,3 0,0 1,3 -3zM9,4a1,1 0,0 0,-1 1v14a1,1 0,0 0,1 1h6a1,1 0,0 0,1 -1v-14a1,1 0,0 0,-1 -1zM12,6a3,3 0,1 1,0 6a3,3 0,1 1,0 -6zM12,8a1,1 0,1 0,0 2a1,1 0,1 0,0 -2zM10,14a1,1 0,1 1,0 2a1,1 0,1 1,0 -2zM14,14a1,1 0,1 1,0 2a1,1 0,1 1,0 -2z" />
+</vector>

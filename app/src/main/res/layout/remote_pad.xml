@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote buttons: each sends the TV remote key of the same name (RemoteControlServer.KEYS). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView android:id="@+id/btnKeyChUp" style="@style/RemoteKey" android:text="CH +" />
+        <TextView android:id="@+id/btnKeyUp" style="@style/RemoteKey" android:contentDescription="Up" android:text="▲" />
+        <TextView android:id="@+id/btnKeyGuide" style="@style/RemoteKey" android:text="Guide" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView android:id="@+id/btnKeyLeft" style="@style/RemoteKey" android:contentDescription="Left" android:text="◀" />
+        <TextView android:id="@+id/btnKeyOk" style="@style/RemoteKey" android:text="OK" />
+        <TextView android:id="@+id/btnKeyRight" style="@style/RemoteKey" android:contentDescription="Right" android:text="▶" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView android:id="@+id/btnKeyChDown" style="@style/RemoteKey" android:text="CH −" />
+        <TextView android:id="@+id/btnKeyDown" style="@style/RemoteKey" android:contentDescription="Down" android:text="▼" />
+        <TextView android:id="@+id/btnKeyLast" style="@style/RemoteKey" android:text="Last" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView android:id="@+id/btnKeyBack" style="@style/RemoteKey" android:text="Back" />
+        <TextView android:id="@+id/btnKeyPlayPause" style="@style/RemoteKey" android:layout_weight="2" android:text="Play / Pause" />
+    </LinearLayout>
+</LinearLayout>

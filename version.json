@@ -1,7 +1,7 @@
 {
-  "versionCode": 555,
-  "versionName": "7.17",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.17/MKTV.apk",
-  "apkSha256": "b676b31c3fcfd291744b12ecd56bfb7c1223ed095b97adae939e0558514c0df4",
-  "changelog": "USA only now keeps only US channels instead of loading all ~57,000: much faster startup, especially on the Shield."
+  "versionCode": 556,
+  "versionName": "7.18",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.18/MKTV.apk",
+  "apkSha256": "83e3fab33066ca6df81753a3a120cb70059d188604dff7c54f7f225d91818240",
+  "changelog": "Phone remote: control MKTV on the Shield from your phone over Wi-Fi — buttons, plus tap a channel to put it on the TV."
 }

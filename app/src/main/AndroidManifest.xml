@@ -147,6 +147,12 @@
             android:screenOrientation="unspecified" />
 
         <activity
+            android:name=".ui.remote.RemoteActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ui.guide.EpgTimelineActivity"
             android:exported="false"
             android:screenOrientation="unspecified"

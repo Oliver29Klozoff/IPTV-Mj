@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote (v7.18), landscape (car box, phones on their side): buttons left, channels right. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/remoteRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/rack_bg"
+    android:orientation="vertical">
+
+    <include
+        android:id="@+id/remoteHeader"
+        layout="@layout/remote_header" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp">
+
+        <ScrollView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <include
+                android:id="@+id/remotePad"
+                layout="@layout/remote_pad" />
+        </ScrollView>
+
+        <include
+            android:id="@+id/remoteList"
+            layout="@layout/remote_list"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+</LinearLayout>
