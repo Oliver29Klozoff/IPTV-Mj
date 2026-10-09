@@ -4142,6 +4142,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return true
     }
 
+    /** A channel key: changes channel, then shows the banner once the switch has committed (the
+     * change runs in channelSwitchJob, after any Channel Change Speed delay), so it names the new
+     * channel rather than the one being left. */
+    private fun zapWithBanner(zap: () -> Unit) {
+        suppressOverlayOnReady = true
+        zap()
+        val job = channelSwitchJob
+        lifecycleScope.launch {
+            job?.join()
+            if (job == channelSwitchJob) showChannelOsd()
+        }
+    }
+
     private fun previousChannel() {
         if (castZap(-1)) return
         if (serverIndex != -1) {
@@ -4221,8 +4234,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 else -> true
             }
             // Dedicated channel keys (and the phone remote's CH buttons): zap even with the controls open.
-            KeyEvent.KEYCODE_CHANNEL_UP -> { if (!isVod) { suppressOverlayOnReady = true; nextChannel(); showChannelOsd() }; true }
-            KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (!isVod) { suppressOverlayOnReady = true; previousChannel(); showChannelOsd() }; true }
+            KeyEvent.KEYCODE_CHANNEL_UP -> { if (!isVod) zapWithBanner { nextChannel() }; true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (!isVod) zapWithBanner { previousChannel() }; true }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (player?.isPlaying == true) player?.pause() else player?.play()
                 updatePlayPauseButton(); notifyPartyStateChange(); true

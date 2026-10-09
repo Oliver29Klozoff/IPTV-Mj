@@ -86,10 +86,11 @@
             android:contentDescription="Phone remote"
             android:tint="#888888" />
 
+        <!-- Gap before the search box, which takes the rest of the bar (v7.18: a fixed 180dp
+             box clipped its own buttons on narrower phones once the remote button was added). -->
         <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_width="8dp"
+            android:layout_height="0dp" />
 
         <!-- Reserves exactly the front-camera cutout's width on devices with a top-center
              punch-hole, so the search box (and Providers toggle right before it) shift clear
@@ -126,8 +127,9 @@
             android:visibility="gone" />
 
         <FrameLayout
-            android:layout_width="180dp"
-            android:layout_height="34dp">
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_weight="1">
             <EditText
                 android:id="@+id/etSearch"
                 android:layout_width="match_parent"
