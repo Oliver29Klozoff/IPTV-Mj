@@ -217,7 +217,7 @@ class HomeViewModel @Inject constructor(
             val primaryEpg = if (primaryIds.isNotEmpty()) repository.getEpgForStreams(primaryIds).first() else emptyList()
             val mergedEpg = if (mergedPairs.isNotEmpty()) repository.getEpgForServerStreams(mergedPairs).first() else emptyList()
             val nowSecs = System.currentTimeMillis() / 1000
-            // getEpgForStreams/getEpgForServerStreamKeys return every cached program (past and
+            // getEpgForStreams/getEpgForServerStreams return every cached program (past and
             // future), not just what's airing right now — filter to the one program per
             // channel whose window actually contains the current time, same "now" definition
             // EpgDao.getCurrentlyAiring already uses for its single-server equivalent.

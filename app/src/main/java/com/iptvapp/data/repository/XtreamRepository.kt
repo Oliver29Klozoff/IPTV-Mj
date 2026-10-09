@@ -4,6 +4,7 @@ import android.util.Base64
 import com.iptvapp.data.api.*
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
+import com.iptvapp.data.local.XmltvGuideWriter
 import com.iptvapp.data.local.dao.ChannelUserData
 import com.iptvapp.data.local.entities.*
 import com.iptvapp.util.M3uParser
@@ -36,7 +37,17 @@ class XtreamRepository @Inject constructor(
     private val prefs: PreferencesManager,
     private val okHttpClient: OkHttpClient
 ) {
+    private val xmltvGuideWriter = XmltvGuideWriter(db)
+    private val xmltvEpgRefresh = XmltvEpgRefresh(xmltvGuideWriter)
+
     private suspend fun creds() = prefs.credentials.first()
+
+    /** Which login currently owns the primary guide slot. Null when nobody is logged in. */
+    private suspend fun primaryGuideIdentity(): String? {
+        val c = creds()
+        if (!c.isLoggedIn || c.serverUrl.isEmpty()) return null
+        return "${c.serverUrl}\u0000${c.username}"
+    }
 
     /** Converts a raw live-search query into FTS4 MATCH syntax: strips characters FTS4's query
      * parser treats as syntax (quotes, *, -, parens) so a user typing e.g. `"news` or `a-team`
@@ -190,7 +201,7 @@ class XtreamRepository @Inject constructor(
         sql.execSQL("DELETE FROM categories")
         sql.execSQL("DELETE FROM vod_streams")
         sql.execSQL("DELETE FROM series")
-        sql.execSQL("DELETE FROM epg_entries WHERE serverIndex = -1")
+        xmltvGuideWriter.clear(-1)
         sql.execSQL("DELETE FROM channel_reliability")
         sql.execSQL("DELETE FROM recordings WHERE serverIndex = -1")
         sql.execSQL("DELETE FROM episode_watched")
@@ -208,7 +219,7 @@ class XtreamRepository @Inject constructor(
         mergedChannelsRefreshMutex.withLock { db.mergedChannelDao().clearForServer(serverIndex) }
         mergedVodRefreshMutex.withLock { db.mergedVodDao().clearForServer(serverIndex) }
         mergedSeriesRefreshMutex.withLock { db.mergedSeriesDao().clearForServer(serverIndex) }
-        db.epgDao().deleteAllForServer(serverIndex)
+        xmltvGuideWriter.clear(serverIndex)
     }
 
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
@@ -976,9 +987,11 @@ class XtreamRepository @Inject constructor(
     }
 
     /**
-     * Fetch EPG from the provider's XMLTV endpoint (xmltv.php) and upsert into epg_entries.
-     * Returns the number of programs written, or 0 if the endpoint returns nothing useful.
-     * Never throws — silently no-ops on any failure.
+     * Fetch EPG from the provider's XMLTV endpoint (xmltv.php) and any manual guide URLs.
+     * Returns the number of programs written. A failed download, an unusable body, or a guide
+     * that matches nothing leaves the stored guide in place and returns 0.
+     * Cancellation propagates. A database error propagates so the worker can retry; that
+     * write is rolled back and the previous guide stays.
      */
     // Fetches from the primary server's own built-in xmltv.php AND every manually-configured
     // EPG source (Settings > EPG "Add EPG Source" / the "Default US Guide" toggle) — these
@@ -993,133 +1006,25 @@ class XtreamRepository @Inject constructor(
             sources.add(XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password))
         }
         sources.addAll(prefs.getEpgUrls().filter { it.isNotBlank() }.map(com.iptvapp.AppConstants::currentEpgUrl))
-        if (sources.isEmpty()) return@withContext 0
-
-        // Build lookup once, shared across every source — the same primary-server channel
-        // table is what every EPG source is matched against regardless of which XMLTV feed
-        // supplied the program data.
-        val allChannels = db.channelDao().getAllChannels().first()
-        val byEpgId = mutableMapOf<String, Int>()
-        // Normalizing strips region/country prefixes ("US:", "BR:", "NL:") along with HD/quality
-        // tags, so two entirely different regional channels commonly collapse to the identical
-        // key — "US: ESPN HD" and "BR: ESPN HD" both normalize to "espn". A plain single-value map
-        // here meant whichever channel happened to be processed last in this forEach silently won
-        // that key, and every XMLTV program for "espn" got written against that one channel's
-        // streamId even when it was actually the other regional feed's schedule — exactly the
-        // "guide shows one channel's schedule, a different channel is playing" bug reported after
-        // v5.74/v5.75 (those fixed the substring-fallback and stale-data issues, but this
-        // exact-key collision was a separate, still-live cause of the same symptom). A name that
-        // maps to more than one channel is now treated as ambiguous and excluded entirely — see
-        // the null-out pass below — rather than resolved by silent last-write-wins.
-        val byNameRaw = mutableMapOf<String, MutableList<Int>>()
-        allChannels.forEach { ch ->
-            if (!ch.epgChannelId.isNullOrBlank())
-                byEpgId[ch.epgChannelId.lowercase()] = ch.streamId
-            val key = normalizeForMatch(ch.name)
-            if (key.isNotBlank()) byNameRaw.getOrPut(key) { mutableListOf() }.add(ch.streamId)
+        val identity = primaryGuideIdentity()
+        val channels = db.channelDao().getAllChannels().first().map {
+            XmltvLocalChannel(it.streamId, it.name, it.epgChannelId)
         }
-        val byName: Map<String, Int> = byNameRaw.filterValues { it.size == 1 }.mapValues { it.value[0] }
-
-        // Feature B: snapshot every favorited channel's current EPG BEFORE the delete+rebuild
-        // below wipes it out, so recordFavoriteEpgDiffs has the "old" side of the comparison.
         val favoriteIds = db.channelDao().getFavoriteChannelIds()
-        val beforeSnapshot = snapshotFavoriteEpg(-1, favoriteIds)
-
-        // Clear every existing primary-server EPG row before writing the fresh batch — see
-        // EpgDao.deleteAllForServer's kdoc for why upsert alone can leave stale, WRONG entries
-        // behind under an old streamId when a channel now resolves differently (or not at all)
-        // than it did on a previous fetch. This is why refreshing the EPG after the v5.74 matching
-        // fix didn't change anything you could see: the old mismatched rows were still sitting in
-        // the table, untouched by upsert.
-        db.epgDao().deleteAllForServer(-1)
-
-        var totalCount = 0
-        for (url in sources) {
-            totalCount += try {
-                fetchXmltvFromUrl(url, byEpgId, byName)
-            } catch (e: Exception) { com.iptvapp.util.rethrowIfCancelled(e); 0 } // a cancelled refresh stops here
-        }
-        // Provider guide down or empty (T-Rex's xmltv.php 404s, for one) — fall back to the public
-        // US feed rather than leaving the guide blank. Skipped on a fresh install with no channels
-        // cached yet, where nothing could match and it would just be a wasted 6.5 MB download.
-        val backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
-        if (totalCount == 0 && allChannels.isNotEmpty() && backupUrl !in sources) {
-            totalCount = try { fetchXmltvFromUrl(backupUrl, byEpgId, byName) } catch (e: Exception) { com.iptvapp.util.rethrowIfCancelled(e); 0 }
-            android.util.Log.i("Xmltv", "primary: provider guide empty — backup guide matched $totalCount programs")
-        }
-        recordFavoriteEpgDiffs(-1, beforeSnapshot)
-        totalCount
+        var beforeSnapshot = emptyMap<Int, List<EpgEntity>>()
+        // The public US feed is only a stand-in when every configured source fails. It covers
+        // some channels, so the commit replaces just those and leaves the rest of the guide.
+        return@withContext xmltvEpgRefresh.loadPrimary(
+            sources = sources,
+            backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL,
+            channels = channels,
+            fetch = { url -> XmltvFetcher.fetch(url) },
+            stillCurrent = { primaryGuideIdentity() == identity },
+            onBeforeCommit = { beforeSnapshot = snapshotFavoriteEpg(-1, favoriteIds) },
+            onCommitted = { recordFavoriteEpgDiffs(-1, beforeSnapshot) }
+        )
     }
 
-    private suspend fun fetchXmltvFromUrl(
-        url: String,
-        byEpgId: Map<String, Int>,
-        byName: Map<String, Int>
-    ): Int {
-        val (xmlChannels, xmlPrograms) = XmltvFetcher.fetch(url)
-        if (xmlPrograms.isEmpty()) return 0
-
-        // Resolve each distinct xmltv channel to a stream id once (not per-program —
-        // there can be thousands of programs but only a few hundred channels): 1) exact
-        // epg-channel-id match, 2) exact normalized-name match. A previous third fallback —
-        // "first channel whose normalized name contains, or is contained by, the xmltv name" —
-        // was removed: on a catalog this size (tens of thousands of channels), that kind of
-        // substring match routinely matched the WRONG channel (e.g. "ESPN" as a substring of
-        // "ESPN2", "ESPN News", "ESPN Deportes", ...), silently writing one network's real
-        // schedule under a completely different channel's streamId — exactly the bug where the
-        // guide shows one show/movie but the channel is actually playing something else. Losing
-        // EPG data for a channel with an ambiguous/non-matching name is far better than showing
-        // confidently wrong data for it.
-        val xmlChannelToStreamId = mutableMapOf<String, Int>()
-        // Id matches first, then names for whatever is left, one feed channel per local channel:
-        // a feed can list one network twice ("Bravo" and "Bravo HD" both normalize to "bravo"),
-        // and letting both write to the same channel interleaves two overlapping schedules.
-        // Only feed channels with programs that haven't ended yet may claim one, so an empty or
-        // stale duplicate entry can't shadow the one carrying the current schedule.
-        val claimNowSec = System.currentTimeMillis() / 1000
-        val withPrograms = xmlPrograms.filter { it.stopSec > claimNowSec }.mapTo(HashSet()) { it.channelId }
-        val candidates = xmlChannels.filter { it.id in withPrograms }
-        val claimed = mutableSetOf<Int>()
-        candidates.forEach { xmlCh ->
-            byEpgId[xmlCh.id.lowercase()]?.let { xmlChannelToStreamId[xmlCh.id] = it; claimed += it }
-        }
-        candidates.forEach { xmlCh ->
-            if (xmlCh.id in xmlChannelToStreamId) return@forEach
-            val resolved = byName[normalizeForMatch(xmlCh.displayName)] ?: return@forEach
-            if (claimed.add(resolved)) xmlChannelToStreamId[xmlCh.id] = resolved
-        }
-
-        val nowSec = System.currentTimeMillis() / 1000
-        val entities = mutableListOf<EpgEntity>()
-
-        xmlPrograms.forEach { prog ->
-            val streamId = xmlChannelToStreamId[prog.channelId] ?: return@forEach
-
-            entities.add(EpgEntity(
-                id             = "x_${prog.channelId}_${prog.startSec}",
-                streamId       = streamId,
-                title          = prog.title,
-                description    = prog.description,
-                startTimestamp = prog.startSec,
-                stopTimestamp  = prog.stopSec,
-                nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
-                hasArchive     = 0
-            ))
-        }
-
-        entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
-        return entities.size
-    }
-
-    // Word-boundary-safe: the previous version's tokens had no \b, so e.g. "us"/"hd" could
-    // strip a matching substring out of the middle of an unrelated word instead of only
-    // matching whole quality/region tags, causing inconsistent normalization between a
-    // channel's Xtream name and its XMLTV display name.
-    private fun normalizeForMatch(name: String): String =
-        name.lowercase()
-            .replace(Regex("\\b(hd|fhd|uhd|4k|sd|the|us|usa|uk|ca|east|west|hevc|h264|h265)\\b"), " ")
-            .replace(Regex("[^a-z0-9]"), "")
-            .trim()
 
     fun getEpgForStream(streamId: Int): Flow<List<EpgEntity>> =
         db.epgDao().getEpgForStream(streamId)
@@ -1187,13 +1092,17 @@ class XtreamRepository @Inject constructor(
      * Same SQLite bound-parameter chunking as getEpgForStreams above — a large enough combined
      * merged-favorites count across providers could hit the same crash. */
     fun getEpgForServerStreams(pairs: List<Pair<Int, Int>>): Flow<List<EpgEntity>> {
-        val keys = pairs.map { (serverIndex, streamId) -> "$serverIndex:$streamId" }
-        return if (keys.size <= 900) {
-            db.epgDao().getEpgForServerStreamKeys(keys)
-        } else {
-            kotlinx.coroutines.flow.flow {
-                emit(keys.chunked(900).flatMap { chunk -> db.epgDao().getEpgForServerStreamKeys(chunk).first() })
+        if (pairs.isEmpty()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        // Per server, then streamId IN (...). A single "(serverIndex || ':' || streamId) IN"
+        // expression cannot use an index. Callers only collect this once.
+        return kotlinx.coroutines.flow.flow {
+            val all = mutableListOf<EpgEntity>()
+            pairs.groupBy({ it.first }, { it.second }).forEach { (serverIndex, ids) ->
+                ids.distinct().chunked(900).forEach { chunk ->
+                    all += db.epgDao().getEpgForStreams(chunk, serverIndex).first()
+                }
             }
+            emit(all)
         }
     }
     suspend fun getStreamIdsWithEpg(serverIndex: Int) = db.epgDao().getStreamIdsWithEpg(serverIndex)
@@ -2702,170 +2611,63 @@ class XtreamRepository @Inject constructor(
         }
     }
 
-    /** Bulk XMLTV fetch for one merged/secondary server — mirrors fetchXmltvEpg's body but
-     * resolves channels against that server's own merged_channels rows (not the primary
-     * provider's ChannelEntity table) and stamps every row with serverIndex. One HTTP request
-     * per server regardless of channel count, same as the primary path — this is why it's the
-     * low-rate-limit-risk way to get merged providers real timeline depth, rather than an
-     * unpaced per-channel loop. Never throws — returns 0 on any failure. */
+    /** Bulk XMLTV fetch for one merged/secondary server. The feed is downloaded and matched
+     * before anything is deleted, and the delete plus insert commit together. A failed, empty,
+     * or unmatched feed leaves this server's existing guide in place. Cancellation propagates.
+     * Any other failure returns 0. */
     suspend fun fetchXmltvEpgForMergedServer(serverIndex: Int): Int = withContext(Dispatchers.IO) {
         val tag = "MergedXmltv"
-        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: run {
-            android.util.Log.w(tag, "serverIndex=$serverIndex: not in allConfiguredServers (disabled or removed)")
-            return@withContext 0
-        }
-        if (server.serverUrl.isBlank()) {
-            android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): blank serverUrl")
-            return@withContext 0
-        }
-        // Try the provider's own custom EPG URL first (Settings > Providers > Edit > EPG URL) —
-        // previously ignored entirely here, so a provider whose real XMLTV feed lives at a
-        // different URL than its Xtream panel's default /xmltv.php path (exactly the case the
-        // per-provider EPG URL field exists for) always got zero channels/programs back, since
-        // the default path either 404s or serves an empty feed for that panel. Falls back to the
-        // default path if no custom URL is set, or if the custom one returns nothing.
-        val sources = listOfNotNull(
-            server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl),
-            XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password),
-            // Last resort when the provider's own guide is down or empty — see fetchXmltvEpg.
-            com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
-        ).distinct()
-
-        val channels = db.mergedChannelDao().getAllForServer(serverIndex)
-        if (channels.isEmpty()) {
-            android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): no cached merged_channels rows for this server — channels haven't been refreshed yet")
-            return@withContext 0
-        }
-        // Multiple local channels commonly share one epgChannelId — HD/SD/EAST/WEST variants of
-        // the same network all carry their network's single EPG id (e.g. "US: USA NETWORK HD",
-        // "US: USA NETWORK WEST HD", "US: USA NETWORK EAST HD" all use "usanetwork.us"). A
-        // single-valued map here meant only the last channel processed for a given id kept its
-        // match — every earlier variant silently lost its EPG entirely. Both maps are one-to-many
-        // so every variant gets the same programs.
-        val byEpgId = mutableMapOf<String, MutableList<Int>>()
-        // byEpgId above is deliberately one-to-many (see comment above it) — real HD/SD/EAST/
-        // WEST variants of one network sharing one provider-assigned id, a legitimate case where
-        // fanning EPG data out to every variant is correct. byName has no such ground truth: it's
-        // a fallback heuristic, and normalizing strips region/country prefixes ("US:", "BR:",
-        // "NL:") along with HD/quality tags, so two entirely UNRELATED regional channels commonly
-        // collapse to the identical key — "US: ESPN HD" and "BR: ESPN HD" both normalize to
-        // "espn". Applying one schedule to both (as a naive one-to-many byName would) is just as
-        // wrong as v5.74/v5.75's already-fixed substring-fallback and stale-data bugs, so any name
-        // that maps to more than one channel is excluded from byName entirely rather than guessed.
-        val byNameRaw = mutableMapOf<String, MutableList<Int>>()
-        channels.forEach { ch ->
-            if (!ch.epgChannelId.isNullOrBlank()) byEpgId.getOrPut(ch.epgChannelId.lowercase()) { mutableListOf() }.add(ch.streamId)
-            val key = normalizeForMatch(ch.name)
-            if (key.isNotBlank()) byNameRaw.getOrPut(key) { mutableListOf() }.add(ch.streamId)
-        }
-        val byName: Map<String, List<Int>> = byNameRaw.filterValues { it.size == 1 }
-
-        // Same byEpgId-first matching the primary provider's fetchXmltvFromUrl already used
-        // (see MergedChannelEntity.epgChannelId kdoc for why this was missing here) — a
-        // stable provider-assigned ID match is far more reliable than fuzzy channel-name
-        // matching, which previously could resolve XMLTV entries to entirely different local
-        // channels than the ones actually favorited on a provider with a large/messy feed.
-        // The substring fallback that used to sit here (matching e.g. "ESPN" against
-        // "ESPN2"/"ESPN News"/"ESPN Deportes" and grabbing whichever happened to be first)
-        // is gone for the same reason as fetchXmltvFromUrl's: on a large catalog it routinely
-        // picked the wrong channel and silently wrote one network's schedule under a
-        // completely different channel's streamId.
-        // Id matches first, then names for unclaimed channels only, and only feed channels that
-        // have current or upcoming programs may claim one — see fetchXmltvFromUrl.
-        fun matchFeed(
-            xmlChannels: List<com.iptvapp.util.XmltvChannel>,
-            xmlPrograms: List<com.iptvapp.util.XmltvProgram>
-        ): Map<String, List<Int>> {
-            val claimNowSec = System.currentTimeMillis() / 1000
-            val withPrograms = xmlPrograms.filter { it.stopSec > claimNowSec }.mapTo(HashSet()) { it.channelId }
-            val candidates = xmlChannels.filter { it.id in withPrograms }
-            val matches = mutableMapOf<String, List<Int>>()
-            val claimed = mutableSetOf<Int>()
-            candidates.forEach { xmlCh ->
-                byEpgId[xmlCh.id.lowercase()]?.let { matches[xmlCh.id] = it; claimed += it }
-            }
-            candidates.forEach { xmlCh ->
-                if (xmlCh.id in matches) return@forEach
-                val resolved = byName[normalizeForMatch(xmlCh.displayName)]?.filter { claimed.add(it) } ?: return@forEach
-                if (resolved.isNotEmpty()) matches[xmlCh.id] = resolved
-            }
-            return matches
-        }
-
         try {
-            var xmlPrograms = emptyList<com.iptvapp.util.XmltvProgram>()
-            var xmlChannelToStreamIds = emptyMap<String, List<Int>>()
-            var usedBackup = false
-            for (url in sources) {
-                val (ch, pr) = XmltvFetcher.fetch(url)
-                android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): source ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} returned ${ch.size} channels, ${pr.size} programs")
-                if (pr.isEmpty()) continue
-                // Matched before anything is deleted: the public backup feed always has programs but
-                // may match none of this provider's channels, and that must not wipe a good cache.
-                val matches = matchFeed(ch, pr)
-                if (matches.isEmpty()) {
-                    android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): source matched no local channels — trying the next")
-                    continue
-                }
-                xmlPrograms = pr; xmlChannelToStreamIds = matches
-                usedBackup = url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL &&
-                    url != server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl)
-                break
-            }
-            if (xmlPrograms.isEmpty()) {
-                android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): every source gave zero matched programs — provider may not offer XMLTV at these URLs, none of its channels matched, or the request failed silently (see XmltvFetcher.fetch, which swallows errors and returns empty)")
+            val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: run {
+                android.util.Log.w(tag, "serverIndex=$serverIndex: not in allConfiguredServers (disabled or removed)")
                 return@withContext 0
             }
-
-            // Feature B: snapshot every favorited channel's current EPG on this server BEFORE the
-            // delete+rebuild below wipes it out — see snapshotFavoriteEpg/recordFavoriteEpgDiffs.
-            val favoriteStreamIds = channels.filter { it.isFavorite }.map { it.streamId }
-            val beforeSnapshot = snapshotFavoriteEpg(serverIndex, favoriteStreamIds)
-
-            // See EpgDao.deleteAllForServer's kdoc — upsert alone can leave stale, WRONG rows
-            // behind under an old streamId when re-matching resolves a channel differently than a
-            // previous fetch did. Placed after the empty-programs guard above so a failed/empty
-            // fetch doesn't wipe out this server's still-good previous data for nothing.
-            // The backup guide stands in for a provider guide that failed and only covers some of
-            // its channels, so it replaces just the channels it matched; the rest keep their cache
-            // until it expires or the provider's own guide comes back.
-            if (usedBackup) {
-                xmlChannelToStreamIds.values.flatten().distinct().chunked(500).forEach {
-                    db.epgDao().deleteForServerStreams(serverIndex, it)
-                }
-            } else {
-                db.epgDao().deleteAllForServer(serverIndex)
+            if (server.serverUrl.isBlank()) {
+                android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): blank serverUrl")
+                return@withContext 0
             }
-
-            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): matched ${xmlChannelToStreamIds.size} xmltv channels to ${xmlChannelToStreamIds.values.sumOf { it.size }} local channels (byEpgId available for ${byEpgId.size}/${channels.size} local channels)")
-
-            val nowSec = System.currentTimeMillis() / 1000
-            val entities = mutableListOf<EpgEntity>()
-            xmlPrograms.forEach { prog ->
-                val streamIds = xmlChannelToStreamIds[prog.channelId] ?: return@forEach
-                streamIds.forEach { streamId ->
-                    entities.add(EpgEntity(
-                        serverIndex    = serverIndex,
-                        id             = "x_${prog.channelId}_${streamId}_${prog.startSec}",
-                        streamId       = streamId,
-                        title          = prog.title,
-                        description    = prog.description,
-                        startTimestamp = prog.startSec,
-                        stopTimestamp  = prog.stopSec,
-                        nowPlaying     = if (prog.startSec <= nowSec && prog.stopSec > nowSec) 1 else 0,
-                        hasArchive     = 0
-                    ))
-                }
+            val ownEpg = server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl)
+            val backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
+            val sources = listOfNotNull(
+                ownEpg,
+                XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password),
+                backupUrl
+            ).distinct()
+            val merged = db.mergedChannelDao().getAllForServer(serverIndex)
+            if (merged.isEmpty()) {
+                android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): no cached merged_channels rows for this server — channels haven't been refreshed yet")
+                return@withContext 0
             }
-            android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): saving ${entities.size} EPG entries after channel-match filtering")
-            entities.chunked(500).forEach { db.epgDao().upsertEpg(it) }
-            recordFavoriteEpgDiffs(serverIndex, beforeSnapshot)
-            entities.size
+            val channels = merged.map { XmltvLocalChannel(it.streamId, it.name, it.epgChannelId) }
+            val favoriteIds = merged.filter { it.isFavorite }.map { it.streamId }
+            val identity = "${server.serverUrl}\u0000${server.username}"
+            var beforeSnapshot = emptyMap<Int, List<EpgEntity>>()
+            xmltvEpgRefresh.loadMerged(
+                serverIndex = serverIndex,
+                sources = sources,
+                backupUrl = backupUrl,
+                backupIsPartial = ownEpg != backupUrl,
+                channels = channels,
+                fetch = { url ->
+                    val parsed = XmltvFetcher.fetch(url)
+                    android.util.Log.d(tag, "serverIndex=$serverIndex (${server.nickname}): source ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} returned ${parsed.first.size} channels, ${parsed.second.size} programs")
+                    parsed
+                },
+                stillCurrent = {
+                    val now = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+                    now != null && "${now.serverUrl}\u0000${now.username}" == identity
+                },
+                onBeforeCommit = { beforeSnapshot = snapshotFavoriteEpg(serverIndex, favoriteIds) },
+                onCommitted = { recordFavoriteEpgDiffs(serverIndex, beforeSnapshot) }
+            )
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            android.util.Log.e(tag, "serverIndex=$serverIndex (${server.nickname}): failed", e)
+            android.util.Log.e(tag, "serverIndex=$serverIndex: failed", e)
             0
         }
     }
+
 
     // Merged-channel browsing reads below drop a disabled provider's rows (kept in the table on
     // purpose so its favorites survive re-enabling), live, so disabling one in Settings takes it

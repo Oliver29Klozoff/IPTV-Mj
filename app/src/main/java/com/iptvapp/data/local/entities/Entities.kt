@@ -121,7 +121,20 @@ data class SeriesFts(val name: String)
 // streamId (and even coincidentally the same raw EPG listing id), so id alone can't be the
 // primary key once merged/secondary providers have EPG data too — same sentinel/composite-key
 // pattern as RecordingEntity.serverIndex and MergedChannelEntity's (serverIndex, streamId) key.
-@Entity(tableName = "epg_entries", primaryKeys = ["serverIndex", "id"])
+// (serverIndex, streamId, startTimestamp) serves one channel's guide, now/next, and
+// streamId IN (...) ordered by start. (serverIndex, startTimestamp) serves "what's on
+// now" across a provider, which the first index cannot (streamId sits in the middle).
+// stopTimestamp serves expiry deletion and the upcoming-title scan, which filter on
+// that column alone. Search-by-title stays a scan: LIKE '%x%' cannot use an index.
+@Entity(
+    tableName = "epg_entries",
+    primaryKeys = ["serverIndex", "id"],
+    indices = [
+        Index(value = ["serverIndex", "streamId", "startTimestamp"]),
+        Index(value = ["serverIndex", "startTimestamp"]),
+        Index(value = ["stopTimestamp"])
+    ]
+)
 data class EpgEntity(
     val serverIndex: Int = -1,
     val id: String,
@@ -220,8 +233,8 @@ data class MergedChannelEntity(
     // which always had it. Without it, fetchXmltvEpgForMergedServer could only fall back to
     // fuzzy channel-name matching against the XMLTV feed, which is why favorited channels on a
     // provider with a large/messy XMLTV feed could get zero guide data even when the fetch
-    // itself succeeded — see XtreamRepository.fetchXmltvFromUrl (primary path) for the
-    // byEpgId-first matching this now allows merged channels to use too.
+    // itself succeeded — see XmltvEpgRefresh.matchMerged for the byEpgId-first matching
+    // this now allows merged channels to use too.
     val epgChannelId: String? = null,
     // A single server can itself have tens of thousands of channels (real-world reseller
     // panels observed at 30k-85k), so category grouping is required even per-server, not just

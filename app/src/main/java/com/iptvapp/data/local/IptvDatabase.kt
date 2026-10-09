@@ -32,8 +32,8 @@ import com.iptvapp.data.local.entities.*
         ProviderHourlyStatsEntity::class,
         EpgDiffAlertEntity::class
     ],
-    version = 43,
-    exportSchema = false
+    version = 44,
+    exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
@@ -632,6 +632,17 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Guide queries filter by provider and channel, then order or range on start time.
+        // stopTimestamp is the expiry sweep and the "still upcoming" scan. Creating indexes
+        // does not rewrite or delete any guide rows.
+        val MIGRATION_43_44 = object : Migration(43, 44) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_entries_serverIndex_streamId_startTimestamp` ON `epg_entries` (`serverIndex`, `streamId`, `startTimestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_entries_serverIndex_startTimestamp` ON `epg_entries` (`serverIndex`, `startTimestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_entries_stopTimestamp` ON `epg_entries` (`stopTimestamp`)")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -641,7 +652,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
             MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
-            MIGRATION_42_43
+            MIGRATION_42_43, MIGRATION_43_44
         )
     }
 }
