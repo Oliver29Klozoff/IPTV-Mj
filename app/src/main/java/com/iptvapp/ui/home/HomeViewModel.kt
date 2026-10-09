@@ -929,6 +929,10 @@ class HomeViewModel @Inject constructor(
      * fetchMergedShortEpgText loop is kept as a fallback afterward, still paced, only for
      * whatever channels XMLTV didn't cover — so the rate-limit safety margin is unchanged. */
     fun loadEpgForMergedChannels(channels: List<com.iptvapp.data.local.entities.MergedChannelEntity>) {
+        // Same list, its load still going (a re-emission, the phone's 60 s refresh): leave it be —
+        // restarting would cancel a slow feed download every time and starve the fallback after it.
+        val keys = channels.map { it.serverIndex to it.streamId }
+        if (mergedEpgJob?.isActive == true && keys == mergedEpgChannels.map { it.serverIndex to it.streamId }) return
         mergedEpgJob?.cancel()
         mergedEpgChannels = channels
         mergedEpgFinished = channels.isEmpty()
