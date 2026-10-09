@@ -90,9 +90,10 @@ object RemoteControlHooks {
 
     /** Asks the person to compare the number with the phone's and pick Pair — with the TV's own
      * remote, so only someone in the room can let a phone in. */
-    private fun showPairingNumber(number: String?) {
+    private fun showPairingNumber(prompt: RemoteControlServer.PairingPrompt?) {
         dismissDialog()
-        if (number == null) return
+        if (prompt == null) return
+        val number = prompt.number
         val activity = front?.get() ?: return
         val numberView = TextView(activity).apply {
             text = number
@@ -106,14 +107,14 @@ object RemoteControlHooks {
             .setTitle("Pair a phone?")
             .setMessage("Pair only if the phone shows this same number:")
             .setView(numberView)
-            .setPositiveButton("Pair") { _, _ -> RemoteControlServer.answerPairing(true) }
-            .setNegativeButton("Cancel") { _, _ -> RemoteControlServer.answerPairing(false) }
-            .setOnCancelListener { RemoteControlServer.answerPairing(false) }
+            .setPositiveButton("Pair") { _, _ -> RemoteControlServer.answerPairing(prompt.id, true) }
+            .setNegativeButton("Cancel") { _, _ -> RemoteControlServer.answerPairing(prompt.id, false) }
+            .setOnCancelListener { RemoteControlServer.answerPairing(prompt.id, false) }
             .show()
         expiryJob?.cancel()
         expiryJob = scope.launch {
             delay(RemoteControlServer.PAIRING_TTL_MS)
-            if (RemoteControlServer.pairingNumber.value == number) RemoteControlServer.answerPairing(false, expired = true)
+            if (RemoteControlServer.pairingNumber.value == prompt) RemoteControlServer.answerPairing(prompt.id, false, expired = true)
         }
     }
 

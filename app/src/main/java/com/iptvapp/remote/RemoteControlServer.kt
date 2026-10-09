@@ -67,8 +67,10 @@ object RemoteControlServer {
     val commands: SharedFlow<Command> = _commands
 
     /** The number to confirm on the TV while a phone is pairing (null when none). */
-    private val _pairingNumber = MutableStateFlow<String?>(null)
-    val pairingNumber: StateFlow<String?> = _pairingNumber
+    /** A pairing waiting for the person's answer: which one ([id], its commitment) and its number. */
+    data class PairingPrompt(val id: String, val number: String)
+    private val _pairingNumber = MutableStateFlow<PairingPrompt?>(null)
+    val pairingNumber: StateFlow<PairingPrompt?> = _pairingNumber
 
     /** One pairing at a time; a new /pair/start replaces it. [accepted] is the person's answer. */
     private class Pairing(val commit: String, val tvKeys: java.security.KeyPair, val startedAt: Long) {
@@ -86,12 +88,13 @@ object RemoteControlServer {
      * home screen is brought back and plays it (RemoteControlHooks). */
     @Volatile var pendingTune: String? = null
 
-    /** The person's answer on the TV. Refusals count toward the hour-long lockout (several in a
-     * row look like someone trying their luck); [expired] closes it without counting. */
+    /** The person's answer on the TV to the pairing [id] they were shown — ignored if another one has
+     * taken its place since. Refusals count toward the hour-long lockout (several in a row look like
+     * someone trying their luck); [expired] closes it without counting. */
     @Synchronized
-    fun answerPairing(accept: Boolean, expired: Boolean = false) {
-        _pairingNumber.value = null
-        val p = pairing ?: return
+    fun answerPairing(id: String, accept: Boolean, expired: Boolean = false) {
+        if (_pairingNumber.value?.id == id) _pairingNumber.value = null
+        val p = pairing?.takeIf { it.commit == id } ?: return
         val token = p.token
         if (accept && token != null) {
             appContext?.let { addToken(it, token) }
@@ -372,7 +375,7 @@ object RemoteControlServer {
                         pairing = null
                         return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
                     }
-                    _pairingNumber.value = comparisonNumber(phoneKey, p.tvKeys.public, nonce)
+                    _pairingNumber.value = PairingPrompt(p.commit, comparisonNumber(phoneKey, p.tvKeys.public, nonce))
                 }
                 return "200 OK" to JSONObject().put("name", registeredName ?: "MKTV on ${Build.MODEL}")
             }
