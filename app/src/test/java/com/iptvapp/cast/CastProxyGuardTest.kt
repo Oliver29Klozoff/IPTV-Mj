@@ -161,6 +161,24 @@ class CastProxyGuardTest {
         assertTrue(blocked("192.168.1.50", "evil.example"))
     }
 
+    // The check every socket gets before connecting, where no host name is at hand.
+    @Test fun connectionsAreCheckedByAddress() {
+        fun blocked(ip: String) = guard.isBlockedConnection(InetAddress.getByName(ip))
+        guard.registerUpstream("http://192.168.1.50:8080/live/a/b/1.ts", castSource = true) // IP-literal source
+        guard.registerUpstream("http://iptv.lan/x.m3u8", castSource = true)                 // named source
+        guard.noteResolved("iptv.lan", listOf(InetAddress.getByName("10.1.2.3")))
+        guard.noteResolved("evil.example", listOf(InetAddress.getByName("10.9.9.9")))     // not a source
+        for (ip in listOf("127.0.0.1", "::1", "0.0.0.0", "169.254.169.254", "fe80::1", "224.0.0.1",
+            "10.0.2.2", "192.168.1.1", "10.9.9.9", "172.16.0.5", "fd00::5")) {
+            assertTrue(ip, blocked(ip))
+        }
+        assertFalse(blocked("192.168.1.50"))
+        assertFalse(blocked("10.1.2.3"))
+        assertFalse(blocked("93.184.216.34"))
+        guard.close()
+        assertTrue("a closed session allows no private address", blocked("192.168.1.50"))
+    }
+
     @Test fun playlistChildrenDoNotGrantLocalNetworkAccess() {
         guard.registerUpstream("https://cdn.example.com/live/1.m3u8", castSource = true)
         assertNotNull(guard.registerUpstream("http://192.168.1.1/admin", castSource = false))

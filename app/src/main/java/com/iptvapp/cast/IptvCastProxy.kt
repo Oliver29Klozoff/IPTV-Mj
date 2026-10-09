@@ -68,19 +68,30 @@ class IptvCastProxy(
             cookieStore[url.host] ?: emptyList()
     }
 
-    // Upstream connections may only go where the guard allows — checked when a host name is
-    // resolved and again on every connection (redirects and IP-literal hosts included), so neither
-    // a playlist nor a redirect can point the proxy at this device or the local network.
+    // Upstream connections may only go where the guard allows. Every socket is checked BEFORE it
+    // connects (GuardedSocket — every hop, redirects and IP-literal hosts included, which bypass
+    // DNS), host names are filtered as they resolve, and each request is checked again on its
+    // connection — so neither a playlist nor a redirect can reach this device or the local network.
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .cookieJar(cookieJar)
+        .socketFactory(object : javax.net.SocketFactory() {
+            override fun createSocket(): Socket = GuardedSocket()
+            override fun createSocket(host: String?, port: Int): Socket = throw UnsupportedOperationException()
+            override fun createSocket(host: String?, port: Int, localHost: InetAddress?, localPort: Int): Socket = throw UnsupportedOperationException()
+            override fun createSocket(host: InetAddress?, port: Int): Socket = throw UnsupportedOperationException()
+            override fun createSocket(address: InetAddress?, port: Int, localAddress: InetAddress?, localPort: Int): Socket = throw UnsupportedOperationException()
+        })
         .dns(object : Dns {
-            override fun lookup(hostname: String): List<InetAddress> =
-                Dns.SYSTEM.lookup(hostname).filterNot { guard.isBlockedAddress(it, hostname) }
+            override fun lookup(hostname: String): List<InetAddress> {
+                val all = Dns.SYSTEM.lookup(hostname)
+                guard.noteResolved(hostname, all)
+                return all.filterNot { guard.isBlockedAddress(it, hostname) }
                     .ifEmpty { throw java.net.UnknownHostException("Not an allowed cast address") }
+            }
         })
         .addNetworkInterceptor { chain ->
             val address = chain.connection()?.route()?.socketAddress?.address
@@ -441,6 +452,16 @@ class IptvCastProxy(
         url.contains(".mp4",  ignoreCase = true) -> "video/mp4"
         url.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
         else -> "application/octet-stream"
+    }
+
+    /** A socket that refuses, before connecting, any address the guard forbids. */
+    private inner class GuardedSocket : Socket() {
+        override fun connect(endpoint: java.net.SocketAddress?, timeout: Int) {
+            val address = (endpoint as? InetSocketAddress)?.address
+            if (address == null || guard.isBlockedConnection(address)) throw IOException("Not an allowed cast address")
+            super.connect(endpoint, timeout)
+        }
+        override fun connect(endpoint: java.net.SocketAddress?) = connect(endpoint, 0)
     }
 
     private companion object {

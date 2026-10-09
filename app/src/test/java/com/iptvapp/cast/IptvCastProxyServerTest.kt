@@ -28,17 +28,17 @@ class IptvCastProxyServerTest {
     private lateinit var proxy: IptvCastProxy
 
     /** A one-request-per-connection HTTP server answering from [respond] (path -> raw response). */
-    private fun serve(address: InetAddress, onRequest: () -> Unit = {}, respond: (String) -> String): Int {
+    private fun serve(address: InetAddress, onAccept: () -> Unit = {}, respond: (String) -> String): Int {
         val socket = ServerSocket().apply { bind(InetSocketAddress(address, 0)) }
         servers += socket
         Thread {
             while (!socket.isClosed) {
                 val client = try { socket.accept() } catch (_: Exception) { break }
+                onAccept() // counted on connection, before any request: nothing may even connect
                 client.use {
                     val reader = it.getInputStream().bufferedReader()
                     val path = reader.readLine()?.split(" ")?.getOrNull(1) ?: return@use
                     while (reader.readLine()?.isNotEmpty() == true) { /* headers */ }
-                    onRequest()
                     it.getOutputStream().write(respond(path).toByteArray())
                 }
             }
@@ -56,14 +56,15 @@ class IptvCastProxyServerTest {
             .firstOrNull { it is Inet4Address && it.isSiteLocalAddress }?.hostAddress ?: ""
         assumeTrue("needs a LAN IPv4 address", lanIp.isNotEmpty())
 
-        loopbackPort = serve(InetAddress.getByName("127.0.0.1"), onRequest = { loopbackHits.incrementAndGet() }) { ok("LOOPBACK-SECRET") }
+        loopbackPort = serve(InetAddress.getByName("127.0.0.1"), onAccept = { loopbackHits.incrementAndGet() }) { ok("LOOPBACK-SECRET") }
         providerPort = serve(InetAddress.getByName(lanIp)) { path ->
             when (path) {
                 "/live/user/pass/1.m3u8" -> ok(
-                    "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nseg1.ts\n#EXTINF:4,\nhttp://127.0.0.1:$loopbackPort/secret.ts\n",
+                    "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nseg1.ts\n#EXTINF:4,\nhttp://127.0.0.1:$loopbackPort/secret.ts\n#EXTINF:4,\nhttps://127.0.0.1:$loopbackPort/tls.ts\n",
                     "application/x-mpegURL"
                 )
                 "/live/user/pass/seg1.ts" -> ok("SEGMENT-ONE", "video/mp2t")
+                "/redirect-tls" -> "HTTP/1.1 302 Found\r\nLocation: https://127.0.0.1:$loopbackPort/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 "/redirect" -> "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:$loopbackPort/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 else -> "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             }
@@ -96,7 +97,7 @@ class IptvCastProxyServerTest {
         assertEquals(200, code)
         val token = URL(castUrl).path.split('/')[1]
         val children = playlist.lines().filter { it.startsWith("http") }
-        assertEquals(2, children.size)
+        assertEquals(3, children.size)
         children.forEach {
             assertTrue(it, it.startsWith("http://$lanIp:${proxy.listeningPort}/$token/r/"))
             assertFalse(it, it.contains("user") || it.contains("127.0.0.1"))
@@ -106,12 +107,14 @@ class IptvCastProxyServerTest {
         assertEquals(200 to "SEGMENT-ONE", get(children[0]))
         // …but the child that points at this device is refused before anything reaches it.
         assertEquals(502, get(children[1]).first)
+        assertEquals(502, get(children[2]).first) // https: no TCP connection or TLS handshake either
         assertEquals(0, loopbackHits.get())
     }
 
     @Test fun redirectToThisDeviceIsRefused() {
         val castUrl = proxy.proxyUrl("http://$lanIp:$providerPort/redirect")
         assertEquals(502, get(castUrl).first)
+        assertEquals(502, get(proxy.proxyUrl("http://$lanIp:$providerPort/redirect-tls")).first)
         assertEquals(0, loopbackHits.get())
     }
 

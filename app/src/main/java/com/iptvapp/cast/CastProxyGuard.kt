@@ -62,6 +62,9 @@ class CastProxyGuard(
     private val files = HashMap<String, String>()
     private val liveIds = HashSet<String>()
     private val privateAllowedHosts = HashSet<String>()
+    // The cast source's own private-network addresses: its IP literal, or what its name resolved to.
+    // The only private addresses a connection may reach (see isBlockedConnection).
+    private val privateAllowedAddresses = HashSet<InetAddress>()
 
     val isOpen: Boolean get() = token != null
 
@@ -77,6 +80,7 @@ class CastProxyGuard(
         files.clear()
         liveIds.clear()
         privateAllowedHosts.clear()
+        privateAllowedAddresses.clear()
     }
 
     /** Registers [url] for this session and returns its path, or null when it isn't an http(s)
@@ -91,6 +95,7 @@ class CastProxyGuard(
         val sourceId = sourceById.entries.firstOrNull { it.value == url }?.key
         val id = if (castSource) {
             privateAllowedHosts += host
+            literalAddress(host)?.let { privateAllowedAddresses += it }
             sourceId ?: newHandle(16).also { sourceById[it] = url }
         } else if (sourceId != null) {
             sourceId
@@ -108,7 +113,9 @@ class CastProxyGuard(
         val uri = try { URI(url) } catch (_: Exception) { return false }
         val scheme = uri.scheme?.lowercase()
         if (!isOpen || (scheme != "http" && scheme != "https")) return false
-        privateAllowedHosts += uri.host?.lowercase()?.trim('[', ']') ?: return false
+        val host = uri.host?.lowercase()?.trim('[', ']') ?: return false
+        privateAllowedHosts += host
+        literalAddress(host)?.let { privateAllowedAddresses += it }
         true
     }
 
@@ -187,6 +194,20 @@ class CastProxyGuard(
         return false
     }
 
+    /** Called with what a host name resolved to: a cast source's private addresses become reachable. */
+    fun noteResolved(host: String, addresses: List<InetAddress>) = synchronized(lock) {
+        if (host.lowercase().trim('[', ']') in privateAllowedHosts) privateAllowedAddresses += addresses.filter { isPrivate(it) }
+    }
+
+    /** The check made on every socket before it connects — every hop, redirects and IP-literal hosts
+     * included, where no host name is at hand: never this device, link-local, any-local or
+     * multicast, and a private address only if it is the cast source's own. */
+    fun isBlockedConnection(address: InetAddress): Boolean {
+        if (address.isLoopbackAddress || address.isAnyLocalAddress || address.isLinkLocalAddress || address.isMulticastAddress) return true
+        if (isPrivate(address)) return synchronized(lock) { address !in privateAllowedAddresses }
+        return false
+    }
+
     private fun isPrivate(a: InetAddress): Boolean {
         if (a.isSiteLocalAddress) return true
         val b = a.address
@@ -197,12 +218,17 @@ class CastProxyGuard(
         }
     }
 
+    // An IP-literal host as an address, parsed without any lookup; null for names.
+    private fun literalAddress(host: String): InetAddress? =
+        if (host.contains(':') || host.matches(IPV4_LITERAL)) try { InetAddress.getByName(host) } catch (_: Exception) { null } else null
+
     private fun newHandle(bytes: Int): String =
         ByteArray(bytes).also { random.nextBytes(it) }.joinToString("") { "%02x".format(it) }
 
     companion object {
         private const val MAX_UPSTREAM_RESOURCES = 50_000
         private val HANDLE = Regex("[0-9a-f]{32}")
+        private val IPV4_LITERAL = Regex("""\d{1,3}(\.\d{1,3}){3}""")
         private val KNOWN_EXTENSIONS = setOf("m3u8", "m3u", "mpd", "ts", "mp4", "m4v", "m4s", "mkv", "mov", "webm", "avi", "aac", "vtt")
 
         /** ".m3u8", ".mp4", … from a path, so receivers and content-type guesses still see the
