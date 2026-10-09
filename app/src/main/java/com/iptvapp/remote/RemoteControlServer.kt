@@ -22,8 +22,9 @@ import java.security.SecureRandom
  * over mDNS ("_mktvremote._tcp") so the phone finds it without typing an address.
  *
  * Pairing, once per phone: the phone asks (/pair/start), the TV shows a 4-digit code for two
- * minutes, the phone sends it back (/pair) and gets a token. Every command is then signed with
- * that token (see sign); anything else is refused. Tokens are kept in SharedPreferences "remote_control".
+ * minutes, the phone sends it back (/pair) with its half of a key exchange, and both sides work out
+ * the same token without sending it (deriveToken). Every command is then signed with that token
+ * (see sign); anything else is refused. Tokens are kept in SharedPreferences "remote_control".
  *
  * Commands are handed to the app through [commands]; RemoteControlHooks gives them to whichever
  * MKTV screen is in front.
@@ -222,22 +223,47 @@ object RemoteControlServer {
             .joinToString("") { "%02x".format(it) }
     }
 
+    // ── Pairing key exchange (ECDH, P-256) — shared with the phone side ─────
+
+    fun newKeyPair(): java.security.KeyPair =
+        java.security.KeyPairGenerator.getInstance("EC").apply {
+            initialize(java.security.spec.ECGenParameterSpec("secp256r1"), random)
+        }.generateKeyPair()
+
+    fun encodePublicKey(key: java.security.PublicKey): String =
+        android.util.Base64.encodeToString(key.encoded, android.util.Base64.NO_WRAP)
+
+    fun decodePublicKey(encoded: String): java.security.PublicKey =
+        java.security.KeyFactory.getInstance("EC").generatePublic(
+            java.security.spec.X509EncodedKeySpec(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP))
+        )
+
+    /** The pairing token both sides arrive at: SHA-256 of the ECDH shared secret, in hex. */
+    fun deriveToken(own: java.security.PrivateKey, other: java.security.PublicKey): String {
+        val agreement = javax.crypto.KeyAgreement.getInstance("ECDH")
+        agreement.init(own)
+        agreement.doPhase(other, true)
+        return java.security.MessageDigest.getInstance("SHA-256")
+            .digest(agreement.generateSecret() + "MKTV remote".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
+
     private fun checkSignature(context: Context, method: String, path: String, signedAt: String, signature: String, body: String): Auth {
         val at = signedAt.toLongOrNull() ?: return Auth.BAD
-        if (signature.isEmpty()) return Auth.BAD
+        // One spelling for checking and for the replay list, so "AB…" can't replay "ab…".
+        val sig = signature.lowercase()
+        if (sig.isEmpty()) return Auth.BAD
         val now = System.currentTimeMillis()
         if (kotlin.math.abs(now - at) > SIGNATURE_WINDOW_MS) return Auth.CLOCK
         val valid = tokens(context).any { token ->
-            java.security.MessageDigest.isEqual(
-                sign(token, method, path, at, body).toByteArray(), signature.lowercase().toByteArray()
-            )
+            java.security.MessageDigest.isEqual(sign(token, method, path, at, body).toByteArray(), sig.toByteArray())
         }
         if (!valid) return Auth.BAD
         synchronized(recentSignatures) {
             val it = recentSignatures.entries.iterator()
             while (it.hasNext()) if (now - it.next().value > 2 * SIGNATURE_WINDOW_MS) it.remove() else break
-            if (recentSignatures.containsKey(signature)) return Auth.BAD
-            recentSignatures[signature] = now
+            if (recentSignatures.containsKey(sig)) return Auth.BAD
+            recentSignatures[sig] = now
         }
         return Auth.OK
     }
@@ -276,7 +302,12 @@ object RemoteControlServer {
             }
             "/pair" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
-                val sent = try { JSONObject(body).optString("code") } catch (_: Exception) { "" }
+                val request = try { JSONObject(body) } catch (_: Exception) { JSONObject() }
+                val sent = request.optString("code")
+                // The phone's half of the key exchange, checked before it can use up a try.
+                val phoneKey = try { decodePublicKey(request.optString("pub")) } catch (_: Exception) {
+                    return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
+                }
                 // A few tries per code, then it's gone; and after MAX_FAILED_PAIRS wrong codes in all,
                 // pairing stops for an hour — so 4 digits can't be found by trying them all.
                 synchronized(this) {
@@ -296,9 +327,15 @@ object RemoteControlServer {
                     failedPairs = 0
                     _pairingCode.value = null
                 }
-                val newToken = ByteArray(16).also { random.nextBytes(it) }.joinToString("") { "%02x".format(it) }
-                addToken(context, newToken)
-                return "200 OK" to JSONObject().put("token", newToken).put("name", "MKTV on ${Build.MODEL}")
+                // The token is the key exchange's shared secret: each side works it out from its own
+                // private key and the other's public one, so it is never sent and can't be read off
+                // the network.
+                val tvKeys = newKeyPair()
+                val token = try { deriveToken(tvKeys.private, phoneKey) } catch (_: Exception) {
+                    return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
+                }
+                addToken(context, token)
+                return "200 OK" to JSONObject().put("pub", encodePublicKey(tvKeys.public)).put("name", "MKTV on ${Build.MODEL}")
             }
         }
         when (checkSignature(context, method, path, signedAt, signature, body)) {

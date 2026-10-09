@@ -440,8 +440,16 @@ class RemoteActivity : AppCompatActivity() {
             .setPositiveButton("Pair") { _, _ ->
                 val code = input.text.toString().trim()
                 lifecycleScope.launch {
-                    val reply = request("/pair", JSONObject().put("code", code), tv)
-                    val newToken = reply?.json?.optString("token").orEmpty()
+                    // Key exchange: the token is worked out on each side, never sent (deriveToken).
+                    val keys = withContext(Dispatchers.Default) { RemoteControlServer.newKeyPair() }
+                    val reply = request(
+                        "/pair",
+                        JSONObject().put("code", code).put("pub", RemoteControlServer.encodePublicKey(keys.public)),
+                        tv
+                    )
+                    val newToken = reply?.json?.optString("pub")?.takeIf { reply.code in 200..299 && it.isNotEmpty() }?.let { pub ->
+                        runCatching { RemoteControlServer.deriveToken(keys.private, RemoteControlServer.decodePublicKey(pub)) }.getOrNull()
+                    }.orEmpty()
                     if (reply == null || reply.code !in 200..299 || newToken.isEmpty()) {
                         Toast.makeText(this@RemoteActivity, reply?.json?.optString("error") ?: "Can't reach ${tv.name}", Toast.LENGTH_LONG).show()
                         return@launch
