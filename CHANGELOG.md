@@ -3,8 +3,9 @@
 ## v7.18 - 2026-10-08
 - **New**: **Phone remote**. Your phone can now control MKTV on the Shield over your home Wi-Fi.
   On the phone, tap the new remote button at the top of the Home screen. It finds the Shield by
-  itself, as long as MKTV is open on it. The first time, the Shield shows a 4-digit code: type it
-  on the phone to pair. After that the phone has the Shield remote's buttons: arrows, OK, Back,
+  itself, as long as MKTV is open on it. The first time, the phone and the Shield each show a
+  6-digit number. If they match, choose **Pair** on the Shield with its remote. After that the
+  phone has the Shield remote's buttons: arrows, OK, Back,
   CH + / CH −, Last, Guide and Play / Pause. They work on every MKTV screen, menus and pop-ups
   included. Below the buttons are your favorites and a search box. Tap a channel and the Shield
   puts it on full screen, playing from the Shield's own provider. If the Wi-Fi network hides the

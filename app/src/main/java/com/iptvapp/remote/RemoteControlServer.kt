@@ -21,9 +21,12 @@ import java.security.SecureRandom
  * Phone as Shield remote (v7.18), the TV side: a small HTTP server on the home network, announced
  * over mDNS ("_mktvremote._tcp") so the phone finds it without typing an address.
  *
- * Pairing, once per phone: the phone asks (/pair/start), the TV shows a 4-digit code for two
- * minutes, the phone sends it back (/pair) with its half of a key exchange, and both sides work out
- * the same token without sending it (deriveToken). Every command is then signed with that token
+ * Pairing, once per phone, is an ECDH key exchange checked by numeric comparison (as Bluetooth
+ * does it): the phone commits to its key (/pair/start, which answers with the TV's key), then
+ * reveals it (/pair); both screens show the same 6-digit number, made from both keys, and the
+ * person picks Pair on the TV with its own remote. Because the phone committed before seeing the
+ * TV's key, someone in the middle can't make the two numbers agree. Both sides work out the token
+ * from the exchange (deriveToken) — it is never sent — and every command is then signed with it
  * (see sign); anything else is refused. Tokens are kept in SharedPreferences "remote_control".
  *
  * Commands are handed to the app through [commands]; RemoteControlHooks gives them to whichever
@@ -34,8 +37,7 @@ object RemoteControlServer {
     const val PORT = 9481
     private const val PREFS = "remote_control"
     private const val KEY_TOKENS = "tokens"
-    const val CODE_TTL_MS = 120_000L
-    private const val MAX_CODE_TRIES = 3
+    const val PAIRING_TTL_MS = 120_000L
 
     /** The buttons the phone can press — names it sends, and the TV remote key each one is. */
     val KEYS = mapOf(
@@ -64,21 +66,49 @@ object RemoteControlServer {
     private val _commands = MutableSharedFlow<Command>(extraBufferCapacity = 16)
     val commands: SharedFlow<Command> = _commands
 
-    /** The code to show on the TV while a phone is pairing (null when none). */
-    private val _pairingCode = MutableStateFlow<String?>(null)
-    val pairingCode: StateFlow<String?> = _pairingCode
-    private var codeExpiresAt = 0L
-    private var codeTries = 0
+    /** The number to confirm on the TV while a phone is pairing (null when none). */
+    private val _pairingNumber = MutableStateFlow<String?>(null)
+    val pairingNumber: StateFlow<String?> = _pairingNumber
+
+    /** One pairing at a time; a new /pair/start replaces it. [accepted] is the person's answer. */
+    private class Pairing(val commit: String, val tvKeys: java.security.KeyPair, val startedAt: Long) {
+        var token: String? = null
+        var accepted: Boolean? = null
+    }
+    private var pairing: Pairing? = null
     private var failedPairs = 0
     private var lockedUntil = 0L
     private const val MAX_FAILED_PAIRS = 10
     private const val LOCKOUT_MS = 60 * 60_000L
+    private var appContext: Context? = null
 
     /** A channel picked while a screen that can't tune was in front (a movie, Settings…): the TV
      * home screen is brought back and plays it (RemoteControlHooks). */
     @Volatile var pendingTune: String? = null
 
-    fun cancelPairing() { _pairingCode.value = null }
+    /** The person's answer on the TV. Refusals count toward the hour-long lockout (several in a
+     * row look like someone trying their luck); [expired] closes it without counting. */
+    @Synchronized
+    fun answerPairing(accept: Boolean, expired: Boolean = false) {
+        val p = pairing ?: return
+        _pairingNumber.value = null
+        val token = p.token
+        if (accept && token != null) {
+            appContext?.let { addToken(it, token) }
+            p.accepted = true
+            failedPairs = 0
+        } else {
+            p.accepted = false
+            if (!expired) countFailure()
+        }
+    }
+
+    private fun countFailure() {
+        if (++failedPairs >= MAX_FAILED_PAIRS) {
+            failedPairs = 0
+            lockedUntil = System.currentTimeMillis() + LOCKOUT_MS
+        }
+    }
 
     /** What's playing, kept current by the TV screens for the phone's "now playing" line. */
     @Volatile var nowPlaying: String = ""
@@ -88,6 +118,7 @@ object RemoteControlServer {
     private var serverSocket: ServerSocket? = null
     private var nsdManager: NsdManager? = null
     private var registration: NsdManager.RegistrationListener? = null
+    @Volatile private var registeredName: String? = null
     private val random = SecureRandom()
     private const val REQUEST_DEADLINE_MS = 10_000L
     private val workers = java.util.concurrent.ThreadPoolExecutor(
@@ -98,6 +129,7 @@ object RemoteControlServer {
     fun start(context: Context) {
         if (users++ > 0) return
         val app = context.applicationContext
+        appContext = app
         RemoteControlHooks.install(app as android.app.Application)
         val socket = try {
             ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(PORT)) }
@@ -143,7 +175,8 @@ object RemoteControlServer {
             port = PORT
         }
         val listener = object : NsdManager.RegistrationListener {
-            override fun onServiceRegistered(info: NsdServiceInfo) {}
+            // The name actually announced — Android adds " (2)" when another TV already has it.
+            override fun onServiceRegistered(info: NsdServiceInfo) { registeredName = info.serviceName }
             override fun onRegistrationFailed(info: NsdServiceInfo, code: Int) { Log.w("RemoteControl", "mDNS register failed: $code") }
             override fun onServiceUnregistered(info: NsdServiceInfo) {}
             override fun onUnregistrationFailed(info: NsdServiceInfo, code: Int) {}
@@ -238,6 +271,19 @@ object RemoteControlServer {
             java.security.spec.X509EncodedKeySpec(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP))
         )
 
+    /** The phone's commitment to its key: SHA-256 of the key and a random nonce, in hex. */
+    fun commitment(phoneKey: java.security.PublicKey, nonce: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(phoneKey.encoded + nonce)
+            .joinToString("") { "%02x".format(it) }
+
+    /** The 6-digit number both screens show, from both keys and the nonce: "482 913". */
+    fun comparisonNumber(phoneKey: java.security.PublicKey, tvKey: java.security.PublicKey, nonce: ByteArray): String {
+        val h = java.security.MessageDigest.getInstance("SHA-256").digest(phoneKey.encoded + tvKey.encoded + nonce)
+        val n = ((h[0].toLong() and 0xff) shl 24 or ((h[1].toLong() and 0xff) shl 16) or
+            ((h[2].toLong() and 0xff) shl 8) or (h[3].toLong() and 0xff)) % 1_000_000
+        return "%06d".format(n).let { "${it.substring(0, 3)} ${it.substring(3)}" }
+    }
+
     /** The pairing token both sides arrive at: SHA-256 of the ECDH shared secret, in hex. */
     fun deriveToken(own: java.security.PrivateKey, other: java.security.PublicKey): String {
         val agreement = javax.crypto.KeyAgreement.getInstance("ECDH")
@@ -283,59 +329,68 @@ object RemoteControlServer {
 
     private fun route(context: Context, method: String, path: String, signedAt: String, signature: String, body: String): Pair<String, JSONObject> {
         when (path) {
+            // Step 1: the phone's commitment to its key; the answer is the TV's key.
             "/pair/start" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
-                synchronized(this) {
-                    val now = System.currentTimeMillis()
-                    if (now < lockedUntil) {
-                        return "429 Too Many Requests" to JSONObject().put("error", "Too many wrong codes — try again in an hour")
-                    }
-                    // Asking again while a code is showing keeps that code (and its tries used), so
-                    // asking over and over can't buy more guesses.
-                    if (_pairingCode.value == null || now > codeExpiresAt) {
-                        codeExpiresAt = now + CODE_TTL_MS
-                        codeTries = 0
-                        _pairingCode.value = (1000 + random.nextInt(9000)).toString()
-                    }
+                val commit = try { JSONObject(body).optString("commit") } catch (_: Exception) { "" }
+                if (!commit.matches(Regex("[0-9a-f]{64}"))) {
+                    return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
                 }
-                return "200 OK" to JSONObject().put("ok", true)
+                val tvKeys = newKeyPair()
+                synchronized(this) {
+                    if (System.currentTimeMillis() < lockedUntil) {
+                        return "429 Too Many Requests" to JSONObject().put("error", "Too many refused pairings — try again in an hour")
+                    }
+                    pairing = Pairing(commit, tvKeys, System.currentTimeMillis())
+                    _pairingNumber.value = null
+                }
+                return "200 OK" to JSONObject().put("pub", encodePublicKey(tvKeys.public))
             }
+            // Step 2: the phone's key, which must match its commitment. The TV then shows the number.
             "/pair" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
                 val request = try { JSONObject(body) } catch (_: Exception) { JSONObject() }
-                val sent = request.optString("code")
-                // The phone's half of the key exchange, checked before it can use up a try.
-                val phoneKey = try { decodePublicKey(request.optString("pub")) } catch (_: Exception) {
+                val phoneKey = try { decodePublicKey(request.optString("pub")) } catch (_: Exception) { null }
+                val nonce = try { android.util.Base64.decode(request.optString("nonce"), android.util.Base64.NO_WRAP) } catch (_: Exception) { null }
+                if (phoneKey == null || nonce == null || nonce.size < 16) {
                     return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
                 }
-                // A few tries per code, then it's gone; and after MAX_FAILED_PAIRS wrong codes in all,
-                // pairing stops for an hour — so 4 digits can't be found by trying them all.
                 synchronized(this) {
-                    val expected = _pairingCode.value
-                    if (expected == null || System.currentTimeMillis() > codeExpiresAt) {
-                        return "403 Forbidden" to JSONObject().put("error", "The code expired — pair again")
+                    val p = pairing
+                    if (p == null || p.token != null || System.currentTimeMillis() - p.startedAt > PAIRING_TTL_MS) {
+                        return "403 Forbidden" to JSONObject().put("error", "Pairing timed out — try again")
                     }
-                    if (sent != expected) {
-                        if (++codeTries >= MAX_CODE_TRIES) _pairingCode.value = null
-                        if (++failedPairs >= MAX_FAILED_PAIRS) {
-                            failedPairs = 0
-                            lockedUntil = System.currentTimeMillis() + LOCKOUT_MS
-                            _pairingCode.value = null
-                        }
-                        return "403 Forbidden" to JSONObject().put("error", "Wrong code")
+                    if (commitment(phoneKey, nonce) != p.commit) {
+                        pairing = null
+                        countFailure()
+                        return "403 Forbidden" to JSONObject().put("error", "Pairing failed — try again")
                     }
-                    failedPairs = 0
-                    _pairingCode.value = null
+                    // The token is the exchange's shared secret: each side works it out from its own
+                    // private key and the other's public one, so it never crosses the network. It is
+                    // only kept once the person picks Pair on the TV (answerPairing).
+                    p.token = try { deriveToken(p.tvKeys.private, phoneKey) } catch (_: Exception) {
+                        pairing = null
+                        return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
+                    }
+                    _pairingNumber.value = comparisonNumber(phoneKey, p.tvKeys.public, nonce)
                 }
-                // The token is the key exchange's shared secret: each side works it out from its own
-                // private key and the other's public one, so it is never sent and can't be read off
-                // the network.
-                val tvKeys = newKeyPair()
-                val token = try { deriveToken(tvKeys.private, phoneKey) } catch (_: Exception) {
-                    return "400 Bad Request" to JSONObject().put("error", "Update MKTV on this phone")
+                return "200 OK" to JSONObject().put("name", registeredName ?: "MKTV on ${Build.MODEL}")
+            }
+            // Step 3: the phone waits for the person's answer on the TV.
+            "/pair/status" -> {
+                val commit = try { JSONObject(body).optString("commit") } catch (_: Exception) { "" }
+                synchronized(this) {
+                    val p = pairing
+                    val state = when {
+                        p == null || p.commit != commit -> "gone"
+                        p.accepted == true -> "paired"
+                        p.accepted == false -> "refused"
+                        System.currentTimeMillis() - p.startedAt > PAIRING_TTL_MS -> "gone"
+                        else -> "waiting"
+                    }
+                    if (state != "waiting" && p?.commit == commit) pairing = null
+                    return "200 OK" to JSONObject().put("state", state)
                 }
-                addToken(context, token)
-                return "200 OK" to JSONObject().put("pub", encodePublicKey(tvKeys.public)).put("name", "MKTV on ${Build.MODEL}")
             }
         }
         when (checkSignature(context, method, path, signedAt, signature, body)) {
@@ -357,7 +412,9 @@ object RemoteControlServer {
                 if (!RemoteControlHooks.isInFront) {
                     return "409 Conflict" to JSONObject().put("error", "MKTV isn't on screen on the TV — open it there")
                 }
-                _commands.tryEmit(command)
+                if (!_commands.tryEmit(command)) {
+                    return "503 Service Unavailable" to JSONObject().put("error", "The TV is busy — try again")
+                }
                 "200 OK" to JSONObject().put("ok", true)
             }
             else -> "404 Not Found" to JSONObject().put("error", "Not found")

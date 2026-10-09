@@ -417,53 +417,63 @@ class RemoteActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Pairing (see RemoteControlServer's kdoc): commit to a key, get the TV's, reveal ours, then
+     * both screens show the same number and the person picks Pair on the TV. The token is worked
+     * out on each side from the key exchange and never sent. */
     private fun startPairing(tv: Tv) {
         lifecycleScope.launch {
-            val reply = request("/pair/start", JSONObject(), tv)
-            if (reply == null || reply.code !in 200..299) {
+            val keys = withContext(Dispatchers.Default) { RemoteControlServer.newKeyPair() }
+            val nonce = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+            val commit = RemoteControlServer.commitment(keys.public, nonce)
+            fun fail(reply: Reply?) {
                 val why = reply?.json?.optString("error")?.takeIf { it.isNotBlank() } ?: "Can't reach ${tv.name} — is MKTV open on it?"
                 Toast.makeText(this@RemoteActivity, why, Toast.LENGTH_LONG).show()
+            }
+            val started = request("/pair/start", JSONObject().put("commit", commit), tv)
+            val tvKey = started?.json?.optString("pub")?.takeIf { started.code in 200..299 }
+                ?.let { runCatching { RemoteControlServer.decodePublicKey(it) }.getOrNull() }
+            if (tvKey == null) { fail(started); return@launch }
+            val revealed = request(
+                "/pair",
+                JSONObject().put("pub", RemoteControlServer.encodePublicKey(keys.public))
+                    .put("nonce", android.util.Base64.encodeToString(nonce, android.util.Base64.NO_WRAP)),
+                tv
+            )
+            if (revealed == null || revealed.code !in 200..299) { fail(revealed); return@launch }
+            val newToken = runCatching { RemoteControlServer.deriveToken(keys.private, tvKey) }.getOrNull()
+                ?: run { fail(null); return@launch }
+            val number = RemoteControlServer.comparisonNumber(keys.public, tvKey, nonce)
+
+            var waiting = true
+            val dialog = AlertDialog.Builder(this@RemoteActivity)
+                .setTitle("Confirm on the TV")
+                .setMessage("If the TV shows $number, choose Pair on the TV with its remote.\n\nIf the numbers differ, choose Cancel there.")
+                .setNegativeButton("Cancel") { _, _ -> waiting = false }
+                .setOnCancelListener { waiting = false }
+                .show()
+            val deadline = System.currentTimeMillis() + RemoteControlServer.PAIRING_TTL_MS
+            var state = "waiting"
+            while (waiting && state == "waiting" && System.currentTimeMillis() < deadline) {
+                delay(1_000)
+                state = request("/pair/status", JSONObject().put("commit", commit), tv)?.json?.optString("state") ?: "waiting"
+            }
+            dialog.dismiss()
+            if (!waiting) return@launch
+            if (state != "paired") {
+                Toast.makeText(
+                    this@RemoteActivity,
+                    if (state == "refused") "Pairing was cancelled on the TV" else "Pairing timed out — try again",
+                    Toast.LENGTH_LONG
+                ).show()
                 return@launch
             }
-            askCode(tv)
+            // A TV typed in by address is known by its own name from here on, so discovery can find
+            // it again if its address changes.
+            val name = revealed.json?.optString("name")?.takeIf { it.isNotBlank() && tv.name == tv.host } ?: tv.name
+            store.edit().putString("name", name).putString("host", tv.host).putInt("port", tv.port)
+                .putString("token", newToken).apply()
+            Toast.makeText(this@RemoteActivity, "Paired with $name", Toast.LENGTH_SHORT).show()
+            refreshStatus()
         }
-    }
-
-    private fun askCode(tv: Tv) {
-        val input = EditText(this).apply {
-            hint = "4-digit code"
-            inputType = InputType.TYPE_CLASS_NUMBER
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Enter the code on the TV")
-            .setView(input)
-            .setPositiveButton("Pair") { _, _ ->
-                val code = input.text.toString().trim()
-                lifecycleScope.launch {
-                    // Key exchange: the token is worked out on each side, never sent (deriveToken).
-                    val keys = withContext(Dispatchers.Default) { RemoteControlServer.newKeyPair() }
-                    val reply = request(
-                        "/pair",
-                        JSONObject().put("code", code).put("pub", RemoteControlServer.encodePublicKey(keys.public)),
-                        tv
-                    )
-                    val newToken = reply?.json?.optString("pub")?.takeIf { reply.code in 200..299 && it.isNotEmpty() }?.let { pub ->
-                        runCatching { RemoteControlServer.deriveToken(keys.private, RemoteControlServer.decodePublicKey(pub)) }.getOrNull()
-                    }.orEmpty()
-                    if (reply == null || reply.code !in 200..299 || newToken.isEmpty()) {
-                        Toast.makeText(this@RemoteActivity, reply?.json?.optString("error") ?: "Can't reach ${tv.name}", Toast.LENGTH_LONG).show()
-                        return@launch
-                    }
-                    // A TV typed in by address is known by its own name from here on, so discovery
-                    // can find it again if its address changes.
-                    val name = reply.json?.optString("name")?.takeIf { it.isNotBlank() && tv.name == tv.host } ?: tv.name
-                    store.edit().putString("name", name).putString("host", tv.host).putInt("port", tv.port)
-                        .putString("token", newToken).apply()
-                    Toast.makeText(this@RemoteActivity, "Paired with $name", Toast.LENGTH_SHORT).show()
-                    refreshStatus()
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
     }
 }

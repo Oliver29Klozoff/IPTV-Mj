@@ -19,7 +19,7 @@ import java.lang.ref.WeakReference
 
 /**
  * The TV's side of the phone remote, for every MKTV screen at once: whichever one is in front
- * takes the phone's button presses and shows the pairing code — Settings, recordings and movie
+ * takes the phone's button presses and asks about pairing — Settings, recordings and movie
  * pages included, not only the home screen and the player.
  */
 object RemoteControlHooks {
@@ -46,7 +46,7 @@ object RemoteControlHooks {
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
                 front = WeakReference(activity)
-                showPairingCode(RemoteControlServer.pairingCode.value)
+                showPairingNumber(RemoteControlServer.pairingNumber.value)
             }
             override fun onActivityPaused(activity: Activity) {
                 if (front?.get() === activity) {
@@ -68,7 +68,7 @@ object RemoteControlHooks {
                 }
             }
         }
-        scope.launch { RemoteControlServer.pairingCode.collect { showPairingCode(it) } }
+        scope.launch { RemoteControlServer.pairingNumber.collect { showPairingNumber(it) } }
     }
 
     private suspend fun tune(app: Application, name: String) {
@@ -84,31 +84,34 @@ object RemoteControlHooks {
         )
     }
 
-    // ── Pairing code ────────────────────────────────────────────────────────
+    // ── Pairing ─────────────────────────────────────────────────────────────
 
-    private fun showPairingCode(code: String?) {
+    /** Asks the person to compare the number with the phone's and pick Pair — with the TV's own
+     * remote, so only someone in the room can let a phone in. */
+    private fun showPairingNumber(number: String?) {
         dismissDialog()
-        if (code == null) return
+        if (number == null) return
         val activity = front?.get() ?: return
-        val codeView = TextView(activity).apply {
-            text = code
+        val numberView = TextView(activity).apply {
+            text = number
             textSize = 56f
-            letterSpacing = 0.3f
+            letterSpacing = 0.15f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             setPadding(0, 24, 0, 24)
         }
         dialog = AlertDialog.Builder(activity)
-            .setTitle("Pair your phone")
-            .setMessage("Enter this code on your phone:")
-            .setView(codeView)
-            .setPositiveButton("Cancel") { _, _ -> RemoteControlServer.cancelPairing() }
-            .setOnCancelListener { RemoteControlServer.cancelPairing() }
+            .setTitle("Pair a phone?")
+            .setMessage("Pair only if the phone shows this same number:")
+            .setView(numberView)
+            .setPositiveButton("Pair") { _, _ -> RemoteControlServer.answerPairing(true) }
+            .setNegativeButton("Cancel") { _, _ -> RemoteControlServer.answerPairing(false) }
+            .setOnCancelListener { RemoteControlServer.answerPairing(false) }
             .show()
         expiryJob?.cancel()
         expiryJob = scope.launch {
-            delay(RemoteControlServer.CODE_TTL_MS)
-            if (RemoteControlServer.pairingCode.value == code) RemoteControlServer.cancelPairing()
+            delay(RemoteControlServer.PAIRING_TTL_MS)
+            if (RemoteControlServer.pairingNumber.value == number) RemoteControlServer.answerPairing(false, expired = true)
         }
     }
 
