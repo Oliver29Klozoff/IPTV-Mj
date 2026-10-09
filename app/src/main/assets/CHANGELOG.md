@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v7.20 - 2026-10-09
+- **Security**: casting to a Chromecast is locked down. While you cast, the phone serves the
+  stream to the Chromecast over your Wi-Fi — and until now anything else on that Wi-Fi could ask
+  it for other files too (including the one holding your provider login) or use it to reach other
+  devices on your network. Now each cast gets its own secret key, the phone serves only what you're
+  casting, and it refuses everything else. Casting works as before.
+- **Security**: MKTV no longer writes your provider login into the device's system log. Every
+  request to your provider — and every piece of a stream — used to be logged with your username
+  and password in it, where other tools with log access could read them.
+
 ## v7.19 - 2026-10-09
 - **Changed**: the **phone remote** now looks like the Shield remote: a round arrow pad with OK in
   the middle, round Back, Home and Play / Pause buttons, and CH and VOL rockers on either side of
