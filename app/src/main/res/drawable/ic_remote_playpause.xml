@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote (v7.19): Play / Pause — a play triangle beside two pause bars. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,6v12l8,-6z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M13,6h3v12h-3zM18,6h3v12h-3z" />
+</vector>

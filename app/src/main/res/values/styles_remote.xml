@@ -1,11 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Phone remote (v7.18) keys: plain TextViews on the Rack chip background. -->
-    <style name="RemoteKey">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">56dp</item>
+    <!-- Phone remote (v7.19), laid out like the Shield remote. -->
+
+    <!-- Back / Home / Play-Pause: round icon buttons under the D-pad. -->
+    <style name="RemoteRoundKey">
+        <item name="android:layout_width">60dp</item>
+        <item name="android:layout_height">60dp</item>
+        <item name="android:layout_marginHorizontal">14dp</item>
+        <item name="android:background">@drawable/remote_round_bg</item>
+        <item name="android:padding">17dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:tint">@color/rack_text</item>
+    </style>
+
+    <!-- One half (+ or −) of a CH / VOL rocker. -->
+    <style name="RemoteRockerHalf">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">0dp</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">4dp</item>
+        <item name="android:background">@drawable/remote_rocker_half_bg</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:textColor">@color/rack_text</item>
+        <item name="android:textSize">26sp</item>
+    </style>
+
+    <!-- The label between a rocker's halves. -->
+    <style name="RemoteRockerLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textColor">@color/rack_text_muted</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- Guide / Last / Mute: small pills between the rockers. -->
+    <style name="RemotePill">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">38dp</item>
+        <item name="android:layout_marginVertical">4dp</item>
         <item name="android:background">@drawable/home_chip_bg</item>
         <item name="android:gravity">center</item>
         <item name="android:clickable">true</item>
@@ -14,6 +51,6 @@
         <item name="android:letterSpacing">0.1</item>
         <item name="android:textAllCaps">true</item>
         <item name="android:textColor">@color/rack_text</item>
-        <item name="android:textSize">17sp</item>
+        <item name="android:textSize">14sp</item>
     </style>
 </resources>

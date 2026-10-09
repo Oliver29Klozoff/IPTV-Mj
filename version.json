@@ -1,7 +1,7 @@
 {
-  "versionCode": 556,
-  "versionName": "7.18",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.18/MKTV.apk",
-  "apkSha256": "da58f8027a1e8affdd59bfcbb684831fd79338c96f8a676aa23383e1eff01e7a",
-  "changelog": "Phone remote: control MKTV on the Shield from your phone over Wi-Fi — buttons, plus tap a channel to put it on the TV."
+  "versionCode": 557,
+  "versionName": "7.19",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.19/MKTV.apk",
+  "apkSha256": "c1458eeb26fb7a66ab25c09f69a8f95aa32f711c3c0455b4ef5dc229b222ddc8",
+  "changelog": "Phone remote: Shield-style buttons, volume control, and the guide next to your channels."
 }

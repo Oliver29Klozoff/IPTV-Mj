@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v7.19 - 2026-10-09
+- **Changed**: the **phone remote** now looks like the Shield remote: a round arrow pad with OK in
+  the middle, round Back, Home and Play / Pause buttons, and CH and VOL rockers on either side of
+  Guide, Last and Mute. Your channels are at the top and the buttons at the bottom (side by side
+  when the phone is turned sideways).
+- **New**: **volume** from the phone remote. VOL + / − and Mute change the Shield's volume, and the
+  phone shows the new level. If the Shield is set to a fixed volume (some setups leave volume to the
+  TV over HDMI), apps can't change it, and the phone says so — use the TV's remote for volume then.
+- **New**: **Home** on the phone remote goes back to MKTV's home screen from anywhere in the app.
+- **New**: the phone remote's channel list shows the **guide**: what's on now with the minutes
+  left and a progress bar, and what's on next. It updates every minute.
+
 ## v7.18 - 2026-10-08
 - **New**: **Phone remote**. Your phone can now control MKTV on the Shield over your home Wi-Fi.
   On the phone, tap the new remote button at the top of the Home screen. It finds the Shield by

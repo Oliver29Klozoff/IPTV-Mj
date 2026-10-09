@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote (v7.19): a round Shield-remote button. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#33FFFFFF">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#141414" />
+            <stroke android:width="1.5dp" android:color="#2E2E2E" />
+        </shape>
+    </item>
+</ripple>

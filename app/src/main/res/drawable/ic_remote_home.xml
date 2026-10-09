@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote (v7.19): Home — a house outline. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3L2,11.5h3V21h5.5v-6h3v6H19v-9.5h3L12,3zM17,19h-1.5v-6h-7v6H7v-8.6l5,-4.3 5,4.3V19z" />
+</vector>

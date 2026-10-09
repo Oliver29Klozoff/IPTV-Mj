@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Phone remote (v7.18): drives MKTV on the TV over Wi-Fi (ui/remote/RemoteActivity).
-     layout-land/activity_remote.xml has the same views side by side. -->
+<!-- Phone remote: drives MKTV on the TV over Wi-Fi (ui/remote/RemoteActivity). Channels on top, the
+     Shield-style buttons at the bottom (v7.19). layout-land/activity_remote.xml has them side by side. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/remoteRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -13,22 +12,15 @@
         android:id="@+id/remoteHeader"
         layout="@layout/remote_header" />
 
-    <LinearLayout
+    <include
+        android:id="@+id/remoteList"
+        layout="@layout/remote_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:paddingHorizontal="12dp">
+        android:layout_marginHorizontal="12dp"
+        android:layout_weight="1" />
 
-        <include
-            android:id="@+id/remotePad"
-            layout="@layout/remote_pad" />
-
-        <include
-            android:id="@+id/remoteList"
-            layout="@layout/remote_list"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-    </LinearLayout>
+    <include
+        android:id="@+id/remotePad"
+        layout="@layout/remote_pad" />
 </LinearLayout>

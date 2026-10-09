@@ -61,6 +61,9 @@ object RemoteControlServer {
         /** A remote button, pressed in whichever MKTV screen is in front — exactly as if it came
          * from the TV's own remote, so the phone works on every screen. */
         data class Key(val keyCode: Int) : Command()
+        /** Back to MKTV's TV home screen from wherever in the app, like the remote's Home button
+         * would if it didn't leave the app. */
+        object Home : Command()
     }
 
     private val _commands = MutableSharedFlow<Command>(extraBufferCapacity = 16)
@@ -412,9 +415,12 @@ object RemoteControlServer {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
                 val cmd = try { JSONObject(body) } catch (_: Exception) { null }
                     ?: return "400 Bad Request" to JSONObject().put("error", "Bad JSON")
+                // Volume works whatever is on screen, so it's done here rather than queued for one.
+                if (cmd.optString("cmd") == "volume") return volume(context, cmd.optString("dir"))
                 val command = when (cmd.optString("cmd")) {
                     "tune" -> cmd.optString("name").takeIf { it.isNotBlank() }?.let { Command.Tune(it) }
                     "key" -> KEYS[cmd.optString("key")]?.let { Command.Key(it) }
+                    "home" -> Command.Home
                     else -> null
                 } ?: return "400 Bad Request" to JSONObject().put("error", "Unknown command")
                 if (!RemoteControlHooks.isInFront) {
@@ -426,6 +432,34 @@ object RemoteControlServer {
                 "200 OK" to JSONObject().put("ok", true)
             }
             else -> "404 Not Found" to JSONObject().put("error", "Not found")
+        }
+    }
+
+    /** The TV's media volume, up / down / mute, as its own volume keys would set it (with the
+     * system's volume bar on screen). Some boxes keep their output at a fixed level and leave volume
+     * to the TV over HDMI — apps can't change that, so the phone is told rather than ignored. */
+    private fun volume(context: Context, dir: String): Pair<String, JSONObject> {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+            ?: return "500 Internal Server Error" to JSONObject().put("error", "No volume control")
+        if (audio.isVolumeFixed) {
+            return "409 Conflict" to JSONObject().put("error", "This TV box's volume is fixed — use the TV's own remote for volume")
+        }
+        val direction = when (dir) {
+            "up" -> android.media.AudioManager.ADJUST_RAISE
+            "down" -> android.media.AudioManager.ADJUST_LOWER
+            "mute" -> android.media.AudioManager.ADJUST_TOGGLE_MUTE
+            else -> return "400 Bad Request" to JSONObject().put("error", "Unknown volume step")
+        }
+        return try {
+            audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, direction, android.media.AudioManager.FLAG_SHOW_UI)
+            val stream = android.media.AudioManager.STREAM_MUSIC
+            "200 OK" to JSONObject()
+                .put("volume", audio.getStreamVolume(stream))
+                .put("max", audio.getStreamMaxVolume(stream))
+                .put("muted", audio.isStreamMute(stream))
+        } catch (e: SecurityException) {
+            // Do Not Disturb can refuse volume changes.
+            "409 Conflict" to JSONObject().put("error", "The TV didn't allow the volume change")
         }
     }
 }

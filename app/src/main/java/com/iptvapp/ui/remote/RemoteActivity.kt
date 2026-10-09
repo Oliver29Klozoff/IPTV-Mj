@@ -98,9 +98,9 @@ class RemoteActivity : AppCompatActivity() {
         lifecycleScope.launch { header.tvRemoteTitle.setTextColor(com.iptvapp.util.RackAccent.load(prefs).start) }
 
         val pad = binding.remotePad
+        pad.remoteDpad.onPress = { key -> send(JSONObject().put("cmd", "key").put("key", key)) }
         mapOf(
-            pad.btnKeyUp to "up", pad.btnKeyDown to "down", pad.btnKeyLeft to "left", pad.btnKeyRight to "right",
-            pad.btnKeyOk to "ok", pad.btnKeyBack to "back", pad.btnKeyChUp to "chup", pad.btnKeyChDown to "chdown",
+            pad.btnKeyBack to "back", pad.btnKeyChUp to "chup", pad.btnKeyChDown to "chdown",
             pad.btnKeyPlayPause to "playpause", pad.btnKeyLast to "last", pad.btnKeyGuide to "guide"
         ).forEach { (view, key) ->
             view.setOnClickListener {
@@ -108,13 +108,33 @@ class RemoteActivity : AppCompatActivity() {
                 send(JSONObject().put("cmd", "key").put("key", key))
             }
         }
+        pad.btnKeyHome.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            send(JSONObject().put("cmd", "home"))
+        }
+        mapOf(pad.btnKeyVolUp to "up", pad.btnKeyVolDown to "down", pad.btnKeyMute to "mute").forEach { (view, dir) ->
+            view.setOnClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                send(JSONObject().put("cmd", "volume").put("dir", dir)) { _, json ->
+                    // The level the TV is now at, in the status line for a moment.
+                    val level = json?.optInt("volume", -1) ?: -1
+                    val max = json?.optInt("max", 0) ?: 0
+                    if (level >= 0 && max > 0) {
+                        setStatus(if (json?.optBoolean("muted") == true) "Muted" else "Volume $level of $max", holdMs = 3_000)
+                    }
+                }
+            }
+        }
 
         val list = binding.remoteList
         list.rvRemoteChannels.layoutManager = LinearLayoutManager(this)
         list.rvRemoteChannels.adapter = ChannelAdapter { ch ->
-            send(JSONObject().put("cmd", "tune").put("name", ch.name)) { ok ->
+            send(JSONObject().put("cmd", "tune").put("name", ch.name)) { ok, _ ->
                 if (ok) Toast.makeText(this, "Putting on ${ch.name}", Toast.LENGTH_SHORT).show()
             }
+        }
+        lifecycleScope.launch {
+            (list.rvRemoteChannels.adapter as ChannelAdapter).accent = com.iptvapp.util.RackAccent.load(prefs).start
         }
         list.etRemoteSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -132,6 +152,15 @@ class RemoteActivity : AppCompatActivity() {
                 }
             }
         }
+        // Shows end: the guide lines next to the channels are looked up again every minute.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    delay(60_000)
+                    showChannels(binding.remoteList.etRemoteSearch.text?.toString().orEmpty().trim(), immediate = true)
+                }
+            }
+        }
     }
 
     override fun onStart() {
@@ -146,23 +175,26 @@ class RemoteActivity : AppCompatActivity() {
 
     // ── Channels ────────────────────────────────────────────────────────────
 
-    private fun showChannels(query: String) {
+    private fun showChannels(query: String, immediate: Boolean = false) {
         searchJob?.cancel()
         searchJob = lifecycleScope.launch {
-            if (query.isNotEmpty()) delay(250)
+            if (query.isNotEmpty() && !immediate) delay(250)
             // Main provider and enabled other providers, like Home's favorites; searches go through
             // the repository, which turns typed text into a safe prefix query.
             val channels = withContext(Dispatchers.IO) {
                 try {
-                    if (query.isEmpty()) {
-                        db.channelDao().getFavoriteChannels().first().map { Pick(it.customNum?.let { n -> "$n · ${it.name}" } ?: it.name, it.name) } +
-                            repository.getMergedAllFavorites().first().filter { !it.isHidden }.map { Pick("${it.name} · ${it.serverNickname}", it.name) }
+                    val picks = if (query.isEmpty()) {
+                        db.channelDao().getFavoriteChannels().first().map { Pick(it.customNum?.let { n -> "$n · ${it.name}" } ?: it.name, it.name, -1, it.streamId) } +
+                            repository.getMergedAllFavorites().first().filter { !it.isHidden }
+                                .map { Pick("${it.name} · ${it.serverNickname}", it.name, it.serverIndex, it.streamId) }
                     } else {
                         val enabled = prefs.enabledExtraServerIndices.first()
-                        repository.searchChannels(query).first().filter { !it.isHidden }.map { Pick(it.customNum?.let { n -> "$n · ${it.name}" } ?: it.name, it.name) } +
+                        repository.searchChannels(query).first().filter { !it.isHidden }
+                            .map { Pick(it.customNum?.let { n -> "$n · ${it.name}" } ?: it.name, it.name, -1, it.streamId) } +
                             repository.searchMergedChannels(query).first().filter { !it.isHidden && it.serverIndex in enabled }
-                                .map { Pick("${it.name} · ${it.serverNickname}", it.name) }
+                                .map { Pick("${it.name} · ${it.serverNickname}", it.name, it.serverIndex, it.streamId) }
                     }
+                    withGuide(picks)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
@@ -179,12 +211,51 @@ class RemoteActivity : AppCompatActivity() {
         }
     }
 
-    /** A channel in the list: what's shown, and the name the TV looks it up by. */
-    private data class Pick(val label: String, val name: String)
+    /** A channel in the list: what's shown, the name the TV looks it up by, and its guide from
+     * this phone (what's on now, how far in 0..100, what's next). */
+    private data class Pick(
+        val label: String,
+        val name: String,
+        val serverIndex: Int,
+        val streamId: Int,
+        val now: String? = null,
+        val progress: Int = -1,
+        val next: String? = null
+    )
+
+    /** [picks] with what's on now and next from this phone's guide (main and other providers). */
+    private suspend fun withGuide(picks: List<Pick>): List<Pick> {
+        if (picks.isEmpty()) return picks
+        fun ms(t: Long) = if (t < 100_000_000_000L) t * 1000L else t
+        val now = System.currentTimeMillis()
+        // Chunked: SQLite allows only so many values in one IN (…).
+        val rows = picks.map { "${it.serverIndex}:${it.streamId}" }.distinct().chunked(400).flatMap { keys ->
+            db.epgDao().getEpgForServerStreamKeys(keys).first()
+        }.filter { ms(it.stopTimestamp) > now }.groupBy { it.serverIndex to it.streamId }
+        val time = java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault())
+        return picks.map { pick ->
+            val shows = rows[pick.serverIndex to pick.streamId]?.sortedBy { ms(it.startTimestamp) } ?: return@map pick
+            val current = shows.firstOrNull { ms(it.startTimestamp) <= now }
+            val upcoming = shows.firstOrNull { ms(it.startTimestamp) > now }
+            if (current == null && upcoming == null) return@map pick
+            val start = current?.let { ms(it.startTimestamp) }
+            val stop = current?.let { ms(it.stopTimestamp) }
+            val left = stop?.let { ((it - now) / 60_000L).coerceAtLeast(0) }
+            pick.copy(
+                now = current?.let { "${it.title.trim()} · ${if (left!! < 1) "ending" else "$left min left"}" },
+                progress = if (start != null && stop != null && stop > start) ((now - start) * 100 / (stop - start)).toInt().coerceIn(0, 100) else -1,
+                next = upcoming?.let { "Next ${time.format(java.util.Date(ms(it.startTimestamp)))} · ${it.title.trim()}" }
+            )
+        }
+    }
 
     private class ChannelAdapter(private val onPick: (Pick) -> Unit) : RecyclerView.Adapter<ChannelAdapter.VH>() {
         private var items: List<Pick> = emptyList()
-        class VH(val text: TextView) : RecyclerView.ViewHolder(text)
+        var accent: Int = 0xFF00E5FF.toInt()
+            set(value) { field = value; notifyDataSetChanged() }
+
+        class VH(val row: android.widget.LinearLayout, val name: TextView, val now: TextView, val bar: android.widget.ProgressBar, val next: TextView) :
+            RecyclerView.ViewHolder(row)
 
         fun submit(list: List<Pick>) {
             items = list
@@ -193,26 +264,52 @@ class RemoteActivity : AppCompatActivity() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val ctx = parent.context
-            val pad = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, ctx.resources.displayMetrics).toInt()
-            val tv = TextView(ctx).apply {
-                layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding(pad, pad, pad, pad)
-                setBackgroundResource(R.drawable.rack_row_bg)
-                isFocusable = true
-                isClickable = true
-                setTextColor(ctx.getColor(R.color.rack_text))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                typeface = ResourcesCompat.getFont(ctx, R.font.barlow)
+            val dp = ctx.resources.displayMetrics.density
+            fun line(sizeSp: Float, color: Int, font: Int) = TextView(ctx).apply {
+                setTextColor(ctx.getColor(color))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+                typeface = ResourcesCompat.getFont(ctx, font)
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }
-            return VH(tv)
+            val name = line(16f, R.color.rack_text, R.font.barlow)
+            val now = line(13f, R.color.rack_text_secondary, R.font.barlow)
+            val next = line(12f, R.color.rack_text_muted, R.font.barlow)
+            val bar = android.widget.ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = 100
+                layoutParams = android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (3 * dp).toInt()).apply {
+                    topMargin = (4 * dp).toInt()
+                    bottomMargin = (4 * dp).toInt()
+                }
+            }
+            val row = android.widget.LinearLayout(ctx).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                val pad = (14 * dp).toInt()
+                setPadding(pad, (10 * dp).toInt(), pad, (10 * dp).toInt())
+                setBackgroundResource(R.drawable.rack_row_bg)
+                isFocusable = true
+                isClickable = true
+                addView(name)
+                addView(now)
+                addView(bar)
+                addView(next)
+            }
+            return VH(row, name, now, bar, next)
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val pick = items[position]
-            holder.text.text = pick.label
-            holder.text.setOnClickListener { onPick(pick) }
+            holder.name.text = pick.label
+            holder.now.text = pick.now ?: if (pick.next == null) "No guide for this channel" else ""
+            holder.now.visibility = if (holder.now.text.isEmpty()) View.GONE else View.VISIBLE
+            holder.bar.visibility = if (pick.progress >= 0) View.VISIBLE else View.GONE
+            holder.bar.progress = pick.progress.coerceAtLeast(0)
+            holder.bar.progressTintList = android.content.res.ColorStateList.valueOf(accent)
+            holder.bar.progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0xFF262626.toInt())
+            holder.next.text = pick.next.orEmpty()
+            holder.next.visibility = if (pick.next == null) View.GONE else View.VISIBLE
+            holder.row.setOnClickListener { onPick(pick) }
         }
 
         override fun getItemCount() = items.size
@@ -273,7 +370,7 @@ class RemoteActivity : AppCompatActivity() {
     /** IPv6 literals need brackets in a URL. */
     private fun hostForUrl(host: String) = if (host.contains(':') && !host.startsWith("[")) "[$host]" else host
 
-    private fun send(command: JSONObject, done: ((Boolean) -> Unit)? = null) {
+    private fun send(command: JSONObject, done: ((Boolean, JSONObject?) -> Unit)? = null) {
         if (token == null || pairedHost == null) {
             Toast.makeText(this, "Pick your TV first", Toast.LENGTH_SHORT).show()
             pickTv()
@@ -293,7 +390,7 @@ class RemoteActivity : AppCompatActivity() {
                 reply.code == 401 -> setStatus("The phone's and the TV's clocks are too far apart — check both")
                 reply.code !in 200..299 -> Toast.makeText(this@RemoteActivity, reply.json?.optString("error") ?: "The TV said no", Toast.LENGTH_SHORT).show()
             }
-            done?.invoke(reply?.code in 200..299)
+            done?.invoke(reply?.code in 200..299, reply?.json)
         }
     }
 
@@ -315,7 +412,13 @@ class RemoteActivity : AppCompatActivity() {
         )
     }
 
-    private fun setStatus(text: String) {
+    /** Until when a volume reading stays in the status line before the periodic check replaces it. */
+    private var statusHeldUntil = 0L
+
+    private fun setStatus(text: String, holdMs: Long = 0L) {
+        val now = System.currentTimeMillis()
+        if (holdMs == 0L && now < statusHeldUntil) return
+        statusHeldUntil = if (holdMs > 0) now + holdMs else 0L
         binding.remoteHeader.tvRemoteStatus.text = text
     }
 
