@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v7.21 - 2026-10-09
+- **Faster**: refreshing big channel, movie and series lists no longer freezes the screen. MKTV
+  used to sort through the whole list on the screen's own thread after downloading it — tens of
+  thousands of channels or 100,000+ movies at a time — which could make the app stutter or stop
+  responding while a refresh ran (on login, at startup, from Settings, and for every provider).
+  That work now happens in the background, and the app stays responsive. M3U playlists load the
+  same way.
+- **Fixed**: leaving a screen or stopping a refresh part-way no longer counts as a failed
+  download. A stopped refresh used to carry on as if the provider had failed — it could show an
+  error, try again, or save half-finished results. Now it simply stops. Real problems (no internet,
+  the server timing out, a wrong login) are reported exactly as before.
+
 ## v7.20 - 2026-10-09
 - **Security**: casting to a Chromecast is locked down. While you cast, the phone serves the
   stream to the Chromecast over your Wi-Fi — and until now anything else on that Wi-Fi could ask

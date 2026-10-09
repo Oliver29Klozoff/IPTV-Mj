@@ -15,8 +15,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 558
-        versionName "7.20"
+        versionCode 559
+        versionName "7.21"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -71,6 +71,12 @@ android {
 
     kotlinOptions {
         jvmTarget = '17'
+    }
+
+    // Room writes one schema JSON per database version. The v43 file is the baseline the
+    // migration test starts from; later compiles add the next version beside it.
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 
     // Host-side tests that run Android-facing classes (IptvCastProxyServerTest) get inert stubs for
