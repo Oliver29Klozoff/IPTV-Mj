@@ -33,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -67,6 +68,7 @@ class RemoteActivity : AppCompatActivity() {
     private var resolving = false
     private var searchJob: Job? = null
     private var pairPrompted = false
+    private val sendLock = kotlinx.coroutines.sync.Mutex()
 
     private val pairedName get() = store.getString("name", null)
     private val pairedHost get() = store.getString("host", null)
@@ -229,7 +231,8 @@ class RemoteActivity : AppCompatActivity() {
             conn.connectTimeout = 3_000
             conn.readTimeout = 5_000
             conn.requestMethod = if (body != null) "POST" else "GET"
-            token?.let { conn.setRequestProperty("X-MKTV-Token", it) }
+            // Only to the paired TV: pairing with another one must not hand it this TV's token.
+            if (tv == null) token?.let { conn.setRequestProperty("X-MKTV-Token", it) }
             if (body != null) {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
@@ -254,7 +257,8 @@ class RemoteActivity : AppCompatActivity() {
             return
         }
         lifecycleScope.launch {
-            val reply = request("/command", command)
+            // One at a time, in the order tapped — ▼ then OK must reach the TV as ▼ then OK.
+            val reply = sendLock.withLock { request("/command", command) }
             when {
                 reply == null -> setStatus("Can't reach ${pairedName ?: "the TV"} — is MKTV open on it?")
                 reply.code == 401 -> {
