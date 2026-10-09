@@ -11,8 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.BufferedInputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -26,8 +25,8 @@ import java.security.SecureRandom
  * minutes, the phone sends it back (/pair) and gets a token. Every command then carries that
  * token; unpaired requests are refused. Tokens are kept in SharedPreferences "remote_control".
  *
- * Commands are handed to the app through [commands] — the full-screen player handles them while
- * it's on screen, the TV home screen otherwise.
+ * Commands are handed to the app through [commands]; RemoteControlHooks gives them to whichever
+ * MKTV screen is in front.
  */
 object RemoteControlServer {
     const val SERVICE_TYPE = "_mktvremote._tcp."
@@ -69,9 +68,13 @@ object RemoteControlServer {
     val pairingCode: StateFlow<String?> = _pairingCode
     private var codeExpiresAt = 0L
     private var codeTries = 0
+    private var failedPairs = 0
+    private var lockedUntil = 0L
+    private const val MAX_FAILED_PAIRS = 10
+    private const val LOCKOUT_MS = 60 * 60_000L
 
-    /** A tune the full-screen player couldn't do itself (it was showing a movie or a replay): it
-     * closes, and the TV home screen plays this channel when it comes back. */
+    /** A channel picked while a screen that can't tune was in front (a movie, Settings…): the TV
+     * home screen is brought back and plays it (RemoteControlHooks). */
     @Volatile var pendingTune: String? = null
 
     fun cancelPairing() { _pairingCode.value = null }
@@ -90,6 +93,7 @@ object RemoteControlServer {
     fun start(context: Context) {
         if (users++ > 0) return
         val app = context.applicationContext
+        RemoteControlHooks.install(app as android.app.Application)
         val socket = try {
             ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(PORT)) }
         } catch (e: Exception) {
@@ -145,16 +149,13 @@ object RemoteControlServer {
         prefs.edit().putStringSet(KEY_TOKENS, tokens(context) + token).apply()
     }
 
-    /** Forgets every paired phone (they'd have to pair again). */
-    fun forgetPairedPhones(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_TOKENS).apply()
-    }
-
     private fun handle(context: Context, socket: Socket) {
         socket.use { s ->
             s.soTimeout = 10_000
-            val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
-            val requestLine = reader.readLine() ?: return
+            // Bytes, not characters: Content-Length counts bytes, and a channel name like "Univisión"
+            // has fewer characters than bytes.
+            val input = BufferedInputStream(s.getInputStream())
+            val requestLine = readLine(input) ?: return
             val parts = requestLine.split(" ")
             if (parts.size < 2) return
             val method = parts[0]
@@ -162,21 +163,21 @@ object RemoteControlServer {
             var contentLength = 0
             var token = ""
             while (true) {
-                val line = reader.readLine() ?: break
+                val line = readLine(input) ?: break
                 if (line.isEmpty()) break
                 val name = line.substringBefore(':').trim().lowercase()
                 val value = line.substringAfter(':', "").trim()
                 if (name == "content-length") contentLength = value.toIntOrNull()?.coerceIn(0, 16_384) ?: 0
                 if (name == "x-mktv-token") token = value
             }
-            val body = if (contentLength > 0) CharArray(contentLength).let { buf ->
+            val body = if (contentLength > 0) ByteArray(contentLength).let { buf ->
                 var read = 0
                 while (read < contentLength) {
-                    val n = reader.read(buf, read, contentLength - read)
+                    val n = input.read(buf, read, contentLength - read)
                     if (n < 0) break
                     read += n
                 }
-                String(buf, 0, read)
+                String(buf, 0, read, Charsets.UTF_8)
             } else ""
             val (status, json) = route(context, method, path, token, body)
             val bytes = json.toString().toByteArray(Charsets.UTF_8)
@@ -187,22 +188,43 @@ object RemoteControlServer {
         }
     }
 
+    /** One CRLF-terminated header line, read as bytes (null at end of stream). */
+    private fun readLine(input: BufferedInputStream): String? {
+        val bytes = java.io.ByteArrayOutputStream()
+        while (true) {
+            val b = input.read()
+            if (b < 0) return if (bytes.size() == 0) null else bytes.toString("UTF-8")
+            if (b == '\n'.code) break
+            if (bytes.size() >= 8_192) return null
+            bytes.write(b)
+        }
+        return bytes.toString("UTF-8").trimEnd('\r')
+    }
+
     private fun route(context: Context, method: String, path: String, token: String, body: String): Pair<String, JSONObject> {
         when (path) {
             "/pair/start" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
-                val code = (1000 + random.nextInt(9000)).toString()
                 synchronized(this) {
-                    codeExpiresAt = System.currentTimeMillis() + CODE_TTL_MS
-                    codeTries = 0
-                    _pairingCode.value = code
+                    val now = System.currentTimeMillis()
+                    if (now < lockedUntil) {
+                        return "429 Too Many Requests" to JSONObject().put("error", "Too many wrong codes — try again in an hour")
+                    }
+                    // Asking again while a code is showing keeps that code (and its tries used), so
+                    // asking over and over can't buy more guesses.
+                    if (_pairingCode.value == null || now > codeExpiresAt) {
+                        codeExpiresAt = now + CODE_TTL_MS
+                        codeTries = 0
+                        _pairingCode.value = (1000 + random.nextInt(9000)).toString()
+                    }
                 }
                 return "200 OK" to JSONObject().put("ok", true)
             }
             "/pair" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
                 val sent = try { JSONObject(body).optString("code") } catch (_: Exception) { "" }
-                // A few tries per code, then it's gone — 4 digits can't be found by trying them all.
+                // A few tries per code, then it's gone; and after MAX_FAILED_PAIRS wrong codes in all,
+                // pairing stops for an hour — so 4 digits can't be found by trying them all.
                 synchronized(this) {
                     val expected = _pairingCode.value
                     if (expected == null || System.currentTimeMillis() > codeExpiresAt) {
@@ -210,8 +232,14 @@ object RemoteControlServer {
                     }
                     if (sent != expected) {
                         if (++codeTries >= MAX_CODE_TRIES) _pairingCode.value = null
+                        if (++failedPairs >= MAX_FAILED_PAIRS) {
+                            failedPairs = 0
+                            lockedUntil = System.currentTimeMillis() + LOCKOUT_MS
+                            _pairingCode.value = null
+                        }
                         return "403 Forbidden" to JSONObject().put("error", "Wrong code")
                     }
+                    failedPairs = 0
                     _pairingCode.value = null
                 }
                 val newToken = ByteArray(16).also { random.nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -233,6 +261,9 @@ object RemoteControlServer {
                     "key" -> KEYS[cmd.optString("key")]?.let { Command.Key(it) }
                     else -> null
                 } ?: return "400 Bad Request" to JSONObject().put("error", "Unknown command")
+                if (!RemoteControlHooks.isInFront) {
+                    return "409 Conflict" to JSONObject().put("error", "MKTV isn't on screen on the TV — open it there")
+                }
                 _commands.tryEmit(command)
                 "200 OK" to JSONObject().put("ok", true)
             }

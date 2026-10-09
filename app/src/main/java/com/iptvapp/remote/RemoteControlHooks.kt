@@ -1,79 +1,144 @@
 package com.iptvapp.remote
 
+import android.app.Activity
 import android.app.AlertDialog
+import android.app.Application
+import android.content.Intent
 import android.graphics.Color
+import android.os.Bundle
 import android.os.SystemClock
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
-import androidx.activity.ComponentActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 
 /**
- * The TV screens' side of the phone remote: whichever of them is in front takes the phone's
- * commands and shows the pairing code. Collected only while resumed, so a command reaches exactly
- * one screen — the full-screen player when it's up, the TV home screen otherwise.
+ * The TV's side of the phone remote, for every MKTV screen at once: whichever one is in front
+ * takes the phone's button presses and shows the pairing code — Settings, recordings and movie
+ * pages included, not only the home screen and the player.
  */
 object RemoteControlHooks {
 
-    /** [onTune] plays a channel by name; button presses are handled here, as key presses. */
-    fun attach(activity: ComponentActivity, onTune: suspend (String) -> Unit) {
-        activity.lifecycleScope.launch {
-            activity.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                launch {
-                    RemoteControlServer.commands.collect { command ->
-                        when (command) {
-                            is RemoteControlServer.Command.Tune -> onTune(command.name)
-                            is RemoteControlServer.Command.Key -> pressKey(activity, command.keyCode)
-                        }
-                    }
+    /** A screen that can put a channel on. Returns false when it can't right now (the player
+     * showing a movie, say), and the TV home screen is brought back to do it instead. */
+    interface Tuner {
+        suspend fun remoteTune(name: String): Boolean
+    }
+
+    private var installed = false
+    @Volatile private var front: WeakReference<Activity>? = null
+    private var dialog: AlertDialog? = null
+    private var expiryJob: Job? = null
+    private val scope = MainScope()
+
+    /** True while an MKTV screen is in front on the TV, so the phone can be told when it isn't. */
+    val isInFront: Boolean get() = front?.get() != null
+
+    /** Main thread, once (RemoteControlServer.start). */
+    fun install(app: Application) {
+        if (installed) return
+        installed = true
+        app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                front = WeakReference(activity)
+                showPairingCode(RemoteControlServer.pairingCode.value)
+            }
+            override fun onActivityPaused(activity: Activity) {
+                if (front?.get() === activity) {
+                    front = null
+                    dismissDialog()
                 }
-                var dialog: AlertDialog? = null
-                try {
-                    RemoteControlServer.pairingCode.collect { code ->
-                        dialog?.dismiss()
-                        dialog = null
-                        if (code == null) return@collect
-                        val codeView = TextView(activity).apply {
-                            text = code
-                            textSize = 56f
-                            letterSpacing = 0.3f
-                            gravity = Gravity.CENTER
-                            setTextColor(Color.WHITE)
-                            setPadding(0, 24, 0, 24)
-                        }
-                        dialog = AlertDialog.Builder(activity)
-                            .setTitle("Pair your phone")
-                            .setMessage("Enter this code on your phone:")
-                            .setView(codeView)
-                            .setPositiveButton("Cancel") { _, _ -> RemoteControlServer.cancelPairing() }
-                            .setOnCancelListener { RemoteControlServer.cancelPairing() }
-                            .show()
-                        launch {
-                            delay(RemoteControlServer.CODE_TTL_MS)
-                            if (RemoteControlServer.pairingCode.value == code) RemoteControlServer.cancelPairing()
-                        }
-                    }
-                } finally {
-                    dialog?.dismiss()
+            }
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+        scope.launch {
+            RemoteControlServer.commands.collect { command ->
+                when (command) {
+                    is RemoteControlServer.Command.Key -> front?.get()?.let { pressKey(it, command.keyCode) }
+                    is RemoteControlServer.Command.Tune -> tune(app, command.name)
                 }
             }
         }
+        scope.launch { RemoteControlServer.pairingCode.collect { showPairingCode(it) } }
     }
 
+    private suspend fun tune(app: Application, name: String) {
+        val activity = front?.get()
+        if ((activity as? Tuner)?.remoteTune(name) == true) return
+        // Back to the TV home screen (closing whatever is over it), which plays it on resuming.
+        RemoteControlServer.pendingTune = name
+        val context = activity ?: app
+        context.startActivity(
+            Intent(context, com.iptvapp.ui.home.TvHomeActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .apply { if (activity == null) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        )
+    }
+
+    // ── Pairing code ────────────────────────────────────────────────────────
+
+    private fun showPairingCode(code: String?) {
+        dismissDialog()
+        if (code == null) return
+        val activity = front?.get() ?: return
+        val codeView = TextView(activity).apply {
+            text = code
+            textSize = 56f
+            letterSpacing = 0.3f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setPadding(0, 24, 0, 24)
+        }
+        dialog = AlertDialog.Builder(activity)
+            .setTitle("Pair your phone")
+            .setMessage("Enter this code on your phone:")
+            .setView(codeView)
+            .setPositiveButton("Cancel") { _, _ -> RemoteControlServer.cancelPairing() }
+            .setOnCancelListener { RemoteControlServer.cancelPairing() }
+            .show()
+        expiryJob?.cancel()
+        expiryJob = scope.launch {
+            delay(RemoteControlServer.CODE_TTL_MS)
+            if (RemoteControlServer.pairingCode.value == code) RemoteControlServer.cancelPairing()
+        }
+    }
+
+    private fun dismissDialog() {
+        runCatching { dialog?.dismiss() }
+        dialog = null
+    }
+
+    // ── Buttons ─────────────────────────────────────────────────────────────
+
     /** Presses [keyCode] in whichever of the app's windows has focus — a dialog or menu open over
-     * the screen included — exactly as the TV remote would. (Apps can't inject real key presses,
-     * even into their own windows, so the key is handed to that window's root view.) */
-    private fun pressKey(activity: ComponentActivity, keyCode: Int) {
-        val target = focusedRootView() ?: activity.window.decorView
+     * the screen included — as the TV remote would. Apps can't inject real key presses, even into
+     * their own windows, so the key goes to that window's root view; an arrow nothing used then
+     * moves focus, which is what the system does with a real one. */
+    private fun pressKey(activity: Activity, keyCode: Int) {
+        val root = focusedRootView() ?: activity.window.decorView
         val t = SystemClock.uptimeMillis()
-        target.dispatchKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
-        target.dispatchKeyEvent(KeyEvent(t, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, keyCode, 0))
+        val used = root.dispatchKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
+        root.dispatchKeyEvent(KeyEvent(t, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, keyCode, 0))
+        if (used) return
+        val direction = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> View.FOCUS_UP
+            KeyEvent.KEYCODE_DPAD_DOWN -> View.FOCUS_DOWN
+            KeyEvent.KEYCODE_DPAD_LEFT -> View.FOCUS_LEFT
+            KeyEvent.KEYCODE_DPAD_RIGHT -> View.FOCUS_RIGHT
+            else -> return
+        }
+        val focused = root.findFocus()
+        if (focused == null) root.requestFocus(direction)
+        else focused.focusSearch(direction)?.requestFocus(direction)
     }
 
     /** The app window with focus, from the window manager's own list of the app's windows; null

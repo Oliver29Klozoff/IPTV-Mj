@@ -50,7 +50,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
-class TvHomeActivity : AppCompatActivity() {
+class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
 
     // Not private: FeatureTourDialog/SpotlightTourController reads real sidebar button views
     // from this binding to point the spotlight tour at actual on-screen UI.
@@ -190,16 +190,17 @@ class TvHomeActivity : AppCompatActivity() {
 
     /** A channel picked on the phone remote: this TV's own copy of it (found by name, as the phone
      * may use another provider), straight to full screen. */
-    private suspend fun remoteTune(name: String) {
+    override suspend fun remoteTune(name: String): Boolean {
         val target = viewModel.resolveVoice(listOf(name))
         if (target == null || !tuneTarget(target)) {
             Toast.makeText(this, "Couldn't find \"$name\" on this TV", Toast.LENGTH_LONG).show()
-            return
+            return true
         }
         miniPlayJob?.join()
         if (currentMiniUrl.isNotEmpty() && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
             binding.tvMiniPlayerContainer.performClick()
         }
+        return true
     }
 
     private fun startVoiceTune() {
@@ -501,7 +502,6 @@ class TvHomeActivity : AppCompatActivity() {
         observeViewModel()
         // Phone as remote (v7.18): the phone finds this screen on the home network and drives it.
         com.iptvapp.remote.RemoteControlServer.start(this)
-        com.iptvapp.remote.RemoteControlHooks.attach(this) { name -> remoteTune(name) }
         observeEpgGuide()
         observeSidebarVisibility()
         viewModel.loadAll()
@@ -779,11 +779,6 @@ class TvHomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
-        // A channel the phone picked while the full-screen player was showing a movie or a replay.
-        com.iptvapp.remote.RemoteControlServer.pendingTune?.let { name ->
-            com.iptvapp.remote.RemoteControlServer.pendingTune = null
-            lifecycleScope.launch { remoteTune(name) }
-        }
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
         lifecycleScope.launch {
@@ -792,8 +787,15 @@ class TvHomeActivity : AppCompatActivity() {
         }
         // A tap can resume this screen without onNewIntent. The channel id was saved at tap time.
         val tune = ReminderTune.take(this, intent)
+        // A channel the phone picked on a screen that couldn't play it (a movie, Settings…), which
+        // brought this one back for it. Ahead of the resume branches below, which would otherwise
+        // restart the old channel over it.
+        val remotePending = com.iptvapp.remote.RemoteControlServer.pendingTune
+        com.iptvapp.remote.RemoteControlServer.pendingTune = null
         if (tune != null) {
             launchReminderTune(tune.streamId, tune.serverIndex)
+        } else if (remotePending != null) {
+            lifecycleScope.launch { remoteTune(remotePending) }
         } else if (coldBootResumeInProgress) {
             // The tune, or cold-boot resume, owns the player until it finishes. Falling through
             // used to call play() on the paused channel and undo the switch.

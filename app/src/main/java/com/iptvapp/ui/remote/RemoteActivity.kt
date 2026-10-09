@@ -369,7 +369,8 @@ class RemoteActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val reply = request("/pair/start", JSONObject(), tv)
             if (reply == null || reply.code !in 200..299) {
-                Toast.makeText(this@RemoteActivity, "Can't reach ${tv.name} — is MKTV open on it?", Toast.LENGTH_LONG).show()
+                val why = reply?.json?.optString("error")?.takeIf { it.isNotBlank() } ?: "Can't reach ${tv.name} — is MKTV open on it?"
+                Toast.makeText(this@RemoteActivity, why, Toast.LENGTH_LONG).show()
                 return@launch
             }
             askCode(tv)
