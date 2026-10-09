@@ -837,7 +837,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             while (true) {
                 val now = Date()
                 binding.tvClock.text = clockFmt.format(now)
-                if (navState == NavState.CHANNELS) viewModel.loadEpgForChannels(viewModel.channels.value)
+                // Redraws times and progress from the stored guide; the provider is asked only for
+                // channels whose guide has run out (see HomeViewModel.startEpgLoad).
+                if (navState == NavState.CHANNELS) viewModel.refreshEpgDisplay()
                 delay(30_000)
             }
         }
@@ -851,7 +853,11 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) miniPlayer?.pause()
+        if (!isChangingConfigurations) {
+            miniPlayer?.pause()
+            // Guide requests belong to this screen being in front; the clock tick restarts them.
+            viewModel.cancelEpgLoads()
+        }
     }
 
     override fun onDestroy() {

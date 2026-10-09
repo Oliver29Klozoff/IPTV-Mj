@@ -17,6 +17,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -26,6 +27,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+// Guide top-ups for the channel lists (see HomeViewModel.startEpgLoad): how many channels from the
+// top of a list may be fetched, how far ahead a stored guide must reach to count as enough, and
+// how long before a channel (or a provider's whole feed) is tried again.
+private const val EPG_FETCH_WINDOW = 50
+private const val EPG_COVERAGE_AHEAD_SEC = 2 * 60 * 60L
+private const val EPG_RETRY_AFTER_MS = 30 * 60_000L
 
 private fun EpgEntity.startMs() = if (startTimestamp < 100_000_000_000L) startTimestamp * 1000L else startTimestamp
 private fun EpgEntity.stopMs()  = if (stopTimestamp  < 100_000_000_000L) stopTimestamp  * 1000L else stopTimestamp
@@ -903,6 +911,7 @@ class HomeViewModel @Inject constructor(
     val mergedHealth: StateFlow<Map<String, Boolean?>> = _mergedHealth
 
     private var mergedEpgJob: Job? = null
+    private val mergedXmltvLastAttemptMs = HashMap<String, Long>()
 
     /** Now/next text per merged channel. Previously fired one get_short_epg network call per
      * channel (paced 150ms apart) with nothing shown until each one landed — a category of 30+
@@ -925,8 +934,24 @@ class HomeViewModel @Inject constructor(
                 publishMergedEpgDisplay(channels, cached)
             }
 
-            channels.map { it.serverIndex }.distinct().forEach { serverIndex ->
-                launch { repository.fetchXmltvEpgForMergedServer(serverIndex) }
+            // One whole-feed download per provider, at most every EPG_RETRY_AFTER_MS (v7.19): this
+            // ran on every call — every list emission, and the phone's 60 s Favorites refresh — so a
+            // provider's full XMLTV feed was downloaded over and over, each new call cancelling the
+            // last part-way. Finished before the per-channel fallback below, which only exists for
+            // what the feed didn't cover (it used to run at once, before the feed had landed).
+            // Keyed by the provider's server address as well as its slot, since a switch can reuse the slot.
+            val logins = repository.getMergedServerUrls()
+            coroutineScope {
+                channels.map { it.serverIndex }.distinct().forEach { serverIndex ->
+                    val key = "$serverIndex|${logins[serverIndex].orEmpty()}"
+                    if (System.currentTimeMillis() - (mergedXmltvLastAttemptMs[key] ?: 0L) < EPG_RETRY_AFTER_MS) return@forEach
+                    launch {
+                        repository.fetchXmltvEpgForMergedServer(serverIndex)
+                        // Not marked when cancelled part-way: it's tried again on the next call.
+                        ensureActive()
+                        mergedXmltvLastAttemptMs[key] = System.currentTimeMillis()
+                    }
+                }
             }
             val refreshed = repository.getEpgForServerStreams(pairs).first()
             if (refreshed.isNotEmpty()) {
@@ -1761,8 +1786,62 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // ── Guide text for the primary channel list ─────────────────────────────────────────────
+    // One owner for the list's guide work (v7.19): every call used to launch its own batch of up
+    // to 50 provider requests that nothing tracked or cancelled. TvHome asked every 30 s and on
+    // every list emission, the phone every 60 s (backgrounded too) — overlapping batches, the same
+    // channels fetched again and again whether or not their guide was already there, an obsolete
+    // batch overwriting the current list's text when it finished, and a failing provider retried
+    // on every tick. Now:
+    //  - [epgLoadJob] is the only batch; a new list cancels it, the same list leaves it be;
+    //  - a channel is fetched only when its stored guide runs out within EPG_COVERAGE_AHEAD_SEC
+    //    and it wasn't tried in the last EPG_RETRY_AFTER_MS (failures included, so a failing or
+    //    rate-limiting provider isn't hammered); attempts are forgotten when the provider changes;
+    //  - the clock ticks only redraw times and progress from the stored guide (refreshEpgDisplay).
+    private var epgLoadJob: Job? = null
+    private var epgLoadIds: List<Int> = emptyList()
+    private var epgDisplayJob: Job? = null
+    private var epgDisplayChannels: List<ChannelEntity> = emptyList()
+    private val epgLastAttemptMs = HashMap<Int, Long>()
+    private var epgAttemptsProvider: String? = null
+
+    /** Shows the guide for [channels] now from what's stored, then tops up — from the provider —
+     * the channels near the top of the list whose stored guide is missing or running out. */
     fun loadEpgForChannels(channels: List<ChannelEntity>) {
-        viewModelScope.launch {
+        epgDisplayChannels = channels
+        startEpgLoad(channels)
+    }
+
+    /** For clock ticks: redraws now/next, time left and progress for the list on screen from the
+     * stored guide. Reaches the provider only for channels whose guide has run out (and weren't
+     * tried recently) — normally not at all. */
+    fun refreshEpgDisplay() {
+        if (epgDisplayChannels.isEmpty()) return
+        startEpgLoad(epgDisplayChannels)
+    }
+
+    /** Leaving the screen: provider requests stop with it (the stored guide stays on show). */
+    fun cancelEpgLoads() {
+        epgLoadJob?.cancel()
+        epgDisplayJob?.cancel()
+        mergedEpgJob?.cancel()
+    }
+
+    private fun startEpgLoad(channels: List<ChannelEntity>) {
+        val ids = channels.map { it.streamId }
+        if (epgLoadJob?.isActive == true && ids == epgLoadIds) {
+            // Same list, its batch still going (a re-emission, a tick): just redraw meanwhile.
+            epgDisplayJob?.cancel()
+            epgDisplayJob = viewModelScope.launch { publishEpgDisplay(channels) }
+            return
+        }
+        if (epgLoadJob?.isActive == true && com.iptvapp.BuildConfig.DEBUG) {
+            android.util.Log.d("EpgLoad", "cancelled the previous batch (list changed: ${epgLoadIds.size} -> ${ids.size} channels)")
+        }
+        epgLoadJob?.cancel()
+        epgDisplayJob?.cancel()
+        epgLoadIds = ids
+        epgLoadJob = viewModelScope.launch {
             if (channels.isEmpty()) {
                 _channelEpgText.value = emptyMap()
                 _channelEpgProgress.value = emptyMap()
@@ -1771,32 +1850,58 @@ class HomeViewModel @Inject constructor(
             }
 
             // Show whatever's already in the DB immediately — don't make the guide text wait
-            // on the network prefetch below, which is now deliberately paced and can take
+            // on the network prefetch below, which is deliberately paced and can take
             // several seconds on a slow or rate-limit-sensitive provider.
-            publishEpgDisplay(channels)
+            val coveredUntil = publishEpgDisplay(channels)
 
-            // Only trigger a fresh per-channel network fetch for a bounded window — firing
-            // one API call per channel for an entire large category would flood the server.
-            // The periodic full-catalog XMLTV refresh already keeps everything else
-            // reasonably fresh in the background. But the DISPLAYED now/next text above is
-            // computed for every channel in the list from whatever's already in the DB —
-            // capping that too meant channels past the fetch window never showed a guide
-            // entry at all, even once their EPG data existed, cutting the list short.
-            //
-            // A 429 storm on a real provider (tv.media4u.top) showed these 50 back-to-back
-            // calls with zero pacing was enough on its own to trip Cloudflare rate-limiting —
-            // and that rate-limit then also blocked the actual channel-playback request that
-            // happened to land moments later. A small delay between each call keeps this well
-            // under any reasonable per-IP burst limit.
-            channels.take(50).forEach {
-                repository.fetchEpg(it.streamId)
+            // Attempts belong to one provider: a switch (or new login) starts clean, and a batch
+            // stops as soon as the provider it was built for isn't the current one.
+            val provider = prefs.credentials.first().let { "${it.serverUrl}|${it.username}" }
+            if (provider != epgAttemptsProvider) {
+                epgLastAttemptMs.clear()
+                epgAttemptsProvider = provider
+            }
+
+            // Only a bounded window near the top of the list is ever fetched per channel — one
+            // API call per channel for a whole large category would flood the server; the
+            // periodic XMLTV refresh keeps the rest. The DISPLAYED text above still covers every
+            // channel in the list from whatever's stored.
+            val nowMs = System.currentTimeMillis()
+            val window = ids.take(EPG_FETCH_WINDOW).distinct()
+            val toFetch = window.filter { id ->
+                (coveredUntil[id] ?: 0L) < nowMs / 1000 + EPG_COVERAGE_AHEAD_SEC &&
+                    nowMs - (epgLastAttemptMs[id] ?: 0L) >= EPG_RETRY_AFTER_MS
+            }
+            if (com.iptvapp.BuildConfig.DEBUG) {
+                android.util.Log.d("EpgLoad", "batch start: ${channels.size} channels, ${window.size} in window, ${toFetch.size} to fetch, ${window.size - toFetch.size} skipped (guide stored or tried recently)")
+            }
+            if (toFetch.isEmpty()) return@launch
+
+            var fetched = 0
+            for (id in toFetch) {
+                if (prefs.credentials.first().let { "${it.serverUrl}|${it.username}" } != provider) {
+                    if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("EpgLoad", "batch stopped: the provider changed")
+                    return@launch
+                }
+                repository.fetchEpg(id)
+                // fetchEpg reports a cancelled request as an ordinary failure; this makes it what
+                // it is — the batch ends here and the cut-off channel isn't marked as tried.
+                ensureActive()
+                epgLastAttemptMs[id] = System.currentTimeMillis()
+                fetched++
+                // A 429 storm on a real provider (tv.media4u.top) showed back-to-back calls with
+                // zero pacing trip Cloudflare rate-limiting — which then also blocked a playback
+                // request landing moments later. A small gap keeps this under per-IP burst limits.
                 kotlinx.coroutines.delay(150)
             }
             publishEpgDisplay(channels)
+            if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("EpgLoad", "batch done: $fetched fetched")
         }
     }
 
-    private suspend fun publishEpgDisplay(channels: List<ChannelEntity>) {
+    /** Publishes now/next text, time left and progress for [channels] from the stored guide, and
+     * returns how far ahead each channel's stored guide reaches (latest stop time, epoch seconds). */
+    private suspend fun publishEpgDisplay(channels: List<ChannelEntity>): Map<Int, Long> {
         val ids = channels.map { it.streamId }
         // Chunked to stay well under SQLite's bound-parameter limit for large categories.
         val epgEntries = ids.chunked(500).flatMap { chunk -> repository.getEpgForStreams(chunk).first() }
@@ -1832,6 +1937,7 @@ class HomeViewModel @Inject constructor(
         }
         _channelEpgProgress.value = progressMap
         _channelEpgNextText.value = nextTextMap
+        return epgByStream.mapValues { (_, programs) -> programs.maxOf { it.stopTimestamp } }
     }
 
     fun reloadCurrentLiveCategory() {

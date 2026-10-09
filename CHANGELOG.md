@@ -11,6 +11,12 @@
 - **New**: **Home** on the phone remote goes back to MKTV's home screen from anywhere in the app.
 - **New**: the phone remote's channel list shows the **guide**: what's on now with the minutes
   left and a progress bar, and what's on next. It updates every minute.
+- **Fixed**: the TV and phone home screens asked your provider for guide data far too often — up to
+  50 requests every 30 seconds on the Shield, every minute on the phone (even in the background),
+  and again for every list change, with old requests never stopped. Guide times and progress now
+  update from the guide already stored; your provider is only asked for channels whose guide has
+  run out, at most every 30 minutes each, and nothing is fetched while MKTV is in the background.
+  This should help with provider rate limits and the Shield freezing.
 
 ## v7.18 - 2026-10-08
 - **New**: **Phone remote**. Your phone can now control MKTV on the Shield over your home Wi-Fi.

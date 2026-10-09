@@ -2049,6 +2049,8 @@ class HomeActivity : AppCompatActivity() {
                 miniPlayer?.play()
             }
         }
+        // Back in front: the guide on screen is redrawn and any top-up onStop cut short carries on.
+        viewModel.refreshEpgDisplay()
     }
 
     override fun onDestroy() {
@@ -2077,6 +2079,8 @@ class HomeActivity : AppCompatActivity() {
         // Only pause if truly going to background, not when opening another activity
         if (!isChangingConfigurations) {
             miniPlayer?.pause()
+            // Guide requests belong to this screen being in front; onStart picks them up again.
+            viewModel.cancelEpgLoads()
         }
     }
 
@@ -4835,7 +4839,9 @@ class HomeActivity : AppCompatActivity() {
         whatsOnNowRefreshJob = lifecycleScope.launch {
             while (true) {
                 delay(60_000)
-                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) refreshFavoritesEpg() else break
+                if (binding.tabLayout.selectedTabPosition != TAB_FAVORITES) break
+                // Not while the app is in the background: this loop outlives onStop.
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) refreshFavoritesEpg()
             }
         }
         lifecycleScope.launch {
