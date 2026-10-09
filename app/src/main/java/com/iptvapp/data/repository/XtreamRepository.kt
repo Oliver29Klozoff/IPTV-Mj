@@ -1956,7 +1956,8 @@ class XtreamRepository @Inject constructor(
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
         }.filter { it.type != "m3u" }
         val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
-        val errors = mutableMapOf<Int, String>()
+        // Written by each provider's async block, which now run in parallel on Dispatchers.Default.
+        val errors = java.util.Collections.synchronizedMap(mutableMapOf<Int, String>())
         val results = mutableListOf<MergedChannelEntity>()
         // Wholesale re-fetch must not silently un-favorite/un-folder every merged channel —
         // same class of bug just fixed for the primary provider's ChannelEntity table.
@@ -2033,7 +2034,7 @@ class XtreamRepository @Inject constructor(
                         android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: ${e.message}", e)
                         errors[server.serverIndex] = msg
                     } finally {
-                        onProgress(completedCount.incrementAndGet(), servers.size, results.size)
+                        onProgress(completedCount.incrementAndGet(), servers.size, synchronized(results) { results.size })
                     }
                 }
             }.forEach { it.await() }
@@ -2321,7 +2322,8 @@ class XtreamRepository @Inject constructor(
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
         }.filter { it.type != "m3u" }
         val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
-        val errors = mutableMapOf<Int, String>()
+        // Written by each provider's async block, which now run in parallel on Dispatchers.Default.
+        val errors = java.util.Collections.synchronizedMap(mutableMapOf<Int, String>())
         val results = mutableListOf<MergedVodEntity>()
         val mergedUserData = db.mergedVodDao().getUserData().associateBy { it.serverIndex to it.streamId }
         coroutineScope {
@@ -2371,7 +2373,7 @@ class XtreamRepository @Inject constructor(
                         android.util.Log.e("MergedVod", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
                     } finally {
-                        onProgress(completedCount.incrementAndGet(), servers.size, results.size)
+                        onProgress(completedCount.incrementAndGet(), servers.size, synchronized(results) { results.size })
                     }
                 }
             }.forEach { it.await() }
@@ -2451,7 +2453,8 @@ class XtreamRepository @Inject constructor(
             if (targetServerIndex == null) all else all.filter { it.serverIndex == targetServerIndex }
         }.filter { it.type != "m3u" }
         val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
-        val errors = mutableMapOf<Int, String>()
+        // Written by each provider's async block, which now run in parallel on Dispatchers.Default.
+        val errors = java.util.Collections.synchronizedMap(mutableMapOf<Int, String>())
         val results = mutableListOf<MergedSeriesEntity>()
         val mergedUserData = db.mergedSeriesDao().getUserData().associateBy { it.serverIndex to it.seriesId }
         coroutineScope {
@@ -2499,7 +2502,7 @@ class XtreamRepository @Inject constructor(
                         android.util.Log.e("MergedSeries", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
                     } finally {
-                        onProgress(completedCount.incrementAndGet(), servers.size, results.size)
+                        onProgress(completedCount.incrementAndGet(), servers.size, synchronized(results) { results.size })
                     }
                 }
             }.forEach { it.await() }
