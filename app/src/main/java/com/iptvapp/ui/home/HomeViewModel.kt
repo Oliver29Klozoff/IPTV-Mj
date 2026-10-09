@@ -1909,7 +1909,8 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Publishes now/next text, time left and progress for [channels] from the stored guide, and
-     * returns how far ahead each channel's stored guide reaches (latest stop time, epoch seconds). */
+     * returns how far ahead each channel's stored guide reaches (latest stop time, epoch seconds; 0
+     * when nothing stored is on now). */
     private suspend fun publishEpgDisplay(channels: List<ChannelEntity>): Map<Int, Long> {
         val ids = channels.map { it.streamId }
         // Chunked to stay well under SQLite's bound-parameter limit for large categories.
@@ -1946,7 +1947,10 @@ class HomeViewModel @Inject constructor(
         }
         _channelEpgProgress.value = progressMap
         _channelEpgNextText.value = nextTextMap
-        return epgByStream.mapValues { (_, programs) -> programs.maxOf { it.stopTimestamp } }
+        // Only a guide that has something on now counts — future shows alone leave the line blank.
+        return epgByStream.mapValues { (_, programs) ->
+            if (programs.any { it.startTimestamp <= nowSecs && it.stopTimestamp > nowSecs }) programs.maxOf { it.stopTimestamp } else 0L
+        }
     }
 
     fun reloadCurrentLiveCategory() {
