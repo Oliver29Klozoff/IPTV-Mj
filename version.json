@@ -2,6 +2,6 @@
   "versionCode": 557,
   "versionName": "7.19",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.19/MKTV.apk",
-  "apkSha256": "c1458eeb26fb7a66ab25c09f69a8f95aa32f711c3c0455b4ef5dc229b222ddc8",
-  "changelog": "Phone remote: Shield-style buttons, volume control, and the guide next to your channels."
+  "apkSha256": "e96d66232dec86e343ce8e4c22168f43355412e9dab88fb2bfac549ee26b204e",
+  "changelog": "Phone remote: Shield-style buttons, volume, and the guide next to your channels. Far fewer guide requests to your provider."
 }
