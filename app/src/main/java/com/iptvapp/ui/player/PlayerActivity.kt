@@ -3420,7 +3420,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     // Cast receiver on its own — proxyLocalFile actually reads and serves its
                     // bytes (with Range support for seeking), unlike proxyUrl which just forwards
                     // an upstream HTTP request.
-                    isRecordingPlayback -> proxy.proxyLocalFile(directUrl)
+                    // Null when the path isn't a recording location the proxy will serve.
+                    isRecordingPlayback -> proxy.proxyLocalFile(directUrl) ?: directUrl
                     isRawTsLive -> proxy.proxyLiveUrl(directUrl, "ExoPlayerLib/1.4.1 (Linux; Android)")
                     else -> proxy.proxyUrl(directUrl)
                 }
@@ -3428,7 +3429,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 directUrl
             }
 
-            Log.d("CastDebug", "localIp=$localIp castUrl=$castUrl")
+            // Never the URL itself: it carries the cast's token (proxied) or the account login (direct).
+            if (com.iptvapp.BuildConfig.DEBUG) Log.d("CastDebug", "cast via ${if (castUrl == directUrl) "direct URL" else "proxy"}")
 
             val contentType = when {
                 isRecordingPlayback && directUrl.contains(".ts", ignoreCase = true) -> "video/mp2t"

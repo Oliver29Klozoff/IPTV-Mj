@@ -73,6 +73,12 @@ android {
         jvmTarget = '17'
     }
 
+    // Host-side tests that run Android-facing classes (IptvCastProxyServerTest) get inert stubs for
+    // android.* calls such as Log, rather than "not mocked" errors.
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
 }
 
 // The in-app "What's New" viewer reads CHANGELOG.md from assets, but the changelog is

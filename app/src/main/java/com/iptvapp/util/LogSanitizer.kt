@@ -13,11 +13,14 @@ object LogSanitizer {
     private val pathCredentials = Regex("""(/(?:live|movie|series|timeshift)/)[^/\s]+/[^/\s]+/""")
     private val queryUsername = Regex("""(username=)[^&\s"]+""")
     private val queryPassword = Regex("""(password=)[^&\s"]+""")
+    // M3U playlists and CDNs commonly authenticate with a token-style query parameter instead.
+    private val queryToken = Regex("""([?&](?:token|access_token|auth|key|apikey|api_key|sig|signature)=)[^&\s"]+""", RegexOption.IGNORE_CASE)
 
     fun redactCredentials(text: String): String {
         var result = pathCredentials.replace(text) { m -> "${m.groupValues[1]}[REDACTED]/[REDACTED]/" }
         result = queryUsername.replace(result) { m -> "${m.groupValues[1]}[REDACTED]" }
         result = queryPassword.replace(result) { m -> "${m.groupValues[1]}[REDACTED]" }
+        result = queryToken.replace(result) { m -> "${m.groupValues[1]}[REDACTED]" }
         return result
     }
 }

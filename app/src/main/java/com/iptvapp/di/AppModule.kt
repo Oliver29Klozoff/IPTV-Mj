@@ -34,8 +34,20 @@ object AppModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(prefs: PreferencesManager): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.HEADERS
+        // Debug builds only (v7.20): this client carries every API call and every stream segment,
+        // and Xtream puts the account's username and password in those URLs — release builds used
+        // to write all of it, headers included, to logcat. Debug logs request lines only, with
+        // logins redacted (LogSanitizer), sensitive headers masked, and per-segment lines skipped.
+        val mediaSegment = Regex("""\.(ts|m4s|aac)(\?|\s|$)""")
+        val logging = HttpLoggingInterceptor { message ->
+            if (!mediaSegment.containsMatchIn(message)) {
+                android.util.Log.d("OkHttp", com.iptvapp.util.LogSanitizer.redactCredentials(message))
+            }
+        }.apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+            redactHeader("Authorization")
+            redactHeader("Cookie")
+            redactHeader("Set-Cookie")
         }
         // Dns.lookup() runs on an OkHttp dispatcher thread for every single request (EPG
         // polls, VOD/series sync, Trakt, update checks, ...). Calling runBlocking on a
@@ -88,7 +100,7 @@ object AppModule {
         }
         return OkHttpClient.Builder()
             .addInterceptor(userAgentInterceptor)
-            .addInterceptor(logging)
+            .apply { if (com.iptvapp.BuildConfig.DEBUG) addInterceptor(logging) }
             .dns(dns)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)

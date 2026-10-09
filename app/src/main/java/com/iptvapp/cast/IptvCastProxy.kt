@@ -1,17 +1,24 @@
 package com.iptvapp.cast
 
 import android.util.Log
+import com.iptvapp.BuildConfig
+import com.iptvapp.util.LogSanitizer
 import okhttp3.Cookie
 import okhttp3.CookieJar
+import okhttp3.Dns
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URI
-import java.net.URLDecoder
-import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -24,6 +31,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * Media Receiver's video pipeline is built around segmented media (HLS/DASH/progressive MP4),
  * not an infinite raw transport-stream socket, so handing it the raw .ts URL directly connects
  * and then silently disconnects a few seconds in with nothing ever rendered. See LiveHlsSession.
+ *
+ * Security (v7.20): the proxy is reachable by anything on the network while a cast runs, so it
+ * serves only what MKTV registered for this cast, behind a per-cast token — see CastProxyGuard.
+ * It used to take any file path (/file?p=…) or URL (/s?u=…) from whoever asked.
  */
 class IptvCastProxy(
     private val localIp: String,
@@ -31,85 +42,131 @@ class IptvCastProxy(
     // resolve a file:// or content:// URI at all — those are meaningful only on this device — so
     // this proxy has to actually open and stream the bytes itself, unlike the HTTP passthrough
     // paths above which just forward an upstream network request).
-    private val appContext: android.content.Context? = null,
-    private val onRequest: ((String) -> Unit)? = null
+    private val appContext: android.content.Context? = null
 ) {
 
     private var serverSocket: ServerSocket? = null
     @Volatile private var running = false
     var listeningPort: Int = 0
 
+    // Recordings live in the public Movies folder (or MediaStore) or this app's external files;
+    // nothing in the app's private storage (preferences, databases, logs) is ever served.
+    private val guard = CastProxyGuard(
+        allowedFileRoots = listOfNotNull(
+            android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES),
+            appContext?.getExternalFilesDir(null)
+        ),
+        forbiddenFileRoots = listOfNotNull(appContext?.applicationInfo?.dataDir?.let { java.io.File(it) }, appContext?.filesDir?.parentFile)
+    )
+
     private val cookieStore = ConcurrentHashMap<String, List<Cookie>>()
     private val cookieJar = object : CookieJar {
         override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-            if (cookies.isNotEmpty()) {
-                cookieStore[url.host] = cookies
-                Log.d("CastProxy", "Saved ${cookies.size} cookies for ${url.host}")
-            }
+            if (cookies.isNotEmpty()) cookieStore[url.host] = cookies
         }
         override fun loadForRequest(url: HttpUrl): List<Cookie> =
             cookieStore[url.host] ?: emptyList()
     }
 
+    // Upstream connections may only go where the guard allows — checked when a host name is
+    // resolved and again on every connection (redirects and IP-literal hosts included), so neither
+    // a playlist nor a redirect can point the proxy at this device or the local network.
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .cookieJar(cookieJar)
+        .dns(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> =
+                Dns.SYSTEM.lookup(hostname).filterNot { guard.isBlockedAddress(it, hostname) }
+                    .ifEmpty { throw java.net.UnknownHostException("Not an allowed cast address") }
+        })
+        .addNetworkInterceptor { chain ->
+            val address = chain.connection()?.route()?.socketAddress?.address
+            if (address == null || guard.isBlockedAddress(address, chain.request().url.host)) {
+                throw IOException("Not an allowed cast address")
+            }
+            chain.proceed(chain.request())
+        }
         .build()
 
-    // Live-HLS repackaging sessions, keyed by a random id embedded in the manifest/segment
-    // URLs — one per raw-.ts channel currently being cast. Almost always just one entry (one
-    // active cast at a time), but keyed rather than a single field so a channel change mid-cast
-    // (new proxyLiveUrl call) doesn't tear down a session another in-flight request still holds
-    // a reference to.
+    // A few requests at a time (the receiver fetches a playlist and a segment or two at once);
+    // more are closed at once rather than each getting a thread.
+    private val workers = ThreadPoolExecutor(
+        0, MAX_WORKERS, 30, TimeUnit.SECONDS, SynchronousQueue()
+    ) { r -> Thread(r, "CastProxyWorker").apply { isDaemon = true } }
+
+    // Live-HLS repackaging sessions, keyed by their registered id — one per raw-.ts channel
+    // currently being cast. Almost always just one entry (one active cast at a time), but keyed
+    // rather than a single field so a channel change mid-cast doesn't tear down a session another
+    // in-flight request still holds a reference to.
     private val liveSessions = ConcurrentHashMap<String, LiveHlsSession>()
 
+    private val baseUrl get() = "http://${if (localIp.contains(':')) "[$localIp]" else localIp}:$listeningPort"
+
     fun start() {
-        serverSocket = ServerSocket(0).also { listeningPort = it.localPort }
+        // On the network the receiver is on — the cast's own Wi-Fi address — not every interface.
+        val socket = try {
+            ServerSocket().apply { bind(InetSocketAddress(InetAddress.getByName(localIp), 0)) }
+        } catch (e: Exception) {
+            ServerSocket(0)
+        }
+        serverSocket = socket
+        listeningPort = socket.localPort
         running = true
         Thread {
             while (running) {
                 try {
-                    val socket = serverSocket!!.accept()
-                    Thread { handleSocket(socket) }.also { it.isDaemon = true }.start()
+                    val client = socket.accept()
+                    try {
+                        workers.execute { handleSocket(client) }
+                    } catch (_: RejectedExecutionException) {
+                        try { client.close() } catch (_: Exception) {}
+                    }
                 } catch (e: Exception) {
-                    if (running) Log.e("CastProxy", "Accept error", e)
+                    if (running) Log.e("CastProxy", "Accept error: ${e.javaClass.simpleName}")
                     break
                 }
             }
         }.also { it.isDaemon = true; it.start() }
-        Log.d("CastProxy", "Started on $localIp:$listeningPort")
+        if (BuildConfig.DEBUG) Log.d("CastProxy", "Started on port $listeningPort")
     }
 
+    /** Ends this cast's proxy: its token and every registered resource stop working at once. */
     fun stop() {
         running = false
+        guard.close()
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
         liveSessions.values.forEach { it.stop() }
         liveSessions.clear()
+        workers.shutdownNow()
     }
 
+    /** The cast URL for an upstream stream MKTV chose to cast; the URL itself unchanged when it
+     * isn't http(s) (nothing to proxy). */
     fun proxyUrl(originalUrl: String): String =
-        "http://$localIp:$listeningPort/s?u=${URLEncoder.encode(originalUrl, "UTF-8")}"
+        guard.registerUpstream(originalUrl, castSource = true)?.let { baseUrl + it } ?: originalUrl
 
     /** Entry point for casting a locally recorded file (content:// or file:// path) — unlike
-     * proxyUrl(), there's no upstream HTTP server to forward to, so /file below reads the local
+     * proxyUrl(), there's no upstream HTTP server to forward to, so the proxy reads the local
      * bytes directly via ContentResolver/File and serves them, with HTTP Range support since the
-     * Cast Default Media Receiver issues range requests for seeking on VOD-style content. */
-    fun proxyLocalFile(localPath: String): String =
-        "http://$localIp:$listeningPort/file?p=${URLEncoder.encode(localPath, "UTF-8")}"
+     * Cast Default Media Receiver issues range requests for seeking on VOD-style content.
+     * Null when [localPath] isn't a recording location (see CastProxyGuard.isAllowedFile). */
+    fun proxyLocalFile(localPath: String): String? =
+        guard.registerFile(localPath)?.let { baseUrl + it }
 
-    /** Entry point for a raw/live .ts channel — starts (or reuses) a LiveHlsSession for this
-     * upstream URL and returns the URL to hand to the Cast receiver as its MediaInfo content
-     * URL: a live-updating .m3u8 manifest instead of the raw stream URL proxyUrl() would give. */
+    /** Entry point for a raw/live .ts channel — starts a LiveHlsSession for this upstream URL and
+     * returns the URL to hand to the Cast receiver as its MediaInfo content URL: a live-updating
+     * .m3u8 manifest instead of the raw stream URL proxyUrl() would give. */
     fun proxyLiveUrl(originalUrl: String, userAgent: String?): String {
-        val id = java.util.UUID.randomUUID().toString()
-        val session = LiveHlsSession(id, originalUrl, userAgent, client, "http://$localIp:$listeningPort")
+        if (!guard.allowCastSource(originalUrl)) return proxyUrl(originalUrl)
+        val (id, path) = guard.registerLive() ?: return originalUrl
+        val session = LiveHlsSession(id, originalUrl, userAgent, client) { n -> baseUrl + guard.segmentPath(id, n) }
         liveSessions[id] = session
         session.start()
-        return "http://$localIp:$listeningPort/live.m3u8?id=$id"
+        return baseUrl + path
     }
 
     /** Blocks (up to [timeoutMs]) until the LiveHlsSession behind the given proxyLiveUrl()
@@ -121,7 +178,7 @@ class IptvCastProxy(
      * Returns true if ready before the timeout, false otherwise (caller loads anyway either
      * way — this only controls when, not whether). */
     fun awaitLiveSessionReady(castUrl: String, timeoutMs: Long): Boolean {
-        val id = castUrl.substringAfter("id=", "").ifBlank { return false }
+        val id = guard.liveIdOf(castUrl) ?: return false
         val session = liveSessions[id] ?: return false
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
@@ -135,94 +192,67 @@ class IptvCastProxy(
         try {
             socket.soTimeout = 20_000
             socket.use {
-                val input = socket.getInputStream()
+                val input = java.io.BufferedInputStream(socket.getInputStream())
                 val requestLine = readLine(input) ?: return
-                // Read headers, capture User-Agent to forward
+                // Read headers (bounded), capture User-Agent to forward and Range for recordings
                 var incomingUserAgent: String? = null
                 var rangeHeader: String? = null
+                var headers = 0
                 while (true) {
                     val header = readLine(input) ?: break
                     if (header.isEmpty()) break
+                    if (++headers > MAX_HEADERS) return
                     if (header.startsWith("User-Agent:", ignoreCase = true))
-                        incomingUserAgent = header.substringAfter(":").trim()
+                        incomingUserAgent = header.substringAfter(":").trim().take(256)
                     if (header.startsWith("Range:", ignoreCase = true))
                         rangeHeader = header.substringAfter(":").trim()
                 }
 
                 val parts = requestLine.split(" ")
-                val method = parts.getOrElse(0) { "GET" }
-                val path   = parts.getOrElse(1) { "/" }
+                val method = parts.getOrElse(0) { "" }
+                val path = parts.getOrElse(1) { "" }
 
-                onRequest?.invoke(path.take(80))
-
-                if (method == "OPTIONS") {
-                    writeResponse(socket, "200 OK", "text/plain", ByteArray(0))
-                    return
-                }
-
-                when {
-                    path.startsWith("/live.m3u8") -> {
-                        val id = queryParam(path, "id")
-                        val session = id?.let { liveSessions[it] }
-                        Log.d("CastProxy", "→ /live.m3u8 id=$id sessionFound=${session != null}")
+                when (val route = guard.route(method, path)) {
+                    is CastProxyGuard.Route.Rejected ->
+                        writeResponse(socket, route.status, "text/plain", ByteArray(0))
+                    CastProxyGuard.Route.Options ->
+                        writeResponse(socket, "200 OK", "text/plain", ByteArray(0))
+                    is CastProxyGuard.Route.Live -> {
+                        val session = liveSessions[route.id]
                         if (session == null) {
-                            writeResponse(socket, "404 Not Found", "text/plain", "No such session".toByteArray())
+                            writeResponse(socket, "404 Not Found", "text/plain", ByteArray(0))
                         } else {
                             val manifest = session.buildManifest()
-                            Log.d("CastProxy", "← /live.m3u8 bytes=${manifest.length}")
+                            if (BuildConfig.DEBUG) Log.d("CastProxy", "← live manifest bytes=${manifest.length}")
                             writeResponse(socket, "200 OK", "application/x-mpegURL", manifest.toByteArray())
                         }
                     }
-                    path.startsWith("/file") -> {
-                        val encodedPath = queryParam(path, "p")
-                        if (encodedPath == null) {
-                            writeResponse(socket, "400 Bad Request", "text/plain", "Missing path param".toByteArray())
-                        } else {
-                            serveLocalFile(socket, URLDecoder.decode(encodedPath, "UTF-8"), rangeHeader)
-                        }
-                    }
-                    path.startsWith("/seg") -> {
-                        val id = queryParam(path, "id")
-                        val n = queryParam(path, "n")?.toLongOrNull()
-                        val session = id?.let { liveSessions[it] }
-                        val segment = if (session != null && n != null) session.getSegment(n) else null
-                        Log.d("CastProxy", "→ /seg id=$id n=$n found=${segment != null}")
+                    is CastProxyGuard.Route.Segment -> {
+                        val segment = liveSessions[route.id]?.getSegment(route.sequence)
                         if (segment == null) {
-                            writeResponse(socket, "404 Not Found", "text/plain", "No such segment".toByteArray())
+                            writeResponse(socket, "404 Not Found", "text/plain", ByteArray(0))
                         } else {
-                            Log.d("CastProxy", "← /seg bytes=${segment.size}")
                             writeResponse(socket, "200 OK", "video/mp2t", segment)
                         }
                     }
-                    else -> {
-                        val encodedUrl = if (path.contains("?u=")) path.substringAfter("?u=") else null
-                        if (encodedUrl == null) {
-                            writeResponse(socket, "400 Bad Request", "text/plain", "Missing url param".toByteArray())
-                            return
-                        }
-                        val targetUrl = URLDecoder.decode(encodedUrl, "UTF-8")
-                        Log.d("CastProxy", "→ ${com.iptvapp.util.LogSanitizer.redactCredentials(targetUrl)}")
-                        proxyRequest(socket, targetUrl, incomingUserAgent)
-                    }
+                    is CastProxyGuard.Route.LocalFile -> serveLocalFile(socket, route.path, rangeHeader)
+                    is CastProxyGuard.Route.Upstream -> proxyRequest(socket, route.url, incomingUserAgent)
                 }
             }
         } catch (e: Exception) {
-            Log.e("CastProxy", "Socket handler error", e)
+            Log.w("CastProxy", "Request failed: ${e.javaClass.simpleName}")
         }
     }
 
-    private fun queryParam(path: String, key: String): String? {
-        val query = path.substringAfter('?', "")
-        return query.split('&').firstOrNull { it.startsWith("$key=") }?.substringAfter('=')
-    }
-
-    /** Read one HTTP line (ends with \n, strips \r). Returns null on EOF. */
+    /** Read one HTTP line (ends with \n, strips \r), at most MAX_LINE bytes. Returns null on EOF
+     * or an over-long line. */
     private fun readLine(input: java.io.InputStream): String? {
         val sb = StringBuilder()
         while (true) {
             val b = input.read()
             if (b == -1) return if (sb.isEmpty()) null else sb.toString().trimEnd('\r')
             if (b == '\n'.code) return sb.toString().trimEnd('\r')
+            if (sb.length >= MAX_LINE) return null
             sb.append(b.toChar())
         }
     }
@@ -235,43 +265,39 @@ class IptvCastProxy(
                 .header("User-Agent", ua)
                 .header("Accept", "*/*")
                 .build()
-            val resp = client.newCall(req).execute()
-            val status = resp.code
-            val serverCt = resp.header("Content-Type") ?: ""
-            val redirectChain = generateSequence(resp.priorResponse) { it.priorResponse }
-                .map { it.code }.toList()
+            client.newCall(req).execute().use { resp ->
+                val status = resp.code
+                val serverCt = resp.header("Content-Type") ?: ""
+                val body = resp.body ?: run {
+                    writeResponse(socket, "502 Bad Gateway", "text/plain", ByteArray(0))
+                    return
+                }
 
-            val body = resp.body ?: run {
-                Log.e("CastProxy", "No body for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)} status=$status")
-                writeResponse(socket, "502 Bad Gateway", "text/plain", "No body".toByteArray())
-                return
-            }
+                val looksLikePlaylistByMeta = serverCt.contains("mpegurl", ignoreCase = true) ||
+                    serverCt.contains("m3u", ignoreCase = true) ||
+                    url.contains(".m3u8", ignoreCase = true)
 
-            val looksLikePlaylistByMeta = serverCt.contains("mpegurl", ignoreCase = true) ||
-                serverCt.contains("m3u", ignoreCase = true) ||
-                url.contains(".m3u8", ignoreCase = true)
+                val bodyBytes = body.bytes()
+                val bodyStr = bodyBytes.toString(Charsets.UTF_8)
+                val isPlaylist = looksLikePlaylistByMeta || bodyStr.trimStart().startsWith("#EXTM3U")
 
-            val bodyBytes = body.bytes()
-            val bodyStr = bodyBytes.toString(Charsets.UTF_8)
-            val isPlaylist = looksLikePlaylistByMeta || bodyStr.trimStart().startsWith("#EXTM3U")
+                // Use the final URL after redirects as the base for resolving relative segment paths
+                val finalUrl = resp.request.url.toString()
+                if (BuildConfig.DEBUG) {
+                    Log.d("CastProxy", "← status=$status url=${LogSanitizer.redactCredentials(url).takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}")
+                }
 
-            // Use the final URL after redirects as the base for resolving relative segment paths
-            val finalUrl = resp.request.url.toString()
-            val redirectInfo = if (redirectChain.isEmpty()) "" else
-                " redirects=$redirectChain finalUrl=${com.iptvapp.util.LogSanitizer.redactCredentials(finalUrl).takeLast(80)}"
-            Log.d("CastProxy", "← status=$status url=${com.iptvapp.util.LogSanitizer.redactCredentials(url).takeLast(60)} ct=$serverCt playlist=$isPlaylist bytes=${bodyBytes.size}$redirectInfo")
-            if (isPlaylist) Log.d("CastProxy", "m3u8 preview: ${com.iptvapp.util.LogSanitizer.redactCredentials(bodyStr.take(300))}")
-
-            if (isPlaylist) {
-                val rewritten = rewritePlaylist(bodyStr, finalUrl).toByteArray()
-                writeResponse(socket, "200 OK", "application/x-mpegURL", rewritten)
-            } else {
-                writeResponse(socket, "200 OK", serverCt.ifBlank { guessContentType(url) }, bodyBytes)
+                if (isPlaylist) {
+                    val rewritten = rewritePlaylist(bodyStr, finalUrl).toByteArray()
+                    writeResponse(socket, "200 OK", "application/x-mpegURL", rewritten)
+                } else {
+                    writeResponse(socket, "200 OK", serverCt.ifBlank { guessContentType(url) }, bodyBytes)
+                }
             }
         } catch (e: Exception) {
-            Log.e("CastProxy", "Upstream error for ${com.iptvapp.util.LogSanitizer.redactCredentials(url)}", e)
-            writeResponse(socket, "502 Bad Gateway", "text/plain",
-                "Upstream: ${e.message}".toByteArray())
+            // No detail back to the requester: an upstream error message can carry the stream URL.
+            Log.w("CastProxy", "Upstream error: ${e.javaClass.simpleName}")
+            try { writeResponse(socket, "502 Bad Gateway", "text/plain", ByteArray(0)) } catch (_: Exception) {}
         }
     }
 
@@ -282,13 +308,13 @@ class IptvCastProxy(
     private fun serveLocalFile(socket: Socket, localPath: String, rangeHeader: String?) {
         val ctx = appContext
         if (ctx == null) {
-            writeResponse(socket, "500 Internal Server Error", "text/plain", "No context".toByteArray())
+            writeResponse(socket, "500 Internal Server Error", "text/plain", ByteArray(0))
             return
         }
         try {
             val totalLength = localFileLength(ctx, localPath)
             if (totalLength < 0) {
-                writeResponse(socket, "404 Not Found", "text/plain", "File not found".toByteArray())
+                writeResponse(socket, "404 Not Found", "text/plain", ByteArray(0))
                 return
             }
             val contentType = guessContentType(localPath)
@@ -302,7 +328,11 @@ class IptvCastProxy(
                 parts.getOrNull(1)?.toLongOrNull()?.let { end = it }
                 end = end.coerceAtMost(totalLength - 1)
             }
-            val length = (end - start + 1).coerceAtLeast(0)
+            if (start < 0 || start > end) {
+                writeResponse(socket, "416 Range Not Satisfiable", "text/plain", ByteArray(0))
+                return
+            }
+            val length = end - start + 1
 
             openLocalFileStream(ctx, localPath).use { input ->
                 var skipped = 0L
@@ -341,8 +371,8 @@ class IptvCastProxy(
                 out.flush()
             }
         } catch (e: Exception) {
-            Log.e("CastProxy", "serveLocalFile error for $localPath", e)
-            try { writeResponse(socket, "500 Internal Server Error", "text/plain", "Error: ${e.message}".toByteArray()) } catch (_: Exception) {}
+            Log.w("CastProxy", "Recording read failed: ${e.javaClass.simpleName}")
+            try { writeResponse(socket, "500 Internal Server Error", "text/plain", ByteArray(0)) } catch (_: Exception) {}
         }
     }
 
@@ -351,18 +381,20 @@ class IptvCastProxy(
             ctx.contentResolver.query(android.net.Uri.parse(path), arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getLong(0) else -1L } ?: -1L
         } else {
-            val f = java.io.File(path)
-            if (f.exists()) f.length() else -1L
+            val f = java.io.File(path.removePrefix("file://"))
+            if (f.isFile) f.length() else -1L
         }
     }
 
     private fun openLocalFileStream(ctx: android.content.Context, path: String): java.io.InputStream =
         if (path.startsWith("content://")) {
-            ctx.contentResolver.openInputStream(android.net.Uri.parse(path)) ?: throw java.io.IOException("Cannot open $path")
+            ctx.contentResolver.openInputStream(android.net.Uri.parse(path)) ?: throw java.io.IOException("Cannot open recording")
         } else {
-            java.io.FileInputStream(path)
+            java.io.FileInputStream(path.removePrefix("file://"))
         }
 
+    // Child playlists, segments and keys are registered as they're found in a playlist MKTV
+    // approved, so the receiver can fetch exactly those — and nothing it makes up.
     private fun rewritePlaylist(content: String, baseUrl: String): String {
         val baseUri = URI(baseUrl)
         return content.lines().joinToString("\n") { line ->
@@ -370,23 +402,22 @@ class IptvCastProxy(
             when {
                 trimmed.isEmpty() -> line
                 trimmed.startsWith("#") -> rewriteTagUris(line, baseUri)
-                trimmed.startsWith("http://") || trimmed.startsWith("https://") ->
-                    proxyUrl(trimmed)
-                else -> proxyUrl(baseUri.resolve(trimmed).toString())
+                else -> childUrl(baseUri, trimmed) ?: line
             }
         }
     }
 
-    // Rewrites URI="..." attributes inside HLS tags (e.g. #EXT-X-MEDIA subtitle tracks)
+    // Rewrites URI="..." attributes inside HLS tags (e.g. #EXT-X-MEDIA subtitle tracks, keys)
     private fun rewriteTagUris(line: String, baseUri: URI): String =
         line.replace(Regex("""URI="([^"]+)"""")) { m ->
-            val uri = m.groupValues[1]
-            val resolved = if (uri.startsWith("http://") || uri.startsWith("https://"))
-                proxyUrl(uri)
-            else
-                proxyUrl(baseUri.resolve(uri).toString())
+            val resolved = childUrl(baseUri, m.groupValues[1]) ?: m.groupValues[1]
             """URI="$resolved""""
         }
+
+    private fun childUrl(baseUri: URI, ref: String): String? {
+        val absolute = try { baseUri.resolve(ref).toString() } catch (_: Exception) { return null }
+        return guard.registerUpstream(absolute, castSource = false)?.let { this.baseUrl + it }
+    }
 
     private fun writeResponse(socket: Socket, status: String, ct: String, body: ByteArray) {
         val out = socket.getOutputStream()
@@ -411,7 +442,14 @@ class IptvCastProxy(
         url.contains(".m3u8", ignoreCase = true) -> "application/x-mpegURL"
         else -> "application/octet-stream"
     }
+
+    private companion object {
+        const val MAX_WORKERS = 16
+        const val MAX_LINE = 8 * 1024
+        const val MAX_HEADERS = 64
+    }
 }
+
 
 /** Repackages a raw, continuous MPEG-TS byte stream into a live HLS presentation: one
  * background thread reads the upstream connection continuously and cuts a new ~4s segment
@@ -426,7 +464,8 @@ private class LiveHlsSession(
     private val upstreamUrl: String,
     private val userAgent: String?,
     private val client: OkHttpClient,
-    private val proxyBaseUrl: String
+    // Full URL of segment n for this session — token-scoped, built by the proxy's guard.
+    private val segmentUrl: (Long) -> String
 ) {
     companion object {
         // Tried 2000ms to shorten the MIN_SEGMENTS_BEFORE_SERVING wait — the manifest kept
@@ -534,7 +573,7 @@ private class LiveHlsSession(
                     val seq = nextSequence.getAndIncrement().toLong()
                     val segBytes = currentSegment.toByteArray()
                     segments[seq] = Segment(seq, segBytes, elapsed / 1000.0)
-                    Log.d("CastProxy", "LiveHlsSession[$id]: cut segment n=$seq bytes=${segBytes.size} durationSec=${elapsed / 1000.0}")
+                    if (com.iptvapp.BuildConfig.DEBUG) Log.d("CastProxy", "LiveHlsSession[$id]: cut segment n=$seq bytes=${segBytes.size} durationSec=${elapsed / 1000.0}")
                     // Evict old segments once the ring is full — an unbounded map here would
                     // leak memory for the whole lifetime of a long-running cast session.
                     while (segments.size > SEGMENT_RING_SIZE) segments.remove(segments.firstKey())
@@ -670,7 +709,7 @@ private class LiveHlsSession(
                 // testing: it fetched the manifest fine but never once requested a listed
                 // segment) don't reliably resolve a relative reference against a base URL that
                 // already has its own query string. Spelling it out removes that ambiguity.
-                append("$proxyBaseUrl/seg?id=$id&n=${seg.sequence}\n")
+                append("${segmentUrl(seg.sequence)}\n")
             }
         }
     }
