@@ -22,8 +22,8 @@ import java.security.SecureRandom
  * over mDNS ("_mktvremote._tcp") so the phone finds it without typing an address.
  *
  * Pairing, once per phone: the phone asks (/pair/start), the TV shows a 4-digit code for two
- * minutes, the phone sends it back (/pair) and gets a token. Every command then carries that
- * token; unpaired requests are refused. Tokens are kept in SharedPreferences "remote_control".
+ * minutes, the phone sends it back (/pair) and gets a token. Every command is then signed with
+ * that token (see sign); anything else is refused. Tokens are kept in SharedPreferences "remote_control".
  *
  * Commands are handed to the app through [commands]; RemoteControlHooks gives them to whichever
  * MKTV screen is in front.
@@ -173,7 +173,8 @@ object RemoteControlServer {
             val method = parts[0]
             val path = parts[1].substringBefore('?')
             var contentLength = 0
-            var token = ""
+            var signedAt = ""
+            var signature = ""
             var headers = 0
             while (true) {
                 if (++headers > 64) return
@@ -182,7 +183,8 @@ object RemoteControlServer {
                 val name = line.substringBefore(':').trim().lowercase()
                 val value = line.substringAfter(':', "").trim()
                 if (name == "content-length") contentLength = value.toIntOrNull()?.coerceIn(0, 16_384) ?: 0
-                if (name == "x-mktv-token") token = value
+                if (name == "x-mktv-time") signedAt = value
+                if (name == "x-mktv-sig") signature = value
             }
             val body = if (contentLength > 0) ByteArray(contentLength).let { buf ->
                 var read = 0
@@ -194,13 +196,50 @@ object RemoteControlServer {
                 }
                 String(buf, 0, read, Charsets.UTF_8)
             } else ""
-            val (status, json) = route(context, method, path, token, body)
+            val (status, json) = route(context, method, path, signedAt, signature, body)
             val bytes = json.toString().toByteArray(Charsets.UTF_8)
             val out = s.getOutputStream()
             out.write(("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray())
             out.write(bytes)
             out.flush()
         }
+    }
+
+    // ── Request signing ─────────────────────────────────────────────────────
+    // After pairing the token itself never crosses the network again: each request carries the
+    // time and an HMAC of it keyed by the token (sign), so a device that merely pretends to be the
+    // TV learns nothing it can use, and a captured request can't be sent twice (recentSignatures).
+
+    private enum class Auth { OK, CLOCK, BAD }
+    const val SIGNATURE_WINDOW_MS = 2 * 60_000L
+    private val recentSignatures = LinkedHashMap<String, Long>()
+
+    /** HMAC-SHA256 of the request with [token], in hex. Shared with the phone side. */
+    fun sign(token: String, method: String, path: String, signedAt: Long, body: String): String {
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+        mac.init(javax.crypto.spec.SecretKeySpec(token.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        return mac.doFinal("$method\n$path\n$signedAt\n$body".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun checkSignature(context: Context, method: String, path: String, signedAt: String, signature: String, body: String): Auth {
+        val at = signedAt.toLongOrNull() ?: return Auth.BAD
+        if (signature.isEmpty()) return Auth.BAD
+        val now = System.currentTimeMillis()
+        if (kotlin.math.abs(now - at) > SIGNATURE_WINDOW_MS) return Auth.CLOCK
+        val valid = tokens(context).any { token ->
+            java.security.MessageDigest.isEqual(
+                sign(token, method, path, at, body).toByteArray(), signature.lowercase().toByteArray()
+            )
+        }
+        if (!valid) return Auth.BAD
+        synchronized(recentSignatures) {
+            val it = recentSignatures.entries.iterator()
+            while (it.hasNext()) if (now - it.next().value > 2 * SIGNATURE_WINDOW_MS) it.remove() else break
+            if (recentSignatures.containsKey(signature)) return Auth.BAD
+            recentSignatures[signature] = now
+        }
+        return Auth.OK
     }
 
     /** One CRLF-terminated header line, read as bytes (null at end of stream, or past [deadline]). */
@@ -216,7 +255,7 @@ object RemoteControlServer {
         return bytes.toString("UTF-8").trimEnd('\r')
     }
 
-    private fun route(context: Context, method: String, path: String, token: String, body: String): Pair<String, JSONObject> {
+    private fun route(context: Context, method: String, path: String, signedAt: String, signature: String, body: String): Pair<String, JSONObject> {
         when (path) {
             "/pair/start" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
@@ -262,8 +301,10 @@ object RemoteControlServer {
                 return "200 OK" to JSONObject().put("token", newToken).put("name", "MKTV on ${Build.MODEL}")
             }
         }
-        if (token.isEmpty() || token !in tokens(context)) {
-            return "401 Unauthorized" to JSONObject().put("error", "Not paired")
+        when (checkSignature(context, method, path, signedAt, signature, body)) {
+            Auth.OK -> {}
+            Auth.CLOCK -> return "401 Unauthorized" to JSONObject().put("error", "clock").put("serverTime", System.currentTimeMillis())
+            Auth.BAD -> return "401 Unauthorized" to JSONObject().put("error", "Not paired")
         }
         return when (path) {
             "/status" -> "200 OK" to JSONObject().put("nowPlaying", nowPlaying)

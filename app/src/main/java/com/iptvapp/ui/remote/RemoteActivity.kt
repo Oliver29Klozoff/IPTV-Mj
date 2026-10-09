@@ -222,26 +222,49 @@ class RemoteActivity : AppCompatActivity() {
 
     private class Reply(val code: Int, val json: JSONObject?)
 
-    /** One request to the paired TV (or [tv]); null when it couldn't be reached. */
+    /** How far the TV's clock is ahead of this phone's, learned when it turns down a signature as
+     * out of date — so a phone whose clock is a few minutes off still works. */
+    @Volatile private var clockOffsetMs = 0L
+
+    /** One request to the paired TV (or [tv], unsigned, for pairing); null when it couldn't be
+     * reached. Requests to the paired TV are signed with its token, never send it. */
     private suspend fun request(path: String, body: JSONObject?, tv: Tv? = null): Reply? = withContext(Dispatchers.IO) {
-        val host = tv?.host ?: pairedHost ?: return@withContext null
+        val first = requestOnce(path, body, tv)
+        if (tv == null && first?.code == 401 && first.json?.optString("error") == "clock") {
+            val serverTime = first.json.optLong("serverTime", 0L)
+            if (serverTime > 0) {
+                clockOffsetMs = serverTime - System.currentTimeMillis()
+                return@withContext requestOnce(path, body, null)
+            }
+        }
+        first
+    }
+
+    private fun requestOnce(path: String, body: JSONObject?, tv: Tv?): Reply? {
+        val host = tv?.host ?: pairedHost ?: return null
         val port = tv?.port ?: pairedPort
-        try {
+        return try {
+            val method = if (body != null) "POST" else "GET"
+            val text = body?.toString().orEmpty()
             val conn = URL("http://${hostForUrl(host)}:$port$path").openConnection() as HttpURLConnection
             conn.connectTimeout = 3_000
             conn.readTimeout = 5_000
-            conn.requestMethod = if (body != null) "POST" else "GET"
-            // Only to the paired TV: pairing with another one must not hand it this TV's token.
-            if (tv == null) token?.let { conn.setRequestProperty("X-MKTV-Token", it) }
+            conn.requestMethod = method
+            val key = token
+            if (tv == null && key != null) {
+                val at = System.currentTimeMillis() + clockOffsetMs
+                conn.setRequestProperty("X-MKTV-Time", at.toString())
+                conn.setRequestProperty("X-MKTV-Sig", RemoteControlServer.sign(key, method, path, at, text))
+            }
             if (body != null) {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                conn.outputStream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
             }
             val code = conn.responseCode
-            val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }
+            val reply = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }
             conn.disconnect()
-            Reply(code, text?.let { runCatching { JSONObject(it) }.getOrNull() })
+            Reply(code, reply?.let { runCatching { JSONObject(it) }.getOrNull() })
         } catch (_: Exception) {
             null
         }
@@ -261,11 +284,13 @@ class RemoteActivity : AppCompatActivity() {
             val reply = sendLock.withLock { request("/command", command) }
             when {
                 reply == null -> setStatus("Can't reach ${pairedName ?: "the TV"} — is MKTV open on it?")
-                reply.code == 401 -> {
-                    store.edit().remove("token").apply()
-                    setStatus("The TV forgot this phone — pair again")
+                // Kept, not deleted: something answering at the TV's address can't make the phone
+                // forget its pairing. Pairing again replaces it.
+                reply.code == 401 && reply.json?.optString("error") != "clock" -> {
+                    setStatus("The TV doesn't know this phone — pair again")
                     pickTv()
                 }
+                reply.code == 401 -> setStatus("The phone's and the TV's clocks are too far apart — check both")
                 reply.code !in 200..299 -> Toast.makeText(this@RemoteActivity, reply.json?.optString("error") ?: "The TV said no", Toast.LENGTH_SHORT).show()
             }
             done?.invoke(reply?.code in 200..299)
@@ -282,7 +307,8 @@ class RemoteActivity : AppCompatActivity() {
         setStatus(
             when {
                 reply == null -> "Can't reach $name — is MKTV open on it?"
-                reply.code == 401 -> "$name forgot this phone — tap PICK TV to pair again"
+                reply.code == 401 && reply.json?.optString("error") != "clock" -> "$name doesn't know this phone — tap PICK TV to pair again"
+                reply.code == 401 -> "The phone's and the TV's clocks are too far apart — check both"
                 else -> reply.json?.optString("nowPlaying").orEmpty()
                     .let { if (it.isBlank()) "Connected to $name" else "$name · $it" }
             }
