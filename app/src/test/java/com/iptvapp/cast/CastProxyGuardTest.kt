@@ -200,6 +200,16 @@ class CastProxyGuardTest {
         assertEquals(CastProxyGuard.Route.Options, guard.route("OPTIONS", up))
     }
 
+    // A long VOD playlist's own segments stay valid while it's served, and the source survives.
+    @Test fun largePlaylistKeepsItsHandles() {
+        val source = guard.registerUpstream("https://cdn.example.com/vod/movie.m3u8", castSource = true)!!
+        val segments = (0 until 5000).map { guard.registerUpstream("https://cdn.example.com/vod/seg$it.ts", castSource = false)!! }
+        segments.forEachIndexed { i, p ->
+            assertEquals(CastProxyGuard.Route.Upstream("https://cdn.example.com/vod/seg$i.ts"), guard.route("GET", p))
+        }
+        assertEquals(CastProxyGuard.Route.Upstream("https://cdn.example.com/vod/movie.m3u8"), guard.route("GET", source))
+    }
+
     @Test fun otherMethodsAndMalformedPathsFail() {
         val up = guard.registerUpstream("https://cdn.example.com/1.m3u8", castSource = true)!!
         assertEquals(CastProxyGuard.Route.Rejected("405 Method Not Allowed"), guard.route("POST", up))

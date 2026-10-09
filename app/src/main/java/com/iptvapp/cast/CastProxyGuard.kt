@@ -46,7 +46,11 @@ class CastProxyGuard(
     private val lock = Any()
 
     // Registered upstream URLs by id (and the reverse, so a playlist re-fetched every few seconds
-    // reuses its children's ids). Bounded: a long live cast keeps registering new segments.
+    // reuses its children's ids). The URLs MKTV chose to cast are kept for the whole session
+    // ([sourceById]); children are bounded, least recently registered or used going first, since a
+    // long live cast keeps registering new segments — the bound is far above any one playlist
+    // (a 24-hour VOD in 2-second segments), so a playlist never outruns its own handles.
+    private val sourceById = HashMap<String, String>()
     private val upstreamById = object : LinkedHashMap<String, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>): Boolean {
             val drop = size > MAX_UPSTREAM_RESOURCES
@@ -67,6 +71,7 @@ class CastProxyGuard(
     /** Ends the session: the token and every registered resource stop working at once. */
     fun close() = synchronized(lock) {
         token = null
+        sourceById.clear()
         upstreamById.clear()
         idByUpstream.clear()
         files.clear()
@@ -83,8 +88,17 @@ class CastProxyGuard(
         val scheme = uri.scheme?.lowercase()
         if (scheme != "http" && scheme != "https") return null
         val host = uri.host?.lowercase()?.trim('[', ']') ?: return null
-        if (castSource) privateAllowedHosts += host
-        val id = idByUpstream[url] ?: newHandle(16).also { upstreamById[it] = url; idByUpstream[url] = it }
+        val sourceId = sourceById.entries.firstOrNull { it.value == url }?.key
+        val id = if (castSource) {
+            privateAllowedHosts += host
+            sourceId ?: newHandle(16).also { sourceById[it] = url }
+        } else if (sourceId != null) {
+            sourceId
+        } else {
+            // A known child is touched (get) so a playlist re-fetch keeps the segments it lists.
+            idByUpstream[url]?.also { upstreamById[it] }
+                ?: newHandle(16).also { upstreamById[it] = url; idByUpstream[url] = it }
+        }
         "${prefix()}/r/$id${extensionOf(uri.path)}"
     }
 
@@ -134,7 +148,7 @@ class CastProxyGuard(
         return synchronized(lock) {
             when {
                 parts.size == 3 && parts[1] == "r" ->
-                    id(parts[2])?.let { upstreamById[it] }?.let { Route.Upstream(it) }
+                    id(parts[2])?.let { sourceById[it] ?: upstreamById[it] }?.let { Route.Upstream(it) }
                 parts.size == 3 && parts[1] == "f" ->
                     id(parts[2])?.let { files[it] }?.takeIf { isAllowedFile(it) }?.let { Route.LocalFile(it) }
                 parts.size == 3 && parts[1] == "live" && parts[2].endsWith(".m3u8") ->
@@ -187,7 +201,7 @@ class CastProxyGuard(
         ByteArray(bytes).also { random.nextBytes(it) }.joinToString("") { "%02x".format(it) }
 
     companion object {
-        private const val MAX_UPSTREAM_RESOURCES = 4096
+        private const val MAX_UPSTREAM_RESOURCES = 50_000
         private val HANDLE = Regex("[0-9a-f]{32}")
         private val KNOWN_EXTENSIONS = setOf("m3u8", "m3u", "mpd", "ts", "mp4", "m4v", "m4s", "mkv", "mov", "webm", "avi", "aac", "vtt")
 
