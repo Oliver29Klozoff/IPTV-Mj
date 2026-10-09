@@ -90,8 +90,8 @@ object RemoteControlServer {
      * row look like someone trying their luck); [expired] closes it without counting. */
     @Synchronized
     fun answerPairing(accept: Boolean, expired: Boolean = false) {
-        val p = pairing ?: return
         _pairingNumber.value = null
+        val p = pairing ?: return
         val token = p.token
         if (accept && token != null) {
             appContext?.let { addToken(it, token) }
@@ -388,7 +388,10 @@ object RemoteControlServer {
                         System.currentTimeMillis() - p.startedAt > PAIRING_TTL_MS -> "gone"
                         else -> "waiting"
                     }
-                    if (state != "waiting" && p?.commit == commit) pairing = null
+                    if (state != "waiting" && p?.commit == commit) {
+                        pairing = null
+                        _pairingNumber.value = null
+                    }
                     return "200 OK" to JSONObject().put("state", state)
                 }
             }

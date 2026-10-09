@@ -63,7 +63,9 @@ object RemoteControlHooks {
         scope.launch {
             RemoteControlServer.commands.collect { command ->
                 when (command) {
-                    is RemoteControlServer.Command.Key -> front?.get()?.let { pressKey(it, command.keyCode) }
+                    // Not while the pairing question is up: only the TV's own remote may answer it,
+                    // so an already paired phone can't let another one in.
+                    is RemoteControlServer.Command.Key -> if (dialog == null) front?.get()?.let { pressKey(it, command.keyCode) }
                     is RemoteControlServer.Command.Tune -> tune(app, command.name)
                 }
             }
