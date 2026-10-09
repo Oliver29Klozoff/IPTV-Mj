@@ -16,6 +16,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -233,13 +234,19 @@ class XtreamRepository @Inject constructor(
     // overwritten by an older one finishing after it.
     private val primaryChannelsMutex = kotlinx.coroutines.sync.Mutex()
 
-    suspend fun fetchLiveStreams(): Resource<List<LiveStream>> = primaryChannelsMutex.withLock {
+    // On Dispatchers.Default (v7.21): the response is parsed on OkHttp's threads, but everything
+    // after it — matching every channel against saved user data, the USA Only filter, building tens
+    // of thousands of entities, the stale-row sweep — ran on the caller's thread, which was Main
+    // from the home screens. Room and DataStore calls inside dispatch themselves as before.
+    suspend fun fetchLiveStreams(): Resource<List<LiveStream>> = withContext(Dispatchers.Default) { primaryChannelsMutex.withLock {
         val b = urlBuilder(); val c = creds()
         // Read once: the list is filtered and tagged with the same value even if it changes meanwhile.
         val usaOnly = prefs.usaOnlyChannels.first()
         return@withLock safeApiCall {
+            val startMs = android.os.SystemClock.elapsedRealtime()
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+            val fetchedMs = android.os.SystemClock.elapsedRealtime()
             val userData = db.channelDao().getUserData().associateBy { it.streamId }
             // Favorites / folders still waiting to be applied (a backup restore, or a provider switched to
             // primary) must survive the filter too, or they'd never find their channel.
@@ -262,6 +269,8 @@ class XtreamRepository @Inject constructor(
             if (creds().let { it.serverUrl != c.serverUrl || it.username != c.username }) {
                 throw Exception("The provider changed during the refresh")
             }
+            // A refresh cancelled by now (its screen or job gone) writes nothing.
+            checkActive()
             db.channelDao().upsertChannels(list.map {
                 val prev = userData[it.streamId]
                 ChannelEntity(
@@ -302,8 +311,20 @@ class XtreamRepository @Inject constructor(
             prefs.setLastChannelsFetchTime(System.currentTimeMillis())
             applyPendingPrimaryFavorites()
             prefs.setListsUsaOnlyPrimary(if (usaOnly) "on" else "off")
+            logCatalogTiming("live", list.size, startMs, fetchedMs)
             list
         }
+    } }
+
+    // A refresh cancelled by now writes nothing (the safeApiCall blocks aren't CoroutineScopes).
+    private suspend fun checkActive() = kotlinx.coroutines.currentCoroutineContext().ensureActive()
+
+    /** Debug builds: how long a catalog refresh spent waiting for the provider and then processing
+     * and storing — counts and times only. */
+    private fun logCatalogTiming(kind: String, items: Int, startMs: Long, fetchedMs: Long) {
+        if (!com.iptvapp.BuildConfig.DEBUG) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        android.util.Log.d("CatalogTiming", "$kind: $items items, request ${fetchedMs - startMs} ms, process+store ${now - fetchedMs} ms, on ${Thread.currentThread().name}")
     }
 
     /** USA Only (Settings): with it on, only US categories' channels are kept (plus any you've customized) — not just hidden —
@@ -585,10 +606,14 @@ class XtreamRepository @Inject constructor(
 
     suspend fun fetchVodStreams(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<VodStream>> {
         val b = urlBuilder(); val c = creds()
-        return safeApiCall {
+        // Dispatchers.Default (v7.21): matching 100k+ titles against saved favorites and progress and
+        // building their rows ran on the caller's thread — Main from the home screens.
+        return withContext(Dispatchers.Default) { safeApiCall {
+            val startMs = android.os.SystemClock.elapsedRealtime()
             val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
+            val fetchedMs = android.os.SystemClock.elapsedRealtime()
             // Without this, every VOD refresh (auto-refresh, pull-to-refresh, stale-cache
             // reload) silently un-favorited every movie and reset all watch progress back to
             // zero — @Upsert replaces the whole row, and a freshly-built VodEntity defaults
@@ -600,6 +625,7 @@ class XtreamRepository @Inject constructor(
             // full-size List<VodEntity> before upserting doubles peak memory right when the
             // raw deserialized response is already at its largest. Chunk map+upsert together
             // so only one chunk's worth of entities exists at a time.
+            checkActive()
             var saved = 0
             list.chunked(2000).forEach { chunk ->
                 db.vodDao().upsertVod(chunk.map {
@@ -621,8 +647,9 @@ class XtreamRepository @Inject constructor(
                 onProgress(saved, list.size)
             }
             applyPendingPrimaryVodFavorites()
+            logCatalogTiming("vod", list.size, startMs, fetchedMs)
             list
-        }
+        } }
     }
 
     suspend fun fetchVodCategories(): Resource<List<Category>> {
@@ -760,13 +787,17 @@ class XtreamRepository @Inject constructor(
 
     suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {
         val b = urlBuilder(); val c = creds()
-        return safeApiCall {
+        // Dispatchers.Default (v7.21) — same reason as fetchVodStreams.
+        return withContext(Dispatchers.Default) { safeApiCall {
+            val startMs = android.os.SystemClock.elapsedRealtime()
             val response = api.getSeries(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
+            val fetchedMs = android.os.SystemClock.elapsedRealtime()
             // Same preserve-across-refresh fix as fetchVodStreams above — without it, every
             // series refresh silently un-favorited every show and reset watch progress.
             val userData = db.seriesDao().getUserData().associateBy { it.seriesId }
+            checkActive()
             var saved = 0
             list.chunked(2000).forEach { chunk ->
                 db.seriesDao().upsertSeries(chunk.map {
@@ -794,8 +825,9 @@ class XtreamRepository @Inject constructor(
                 onProgress(saved, list.size)
             }
             applyPendingPrimarySeriesFavorites()
+            logCatalogTiming("series", list.size, startMs, fetchedMs)
             list
-        }
+        } }
     }
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
@@ -1005,14 +1037,14 @@ class XtreamRepository @Inject constructor(
         for (url in sources) {
             totalCount += try {
                 fetchXmltvFromUrl(url, byEpgId, byName)
-            } catch (_: Exception) { 0 }
+            } catch (e: Exception) { com.iptvapp.util.rethrowIfCancelled(e); 0 } // a cancelled refresh stops here
         }
         // Provider guide down or empty (T-Rex's xmltv.php 404s, for one) — fall back to the public
         // US feed rather than leaving the guide blank. Skipped on a fresh install with no channels
         // cached yet, where nothing could match and it would just be a wasted 6.5 MB download.
         val backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
         if (totalCount == 0 && allChannels.isNotEmpty() && backupUrl !in sources) {
-            totalCount = try { fetchXmltvFromUrl(backupUrl, byEpgId, byName) } catch (_: Exception) { 0 }
+            totalCount = try { fetchXmltvFromUrl(backupUrl, byEpgId, byName) } catch (e: Exception) { com.iptvapp.util.rethrowIfCancelled(e); 0 }
             android.util.Log.i("Xmltv", "primary: provider guide empty — backup guide matched $totalCount programs")
         }
         recordFavoriteEpgDiffs(-1, beforeSnapshot)
@@ -1394,7 +1426,9 @@ class XtreamRepository @Inject constructor(
         importM3uText(content)
     }
 
-    private suspend fun importM3uText(content: String): Int {
+    // Dispatchers.Default (v7.21): parsing a whole playlist (tens of thousands of entries) and building
+    // its rows ran on the caller's thread — Main from Login and Settings.
+    private suspend fun importM3uText(content: String): Int = withContext(Dispatchers.Default) {
         val channels = M3uParser.parse(content)
         if (channels.isEmpty()) throw Exception("No channels found in playlist")
 
@@ -1424,7 +1458,7 @@ class XtreamRepository @Inject constructor(
                 streamUrl = ch.streamUrl
             )
         })
-        return channels.size
+        channels.size
     }
 
     /** Fetches [url] and imports it via [importM3uAsSecondarySource] — same split as
@@ -1463,7 +1497,8 @@ class XtreamRepository @Inject constructor(
         importM3uAsSecondarySourceInternal(nickname, sourceUrl, content)
     }
 
-    private suspend fun importM3uAsSecondarySourceInternal(nickname: String, sourceUrl: String?, content: String): Int {
+    // Dispatchers.Default (v7.21) — same reason as importM3uText.
+    private suspend fun importM3uAsSecondarySourceInternal(nickname: String, sourceUrl: String?, content: String): Int = withContext(Dispatchers.Default) {
         val channels = M3uParser.parse(content)
         if (channels.isEmpty()) throw Exception("No channels found in playlist")
 
@@ -1495,7 +1530,7 @@ class XtreamRepository @Inject constructor(
         rows.chunked(2000).forEach { chunk -> db.mergedChannelDao().upsertAll(chunk) }
 
         prefs.saveExtraServersWithNick(existing + listOf(listOf("", "", "", nickname, "", "true", "m3u", sourceUrl ?: "")))
-        return channels.size
+        channels.size
     }
 
     private fun decodeBase64(encoded: String): String = try {
@@ -1908,7 +1943,7 @@ class XtreamRepository @Inject constructor(
     suspend fun refreshMergedChannels(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
-    ): Map<Int, String> = mergedChannelsRefreshMutex.withLock {
+    ): Map<Int, String> = withContext(Dispatchers.Default) { mergedChannelsRefreshMutex.withLock {
         // m3u-type servers have no Xtream API to re-fetch from below — their channels were
         // written directly at import time (see importM3uAsSecondarySource) and just sit as-is
         // until the source is removed and re-added. Filtered out here rather than left to fail
@@ -1992,6 +2027,8 @@ class XtreamRepository @Inject constructor(
                         }
                         } // withTimeout
                     } catch (e: Exception) {
+                        // This provider timing out is its failure; the whole refresh being cancelled is not.
+                        com.iptvapp.util.rethrowIfCancelled(e)
                         val msg = describeMergedChannelFetchError(e)
                         android.util.Log.e("MergedChannels", "serverIndex=${server.serverIndex} (${server.nickname}) failed: ${e.message}", e)
                         errors[server.serverIndex] = msg
@@ -2044,8 +2081,8 @@ class XtreamRepository @Inject constructor(
         }
         // A full pass with every provider through: these lists match the setting they were fetched under.
         if (targetServerIndex == null && errors.isEmpty()) prefs.setListsUsaOnlyMerged(if (usaOnly) "on" else "off")
-        return errors
-    }
+        errors
+    } }
 
     /** Applies any merged favorites/folders/pinned categories restored from a backup, once the
      * relevant server's channels actually exist locally to apply them to — matched by server
@@ -2275,7 +2312,7 @@ class XtreamRepository @Inject constructor(
     suspend fun refreshMergedVod(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
-    ): Map<Int, String> = mergedVodRefreshMutex.withLock {
+    ): Map<Int, String> = withContext(Dispatchers.Default) { mergedVodRefreshMutex.withLock {
         // Serialized against concurrent overlapping calls — see refreshMergedChannels' own kdoc
         // on mergedChannelsRefreshMutex, same race, same fix, same table-scoped mutex here.
         // M3U import only ever carries live channels (see M3uParser) — an m3u-type server never
@@ -2328,6 +2365,8 @@ class XtreamRepository @Inject constructor(
                             }
                         }
                     } catch (e: Exception) {
+                        // This provider timing out is its failure; the whole refresh being cancelled is not.
+                        com.iptvapp.util.rethrowIfCancelled(e)
                         val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
                         android.util.Log.e("MergedVod", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
@@ -2347,8 +2386,8 @@ class XtreamRepository @Inject constructor(
             db.mergedVodDao().upsertAll(results)
             applyPendingMergedVodRestoreData(servers)
         }
-        return errors
-    }
+        errors
+    } }
 
     fun getMergedVodServerSummaries(): Flow<List<MergedVodServerSummary>> = db.mergedVodDao().getServerSummaries()
 
@@ -2403,7 +2442,7 @@ class XtreamRepository @Inject constructor(
     suspend fun refreshMergedSeries(
         targetServerIndex: Int? = null,
         onProgress: (completedServers: Int, totalServers: Int, itemsSoFar: Int) -> Unit = { _, _, _ -> }
-    ): Map<Int, String> = mergedSeriesRefreshMutex.withLock {
+    ): Map<Int, String> = withContext(Dispatchers.Default) { mergedSeriesRefreshMutex.withLock {
         // Serialized against concurrent overlapping calls — see refreshMergedChannels' own kdoc
         // on mergedChannelsRefreshMutex, same race, same fix, same table-scoped mutex here.
         // M3U import only ever carries live channels (see M3uParser) — an m3u-type server never
@@ -2454,6 +2493,8 @@ class XtreamRepository @Inject constructor(
                             }
                         }
                     } catch (e: Exception) {
+                        // This provider timing out is its failure; the whole refresh being cancelled is not.
+                        com.iptvapp.util.rethrowIfCancelled(e)
                         val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) "Timed out" else e.message
                         android.util.Log.e("MergedSeries", "serverIndex=${server.serverIndex} (${server.nickname}) failed: $msg", e)
                         errors[server.serverIndex] = msg ?: "Unknown error"
@@ -2473,8 +2514,8 @@ class XtreamRepository @Inject constructor(
             db.mergedSeriesDao().upsertAll(results)
             applyPendingMergedSeriesRestoreData(servers)
         }
-        return errors
-    }
+        errors
+    } }
 
     fun getMergedSeriesServerSummaries(): Flow<List<MergedSeriesServerSummary>> = db.mergedSeriesDao().getServerSummaries()
 

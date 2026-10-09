@@ -154,6 +154,9 @@ class EpgRefreshWorker @AssistedInject constructor(
                     .putString(KEY_STATUS, "EPG refresh complete")
                     .build()
             )
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            // Stopped by WorkManager (or the refresh replaced): not a failure to report.
+            throw e
         } catch (e: IOException) {
             val errorText = "EPG network error: ${e.message ?: "Unknown"}"
             Log.w("EpgRefreshWorker", errorText, e)

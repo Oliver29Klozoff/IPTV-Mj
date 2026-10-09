@@ -63,6 +63,8 @@ class NewEpisodeCheckWorker @AssistedInject constructor(
             }
             Log.i(TAG, "New-episode check complete: $notifiedCount series had new episodes")
             Result.success()
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e // stopped by WorkManager: not a failure
         } catch (e: Exception) {
             Log.e(TAG, "New-episode check failed: ${e.message}", e)
             Result.retry()
