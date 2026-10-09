@@ -4128,6 +4128,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // On another provider than the one playing: this player's channel lists and provider state
         // belong to this one, so the TV home screen reopens it on the right provider instead.
         if (target != null && target.serverIndex != serverIndex) return false
+        // Likewise outside the list CH +/− walks here (a favorites-only list, one category of another
+        // provider): reopened with its own list, so CH +/− carries on from the new channel.
+        if (target != null && target.serverIndex == -1 && channels.none { it.streamId == target.streamId }) return false
+        if (target != null && target.serverIndex != -1 && mergedChannels.none { it.streamId == target.streamId }) return false
         val channel = target?.let { if (it.serverIndex == -1) repository.getChannelById(it.streamId) else null }
         val merged = target?.let { if (it.serverIndex != -1) repository.getMergedChannelByIndexAndId(it.serverIndex, it.streamId) else null }
         if (channel == null && merged == null) {

@@ -391,7 +391,9 @@ object RemoteControlServer {
                         System.currentTimeMillis() - p.startedAt > PAIRING_TTL_MS -> "gone"
                         else -> "waiting"
                     }
-                    if (state != "waiting" && p?.commit == commit) {
+                    // An answered pairing stays until it expires or another replaces it, so a phone whose
+                    // status reply was lost can ask again; only an expired one is cleared here.
+                    if (state == "gone" && p?.commit == commit) {
                         pairing = null
                         _pairingNumber.value = null
                     }
