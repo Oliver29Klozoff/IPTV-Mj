@@ -197,9 +197,24 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             return true
         }
         miniPlayJob?.join()
-        if (currentMiniUrl.isNotEmpty() && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+        if (currentMiniUrl.isEmpty() || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return true
+        if (currentMiniServerIndex != -1) {
             binding.tvMiniPlayerContainer.performClick()
+            return true
         }
+        // CH +/- in the player walks the list it's given: the list on screen if the channel is in
+        // it, otherwise the channel's own category — never a list it isn't in, where CH +/- would
+        // do nothing.
+        val requestedId = miniSubstitution?.takeIf { it.first == currentMiniStreamId }?.second ?: currentMiniStreamId
+        val browsed = viewModel.channels.value
+        val zapIds = if (browsed.any { it.streamId == requestedId }) browsed.map { it.streamId } else {
+            viewModel.getChannelById(requestedId)?.categoryId
+                ?.let { viewModel.getChannelsByCategorySnapshot(it) }
+                ?.filter { !it.isHidden }?.map { it.streamId }
+                ?.takeIf { requestedId in it }
+                ?: listOf(requestedId)
+        }
+        openPlayer(currentMiniUrl, currentMiniTitle, currentMiniStreamId, streamIds = zapIds.toIntArray())
         return true
     }
 
@@ -955,8 +970,11 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 it.prepare()
                 it.playWhenReady = true
             }
-            refreshMiniEpg(channel.streamId)
-            startEpgRefreshLoop(channel.streamId)
+            // Beside the job, not in it: whoever waits for the channel (reminder and phone tunes)
+            // shouldn't also wait on a guide request.
+            val id = channel.streamId
+            lifecycleScope.launch { if (currentMiniStreamId == id) refreshMiniEpg(id) }
+            startEpgRefreshLoop(id)
         }
     }
 
