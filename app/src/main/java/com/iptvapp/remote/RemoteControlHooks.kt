@@ -75,6 +75,7 @@ object RemoteControlHooks {
                             activity.startActivity(
                                 Intent(activity, com.iptvapp.ui.home.TvHomeActivity::class.java)
                                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                    .putExtra(com.iptvapp.ui.home.TvHomeActivity.EXTRA_REMOTE_HOME, true)
                             )
                         }
                     }

@@ -675,6 +675,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         super.onNewIntent(intent)
         setIntent(intent)
         handleDeepLink(intent)
+        if (intent.getBooleanExtra(EXTRA_REMOTE_HOME, false)) {
+            intent.removeExtra(EXTRA_REMOTE_HOME)
+            remoteHome()
+        }
         val tune = ReminderTune.take(this, intent) ?: return
         // onResume, which follows this, would otherwise re-prepare whatever is already on.
         launchReminderTune(tune.streamId, tune.serverIndex)
@@ -1722,6 +1726,11 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // requesting focus, or requestFocus() below would silently no-op.
         binding.tvMiniPlayerContainer.isFocusable = true
         binding.tvMiniPlayerContainer.requestFocus()
+    }
+
+    companion object {
+        /** Set by the phone remote's Home from another screen, so this one comes back to its sidebar. */
+        const val EXTRA_REMOTE_HOME = "remote_home"
     }
 
     /** The phone remote's Home: closes Movies or Series browsing if open, then shows the sidebar. */
