@@ -43,9 +43,61 @@ class RemoteDpadView @JvmOverloads constructor(
     private var pressed: String? = null
     private val arc = RectF()
 
+    // TalkBack / Switch Access see the five parts as five buttons (one drawn view, five virtual
+    // controls), each pressing the same command a tap on it does.
+    private val sides = listOf("up", "down", "left", "right", "ok")
+    private val sideLabels = listOf("Up", "Down", "Left", "Right", "OK")
+    private val a11y = object : androidx.customview.widget.ExploreByTouchHelper(this) {
+        override fun getVirtualViewAt(x: Float, y: Float): Int =
+            sideAt(x, y)?.let { sides.indexOf(it) } ?: INVALID_ID
+
+        override fun getVisibleVirtualViews(virtualViewIds: MutableList<Int>) {
+            virtualViewIds.addAll(sides.indices)
+        }
+
+        override fun onPopulateNodeForVirtualView(id: Int, node: androidx.core.view.accessibility.AccessibilityNodeInfoCompat) {
+            node.contentDescription = sideLabels[id]
+            node.className = android.widget.Button::class.java.name
+            node.addAction(androidx.core.view.accessibility.AccessibilityNodeInfoCompat.ACTION_CLICK)
+            node.setBoundsInParent(boundsOf(sides[id]))
+        }
+
+        override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: android.os.Bundle?): Boolean {
+            if (action != androidx.core.view.accessibility.AccessibilityNodeInfoCompat.ACTION_CLICK) return false
+            onPress?.invoke(sides[id])
+            sendEventForVirtualView(id, android.view.accessibility.AccessibilityEvent.TYPE_VIEW_CLICKED)
+            return true
+        }
+    }
+
     init {
         isClickable = true
-        contentDescription = "Arrows and OK"
+        androidx.core.view.ViewCompat.setAccessibilityDelegate(this, a11y)
+    }
+
+    /** The on-screen box of one part: the middle circle for OK, the ring's quarter for an arrow. */
+    private fun boundsOf(side: String): android.graphics.Rect {
+        val o = outerR
+        val i = innerR
+        val r = when (side) {
+            "up" -> RectF(cx - o * 0.7f, cy - o, cx + o * 0.7f, cy - i)
+            "down" -> RectF(cx - o * 0.7f, cy + i, cx + o * 0.7f, cy + o)
+            "left" -> RectF(cx - o, cy - o * 0.7f, cx - i, cy + o * 0.7f)
+            "right" -> RectF(cx + i, cy - o * 0.7f, cx + o, cy + o * 0.7f)
+            else -> RectF(cx - i, cy - i, cx + i, cy + i)
+        }
+        return android.graphics.Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt())
+    }
+
+    override fun dispatchHoverEvent(event: MotionEvent): Boolean =
+        a11y.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean =
+        a11y.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
+
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        a11y.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
     }
 
     private val cx get() = width / 2f
@@ -121,6 +173,7 @@ class RemoteDpadView @JvmOverloads constructor(
                 if (side != null && sideAt(event.x, event.y) == side) {
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     onPress?.invoke(side)
+                    a11y.sendEventForVirtualView(sides.indexOf(side), android.view.accessibility.AccessibilityEvent.TYPE_VIEW_CLICKED)
                     performClick()
                 }
                 return true
