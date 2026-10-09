@@ -912,6 +912,10 @@ class HomeViewModel @Inject constructor(
 
     private var mergedEpgJob: Job? = null
     private val mergedXmltvLastAttemptMs = HashMap<String, Long>()
+    // The list the merged guide was last loaded for, and whether that load ran to the end — one
+    // cut short by the screen leaving (cancelEpgLoads) is resumed by refreshEpgDisplay.
+    private var mergedEpgChannels: List<com.iptvapp.data.local.entities.MergedChannelEntity> = emptyList()
+    private var mergedEpgFinished = true
 
     /** Now/next text per merged channel. Previously fired one get_short_epg network call per
      * channel (paced 150ms apart) with nothing shown until each one landed — a category of 30+
@@ -926,6 +930,8 @@ class HomeViewModel @Inject constructor(
      * whatever channels XMLTV didn't cover — so the rate-limit safety margin is unchanged. */
     fun loadEpgForMergedChannels(channels: List<com.iptvapp.data.local.entities.MergedChannelEntity>) {
         mergedEpgJob?.cancel()
+        mergedEpgChannels = channels
+        mergedEpgFinished = channels.isEmpty()
         if (channels.isEmpty()) return
         mergedEpgJob = viewModelScope.launch {
             val pairs = channels.map { it.serverIndex to it.streamId }
@@ -968,6 +974,7 @@ class HomeViewModel @Inject constructor(
                     kotlinx.coroutines.delay(150)
                 }
             }
+            mergedEpgFinished = true
         }
     }
 
@@ -1814,8 +1821,10 @@ class HomeViewModel @Inject constructor(
 
     /** For clock ticks: redraws now/next, time left and progress for the list on screen from the
      * stored guide. Reaches the provider only for channels whose guide has run out (and weren't
-     * tried recently) — normally not at all. */
+     * tried recently) — normally not at all — and resumes an other-provider guide load that a
+     * screen leaving cut short. */
     fun refreshEpgDisplay() {
+        if (!mergedEpgFinished && mergedEpgJob?.isActive != true) loadEpgForMergedChannels(mergedEpgChannels)
         if (epgDisplayChannels.isEmpty()) return
         startEpgLoad(epgDisplayChannels)
     }

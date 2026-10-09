@@ -789,6 +789,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Runs before a returning player result restarts the mini player: an audio-only session
         // still playing would be a second stream on a one-stream account.
         com.iptvapp.service.AudioOnlyService.stop(this)
+        // Back in front: guide loads onStop cut short carry on (the clock tick only covers channel lists).
+        viewModel.refreshEpgDisplay()
     }
 
     override fun onResume() {
@@ -993,6 +995,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val sharedProgress = viewModel.channelEpgProgress.value[streamId]
         val epg = sharedText ?: viewModel.getEpgText(streamId)
         val progress = sharedProgress ?: viewModel.getMiniEpgProgress(streamId)
+        // The lookups above can take a while; if another channel was tuned meanwhile, its own refresh
+        // owns the line — don't write this (older) channel's guide over it.
+        if (currentMiniStreamId != streamId) return
 
         binding.tvTvEpg.text = epg
         if (progress > 0) {
