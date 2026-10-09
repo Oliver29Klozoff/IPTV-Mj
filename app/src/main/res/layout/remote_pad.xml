@@ -11,13 +11,13 @@
 
     <com.iptvapp.ui.remote.RemoteDpadView
         android:id="@+id/remoteDpad"
-        android:layout_width="200dp"
-        android:layout_height="200dp" />
+        android:layout_width="@dimen/remote_dpad_size"
+        android:layout_height="@dimen/remote_dpad_size" />
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="@dimen/remote_row_gap"
         android:orientation="horizontal">
 
         <ImageButton
@@ -41,8 +41,8 @@
 
     <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="150dp"
-        android:layout_marginTop="16dp"
+        android:layout_height="@dimen/remote_rocker_height"
+        android:layout_marginTop="@dimen/remote_row_gap"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone remote (v7.19) pad sizes. These compact ones leave the channel list room on short screens
+     (and in landscape); values-h720dp has the full-size pad for screens with height to spare. -->
+<resources>
+    <dimen name="remote_dpad_size">128dp</dimen>
+    <dimen name="remote_round_key">46dp</dimen>
+    <dimen name="remote_round_key_padding">13dp</dimen>
+    <dimen name="remote_rocker_height">104dp</dimen>
+    <dimen name="remote_pill_height">30dp</dimen>
+    <dimen name="remote_row_gap">8dp</dimen>
+    <dimen name="remote_pill_gap">2dp</dimen>
+</resources>
