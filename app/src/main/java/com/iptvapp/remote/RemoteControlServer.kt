@@ -88,6 +88,10 @@ object RemoteControlServer {
     private var nsdManager: NsdManager? = null
     private var registration: NsdManager.RegistrationListener? = null
     private val random = SecureRandom()
+    private const val REQUEST_DEADLINE_MS = 10_000L
+    private val workers = java.util.concurrent.ThreadPoolExecutor(
+        4, 4, 30, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.SynchronousQueue()
+    ) { r -> Thread(r, "RemoteControlWorker").apply { isDaemon = true } }.apply { allowCoreThreadTimeOut(true) }
 
     @Synchronized
     fun start(context: Context) {
@@ -106,7 +110,13 @@ object RemoteControlServer {
             while (!socket.isClosed) {
                 try {
                     val client = socket.accept()
-                    Thread { runCatching { handle(app, client) } }.apply { isDaemon = true }.start()
+                    // A few at a time; more than that are closed at once, so a flood of
+                    // connections can't use up the TV's threads.
+                    try {
+                        workers.execute { runCatching { handle(app, client) } }
+                    } catch (_: java.util.concurrent.RejectedExecutionException) {
+                        runCatching { client.close() }
+                    }
                 } catch (e: Exception) {
                     if (!socket.isClosed) Log.w("RemoteControl", "accept failed", e)
                 }
@@ -155,15 +165,19 @@ object RemoteControlServer {
             // Bytes, not characters: Content-Length counts bytes, and a channel name like "Univisión"
             // has fewer characters than bytes.
             val input = BufferedInputStream(s.getInputStream())
-            val requestLine = readLine(input) ?: return
+            // The whole request within REQUEST_DEADLINE_MS, so a client trickling bytes can't hold a worker.
+            val deadline = System.currentTimeMillis() + REQUEST_DEADLINE_MS
+            val requestLine = readLine(input, deadline) ?: return
             val parts = requestLine.split(" ")
             if (parts.size < 2) return
             val method = parts[0]
             val path = parts[1].substringBefore('?')
             var contentLength = 0
             var token = ""
+            var headers = 0
             while (true) {
-                val line = readLine(input) ?: break
+                if (++headers > 64) return
+                val line = readLine(input, deadline) ?: return
                 if (line.isEmpty()) break
                 val name = line.substringBefore(':').trim().lowercase()
                 val value = line.substringAfter(':', "").trim()
@@ -173,6 +187,7 @@ object RemoteControlServer {
             val body = if (contentLength > 0) ByteArray(contentLength).let { buf ->
                 var read = 0
                 while (read < contentLength) {
+                    if (System.currentTimeMillis() > deadline) return
                     val n = input.read(buf, read, contentLength - read)
                     if (n < 0) break
                     read += n
@@ -188,14 +203,14 @@ object RemoteControlServer {
         }
     }
 
-    /** One CRLF-terminated header line, read as bytes (null at end of stream). */
-    private fun readLine(input: BufferedInputStream): String? {
+    /** One CRLF-terminated header line, read as bytes (null at end of stream, or past [deadline]). */
+    private fun readLine(input: BufferedInputStream, deadline: Long): String? {
         val bytes = java.io.ByteArrayOutputStream()
         while (true) {
             val b = input.read()
             if (b < 0) return if (bytes.size() == 0) null else bytes.toString("UTF-8")
             if (b == '\n'.code) break
-            if (bytes.size() >= 8_192) return null
+            if (bytes.size() >= 8_192 || System.currentTimeMillis() > deadline) return null
             bytes.write(b)
         }
         return bytes.toString("UTF-8").trimEnd('\r')

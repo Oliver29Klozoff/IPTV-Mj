@@ -4116,7 +4116,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     /** A channel picked on the phone remote. Live TV switches here, found by name the way voice
      * tune finds it (the phone may use another provider). False for a movie, replay, recording,
-     * audio only or a received cast: the TV home screen is brought back to play it instead. */
+     * audio only, a received cast or a channel on another provider: the TV home screen is brought
+     * back to play it instead. */
     override suspend fun remoteTune(name: String): Boolean {
         if (isVod || isRecordingPlayback || audioOnly || castChannels.isNotEmpty()) return false
         val target = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -4124,6 +4125,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val merged = db.mergedChannelDao().getAll().first().filter { it.serverIndex == -1 || it.serverIndex in enabled }
             com.iptvapp.util.VoiceTuner.resolve(db, listOf(name), repository.getAllChannels().first(), merged)
         }
+        // On another provider than the one playing: this player's channel lists and provider state
+        // belong to this one, so the TV home screen reopens it on the right provider instead.
+        if (target != null && target.serverIndex != serverIndex) return false
         val channel = target?.let { if (it.serverIndex == -1) repository.getChannelById(it.streamId) else null }
         val merged = target?.let { if (it.serverIndex != -1) repository.getMergedChannelByIndexAndId(it.serverIndex, it.streamId) else null }
         if (channel == null && merged == null) {
