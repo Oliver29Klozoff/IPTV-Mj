@@ -3679,7 +3679,13 @@ class HomeActivity : AppCompatActivity() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 viewModel.lastTabPosition = tab?.position ?: 0
-                binding.btnVodSort?.visibility = if (tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES) View.VISIBLE else View.GONE
+                val vodTab = tab?.position == TAB_MOVIES || tab?.position == TAB_SERIES
+                binding.btnVodSort?.visibility = if (vodTab) View.VISIBLE else View.GONE
+                // Portrait's top bar has no room for both: Sort takes the phone remote's place on the
+                // Movies and Series tabs, so the search box stays usable on narrow phones.
+                if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+                    binding.btnPhoneRemote?.visibility = if (vodTab) View.GONE else View.VISIBLE
+                }
                 binding.providersModeRow?.visibility = if (tab?.position == TAB_PROVIDERS) View.VISIBLE else View.GONE
                 binding.guideModeRow?.visibility = if (tab?.position == TAB_GUIDE) View.VISIBLE else View.GONE
                 // Switching TO Providers from a different tab counts as a fresh visit — the
