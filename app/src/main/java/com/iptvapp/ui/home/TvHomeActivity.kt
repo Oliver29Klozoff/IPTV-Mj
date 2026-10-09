@@ -1724,6 +1724,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.tvMiniPlayerContainer.requestFocus()
     }
 
+    /** The phone remote's Home: closes Movies or Series browsing if open, then shows the sidebar. */
+    fun remoteHome() {
+        if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) hideMoviesFullScreen()
+        if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) hideSeriesFullScreen()
+        showSidebar()
+    }
+
     private fun showSidebar() {
         cancelTvAutoCollapse()
         navState = NavState.SIDEBAR

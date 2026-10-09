@@ -68,7 +68,10 @@ object RemoteControlHooks {
                     is RemoteControlServer.Command.Key -> if (dialog == null) front?.get()?.let { pressKey(it, command.keyCode) }
                     is RemoteControlServer.Command.Tune -> tune(app, command.name)
                     is RemoteControlServer.Command.Home -> if (dialog == null) front?.get()?.let { activity ->
-                        if (activity !is com.iptvapp.ui.home.TvHomeActivity) {
+                        if (activity is com.iptvapp.ui.home.TvHomeActivity) {
+                            // Movies / Series browsing are views inside this screen, not screens of their own.
+                            activity.remoteHome()
+                        } else {
                             activity.startActivity(
                                 Intent(activity, com.iptvapp.ui.home.TvHomeActivity::class.java)
                                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
