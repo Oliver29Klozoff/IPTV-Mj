@@ -25,7 +25,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
-import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.databinding.ActivityRemoteBinding
 import com.iptvapp.remote.RemoteControlServer
 import dagger.hilt.android.AndroidEntryPoint
@@ -53,6 +52,7 @@ class RemoteActivity : AppCompatActivity() {
 
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var prefs: PreferencesManager
+    @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
 
     private lateinit var binding: ActivityRemoteBinding
     private val store by lazy { getSharedPreferences("remote_phone", Context.MODE_PRIVATE) }
@@ -83,6 +83,11 @@ class RemoteActivity : AppCompatActivity() {
                     androidx.core.view.WindowInsetsCompat.Type.ime()
             )
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            // Typing a search in portrait: the buttons step aside so the results have room above
+            // the keyboard (landscape has them side by side already).
+            val typing = insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())
+            val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            binding.remotePad.root.visibility = if (typing && portrait) View.GONE else View.VISIBLE
             insets
         }
         val header = binding.remoteHeader
@@ -143,9 +148,23 @@ class RemoteActivity : AppCompatActivity() {
         searchJob?.cancel()
         searchJob = lifecycleScope.launch {
             if (query.isNotEmpty()) delay(250)
+            // Main provider and enabled other providers, like Home's favorites; searches go through
+            // the repository, which turns typed text into a safe prefix query.
             val channels = withContext(Dispatchers.IO) {
-                if (query.isEmpty()) db.channelDao().getFavoriteChannels().first()
-                else db.channelDao().searchChannels(query).first().filter { !it.isHidden }
+                try {
+                    if (query.isEmpty()) {
+                        db.channelDao().getFavoriteChannels().first().map { Pick(it.customNum?.let { n -> "$n · ${it.name}" } ?: it.name, it.name) } +
+                            repository.getMergedAllFavorites().first().filter { !it.isHidden }.map { Pick("${it.name} · ${it.serverNickname}", it.name) }
+                    } else {
+                        val enabled = prefs.enabledExtraServerIndices.first()
+                        repository.searchChannels(query).first().filter { !it.isHidden }.map { Pick(it.customNum?.let { n -> "$n · ${it.name}" } ?: it.name, it.name) } +
+                            repository.searchMergedChannels(query).first().filter { !it.isHidden && it.serverIndex in enabled }
+                                .map { Pick("${it.name} · ${it.serverNickname}", it.name) }
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    emptyList()
+                }
             }
             val list = binding.remoteList
             list.tvRemoteListLabel.text = when {
@@ -158,11 +177,14 @@ class RemoteActivity : AppCompatActivity() {
         }
     }
 
-    private class ChannelAdapter(private val onPick: (ChannelEntity) -> Unit) : RecyclerView.Adapter<ChannelAdapter.VH>() {
-        private var items: List<ChannelEntity> = emptyList()
+    /** A channel in the list: what's shown, and the name the TV looks it up by. */
+    private data class Pick(val label: String, val name: String)
+
+    private class ChannelAdapter(private val onPick: (Pick) -> Unit) : RecyclerView.Adapter<ChannelAdapter.VH>() {
+        private var items: List<Pick> = emptyList()
         class VH(val text: TextView) : RecyclerView.ViewHolder(text)
 
-        fun submit(list: List<ChannelEntity>) {
+        fun submit(list: List<Pick>) {
             items = list
             notifyDataSetChanged()
         }
@@ -186,9 +208,9 @@ class RemoteActivity : AppCompatActivity() {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val ch = items[position]
-            holder.text.text = ch.customNum?.let { "$it · ${ch.name}" } ?: ch.name
-            holder.text.setOnClickListener { onPick(ch) }
+            val pick = items[position]
+            holder.text.text = pick.label
+            holder.text.setOnClickListener { onPick(pick) }
         }
 
         override fun getItemCount() = items.size
