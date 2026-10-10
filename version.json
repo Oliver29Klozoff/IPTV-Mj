@@ -1,7 +1,7 @@
 {
-  "versionCode": 560,
-  "versionName": "7.22",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.22/MKTV.apk",
-  "apkSha256": "8a651f6c23d61984c0cac474c1127bfa9ec0e63ce63afce7e1d4aada60cc1e2c",
-  "changelog": "A failed guide download no longer wipes your guide, and the guide is faster to read."
+  "versionCode": 561,
+  "versionName": "7.23",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.23/MKTV.apk",
+  "apkSha256": "c02e2a788f48190e7d285688b7b93d6ece4078760b4c0ed289045aae8bfb0c5c",
+  "changelog": "Scheduled recordings and reminders survive a restart, and recordings no longer get lost on newer Android phones."
 }

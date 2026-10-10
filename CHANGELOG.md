@@ -1,5 +1,25 @@
 # IPTV App - Changelog
 
+## v7.23 - 2026-10-10
+- **Fixed**: scheduled recordings and guide reminders now survive a restart. Restarting the
+  device used to silently cancel every scheduled recording and reminder. MKTV now sets them again
+  after a restart or an update. If the device was off when a recording should have started, it
+  records what is left of the show; if the show is over by then, it is marked "Missed" and you
+  get a notification.
+- **Fixed**: on newer Android phones, a scheduled recording could crash the app or never start
+  if MKTV wasn't allowed to set alarms. Now, if Android won't let the recording start on its own,
+  you get a "Recording not started" notification: tap it and MKTV records the rest. For the
+  most reliable recordings, allow MKTV under Settings → Apps → MKTV → Alarms & reminders.
+- **Fixed**: Android 15 only allows about 6 hours of background recording a day. When that runs
+  out, the recording now stops and keeps what it recorded (with a notification) instead of the
+  app crashing and the recording being lost. Opening MKTV resets the limit.
+- **Fixed**: if the stream drops partway through, the part already recorded is now kept instead
+  of the whole recording being thrown away. A recording interrupted by Android closing the app
+  carries on into the same file.
+- **Fixed**: two recordings at the same time — when the shorter one finished, it could stop
+  the longer one too.
+- **Fixed**: a reminder could go off twice.
+
 ## v7.22 - 2026-10-09
 - **Fixed**: a failed guide download no longer wipes your guide. MKTV used to delete the whole
   guide before downloading the new one, so if your provider's guide was down, timed out, sent an
