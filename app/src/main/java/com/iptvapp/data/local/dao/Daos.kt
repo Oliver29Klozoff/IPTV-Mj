@@ -169,6 +169,10 @@ interface CategoryDao {
     suspend fun upsertCategories(categories: List<CategoryEntity>)
     @Query("DELETE FROM categories WHERE type = :type")
     suspend fun deleteCategoriesByType(type: String)
+    @Query("SELECT categoryId FROM categories WHERE type = :type")
+    suspend fun getIdsByType(type: String): List<String>
+    @Query("DELETE FROM categories WHERE type = :type AND categoryId IN (:ids)")
+    suspend fun deleteByTypeAndIds(type: String, ids: List<String>)
     @Query("DELETE FROM categories WHERE categoryId LIKE 'm3u_%'")
     suspend fun deleteM3uCategories()
     @Query("SELECT * FROM categories WHERE categoryId = :categoryId LIMIT 1")
@@ -247,6 +251,9 @@ interface VodDao {
     // ChannelDao.getUserData() already uses for live channels.
     @Query("SELECT streamId, isFavorite, watchedMs, durationMs FROM vod_streams")
     suspend fun getUserData(): List<VodUserData>
+    // Rows the provider no longer returns. Chunked by the caller: SQLite bounds ~999 variables.
+    @Query("DELETE FROM vod_streams WHERE streamId IN (:streamIds)")
+    suspend fun deleteByIds(streamIds: List<Int>)
 }
 
 data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long)
@@ -287,6 +294,8 @@ interface SeriesDao {
     // ChannelDao.getUserData() already uses for live channels.
     @Query("SELECT seriesId, isFavorite, watchedMs, durationMs, isHidden FROM series")
     suspend fun getUserData(): List<SeriesUserData>
+    @Query("DELETE FROM series WHERE seriesId IN (:seriesIds)")
+    suspend fun deleteByIds(seriesIds: List<Int>)
     // Hide-individual-show support, same shape as ChannelDao's hide/unhide/getHidden.
     @Query("UPDATE series SET isHidden = 1 WHERE seriesId IN (:seriesIds)")
     suspend fun bulkSetHidden(seriesIds: List<Int>)

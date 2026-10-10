@@ -3269,12 +3269,13 @@ class SettingsActivity : AppCompatActivity() {
                             // Scoped to just the OLD primary's data — merged/other-provider
                             // favorites, folders, and pinned categories must survive a primary
                             // switch (clearAllTables() used to wipe those too).
-                            repository.clearPrimaryProviderData()
+                            repository.clearPrimaryProviderData {
+                                prefs.saveCredentials(url, user, newPass)
+                            }
                             repository.clearMergedProviderData(i)
                             // The old primary now lives in that slot with nothing cached — mark merged data stale so
                             // the restarted home screen reloads it instead of waiting out the 6-hour window.
                             prefs.setLastMergedChannelsRefresh(0L)
-                            prefs.saveCredentials(url, user, newPass)
                             prefs.setServerNickname(newNick)
                             prefs.setEpgUrl(promotedEpgUrl)
                             prefs.setActiveServerIndex(-1)
@@ -3442,8 +3443,13 @@ class SettingsActivity : AppCompatActivity() {
                         // provider (wrong streamIds, wrong cached streamUrl) linger forever and
                         // silently fail to play under the new primary's credentials.
                         val isProviderSwap = url != creds.serverUrl || user != creds.username
-                        if (isProviderSwap) repository.clearPrimaryProviderData()
-                        prefs.saveCredentials(url, user, pass)
+                        if (isProviderSwap) {
+                            repository.clearPrimaryProviderData {
+                                prefs.saveCredentials(url, user, pass)
+                            }
+                        } else {
+                            prefs.saveCredentials(url, user, pass)
+                        }
                         prefs.setServerNickname(nick)
                         db.mergedChannelDao().clearAll()
                         db.mergedVodDao().clearAll()

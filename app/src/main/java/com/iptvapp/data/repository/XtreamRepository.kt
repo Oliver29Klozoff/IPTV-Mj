@@ -39,6 +39,7 @@ class XtreamRepository @Inject constructor(
 ) {
     private val xmltvGuideWriter = XmltvGuideWriter(db)
     private val xmltvEpgRefresh = XmltvEpgRefresh(xmltvGuideWriter)
+    private val primaryCatalog = PrimaryCatalogRefresh(db)
 
     private suspend fun creds() = prefs.credentials.first()
 
@@ -48,6 +49,10 @@ class XtreamRepository @Inject constructor(
         if (!c.isLoggedIn || c.serverUrl.isEmpty()) return null
         return "${c.serverUrl}\u0000${c.username}"
     }
+
+    /** True when [identity] is still the login a catalog refresh started with. */
+    private suspend fun samePrimary(identity: String?): Boolean =
+        identity != null && primaryGuideIdentity() == identity
 
     /** Converts a raw live-search query into FTS4 MATCH syntax: strips characters FTS4's query
      * parser treats as syntax (quotes, *, -, parens) so a user typing e.g. `"news` or `a-team`
@@ -192,8 +197,19 @@ class XtreamRepository @Inject constructor(
      * serverIndex and stays valid across a primary-provider switch. Series/VOD/reliability
      * history for the OLD primary is still cleared here since those ids aren't portable to
      * whatever the new primary provider is anyway. */
-    // Under the channel-list lock: a refresh in flight finishes (or bails) before the switch clears.
-    suspend fun clearPrimaryProviderData() = primaryChannelsMutex.withLock { clearPrimaryProviderDataLocked() }
+    // supersede() cancels movie and series downloads so a switch does not wait on the old
+    // provider. A write that has already started finishes or stops, then the tables are cleared.
+    suspend fun clearPrimaryProviderData(beforeRelease: suspend () -> Unit = {}) {
+        primaryCatalog.supersede()
+        primaryChannelsMutex.withLock {
+            primaryCatalog.afterIdle {
+                clearPrimaryProviderDataLocked()
+                // The new login is saved before any waiting refresh can write, so a download
+                // that started against the old provider cannot land in the new one's catalog.
+                beforeRelease()
+            }
+        }
+    }
 
     private suspend fun clearPrimaryProviderDataLocked() = withContext(Dispatchers.IO) {
         val sql = db.openHelper.writableDatabase
@@ -616,67 +632,80 @@ class XtreamRepository @Inject constructor(
         getMergedLiveStreamUrl(serverIndex, streamId)
 
     suspend fun fetchVodStreams(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<VodStream>> {
+        val identity = primaryGuideIdentity()
         val b = urlBuilder(); val c = creds()
-        // Dispatchers.Default (v7.21): matching 100k+ titles against saved favorites and progress and
-        // building their rows ran on the caller's thread — Main from the home screens.
-        return withContext(Dispatchers.Default) { safeApiCall {
-            val startMs = android.os.SystemClock.elapsedRealtime()
-            val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
-            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            val list = response.body() ?: emptyList()
-            val fetchedMs = android.os.SystemClock.elapsedRealtime()
-            // Without this, every VOD refresh (auto-refresh, pull-to-refresh, stale-cache
-            // reload) silently un-favorited every movie and reset all watch progress back to
-            // zero — @Upsert replaces the whole row, and a freshly-built VodEntity defaults
-            // isFavorite/watchedMs/durationMs to their zero values. Same bug class already
-            // fixed today for live channels (fetchLiveStreams) and merged channels
-            // (refreshMergedChannels); VOD/series were the two remaining spots.
-            val userData = db.vodDao().getUserData().associateBy { it.streamId }
-            // Some providers have 100k+ item catalogs — mapping the whole list to a second
-            // full-size List<VodEntity> before upserting doubles peak memory right when the
-            // raw deserialized response is already at its largest. Chunk map+upsert together
-            // so only one chunk's worth of entities exists at a time.
-            checkActive()
-            var saved = 0
-            list.chunked(2000).forEach { chunk ->
-                db.vodDao().upsertVod(chunk.map {
-                    val prev = userData[it.streamId]
+        // One movie refresh at a time. A newer one, or a provider switch, makes this write nothing.
+        val outcome = primaryCatalog.runVod { still ->
+            // Dispatchers.Default (v7.21): matching 100k+ titles against saved favorites and progress and
+            // building their rows ran on the caller's thread — Main from the home screens.
+            withContext(Dispatchers.Default) { safeApiCall {
+                val startMs = android.os.SystemClock.elapsedRealtime()
+                val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
+                if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                // Null is a bad body, not an empty catalog. An empty catalog is a real empty list.
+                val list = response.body() ?: throw Exception("Empty response")
+                val fetchedMs = android.os.SystemClock.elapsedRealtime()
+                if (!still() || !samePrimary(identity)) {
+                    throw Exception("The provider changed during the refresh")
+                }
+                checkActive()
+                // Without this, every VOD refresh (auto-refresh, pull-to-refresh, stale-cache
+                // reload) silently un-favorited every movie and reset all watch progress back to
+                // zero — @Upsert replaces the whole row, and a freshly-built VodEntity defaults
+                // isFavorite/watchedMs/durationMs to their zero values. Same bug class already
+                // fixed today for live channels (fetchLiveStreams) and merged channels
+                // (refreshMergedChannels); VOD/series were the two remaining spots.
+                val userData = db.vodDao().getUserData().associateBy { it.streamId }
+                val wrote = primaryCatalog.replaceVod(list, { still() && samePrimary(identity) }, { item ->
+                    val prev = userData[item.streamId]
                     VodEntity(
-                        streamId = it.streamId,
-                        name = it.name,
-                        streamIcon = it.streamIcon,
-                        categoryId = it.categoryId,
-                        rating = it.rating,
-                        containerExtension = it.containerExtension,
-                        added = it.added,
+                        streamId = item.streamId,
+                        name = item.name,
+                        streamIcon = item.streamIcon,
+                        categoryId = item.categoryId,
+                        rating = item.rating,
+                        containerExtension = item.containerExtension,
+                        added = item.added,
                         isFavorite = prev?.isFavorite ?: false,
                         watchedMs = prev?.watchedMs ?: 0L,
                         durationMs = prev?.durationMs ?: 0L
                     )
-                })
-                saved += chunk.size
-                onProgress(saved, list.size)
-            }
-            applyPendingPrimaryVodFavorites()
-            logCatalogTiming("vod", list.size, startMs, fetchedMs)
-            list
-        } }
+                }, onProgress)
+                // Pending favorites are wiped when their owner is not the current login. A refresh
+                // that already lost its turn must not call that, or a switch loses the carryover.
+                if (!wrote || !still() || !samePrimary(identity)) {
+                    throw Exception("The provider changed during the refresh")
+                }
+                applyPendingPrimaryVodFavorites()
+                logCatalogTiming("vod", list.size, startMs, fetchedMs)
+                list
+            } }
+        }
+        return outcome ?: Resource.Error("The provider changed during the refresh")
     }
 
     suspend fun fetchVodCategories(): Resource<List<Category>> {
+        val identity = primaryGuideIdentity()
         val b = urlBuilder(); val c = creds()
-        return safeApiCall {
-            val response = api.getVodCategories(b.apiUrl(), c.username, c.password)
-            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            val list = response.body() ?: emptyList()
-            val unnamed = list.count { it.categoryName.isNullOrBlank() }
-            if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "VOD category count: ${list.size}, unnamed: $unnamed")
-            db.categoryDao().deleteCategoriesByType("vod")
-            db.categoryDao().upsertCategories(list.map {
-                CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod")
-            })
-            list
+        val outcome = primaryCatalog.runVodCategories { still ->
+            safeApiCall {
+                val response = api.getVodCategories(b.apiUrl(), c.username, c.password)
+                if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                val list = response.body() ?: throw Exception("Empty response")
+                val unnamed = list.count { it.categoryName.isNullOrBlank() }
+                if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "VOD category count: ${list.size}, unnamed: $unnamed")
+                if (!still() || !samePrimary(identity)) {
+                    throw Exception("The provider changed during the refresh")
+                }
+                checkActive()
+                val wrote = primaryCatalog.replaceCategories("vod", list.map {
+                    CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod")
+                }) { still() && samePrimary(identity) }
+                if (!wrote) throw Exception("The provider changed during the refresh")
+                list
+            }
         }
+        return outcome ?: Resource.Error("The provider changed during the refresh")
     }
 
     fun getVodCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("vod")
@@ -797,48 +826,55 @@ class XtreamRepository @Inject constructor(
     fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(ftsQuery(query))
 
     suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {
+        val identity = primaryGuideIdentity()
         val b = urlBuilder(); val c = creds()
-        // Dispatchers.Default (v7.21) — same reason as fetchVodStreams.
-        return withContext(Dispatchers.Default) { safeApiCall {
-            val startMs = android.os.SystemClock.elapsedRealtime()
-            val response = api.getSeries(b.apiUrl(), c.username, c.password)
-            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            val list = response.body() ?: emptyList()
-            val fetchedMs = android.os.SystemClock.elapsedRealtime()
-            // Same preserve-across-refresh fix as fetchVodStreams above — without it, every
-            // series refresh silently un-favorited every show and reset watch progress.
-            val userData = db.seriesDao().getUserData().associateBy { it.seriesId }
-            checkActive()
-            var saved = 0
-            list.chunked(2000).forEach { chunk ->
-                db.seriesDao().upsertSeries(chunk.map {
-                    val prev = userData[it.seriesId]
+        // One series refresh at a time. A newer one, or a provider switch, makes this write nothing.
+        val outcome = primaryCatalog.runSeries { still ->
+            // Dispatchers.Default (v7.21) — same reason as fetchVodStreams.
+            withContext(Dispatchers.Default) { safeApiCall {
+                val startMs = android.os.SystemClock.elapsedRealtime()
+                val response = api.getSeries(b.apiUrl(), c.username, c.password)
+                if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                val list = response.body() ?: throw Exception("Empty response")
+                val fetchedMs = android.os.SystemClock.elapsedRealtime()
+                if (!still() || !samePrimary(identity)) {
+                    throw Exception("The provider changed during the refresh")
+                }
+                checkActive()
+                // Same preserve-across-refresh fix as fetchVodStreams above — without it, every
+                // series refresh silently un-favorited every show and reset watch progress.
+                val userData = db.seriesDao().getUserData().associateBy { it.seriesId }
+                val wrote = primaryCatalog.replaceSeries(list, { still() && samePrimary(identity) }, { item ->
+                    val prev = userData[item.seriesId]
                     SeriesEntity(
-                        seriesId = it.seriesId,
-                        name = it.name,
-                        cover = it.cover,
+                        seriesId = item.seriesId,
+                        name = item.name,
+                        cover = item.cover,
                         // Some providers return a corrupted/duplicated `plot` field that's
                         // absurdly long (megabytes) — one such row is enough to blow past
                         // SQLite's CursorWindow limit and crash the whole series list query
                         // with SQLiteBlobTooBigException. A plot summary has no legitimate
                         // reason to exceed a few thousand characters.
-                        plot = it.plot?.take(4000),
-                        genre = it.genre,
-                        rating = it.rating,
-                        categoryId = it.categoryId,
+                        plot = item.plot?.take(4000),
+                        genre = item.genre,
+                        rating = item.rating,
+                        categoryId = item.categoryId,
                         isFavorite = prev?.isFavorite ?: false,
                         watchedMs = prev?.watchedMs ?: 0L,
                         durationMs = prev?.durationMs ?: 0L,
                         isHidden = prev?.isHidden ?: false
                     )
-                })
-                saved += chunk.size
-                onProgress(saved, list.size)
-            }
-            applyPendingPrimarySeriesFavorites()
-            logCatalogTiming("series", list.size, startMs, fetchedMs)
-            list
-        } }
+                }, onProgress)
+                // Same as movies: do not consume pending series favorites after this refresh lost its turn.
+                if (!wrote || !still() || !samePrimary(identity)) {
+                    throw Exception("The provider changed during the refresh")
+                }
+                applyPendingPrimarySeriesFavorites()
+                logCatalogTiming("series", list.size, startMs, fetchedMs)
+                list
+            } }
+        }
+        return outcome ?: Resource.Error("The provider changed during the refresh")
     }
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
@@ -856,17 +892,25 @@ class XtreamRepository @Inject constructor(
     suspend fun getVodByStreamId(streamId: Int) = db.vodDao().getVodByStreamId(streamId)
 
     suspend fun fetchSeriesCategories(): Resource<List<Category>> {
+        val identity = primaryGuideIdentity()
         val b = urlBuilder(); val c = creds()
-        return safeApiCall {
-            val response = api.getSeriesCategories(b.apiUrl(), c.username, c.password)
-            if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            val list = response.body() ?: emptyList()
-            db.categoryDao().deleteCategoriesByType("series")
-            db.categoryDao().upsertCategories(list.map {
-                CategoryEntity(it.categoryId, it.categoryName, it.parentId, "series")
-            })
-            list
+        val outcome = primaryCatalog.runSeriesCategories { still ->
+            safeApiCall {
+                val response = api.getSeriesCategories(b.apiUrl(), c.username, c.password)
+                if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
+                val list = response.body() ?: throw Exception("Empty response")
+                if (!still() || !samePrimary(identity)) {
+                    throw Exception("The provider changed during the refresh")
+                }
+                checkActive()
+                val wrote = primaryCatalog.replaceCategories("series", list.map {
+                    CategoryEntity(it.categoryId, it.categoryName, it.parentId, "series")
+                }) { still() && samePrimary(identity) }
+                if (!wrote) throw Exception("The provider changed during the refresh")
+                list
+            }
         }
+        return outcome ?: Resource.Error("The provider changed during the refresh")
     }
 
     fun getSeriesCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("series")
