@@ -236,6 +236,29 @@ class RecordingRecoveryTest {
     }
 
     @Test
+    fun anUpdateLeavesAV722AlarmAndItsStreamInPlace() = runBlocking {
+        // v7.22 set the alarm with the stream URL in it; no saved stream exists yet.
+        val id = insert("SCHEDULED", now + hour)
+        val legacy = android.app.PendingIntent.getBroadcast(
+            context, id,
+            Intent(context, com.iptvapp.ui.recordings.RecordingAlarmReceiver::class.java).apply {
+                putExtra(RecordingService.EXTRA_RECORDING_ID, id)
+                putExtra(RecordingService.EXTRA_STREAM_URL, "http://scheduled-provider.example/live/a/b/5.ts")
+            },
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, now + hour, legacy)
+
+        RecordingRecovery.run(context, db, now) // MY_PACKAGE_REPLACED
+        val alarm = alarms().single()
+        assertEquals(
+            "not replaced: it still carries the stream it was scheduled with",
+            "http://scheduled-provider.example/live/a/b/5.ts",
+            shadowOf(alarm.operation).savedIntent.getStringExtra(RecordingService.EXTRA_STREAM_URL)
+        )
+    }
+
+    @Test
     fun pruningKeepsALiveScheduleAndDropsADeletedOne() = runBlocking {
         val live = insert("SCHEDULED", now + hour)
         RecordingUrls.put(context, live, "http://p.example/live/a/b/1.ts")

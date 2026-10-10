@@ -119,6 +119,12 @@ object RecordingAlarms {
         pi.cancel()
     }
 
+    /** Whether an alarm for this recording is set (by this build or an older one). */
+    fun isArmed(context: Context, recordingId: Int): Boolean = PendingIntent.getBroadcast(
+        context, recordingId, Intent(context, RecordingAlarmReceiver::class.java),
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+    ) != null
+
     fun canScheduleExact(context: Context): Boolean =
         canScheduleExact(context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
 

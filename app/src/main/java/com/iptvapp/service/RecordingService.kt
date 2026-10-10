@@ -21,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import java.io.File
@@ -283,26 +284,30 @@ class RecordingService : Service() {
             // deleting it. Too little to play is a failure, as before.
             val partial = !ok && before + written >= KEEP_PARTIAL_MIN_BYTES
 
-            // Past this point nothing is captured any more; finish saving it even if the service is
-            // being torn down (onDestroy cancels the scope), so a kept file never sits half-saved.
+            // Saving the capture and its final status runs even if the service is being torn down
+            // (onDestroy cancels the scope), so a kept file never sits half-saved. Re-encoding stays
+            // cancellable: teardown stops the encoder, and the raw recording is kept instead.
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                 finalizeTarget(target, ok || partial)
                 // The raw capture is safely on disk now (or definitively failed) — nothing past
                 // this point can lose the recording, so it no longer needs onDestroy's
                 // kill-safety net treating it as a still-in-flight recording.
                 activeRecordingIds.remove(recordingId)
+            }
 
-                if (ok || partial) {
-                    // Cut short by Android's time limit (onTimeout): the service has seconds left, so
-                    // the raw capture is kept as it is, without re-encoding.
-                    val stoppedEarly = timedOut && capture.stopped
-                    // Recording size (v7.01): Original keeps the raw capture; Compact / Standard re-encode it.
-                    val size = runCatching { prefs.recordingSize.first() }.getOrDefault("compact")
-                    val compressedPath = if (size == "original" || stoppedEarly) null else {
-                        if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
-                        runCatching { tryCompressRecording(target, name, compact = size == "compact") }.getOrNull()
-                    }
-                    val finalPath = compressedPath ?: target
+            if (ok || partial) {
+                // Cut short by Android's time limit (onTimeout): the service has seconds left, so
+                // the raw capture is kept as it is, without re-encoding.
+                val stoppedEarly = timedOut && capture.stopped
+                // Recording size (v7.01): Original keeps the raw capture; Compact / Standard re-encode it.
+                val size = runCatching { prefs.recordingSize.first() }.getOrDefault("compact")
+                val compressedPath = if (size == "original" || stoppedEarly || !isActive) null else {
+                    if (recordingId != -1) runCatching { database.recordingDao().updateStatus(recordingId, "COMPRESSING") }
+                    // Cancelled part-way (teardown): null, so the raw capture is what's kept.
+                    runCatching { tryCompressRecording(target, name, compact = size == "compact") }.getOrNull()
+                }
+                val finalPath = compressedPath ?: target
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                     if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
                     if (recordingId != -1 && (stoppedEarly || partial)) {
                         val reason = if (stoppedEarly) STOPPED_BY_TIME_LIMIT_REASON
@@ -312,12 +317,12 @@ class RecordingService : Service() {
                     }
                     // Look for commercial breaks in the background (Skip break in the player).
                     if (recordingId != -1) com.iptvapp.worker.AdBreakWorker.enqueue(applicationContext, recordingId, com.iptvapp.worker.AdBreakWorker.uriForPath(finalPath))
-                } else {
-                    if (recordingId != -1) {
-                        val reason = classifyFailureReason(result.exceptionOrNull())
-                        database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
-                        notifyRecordingFailed(recordingId, name, reason)
-                    }
+                }
+            } else if (recordingId != -1) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    val reason = classifyFailureReason(result.exceptionOrNull())
+                    database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                    notifyRecordingFailed(recordingId, name, reason)
                 }
             }
 

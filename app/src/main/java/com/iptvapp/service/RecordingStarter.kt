@@ -166,7 +166,11 @@ object RecordingRecovery {
         for (rec in db.recordingDao().getScheduledOrRecording()) {
             when (val action = RecordingPlan.decide(rec.status, rec.scheduledStartMs, rec.durationMs, nowMs)) {
                 is RecordingPlan.Alarm -> {
-                    RecordingAlarms.schedule(context, rec.id, action.atMs)
+                    // A v7.22 alarm still set for this recording (an app update, no reboot) carries the
+                    // stream it was scheduled for; setting a new one would replace it. Leave it to fire:
+                    // the receiver keeps that stream (RecordingUrls).
+                    val legacyAlarm = RecordingUrls.get(context, rec.id) == null && RecordingAlarms.isArmed(context, rec.id)
+                    if (!legacyAlarm) RecordingAlarms.schedule(context, rec.id, action.atMs)
                     scheduled++
                 }
                 is RecordingPlan.StartNow -> {

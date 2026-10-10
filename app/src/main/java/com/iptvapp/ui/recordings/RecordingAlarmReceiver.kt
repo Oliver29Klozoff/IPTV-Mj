@@ -8,15 +8,16 @@ import com.iptvapp.service.RecordingDeps
 import com.iptvapp.service.RecordingNotifications
 import com.iptvapp.service.RecordingService
 import com.iptvapp.service.RecordingStarter
+import com.iptvapp.service.RecordingUrls
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * A recording's alarm. Only the recording id is read from the intent: what to record, where, and
- * for how long comes from the app's own records (RecordingStarter). Alarms set by v7.22 and
- * earlier also carried the stream URL; it is ignored. Not exported.
+ * A recording's alarm. What to record, where, and for how long comes from the app's own records
+ * (RecordingStarter), looked up by the recording id. Alarms set by v7.22 and earlier also carry the
+ * stream URL they were scheduled with; it is kept as the recording's saved stream. Not exported.
  */
 class RecordingAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -24,6 +25,12 @@ class RecordingAlarmReceiver : BroadcastReceiver() {
         if (recordingId < 0) return
         val resume = intent.getBooleanExtra(RecordingAlarms.EXTRA_RESUME, false)
         val app = context.applicationContext
+        // An alarm set by v7.22 or earlier carries the stream it was scheduled for — the right
+        // provider even if a slot has changed since. Keep it as this recording's saved stream.
+        // (This receiver isn't exported: only the app's own alarms reach it.)
+        intent.getStringExtra(RecordingService.EXTRA_STREAM_URL)?.takeIf { it.isNotBlank() }?.let { legacyUrl ->
+            if (RecordingUrls.get(app, recordingId) == null) RecordingUrls.put(app, recordingId, legacyUrl)
+        }
         val deps = EntryPointAccessors.fromApplication(app, RecordingDeps::class.java)
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
