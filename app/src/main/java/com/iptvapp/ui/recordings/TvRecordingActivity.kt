@@ -812,9 +812,7 @@ class TvRecordingActivity : AppCompatActivity() {
     // when it fires; RecordingRecovery sets it again after a reboot).
     private fun scheduleAlarm(recordingId: Int, startMs: Long) {
         if (startMs <= System.currentTimeMillis() + 3000L) {
-            lifecycleScope.launch {
-                com.iptvapp.service.RecordingStarter.start(applicationContext, database, repository, recordingId)
-            }
+            com.iptvapp.service.RecordingStarter.startFromScreen(this, database, repository, recordingId)
             return
         }
         com.iptvapp.service.RecordingAlarms.schedule(this, recordingId, startMs)

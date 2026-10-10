@@ -17,6 +17,7 @@ import com.iptvapp.util.rethrowIfCancelled
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -37,6 +38,19 @@ interface RecordingDeps {
 object RecordingStarter {
 
     enum class Outcome { STARTED, RESCHEDULED, IGNORED, MISSED, CHANNEL_GONE, NOT_ALLOWED }
+
+    private val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    /** Start now, from a recordings screen. Not tied to the screen, so backing out of it straight
+     * away doesn't cancel the start; if Android still refuses, the notification offers a tap. */
+    fun startFromScreen(context: Context, db: IptvDatabase, repository: XtreamRepository, recordingId: Int) {
+        val app = context.applicationContext
+        appScope.launch {
+            if (start(app, db, repository, recordingId) == Outcome.NOT_ALLOWED) {
+                db.recordingDao().getById(recordingId)?.let { RecordingNotifications.postTapToStart(app, it, resume = false) }
+            }
+        }
+    }
 
     suspend fun start(
         context: Context,
@@ -197,14 +211,22 @@ object RecordingNotifications {
             context, rec.id, start,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val text = "Android didn't let MKTV start this recording in the background. Tap to record the rest " +
-            "now. To avoid this, allow MKTV to set alarms (Settings → Apps → MKTV → Alarms & reminders)."
+        // The body opens the recordings screen; starting is the button (a broadcast belongs on an
+        // action, not on the notification itself).
+        val open = PendingIntent.getActivity(
+            context, rec.id,
+            Intent(context, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val text = "Android didn't let MKTV start this recording in the background. Tap Start recording to " +
+            "record the rest now. To avoid this, allow MKTV to set alarms (Settings → Apps → MKTV → Alarms & reminders)."
         val notification = NotificationCompat.Builder(context, RecordingService.FAILURE_CHANNEL_ID)
             .setSmallIcon(com.iptvapp.R.drawable.ic_notification)
-            .setContentTitle("Tap to start recording: ${rec.channelName}")
+            .setContentTitle("Recording not started: ${rec.channelName}")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setContentIntent(pi)
+            .setContentIntent(open)
             .addAction(0, "Start recording", pi)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

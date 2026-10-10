@@ -853,9 +853,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     private fun scheduleRecordingAlarm(recordingId: Int, startMs: Long) {
         // Starting now: this screen is in front, so Android lets the recording start directly.
         if (startMs <= System.currentTimeMillis() + 3000L) {
-            lifecycleScope.launch {
-                RecordingStarter.start(applicationContext, database, repository, recordingId)
-            }
+            RecordingStarter.startFromScreen(this, database, repository, recordingId)
             return
         }
 

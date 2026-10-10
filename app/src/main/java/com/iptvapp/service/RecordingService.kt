@@ -42,9 +42,21 @@ class RecordingService : Service() {
     // fires twice on this same Service instance. A single shared job/wakeLock field would
     // let the second recording's start overwrite the first's wakelock, and the first
     // recording finishing would release/null out the second's wakelock out from under it.
-    private val jobs = mutableMapOf<Int, Job>()
-    private val wakeLocks = mutableMapOf<Int, PowerManager.WakeLock>()
-    private val activeRecordingIds = mutableSetOf<Int>()
+    // Concurrent: written on the main thread (onStartCommand) and by each recording's IO coroutine.
+    private val jobs = java.util.concurrent.ConcurrentHashMap<Int, Job>()
+    private val wakeLocks = java.util.concurrent.ConcurrentHashMap<Int, PowerManager.WakeLock>()
+    private val activeRecordingIds: MutableSet<Int> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    // The newest start this service has seen. A finished recording used to call stopSelf(its own
+    // startId), which stops the whole service when that start happens to be the newest — killing
+    // an earlier, longer recording still running beside it. The service now stops only once no
+    // recording is left (stopWhenIdle), and stopSelf(lastStartId) still won't stop it if a newer
+    // start is already on its way in.
+    @Volatile private var lastStartId = 0
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun stopWhenIdle() {
+        mainHandler.post { if (jobs.isEmpty()) stopSelf(lastStartId) }
+    }
 
     companion object {
         const val CHANNEL_ID = "recording_notifications"
@@ -112,6 +124,7 @@ class RecordingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
         val recordingId = intent?.getIntExtra(EXTRA_RECORDING_ID, -1) ?: -1
         val url = intent?.getStringExtra(EXTRA_STREAM_URL) ?: return START_NOT_STICKY
         val name = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "Channel"
@@ -158,31 +171,26 @@ class RecordingService : Service() {
 
         activeRecordingIds.add(recordingId)
 
-        jobs[recordingId] = scope.launch {
+        // Registered before it runs: a job that ends at once (nothing to record) must not remove
+        // itself before it is in the map, or the map would never empty and the service never stop.
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             // How long to record comes from the schedule when there is one: a redelivered start
             // still carries the duration it began with, and the window ends when it always did.
             var recordMs = durationMs
             if (recordingId != -1) {
                 val rec = database.recordingDao().getById(recordingId)
-                if (rec == null || (rec.status != "SCHEDULED" && rec.status != "RECORDING")) {
-                    // Deleted (cancelled) or already finished: nothing to record.
+                val left = rec?.let { it.scheduledStartMs + it.durationMs - System.currentTimeMillis() } ?: 0L
+                // Deleted (cancelled) or already finished: nothing to record. Or the window is over
+                // (a redelivery that came too late) — and 0 would mean "no limit" to the capture
+                // loops; the recordings screen's clean-up settles that row as before.
+                if (rec == null || (rec.status != "SCHEDULED" && rec.status != "RECORDING") || left < 5_000L) {
                     activeRecordingIds.remove(recordingId)
                     wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
                     jobs.remove(recordingId)
-                    stopSelf(startId)
+                    stopWhenIdle()
                     return@launch
                 }
-                recordMs = rec.scheduledStartMs + rec.durationMs - System.currentTimeMillis()
-                if (recordMs < 5_000L) {
-                    // The window is over (a redelivery that came too late). 0 would mean "no
-                    // limit" to the capture loops, so stop here; the recordings screen's clean-up
-                    // settles the row as before.
-                    activeRecordingIds.remove(recordingId)
-                    wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
-                    jobs.remove(recordingId)
-                    stopSelf(startId)
-                    return@launch
-                }
+                recordMs = left
                 database.recordingDao().updateStatus(recordingId, "RECORDING")
             }
 
@@ -230,8 +238,10 @@ class RecordingService : Service() {
             wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
             jobs.remove(recordingId)
             stopRequested.remove(recordingId)
-            stopSelf(startId)
+            stopWhenIdle()
         }
+        jobs[recordingId] = job
+        job.start()
 
         return START_REDELIVER_INTENT
     }
