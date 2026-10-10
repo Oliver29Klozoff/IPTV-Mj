@@ -1,7 +1,7 @@
 {
-  "versionCode": 559,
-  "versionName": "7.21",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.21/MKTV.apk",
-  "apkSha256": "3265c814c8487c91d65ad2f29743fda3506e6a85de41616a3ea5eb8860ab2ab2",
-  "changelog": "Big channel, movie and series refreshes no longer freeze the screen, and a stopped refresh no longer shows up as a failed download."
+  "versionCode": 560,
+  "versionName": "7.22",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.22/MKTV.apk",
+  "apkSha256": "8a651f6c23d61984c0cac474c1127bfa9ec0e63ce63afce7e1d4aada60cc1e2c",
+  "changelog": "A failed guide download no longer wipes your guide, and the guide is faster to read."
 }

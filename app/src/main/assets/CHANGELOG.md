@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v7.22 - 2026-10-09
+- **Fixed**: a failed guide download no longer wipes your guide. MKTV used to delete the whole
+  guide before downloading the new one, so if your provider's guide was down, timed out, sent an
+  error page or a broken file, you were left with no guide at all. Now the new guide is downloaded
+  and checked first, and only swapped in once it's complete; if anything goes wrong — including
+  closing the app or switching provider part-way — you keep the guide you had. If only one of
+  several guide sources fails, the channels the others covered still update.
+- **Faster**: the guide is quicker to read. What's on now and next, a channel's schedule, your
+  favorites' guide lines and other providers' guides are looked up directly instead of searching
+  the whole guide (much faster on large guides). The first time MKTV opens after this update it
+  builds that lookup once, which can take a few seconds on a very large guide.
+
 ## v7.21 - 2026-10-09
 - **Faster**: refreshing big channel, movie and series lists no longer freezes the screen. MKTV
   used to sort through the whole list on the screen's own thread after downloading it — tens of
