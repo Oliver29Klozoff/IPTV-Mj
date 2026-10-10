@@ -121,19 +121,16 @@ data class SeriesFts(val name: String)
 // streamId (and even coincidentally the same raw EPG listing id), so id alone can't be the
 // primary key once merged/secondary providers have EPG data too — same sentinel/composite-key
 // pattern as RecordingEntity.serverIndex and MergedChannelEntity's (serverIndex, streamId) key.
-// (serverIndex, streamId, startTimestamp) serves one channel's guide, now/next, and
-// streamId IN (...) ordered by start. (serverIndex, startTimestamp) serves "what's on
-// now" across a provider, which the first index cannot (streamId sits in the middle).
-// stopTimestamp serves expiry deletion and the upcoming-title scan, which filter on
-// that column alone. Search-by-title stays a scan: LIKE '%x%' cannot use an index.
+// One index: (serverIndex, streamId, startTimestamp) serves one channel's guide and
+// now/next, streamId IN (...) ordered by start (favorites, guide grid, other providers), the
+// per-channel delete, and DISTINCT streamId. Measured on 432k rows: an index on
+// (serverIndex, startTimestamp) quadrupled a full guide replace and made MAX(stopTimestamp)
+// 16x slower; one on stopTimestamp made the upcoming-titles scan (show alerts, Sports, voice)
+// 4.6x slower. Those reads, and title search (LIKE '%x%'), stay table scans as in v7.21.
 @Entity(
     tableName = "epg_entries",
     primaryKeys = ["serverIndex", "id"],
-    indices = [
-        Index(value = ["serverIndex", "streamId", "startTimestamp"]),
-        Index(value = ["serverIndex", "startTimestamp"]),
-        Index(value = ["stopTimestamp"])
-    ]
+    indices = [Index(value = ["serverIndex", "streamId", "startTimestamp"])]
 )
 data class EpgEntity(
     val serverIndex: Int = -1,

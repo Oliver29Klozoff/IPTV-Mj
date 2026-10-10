@@ -85,12 +85,6 @@ android {
         unitTests.returnDefaultValues = true
         // Migration tests read the exported Room schema from assets.
         unitTests.includeAndroidResources = true
-        unitTests.all { test ->
-            test.testLogging {
-                events "passed", "failed", "skipped"
-                showStandardStreams = true
-            }
-        }
     }
 
     // Room migration tests read the exported schema through the debug asset merge.

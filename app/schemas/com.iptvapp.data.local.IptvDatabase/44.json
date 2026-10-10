@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 44,
-    "identityHash": "bfb8b68bf09455da897a9617ff82a418",
+    "identityHash": "76b369cfac2d3887e62aa1f8d944e3a3",
     "entities": [
       {
         "tableName": "channels",
@@ -412,25 +412,6 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_epg_entries_serverIndex_streamId_startTimestamp` ON `${TABLE_NAME}` (`serverIndex`, `streamId`, `startTimestamp`)"
-          },
-          {
-            "name": "index_epg_entries_serverIndex_startTimestamp",
-            "unique": false,
-            "columnNames": [
-              "serverIndex",
-              "startTimestamp"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_epg_entries_serverIndex_startTimestamp` ON `${TABLE_NAME}` (`serverIndex`, `startTimestamp`)"
-          },
-          {
-            "name": "index_epg_entries_stopTimestamp",
-            "unique": false,
-            "columnNames": [
-              "stopTimestamp"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_epg_entries_stopTimestamp` ON `${TABLE_NAME}` (`stopTimestamp`)"
           }
         ]
       },
@@ -1330,7 +1311,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bfb8b68bf09455da897a9617ff82a418')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '76b369cfac2d3887e62aa1f8d944e3a3')"
     ]
   }
 }

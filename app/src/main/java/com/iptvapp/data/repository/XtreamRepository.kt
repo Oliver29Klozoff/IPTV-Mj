@@ -990,8 +990,9 @@ class XtreamRepository @Inject constructor(
      * Fetch EPG from the provider's XMLTV endpoint (xmltv.php) and any manual guide URLs.
      * Returns the number of programs written. A failed download, an unusable body, or a guide
      * that matches nothing leaves the stored guide in place and returns 0.
-     * Cancellation propagates. A database error propagates so the worker can retry; that
-     * write is rolled back and the previous guide stays.
+     * A database error while saving is rolled back, keeps the previous guide and returns 0,
+     * as in v7.21, so EpgRefreshWorker still runs its per-channel fallback and show alerts.
+     * Cancellation propagates.
      */
     // Fetches from the primary server's own built-in xmltv.php AND every manually-configured
     // EPG source (Settings > EPG "Add EPG Source" / the "Default US Guide" toggle) — these

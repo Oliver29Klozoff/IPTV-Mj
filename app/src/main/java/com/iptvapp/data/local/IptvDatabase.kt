@@ -632,14 +632,12 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
-        // Guide queries filter by provider and channel, then order or range on start time.
-        // stopTimestamp is the expiry sweep and the "still upcoming" scan. Creating indexes
-        // does not rewrite or delete any guide rows.
+        // Guide reads filter by provider and channel, then order by start time — see EpgEntity
+        // for why this is the only index. Not unique, so existing rows can't make it fail; it
+        // adds an index and does not rewrite or delete any guide rows.
         val MIGRATION_43_44 = object : Migration(43, 44) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_entries_serverIndex_streamId_startTimestamp` ON `epg_entries` (`serverIndex`, `streamId`, `startTimestamp`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_entries_serverIndex_startTimestamp` ON `epg_entries` (`serverIndex`, `startTimestamp`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_entries_stopTimestamp` ON `epg_entries` (`stopTimestamp`)")
             }
         }
 

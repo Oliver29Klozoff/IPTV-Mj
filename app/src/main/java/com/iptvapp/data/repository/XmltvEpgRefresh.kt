@@ -4,6 +4,7 @@ import com.iptvapp.data.local.XmltvGuideWriter
 import com.iptvapp.data.local.entities.EpgEntity
 import com.iptvapp.util.XmltvChannel
 import com.iptvapp.util.XmltvProgram
+import com.iptvapp.util.rethrowIfCancelled
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
@@ -98,6 +99,11 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
         return 0
     }
 
+    /**
+     * A database failure here rolls the swap back and returns 0, as v7.21 did: the previous
+     * guide stays, and the caller (EpgRefreshWorker's per-channel fallback and show alerts)
+     * carries on. Cancellation is not a failure and always propagates.
+     */
     private suspend fun commit(
         serverIndex: Int,
         ticket: Int,
@@ -108,27 +114,43 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
         onCommitted: suspend () -> Unit
     ): Int {
         coroutineContext.ensureActive()
-        onBeforeCommit()
-        val wrote = writer.commit(serverIndex, ticket, entries, streamIds, stillCurrent)
+        val wrote = try {
+            onBeforeCommit()
+            writer.commit(serverIndex, ticket, entries, streamIds, stillCurrent)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "serverIndex=$serverIndex: guide not saved, previous guide kept (${e.javaClass.simpleName})")
+            return 0
+        }
+        // Not reached after cancellation: the favorite diff is only recorded for a guide that
+        // actually committed.
+        coroutineContext.ensureActive()
         if (wrote > 0) onCommitted()
         return wrote
     }
 
+    /**
+     * Null when this source failed. Its own timeout counts as a failure, so the next source
+     * still runs; the refresh itself being cancelled stops here (rethrowIfCancelled, then
+     * ensureActive for a timeout that was really the caller's).
+     */
     private suspend fun fetchPrograms(
         url: String,
         fetch: suspend (String) -> Pair<List<XmltvChannel>, List<XmltvProgram>>
     ): Pair<List<XmltvChannel>, List<XmltvProgram>>? {
         return try {
             fetch(url)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            rethrowIfCancelled(e)
+            coroutineContext.ensureActive()
             null
         }
     }
 
     companion object {
         const val PRIMARY = -1
+        private const val TAG = "Xmltv"
 
         /** A program MKTV can put on a guide row. Anything else is not a guide. */
         fun usable(program: XmltvProgram): Boolean =

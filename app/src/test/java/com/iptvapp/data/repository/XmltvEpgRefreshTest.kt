@@ -14,14 +14,22 @@ import java.net.SocketTimeoutException
 import java.sql.SQLException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -271,6 +279,215 @@ class XmltvEpgRefreshTest {
         val wrote = writer.commit(-1, ticket, emptyList(), null, stillCurrent = { true })
         assertEquals(0, wrote)
         assertEquals(listOf("Old News"), titles(-1, 7))
+    }
+
+    // ── Cancellation and timeouts (the v7.21 rules: a source's own timeout is a failure,
+    // the refresh being cancelled is not) ────────────────────────────────────────────────
+
+    @Test
+    fun oneSourceTimingOutLetsTheOtherSourceReplaceItsChannels() = runBlocking {
+        seed(row(-1, 7, "Old News"), row(-1, 8, "Old Sports"))
+        val wrote = load(sources = listOf("https://news.example/xmltv", "https://sports.example/xmltv")) { url ->
+            // That source's own time limit, not the refresh's.
+            if (url.contains("news")) withTimeout(0) { awaitCancellation() } else feed(sports, "Game")
+        }
+        assertEquals(1, wrote)
+        assertEquals(listOf("Game"), titles(-1, 8))
+        assertEquals(listOf("Old News"), titles(-1, 7))
+    }
+
+    @Test
+    fun cancellingTheRefreshStopsEveryLaterStep() = runBlocking {
+        seed(row(-1, 7, "Old News"), row(-1, 8, "Old Sports"))
+        val fetched = mutableListOf<String>()
+        val inFetch = CompletableDeferred<Unit>()
+        var snapshotTaken = false
+        var diffRecorded = false
+        var ranAfter = false
+        val job = launch {
+            load(
+                sources = listOf("https://a.example/xmltv", "https://b.example/xmltv"),
+                backup = "https://backup.example/xmltv",
+                before = { snapshotTaken = true },
+                after = { diffRecorded = true }
+            ) { url ->
+                fetched += url
+                inFetch.complete(Unit)
+                awaitCancellation()
+            }
+            ranAfter = true
+        }
+        inFetch.await()
+        job.cancelAndJoin()
+        assertTrue(job.isCancelled)
+        assertEquals("no later source or backup is tried", listOf("https://a.example/xmltv"), fetched)
+        assertFalse(snapshotTaken)
+        assertFalse(diffRecorded)
+        assertFalse(ranAfter)
+        assertEquals(listOf("Old News"), titles(-1, 7))
+        assertEquals(listOf("Old Sports"), titles(-1, 8))
+    }
+
+    @Test
+    fun aCallersTimeoutIsNotMistakenForOneSourceFailing() = runBlocking {
+        seed(row(-1, 7, "Old News"))
+        val fetched = mutableListOf<String>()
+        try {
+            withTimeout(50) {
+                load(sources = listOf("https://a.example/xmltv", "https://b.example/xmltv")) { url ->
+                    fetched += url
+                    awaitCancellation()
+                }
+            }
+            fail("the caller's timeout must reach the caller")
+        } catch (_: TimeoutCancellationException) {
+        }
+        assertEquals(listOf("https://a.example/xmltv"), fetched)
+        assertEquals(listOf("Old News"), titles(-1, 7))
+    }
+
+    @Test
+    fun realCancellationAfterTheDeleteRollsTheTransactionBack() = runBlocking {
+        seed(row(-1, 7, "Old News"), row(-1, 8, "Old Sports"), row(0, 7, "Other Provider"))
+        val deleted = CompletableDeferred<Int>()
+        var finished = false
+        val ticket = writer.begin(-1)
+        val job = launch {
+            writer.commit(
+                serverIndex = -1,
+                ticket = ticket,
+                entries = listOf(row(-1, 7, "New", id = "new")),
+                streamIds = null,
+                stillCurrent = { true },
+                afterDelete = {
+                    // Inside the transaction, after the delete: only the other provider's row is left.
+                    deleted.complete(db.epgDao().getEpgCount())
+                    awaitCancellation()
+                }
+            )
+            finished = true
+        }
+        assertEquals(1, deleted.await())
+        job.cancelAndJoin()
+        assertTrue(job.isCancelled)
+        assertFalse(finished)
+        assertEquals(listOf("Old News"), titles(-1, 7))
+        assertEquals(listOf("Old Sports"), titles(-1, 8))
+        assertEquals(listOf("Other Provider"), titles(0, 7))
+    }
+
+    @Test
+    fun cancellationInsideTheTransactionRecordsNoFavoriteDiff() = runBlocking {
+        seed(row(-1, 7, "Old News"))
+        val inTransaction = CompletableDeferred<Unit>()
+        var diffRecorded = false
+        val job = launch {
+            load(
+                // stillCurrent runs inside the transaction, just before the delete.
+                still = { inTransaction.complete(Unit); awaitCancellation() },
+                after = { diffRecorded = true }
+            ) { feed(news, "New") }
+        }
+        inTransaction.await()
+        job.cancelAndJoin()
+        assertTrue(job.isCancelled)
+        assertFalse(diffRecorded)
+        assertEquals(listOf("Old News"), titles(-1, 7))
+    }
+
+    @Test
+    fun cancellationJustBeforeTheCommitPreventsIt() = runBlocking {
+        seed(row(-1, 7, "Old News"))
+        var diffRecorded = false
+        val job = launch {
+            load(
+                before = { currentCoroutineContext().job.cancel() },
+                after = { diffRecorded = true }
+            ) { feed(news, "New") }
+        }
+        job.join()
+        assertTrue(job.isCancelled)
+        assertFalse(diffRecorded)
+        assertEquals(listOf("Old News"), titles(-1, 7))
+    }
+
+    @Test
+    fun cancellingAMultiProviderRefreshStopsEveryProvider() = runBlocking {
+        seed(row(1, 7, "One"), row(2, 7, "Two"))
+        val backup = "https://backup.example/xmltv"
+        val fetched = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val bothStarted = CompletableDeferred<Unit>()
+        var committed = false
+        var ranAfter = false
+        val refreshAll = launch {
+            coroutineScope {
+                for (server in 1..2) launch {
+                    refresh.loadMerged(
+                        serverIndex = server,
+                        sources = listOf("https://p$server.example/xmltv", backup),
+                        backupUrl = backup,
+                        backupIsPartial = true,
+                        channels = listOf(news),
+                        fetch = { url ->
+                            fetched += url
+                            if (fetched.size == 2) bothStarted.complete(Unit)
+                            awaitCancellation()
+                        },
+                        stillCurrent = { true },
+                        onCommitted = { committed = true }
+                    )
+                }
+            }
+            ranAfter = true
+        }
+        bothStarted.await()
+        refreshAll.cancelAndJoin()
+        assertTrue(refreshAll.isCancelled)
+        assertEquals("neither provider moves on to the backup", 2, fetched.size)
+        assertFalse(fetched.contains(backup))
+        assertFalse(committed)
+        assertFalse(ranAfter)
+        assertEquals(listOf("One"), titles(1, 7))
+        assertEquals(listOf("Two"), titles(2, 7))
+    }
+
+    @Test
+    fun aMultiProviderSourceTimingOutFallsThroughToTheNextSource() = runBlocking {
+        seed(row(2, 7, "Merged Old"), row(2, 8, "Merged Sports"))
+        val own = "https://merged.example/xmltv"
+        val backup = "https://backup.example/xmltv"
+        val wrote = refresh.loadMerged(
+            serverIndex = 2,
+            sources = listOf(own, backup),
+            backupUrl = backup,
+            backupIsPartial = true,
+            channels = listOf(news, sports),
+            fetch = { url -> if (url == own) withTimeout(0) { awaitCancellation() } else feed(news, "Backup News") },
+            stillCurrent = { true }
+        )
+        assertEquals(1, wrote)
+        assertEquals(listOf("Backup News"), titles(2, 7))
+        assertEquals(listOf("Merged Sports"), titles(2, 8))
+    }
+
+    // ── Database failure: v7.21 behaviour (0, guide kept, caller carries on) ─────────────
+
+    @Test
+    fun databaseFailureKeepsTheGuideReturnsZeroAndTheNextRefreshStillWorks() = runBlocking {
+        seed(row(-1, 7, "Old News"), row(-1, 8, "Old Sports"))
+        val sql = db.openHelper.writableDatabase
+        // A real SQLite error on insert, after the delete has run inside the transaction.
+        sql.execSQL("CREATE TRIGGER fail_insert BEFORE INSERT ON epg_entries BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END")
+        var diffRecorded = false
+        val wrote = load(after = { diffRecorded = true }) { feed(news, "New") }
+        assertEquals(0, wrote)
+        assertFalse(diffRecorded)
+        assertEquals(listOf("Old News"), titles(-1, 7))
+        assertEquals(listOf("Old Sports"), titles(-1, 8))
+
+        sql.execSQL("DROP TRIGGER fail_insert")
+        assertEquals(1, load { feed(news, "New") })
+        assertEquals(listOf("New"), titles(-1, 7))
     }
 
     private fun keepsOn(
