@@ -436,6 +436,17 @@ interface RecordingDao {
     suspend fun delete(recording: RecordingEntity)
     @Query("SELECT * FROM recordings WHERE id = :id")
     suspend fun getById(id: Int): RecordingEntity?
+    // Atomic SCHEDULED -> RECORDING: of two triggers for the same recording (a duplicate alarm,
+    // recovery and the alarm racing), only the one that gets 1 back starts it.
+    @Query("UPDATE recordings SET status = 'RECORDING', failureReason = NULL WHERE id = :id AND status = 'SCHEDULED'")
+    suspend fun claimScheduled(id: Int): Int
+    // Undoes claimScheduled when Android refuses to start the recording, so it can still be
+    // started from the notification or by the next recovery.
+    @Query("UPDATE recordings SET status = 'SCHEDULED' WHERE id = :id AND status = 'RECORDING'")
+    suspend fun unclaim(id: Int): Int
+    // What recovery (boot, app update, app start) looks at.
+    @Query("SELECT * FROM recordings WHERE status IN ('SCHEDULED', 'RECORDING')")
+    suspend fun getScheduledOrRecording(): List<RecordingEntity>
     // Backs the player's small recording-indicator dot — observes whether the channel
     // currently on screen has an in-progress ad-hoc/scheduled recording. streamId alone isn't
     // globally unique once merged-provider recordings exist (two servers can reuse the same

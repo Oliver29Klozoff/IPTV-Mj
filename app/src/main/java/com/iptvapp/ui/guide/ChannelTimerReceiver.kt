@@ -55,6 +55,7 @@ class ChannelTimerReceiver : BroadcastReceiver() {
             .build()
 
         nm.notify(streamId, notification)
+        ChannelTimerScheduler.markFired(context, streamId)
     }
 
     private fun ensureChannel(nm: NotificationManager) {
@@ -76,21 +77,97 @@ object ChannelTimerScheduler {
     // bell icon and "Reminder set" state (v6.91).
     private const val REMINDERS = "channel_reminders"
 
-    // Stored as "startMs|bootCount": a reboot clears every alarm, so an entry written in an earlier boot
-    // no longer counts as scheduled. Android's boot counter, not a clock-derived boot time, so a
-    // clock correction doesn't make a live reminder look unset.
+    // Each entry records the boot it was set in: a reboot clears every alarm, so an entry from an
+    // earlier boot no longer counts as scheduled until recover() sets it again. Android's boot
+    // counter, not a clock-derived boot time, so a clock correction doesn't make a live reminder
+    // look unset. Stored as JSON with what recover() needs to set the alarm again; older builds
+    // stored just "startMs|bootCount", which recover() can't rebuild.
     private fun bootCount(context: Context) =
         android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
 
-    fun isScheduled(context: Context, streamId: Int, startMs: Long): Boolean {
-        if (startMs <= System.currentTimeMillis()) return false
+    internal data class Entry(
+        val startMs: Long,
+        val boot: Long,
+        val serverIndex: Int = -1,
+        val channelName: String? = null,
+        val programTitle: String? = null,
+        val fired: Boolean = false
+    )
+
+    internal fun parse(v: String): Entry? {
+        if (v.startsWith("{")) {
+            return try {
+                val o = org.json.JSONObject(v)
+                Entry(
+                    startMs = o.getLong("start"),
+                    boot = o.getLong("boot"),
+                    serverIndex = o.optInt("server", -1),
+                    channelName = o.optString("channel").takeIf { it.isNotEmpty() },
+                    programTitle = o.optString("title").takeIf { it.isNotEmpty() },
+                    fired = o.optBoolean("fired", false)
+                )
+            } catch (_: org.json.JSONException) { null }
+        }
+        val parts = v.split("|")
+        val start = parts[0].toLongOrNull() ?: return null
+        val boot = parts.getOrNull(1)?.toLongOrNull() ?: return null
+        return Entry(start, boot)
+    }
+
+    private fun encode(e: Entry): String = org.json.JSONObject().apply {
+        put("start", e.startMs)
+        put("boot", e.boot)
+        put("server", e.serverIndex)
+        e.channelName?.let { put("channel", it) }
+        e.programTitle?.let { put("title", it) }
+        put("fired", e.fired)
+    }.toString()
+
+    private fun read(context: Context, streamId: Int): Entry? {
         // A test build stored a Long here; getString on it throws, so treat that as "not scheduled".
         val v = try {
             context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).getString(streamId.toString(), null)
-        } catch (_: ClassCastException) { null } ?: return false
-        val parts = v.split("|")
-        val boot = parts.getOrNull(1)?.toLongOrNull() ?: return false
-        return parts[0].toLongOrNull() == startMs && boot == bootCount(context).toLong()
+        } catch (_: ClassCastException) { null } ?: return null
+        return parse(v)
+    }
+
+    fun isScheduled(context: Context, streamId: Int, startMs: Long): Boolean {
+        if (startMs <= System.currentTimeMillis()) return false
+        val e = read(context, streamId) ?: return false
+        return e.startMs == startMs && e.boot == bootCount(context).toLong()
+    }
+
+    /** The notification went out: recover() must not send it again. */
+    fun markFired(context: Context, streamId: Int) {
+        val e = read(context, streamId) ?: return
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit()
+            .putString(streamId.toString(), encode(e.copy(fired = true))).apply()
+    }
+
+    /**
+     * Sets every pending reminder's alarm again — after a reboot, an app update, or at app start
+     * (which covers a force-stop). Safe to repeat: each alarm is keyed by stream id, so setting it
+     * again replaces it. A reminder that already went off isn't sent twice; one for a show that
+     * has started is dropped; one whose notice time passed while the device was off goes off now.
+     */
+    fun recover(context: Context, nowMs: Long = System.currentTimeMillis()) {
+        val prefs = context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE)
+        val currentBoot = bootCount(context).toLong()
+        for (key in prefs.all.keys.toList()) {
+            val streamId = key.toIntOrNull() ?: continue
+            val e = read(context, streamId)
+            if (e == null || e.startMs <= nowMs) {
+                prefs.edit().remove(key).apply()
+                continue
+            }
+            if (e.fired) continue
+            if (e.channelName == null || e.programTitle == null) {
+                // An entry from an older build: its alarm is still set if this is the same boot.
+                if (e.boot != currentBoot) prefs.edit().remove(key).apply()
+                continue
+            }
+            schedule(context, streamId, e.channelName, e.programTitle, e.startMs, e.serverIndex)
+        }
     }
 
     // Fires the notification `reminderLeadMinutes` before the program's actual start time
@@ -104,18 +181,22 @@ object ChannelTimerScheduler {
             context.dataStore.data.first()[com.iptvapp.data.local.REMINDER_LEAD_MINUTES_KEY] ?: 5
         }
         val fireAtMs = (startMs - leadMinutes * 60_000L).coerceAtLeast(System.currentTimeMillis() + 1000L)
+        // When the notice time has already passed (set late, or the device was off), say how long
+        // is really left rather than the full lead time.
+        val minutesLeft = ((startMs - fireAtMs) / 60_000L).toInt()
         val intent = Intent(context, ChannelTimerReceiver::class.java).apply {
             putExtra("stream_id", streamId)
             putExtra("server_index", serverIndex)
             putExtra("channel_name", channelName)
             putExtra("program_title", programTitle)
-            putExtra("lead_minutes", if (fireAtMs < startMs) leadMinutes else 0)
+            putExtra("lead_minutes", if (fireAtMs < startMs) minOf(leadMinutes, minutesLeft) else 0)
         }
         val pi = PendingIntent.getBroadcast(
             context, streamId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putString(streamId.toString(), "$startMs|${bootCount(context)}").apply()
+        val entry = Entry(startMs, bootCount(context).toLong(), serverIndex, channelName, programTitle)
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putString(streamId.toString(), encode(entry)).apply()
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             am.set(AlarmManager.RTC_WAKEUP, fireAtMs, pi)

@@ -1,8 +1,6 @@
 package com.iptvapp.ui.recordings
 
-import android.app.AlarmManager
 import android.app.DatePickerDialog
-import android.app.PendingIntent
 import android.app.TimePickerDialog
 import android.content.ContentValues
 import android.content.Context
@@ -31,7 +29,6 @@ import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityTvRecordingBinding
 import com.iptvapp.databinding.ItemTvPickerBinding
 import com.iptvapp.databinding.ItemTvRecordingRowBinding
-import com.iptvapp.service.RecordingService
 import com.iptvapp.util.RecordingFileUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -704,7 +701,6 @@ class TvRecordingActivity : AppCompatActivity() {
                 if (!proceed) return@launch
             }
             try {
-                val streamUrl = repository.getLiveStreamUrlForRecording(channel.streamId)
                 val outputTarget = createOutputTarget(channel, startMs)
                 val programTitle = try {
                     database.epgDao().getNowPlaying(channel.streamId)?.title
@@ -719,7 +715,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     programTitle = programTitle
                 )
                 val id = database.recordingDao().insert(recording).toInt()
-                scheduleAlarm(id, channel.name, streamUrl, durationMs, outputTarget, startMs)
+                scheduleAlarm(id, startMs)
 
                 Toast.makeText(
                     this@TvRecordingActivity,
@@ -761,7 +757,6 @@ class TvRecordingActivity : AppCompatActivity() {
                 if (!proceed) return@launch
             }
             try {
-                val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
                 val outputTarget = createOutputTarget(channel.name, startMs)
                 val programTitle = try {
                     database.epgDao().getNowPlaying(channel.streamId, channel.serverIndex)?.title
@@ -777,7 +772,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     programTitle = programTitle
                 )
                 val id = database.recordingDao().insert(recording).toInt()
-                scheduleAlarm(id, channel.name, streamUrl, durationMs, outputTarget, startMs)
+                scheduleAlarm(id, startMs)
 
                 Toast.makeText(
                     this@TvRecordingActivity,
@@ -813,48 +808,19 @@ class TvRecordingActivity : AppCompatActivity() {
         return File(dir, fileName).absolutePath
     }
 
-    private fun scheduleAlarm(
-        recordingId: Int, channelName: String, streamUrl: String,
-        durationMs: Long, outputTarget: String, startMs: Long
-    ) {
-        val serviceIntent = Intent(this, RecordingService::class.java).apply {
-            putExtra(RecordingService.EXTRA_RECORDING_ID, recordingId)
-            putExtra(RecordingService.EXTRA_STREAM_URL, streamUrl)
-            putExtra(RecordingService.EXTRA_CHANNEL_NAME, channelName)
-            putExtra(RecordingService.EXTRA_DURATION_MS, durationMs)
-            putExtra(RecordingService.EXTRA_OUTPUT_PATH, outputTarget)
-        }
+    // Same as the phone scheduler: the alarm carries only the id (RecordingStarter looks up the rest
+    // when it fires; RecordingRecovery sets it again after a reboot).
+    private fun scheduleAlarm(recordingId: Int, startMs: Long) {
         if (startMs <= System.currentTimeMillis() + 3000L) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent)
-            else startService(serviceIntent)
+            lifecycleScope.launch {
+                com.iptvapp.service.RecordingStarter.start(applicationContext, database, repository, recordingId)
+            }
             return
         }
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, RecordingAlarmReceiver::class.java).apply { putExtras(serviceIntent) }
-        val pi = PendingIntent.getBroadcast(
-            this, recordingId, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms() ->
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pi)
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pi)
-            else -> alarmManager.setExact(AlarmManager.RTC_WAKEUP, startMs, pi)
-        }
+        com.iptvapp.service.RecordingAlarms.schedule(this, recordingId, startMs)
     }
 
-    private fun cancelAlarm(recordingId: Int) {
-        val intent = Intent(this, RecordingAlarmReceiver::class.java)
-        val pi = PendingIntent.getBroadcast(
-            this, recordingId, intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-        )
-        if (pi != null) {
-            (getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi)
-            pi.cancel()
-        }
-    }
+    private fun cancelAlarm(recordingId: Int) = com.iptvapp.service.RecordingAlarms.cancel(this, recordingId)
 
     // ── Adapters ──────────────────────────────────────────────────────────────
 

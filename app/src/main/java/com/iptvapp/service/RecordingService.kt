@@ -21,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
@@ -63,8 +64,18 @@ class RecordingService : Service() {
         const val EXTRA_CHANNEL_NAME = "channel_name"
         const val EXTRA_DURATION_MS = "duration_ms"
         const val EXTRA_OUTPUT_PATH = "output_path"
+        // Continue an interrupted capture: append to the file instead of starting it over.
+        const val EXTRA_RESUME = "resume"
         private const val TS_PACKET_SIZE = 188
+        const val STOPPED_BY_TIME_LIMIT_REASON =
+            "Stopped early: Android allows background recording for about 6 hours a day on this device. " +
+                "The part recorded so far is saved."
     }
+
+    // Recordings asked to stop early (Android 15's foreground-service time limit). The capture
+    // loops check this between reads, so what was recorded is closed and saved, not abandoned.
+    private val stopRequested = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Int, Boolean>())
+    @Volatile private var timedOut = false
 
     override fun onCreate() {
         super.onCreate()
@@ -75,7 +86,12 @@ class RecordingService : Service() {
         }
     }
 
-    private fun notifyRecordingFailed(recordingId: Int, channelName: String, reason: String) {
+    private fun notifyRecordingFailed(
+        recordingId: Int,
+        channelName: String,
+        reason: String,
+        title: String = "Recording failed: $channelName"
+    ) {
         val tapIntent = Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -85,7 +101,7 @@ class RecordingService : Service() {
         )
         val notification = NotificationCompat.Builder(this, FAILURE_CHANNEL_ID)
             .setSmallIcon(com.iptvapp.R.drawable.ic_notification)
-            .setContentTitle("Recording failed: $channelName")
+            .setContentTitle(title)
             .setContentText(reason)
             .setStyle(NotificationCompat.BigTextStyle().bigText(reason))
             .setContentIntent(tapPi)
@@ -101,12 +117,38 @@ class RecordingService : Service() {
         val name = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "Channel"
         val durationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L)
         val target = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return START_NOT_STICKY
+        // Picking an interrupted capture back up (recovery after a restart, or Android redelivering
+        // this start after the process was killed): add to what's already in the file.
+        val resume = intent.getBooleanExtra(EXTRA_RESUME, false) || (flags and START_FLAG_REDELIVERY) != 0
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, buildNotif(name), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(NOTIF_ID, buildNotif(name))
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIF_ID, buildNotif(name), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIF_ID, buildNotif(name))
+            }
+        } catch (e: Exception) {
+            // Android 12+ refused to make this a foreground service (no background-start
+            // exemption). Nothing has been recorded; say so instead of crashing. When it throws,
+            // this service isn't foreground yet, so no other recording is running in it.
+            if (recordingId != -1) {
+                val reason = "Android didn't allow the recording to start in the background"
+                runCatching {
+                    kotlinx.coroutines.runBlocking {
+                        kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                            database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                        }
+                    }
+                }
+                notifyRecordingFailed(recordingId, name, reason)
+            }
+            if (jobs.isEmpty()) stopSelf(startId)
+            return START_NOT_STICKY
         }
+
+        // Already recording this one (a duplicate alarm, or recovery racing a capture that is
+        // running): one capture per recording, never two writers on one file.
+        if (recordingId != -1 && jobs[recordingId]?.isActive == true) return START_REDELIVER_INTENT
 
         // Keep CPU alive for the duration of this specific recording
         wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
@@ -117,12 +159,38 @@ class RecordingService : Service() {
         activeRecordingIds.add(recordingId)
 
         jobs[recordingId] = scope.launch {
-            if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "RECORDING")
+            // How long to record comes from the schedule when there is one: a redelivered start
+            // still carries the duration it began with, and the window ends when it always did.
+            var recordMs = durationMs
+            if (recordingId != -1) {
+                val rec = database.recordingDao().getById(recordingId)
+                if (rec == null || (rec.status != "SCHEDULED" && rec.status != "RECORDING")) {
+                    // Deleted (cancelled) or already finished: nothing to record.
+                    activeRecordingIds.remove(recordingId)
+                    wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
+                    jobs.remove(recordingId)
+                    stopSelf(startId)
+                    return@launch
+                }
+                recordMs = rec.scheduledStartMs + rec.durationMs - System.currentTimeMillis()
+                if (recordMs < 5_000L) {
+                    // The window is over (a redelivery that came too late). 0 would mean "no
+                    // limit" to the capture loops, so stop here; the recordings screen's clean-up
+                    // settles the row as before.
+                    activeRecordingIds.remove(recordingId)
+                    wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
+                    jobs.remove(recordingId)
+                    stopSelf(startId)
+                    return@launch
+                }
+                database.recordingDao().updateStatus(recordingId, "RECORDING")
+            }
 
             val result = runCatching {
-                openRecordingOutput(target).use { out ->
-                    val bytes = recordStream(url, out, durationMs)
-                    if (bytes < 1024) throw IOException("Recording wrote only $bytes bytes")
+                openRecordingOutput(target, append = resume).use { out ->
+                    val bytes = recordStream(url, out, recordMs) { recordingId in stopRequested }
+                    // A resumed capture already has the earlier part in the file.
+                    if (bytes < 1024 && !resume) throw IOException("Recording wrote only $bytes bytes")
                 }
             }
             val ok = result.isSuccess
@@ -134,14 +202,21 @@ class RecordingService : Service() {
             activeRecordingIds.remove(recordingId)
 
             if (ok) {
+                // Cut short by Android's time limit (onTimeout): the service has seconds left, so the
+                // raw capture is kept as it is, without re-encoding.
+                val stoppedEarly = timedOut && recordingId in stopRequested
                 // Recording size (v7.01): Original keeps the raw capture; Compact / Standard re-encode it.
                 val size = runCatching { prefs.recordingSize.first() }.getOrDefault("compact")
-                val compressedPath = if (size == "original") null else {
+                val compressedPath = if (size == "original" || stoppedEarly) null else {
                     if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
                     runCatching { tryCompressRecording(target, name, compact = size == "compact") }.getOrNull()
                 }
                 val finalPath = compressedPath ?: target
                 if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
+                if (stoppedEarly && recordingId != -1) {
+                    database.recordingDao().updateStatusWithReason(recordingId, "DONE", STOPPED_BY_TIME_LIMIT_REASON)
+                    notifyRecordingFailed(recordingId, name, STOPPED_BY_TIME_LIMIT_REASON, title = "Recording stopped early: $name")
+                }
                 // Look for commercial breaks in the background (Skip break in the player).
                 if (recordingId != -1) com.iptvapp.worker.AdBreakWorker.enqueue(applicationContext, recordingId, com.iptvapp.worker.AdBreakWorker.uriForPath(finalPath))
             } else {
@@ -154,10 +229,26 @@ class RecordingService : Service() {
 
             wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
             jobs.remove(recordingId)
+            stopRequested.remove(recordingId)
             stopSelf(startId)
         }
 
         return START_REDELIVER_INTENT
+    }
+
+    // Android 15+ (targetSdk 35): a dataSync foreground service may run about 6 hours in 24 — a
+    // budget shared with the guide refresh worker and downloads, reset when the user opens the app.
+    // When it runs out Android calls this and the service must stop within seconds, or the app is
+    // crashed. Each capture is asked to stop and save what it has (stopRequested); the service then
+    // stops. A capture that can't finish in time is handled by onDestroy's kill-safety as before.
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        timedOut = true
+        stopRequested.addAll(jobs.keys)
+        val running = jobs.values.toList()
+        scope.launch {
+            kotlinx.coroutines.withTimeoutOrNull(2_500L) { running.joinAll() }
+            kotlinx.coroutines.withContext(Dispatchers.Main) { stopSelf() }
+        }
     }
 
     /** Re-encodes the just-finished raw recording at a lower bitrate to shrink it, then deletes
@@ -249,13 +340,13 @@ class RecordingService : Service() {
         return File(dir, fileName).absolutePath
     }
 
-    private fun openRecordingOutput(target: String): OutputStream {
+    private fun openRecordingOutput(target: String, append: Boolean = false): OutputStream {
         return if (target.startsWith("content://")) {
-            contentResolver.openOutputStream(Uri.parse(target), "w")
+            contentResolver.openOutputStream(Uri.parse(target), if (append) "wa" else "w")
                 ?: throw IOException("Unable to open recording output")
         } else {
             val file = File(target).also { it.parentFile?.mkdirs() }
-            file.outputStream()
+            java.io.FileOutputStream(file, append)
         }
     }
 
@@ -278,16 +369,16 @@ class RecordingService : Service() {
         }
     }
 
-    private fun recordStream(streamUrl: String, output: OutputStream, durationMs: Long): Long {
+    private fun recordStream(streamUrl: String, output: OutputStream, durationMs: Long, shouldStop: () -> Boolean): Long {
         val lower = streamUrl.lowercase(Locale.US)
         return if (lower.contains(".m3u8")) {
-            recordHls(streamUrl, output, durationMs)
+            recordHls(streamUrl, output, durationMs, shouldStop)
         } else {
-            recordDirectStream(streamUrl, output, durationMs)
+            recordDirectStream(streamUrl, output, durationMs, shouldStop)
         }
     }
 
-    private fun recordDirectStream(streamUrl: String, output: OutputStream, durationMs: Long): Long {
+    private fun recordDirectStream(streamUrl: String, output: OutputStream, durationMs: Long, shouldStop: () -> Boolean): Long {
         val started = System.currentTimeMillis()
         var written = 0L
         val buffer = ByteArray(128 * 1024)
@@ -297,7 +388,7 @@ class RecordingService : Service() {
         // at the write site below for why this matters.
         var tsCarry = 0
 
-        while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+        while ((durationMs == 0L || System.currentTimeMillis() - started < durationMs) && !shouldStop()) {
             val remaining = if (durationMs > 0L) durationMs - (System.currentTimeMillis() - started) else 0L
             if (remaining < 0L) break
 
@@ -340,7 +431,7 @@ class RecordingService : Service() {
                 val activeConn = conn ?: throw IOException("Too many redirects")
 
                 activeConn.inputStream.use { input ->
-                    while (durationMs == 0L || System.currentTimeMillis() - started < durationMs) {
+                    while ((durationMs == 0L || System.currentTimeMillis() - started < durationMs) && !shouldStop()) {
                         val n = input.read(buffer, tsCarry, buffer.size - tsCarry)
                         if (n == -1) break
                         val available = tsCarry + n
@@ -365,7 +456,7 @@ class RecordingService : Service() {
             } catch (e: IOException) {
                 android.util.Log.e("RecordingService", "recordDirectStream: IOException, written=$written bytes", e)
                 // Brief pause before reconnect attempt — avoids hammering a broken server
-                if (durationMs > 0L && System.currentTimeMillis() - started < durationMs) {
+                if (durationMs > 0L && System.currentTimeMillis() - started < durationMs && !shouldStop()) {
                     Thread.sleep(2000L)
                 }
             } finally {
@@ -377,17 +468,17 @@ class RecordingService : Service() {
         return written
     }
 
-    private fun recordHls(playlistUrl: String, output: OutputStream, durationMs: Long): Long {
+    private fun recordHls(playlistUrl: String, output: OutputStream, durationMs: Long, shouldStop: () -> Boolean): Long {
         val started = System.currentTimeMillis()
         val seenSegments = linkedSetOf<String>()
         var written = 0L
         val deadline = if (durationMs > 0L) started + durationMs else 0L
 
-        while (deadline == 0L || System.currentTimeMillis() < deadline) {
+        while ((deadline == 0L || System.currentTimeMillis() < deadline) && !shouldStop()) {
             val masterText = fetchText(playlistUrl)
 
             if (!masterText.trimStart().startsWith("#EXTM3U")) {
-                return recordDirectStream(playlistUrl, output, durationMs)
+                return recordDirectStream(playlistUrl, output, durationMs, shouldStop)
             }
 
             val mediaPlaylistUrl = if (masterText.contains("#EXT-X-STREAM-INF")) {
@@ -418,9 +509,9 @@ class RecordingService : Service() {
                 val segmentUrl = resolveUrl(mediaPlaylistUrl, line.trim())
                 if (!seenSegments.add(segmentUrl)) continue
 
-                written += downloadSegment(segmentUrl, output, deadline)
+                written += downloadSegment(segmentUrl, output, deadline, shouldStop)
 
-                if (deadline > 0 && System.currentTimeMillis() >= deadline) {
+                if ((deadline > 0 && System.currentTimeMillis() >= deadline) || shouldStop()) {
                     output.flush()
                     return written
                 }
@@ -433,7 +524,7 @@ class RecordingService : Service() {
             } else {
                 (targetDuration * 500L).coerceIn(2000L, 8000L)
             }
-            if (waitMs > 0L) Thread.sleep(waitMs)
+            if (waitMs > 0L && !shouldStop()) Thread.sleep(waitMs)
         }
 
         output.flush()
@@ -458,7 +549,7 @@ class RecordingService : Service() {
         }
     }
 
-    private fun downloadSegment(url: String, output: OutputStream, deadline: Long = 0L): Long {
+    private fun downloadSegment(url: String, output: OutputStream, deadline: Long = 0L, shouldStop: () -> Boolean = { false }): Long {
         val conn = URL(url).openConnection() as HttpURLConnection
         var written = 0L
 
@@ -474,7 +565,7 @@ class RecordingService : Service() {
 
             val buffer = ByteArray(128 * 1024)
             conn.inputStream.use { input ->
-                while (deadline == 0L || System.currentTimeMillis() < deadline) {
+                while ((deadline == 0L || System.currentTimeMillis() < deadline) && !shouldStop()) {
                     val n = input.read(buffer)
                     if (n == -1) break
                     output.write(buffer, 0, n)
