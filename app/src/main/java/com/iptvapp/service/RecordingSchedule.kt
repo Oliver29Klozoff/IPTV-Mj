@@ -65,11 +65,20 @@ object RecordingUrls {
     fun get(context: Context, recordingId: Int): String? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(recordingId.toString(), null)
 
-    /** Drops URLs of recordings that are finished, failed or deleted. */
-    fun keepOnly(context: Context, recordingIds: Set<Int>) {
+    /**
+     * Drops URLs of recordings that are finished, failed or deleted. Each one is checked against
+     * its row as it is now, not a list read earlier: scheduling inserts the row before saving the
+     * URL, so a recording scheduled while this runs always has a live row and keeps its URL.
+     */
+    suspend fun prune(context: Context, db: com.iptvapp.data.local.IptvDatabase) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val stale = prefs.all.keys.filter { it.toIntOrNull() !in recordingIds }
-        if (stale.isNotEmpty()) prefs.edit().apply { stale.forEach { remove(it) } }.apply()
+        for (key in prefs.all.keys.toList()) {
+            val id = key.toIntOrNull()
+            val rec = id?.let { db.recordingDao().getById(it) }
+            if (rec == null || (rec.status != "SCHEDULED" && rec.status != "RECORDING")) {
+                prefs.edit().remove(key).apply()
+            }
+        }
     }
 }
 

@@ -236,6 +236,16 @@ class RecordingRecoveryTest {
     }
 
     @Test
+    fun pruningKeepsALiveScheduleAndDropsADeletedOne() = runBlocking {
+        val live = insert("SCHEDULED", now + hour)
+        RecordingUrls.put(context, live, "http://p.example/live/a/b/1.ts")
+        RecordingUrls.put(context, 9999, "http://p.example/live/a/b/2.ts") // row deleted (cancelled)
+        RecordingUrls.prune(context, db)
+        assertEquals("http://p.example/live/a/b/1.ts", RecordingUrls.get(context, live))
+        assertNull(RecordingUrls.get(context, 9999))
+    }
+
+    @Test
     fun cancellingTheStartIsNotAFailure() = runBlocking {
         val id = insert("SCHEDULED", now - 60_000L)
         val resolving = CompletableDeferred<Unit>()

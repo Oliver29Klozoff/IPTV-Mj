@@ -162,9 +162,8 @@ object RecordingRecovery {
         var scheduled = 0
         var starting = 0
         var missed = 0
-        val rows = db.recordingDao().getScheduledOrRecording()
-        RecordingUrls.keepOnly(context, rows.mapTo(HashSet()) { it.id })
-        for (rec in rows) {
+        RecordingUrls.prune(context, db)
+        for (rec in db.recordingDao().getScheduledOrRecording()) {
             when (val action = RecordingPlan.decide(rec.status, rec.scheduledStartMs, rec.durationMs, nowMs)) {
                 is RecordingPlan.Alarm -> {
                     RecordingAlarms.schedule(context, rec.id, action.atMs)

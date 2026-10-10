@@ -262,23 +262,26 @@ class RecordingService : Service() {
                 database.recordingDao().updateStatus(recordingId, "RECORDING")
             }
 
+            // What a resumed capture already has on disk (an interrupted one may have nothing: the
+            // process can die between the claim and the first write).
+            val before = if (resume) existingSize(target) else 0L
             var written = 0L
             val result = runCatching {
                 openRecordingOutput(target, append = resume).use { raw ->
                     val out = CountingOutputStream(raw)
                     try {
                         val bytes = recordStream(url, out, recordMs, capture)
-                        // A resumed capture already has the earlier part in the file.
-                        if (bytes < 1024 && !resume) throw IOException("Recording wrote only $bytes bytes")
+                        if (before + bytes < 1024) throw IOException("Recording wrote only ${before + bytes} bytes")
                     } finally {
                         written = out.count
                     }
                 }
             }
             val ok = result.isSuccess
-            // The stream failed part-way, but there is a real recording on disk (or the earlier part
-            // of a resumed one): keep it as a partial recording instead of deleting it.
-            val partial = !ok && (resume || written >= KEEP_PARTIAL_MIN_BYTES)
+            // The stream failed part-way, but there is a real recording on disk (this attempt's,
+            // plus the earlier part of a resumed one): keep it as a partial recording instead of
+            // deleting it. Too little to play is a failure, as before.
+            val partial = !ok && before + written >= KEEP_PARTIAL_MIN_BYTES
 
             // Past this point nothing is captured any more; finish saving it even if the service is
             // being torn down (onDestroy cancels the scope), so a kept file never sits half-saved.
@@ -433,6 +436,15 @@ class RecordingService : Service() {
         dir.mkdirs()
         return File(dir, fileName).absolutePath
     }
+
+    /** Bytes already in the recording's file; 0 when it's missing or can't be read. */
+    private fun existingSize(target: String): Long = runCatching {
+        if (target.startsWith("content://")) {
+            contentResolver.openFileDescriptor(Uri.parse(target), "r")?.use { it.statSize } ?: 0L
+        } else {
+            File(target).length()
+        }
+    }.getOrDefault(0L).coerceAtLeast(0L)
 
     private fun openRecordingOutput(target: String, append: Boolean = false): OutputStream {
         return if (target.startsWith("content://")) {
