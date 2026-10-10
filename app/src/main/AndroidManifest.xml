@@ -87,8 +87,23 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="mktv" android:host="play" />
                 <data android:scheme="mktv" android:host="home" />
+            </intent-filter>
+        </activity>
+
+        <!-- TV home-screen favorite cards (mktv://play/...). Hands the card to TvHomeActivity with
+             CLEAR_TOP | SINGLE_TOP so a tap never stacks a second home screen; see the class. -->
+        <activity
+            android:name=".tv.LauncherPlayActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="mktv" android:host="play" />
             </intent-filter>
         </activity>
 

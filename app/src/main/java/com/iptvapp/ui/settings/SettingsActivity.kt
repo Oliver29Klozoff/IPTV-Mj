@@ -2157,16 +2157,27 @@ class SettingsActivity : AppCompatActivity() {
             .setTitle("${channel.name} — ${channel.reliabilityPercent}%")
             .setItems(arrayOf("Play This Channel", "Hide This Channel")) { _, which ->
                 when (which) {
-                    0 -> {
-                        // The Shield (same Settings screen since v6.87) plays it through TvHomeActivity's
-                        // mktv://play deep link, as the old TV Settings did, not the phone home.
-                        if (isLargeScreenDevice()) {
-                            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("mktv://play/${channel.streamId}")))
-                        } else {
-                            startActivity(Intent(this, com.iptvapp.ui.home.HomeActivity::class.java).apply {
-                                putExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, channel.streamId)
+                    0 -> if (isLargeScreenDevice()) {
+                        // The Shield (same Settings screen since v6.87) plays it full screen through
+                        // the same signed link a TV home-screen card uses (TvHomeActivity checks it
+                        // and builds the URL itself), not the phone home.
+                        lifecycleScope.launch {
+                            val entity = db.channelDao().getChannelById(channel.streamId)
+                            if (entity == null) {
+                                Toast.makeText(this@SettingsActivity, "That channel isn't available any more", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val link = com.iptvapp.tv.LauncherLinks.forChannel(this@SettingsActivity, prefs, entity)
+                            startActivity(Intent(this@SettingsActivity, com.iptvapp.tv.LauncherPlayActivity::class.java).apply {
+                                action = Intent.ACTION_VIEW
+                                data = android.net.Uri.parse(link)
                             })
+                            finish()
                         }
+                    } else {
+                        startActivity(Intent(this, com.iptvapp.ui.home.HomeActivity::class.java).apply {
+                            putExtra(com.iptvapp.ui.home.HomeActivity.EXTRA_JUMP_TO_STREAM_ID, channel.streamId)
+                        })
                         finish()
                     }
                     1 -> lifecycleScope.launch {

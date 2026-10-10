@@ -34,6 +34,9 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.CategoryEntity
 import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.ui.guide.ReminderTune
+import com.iptvapp.tv.LauncherLink
+import com.iptvapp.tv.LauncherLinks
+import com.iptvapp.tv.LauncherPending
 import com.iptvapp.tv.TvHomeChannelPublisher
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
@@ -41,6 +44,8 @@ import com.iptvapp.worker.EpgRefreshWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -140,6 +145,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // for a few seconds and would otherwise replace the reminded channel when it finally resolves.
     private var startupResumeJob: kotlinx.coroutines.Job? = null
     private var reminderTuneGen = 0
+    // Bumped to publish the TV home-screen row again even when favorites haven't changed
+    // (a stale card, or one made by v7.23 or older, was tapped).
+    private val launcherRepublish = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     // Left-panel drill-down state
     private enum class NavState { SIDEBAR, CATEGORIES, CHANNELS }
@@ -552,8 +560,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // replace it a moment later. take() also reads the id the tap activity saved, because
         // the intent extras are dropped when this screen is already the task root.
         val tune = ReminderTune.take(this, intent)
+        // A home-screen card. Taken (and cleared) even on a restore, but only acted on for a
+        // fresh start — a screen recreated after Android closed the app must not replay it.
+        val launcherCard = LauncherPending.take(this, intent)?.takeIf { savedInstanceState == null }
         if (tune != null) {
             launchReminderTune(tune.streamId, tune.serverIndex, fallBackToLastPlayed = true)
+        } else if (launcherCard != null) {
+            launchLauncherCard(launcherCard, fallBackToLastPlayed = true)
         } else {
             coldBootResumeInProgress = true
             startupResumeJob = lifecycleScope.launch {
@@ -679,6 +692,11 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             intent.removeExtra(EXTRA_REMOTE_HOME)
             remoteHome()
         }
+        LauncherPending.take(this, intent)?.let { card ->
+            // onResume, which follows this, finds nothing left to take.
+            launchLauncherCard(card)
+            return
+        }
         val tune = ReminderTune.take(this, intent) ?: return
         // onResume, which follows this, would otherwise re-prepare whatever is already on.
         launchReminderTune(tune.streamId, tune.serverIndex)
@@ -772,19 +790,81 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return true
     }
 
+    // mktv://play (home-screen cards) is read by LauncherPending.take in onCreate / onNewIntent /
+    // onResume, not here.
     private fun handleDeepLink(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme != "mktv") return
         when (uri.host) {
-            "play" -> {
-                val streamId = uri.lastPathSegment?.toIntOrNull() ?: return
-                lifecycleScope.launch {
-                    val channel = viewModel.getChannelById(streamId) ?: return@launch
-                    val url = channel.streamUrl ?: return@launch
-                    openPlayer(url, channel.name, channel.streamId)
-                }
-            }
             "home" -> showSidebar()
+        }
+    }
+
+    // A tapped card on the TV home screen. Same ownership rules as launchReminderTune: a newer
+    // tap or reminder cancels this one, and cold-boot / onResume resume stay out of the way.
+    private fun launchLauncherCard(link: String, fallBackToLastPlayed: Boolean = false) {
+        val generation = ++reminderTuneGen
+        coldBootResumeInProgress = true
+        startupResumeJob?.cancel()
+        reminderTuneJob?.cancel()
+        reminderTuneJob = lifecycleScope.launch {
+            try {
+                val played = playLauncherCard(link, generation)
+                if (!played && fallBackToLastPlayed && generation == reminderTuneGen) resumeLastPlayedChannel()
+            } finally {
+                if (generation == reminderTuneGen) coldBootResumeInProgress = false
+            }
+        }
+    }
+
+    // Opens the card's channel full screen, as before. The URL comes from the same place every
+    // other primary-channel play gets it (getLiveStreamUrl: an M3U channel's own URL, or one built
+    // from the saved login for Xtream) — never from the card. Returns false if nothing played.
+    private suspend fun playLauncherCard(link: String, generation: Int): Boolean {
+        when (val parsed = LauncherLink.parse(Intent.ACTION_VIEW, link)) {
+            is LauncherLink.Parsed.Current -> {
+                val channel = try {
+                    LauncherLinks.resolve(this, prefs, parsed) { viewModel.getChannelById(it) }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                if (generation != reminderTuneGen) return false
+                if (channel == null) {
+                    Toast.makeText(
+                        this,
+                        "That channel isn't available any more. MKTV's home screen favorites have been refreshed.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    launcherRepublish.value++
+                    return false
+                }
+                val url = try {
+                    viewModel.getLiveStreamUrl(channel.streamId)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
+                    return false
+                }
+                if (generation != reminderTuneGen) return false
+                kotlin.coroutines.coroutineContext.ensureActive()
+                openPlayer(url, channel.name, channel.streamId)
+                return true
+            }
+            is LauncherLink.Parsed.Legacy -> {
+                // Made by v7.23 or older: says nothing about which provider it was for, so it isn't
+                // guessed at. The row is published again in the new format.
+                Toast.makeText(
+                    this,
+                    "MKTV's home screen favorites were updated — please pick the channel again.",
+                    Toast.LENGTH_LONG
+                ).show()
+                launcherRepublish.value++
+                return false
+            }
+            LauncherLink.Parsed.Invalid -> return false
         }
     }
 
@@ -808,6 +888,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         // A tap can resume this screen without onNewIntent. The channel id was saved at tap time.
         val tune = ReminderTune.take(this, intent)
+        // Same for a home-screen card tapped while this screen was already open.
+        val launcherCard = LauncherPending.take(this, intent)
         // A channel the phone picked on a screen that couldn't play it (a movie, Settings…), which
         // brought this one back for it. Ahead of the resume branches below, which would otherwise
         // restart the old channel over it.
@@ -815,6 +897,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         com.iptvapp.remote.RemoteControlServer.pendingTune = null
         if (tune != null) {
             launchReminderTune(tune.streamId, tune.serverIndex)
+        } else if (launcherCard != null) {
+            launchLauncherCard(launcherCard)
         } else if (remotePending != null) {
             lifecycleScope.launch { remoteTune(remotePending) }
         } else if (coldBootResumeInProgress) {
@@ -3689,15 +3773,28 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         lifecycleScope.launch {
             viewModel.preWarmOnFocus.collect { preWarmEnabled = it }
         }
+        // TV home-screen row. Built from every primary favorite in the database — it used to read
+        // whatever list was on screen (one category, search results), which dropped favorites
+        // from other categories off the row — and published again whenever a favorite is added,
+        // removed, renamed or re-iconned, the login changes, or a stale card asks for it. An
+        // empty list clears the row. Not while a refresh is running, same as before.
         lifecycleScope.launch {
-            viewModel.loading.collect { isLoading ->
-                if (!isLoading) {
-                    val favorites = viewModel.channels.value.filter { it.isFavorite }
-                    if (favorites.isNotEmpty()) {
-                        TvHomeChannelPublisher.publishFavorites(applicationContext, favorites)
-                    }
-                }
+            kotlinx.coroutines.flow.combine(
+                viewModel.launcherFavorites(),
+                prefs.credentials,
+                viewModel.loading,
+                launcherRepublish
+            ) { favorites, creds, isLoading, tick ->
+                if (isLoading) null
+                else LauncherLinks.entriesFor(
+                    applicationContext, favorites.take(TvHomeChannelPublisher.MAX_PROGRAMS), creds
+                ) to tick
             }
+                .filterNotNull()
+                .distinctUntilChanged()
+                .collect { (entries, _) ->
+                    TvHomeChannelPublisher.publishFavorites(applicationContext, entries)
+                }
         }
     }
 
