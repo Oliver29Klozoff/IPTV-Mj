@@ -236,9 +236,15 @@ class RecordingRecoveryTest {
     }
 
     @Test
-    fun anUpdateLeavesAV722AlarmAndItsStreamInPlace() = runBlocking {
-        // v7.22 set the alarm with the stream URL in it; no saved stream exists yet.
-        val id = insert("SCHEDULED", now + hour)
+    fun anUpdateLeavesAV722AlarmAndItsStreamInPlace() = legacyAlarmSurvives(startMs = now + hour)
+
+    @Test
+    fun anUpdateLeavesAnOverdueV722AlarmAndItsStreamInPlace() = legacyAlarmSurvives(startMs = now - 2 * 60_000L)
+
+    private fun legacyAlarmSurvives(startMs: Long) = runBlocking {
+        // v7.22 set the alarm with the stream URL in it; no saved stream exists yet. The provider
+        // in that slot may have changed since, so only that URL records the right channel.
+        val id = insert("SCHEDULED", startMs)
         val legacy = android.app.PendingIntent.getBroadcast(
             context, id,
             Intent(context, com.iptvapp.ui.recordings.RecordingAlarmReceiver::class.java).apply {
@@ -247,12 +253,16 @@ class RecordingRecoveryTest {
             },
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, now + hour, legacy)
+        // A trigger time recovery would never pick (it uses the start, or now + START_DELAY_MS), so
+        // a replaced alarm shows up as a different time.
+        val legacyAt = startMs + 7
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, legacyAt, legacy)
 
         RecordingRecovery.run(context, db, now) // MY_PACKAGE_REPLACED
         val alarm = alarms().single()
+        assertEquals("not replaced", legacyAt, alarm.triggerAtMs)
         assertEquals(
-            "not replaced: it still carries the stream it was scheduled with",
+            "it still carries the stream it was scheduled with",
             "http://scheduled-provider.example/live/a/b/5.ts",
             shadowOf(alarm.operation).savedIntent.getStringExtra(RecordingService.EXTRA_STREAM_URL)
         )
