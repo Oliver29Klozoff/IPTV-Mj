@@ -74,6 +74,13 @@ class IptvApplication : Application(), Configuration.Provider {
                 logPlaybackEvent(app, "APP STARTED: v${v.versionName} (${v.versionCodeCompat})")
             } catch (_: Exception) {}
         }
+        // A force-stop clears the app's alarms and no broadcast says so; the next start (this)
+        // is the first chance to set scheduled recordings and reminders again. The same recovery
+        // the boot receiver runs: repeating it replaces alarms rather than adding them.
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { com.iptvapp.service.RecordingRecovery.run(app, db) }
+            runCatching { com.iptvapp.ui.guide.ChannelTimerScheduler.recover(app) }
+        }
     }
 
     private fun createNotificationChannels() {

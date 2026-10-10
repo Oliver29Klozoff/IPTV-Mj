@@ -1,8 +1,6 @@
 package com.iptvapp.ui.recordings
 
-import android.app.AlarmManager
 import android.app.DatePickerDialog
-import android.app.PendingIntent
 import android.app.TimePickerDialog
 import android.content.ContentValues
 import android.content.Context
@@ -28,7 +26,9 @@ import com.iptvapp.data.local.entities.RecordingEntity
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityRecordingSchedulerBinding
 import com.iptvapp.databinding.ItemRecordingBinding
-import com.iptvapp.service.RecordingService
+import com.iptvapp.service.RecordingAlarms
+import com.iptvapp.service.RecordingNotifications
+import com.iptvapp.service.RecordingStarter
 import com.iptvapp.util.RecordingFileUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -320,6 +320,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityRecordingSchedulerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        if (savedInstanceState == null) startFromNotification(intent)
 
         binding.btnBack.setOnClickListener { finish() }
         binding.rvRecordings.layoutManager = LinearLayoutManager(this)
@@ -743,15 +744,9 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 )
 
                 val id = database.recordingDao().insert(recording).toInt()
+                com.iptvapp.service.RecordingUrls.put(applicationContext, id, streamUrl)
 
-                scheduleRecordingAlarm(
-                    recordingId = id,
-                    channelName = channel.name,
-                    streamUrl = streamUrl,
-                    durationMs = durationMs,
-                    outputTarget = outputTarget,
-                    startMs = startMs
-                )
+                scheduleRecordingAlarm(recordingId = id, startMs = startMs)
 
                 Toast.makeText(
                     this@RecordingSchedulerActivity,
@@ -813,15 +808,9 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 )
 
                 val id = database.recordingDao().insert(recording).toInt()
+                com.iptvapp.service.RecordingUrls.put(applicationContext, id, streamUrl)
 
-                scheduleRecordingAlarm(
-                    recordingId = id,
-                    channelName = channel.name,
-                    streamUrl = streamUrl,
-                    durationMs = durationMs,
-                    outputTarget = outputTarget,
-                    startMs = startMs
-                )
+                scheduleRecordingAlarm(recordingId = id, startMs = startMs)
 
                 Toast.makeText(
                     this@RecordingSchedulerActivity,
@@ -865,80 +854,52 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         return File(dir, fileName).absolutePath
     }
 
-    private fun scheduleRecordingAlarm(
-        recordingId: Int,
-        channelName: String,
-        streamUrl: String,
-        durationMs: Long,
-        outputTarget: String,
-        startMs: Long
-    ) {
-        val serviceExtras = Intent(this, RecordingService::class.java).apply {
-            putExtra(RecordingService.EXTRA_RECORDING_ID, recordingId)
-            putExtra(RecordingService.EXTRA_STREAM_URL, streamUrl)
-            putExtra(RecordingService.EXTRA_CHANNEL_NAME, channelName)
-            putExtra(RecordingService.EXTRA_DURATION_MS, durationMs)
-            putExtra(RecordingService.EXTRA_OUTPUT_PATH, outputTarget)
-        }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        startFromNotification(intent)
+    }
 
-        // If start time is now or in the past, skip the alarm and start immediately
+    // "Recording not started" notification: Android refused to start it in the background. This
+    // screen is in front now, so it can start it (RecordingStarter checks the id against the schedule).
+    private fun startFromNotification(intent: Intent?) {
+        val id = intent?.getIntExtra(RecordingNotifications.EXTRA_START_RECORDING_ID, -1) ?: -1
+        if (id < 0) return
+        val resume = intent?.getBooleanExtra(RecordingAlarms.EXTRA_RESUME, false) ?: false
+        intent?.removeExtra(RecordingNotifications.EXTRA_START_RECORDING_ID)
+        RecordingNotifications.cancel(this, id)
+        RecordingStarter.startFromScreen(this, database, repository, id, resume)
+    }
+
+    // The alarm carries only the id; when it fires, RecordingStarter looks up the stream saved at
+    // scheduling (RecordingUrls) and the time left, and RecordingRecovery sets it again after a reboot.
+    private fun scheduleRecordingAlarm(recordingId: Int, startMs: Long) {
+        // Starting now: this screen is in front, so Android lets the recording start directly.
         if (startMs <= System.currentTimeMillis() + 3000L) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceExtras)
-            } else {
-                startService(serviceExtras)
-            }
+            RecordingStarter.startFromScreen(this, database, repository, recordingId)
             return
         }
 
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        // Warn if exact alarm permission is missing — recording may fire late
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+        // Without exact alarms (Android 12+) the recording may start late, and Android may not let
+        // it start in the background at all — then a notification asks for a tap.
+        if (!RecordingAlarms.canScheduleExact(this)) {
             AlertDialog.Builder(this)
-                .setTitle("Exact Alarm Permission Needed")
-                .setMessage("Without this permission, scheduled recordings may start late. Tap Allow to fix it.")
+                .setTitle("Allow Alarms & Reminders")
+                .setMessage(
+                    "Without it, Android may start scheduled recordings late, or only after you tap a " +
+                        "notification. Tap Allow to turn it on for MKTV."
+                )
                 .setPositiveButton("Allow") { _, _ ->
-                    startActivity(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM.let {
-                        android.content.Intent(it)
-                    })
+                    runCatching {
+                        startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+                    }
                 }
                 .setNegativeButton("Continue Anyway", null)
                 .show()
         }
-
-        val intent = Intent(this, RecordingAlarmReceiver::class.java).apply {
-            putExtras(serviceExtras)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            this, recordingId, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pendingIntent)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pendingIntent)
-        } else {
-            alarmManager.setExact(AlarmManager.RTC_WAKEUP, startMs, pendingIntent)
-        }
+        RecordingAlarms.schedule(this, recordingId, startMs)
     }
 
-    private fun cancelRecordingAlarm(recordingId: Int) {
-        val intent = Intent(this, RecordingAlarmReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            this,
-            recordingId,
-            intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        if (pendingIntent != null) {
-            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(pendingIntent)
-            pendingIntent.cancel()
-        }
-    }
+    private fun cancelRecordingAlarm(recordingId: Int) = RecordingAlarms.cancel(this, recordingId)
 
     inner class RecordingAdapter(
         private val onDelete: (RecordingEntity) -> Unit,

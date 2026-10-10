@@ -196,6 +196,20 @@
             android:name=".ui.recordings.RecordingAlarmReceiver"
             android:exported="false" />
 
+        <!-- Re-arms scheduled recordings and reminders: alarms don't survive a reboot. Exported
+             only so the system can deliver these protected broadcasts; any other action is
+             ignored and nothing is read from the intent. Not direct-boot aware: the schedule is in
+             credential-encrypted storage, so LOCKED_BOOT_COMPLETED would have nothing to read. -->
+        <receiver
+            android:name=".ui.recordings.RecordingRecoveryReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
 <receiver
             android:name=".ui.guide.ChannelTimerReceiver"
             android:exported="false" />
