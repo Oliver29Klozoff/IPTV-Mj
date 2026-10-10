@@ -48,6 +48,32 @@ internal object RecordingPlan {
 }
 
 /**
+ * The stream each scheduled recording was set up for, saved when it was scheduled (app-private
+ * storage, like the login itself). Extra providers are known only by their slot number, which a
+ * primary switch or a removed provider gives to a different provider; building the URL again when
+ * the alarm fires could then record the wrong provider's channel. v7.22 kept this URL in the alarm,
+ * which a reboot lost; here it survives. Schedules from older builds have none and fall back to
+ * building it from the current login.
+ */
+object RecordingUrls {
+    private const val PREFS = "recording_stream_urls"
+
+    fun put(context: Context, recordingId: Int, url: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(recordingId.toString(), url).commit()
+    }
+
+    fun get(context: Context, recordingId: Int): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(recordingId.toString(), null)
+
+    /** Drops URLs of recordings that are finished, failed or deleted. */
+    fun keepOnly(context: Context, recordingIds: Set<Int>) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val stale = prefs.all.keys.filter { it.toIntOrNull() !in recordingIds }
+        if (stale.isNotEmpty()) prefs.edit().apply { stale.forEach { remove(it) } }.apply()
+    }
+}
+
+/**
  * The one place recording alarms are set and cancelled. An alarm carries only the recording's
  * id (never the stream URL or login); the receiver looks everything up when it fires. The
  * PendingIntent is keyed by that id, so setting it again replaces the earlier alarm instead of

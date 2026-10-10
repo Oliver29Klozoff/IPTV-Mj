@@ -701,6 +701,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 if (!proceed) return@launch
             }
             try {
+                val streamUrl = repository.getLiveStreamUrlForRecording(channel.streamId)
                 val outputTarget = createOutputTarget(channel, startMs)
                 val programTitle = try {
                     database.epgDao().getNowPlaying(channel.streamId)?.title
@@ -715,6 +716,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     programTitle = programTitle
                 )
                 val id = database.recordingDao().insert(recording).toInt()
+                com.iptvapp.service.RecordingUrls.put(applicationContext, id, streamUrl)
                 scheduleAlarm(id, startMs)
 
                 Toast.makeText(
@@ -757,6 +759,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 if (!proceed) return@launch
             }
             try {
+                val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
                 val outputTarget = createOutputTarget(channel.name, startMs)
                 val programTitle = try {
                     database.epgDao().getNowPlaying(channel.streamId, channel.serverIndex)?.title
@@ -772,6 +775,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     programTitle = programTitle
                 )
                 val id = database.recordingDao().insert(recording).toInt()
+                com.iptvapp.service.RecordingUrls.put(applicationContext, id, streamUrl)
                 scheduleAlarm(id, startMs)
 
                 Toast.makeText(

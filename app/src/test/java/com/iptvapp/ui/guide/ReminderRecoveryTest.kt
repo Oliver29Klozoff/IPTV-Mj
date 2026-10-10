@@ -94,6 +94,15 @@ class ReminderRecoveryTest {
     }
 
     @Test
+    fun anAtStartTimeReminderBeingDeliveredIsNotDroppedByRecovery() {
+        // The alarm cold-starts the app exactly at the start; app-start recovery runs first.
+        val start = System.currentTimeMillis() + 60_000L
+        ChannelTimerScheduler.schedule(context, 7, "News", "Nightly", start)
+        ChannelTimerScheduler.recover(context, nowMs = start + 5_000L)
+        assertTrue("still claimable by the delivering alarm", ChannelTimerScheduler.claimFiring(context, 7, start))
+    }
+
+    @Test
     fun aShowThatAlreadyStartedIsDropped() {
         val start = System.currentTimeMillis() + hour
         ChannelTimerScheduler.schedule(context, 7, "News", "Nightly", start)

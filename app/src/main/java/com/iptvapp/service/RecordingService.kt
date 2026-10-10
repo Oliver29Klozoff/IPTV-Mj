@@ -192,19 +192,34 @@ class RecordingService : Service() {
                 startForeground(NOTIF_ID, buildNotif(name))
             }
         } catch (e: Exception) {
-            // Android 12+ refused to make this a foreground service (no background-start
-            // exemption). Nothing has been recorded; say so instead of crashing. When it throws,
-            // this service isn't foreground yet, so no other recording is running in it.
+            // Android refused to make this a foreground service — no background-start exemption
+            // (Android 12+), or Android 15's daily dataSync time is used up. Nothing has been
+            // recorded. When it throws, this service isn't foreground yet, so no other recording is
+            // running in it.
             if (recordingId != -1) {
-                val reason = "Android didn't allow the recording to start in the background"
-                runCatching {
-                    kotlinx.coroutines.runBlocking {
-                        kotlinx.coroutines.withTimeoutOrNull(2000L) {
-                            database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                val refused = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    e is android.app.ForegroundServiceStartNotAllowedException
+                if (refused) {
+                    // Still startable: put a fresh start back to SCHEDULED and ask for a tap, which
+                    // opens the app — starting from the foreground is allowed, and opening the app
+                    // resets Android 15's daily time.
+                    if (!resume) runCatching {
+                        kotlinx.coroutines.runBlocking {
+                            kotlinx.coroutines.withTimeoutOrNull(2000L) { database.recordingDao().unclaim(recordingId) }
                         }
                     }
+                    RecordingNotifications.postTapToStart(this, recordingId, name, resume)
+                } else {
+                    val reason = "Android didn't allow the recording to start: ${e.javaClass.simpleName}"
+                    runCatching {
+                        kotlinx.coroutines.runBlocking {
+                            kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                                database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                            }
+                        }
+                    }
+                    notifyRecordingFailed(recordingId, name, reason)
                 }
-                notifyRecordingFailed(recordingId, name, reason)
             }
             if (jobs.isEmpty()) stopSelf(startId)
             return START_NOT_STICKY

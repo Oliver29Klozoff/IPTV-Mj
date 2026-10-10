@@ -11,7 +11,6 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.entities.RecordingEntity
-import com.iptvapp.ui.recordings.RecordingAlarmReceiver
 import com.iptvapp.ui.recordings.RecordingRecoveryReceiver
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
@@ -209,12 +208,31 @@ class RecordingRecoveryTest {
         assertEquals(RecordingStarter.Outcome.NOT_ALLOWED, outcome)
         assertEquals("not marked failed: it can still start", "SCHEDULED", db.recordingDao().getById(id)!!.status)
 
-        RecordingNotifications.postTapToStart(context, db.recordingDao().getById(id)!!, resume = false)
+        RecordingNotifications.postTapToStart(context, id, "News", resume = false)
         val notification = shadowOf(context.getSystemService(NotificationManager::class.java)).allNotifications.single()
-        val tap = shadowOf(notification.actions.single().actionIntent).savedIntent
-        assertEquals(RecordingAlarmReceiver::class.java.name, tap.component!!.className)
-        assertEquals(RecordingNotifications.ACTION_START_FROM_NOTIFICATION, tap.action)
-        assertEquals(id, tap.getIntExtra(RecordingService.EXTRA_RECORDING_ID, -1))
+        // The tap opens MKTV's recordings screen, which starts it from the foreground (allowed on
+        // Android 12+, and it resets Android 15's daily background time).
+        val tap = shadowOf(notification.actions.single().actionIntent)
+        assertTrue(tap.isActivityIntent)
+        assertEquals(com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java.name, tap.savedIntent.component!!.className)
+        assertEquals(id, tap.savedIntent.getIntExtra(RecordingNotifications.EXTRA_START_RECORDING_ID, -1))
+    }
+
+    @Test
+    fun theStreamSavedAtSchedulingIsUsedNotOneBuiltFromTheCurrentSlot() = runBlocking {
+        // An extra provider's slot can be handed to a different provider after scheduling.
+        val id = insert("SCHEDULED", now - 60_000L)
+        RecordingUrls.put(context, id, "http://scheduled-provider.example/live/a/b/5.ts")
+        RecordingStarter.start(
+            context, db, id, resume = false, nowMs = now,
+            resolveUrl = { RecordingUrls.get(context, it.id) ?: "http://other-provider.example/live/x/y/5.ts" },
+            launch = { launched += it }
+        )
+        assertEquals("http://scheduled-provider.example/live/a/b/5.ts", launched.single().getStringExtra(RecordingService.EXTRA_STREAM_URL))
+        // Finished recordings' saved streams are dropped by recovery.
+        db.recordingDao().updateStatus(id, "DONE")
+        RecordingRecovery.run(context, db, now)
+        assertNull(RecordingUrls.get(context, id))
     }
 
     @Test

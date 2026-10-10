@@ -27,6 +27,7 @@ import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityRecordingSchedulerBinding
 import com.iptvapp.databinding.ItemRecordingBinding
 import com.iptvapp.service.RecordingAlarms
+import com.iptvapp.service.RecordingNotifications
 import com.iptvapp.service.RecordingStarter
 import com.iptvapp.util.RecordingFileUtils
 import dagger.hilt.android.AndroidEntryPoint
@@ -319,6 +320,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityRecordingSchedulerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        if (savedInstanceState == null) startFromNotification(intent)
 
         binding.btnBack.setOnClickListener { finish() }
         binding.rvRecordings.layoutManager = LinearLayoutManager(this)
@@ -723,6 +725,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 if (!proceed) return@launch
             }
             try {
+                val streamUrl = repository.getLiveStreamUrlForRecording(channel.streamId)
                 val outputTarget = createOutputTarget(channel, startMs)
                 // Best-effort program title at the actual requested time (not the pre-roll-shifted
                 // startMs) — this is the only identity a recording gets beyond its channel name,
@@ -741,6 +744,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 )
 
                 val id = database.recordingDao().insert(recording).toInt()
+                com.iptvapp.service.RecordingUrls.put(applicationContext, id, streamUrl)
 
                 scheduleRecordingAlarm(recordingId = id, startMs = startMs)
 
@@ -787,6 +791,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 if (!proceed) return@launch
             }
             try {
+                val streamUrl = repository.getMergedLiveStreamUrlForRecording(channel.serverIndex, channel.streamId)
                 val outputTarget = createOutputTarget(channel.name, startMs)
                 val programTitle = try {
                     database.epgDao().getNowPlaying(channel.streamId, channel.serverIndex)?.title
@@ -803,6 +808,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 )
 
                 val id = database.recordingDao().insert(recording).toInt()
+                com.iptvapp.service.RecordingUrls.put(applicationContext, id, streamUrl)
 
                 scheduleRecordingAlarm(recordingId = id, startMs = startMs)
 
@@ -848,8 +854,24 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         return File(dir, fileName).absolutePath
     }
 
-    // The alarm carries only the id; the stream and the time left are looked up when it fires
-    // (RecordingStarter), and RecordingRecovery sets it again after a reboot.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        startFromNotification(intent)
+    }
+
+    // "Recording not started" notification: Android refused to start it in the background. This
+    // screen is in front now, so it can start it (RecordingStarter checks the id against the schedule).
+    private fun startFromNotification(intent: Intent?) {
+        val id = intent?.getIntExtra(RecordingNotifications.EXTRA_START_RECORDING_ID, -1) ?: -1
+        if (id < 0) return
+        val resume = intent?.getBooleanExtra(RecordingAlarms.EXTRA_RESUME, false) ?: false
+        intent?.removeExtra(RecordingNotifications.EXTRA_START_RECORDING_ID)
+        RecordingNotifications.cancel(this, id)
+        RecordingStarter.startFromScreen(this, database, repository, id, resume)
+    }
+
+    // The alarm carries only the id; when it fires, RecordingStarter looks up the stream saved at
+    // scheduling (RecordingUrls) and the time left, and RecordingRecovery sets it again after a reboot.
     private fun scheduleRecordingAlarm(recordingId: Int, startMs: Long) {
         // Starting now: this screen is in front, so Android lets the recording start directly.
         if (startMs <= System.currentTimeMillis() + 3000L) {

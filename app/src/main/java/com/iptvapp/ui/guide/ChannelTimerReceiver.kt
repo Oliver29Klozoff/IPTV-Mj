@@ -78,6 +78,9 @@ object ChannelTimerScheduler {
     // (one per channel, same as the alarm — its PendingIntent is keyed by streamId) for the guide's
     // bell icon and "Reminder set" state (v6.91).
     private const val REMINDERS = "channel_reminders"
+    // How long after a show starts recovery still keeps its unposted, same-boot reminder for the
+    // alarm that may be delivering it.
+    private const val DELIVERY_GRACE_MS = 10 * 60_000L
 
     // Each entry records the boot it was set in: a reboot clears every alarm, so an entry from an
     // earlier boot no longer counts as scheduled until recover() sets it again. Android's boot
@@ -173,8 +176,17 @@ object ChannelTimerScheduler {
             synchronized(lock) {
                 // Read under the lock: a delivery may have just claimed this occurrence.
                 val e = read(context, streamId)
-                if (e == null || e.startMs <= nowMs) {
+                if (e == null) {
                     prefs.edit().remove(key).commit()
+                    return@synchronized
+                }
+                if (e.startMs <= nowMs) {
+                    // Same boot, not yet posted, and only just started: its alarm ("at start time")
+                    // may be being delivered right now and must still find it to claim. Anything
+                    // else — missed across a reboot, already posted, or long past — is dropped.
+                    if (e.boot != currentBoot || e.fired || nowMs - e.startMs > DELIVERY_GRACE_MS) {
+                        prefs.edit().remove(key).commit()
+                    }
                     return@synchronized
                 }
                 if (e.fired) return@synchronized
@@ -198,6 +210,11 @@ object ChannelTimerScheduler {
         val leadMinutes = runBlocking {
             context.dataStore.data.first()[com.iptvapp.data.local.REMINDER_LEAD_MINUTES_KEY] ?: 5
         }
+        // The entry and its alarm change together, under the lock recovery and delivery use.
+        synchronized(lock) { arm(context, streamId, channelName, programTitle, startMs, serverIndex, leadMinutes) }
+    }
+
+    private fun arm(context: Context, streamId: Int, channelName: String, programTitle: String, startMs: Long, serverIndex: Int, leadMinutes: Int) {
         val fireAtMs = (startMs - leadMinutes * 60_000L).coerceAtLeast(System.currentTimeMillis() + 1000L)
         // When the notice time has already passed (set late, or the device was off), say how long
         // is really left rather than the full lead time.
@@ -224,14 +241,14 @@ object ChannelTimerScheduler {
         }
     }
 
-    fun cancel(context: Context, streamId: Int) {
+    fun cancel(context: Context, streamId: Int) = synchronized(lock) {
         val intent = Intent(context, ChannelTimerReceiver::class.java)
         val pi = PendingIntent.getBroadcast(
             context, streamId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi)
-        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().remove(streamId.toString()).apply()
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().remove(streamId.toString()).commit()
     }
 }
 

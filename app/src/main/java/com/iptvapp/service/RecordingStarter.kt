@@ -43,11 +43,11 @@ object RecordingStarter {
 
     /** Start now, from a recordings screen. Not tied to the screen, so backing out of it straight
      * away doesn't cancel the start; if Android still refuses, the notification offers a tap. */
-    fun startFromScreen(context: Context, db: IptvDatabase, repository: XtreamRepository, recordingId: Int) {
+    fun startFromScreen(context: Context, db: IptvDatabase, repository: XtreamRepository, recordingId: Int, resume: Boolean = false) {
         val app = context.applicationContext
         appScope.launch {
-            if (start(app, db, repository, recordingId) == Outcome.NOT_ALLOWED) {
-                db.recordingDao().getById(recordingId)?.let { RecordingNotifications.postTapToStart(app, it, resume = false) }
+            if (start(app, db, repository, recordingId, resume) == Outcome.NOT_ALLOWED) {
+                db.recordingDao().getById(recordingId)?.let { RecordingNotifications.postTapToStart(app, it.id, it.channelName, resume) }
             }
         }
     }
@@ -61,8 +61,10 @@ object RecordingStarter {
     ): Outcome = start(
         context, db, recordingId, resume, System.currentTimeMillis(),
         resolveUrl = { rec ->
-            if (rec.serverIndex == -1) repository.getLiveStreamUrlForRecording(rec.streamId)
-            else repository.getMergedLiveStreamUrlForRecording(rec.serverIndex, rec.streamId)
+            // The stream it was scheduled for; schedules from older builds build it from the login.
+            RecordingUrls.get(context, rec.id)
+                ?: if (rec.serverIndex == -1) repository.getLiveStreamUrlForRecording(rec.streamId)
+                else repository.getMergedLiveStreamUrlForRecording(rec.serverIndex, rec.streamId)
         },
         launch = { intent -> ContextCompat.startForegroundService(context, intent) }
     )
@@ -160,7 +162,9 @@ object RecordingRecovery {
         var scheduled = 0
         var starting = 0
         var missed = 0
-        for (rec in db.recordingDao().getScheduledOrRecording()) {
+        val rows = db.recordingDao().getScheduledOrRecording()
+        RecordingUrls.keepOnly(context, rows.mapTo(HashSet()) { it.id })
+        for (rec in rows) {
             when (val action = RecordingPlan.decide(rec.status, rec.scheduledStartMs, rec.durationMs, nowMs)) {
                 is RecordingPlan.Alarm -> {
                     RecordingAlarms.schedule(context, rec.id, action.atMs)
@@ -182,7 +186,8 @@ object RecordingRecovery {
 }
 
 object RecordingNotifications {
-    const val ACTION_START_FROM_NOTIFICATION = "com.iptvapp.action.START_RECORDING_FROM_NOTIFICATION"
+    // On RecordingSchedulerActivity: start this recording (from the "Recording not started" notification).
+    const val EXTRA_START_RECORDING_ID = "start_recording_id"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -193,43 +198,38 @@ object RecordingNotifications {
     }
 
     /**
-     * Android wouldn't let the recording start on its own (no exact-alarm permission on Android
-     * 12+, so the alarm carried no right to start it from the background). A tap is a user action,
-     * which does allow it, and records whatever is left of the window.
+     * Android wouldn't let the recording start on its own: no exact-alarm permission on Android
+     * 12+ (the alarm carried no right to start it from the background), or Android 15's daily
+     * background-recording time is used up. Tapping opens MKTV's recordings screen, which starts
+     * it from the foreground — allowed in both cases (opening the app also resets Android 15's
+     * daily time) — and records whatever is left of the window.
      */
-    fun postTapToStart(context: Context, rec: RecordingEntity, resume: Boolean) {
+    fun postTapToStart(context: Context, recordingId: Int, channelName: String, resume: Boolean) {
         ensureChannels(context)
-        val start = Intent(context, RecordingAlarmReceiver::class.java).apply {
-            action = ACTION_START_FROM_NOTIFICATION
-            putExtra(RecordingService.EXTRA_RECORDING_ID, rec.id)
-            putExtra(RecordingAlarms.EXTRA_RESUME, resume)
-        }
-        val pi = PendingIntent.getBroadcast(
-            context, rec.id, start,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        // The body opens the recordings screen; starting is the button (a broadcast belongs on an
-        // action, not on the notification itself).
         val open = PendingIntent.getActivity(
-            context, rec.id,
-            Intent(context, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            context, recordingId,
+            Intent(context, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(EXTRA_START_RECORDING_ID, recordingId)
+                putExtra(RecordingAlarms.EXTRA_RESUME, resume)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val text = "Android didn't let MKTV start this recording in the background. Tap Start recording to " +
+        val text = "Android didn't let MKTV start this recording in the background. Tap to open MKTV and " +
             "record the rest now. To avoid this, allow MKTV to set alarms (Settings → Apps → MKTV → Alarms & reminders)."
         val notification = NotificationCompat.Builder(context, RecordingService.FAILURE_CHANNEL_ID)
             .setSmallIcon(com.iptvapp.R.drawable.ic_notification)
-            .setContentTitle("Recording not started: ${rec.channelName}")
+            .setContentTitle("Recording not started: $channelName")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)
-            .addAction(0, "Start recording", pi)
+            .addAction(0, "Start recording", open)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-        notify(context, rec.id, notification)
+        notify(context, recordingId, notification)
     }
+
 
     fun postMissed(context: Context, rec: RecordingEntity) {
         ensureChannels(context)
