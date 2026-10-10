@@ -121,7 +121,17 @@ data class SeriesFts(val name: String)
 // streamId (and even coincidentally the same raw EPG listing id), so id alone can't be the
 // primary key once merged/secondary providers have EPG data too — same sentinel/composite-key
 // pattern as RecordingEntity.serverIndex and MergedChannelEntity's (serverIndex, streamId) key.
-@Entity(tableName = "epg_entries", primaryKeys = ["serverIndex", "id"])
+// One index: (serverIndex, streamId, startTimestamp) serves one channel's guide and
+// now/next, streamId IN (...) ordered by start (favorites, guide grid, other providers), the
+// per-channel delete, and DISTINCT streamId. Measured on 432k rows: an index on
+// (serverIndex, startTimestamp) quadrupled a full guide replace and made MAX(stopTimestamp)
+// 16x slower; one on stopTimestamp made the upcoming-titles scan (show alerts, Sports, voice)
+// 4.6x slower. Those reads, and title search (LIKE '%x%'), stay table scans as in v7.21.
+@Entity(
+    tableName = "epg_entries",
+    primaryKeys = ["serverIndex", "id"],
+    indices = [Index(value = ["serverIndex", "streamId", "startTimestamp"])]
+)
 data class EpgEntity(
     val serverIndex: Int = -1,
     val id: String,
@@ -220,8 +230,8 @@ data class MergedChannelEntity(
     // which always had it. Without it, fetchXmltvEpgForMergedServer could only fall back to
     // fuzzy channel-name matching against the XMLTV feed, which is why favorited channels on a
     // provider with a large/messy XMLTV feed could get zero guide data even when the fetch
-    // itself succeeded — see XtreamRepository.fetchXmltvFromUrl (primary path) for the
-    // byEpgId-first matching this now allows merged channels to use too.
+    // itself succeeded — see XmltvEpgRefresh.matchMerged for the byEpgId-first matching
+    // this now allows merged channels to use too.
     val epgChannelId: String? = null,
     // A single server can itself have tens of thousands of channels (real-world reseller
     // panels observed at 30k-85k), so category grouping is required even per-server, not just

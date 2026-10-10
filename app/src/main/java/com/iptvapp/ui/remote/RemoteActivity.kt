@@ -229,9 +229,10 @@ class RemoteActivity : AppCompatActivity() {
         fun ms(t: Long) = if (t < 100_000_000_000L) t * 1000L else t
         val now = System.currentTimeMillis()
         // Chunked: SQLite allows only so many values in one IN (…).
-        val rows = picks.map { "${it.serverIndex}:${it.streamId}" }.distinct().chunked(400).flatMap { keys ->
-            db.epgDao().getEpgForServerStreamKeys(keys).first()
-        }.filter { ms(it.stopTimestamp) > now }.groupBy { it.serverIndex to it.streamId }
+        val rows = repository.getEpgForServerStreams(picks.map { it.serverIndex to it.streamId }.distinct())
+            .first()
+            .filter { ms(it.stopTimestamp) > now }
+            .groupBy { it.serverIndex to it.streamId }
         val time = java.text.SimpleDateFormat("h:mm", java.util.Locale.getDefault())
         return picks.map { pick ->
             val shows = rows[pick.serverIndex to pick.streamId]?.sortedBy { ms(it.startTimestamp) } ?: return@map pick

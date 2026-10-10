@@ -363,11 +363,6 @@ interface EpgDao {
     fun getEpgForStream(streamId: Int, serverIndex: Int = -1): Flow<List<EpgEntity>>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId IN (:streamIds) ORDER BY streamId ASC, startTimestamp ASC")
     fun getEpgForStreams(streamIds: List<Int>, serverIndex: Int = -1): Flow<List<EpgEntity>>
-    // Guide needs merged-provider programs for several servers at once — a plain IN() on
-    // streamId alone would collide across servers reusing the same numeric id, so this takes
-    // explicit (serverIndex, streamId) pairs instead of a single serverIndex + id list.
-    @Query("SELECT * FROM epg_entries WHERE (serverIndex || ':' || streamId) IN (:serverStreamKeys) ORDER BY serverIndex ASC, streamId ASC, startTimestamp ASC")
-    fun getEpgForServerStreamKeys(serverStreamKeys: List<String>): Flow<List<EpgEntity>>
     @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun getStreamIdsWithEpg(serverIndex: Int = -1): List<Int>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
@@ -400,13 +395,10 @@ interface EpgDao {
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")
     suspend fun deleteExpiredEpg(before: Long = System.currentTimeMillis() / 1000)
-    // upsertEpg's id ("x_${xmltvChannelId}_${startSec}") is scoped to the XMLTV feed's OWN
-    // channel id, not the resolved local streamId — so when a re-fetch resolves an XMLTV channel
-    // to a DIFFERENT (now-correct, post name-matching-fix) local streamId than a previous fetch
-    // did, upsert just adds a new row under the new streamId; the old row under the old, wrong
-    // streamId is never touched and stays wrong forever. fetchXmltvEpg/fetchXmltvEpgForMergedServer
-    // call this right before writing a fresh batch, since both already fetch the complete current
-    // dataset — there's no partial-update case where keeping old rows around is correct.
+    // A full XMLTV replace deletes the slot's rows and inserts the new ones in ONE transaction
+    // (XmltvGuideWriter), only after the new guide has been downloaded and matched. Calling
+    // this on its own, before that download, is what used to wipe a good guide when the
+    // download failed. Upsert alone cannot drop a row whose streamId changed.
     @Query("DELETE FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun deleteAllForServer(serverIndex: Int = -1)
 
