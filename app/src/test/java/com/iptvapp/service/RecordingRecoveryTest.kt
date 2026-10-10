@@ -146,6 +146,26 @@ class RecordingRecoveryTest {
     }
 
     @Test
+    fun aCaptureThatJustStartedIsNeverMarkedMissedOrDeleted() = runBlocking {
+        // Recovery read the row as SCHEDULED near the end of its window; the alarm claimed it first.
+        val file = java.io.File.createTempFile("mktv-capture", ".ts").apply { writeText("captured") }
+        val id = db.recordingDao().insert(
+            RecordingEntity(
+                streamId = 1, channelName = "News", scheduledStartMs = now - hour, durationMs = hour + 30_000L,
+                outputPath = file.absolutePath, status = "SCHEDULED"
+            )
+        ).toInt()
+        val staleRead = db.recordingDao().getById(id)!!
+        assertEquals(1, db.recordingDao().claimScheduled(id))
+
+        assertFalse(RecordingStarter.markMissed(context, db, staleRead))
+        assertEquals("RECORDING", db.recordingDao().getById(id)!!.status)
+        assertTrue("the capture's file is untouched", file.exists())
+        file.delete()
+        Unit
+    }
+
+    @Test
     fun aStrayAlarmForARunningCaptureDoesNothing() = runBlocking {
         val id = insert("RECORDING", now - 60_000L)
         assertEquals(RecordingStarter.Outcome.IGNORED, start(id, resume = false))

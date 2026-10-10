@@ -85,10 +85,7 @@ object RecordingStarter {
                 RecordingAlarms.schedule(context, rec.id, action.atMs)
                 Outcome.RESCHEDULED
             }
-            RecordingPlan.Missed -> {
-                markMissed(context, db, rec)
-                Outcome.MISSED
-            }
+            RecordingPlan.Missed -> if (markMissed(context, db, rec)) Outcome.MISSED else Outcome.IGNORED
             RecordingPlan.Leave -> Outcome.IGNORED
             is RecordingPlan.StartNow -> {
                 // An interrupted capture is picked up only when recovery asked for it. A stray or
@@ -128,9 +125,10 @@ object RecordingStarter {
     }
 
     /** The window passed before the recording could start: record why, and drop the empty file
-     * placeholder that was created when it was scheduled. */
-    internal suspend fun markMissed(context: Context, db: IptvDatabase, rec: RecordingEntity) {
-        if (rec.status != "SCHEDULED") return
+     * placeholder that was created when it was scheduled. Returns false (and touches nothing) when
+     * the row is no longer SCHEDULED — another trigger claimed it first. */
+    internal suspend fun markMissed(context: Context, db: IptvDatabase, rec: RecordingEntity): Boolean {
+        if (db.recordingDao().markMissedIfScheduled(rec.id, RecordingPlan.MISSED_REASON) == 0) return false
         runCatching {
             if (rec.outputPath.startsWith("content://")) {
                 context.contentResolver.delete(Uri.parse(rec.outputPath), null, null)
@@ -138,7 +136,7 @@ object RecordingStarter {
                 File(rec.outputPath).delete()
             }
         }
-        db.recordingDao().updateStatusWithReason(rec.id, "FAILED", RecordingPlan.MISSED_REASON)
+        return true
     }
 }
 
@@ -172,8 +170,7 @@ object RecordingRecovery {
                     RecordingAlarms.schedule(context, rec.id, nowMs + START_DELAY_MS, resume = action.resume)
                     starting++
                 }
-                RecordingPlan.Missed -> {
-                    RecordingStarter.markMissed(context, db, rec)
+                RecordingPlan.Missed -> if (RecordingStarter.markMissed(context, db, rec)) {
                     RecordingNotifications.postMissed(context, rec)
                     missed++
                 }

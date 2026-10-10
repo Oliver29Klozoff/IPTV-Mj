@@ -24,6 +24,9 @@ class ChannelTimerReceiver : BroadcastReceiver() {
         val streamId = intent.getIntExtra("stream_id", -1)
         val serverIndex = intent.getIntExtra("server_index", -1)
         val leadMinutes = intent.getIntExtra("lead_minutes", 0)
+        // Once per occurrence, however many times its alarm is delivered.
+        val startMs = intent.getLongExtra("start_ms", -1L).takeIf { it > 0 }
+        if (!ChannelTimerScheduler.claimFiring(context, streamId, startMs)) return
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
@@ -55,7 +58,6 @@ class ChannelTimerReceiver : BroadcastReceiver() {
             .build()
 
         nm.notify(streamId, notification)
-        ChannelTimerScheduler.markFired(context, streamId)
     }
 
     private fun ensureChannel(nm: NotificationManager) {
@@ -137,11 +139,24 @@ object ChannelTimerScheduler {
         return e.startMs == startMs && e.boot == bootCount(context).toLong()
     }
 
-    /** The notification went out: recover() must not send it again. */
-    fun markFired(context: Context, streamId: Int) {
-        val e = read(context, streamId) ?: return
+    // Serializes the reminder state: an alarm being delivered (claimFiring) and recovery setting
+    // the same reminder again (recover) must not interleave, or one occurrence could post twice.
+    private val lock = Any()
+
+    /**
+     * Called by the receiver before posting. True exactly once per occurrence: marks it fired, so
+     * a second delivery (recovery re-armed it while the first was on its way) posts nothing.
+     * [startMs] is null for alarms set by older builds, which didn't carry it.
+     */
+    fun claimFiring(context: Context, streamId: Int, startMs: Long?): Boolean = synchronized(lock) {
+        val e = read(context, streamId)
+            // No entry: cancelled, or an older build's alarm whose entry is gone. Old alarms still post.
+            ?: return@synchronized startMs == null
+        if (e.fired) return@synchronized false
+        if (startMs != null && e.startMs != startMs) return@synchronized false
         context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit()
-            .putString(streamId.toString(), encode(e.copy(fired = true))).apply()
+            .putString(streamId.toString(), encode(e.copy(fired = true))).commit()
+        true
     }
 
     /**
@@ -155,18 +170,21 @@ object ChannelTimerScheduler {
         val currentBoot = bootCount(context).toLong()
         for (key in prefs.all.keys.toList()) {
             val streamId = key.toIntOrNull() ?: continue
-            val e = read(context, streamId)
-            if (e == null || e.startMs <= nowMs) {
-                prefs.edit().remove(key).apply()
-                continue
+            synchronized(lock) {
+                // Read under the lock: a delivery may have just claimed this occurrence.
+                val e = read(context, streamId)
+                if (e == null || e.startMs <= nowMs) {
+                    prefs.edit().remove(key).commit()
+                    return@synchronized
+                }
+                if (e.fired) return@synchronized
+                if (e.channelName == null || e.programTitle == null) {
+                    // An entry from an older build: its alarm is still set if this is the same boot.
+                    if (e.boot != currentBoot) prefs.edit().remove(key).commit()
+                    return@synchronized
+                }
+                schedule(context, streamId, e.channelName, e.programTitle, e.startMs, e.serverIndex)
             }
-            if (e.fired) continue
-            if (e.channelName == null || e.programTitle == null) {
-                // An entry from an older build: its alarm is still set if this is the same boot.
-                if (e.boot != currentBoot) prefs.edit().remove(key).apply()
-                continue
-            }
-            schedule(context, streamId, e.channelName, e.programTitle, e.startMs, e.serverIndex)
         }
     }
 
@@ -190,13 +208,14 @@ object ChannelTimerScheduler {
             putExtra("channel_name", channelName)
             putExtra("program_title", programTitle)
             putExtra("lead_minutes", if (fireAtMs < startMs) minOf(leadMinutes, minutesLeft) else 0)
+            putExtra("start_ms", startMs)
         }
         val pi = PendingIntent.getBroadcast(
             context, streamId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val entry = Entry(startMs, bootCount(context).toLong(), serverIndex, channelName, programTitle)
-        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putString(streamId.toString(), encode(entry)).apply()
+        context.getSharedPreferences(REMINDERS, Context.MODE_PRIVATE).edit().putString(streamId.toString(), encode(entry)).commit()
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             am.set(AlarmManager.RTC_WAKEUP, fireAtMs, pi)

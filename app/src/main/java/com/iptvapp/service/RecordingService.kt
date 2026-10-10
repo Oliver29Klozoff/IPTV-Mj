@@ -82,12 +82,63 @@ class RecordingService : Service() {
         const val STOPPED_BY_TIME_LIMIT_REASON =
             "Stopped early: Android allows background recording for about 6 hours a day on this device. " +
                 "The part recorded so far is saved."
+        const val PARTIAL_REASON_PREFIX = "Partly recorded — the stream stopped before the end"
+        // A failed capture with at least this much on disk is kept as a partial recording rather
+        // than deleted (a network drop an hour in used to throw the whole hour away).
+        private const val KEEP_PARTIAL_MIN_BYTES = 1024L * 1024L
     }
 
-    // Recordings asked to stop early (Android 15's foreground-service time limit). The capture
-    // loops check this between reads, so what was recorded is closed and saved, not abandoned.
-    private val stopRequested = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Int, Boolean>())
+    /**
+     * One running capture. stop() makes it finish promptly — it closes the open HTTP connection
+     * (a blocked read returns at once instead of waiting out a 30 s read timeout) and cuts short
+     * the waits between reconnects and playlist polls — so what was recorded is closed and saved.
+     * Used when Android 15's time limit ends the service.
+     */
+    private class Capture {
+        @Volatile var stopped = false
+            private set
+        private val connections: MutableSet<HttpURLConnection> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+        fun open(conn: HttpURLConnection): HttpURLConnection {
+            connections += conn
+            if (stopped) runCatching { conn.disconnect() }
+            return conn
+        }
+
+        fun close(conn: HttpURLConnection) {
+            connections -= conn
+            conn.disconnect()
+        }
+
+        fun stop() {
+            stopped = true
+            connections.forEach { runCatching { it.disconnect() } }
+        }
+
+        /** Thread.sleep that ends early once stop() is called. */
+        fun sleep(ms: Long) {
+            val until = System.currentTimeMillis() + ms
+            while (!stopped) {
+                val left = until - System.currentTimeMillis()
+                if (left <= 0) return
+                Thread.sleep(minOf(left, 100L))
+            }
+        }
+    }
+
+    private val captures = java.util.concurrent.ConcurrentHashMap<Int, Capture>()
     @Volatile private var timedOut = false
+
+    /** Counts what reaches the file, so a capture that fails part-way knows whether it has
+     * anything worth keeping. */
+    private class CountingOutputStream(private val out: OutputStream) : OutputStream() {
+        @Volatile var count = 0L
+            private set
+        override fun write(b: Int) { out.write(b); count++ }
+        override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len); count += len }
+        override fun flush() = out.flush()
+        override fun close() = out.close()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -171,6 +222,7 @@ class RecordingService : Service() {
 
         activeRecordingIds.add(recordingId)
 
+        val capture = Capture()
         // Registered before it runs: a job that ends at once (nothing to record) must not remove
         // itself before it is in the map, or the map would never empty and the service never stop.
         val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
@@ -187,6 +239,7 @@ class RecordingService : Service() {
                     activeRecordingIds.remove(recordingId)
                     wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
                     jobs.remove(recordingId)
+                    captures.remove(recordingId)
                     stopWhenIdle()
                     return@launch
                 }
@@ -194,52 +247,68 @@ class RecordingService : Service() {
                 database.recordingDao().updateStatus(recordingId, "RECORDING")
             }
 
+            var written = 0L
             val result = runCatching {
-                openRecordingOutput(target, append = resume).use { out ->
-                    val bytes = recordStream(url, out, recordMs) { recordingId in stopRequested }
-                    // A resumed capture already has the earlier part in the file.
-                    if (bytes < 1024 && !resume) throw IOException("Recording wrote only $bytes bytes")
+                openRecordingOutput(target, append = resume).use { raw ->
+                    val out = CountingOutputStream(raw)
+                    try {
+                        val bytes = recordStream(url, out, recordMs, capture)
+                        // A resumed capture already has the earlier part in the file.
+                        if (bytes < 1024 && !resume) throw IOException("Recording wrote only $bytes bytes")
+                    } finally {
+                        written = out.count
+                    }
                 }
             }
             val ok = result.isSuccess
+            // The stream failed part-way, but there is a real recording on disk (or the earlier part
+            // of a resumed one): keep it as a partial recording instead of deleting it.
+            val partial = !ok && (resume || written >= KEEP_PARTIAL_MIN_BYTES)
 
-            finalizeTarget(target, ok)
-            // The raw capture is safely on disk now (or definitively failed) — nothing past
-            // this point can lose the recording, so it no longer needs onDestroy's
-            // kill-safety net treating it as a still-in-flight recording.
-            activeRecordingIds.remove(recordingId)
+            // Past this point nothing is captured any more; finish saving it even if the service is
+            // being torn down (onDestroy cancels the scope), so a kept file never sits half-saved.
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                finalizeTarget(target, ok || partial)
+                // The raw capture is safely on disk now (or definitively failed) — nothing past
+                // this point can lose the recording, so it no longer needs onDestroy's
+                // kill-safety net treating it as a still-in-flight recording.
+                activeRecordingIds.remove(recordingId)
 
-            if (ok) {
-                // Cut short by Android's time limit (onTimeout): the service has seconds left, so the
-                // raw capture is kept as it is, without re-encoding.
-                val stoppedEarly = timedOut && recordingId in stopRequested
-                // Recording size (v7.01): Original keeps the raw capture; Compact / Standard re-encode it.
-                val size = runCatching { prefs.recordingSize.first() }.getOrDefault("compact")
-                val compressedPath = if (size == "original" || stoppedEarly) null else {
-                    if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
-                    runCatching { tryCompressRecording(target, name, compact = size == "compact") }.getOrNull()
-                }
-                val finalPath = compressedPath ?: target
-                if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
-                if (stoppedEarly && recordingId != -1) {
-                    database.recordingDao().updateStatusWithReason(recordingId, "DONE", STOPPED_BY_TIME_LIMIT_REASON)
-                    notifyRecordingFailed(recordingId, name, STOPPED_BY_TIME_LIMIT_REASON, title = "Recording stopped early: $name")
-                }
-                // Look for commercial breaks in the background (Skip break in the player).
-                if (recordingId != -1) com.iptvapp.worker.AdBreakWorker.enqueue(applicationContext, recordingId, com.iptvapp.worker.AdBreakWorker.uriForPath(finalPath))
-            } else {
-                if (recordingId != -1) {
-                    val reason = classifyFailureReason(result.exceptionOrNull())
-                    database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
-                    notifyRecordingFailed(recordingId, name, reason)
+                if (ok || partial) {
+                    // Cut short by Android's time limit (onTimeout): the service has seconds left, so
+                    // the raw capture is kept as it is, without re-encoding.
+                    val stoppedEarly = timedOut && capture.stopped
+                    // Recording size (v7.01): Original keeps the raw capture; Compact / Standard re-encode it.
+                    val size = runCatching { prefs.recordingSize.first() }.getOrDefault("compact")
+                    val compressedPath = if (size == "original" || stoppedEarly) null else {
+                        if (recordingId != -1) database.recordingDao().updateStatus(recordingId, "COMPRESSING")
+                        runCatching { tryCompressRecording(target, name, compact = size == "compact") }.getOrNull()
+                    }
+                    val finalPath = compressedPath ?: target
+                    if (recordingId != -1) database.recordingDao().updatePathAndStatus(recordingId, finalPath, "DONE")
+                    if (recordingId != -1 && (stoppedEarly || partial)) {
+                        val reason = if (stoppedEarly) STOPPED_BY_TIME_LIMIT_REASON
+                            else "$PARTIAL_REASON_PREFIX (${classifyFailureReason(result.exceptionOrNull())})"
+                        database.recordingDao().updateStatusWithReason(recordingId, "DONE", reason)
+                        notifyRecordingFailed(recordingId, name, reason, title = "Recording stopped early: $name")
+                    }
+                    // Look for commercial breaks in the background (Skip break in the player).
+                    if (recordingId != -1) com.iptvapp.worker.AdBreakWorker.enqueue(applicationContext, recordingId, com.iptvapp.worker.AdBreakWorker.uriForPath(finalPath))
+                } else {
+                    if (recordingId != -1) {
+                        val reason = classifyFailureReason(result.exceptionOrNull())
+                        database.recordingDao().updateStatusWithReason(recordingId, "FAILED", reason)
+                        notifyRecordingFailed(recordingId, name, reason)
+                    }
                 }
             }
 
             wakeLocks.remove(recordingId)?.let { if (it.isHeld) it.release() }
             jobs.remove(recordingId)
-            stopRequested.remove(recordingId)
+            captures.remove(recordingId)
             stopWhenIdle()
         }
+        captures[recordingId] = capture
         jobs[recordingId] = job
         job.start()
 
@@ -249,11 +318,11 @@ class RecordingService : Service() {
     // Android 15+ (targetSdk 35): a dataSync foreground service may run about 6 hours in 24 — a
     // budget shared with the guide refresh worker and downloads, reset when the user opens the app.
     // When it runs out Android calls this and the service must stop within seconds, or the app is
-    // crashed. Each capture is asked to stop and save what it has (stopRequested); the service then
+    // crashed. Each capture is asked to stop and save what it has (Capture.stop); the service then
     // stops. A capture that can't finish in time is handled by onDestroy's kill-safety as before.
     override fun onTimeout(startId: Int, fgsType: Int) {
         timedOut = true
-        stopRequested.addAll(jobs.keys)
+        captures.values.forEach { it.stop() }
         val running = jobs.values.toList()
         scope.launch {
             kotlinx.coroutines.withTimeoutOrNull(2_500L) { running.joinAll() }
@@ -379,16 +448,16 @@ class RecordingService : Service() {
         }
     }
 
-    private fun recordStream(streamUrl: String, output: OutputStream, durationMs: Long, shouldStop: () -> Boolean): Long {
+    private fun recordStream(streamUrl: String, output: OutputStream, durationMs: Long, capture: Capture): Long {
         val lower = streamUrl.lowercase(Locale.US)
         return if (lower.contains(".m3u8")) {
-            recordHls(streamUrl, output, durationMs, shouldStop)
+            recordHls(streamUrl, output, durationMs, capture)
         } else {
-            recordDirectStream(streamUrl, output, durationMs, shouldStop)
+            recordDirectStream(streamUrl, output, durationMs, capture)
         }
     }
 
-    private fun recordDirectStream(streamUrl: String, output: OutputStream, durationMs: Long, shouldStop: () -> Boolean): Long {
+    private fun recordDirectStream(streamUrl: String, output: OutputStream, durationMs: Long, capture: Capture): Long {
         val started = System.currentTimeMillis()
         var written = 0L
         val buffer = ByteArray(128 * 1024)
@@ -398,7 +467,7 @@ class RecordingService : Service() {
         // at the write site below for why this matters.
         var tsCarry = 0
 
-        while ((durationMs == 0L || System.currentTimeMillis() - started < durationMs) && !shouldStop()) {
+        while ((durationMs == 0L || System.currentTimeMillis() - started < durationMs) && !capture.stopped) {
             val remaining = if (durationMs > 0L) durationMs - (System.currentTimeMillis() - started) else 0L
             if (remaining < 0L) break
 
@@ -414,7 +483,7 @@ class RecordingService : Service() {
             try {
                 var hops = 0
                 while (hops < 5) {
-                    val c = URL(resolvedUrl).openConnection() as HttpURLConnection
+                    val c = capture.open(URL(resolvedUrl).openConnection() as HttpURLConnection)
                     c.instanceFollowRedirects = false
                     c.connectTimeout = 15_000
                     c.readTimeout = 30_000
@@ -424,7 +493,7 @@ class RecordingService : Service() {
 
                     if (c.responseCode in 300..399) {
                         val location = c.getHeaderField("Location")
-                        c.disconnect()
+                        capture.close(c)
                         if (location.isNullOrBlank()) throw IOException("HTTP ${c.responseCode} with no Location header")
                         resolvedUrl = URL(URL(resolvedUrl), location).toString()
                         hops++
@@ -432,7 +501,7 @@ class RecordingService : Service() {
                     }
                     if (c.responseCode !in 200..299) {
                         val code = c.responseCode
-                        c.disconnect()
+                        capture.close(c)
                         throw IOException("HTTP $code")
                     }
                     conn = c
@@ -441,7 +510,7 @@ class RecordingService : Service() {
                 val activeConn = conn ?: throw IOException("Too many redirects")
 
                 activeConn.inputStream.use { input ->
-                    while ((durationMs == 0L || System.currentTimeMillis() - started < durationMs) && !shouldStop()) {
+                    while ((durationMs == 0L || System.currentTimeMillis() - started < durationMs) && !capture.stopped) {
                         val n = input.read(buffer, tsCarry, buffer.size - tsCarry)
                         if (n == -1) break
                         val available = tsCarry + n
@@ -466,11 +535,11 @@ class RecordingService : Service() {
             } catch (e: IOException) {
                 android.util.Log.e("RecordingService", "recordDirectStream: IOException, written=$written bytes", e)
                 // Brief pause before reconnect attempt — avoids hammering a broken server
-                if (durationMs > 0L && System.currentTimeMillis() - started < durationMs && !shouldStop()) {
-                    Thread.sleep(2000L)
+                if (durationMs > 0L && System.currentTimeMillis() - started < durationMs && !capture.stopped) {
+                    capture.sleep(2000L)
                 }
             } finally {
-                conn?.disconnect()
+                conn?.let { capture.close(it) }
             }
         }
 
@@ -478,23 +547,23 @@ class RecordingService : Service() {
         return written
     }
 
-    private fun recordHls(playlistUrl: String, output: OutputStream, durationMs: Long, shouldStop: () -> Boolean): Long {
+    private fun recordHls(playlistUrl: String, output: OutputStream, durationMs: Long, capture: Capture): Long {
         val started = System.currentTimeMillis()
         val seenSegments = linkedSetOf<String>()
         var written = 0L
         val deadline = if (durationMs > 0L) started + durationMs else 0L
 
-        while ((deadline == 0L || System.currentTimeMillis() < deadline) && !shouldStop()) {
-            val masterText = fetchText(playlistUrl)
+        while ((deadline == 0L || System.currentTimeMillis() < deadline) && !capture.stopped) {
+            val masterText = fetchText(playlistUrl, capture)
 
             if (!masterText.trimStart().startsWith("#EXTM3U")) {
-                return recordDirectStream(playlistUrl, output, durationMs, shouldStop)
+                return recordDirectStream(playlistUrl, output, durationMs, capture)
             }
 
             val mediaPlaylistUrl = if (masterText.contains("#EXT-X-STREAM-INF")) {
                 val variantLine = masterText.lines()
                     .firstOrNull { !it.startsWith("#") && it.isNotBlank() }
-                if (variantLine == null) { Thread.sleep(2000L); continue }
+                if (variantLine == null) { capture.sleep(2000L); continue }
                 resolveUrl(playlistUrl, variantLine)
             } else {
                 playlistUrl
@@ -503,7 +572,7 @@ class RecordingService : Service() {
             val mediaText = if (mediaPlaylistUrl == playlistUrl) {
                 masterText
             } else {
-                fetchText(mediaPlaylistUrl)
+                fetchText(mediaPlaylistUrl, capture)
             }
 
             val targetDuration = mediaText.lines()
@@ -519,9 +588,9 @@ class RecordingService : Service() {
                 val segmentUrl = resolveUrl(mediaPlaylistUrl, line.trim())
                 if (!seenSegments.add(segmentUrl)) continue
 
-                written += downloadSegment(segmentUrl, output, deadline, shouldStop)
+                written += downloadSegment(segmentUrl, output, deadline, capture)
 
-                if ((deadline > 0 && System.currentTimeMillis() >= deadline) || shouldStop()) {
+                if ((deadline > 0 && System.currentTimeMillis() >= deadline) || capture.stopped) {
                     output.flush()
                     return written
                 }
@@ -534,15 +603,15 @@ class RecordingService : Service() {
             } else {
                 (targetDuration * 500L).coerceIn(2000L, 8000L)
             }
-            if (waitMs > 0L && !shouldStop()) Thread.sleep(waitMs)
+            if (waitMs > 0L && !capture.stopped) capture.sleep(waitMs)
         }
 
         output.flush()
         return written
     }
 
-    private fun fetchText(url: String): String {
-        val conn = URL(url).openConnection() as HttpURLConnection
+    private fun fetchText(url: String, capture: Capture): String {
+        val conn = capture.open(URL(url).openConnection() as HttpURLConnection)
         return try {
             conn.instanceFollowRedirects = true
             conn.connectTimeout = 10_000
@@ -555,12 +624,12 @@ class RecordingService : Service() {
 
             conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
-            conn.disconnect()
+            capture.close(conn)
         }
     }
 
-    private fun downloadSegment(url: String, output: OutputStream, deadline: Long = 0L, shouldStop: () -> Boolean = { false }): Long {
-        val conn = URL(url).openConnection() as HttpURLConnection
+    private fun downloadSegment(url: String, output: OutputStream, deadline: Long = 0L, capture: Capture): Long {
+        val conn = capture.open(URL(url).openConnection() as HttpURLConnection)
         var written = 0L
 
         try {
@@ -575,15 +644,18 @@ class RecordingService : Service() {
 
             val buffer = ByteArray(128 * 1024)
             conn.inputStream.use { input ->
-                while ((deadline == 0L || System.currentTimeMillis() < deadline) && !shouldStop()) {
+                while ((deadline == 0L || System.currentTimeMillis() < deadline) && !capture.stopped) {
                     val n = input.read(buffer)
                     if (n == -1) break
                     output.write(buffer, 0, n)
                     written += n
                 }
             }
+        } catch (e: IOException) {
+            // Closed by Capture.stop(): what was written so far stays; anything else is a real failure.
+            if (!capture.stopped) throw e
         } finally {
-            conn.disconnect()
+            capture.close(conn)
         }
 
         return written

@@ -66,10 +66,31 @@ class ReminderRecoveryTest {
     fun aReminderThatAlreadyWentOffIsNotSentAgain() {
         val start = System.currentTimeMillis() + 3 * 60_000L
         ChannelTimerScheduler.schedule(context, 7, "News", "Nightly", start)
-        ChannelTimerScheduler.markFired(context, 7)
+        assertTrue(ChannelTimerScheduler.claimFiring(context, 7, start))
         reboot()
         ChannelTimerScheduler.recover(context)
         assertTrue(alarms().isEmpty())
+    }
+
+    @Test
+    fun anOccurrencePostsOnceEvenWhenRecoveryReArmsItMidDelivery() {
+        val start = System.currentTimeMillis() + 2 * 60_000L
+        ChannelTimerScheduler.schedule(context, 7, "News", "Nightly", start)
+        // App-start recovery runs while the first delivery is on its way: it re-arms the alarm.
+        ChannelTimerScheduler.recover(context)
+        assertTrue("first delivery posts", ChannelTimerScheduler.claimFiring(context, 7, start))
+        assertFalse("the re-armed duplicate does not", ChannelTimerScheduler.claimFiring(context, 7, start))
+        // And recovery after the claim doesn't arm it again.
+        for (alarm in alarms().toList()) alarm.operation?.let { alarmManager.cancel(it) }
+        ChannelTimerScheduler.recover(context)
+        assertTrue(alarms().isEmpty())
+    }
+
+    @Test
+    fun aStaleAlarmForAReplacedReminderDoesNotPost() {
+        val start = System.currentTimeMillis() + hour
+        ChannelTimerScheduler.schedule(context, 7, "News", "Late show", start + hour)
+        assertFalse(ChannelTimerScheduler.claimFiring(context, 7, start))
     }
 
     @Test

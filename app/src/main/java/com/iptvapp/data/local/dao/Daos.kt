@@ -444,6 +444,10 @@ interface RecordingDao {
     // started from the notification or by the next recovery.
     @Query("UPDATE recordings SET status = 'SCHEDULED' WHERE id = :id AND status = 'RECORDING'")
     suspend fun unclaim(id: Int): Int
+    // Atomic SCHEDULED -> FAILED for a recording whose window passed: loses to a trigger that
+    // claimed it at the same moment, so a capture that just started is never marked missed.
+    @Query("UPDATE recordings SET status = 'FAILED', failureReason = :reason WHERE id = :id AND status = 'SCHEDULED'")
+    suspend fun markMissedIfScheduled(id: Int, reason: String): Int
     // What recovery (boot, app update, app start) looks at.
     @Query("SELECT * FROM recordings WHERE status IN ('SCHEDULED', 'RECORDING')")
     suspend fun getScheduledOrRecording(): List<RecordingEntity>
