@@ -236,12 +236,20 @@ class RecordingRecoveryTest {
     }
 
     @Test
-    fun anUpdateLeavesAV722AlarmAndItsStreamInPlace() = legacyAlarmSurvives(startMs = now + hour)
+    fun anUpdateKeepsAV722AlarmsStream() = legacyAlarmKeepsItsStream(startMs = now + hour, expectedAt = now + hour)
 
     @Test
-    fun anUpdateLeavesAnOverdueV722AlarmAndItsStreamInPlace() = legacyAlarmSurvives(startMs = now - 2 * 60_000L)
+    fun anUpdateKeepsAnOverdueV722AlarmsStream() =
+        legacyAlarmKeepsItsStream(startMs = now - 2 * 60_000L, expectedAt = now + RecordingRecovery.START_DELAY_MS)
 
-    private fun legacyAlarmSurvives(startMs: Long) = runBlocking {
+    @Test
+    fun grantingExactAlarmsMakesAnInexactV722AlarmExactAndKeepsItsStream() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(false) // v7.22 set it inexact
+        legacyAlarmKeepsItsStream(startMs = now + hour, expectedAt = now + hour, grantBeforeRecovery = true)
+        assertTrue(isExact(alarms().single()))
+    }
+
+    private fun legacyAlarmKeepsItsStream(startMs: Long, expectedAt: Long, grantBeforeRecovery: Boolean = false) = runBlocking {
         // v7.22 set the alarm with the stream URL in it; no saved stream exists yet. The provider
         // in that slot may have changed since, so only that URL records the right channel.
         val id = insert("SCHEDULED", startMs)
@@ -253,19 +261,23 @@ class RecordingRecoveryTest {
             },
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
-        // A trigger time recovery would never pick (it uses the start, or now + START_DELAY_MS), so
-        // a replaced alarm shows up as a different time.
-        val legacyAt = startMs + 7
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, legacyAt, legacy)
+        if (RecordingAlarms.canScheduleExact(context)) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs + 7, legacy)
+        } else {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs + 7, legacy)
+        }
+        if (grantBeforeRecovery) ShadowAlarmManager.setCanScheduleExactAlarms(true)
 
-        RecordingRecovery.run(context, db, now) // MY_PACKAGE_REPLACED
+        RecordingRecovery.run(context, db, now) // MY_PACKAGE_REPLACED, or the permission broadcast
         val alarm = alarms().single()
-        assertEquals("not replaced", legacyAt, alarm.triggerAtMs)
+        assertEquals(expectedAt, alarm.triggerAtMs)
+        val carried = shadowOf(alarm.operation).savedIntent
         assertEquals(
-            "it still carries the stream it was scheduled with",
+            "the same alarm, still carrying the stream it was scheduled with",
             "http://scheduled-provider.example/live/a/b/5.ts",
-            shadowOf(alarm.operation).savedIntent.getStringExtra(RecordingService.EXTRA_STREAM_URL)
+            carried.getStringExtra(RecordingService.EXTRA_STREAM_URL)
         )
+        assertFalse("not replaced by a new id-only alarm", carried.hasExtra(RecordingAlarms.EXTRA_RESUME))
     }
 
     @Test

@@ -94,9 +94,10 @@ object RecordingAlarms {
 
     /** Returns true when the alarm is exact. Inexact alarms may fire late, and on Android 12+
      * can't start the recording by themselves (see RecordingAlarmReceiver). */
-    fun schedule(context: Context, recordingId: Int, atMs: Long, resume: Boolean = false): Boolean {
-        val pi = pendingIntent(context, recordingId, resume)
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    fun schedule(context: Context, recordingId: Int, atMs: Long, resume: Boolean = false): Boolean =
+        arm(context.getSystemService(Context.ALARM_SERVICE) as AlarmManager, atMs, pendingIntent(context, recordingId, resume))
+
+    private fun arm(am: AlarmManager, atMs: Long, pi: PendingIntent): Boolean {
         if (canScheduleExact(am)) {
             try {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
@@ -120,10 +121,22 @@ object RecordingAlarms {
     }
 
     /** Whether an alarm for this recording is set (by this build or an older one). */
-    fun isArmed(context: Context, recordingId: Int): Boolean = PendingIntent.getBroadcast(
+    fun isArmed(context: Context, recordingId: Int): Boolean = existing(context, recordingId) != null
+
+    /**
+     * Sets the alarm already there for this recording to [atMs] again — exact when allowed —
+     * without touching what it carries (a v7.22 alarm's stream URL). False if there is none.
+     */
+    fun rearmExisting(context: Context, recordingId: Int, atMs: Long): Boolean {
+        val pi = existing(context, recordingId) ?: return false
+        arm(context.getSystemService(Context.ALARM_SERVICE) as AlarmManager, atMs, pi)
+        return true
+    }
+
+    private fun existing(context: Context, recordingId: Int): PendingIntent? = PendingIntent.getBroadcast(
         context, recordingId, Intent(context, RecordingAlarmReceiver::class.java),
         PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-    ) != null
+    )
 
     fun canScheduleExact(context: Context): Boolean =
         canScheduleExact(context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)

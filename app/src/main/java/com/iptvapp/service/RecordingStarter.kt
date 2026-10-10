@@ -165,17 +165,22 @@ object RecordingRecovery {
         RecordingUrls.prune(context, db)
         for (rec in db.recordingDao().getScheduledOrRecording()) {
             // A v7.22 alarm still set for a scheduled recording (an app update, no reboot — and it
-            // may be running late) carries the stream it was scheduled for; setting a new alarm would
-            // replace it. Leave it to fire: the receiver keeps that stream (RecordingUrls).
+            // may be running late) carries the stream it was scheduled for; a new alarm would replace
+            // it. That same alarm is set again instead (exact if now allowed), so it keeps its stream;
+            // the receiver saves it (RecordingUrls).
             val legacyAlarm = rec.status == "SCHEDULED" &&
                 RecordingUrls.get(context, rec.id) == null && RecordingAlarms.isArmed(context, rec.id)
             when (val action = RecordingPlan.decide(rec.status, rec.scheduledStartMs, rec.durationMs, nowMs)) {
                 is RecordingPlan.Alarm -> {
-                    if (!legacyAlarm) RecordingAlarms.schedule(context, rec.id, action.atMs)
+                    if (!legacyAlarm || !RecordingAlarms.rearmExisting(context, rec.id, action.atMs)) {
+                        RecordingAlarms.schedule(context, rec.id, action.atMs)
+                    }
                     scheduled++
                 }
                 is RecordingPlan.StartNow -> {
-                    if (!legacyAlarm) RecordingAlarms.schedule(context, rec.id, nowMs + START_DELAY_MS, resume = action.resume)
+                    if (!legacyAlarm || !RecordingAlarms.rearmExisting(context, rec.id, nowMs + START_DELAY_MS)) {
+                        RecordingAlarms.schedule(context, rec.id, nowMs + START_DELAY_MS, resume = action.resume)
+                    }
                     starting++
                 }
                 RecordingPlan.Missed -> if (RecordingStarter.markMissed(context, db, rec)) {
