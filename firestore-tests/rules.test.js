@@ -29,19 +29,30 @@ function token(uid) {
 
 async function call(method, path, uid, body) {
     const headers = { 'Content-Type': 'application/json' };
-    if (uid) headers.Authorization = 'Bearer ' + token(uid);
+    // The emulator treats the exact bearer "owner" as an admin that bypasses rules.
+    // A normal uid, including one that happens to be named owner, is a signed-in client.
+    if (uid === 'owner') headers.Authorization = 'Bearer owner';
+    else if (uid) headers.Authorization = 'Bearer ' + token(uid);
     const r = await fetch(BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
     return r.status;
 }
 
+function value(v) {
+    if (v === null) return { nullValue: null };
+    if (v instanceof Date) return { timestampValue: v.toISOString() };
+    if (typeof v === 'boolean') return { booleanValue: v };
+    if (typeof v === 'number') return Number.isInteger(v)
+        ? { integerValue: String(v) } : { doubleValue: v };
+    if (typeof v === 'string') return { stringValue: v };
+    if (Array.isArray(v)) return { arrayValue: { values: v.map(value) } };
+    const fields = {};
+    for (const [k, item] of Object.entries(v)) fields[k] = value(item);
+    return { mapValue: { fields } };
+}
+
 function doc(fields) {
     const out = {};
-    for (const [k, v] of Object.entries(fields)) {
-        if (v === null) out[k] = { nullValue: null };
-        else if (v instanceof Date) out[k] = { timestampValue: v.toISOString() };
-        else if (typeof v === 'number') out[k] = { integerValue: String(v) };
-        else out[k] = { stringValue: v };
-    }
+    for (const [k, v] of Object.entries(fields)) out[k] = value(v);
     return { fields: out };
 }
 
@@ -96,6 +107,112 @@ function check(name, got, want) {
 
     console.log('cleanup:');
     check('either end can delete', await call('DELETE', '/cast_sessions/sess0001', 'tv'), 200);
+
+    // Pairing sync. `owner` is the anonymous account whose library it is.
+    // `other` is a different account. `sharesPrefix` starts with the same 8
+    // characters and must still be unable to take the pairing pointer.
+    const owner = 'AbcdefghUSERAAAA';
+    const other = 'zzzzzzzzUSERBBBB';
+    const sharesPrefix = 'AbcdefghUSERBBBB';
+    const library = () => ({
+        version: 1,
+        syncedAt: Date.now(),
+        device: 'Test',
+        favoriteChannelIds: [10, 20],
+        favoriteCategoryIds: ['news'],
+        recentlyWatchedIds: [10],
+        favoriteFolders: ['Sports'],
+        channelFolders: { '10': 'Sports' },
+        favoriteOrder: [10, 20],
+        vodProgress: { '5': { watchedMs: 1000, durationMs: 5000 } },
+        seriesProgress: {},
+        episodesWatched: [{ seriesId: 1, season: 1, episode: 2, watchedAt: 1, watchedMs: 0, durationMs: 0 }],
+        mergedFavorites: [{ serverUrl: 'http://provider.example', streamId: 7, folderName: null }],
+        mergedFavoriteCategories: [],
+        mergedVodFavorites: [],
+        mergedSeriesFavorites: [],
+        hiddenMergedVodCategories: [],
+        hiddenMergedSeriesCategories: []
+    });
+
+    console.log('user library:');
+    check('signed-out user cannot read a library', await call('GET', '/users/' + owner, null), 403);
+    check('owner can store the sync payload', await call('PATCH', '/users/' + owner, owner, doc(library())), 200);
+    check('owner can read their own library', await call('GET', '/users/' + owner, owner), 200);
+    check('owner can refresh that payload', await call('PATCH', '/users/' + owner, owner, doc(library())), 200);
+    check('the paired device can read it', await call('GET', '/users/' + owner, other), 200);
+    check('another account cannot overwrite it',
+        await call('PATCH', '/users/' + owner, other, doc(library())), 403);
+    check('nobody can list libraries', await call('GET', '/users', other), 403);
+    check('owner cannot add premium',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), premium: true })), 403);
+    check('owner cannot add an expiry',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), expiresAt: 4102444800000 })), 403);
+    check('owner cannot add admin',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), admin: true })), 403);
+    check('owner cannot add a device limit',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), deviceLimit: 99 })), 403);
+    check('a string version is rejected',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), version: '1' })), 403);
+    check('a new library cannot be created with premium',
+        await call('PATCH', '/users/PremiumUserAAAAAA', 'PremiumUserAAAAAA',
+            doc({ ...library(), premium: true })), 403);
+    check('another account cannot create someone else\'s library',
+        await call('PATCH', '/users/NotTheirUSERBBBB', other, doc(library())), 403);
+    check('a syncedAt of zero is rejected',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), syncedAt: 0 })), 403);
+    check('a device name past the cap is rejected',
+        await call('PATCH', '/users/' + owner, owner, doc({ ...library(), device: 'x'.repeat(121) })), 403);
+    check('another account cannot delete the library',
+        await call('DELETE', '/users/' + owner, other), 403);
+
+    // A full replace drops a poisoned key. A masked merge keeps it, so the rules
+    // must reject that merge. This is why the app uses set(), not set(merge).
+    const libraryKeys = Object.keys(library());
+    check('emulator admin can poison a library',
+        await call('PATCH', '/users/' + owner, 'owner', doc({ ...library(), premium: true })), 200);
+    check('a merge that keeps the poisoned field is rejected',
+        await call('PATCH', '/users/' + owner + mask(libraryKeys), owner, doc(library())), 403);
+    check('a full replace clears the poisoned field',
+        await call('PATCH', '/users/' + owner, owner, doc(library())), 200);
+
+    console.log('pairing codes:');
+    check('signed-out client cannot read a code', await call('GET', '/codes/abcdefgh', null), 403);
+    check('a missing pairing code is not found', await call('GET', '/codes/nosuchcd', other), 404);
+    check('nobody can list codes', await call('GET', '/codes', other), 403);
+    check('another account cannot publish this prefix',
+        await call('PATCH', '/codes/abcdefgh', other, doc({ uid: other })), 403);
+    check('owner can publish the pointer',
+        await call('PATCH', '/codes/abcdefgh', owner, doc({ uid: owner })), 200);
+    check('the other device can resolve it', await call('GET', '/codes/abcdefgh', other), 200);
+    check('another account cannot retarget it',
+        await call('PATCH', '/codes/abcdefgh', other, doc({ uid: other })), 403);
+    check('a second account with the same prefix cannot take it',
+        await call('PATCH', '/codes/abcdefgh', sharesPrefix, doc({ uid: sharesPrefix })), 403);
+    check('owner can publish the same pointer again',
+        await call('PATCH', '/codes/abcdefgh', owner, doc({ uid: owner })), 200);
+    check('owner cannot attach an expiry',
+        await call('PATCH', '/codes/abcdefgh', owner, doc({ uid: owner, expiresAt: '2099' })), 403);
+    check('nobody can delete a code', await call('DELETE', '/codes/abcdefgh', owner), 403);
+    check('nobody else can delete it either', await call('DELETE', '/codes/abcdefgh', other), 403);
+
+    // There is no used/redeemedBy/expiry field. The same pointer can be published
+    // again by its owner. A second account that shares the prefix cannot.
+    const first = 'CollisionUSERONE';
+    const second = 'CollisionUSERTWO';
+    check('the first account with a shared prefix can publish it',
+        await call('PATCH', '/codes/collisio', first, doc({ uid: first })), 200);
+    check('the other account with that prefix cannot take it over',
+        await call('PATCH', '/codes/collisio', second, doc({ uid: second })), 403);
+    check('the first account can publish it again',
+        await call('PATCH', '/codes/collisio', first, doc({ uid: first })), 200);
+
+    const seeded = await call('PATCH', '/codes/poisoned', 'owner', doc({ uid: 'not-the-prefix-owner' }));
+    check('emulator admin can seed a poisoned pointer', seeded, 200);
+    check('the real prefix owner can take a poisoned pointer back',
+        await call('PATCH', '/codes/poisoned', 'poisonedUSERAAAA', doc({ uid: 'poisonedUSERAAAA' })), 200);
+
+    check('owner can delete their own library', await call('DELETE', '/users/' + owner, owner), 200);
 
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);

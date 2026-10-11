@@ -3,7 +3,6 @@ package com.iptvapp.sync
 import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -162,7 +161,11 @@ class SyncManager @Inject constructor(
                 "hiddenMergedSeriesCategories" to hiddenMergedSeriesCategories
             )
 
-            firestore.collection("users").document(user.uid).set(data, SetOptions.merge()).await()
+            // Replace the document. Merge would keep a key left behind while writes
+            // were open to every signed-in client, and the rules reject unknown keys,
+            // so that one leftover field would make every later sync fail. This map
+            // is the whole library.
+            firestore.collection("users").document(user.uid).set(data).await()
 
             // Write short-code → UID lookup so other devices can resolve the 8-char code
             val shortCode = user.uid.take(8).lowercase()
