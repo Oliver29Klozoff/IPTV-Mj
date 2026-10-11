@@ -99,8 +99,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 562
-        versionName "7.24"
+        versionCode 563
+        versionName "7.25"
 
         buildConfigField "String", "DISCORD_WEBHOOK", "\"${mktvLocalProps['DISCORD_WEBHOOK'] ?: ''}\""
         // Trakt.tv API app — create one free at https://trakt.tv/oauth/applications
@@ -145,6 +145,11 @@ android {
         }
         release {
             minifyEnabled false
+            // The published APK hash is stored in the same commit that produced the APK.
+            // Embedding that commit id would make the hash depend on itself.
+            vcsInfo {
+                include false
+            }
             if (project.ext.mktvReleaseSigningError == null) {
                 signingConfig signingConfigs.release
             }

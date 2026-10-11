@@ -1,7 +1,7 @@
 {
-  "versionCode": 562,
-  "versionName": "7.24",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.24/MKTV.apk",
-  "apkSha256": "a6a76d5863d1878518ddd7a3fd517a41c0738391f7620c6a6915bf378d6aeaa6",
-  "changelog": "TV home-screen favorites now play the right channel, and movie/series refreshes are safer."
+  "versionCode": 563,
+  "versionName": "7.25",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.25/MKTV.apk",
+  "apkSha256": "6d3a13d97783dd12412db8295f7e9e358a16f0690e29eac011b9ad3caefece16",
+  "changelog": "Cloud sync now replaces the saved library so an old leftover field cannot make later syncs fail."
 }

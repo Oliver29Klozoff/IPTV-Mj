@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.25 - 2026-10-11
+- **Fixed**: cloud sync. Pushing your library now replaces the saved copy instead of
+  merging into it. A field left behind by an older sync could make every later sync
+  fail, and that leftover is no longer kept. Favorites, folders, and watch progress
+  still sync as before.
+
 ## v7.24 - 2026-10-10
 - **Fixed**: MKTV favorites on the Android TV home screen now play. Tapping one used to open MKTV
   and play nothing for most providers. Each card is now tied to the provider account it was made
