@@ -62,6 +62,58 @@ class PrimaryCatalogRefreshTest {
     }
 
     @Test
+    fun aFavoriteOrStartedTitleTheProviderLeavesOutKeepsItsRow() = runBlocking {
+        // Providers drop titles for a while and bring them back; the user's favorite and progress
+        // live on these rows, so only titles with nothing of the user's on them are removed.
+        db.vodDao().upsertVod(listOf(movie(1, "Fav", favorite = true), movie(2, "Started", watched = 90), movie(3, "Plain")))
+        db.seriesDao().upsertSeries(listOf(show(10, "Hidden", hidden = true), show(11, "Plain")))
+        assertTrue(refresh.replaceVod(listOf(movie(4, "New")), { true }, { it }))
+        assertTrue(refresh.replaceSeries(listOf(show(12, "New")), { true }, { it }))
+        assertEquals(listOf(1, 2, 4), vodIds())
+        assertEquals(listOf(10, 12), seriesIds())
+        assertEquals(90L, db.vodDao().getVodByStreamId(2)!!.watchedMs)
+    }
+
+    @Test
+    fun aNewerRefreshCancelsAStalledOlderDownloadInsteadOfWaiting() = runBlocking {
+        val olderStarted = CompletableDeferred<Unit>()
+        val older = async {
+            refresh.runVod { _ -> olderStarted.complete(Unit); awaitCancellation() }
+        }
+        olderStarted.await()
+        // Would hang (the older one never answers) if the newer refresh waited for its turn.
+        val newer = refresh.runVod { _ -> "newer" }
+        assertEquals("newer", newer)
+        assertEquals("the older one ends as replaced, not as an error", null, older.await())
+    }
+
+    @Test
+    fun aCancellationFromInsideTheRefreshIsNotReportedAsReplaced() = runBlocking {
+        val thrown = runCatching {
+            refresh.runVod<Int> { _ -> throw kotlin.coroutines.cancellation.CancellationException("from inside") }
+        }.exceptionOrNull()
+        assertTrue("propagates: $thrown", thrown is kotlin.coroutines.cancellation.CancellationException)
+    }
+
+    @Test
+    fun aShowWithOnlyEpisodeProgressKeepsItsRow() = runBlocking {
+        // Episode progress lives in episode_watched, not on the series row.
+        db.seriesDao().upsertSeries(listOf(show(20, "Watching"), show(21, "Plain")))
+        db.episodeWatchedDao().upsert(com.iptvapp.data.local.entities.EpisodeWatchedEntity(seriesId = 20, season = 1, episode = 3))
+        assertTrue(refresh.replaceSeries(emptyList<SeriesEntity>(), { true }, { it }))
+        assertEquals(listOf(20), seriesIds())
+    }
+
+    @Test
+    fun aTitleFavoritedAfterTheCandidatesWereReadIsNotDeleted() = runBlocking {
+        // The delete itself checks for user state, so a favorite saved mid-refresh wins.
+        db.vodDao().upsertVod(listOf(movie(5, "Later fav")))
+        db.vodDao().setFavorite(5, true)
+        db.vodDao().deleteStaleByIds(listOf(5))
+        assertEquals(listOf(5), vodIds())
+    }
+
+    @Test
     fun emptyMovieListClearsTheCatalog() = runBlocking {
         db.vodDao().upsertVod(listOf(movie(1, "Old")))
         assertTrue(refresh.replaceVod(emptyList<VodEntity>(), { true }, { it }))
@@ -144,15 +196,16 @@ class PrimaryCatalogRefreshTest {
 
     @Test
     fun staleDeletionStopsWhenTheRefreshLosesItsTurn() = runBlocking {
-        db.vodDao().upsertVod((1..600).map { movie(it, "M$it", favorite = true) })
+        // Plain rows: favorited ones are never stale-deleted at all (see the test above).
+        db.vodDao().upsertVod((1..600).map { movie(it, "M$it") })
         var checks = 0
-        val wrote = refresh.replaceVod(listOf(movie(1, "M1", favorite = true)), {
+        val wrote = refresh.replaceVod(listOf(movie(1, "M1")), {
             checks += 1
             checks < 4
         }, { it })
         assertFalse(wrote)
         assertEquals(600, vodIds().size)
-        assertTrue(db.vodDao().getVodByStreamId(2)!!.isFavorite)
+        assertTrue(2 in vodIds())
     }
 
     @Test
@@ -203,7 +256,9 @@ class PrimaryCatalogRefreshTest {
                 }
                 started.await()
                 val newer = async { refresh.runVod { "newer" } }
-                assertEquals(false, older.await())
+                // The newer refresh cancels the older download outright: it ends as replaced (null),
+                // never reaching a write.
+                assertEquals(null, older.await())
                 assertEquals("newer", newer.await())
             }
         }

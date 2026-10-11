@@ -9,6 +9,7 @@ import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.EpgEntity
 import com.iptvapp.data.local.entities.SeriesEntity
 import com.iptvapp.data.local.entities.VodEntity
+import com.iptvapp.data.repository.wasSuperseded
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.ui.guide.GuideRow
 import com.iptvapp.ui.player.BandwidthBudgetManager
@@ -1467,10 +1468,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _loading.value = true
             try {
-                repository.fetchVodCategories()
-                val result = repository.fetchVodStreams()
+                // Replaced by a newer refresh or a provider switch: not a failure, and the titles
+                // download it led to is now someone else's job.
+                val result = repository.fetchVodCategories().takeIf { it.wasSuperseded() }
+                    ?: repository.fetchVodStreams()
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Movies refreshed (${result.data?.size ?: 0} titles)"
+                else if (result.wasSuperseded()) "Movies refresh replaced by a newer one"
                 else "Failed — server timeout or no content"
                 onDone(msg)
             } finally {
@@ -1490,6 +1494,7 @@ class HomeViewModel @Inject constructor(
                 val result = repository.fetchSeries()
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Series refreshed (${result.data?.size ?: 0} titles)"
+                else if (result.wasSuperseded()) "Series refresh replaced by a newer one"
                 else "Failed — server timeout or no content"
                 onDone(msg)
             } finally {
@@ -2476,6 +2481,10 @@ class HomeViewModel @Inject constructor(
     suspend fun getVodProgress(streamId: Int): Pair<Long, Long> = repository.getVodProgress(streamId)
 
     suspend fun getLiveStreamUrl(streamId: Int): String = repository.getLiveStreamUrl(streamId)
+
+    /** Every visible primary favorite, in the user's order — what the TV home-screen row shows. */
+    fun launcherFavorites(): kotlinx.coroutines.flow.Flow<List<ChannelEntity>> = repository.getFavoriteChannels()
+    suspend fun launcherFavoritesWithLogin() = repository.primaryFavoritesWithLogin()
     suspend fun findMoreReliableCopy(streamId: Int) = repository.findMoreReliableCopy(streamId)
 
     // Live-playback failover — see XtreamRepository.findFailoverChannel kdoc.

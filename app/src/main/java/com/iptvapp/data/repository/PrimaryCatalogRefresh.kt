@@ -18,6 +18,21 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /**
+ * A movie or series refresh that lost its turn to a newer refresh or a provider switch. Not a
+ * failure — the download was fine, it just no longer matters — so screens don't show it as
+ * "Failed". A real cancellation of the caller still propagates as CancellationException (v7.21).
+ */
+class CatalogRefreshSuperseded : Exception(MESSAGE) {
+    companion object {
+        const val MESSAGE = "Replaced by a newer refresh"
+    }
+}
+
+/** True when this result is a refresh that was replaced, not one that failed. */
+fun com.iptvapp.util.Resource<*>.wasSuperseded(): Boolean =
+    this is com.iptvapp.util.Resource.Error && cause is CatalogRefreshSuperseded
+
+/**
  * Primary movie and series catalog writes.
  *
  * One refresh of a kind runs at a time. Starting another, or a provider switch
@@ -34,7 +49,8 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
         val download = Mutex()
         val write = Mutex()
         val ticket = AtomicInteger(0)
-        val inflight = AtomicReference<Job?>(null)
+        // The running download and the ticket it belongs to.
+        val inflight = AtomicReference<Pair<Int, Job>?>(null)
     }
 
     // Categories and titles have separate turns. A category fetch must not discard an
@@ -48,7 +64,7 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
     fun supersede() {
         listOf(vodTitles, vodCategories, seriesTitles, seriesCategories).forEach { gate ->
             gate.ticket.incrementAndGet()
-            gate.inflight.get()?.cancel()
+            gate.inflight.get()?.second?.cancel()
         }
     }
 
@@ -85,6 +101,10 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
 
     private suspend fun <T> run(gate: Gate, block: suspend (still: suspend () -> Boolean) -> T): T? {
         val mine = gate.ticket.incrementAndGet()
+        // The download already running is now obsolete: cancel it rather than wait for it (a stalled
+        // request could hold the turn up to its read timeout). Only an older ticket's download —
+        // never a newer call's that got the lock first.
+        gate.inflight.get()?.let { (ticket, job) -> if (ticket < mine) job.cancel() }
         return gate.download.withLock {
             coroutineContext.ensureActive()
             if (gate.ticket.get() != mine) return@withLock null
@@ -99,15 +119,18 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
                         gate.ticket.get() == mine
                     }
                 }
-                gate.inflight.set(child)
+                val entry = mine to child
+                gate.inflight.set(entry)
                 if (gate.ticket.get() != mine) child.cancel()
                 try {
                     child.await()
                 } catch (e: CancellationException) {
-                    if (!coroutineContext.isActive) throw e
+                    // Only a refresh that lost its turn ends quietly (null). The caller being
+                    // cancelled, or a cancellation from inside the refresh itself, propagates (v7.21).
+                    if (!coroutineContext.isActive || gate.ticket.get() == mine) throw e
                     null
                 } finally {
-                    gate.inflight.compareAndSet(child, null)
+                    gate.inflight.compareAndSet(entry, null)
                 }
             }
         }
@@ -122,8 +145,10 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
         replace(
             items, stillCurrent, toRow, VodEntity::streamId, onChunk,
             db.vodDao()::upsertVod,
-            { db.vodDao().getUserData().map { it.streamId } },
-            db.vodDao()::deleteByIds
+            // Only titles with nothing of the user's on them. A favorite or a started movie the
+            // provider leaves out (often for a while) keeps its row, so nothing is lost if it returns.
+            { db.vodDao().getUserData().filter { !it.isFavorite && it.watchedMs == 0L && it.durationMs == 0L }.map { it.streamId } },
+            db.vodDao()::deleteStaleByIds
         )
     }
 
@@ -136,8 +161,13 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
         replace(
             items, stillCurrent, toRow, SeriesEntity::seriesId, onChunk,
             db.seriesDao()::upsertSeries,
-            { db.seriesDao().getUserData().map { it.seriesId } },
-            db.seriesDao()::deleteByIds
+            // Same rule as movies: a favorite, started or hidden show keeps its row.
+            {
+                db.seriesDao().getUserData()
+                    .filter { !it.isFavorite && it.watchedMs == 0L && it.durationMs == 0L && !it.isHidden }
+                    .map { it.seriesId }
+            },
+            db.seriesDao()::deleteStaleByIds
         )
     }
 
