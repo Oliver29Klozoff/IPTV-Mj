@@ -10,11 +10,69 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "iptv_prefs")
+/**
+ * A preferences file that can't be read (corrupted by a crash mid-write, a full disk, a bad
+ * restore) used to throw on every read, so MKTV failed at startup every time until its data was
+ * cleared. It is replaced with defaults instead. The whole store has to go — a corrupted protobuf
+ * can't be partly read — so this means signing in again; databases and other files are untouched.
+ * Only the exception type is logged (the file holds the login).
+ */
+internal val prefsCorruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler { e ->
+    android.util.Log.w("PreferencesManager", "Settings file unreadable (${e.javaClass.simpleName}); reset to defaults")
+    emptyPreferences()
+}
+
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "iptv_prefs",
+    corruptionHandler = prefsCorruptionHandler
+)
+
+/**
+ * The latest settings, kept in memory for the few places that need a value synchronously (building
+ * a player, scheduling a reminder). Reading DataStore there meant runBlocking on the main thread,
+ * including DataStore's first disk read. Collection starts with the first PreferencesManager
+ * (Application start), so by the time any screen asks the snapshot is loaded; until then a read
+ * falls back to the old blocking read, so a value is never guessed from a default. One per process,
+ * like the DataStore itself.
+ */
+internal object PrefsSnapshot {
+    private val latest = kotlinx.coroutines.flow.MutableStateFlow<Preferences?>(null)
+    @Volatile private var started = false
+
+    fun start(context: Context) {
+        if (started) return
+        synchronized(this) {
+            if (started) return
+            started = true
+            val app = context.applicationContext
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+                app.dataStore.data
+                    .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+                    .collect { latest.value = it }
+            }
+        }
+    }
+
+    fun <T> read(context: Context, value: (Preferences) -> T): T {
+        start(context)
+        val prefs = latest.value ?: kotlinx.coroutines.runBlocking {
+            context.applicationContext.dataStore.data
+                .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+                .first()
+        }
+        return value(prefs)
+    }
+
+    /** Tests: suspends until the snapshot satisfies [predicate]. */
+    internal suspend fun awaitForTest(predicate: (Preferences) -> Boolean) {
+        latest.first { it != null && predicate(it) }
+    }
+}
 
 // Top-level (not in the private Keys object below) so ChannelTimerScheduler — a plain object with
 // no Hilt injection, used from BroadcastReceiver-adjacent code that schedules AlarmManager
@@ -33,6 +91,32 @@ data class ServerCredentials(
 class PreferencesManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    init { PrefsSnapshot.start(context) }
+
+    // Synchronous reads for code that can't suspend (player builders). Same defaults as the flows
+    // below — each flow and its *Now() share one reader function.
+    fun subtitlesEnabledNow() = PrefsSnapshot.read(context, readSubtitlesEnabled)
+    fun preferredAudioLanguageNow() = PrefsSnapshot.read(context, readPreferredAudioLanguage)
+    fun preferredSubtitleLanguageNow() = PrefsSnapshot.read(context, readPreferredSubtitleLanguage)
+    fun extraBufferingEnabledNow() = PrefsSnapshot.read(context, readExtraBufferingEnabled)
+    fun tunneledPlaybackEnabledNow() = PrefsSnapshot.read(context, readTunneledPlaybackEnabled)
+    fun dv7FallbackEnabledNow() = PrefsSnapshot.read(context, readDv7FallbackEnabled)
+    fun audioPassthroughFallbackEnabledNow() = PrefsSnapshot.read(context, readAudioPassthroughFallbackEnabled)
+    fun dataSaverEnabledNow() = PrefsSnapshot.read(context, readDataSaverEnabled)
+    fun pipEnabledNow() = PrefsSnapshot.read(context, readPipEnabled)
+    fun silentSelfUpdateEnabledNow() = PrefsSnapshot.read(context, readSilentSelfUpdateEnabled)
+
+    private val readSilentSelfUpdateEnabled = { p: Preferences -> p[Keys.SILENT_SELF_UPDATE_ENABLED] ?: false }
+    private val readTunneledPlaybackEnabled = { p: Preferences -> p[Keys.TUNNELED_PLAYBACK_ENABLED] ?: false }
+    private val readDv7FallbackEnabled = { p: Preferences -> p[Keys.DV7_FALLBACK_ENABLED] ?: false }
+    private val readAudioPassthroughFallbackEnabled = { p: Preferences -> p[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
+    private val readExtraBufferingEnabled = { p: Preferences -> p[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
+    private val readSubtitlesEnabled = { p: Preferences -> p[Keys.SUBTITLES_ENABLED] ?: true }
+    private val readPreferredAudioLanguage = { p: Preferences -> p[Keys.PREFERRED_AUDIO_LANGUAGE] ?: "" }
+    private val readPreferredSubtitleLanguage = { p: Preferences -> p[Keys.PREFERRED_SUBTITLE_LANGUAGE] ?: "" }
+    private val readPipEnabled = { p: Preferences -> p[Keys.PIP_ENABLED] ?: true }
+    private val readDataSaverEnabled = { p: Preferences -> p[Keys.DATA_SAVER_ENABLED] ?: false }
+
     private object Keys {
         val SERVER_URL = stringPreferencesKey("server_url")
         val EPG_URLS = stringPreferencesKey("epg_urls")
@@ -229,17 +313,17 @@ class PreferencesManager @Inject constructor(
 
     val silentSelfUpdateEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { it[Keys.SILENT_SELF_UPDATE_ENABLED] ?: false }
+        .map(readSilentSelfUpdateEnabled)
     suspend fun setSilentSelfUpdateEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SILENT_SELF_UPDATE_ENABLED] = v }
 
     val tunneledPlaybackEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { it[Keys.TUNNELED_PLAYBACK_ENABLED] ?: false }
+        .map(readTunneledPlaybackEnabled)
     suspend fun setTunneledPlaybackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.TUNNELED_PLAYBACK_ENABLED] = v }
 
     val dv7FallbackEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { it[Keys.DV7_FALLBACK_ENABLED] ?: false }
+        .map(readDv7FallbackEnabled)
     suspend fun setDv7FallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.DV7_FALLBACK_ENABLED] = v }
 
     // Off by default — most setups (phone speaker, TV's own speakers, or an actual connected
@@ -247,7 +331,7 @@ class PreferencesManager @Inject constructor(
     // that DID have a receiver. Only turn on if E-AC3/DTS streams produce no sound at all.
     val audioPassthroughFallbackEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { it[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
+        .map(readAudioPassthroughFallbackEnabled)
     suspend fun setAudioPassthroughFallbackEnabled(v: Boolean) = context.dataStore.edit { it[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] = v }
 
     // On by default — auto-advancing to the next episode with a cancelable 10s countdown is
@@ -294,7 +378,7 @@ class PreferencesManager @Inject constructor(
     // a few extra seconds of initial load for fewer mid-playback stalls/freezes.
     val extraBufferingEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { it[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
+        .map(readExtraBufferingEnabled)
     suspend fun setExtraBufferingEnabled(v: Boolean) = context.dataStore.edit { it[Keys.EXTRA_BUFFERING_ENABLED] = v }
 
     data class SubtitleStyle(
@@ -334,7 +418,7 @@ class PreferencesManager @Inject constructor(
     // shows up on its own, with the existing CC dialog's "Off" option now actually sticking.
     val subtitlesEnabled: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { it[Keys.SUBTITLES_ENABLED] ?: true }
+        .map(readSubtitlesEnabled)
     suspend fun setSubtitlesEnabled(v: Boolean) = context.dataStore.edit { it[Keys.SUBTITLES_ENABLED] = v }
 
     val traktAccessToken: Flow<String?> = context.dataStore.data
@@ -392,10 +476,10 @@ class PreferencesManager @Inject constructor(
         .map { it[Keys.PREFERRED_FORMAT] ?: "m3u8" }
 
     val preferredAudioLanguage: Flow<String> = context.dataStore.data
-        .map { it[Keys.PREFERRED_AUDIO_LANGUAGE] ?: "" }
+        .map(readPreferredAudioLanguage)
 
     val preferredSubtitleLanguage: Flow<String> = context.dataStore.data
-        .map { it[Keys.PREFERRED_SUBTITLE_LANGUAGE] ?: "" }
+        .map(readPreferredSubtitleLanguage)
 
     val recordingFolderName: Flow<String> = context.dataStore.data
         .map { it[Keys.RECORDING_FOLDER_NAME] ?: "MKTV" }
@@ -583,7 +667,7 @@ class PreferencesManager @Inject constructor(
     val dohEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DOH_ENABLED] ?: false }
     suspend fun setDohEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.DOH_ENABLED] = enabled } }
 
-    val pipEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.PIP_ENABLED] ?: true }
+    val pipEnabled: Flow<Boolean> = context.dataStore.data.map(readPipEnabled)
     suspend fun setPipEnabled(enabled: Boolean) { context.dataStore.edit { it[Keys.PIP_ENABLED] = enabled } }
     val dohProvider: Flow<String> = context.dataStore.data.map { it[Keys.DOH_PROVIDER] ?: "cloudflare" }
     suspend fun setDohProvider(provider: String) { context.dataStore.edit { it[Keys.DOH_PROVIDER] = provider } }
@@ -977,7 +1061,7 @@ class PreferencesManager @Inject constructor(
 
     // Data Saver — caps the video quality the player will pick (see PlayerActivity.buildPlayer).
     // Off by default; only helps on streams the provider offers in more than one quality.
-    val dataSaverEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DATA_SAVER_ENABLED] ?: false }
+    val dataSaverEnabled: Flow<Boolean> = context.dataStore.data.map(readDataSaverEnabled)
     suspend fun setDataSaverEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.DATA_SAVER_ENABLED] = enabled }
     }

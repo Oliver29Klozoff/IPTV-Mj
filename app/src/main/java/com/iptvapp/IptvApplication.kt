@@ -78,6 +78,9 @@ class IptvApplication : Application(), Configuration.Provider {
         // is the first chance to set scheduled recordings and reminders again. The same recovery
         // the boot receiver runs: repeating it replaces alarms rather than adding them.
         CoroutineScope(Dispatchers.IO).launch {
+            // Periodic work (guide refresh, clean-ups) matched to the saved settings, once per
+            // process start — re-arms anything an update or force-stop cleared. Idempotent.
+            runCatching { com.iptvapp.worker.BackgroundWork.syncAll(app, prefs) }
             runCatching { com.iptvapp.service.RecordingRecovery.run(app, db) }
             runCatching { com.iptvapp.ui.guide.ChannelTimerScheduler.recover(app) }
         }
@@ -116,11 +119,8 @@ class IptvApplication : Application(), Configuration.Provider {
                 val stackTrace = LogSanitizer.redactCredentials(sw.toString())
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                 val logEntry = "=== CRASH $timestamp ===\nThread: ${thread.name}\n$stackTrace\n\n"
-                val logFile = File(filesDir, "crash_log.txt")
-                // Keep only last 50KB of logs
-                val existing = if (logFile.exists()) logFile.readText() else ""
-                val trimmed = if (existing.length > 50000) existing.takeLast(40000) else existing
-                logFile.writeText(trimmed + logEntry)
+                // Synchronous: the process is about to die. Writes any queued playback events first.
+                com.iptvapp.util.CrashLog.appendNow(this, logEntry)
             } catch (_: Exception) {}
             // Crashlytics only ever sees the sanitized message, never the raw throwable's own
             // message (which could itself carry an unredacted stream URL) — same
@@ -191,10 +191,9 @@ class IptvApplication : Application(), Configuration.Provider {
             try {
                 val sanitized = LogSanitizer.redactCredentials(message)
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                val logFile = File(context.filesDir, "crash_log.txt")
-                val existing = if (logFile.exists()) logFile.readText() else ""
-                val trimmed = if (existing.length > 50000) existing.takeLast(40000) else existing
-                logFile.writeText(trimmed + "[$timestamp] $sanitized\n")
+                // Queued, not written here: callers are often on the main thread, and every write
+                // rewrites the whole (up to 50 KB) file. See CrashLog.
+                com.iptvapp.util.CrashLog.append(context, "[$timestamp] $sanitized\n")
             } catch (_: Exception) {}
         }
     }

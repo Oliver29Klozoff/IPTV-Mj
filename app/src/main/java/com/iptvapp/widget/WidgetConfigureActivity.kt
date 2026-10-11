@@ -6,8 +6,6 @@ import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.ListView
 import android.widget.Toast
-import androidx.room.Room
-import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.databinding.ActivityWidgetConfigureBinding
 import kotlinx.coroutines.Dispatchers
@@ -15,10 +13,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Not @AndroidEntryPoint — matches WidgetChannelService's existing pattern of building its own
-// short-lived IptvDatabase instance rather than going through Hilt, since a widget-adjacent
-// component only needs a handful of one-shot reads and doesn't participate in the app's normal
-// injection graph.
+// Not @AndroidEntryPoint — like WidgetChannelService, it reaches the app's own database through
+// AppDatabaseAccess for its one-shot read instead of joining the injection graph.
 class WidgetConfigureActivity : Activity() {
 
     private lateinit var binding: ActivityWidgetConfigureBinding
@@ -72,12 +68,8 @@ class WidgetConfigureActivity : Activity() {
     private fun loadFavorites() {
         activityScope.launch {
             val favorites = withContext(Dispatchers.IO) {
-                val db = Room.databaseBuilder(applicationContext, IptvDatabase::class.java, IptvDatabase.DATABASE_NAME)
-                    .addMigrations(*IptvDatabase.ALL_MIGRATIONS)
-                    .build()
-                val list = db.channelDao().getFavoriteChannelsBlocking()
-                db.close()
-                list
+                // The app's own database (see AppDatabaseAccess), not a second Room instance.
+                com.iptvapp.di.AppDatabaseAccess.get(applicationContext).channelDao().getFavoriteChannelsBlocking()
             }
             allFavorites = favorites
             updateModeUi()

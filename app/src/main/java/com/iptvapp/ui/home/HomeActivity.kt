@@ -61,15 +61,9 @@ import com.iptvapp.update.UpdateChecker
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.data.local.entities.CategoryEntity
-import com.iptvapp.worker.EpgRefreshWorker
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
-import java.util.concurrent.TimeUnit
 import com.iptvapp.ui.guide.ChannelTimerScheduler
 import com.iptvapp.ui.series.SeriesDetailActivity
 import java.text.SimpleDateFormat
@@ -1403,7 +1397,6 @@ class HomeActivity : AppCompatActivity() {
                 != PackageManager.PERMISSION_GRANTED) {
             notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        rescheduleEpgRefreshIfNeeded()
         setupRecyclerViews()
         setupTabs()
         setupSearch()
@@ -1485,8 +1478,9 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val endHex = prefs.accentColorEnd.first()
             applyAccent(
-                android.graphics.Color.parseColor(prefs.accentColor.first()),
-                if (endHex.isNotEmpty()) android.graphics.Color.parseColor(endHex) else null
+                // A bad saved value (old build, restored backup) falls back instead of crashing.
+                com.iptvapp.util.AccentColors.startOrDefault(prefs.accentColor.first()),
+                com.iptvapp.util.AccentColors.parseOrNull(endHex)
             )
         }
         if (intent.getBooleanExtra(FeatureTourDialog.EXTRA_START_TOUR, false)) {
@@ -1644,20 +1638,6 @@ class HomeActivity : AppCompatActivity() {
         const val TAB_SERIES = 5
         const val TAB_GUIDE = 6
         const val TAB_HISTORY = 7
-    }
-
-    private fun rescheduleEpgRefreshIfNeeded() {
-        lifecycleScope.launch {
-            val hours = prefs.epgAutoRefreshHours.first()
-            if (hours > 0) {
-                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
-                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
-                    .build()
-                WorkManager.getInstance(this@HomeActivity).enqueueUniquePeriodicWork(
-                    "auto_epg_refresh_work", ExistingPeriodicWorkPolicy.KEEP, req
-                )
-            }
-        }
     }
 
     private fun setupLandscapeSidebar() {
@@ -1980,8 +1960,9 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val endHex = prefs.accentColorEnd.first()
             applyAccent(
-                android.graphics.Color.parseColor(prefs.accentColor.first()),
-                if (endHex.isNotEmpty()) android.graphics.Color.parseColor(endHex) else null
+                // A bad saved value (old build, restored backup) falls back instead of crashing.
+                com.iptvapp.util.AccentColors.startOrDefault(prefs.accentColor.first()),
+                com.iptvapp.util.AccentColors.parseOrNull(endHex)
             )
         }
         // Cheap, always-visible reminder of which server/account is currently active — useful
@@ -2076,9 +2057,18 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Only pause if truly going to background, not when opening another activity
         if (!isChangingConfigurations) {
-            miniPlayer?.pause()
+            // Leaving the screen (background, or another screen on top). A live channel is stopped,
+            // not paused: a paused live stream kept its decoder and its connection to the provider
+            // open — on a one-connection account that blocks the next play. onResume re-prepares it
+            // at the live edge, as it already did. Video on demand pauses, to resume in place.
+            // Background listening is AudioOnlyService's job, not the mini player's.
+            if (currentMiniIsVod) {
+                miniPlayer?.pause()
+            } else {
+                miniPlayJob?.cancel() // a retry waiting out its backoff would restart it in the background
+                miniPlayer?.stop()
+            }
             // Guide requests belong to this screen being in front; onStart picks them up again.
             viewModel.cancelEpgLoads()
         }
@@ -2101,9 +2091,9 @@ class HomeActivity : AppCompatActivity() {
         // fullscreen did) — a channel with subtitle tracks played silently without them here
         // regardless of the user's Settings > Stream choice. Same track-selector setup as
         // PlayerActivity.buildPlayer, so the two players agree on whether subtitles show.
-        val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
-        val preferredSubtitleLanguage = kotlinx.coroutines.runBlocking { prefs.preferredSubtitleLanguage.first() }
-        val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
+        val subtitlesEnabled = prefs.subtitlesEnabledNow()
+        val preferredSubtitleLanguage = prefs.preferredSubtitleLanguageNow()
+        val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
         val miniTrackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
             parameters = buildUponParameters()
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !subtitlesEnabled)
@@ -5127,6 +5117,16 @@ class HomeActivity : AppCompatActivity() {
                 .setNegativeButton("Dismiss", null)
                 .show()
         }
+    }
+
+    /** The phone remote's Full screen: opens the fullscreen player for whatever the mini player has. */
+    fun remoteFullscreen() {
+        if (currentMiniUrl.isEmpty()) return
+        val currentPos = miniPlayer?.currentPosition ?: 0L
+        openPlayer(
+            currentMiniUrl, currentMiniTitle, currentMiniStreamId, isVod = currentMiniIsVod, resumeMs = currentPos,
+            serverIndex = currentMiniServerIndex, mergedStreamId = currentMiniMergedStreamId
+        )
     }
 
     private fun openPlayer(

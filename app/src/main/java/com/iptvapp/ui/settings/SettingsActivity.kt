@@ -509,18 +509,6 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         workManager = WorkManager.getInstance(this)
 
-        // Re-establish in case it was cleared by an app update (KEEP = don't reset the timer) —
-        // mirrors RecordingSchedulerActivity's identical re-arm for RecordingCleanupWorker.
-        lifecycleScope.launch {
-            if (prefs.autoClearContinueWatchingDays.first() > 0) {
-                val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.ContinueWatchingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                workManager.enqueueUniquePeriodicWork(
-                    com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME,
-                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                    request
-                )
-            }
-        }
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSettingsHelp.setOnClickListener { showSettingsHelp() }
@@ -2653,16 +2641,7 @@ class SettingsActivity : AppCompatActivity() {
                     lifecycleScope.launch {
                         prefs.setAutoClearContinueWatchingDays(days)
                         binding.tvAutoClearContinueWatchingValue.text = autoClearContinueWatchingLabel(days)
-                        if (days > 0) {
-                            val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.ContinueWatchingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                            androidx.work.WorkManager.getInstance(this@SettingsActivity).enqueueUniquePeriodicWork(
-                                com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME,
-                                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                                request
-                            )
-                        } else {
-                            androidx.work.WorkManager.getInstance(this@SettingsActivity).cancelUniqueWork(com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME)
-                        }
+                        com.iptvapp.worker.BackgroundWork.applyContinueWatchingCleanup(this@SettingsActivity, days)
                     }
                     dialog.dismiss()
                 }
@@ -2745,15 +2724,6 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun loadSettings() {
         lifecycleScope.launch {
-            // Re-establish periodic work in case it was cleared by an app update (KEEP = don't reset the timer)
-            val savedHours = prefs.epgAutoRefreshHours.first()
-            if (savedHours > 0) {
-                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(savedHours.toLong(), TimeUnit.HOURS)
-                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
-                    .build()
-                workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, req)
-            }
-
             isLoadingSettings = true
             try {
                 val savedEpgUrl = com.iptvapp.AppConstants.currentEpgUrl(prefs.epgUrl.first())
@@ -2814,8 +2784,10 @@ class SettingsActivity : AppCompatActivity() {
                     else      -> binding.rbDohCloudflare.isChecked = true
                 }
                 currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
-                currentAccentColor = prefs.accentColor.first()
-                currentAccentColorEnd = prefs.accentColorEnd.first()
+                // Checked here: every swatch and picker below parses these. A bad saved value (old
+                // build, restored backup) shows the default instead of crashing Settings.
+                currentAccentColor = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
+                currentAccentColorEnd = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
                 setupAccentPicker()
                 // Also sets the Sort channels label, with its value in the accent.
                 applyAccentToSettings()
@@ -2882,16 +2854,7 @@ class SettingsActivity : AppCompatActivity() {
             }
     }
 
-    private fun scheduleAutoEpgRefresh(hours: Int) {
-        if (hours == 0) {
-            workManager.cancelUniqueWork(AUTO_EPG_WORK_NAME)
-            return
-        }
-        val request = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
-            .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
-            .build()
-        workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
-    }
+    private fun scheduleAutoEpgRefresh(hours: Int) = com.iptvapp.worker.BackgroundWork.applyAutoEpgRefresh(this, hours)
 
     // Also feeds the status strip's GUIDE readout: the time for a refresh today, otherwise the date.
     private suspend fun updateLastRefreshText() {
@@ -4355,7 +4318,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
 
         // android:tag values the Rack styles put on views (styles_settings.xml has the full list),
         // read by applyRackAccent / wireToggleRows.

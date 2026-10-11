@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
-import androidx.room.Room
 import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +20,9 @@ class WidgetChannelService : RemoteViewsService() {
 
 class ChannelWidgetFactory(
     private val context: Context,
-    private val widgetId: Int
+    private val widgetId: Int,
+    // The app's singleton database. Tests pass their own.
+    private val database: () -> IptvDatabase = { com.iptvapp.di.AppDatabaseAccess.get(context) }
 ) : RemoteViewsService.RemoteViewsFactory {
 
     // A single row shape covers both modes: a live channel (name + now-playing EPG title) and a
@@ -39,19 +40,17 @@ class ChannelWidgetFactory(
 
     private var rows: List<WidgetRow> = emptyList()
 
-    override fun onCreate() { load() }
+    // onDataSetChanged always follows onCreate and runs on a binder thread, where Android expects
+    // this synchronous load; onCreate must stay light.
+    override fun onCreate() {}
     override fun onDataSetChanged() { load() }
     override fun onDestroy() {}
 
     private fun load() {
         runBlocking(Dispatchers.IO) {
-            // Was a hand-typed, independent copy of the migration list that silently fell behind
-            // the main app's (stuck at MIGRATION_17_18 while the app was on MIGRATION_24_25) —
-            // now shares the single source of truth so it can never drift again. See
-            // IptvDatabase.ALL_MIGRATIONS kdoc.
-            val db = Room.databaseBuilder(context, IptvDatabase::class.java, IptvDatabase.DATABASE_NAME)
-                .addMigrations(*IptvDatabase.ALL_MIGRATIONS)
-                .build()
+            // The app's own database, not a new Room instance per refresh (each one re-opened the
+            // file and ran the migration checks, and was only closed if nothing threw first).
+            val db = database()
 
             rows = when (WidgetPrefs.getMode(context, widgetId)) {
                 WidgetPrefs.MODE_CONTINUE_WATCHING -> {
@@ -94,7 +93,6 @@ class ChannelWidgetFactory(
                     }
                 }
             }
-            db.close()
         }
     }
 

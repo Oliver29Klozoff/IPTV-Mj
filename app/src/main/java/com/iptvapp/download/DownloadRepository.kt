@@ -10,6 +10,7 @@ import com.iptvapp.data.local.entities.DownloadType
 import com.iptvapp.data.local.entities.DownloadedContentEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -55,7 +56,9 @@ class DownloadRepository @Inject constructor(
         // filesystem path) so PlayerActivity can look this row up by streamId and rebuild a
         // CacheDataSource pointed at the same cache + URL to play back the cached bytes with
         // zero network access. See PlayerActivity's buildPlayer() for the read side.
-        kotlinx.coroutines.runBlocking {
+        // Off the main thread (callers are click handlers), in the same order as before: the row
+        // exists before the download is started, since progress updates write to it.
+        scope.launch {
             dao.upsert(
                 DownloadedContentEntity(
                     streamId = streamId,
@@ -70,17 +73,18 @@ class DownloadRepository @Inject constructor(
                     progressPercent = 0
                 )
             )
+            DownloadService.sendAddDownload(context, MediaDownloadService::class.java, request, false)
         }
-
-        DownloadService.sendAddDownload(context, MediaDownloadService::class.java, request, false)
         return true
     }
 
     fun cancelOrDeleteDownload(streamId: Int) {
         val downloadId = "content_$streamId"
         DownloadService.sendRemoveDownload(context, MediaDownloadService::class.java, downloadId, false)
-        kotlinx.coroutines.runBlocking { dao.deleteByStreamId(streamId) }
+        scope.launch { dao.deleteByStreamId(streamId) }
     }
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     /** The original source URL (used as the cache key) if a COMPLETE download exists for this streamId. */
     suspend fun getPlayableUri(streamId: Int): String? {

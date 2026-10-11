@@ -2602,7 +2602,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Global (applies to every server, not per-provider) — trades a slower initial
         // load/seek for fewer mid-playback stalls, since some IPTV providers are slow or
         // inconsistent enough that the default buffer runs dry mid-stream.
-        val extraBufferingEnabled = kotlinx.coroutines.runBlocking { prefs.extraBufferingEnabled.first() }
+        val extraBufferingEnabled = prefs.extraBufferingEnabledNow()
         val loadControl = DefaultLoadControl.Builder()
             .apply {
                 if (extraBufferingEnabled) setBufferDurationsMs(90_000, 240_000, 10_000, 15_000)
@@ -2673,9 +2673,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val trackedDataSourceFactory = bandwidthTracker!!.wrap(cacheDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(trackedDataSourceFactory)
 
-        val tunnelingEnabled = kotlinx.coroutines.runBlocking { prefs.tunneledPlaybackEnabled.first() }
-        val dv7FallbackEnabled = kotlinx.coroutines.runBlocking { prefs.dv7FallbackEnabled.first() }
-        val audioPassthroughFallbackEnabled = kotlinx.coroutines.runBlocking { prefs.audioPassthroughFallbackEnabled.first() }
+        val tunnelingEnabled = prefs.tunneledPlaybackEnabledNow()
+        val dv7FallbackEnabled = prefs.dv7FallbackEnabledNow()
+        val audioPassthroughFallbackEnabled = prefs.audioPassthroughFallbackEnabledNow()
 
         // DV7 fallback: some devices lack proper Dolby Vision Profile 7 (dual-layer) decode
         // support and either fail or black-screen. When enabled, redirect DV7 content to a
@@ -2720,10 +2720,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 .setMediaCodecSelector(codecSelector)
         }
 
-        val subtitlesEnabled = kotlinx.coroutines.runBlocking { prefs.subtitlesEnabled.first() }
-        val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
-        val preferredSubtitleLanguage = kotlinx.coroutines.runBlocking { prefs.preferredSubtitleLanguage.first() }
-        val dataSaver = kotlinx.coroutines.runBlocking { prefs.dataSaverEnabled.first() }
+        val subtitlesEnabled = prefs.subtitlesEnabledNow()
+        val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
+        val preferredSubtitleLanguage = prefs.preferredSubtitleLanguageNow()
+        val dataSaver = prefs.dataSaverEnabledNow()
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
             parameters = buildUponParameters()
                 .apply { if (tunnelingEnabled) setTunnelingEnabled(true) }
@@ -4342,7 +4342,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // phone) — once entered there, the user could get stuck with no way back short of a
         // guessed Back-button sequence. Skip auto-entering PiP entirely on TV/large-screen
         // devices; phone keeps it since the standard Android PiP exit gestures work fine there.
-        val pipAllowed = kotlinx.coroutines.runBlocking { prefs.pipEnabled.first() }
+        val pipAllowed = prefs.pipEnabledNow()
         if (!isVod && pipAllowed && !isLargeScreenDevice() && !audioOnly) enterPip()
     }
 

@@ -79,8 +79,8 @@ class AudioOnlyService : MediaSessionService() {
         }.also { it.startPeriodicFlush(); tracker = it }
         // Same audio settings as the video player (PlayerActivity.buildPlayer): the preferred
         // language, and the stereo-PCM sink for boxes that go silent with passthrough.
-        val passthroughFallback = kotlinx.coroutines.runBlocking { prefs.audioPassthroughFallbackEnabled.first() }
-        val preferredAudioLanguage = kotlinx.coroutines.runBlocking { prefs.preferredAudioLanguage.first() }
+        val passthroughFallback = prefs.audioPassthroughFallbackEnabledNow()
+        val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
         val renderersFactory = if (passthroughFallback) {
             object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
                 override fun buildAudioSink(

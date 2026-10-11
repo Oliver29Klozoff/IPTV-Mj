@@ -11,10 +11,7 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.iptvapp.R
-import com.iptvapp.data.local.dataStore
 import com.iptvapp.ui.home.HomeActivity
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 class ChannelTimerReceiver : BroadcastReceiver() {
 
@@ -207,8 +204,9 @@ object ChannelTimerScheduler {
     // preference here (rather than at each of the 4 call sites) keeps this a one-line change for
     // GuideAdapter/EpgTimelineActivity/HomeActivity/TvHomeActivity's existing "Remind Me" calls.
     fun schedule(context: Context, streamId: Int, channelName: String, programTitle: String, startMs: Long, serverIndex: Int = -1) {
-        val leadMinutes = runBlocking {
-            context.dataStore.data.first()[com.iptvapp.data.local.REMINDER_LEAD_MINUTES_KEY] ?: 5
+        // From the in-memory settings snapshot: "Remind me" is tapped on the main thread.
+        val leadMinutes = com.iptvapp.data.local.PrefsSnapshot.read(context) {
+            it[com.iptvapp.data.local.REMINDER_LEAD_MINUTES_KEY] ?: 5
         }
         // The entry and its alarm change together, under the lock recovery and delivery use.
         synchronized(lock) { arm(context, streamId, channelName, programTitle, startMs, serverIndex, leadMinutes) }
