@@ -85,6 +85,9 @@ if (-not (Test-HashMatch $builtHash $apkHash)) { Fail "MKTV.apk does not match t
 
 $expected = ConvertTo-NormalizedSha256 (Get-Content "release\expected-signer.sha256" -Raw)
 if (-not (Test-HashMatch $expected ([string]$summary["signerSha256"]))) { Fail "The summary signer is not the expected production certificate." }
+if (-not $env:JAVA_HOME -and (Test-Path -LiteralPath "C:\Program Files\Android\Android Studio\jbr")) {
+    $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+}
 $props = Read-LocalPropertyMap (Join-Path $PSScriptRoot "local.properties")
 $tools = Get-ChildItem (Join-Path ([string]$props["sdk.dir"]) "build-tools") -Directory | Where-Object { $_.Name -notmatch "rc" } | Sort-Object Name -Descending | Select-Object -First 1
 if (-not $tools) { Fail "No stable Android build-tools directory was found." }

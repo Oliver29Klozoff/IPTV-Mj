@@ -68,6 +68,9 @@ $expectedSigner = ConvertTo-NormalizedSha256 (Get-Content "release\expected-sign
 if ($expectedSigner.Length -ne 64) { Fail "release/expected-signer.sha256 is not a SHA-256 fingerprint." }
 
 $apk = Join-Path $PSScriptRoot "app\build\outputs\apk\release\app-release.apk"
+if (-not $env:JAVA_HOME -and (Test-Path -LiteralPath "C:\Program Files\Android\Android Studio\jbr")) {
+    $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+}
 if (-not $SkipBuild) {
     $signing = Get-SigningPropertyError (Read-LocalPropertyMap (Join-Path $PSScriptRoot "local.properties")) -BaseDirectory (Join-Path $PSScriptRoot "app")
     if ($signing -eq "missing") { Fail "Release signing configuration is missing. Refusing to build a production APK." }
@@ -75,9 +78,6 @@ if (-not $SkipBuild) {
     if (Test-Path -LiteralPath $apk) { Remove-Item -LiteralPath $apk -Force }
     $buildStarted = Get-Date
     if (-not $env:GRADLE_USER_HOME -and (Test-Path -LiteralPath "D:\Gradle")) { $env:GRADLE_USER_HOME = "D:\Gradle" }
-    if (-not $env:JAVA_HOME -and (Test-Path -LiteralPath "C:\Program Files\Android\Android Studio\jbr")) {
-        $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-    }
     & .\gradlew.bat :app:assembleRelease --console=plain
     if ($LASTEXITCODE -ne 0) { Fail "The release build failed. No APK was staged." }
     if (-not (Test-Path -LiteralPath $apk)) { Fail "The release build reported success but did not write app-release.apk." }
