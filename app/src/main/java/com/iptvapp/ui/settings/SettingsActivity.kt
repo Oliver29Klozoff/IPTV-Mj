@@ -1,4 +1,5 @@
 package com.iptvapp.ui.settings
+import com.iptvapp.data.repository.wasSuperseded
 import com.iptvapp.BuildConfig
 import com.iptvapp.util.Resource
 
@@ -687,12 +688,16 @@ class SettingsActivity : AppCompatActivity() {
             binding.btnRefreshMovies.isEnabled = false
             binding.btnRefreshMovies.text = "Loading…"
             lifecycleScope.launch {
-                repository.fetchVodCategories()
-                val result = repository.fetchVodStreams()
+                // Replaced by a newer refresh or a provider switch: not a failure, and the titles
+                // download it led to is now someone else's job.
+                val result = repository.fetchVodCategories().takeIf { it.wasSuperseded() }
+                    ?: repository.fetchVodStreams()
                 binding.btnRefreshMovies.isEnabled = true
                 binding.btnRefreshMovies.text = "Refresh"
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Movies refreshed (${result.data?.size ?: 0} titles)"
+                else if (result.wasSuperseded())
+                    "Movies refresh replaced by a newer one"
                 else
                     "Failed — server timeout or no content"
                 Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
@@ -708,6 +713,8 @@ class SettingsActivity : AppCompatActivity() {
                 binding.btnRefreshSeries.text = "Refresh"
                 val msg = if (result is com.iptvapp.util.Resource.Success)
                     "Series refreshed (${result.data?.size ?: 0} titles)"
+                else if (result.wasSuperseded())
+                    "Series refresh replaced by a newer one"
                 else
                     "Failed — server timeout or no content"
                 Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()

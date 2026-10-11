@@ -823,7 +823,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private suspend fun playLauncherCard(link: String, generation: Int): Boolean {
         when (val parsed = LauncherLink.parse(Intent.ACTION_VIEW, link)) {
             is LauncherLink.Parsed.Current -> {
-                val channel = try {
+                // The URL comes back from the same check as the channel, built from the same reading
+                // of the login, so a provider switch part-way can't swap in another account's channel.
+                val resolved = try {
                     LauncherLinks.resolve(this, prefs, parsed) { viewModel.getChannelById(it) }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
@@ -831,7 +833,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     null
                 }
                 if (generation != reminderTuneGen) return false
-                if (channel == null) {
+                if (resolved == null) {
                     Toast.makeText(
                         this,
                         "That channel isn't available any more. MKTV's home screen favorites have been refreshed.",
@@ -840,17 +842,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     launcherRepublish.value++
                     return false
                 }
-                val url = try {
-                    viewModel.getLiveStreamUrl(channel.streamId)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    Toast.makeText(this, "Couldn't open that channel", Toast.LENGTH_SHORT).show()
-                    return false
-                }
-                if (generation != reminderTuneGen) return false
                 kotlin.coroutines.coroutineContext.ensureActive()
-                openPlayer(url, channel.name, channel.streamId)
+                openPlayer(resolved.url, resolved.channel.name, resolved.channel.streamId)
                 return true
             }
             is LauncherLink.Parsed.Legacy -> {

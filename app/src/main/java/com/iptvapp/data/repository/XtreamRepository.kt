@@ -646,7 +646,7 @@ class XtreamRepository @Inject constructor(
                 val list = response.body() ?: throw Exception("Empty response")
                 val fetchedMs = android.os.SystemClock.elapsedRealtime()
                 if (!still() || !samePrimary(identity)) {
-                    throw Exception("The provider changed during the refresh")
+                    throw CatalogRefreshSuperseded()
                 }
                 checkActive()
                 // Without this, every VOD refresh (auto-refresh, pull-to-refresh, stale-cache
@@ -674,14 +674,14 @@ class XtreamRepository @Inject constructor(
                 // Pending favorites are wiped when their owner is not the current login. A refresh
                 // that already lost its turn must not call that, or a switch loses the carryover.
                 if (!wrote || !still() || !samePrimary(identity)) {
-                    throw Exception("The provider changed during the refresh")
+                    throw CatalogRefreshSuperseded()
                 }
                 applyPendingPrimaryVodFavorites()
                 logCatalogTiming("vod", list.size, startMs, fetchedMs)
                 list
             } }
         }
-        return outcome ?: Resource.Error("The provider changed during the refresh")
+        return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
     suspend fun fetchVodCategories(): Resource<List<Category>> {
@@ -695,17 +695,17 @@ class XtreamRepository @Inject constructor(
                 val unnamed = list.count { it.categoryName.isNullOrBlank() }
                 if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "VOD category count: ${list.size}, unnamed: $unnamed")
                 if (!still() || !samePrimary(identity)) {
-                    throw Exception("The provider changed during the refresh")
+                    throw CatalogRefreshSuperseded()
                 }
                 checkActive()
                 val wrote = primaryCatalog.replaceCategories("vod", list.map {
                     CategoryEntity(it.categoryId, it.categoryName, it.parentId, "vod")
                 }) { still() && samePrimary(identity) }
-                if (!wrote) throw Exception("The provider changed during the refresh")
+                if (!wrote) throw CatalogRefreshSuperseded()
                 list
             }
         }
-        return outcome ?: Resource.Error("The provider changed during the refresh")
+        return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
     fun getVodCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("vod")
@@ -838,7 +838,7 @@ class XtreamRepository @Inject constructor(
                 val list = response.body() ?: throw Exception("Empty response")
                 val fetchedMs = android.os.SystemClock.elapsedRealtime()
                 if (!still() || !samePrimary(identity)) {
-                    throw Exception("The provider changed during the refresh")
+                    throw CatalogRefreshSuperseded()
                 }
                 checkActive()
                 // Same preserve-across-refresh fix as fetchVodStreams above — without it, every
@@ -867,14 +867,14 @@ class XtreamRepository @Inject constructor(
                 }, onProgress)
                 // Same as movies: do not consume pending series favorites after this refresh lost its turn.
                 if (!wrote || !still() || !samePrimary(identity)) {
-                    throw Exception("The provider changed during the refresh")
+                    throw CatalogRefreshSuperseded()
                 }
                 applyPendingPrimarySeriesFavorites()
                 logCatalogTiming("series", list.size, startMs, fetchedMs)
                 list
             } }
         }
-        return outcome ?: Resource.Error("The provider changed during the refresh")
+        return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
@@ -900,17 +900,17 @@ class XtreamRepository @Inject constructor(
                 if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
                 val list = response.body() ?: throw Exception("Empty response")
                 if (!still() || !samePrimary(identity)) {
-                    throw Exception("The provider changed during the refresh")
+                    throw CatalogRefreshSuperseded()
                 }
                 checkActive()
                 val wrote = primaryCatalog.replaceCategories("series", list.map {
                     CategoryEntity(it.categoryId, it.categoryName, it.parentId, "series")
                 }) { still() && samePrimary(identity) }
-                if (!wrote) throw Exception("The provider changed during the refresh")
+                if (!wrote) throw CatalogRefreshSuperseded()
                 list
             }
         }
-        return outcome ?: Resource.Error("The provider changed during the refresh")
+        return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
     fun getSeriesCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("series")

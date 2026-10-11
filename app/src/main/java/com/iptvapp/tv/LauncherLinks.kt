@@ -3,6 +3,7 @@ package com.iptvapp.tv
 import android.content.Context
 import android.content.Intent
 import android.util.Base64
+import com.iptvapp.data.api.XtreamUrlBuilder
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.ServerCredentials
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -21,12 +22,15 @@ object LauncherLinks {
         creds: ServerCredentials
     ): List<TvHomeChannelPublisher.Entry> = withContext(Dispatchers.IO) {
         val key = LauncherLinkKey.get(context)
-        channels.map { ch ->
+        // One channel that can't be linked is left off the row; it never takes the row (or the
+        // home screen collecting it) down with it.
+        channels.mapNotNull { ch ->
+            val link = runCatching { linkFor(key, ch, creds) }.getOrNull() ?: return@mapNotNull null
             TvHomeChannelPublisher.Entry(
                 streamId = ch.streamId,
                 title = ch.name,
                 icon = ch.streamIcon,
-                link = linkFor(key, ch, creds)
+                link = link
             )
         }
     }
@@ -37,24 +41,36 @@ object LauncherLinks {
         return withContext(Dispatchers.IO) { linkFor(LauncherLinkKey.get(context), channel, creds) }
     }
 
+    /** A tapped card that checked out: its channel and the URL to play. */
+    data class Resolved(val channel: ChannelEntity, val url: String)
+
     /**
-     * The channel a tapped card names, or null when it can't be played safely: the channel is
-     * gone, or the card was made for another provider account (switched, removed, other login).
-     * Never falls back to another channel or provider with the same id.
+     * The channel a tapped card names and its playback URL, or null when it can't be played
+     * safely: the channel is gone, or the card was made for another provider account (switched,
+     * removed, other login). Never falls back to another channel or provider with the same id.
+     *
+     * The token is checked against one reading of the login and the URL is built from that same
+     * reading, so a provider switch landing part-way can't check out against one account and then
+     * play the other account's same-numbered channel. Same URL rule as getLiveStreamUrl: an M3U
+     * channel's own URL, otherwise one built from the login in the preferred format.
      */
     suspend fun resolve(
         context: Context,
         prefs: PreferencesManager,
         link: LauncherLink.Parsed.Current,
         lookup: suspend (Int) -> ChannelEntity?
-    ): ChannelEntity? {
+    ): Resolved? {
         val channel = lookup(link.streamId) ?: return null
         val creds = prefs.credentials.first()
         val key = withContext(Dispatchers.IO) { LauncherLinkKey.get(context) }
         val ok = LauncherLink.verify(
             key, link, channel.streamId, channel.streamUrl, creds.serverUrl, creds.username
         )
-        return if (ok) channel else null
+        if (!ok) return null
+        val url = channel.streamUrl
+            ?: XtreamUrlBuilder(creds.serverUrl, creds.username, creds.password)
+                .liveStreamUrl(channel.streamId, prefs.preferredFormat.first())
+        return Resolved(channel, url)
     }
 
     private fun linkFor(key: ByteArray, ch: ChannelEntity, creds: ServerCredentials): String =

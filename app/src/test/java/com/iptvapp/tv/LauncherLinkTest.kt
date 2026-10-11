@@ -126,8 +126,9 @@ class LauncherLinkTest {
     @Test fun invalidIdentifierIsRejected() {
         val tok = "a".repeat(32)
         val bad = listOf(
-            "mktv://play/v2/-1/$tok",
+            "mktv://play/v2/--1/$tok",
             "mktv://play/v2/99999999999/$tok",   // more than 10 digits
+            "mktv://play/v2/-2147483649/$tok",   // below Int range
             "mktv://play/v2/4294967296/$tok",    // past Int range
             "mktv://play/v2/abc/$tok",
             "mktv://play/v2/1/${"A".repeat(32)}", // upper-case hex isn't ours
@@ -164,6 +165,19 @@ class LauncherLinkTest {
     // 12. Building is deterministic: republishing gives the same link, not a second one.
     @Test fun republishingGivesTheSameLink() {
         assertEquals(xtreamLink(serverA, user, 8), xtreamLink(serverA, user, 8))
+    }
+
+    // M3U imports can give a channel a negative id (its id hash overflows Int). Such a favorite
+    // must get a working card, not crash the row.
+    @Test fun negativeChannelIdsRoundTrip() {
+        val id = -2139603201
+        val link = xtreamLink(serverA, user, id)
+        val parsed = LauncherLink.parse(LauncherLink.ACTION_VIEW, link)
+        assertTrue(link, parsed is LauncherLink.Parsed.Current)
+        parsed as LauncherLink.Parsed.Current
+        assertEquals(id, parsed.streamId)
+        assertTrue(LauncherLink.verify(key, parsed, id, null, serverA, user))
+        assertEquals(LauncherLink.Parsed.Legacy(-5), LauncherLink.parse(LauncherLink.ACTION_VIEW, "mktv://play/-5"))
     }
 
     @Test(expected = IllegalArgumentException::class)

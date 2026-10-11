@@ -18,6 +18,21 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /**
+ * A movie or series refresh that lost its turn to a newer refresh or a provider switch. Not a
+ * failure — the download was fine, it just no longer matters — so screens don't show it as
+ * "Failed". A real cancellation of the caller still propagates as CancellationException (v7.21).
+ */
+class CatalogRefreshSuperseded : Exception(MESSAGE) {
+    companion object {
+        const val MESSAGE = "Replaced by a newer refresh"
+    }
+}
+
+/** True when this result is a refresh that was replaced, not one that failed. */
+fun com.iptvapp.util.Resource<*>.wasSuperseded(): Boolean =
+    this is com.iptvapp.util.Resource.Error && cause is CatalogRefreshSuperseded
+
+/**
  * Primary movie and series catalog writes.
  *
  * One refresh of a kind runs at a time. Starting another, or a provider switch

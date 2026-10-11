@@ -9,7 +9,7 @@ import javax.crypto.spec.SecretKeySpec
  * The link behind each MKTV card on the Android TV home screen.
  *
  * Format: `mktv://play/v2/<streamId>/<token>`
- *  - streamId: the primary provider's channel id (ChannelEntity.streamId).
+ *  - streamId: the primary provider's channel id (ChannelEntity.streamId); may be negative.
  *  - token: HMAC-SHA256, under a random key that never leaves this install, of the channel's
  *    source identity (see [sourceIdentity]), cut to 128 bits.
  *
@@ -32,8 +32,8 @@ object LauncherLink {
     private const val TOKEN_BYTES = 16
     private const val MAX_LENGTH = 96
 
-    private val CURRENT = Regex("^mktv://play/v2/(\\d{1,10})/([0-9a-f]{32})$")
-    private val LEGACY = Regex("^mktv://play/(\\d{1,10})$")
+    private val CURRENT = Regex("^mktv://play/v2/(-?\\d{1,10})/([0-9a-f]{32})$")
+    private val LEGACY = Regex("^mktv://play/(-?\\d{1,10})$")
     private val TOKEN = Regex("^[0-9a-f]{32}$")
 
     sealed class Parsed {
@@ -42,8 +42,9 @@ object LauncherLink {
         object Invalid : Parsed()
     }
 
+    // Any Int: M3U imports can produce negative ids (their id hash overflows), and those channels
+    // can be favorites too.
     fun build(streamId: Int, token: String): String {
-        require(streamId >= 0) { "streamId must be >= 0" }
         require(TOKEN.matches(token)) { "malformed token" }
         return "$SCHEME://$HOST/$VERSION/$streamId/$token"
     }
