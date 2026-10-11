@@ -75,6 +75,24 @@ class PrimaryCatalogRefreshTest {
     }
 
     @Test
+    fun aShowWithOnlyEpisodeProgressKeepsItsRow() = runBlocking {
+        // Episode progress lives in episode_watched, not on the series row.
+        db.seriesDao().upsertSeries(listOf(show(20, "Watching"), show(21, "Plain")))
+        db.episodeWatchedDao().upsert(com.iptvapp.data.local.entities.EpisodeWatchedEntity(seriesId = 20, season = 1, episode = 3))
+        assertTrue(refresh.replaceSeries(emptyList<SeriesEntity>(), { true }, { it }))
+        assertEquals(listOf(20), seriesIds())
+    }
+
+    @Test
+    fun aTitleFavoritedAfterTheCandidatesWereReadIsNotDeleted() = runBlocking {
+        // The delete itself checks for user state, so a favorite saved mid-refresh wins.
+        db.vodDao().upsertVod(listOf(movie(5, "Later fav")))
+        db.vodDao().setFavorite(5, true)
+        db.vodDao().deleteStaleByIds(listOf(5))
+        assertEquals(listOf(5), vodIds())
+    }
+
+    @Test
     fun emptyMovieListClearsTheCatalog() = runBlocking {
         db.vodDao().upsertVod(listOf(movie(1, "Old")))
         assertTrue(refresh.replaceVod(emptyList<VodEntity>(), { true }, { it }))

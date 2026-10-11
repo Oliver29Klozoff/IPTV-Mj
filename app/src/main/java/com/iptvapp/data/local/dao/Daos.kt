@@ -252,8 +252,13 @@ interface VodDao {
     @Query("SELECT streamId, isFavorite, watchedMs, durationMs FROM vod_streams")
     suspend fun getUserData(): List<VodUserData>
     // Rows the provider no longer returns. Chunked by the caller: SQLite bounds ~999 variables.
-    @Query("DELETE FROM vod_streams WHERE streamId IN (:streamIds)")
-    suspend fun deleteByIds(streamIds: List<Int>)
+    // Only rows with nothing of the user's on them, checked here at delete time: a title favorited,
+    // started or watched since the candidates were read keeps its row.
+    @Query("""
+        DELETE FROM vod_streams WHERE streamId IN (:streamIds)
+        AND isFavorite = 0 AND watchedMs = 0 AND durationMs = 0 AND lastWatchedAt = 0
+    """)
+    suspend fun deleteStaleByIds(streamIds: List<Int>)
 }
 
 data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs: Long, val durationMs: Long)
@@ -294,8 +299,14 @@ interface SeriesDao {
     // ChannelDao.getUserData() already uses for live channels.
     @Query("SELECT seriesId, isFavorite, watchedMs, durationMs, isHidden FROM series")
     suspend fun getUserData(): List<SeriesUserData>
-    @Query("DELETE FROM series WHERE seriesId IN (:seriesIds)")
-    suspend fun deleteByIds(seriesIds: List<Int>)
+    // Same rule as VodDao.deleteStaleByIds. Episode progress lives in episode_watched, not on the
+    // series row, so a show with any watched or started episode keeps its row too.
+    @Query("""
+        DELETE FROM series WHERE seriesId IN (:seriesIds)
+        AND isFavorite = 0 AND watchedMs = 0 AND durationMs = 0 AND lastWatchedAt = 0 AND isHidden = 0
+        AND seriesId NOT IN (SELECT seriesId FROM episode_watched)
+    """)
+    suspend fun deleteStaleByIds(seriesIds: List<Int>)
     // Hide-individual-show support, same shape as ChannelDao's hide/unhide/getHidden.
     @Query("UPDATE series SET isHidden = 1 WHERE seriesId IN (:seriesIds)")
     suspend fun bulkSetHidden(seriesIds: List<Int>)
