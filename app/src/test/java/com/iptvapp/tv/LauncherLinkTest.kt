@@ -180,6 +180,14 @@ class LauncherLinkTest {
         assertEquals(LauncherLink.Parsed.Legacy(-5), LauncherLink.parse(LauncherLink.ACTION_VIEW, "mktv://play/-5"))
     }
 
+    // Host and scheme ignore case; a path doesn't — two providers on one host can differ only there.
+    @Test fun pathCaseIsPartOfTheAccount() {
+        assertEquals("https://host.example:8080/ProviderA", LauncherLink.normalizeServer(" HTTPS://Host.Example:8080/ProviderA/ "))
+        val link = current(xtreamLink("https://host.example/ProviderA", user, 7))
+        assertTrue(LauncherLink.verify(key, link, 7, null, "https://HOST.example/ProviderA", user))
+        assertFalse(LauncherLink.verify(key, link, 7, null, "https://host.example/providera", user))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun buildRejectsMalformedToken() {
         LauncherLink.build(1, "not-a-token")

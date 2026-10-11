@@ -49,7 +49,8 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
         val download = Mutex()
         val write = Mutex()
         val ticket = AtomicInteger(0)
-        val inflight = AtomicReference<Job?>(null)
+        // The running download and the ticket it belongs to.
+        val inflight = AtomicReference<Pair<Int, Job>?>(null)
     }
 
     // Categories and titles have separate turns. A category fetch must not discard an
@@ -63,7 +64,7 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
     fun supersede() {
         listOf(vodTitles, vodCategories, seriesTitles, seriesCategories).forEach { gate ->
             gate.ticket.incrementAndGet()
-            gate.inflight.get()?.cancel()
+            gate.inflight.get()?.second?.cancel()
         }
     }
 
@@ -100,6 +101,10 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
 
     private suspend fun <T> run(gate: Gate, block: suspend (still: suspend () -> Boolean) -> T): T? {
         val mine = gate.ticket.incrementAndGet()
+        // The download already running is now obsolete: cancel it rather than wait for it (a stalled
+        // request could hold the turn up to its read timeout). Only an older ticket's download —
+        // never a newer call's that got the lock first.
+        gate.inflight.get()?.let { (ticket, job) -> if (ticket < mine) job.cancel() }
         return gate.download.withLock {
             coroutineContext.ensureActive()
             if (gate.ticket.get() != mine) return@withLock null
@@ -114,15 +119,18 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
                         gate.ticket.get() == mine
                     }
                 }
-                gate.inflight.set(child)
+                val entry = mine to child
+                gate.inflight.set(entry)
                 if (gate.ticket.get() != mine) child.cancel()
                 try {
                     child.await()
                 } catch (e: CancellationException) {
-                    if (!coroutineContext.isActive) throw e
+                    // Only a refresh that lost its turn ends quietly (null). The caller being
+                    // cancelled, or a cancellation from inside the refresh itself, propagates (v7.21).
+                    if (!coroutineContext.isActive || gate.ticket.get() == mine) throw e
                     null
                 } finally {
-                    gate.inflight.compareAndSet(child, null)
+                    gate.inflight.compareAndSet(entry, null)
                 }
             }
         }

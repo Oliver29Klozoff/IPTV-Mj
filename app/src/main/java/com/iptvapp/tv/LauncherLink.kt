@@ -77,7 +77,15 @@ object LauncherLink {
         if (!directUrl.isNullOrEmpty()) "direct\n$directUrl"
         else "xtream\n${normalizeServer(serverUrl)}\n$username\n$streamId"
 
-    fun normalizeServer(url: String): String = url.trim().trimEnd('/').lowercase(Locale.ROOT)
+    // Scheme and host are case-insensitive; a path is not — two providers can share a host under
+    // paths that differ only in case (XtreamUrlBuilder keeps that case), so the path is kept as is.
+    fun normalizeServer(url: String): String {
+        val trimmed = url.trim().trimEnd('/')
+        val m = SCHEME_AND_HOST.find(trimmed) ?: return trimmed
+        return m.groupValues[1].lowercase(Locale.ROOT) + m.groupValues[2].lowercase(Locale.ROOT) + trimmed.substring(m.range.last + 1)
+    }
+
+    private val SCHEME_AND_HOST = Regex("^([a-zA-Z][a-zA-Z0-9+.-]*://)([^/?#]*)")
 
     fun token(key: ByteArray, identity: String): String {
         val mac = Mac.getInstance("HmacSHA256")

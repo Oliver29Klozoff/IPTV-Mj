@@ -75,6 +75,27 @@ class PrimaryCatalogRefreshTest {
     }
 
     @Test
+    fun aNewerRefreshCancelsAStalledOlderDownloadInsteadOfWaiting() = runBlocking {
+        val olderStarted = CompletableDeferred<Unit>()
+        val older = async {
+            refresh.runVod { _ -> olderStarted.complete(Unit); awaitCancellation() }
+        }
+        olderStarted.await()
+        // Would hang (the older one never answers) if the newer refresh waited for its turn.
+        val newer = refresh.runVod { _ -> "newer" }
+        assertEquals("newer", newer)
+        assertEquals("the older one ends as replaced, not as an error", null, older.await())
+    }
+
+    @Test
+    fun aCancellationFromInsideTheRefreshIsNotReportedAsReplaced() = runBlocking {
+        val thrown = runCatching {
+            refresh.runVod<Int> { _ -> throw kotlin.coroutines.cancellation.CancellationException("from inside") }
+        }.exceptionOrNull()
+        assertTrue("propagates: $thrown", thrown is kotlin.coroutines.cancellation.CancellationException)
+    }
+
+    @Test
     fun aShowWithOnlyEpisodeProgressKeepsItsRow() = runBlocking {
         // Episode progress lives in episode_watched, not on the series row.
         db.seriesDao().upsertSeries(listOf(show(20, "Watching"), show(21, "Plain")))
@@ -235,7 +256,9 @@ class PrimaryCatalogRefreshTest {
                 }
                 started.await()
                 val newer = async { refresh.runVod { "newer" } }
-                assertEquals(false, older.await())
+                // The newer refresh cancels the older download outright: it ends as replaced (null),
+                // never reaching a write.
+                assertEquals(null, older.await())
                 assertEquals("newer", newer.await())
             }
         }
