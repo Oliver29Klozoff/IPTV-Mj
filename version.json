@@ -1,7 +1,7 @@
 {
-  "versionCode": 561,
-  "versionName": "7.23",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.23/MKTV.apk",
-  "apkSha256": "c02e2a788f48190e7d285688b7b93d6ece4078760b4c0ed289045aae8bfb0c5c",
-  "changelog": "Scheduled recordings and reminders survive a restart, and recordings no longer get lost on newer Android phones."
+  "versionCode": 562,
+  "versionName": "7.24",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.24/MKTV.apk",
+  "apkSha256": "a6a76d5863d1878518ddd7a3fd517a41c0738391f7620c6a6915bf378d6aeaa6",
+  "changelog": "TV home-screen favorites now play the right channel, and movie/series refreshes are safer."
 }

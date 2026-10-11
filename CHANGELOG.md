@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v7.24 - 2026-10-10
+- **Fixed**: MKTV favorites on the Android TV home screen now play. Tapping one used to open MKTV
+  and play nothing for most providers. Each card is now tied to the provider account it was made
+  for, so after switching provider it can never play a different channel that happens to share
+  its number — it tells you instead, and the row is rebuilt. Cards made by older versions ask you
+  to pick the channel once more. The row now holds every favorite (not just the category you were
+  in), clears when you remove your last favorite, and tapping a card while a channel is playing
+  no longer stacks a second home screen. Devices without a TV home screen skip it.
+- **Fixed**: refreshing movies and series is safer. Only one refresh of each runs at a time; a
+  newer one or a provider switch replaces an older one instead of the two overwriting each other,
+  and a replaced refresh no longer shows "Failed". Titles your provider no longer lists are now
+  removed — except ones you favorited, started, hid, or have watched episodes of, which are kept
+  in case they come back.
+
 ## v7.23 - 2026-10-10
 - **Fixed**: scheduled recordings and guide reminders now survive a restart. Restarting the
   device used to silently cancel every scheduled recording and reminder. MKTV now sets them again
