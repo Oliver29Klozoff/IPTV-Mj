@@ -137,7 +137,9 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
         replace(
             items, stillCurrent, toRow, VodEntity::streamId, onChunk,
             db.vodDao()::upsertVod,
-            { db.vodDao().getUserData().map { it.streamId } },
+            // Only titles with nothing of the user's on them. A favorite or a started movie the
+            // provider leaves out (often for a while) keeps its row, so nothing is lost if it returns.
+            { db.vodDao().getUserData().filter { !it.isFavorite && it.watchedMs == 0L && it.durationMs == 0L }.map { it.streamId } },
             db.vodDao()::deleteByIds
         )
     }
@@ -151,7 +153,12 @@ class PrimaryCatalogRefresh(private val db: IptvDatabase) {
         replace(
             items, stillCurrent, toRow, SeriesEntity::seriesId, onChunk,
             db.seriesDao()::upsertSeries,
-            { db.seriesDao().getUserData().map { it.seriesId } },
+            // Same rule as movies: a favorite, started or hidden show keeps its row.
+            {
+                db.seriesDao().getUserData()
+                    .filter { !it.isFavorite && it.watchedMs == 0L && it.durationMs == 0L && !it.isHidden }
+                    .map { it.seriesId }
+            },
             db.seriesDao()::deleteByIds
         )
     }

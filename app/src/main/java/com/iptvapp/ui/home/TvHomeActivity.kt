@@ -708,6 +708,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         coldBootResumeInProgress = true
         startupResumeJob?.cancel()
         reminderTuneJob?.cancel()
+        // A newer tune owns the screen: an older one's player launch still waiting out its delay
+        // must not open over it.
+        openPlayerJob?.cancel()
         reminderTuneJob = lifecycleScope.launch {
             try {
                 val played = tuneToReminder(streamId, serverIndex, generation)
@@ -807,6 +810,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         coldBootResumeInProgress = true
         startupResumeJob?.cancel()
         reminderTuneJob?.cancel()
+        openPlayerJob?.cancel() // see launchReminderTune
         reminderTuneJob = lifecycleScope.launch {
             try {
                 val played = playLauncherCard(link, generation)
@@ -3777,11 +3781,17 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 prefs.credentials,
                 viewModel.loading,
                 launcherRepublish
-            ) { favorites, creds, isLoading, tick ->
+            ) { _, _, isLoading, tick ->
                 if (isLoading) null
-                else LauncherLinks.entriesFor(
-                    applicationContext, favorites.take(TvHomeChannelPublisher.MAX_PROGRAMS), creds
-                ) to tick
+                else {
+                    // The two flows above only say when to publish. What is published comes from
+                    // one reading of favorites + login taken together, so mid-switch the old
+                    // provider's favorites are never signed with the new provider's login.
+                    val (favorites, creds) = viewModel.launcherFavoritesWithLogin()
+                    LauncherLinks.entriesFor(
+                        applicationContext, favorites.take(TvHomeChannelPublisher.MAX_PROGRAMS), creds
+                    ) to tick
+                }
             }
                 .filterNotNull()
                 .distinctUntilChanged()

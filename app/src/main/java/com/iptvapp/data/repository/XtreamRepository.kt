@@ -197,6 +197,12 @@ class XtreamRepository @Inject constructor(
      * serverIndex and stays valid across a primary-provider switch. Series/VOD/reliability
      * history for the OLD primary is still cleared here since those ids aren't portable to
      * whatever the new primary provider is anyway. */
+    /** Primary favorites and the login they belong to, read as one pair. A provider switch clears
+     * the primary channels and saves the new login under this same lock (clearPrimaryProviderData),
+     * so the two always match — a TV home-screen card is never signed for the wrong account. */
+    suspend fun primaryFavoritesWithLogin(): Pair<List<ChannelEntity>, com.iptvapp.data.local.ServerCredentials> =
+        primaryChannelsMutex.withLock { getFavoriteChannels().first() to creds() }
+
     // supersede() cancels movie and series downloads so a switch does not wait on the old
     // provider. A write that has already started finishes or stops, then the tables are cleared.
     suspend fun clearPrimaryProviderData(beforeRelease: suspend () -> Unit = {}) {

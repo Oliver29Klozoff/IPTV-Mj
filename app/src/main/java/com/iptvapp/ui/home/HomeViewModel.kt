@@ -2484,6 +2484,7 @@ class HomeViewModel @Inject constructor(
 
     /** Every visible primary favorite, in the user's order — what the TV home-screen row shows. */
     fun launcherFavorites(): kotlinx.coroutines.flow.Flow<List<ChannelEntity>> = repository.getFavoriteChannels()
+    suspend fun launcherFavoritesWithLogin() = repository.primaryFavoritesWithLogin()
     suspend fun findMoreReliableCopy(streamId: Int) = repository.findMoreReliableCopy(streamId)
 
     // Live-playback failover — see XtreamRepository.findFailoverChannel kdoc.
