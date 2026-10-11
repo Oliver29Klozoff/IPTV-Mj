@@ -24,7 +24,8 @@ data class WatchHistoryEntry(
 @Dao
 interface ChannelDao {
     @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
-    fun getAllChannels(): Flow<List<ChannelEntity>>
+    fun getAllChannelsRaw(): Flow<List<ChannelEntity>>
+    fun getAllChannels(): Flow<List<ChannelEntity>> = getAllChannelsRaw().retryOnTornRead()
     // Picks any one real channel to test actual playback against — used by the Provider Speed
     // Test's real-stream check (see XtreamRepository.checkStreamHealth call site), which needs a
     // concrete streamId, not just "the server is reachable" the ping/HTTP checks already cover.
@@ -37,7 +38,8 @@ interface ChannelDao {
     @Query("SELECT * FROM channels WHERE num = :num AND isHidden = 0 LIMIT 1")
     suspend fun getChannelByNumber(num: Int): ChannelEntity?
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
-    fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>>
+    fun getChannelsByCategoryRaw(categoryId: String): Flow<List<ChannelEntity>>
+    fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>> = getChannelsByCategoryRaw(categoryId).retryOnTornRead()
     @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannels(): Flow<List<ChannelEntity>>
     // One-shot list for the favorite-number backfill (see
@@ -182,7 +184,10 @@ interface CategoryDao {
 @Dao
 interface VodDao {
     @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC")
-    fun getAllVod(): Flow<List<VodEntity>>
+    fun getAllVodRaw(): Flow<List<VodEntity>>
+    // Large lists: Room implements the *Raw query; callers use the wrapper, which re-reads a
+    // read torn by a concurrent refresh instead of crashing (see retryOnTornRead).
+    fun getAllVod(): Flow<List<VodEntity>> = getAllVodRaw().retryOnTornRead()
     // Fast first paint for TvHomeActivity's full-screen Movies grid — getAllVod() above loads
     // every row (176k+ on a large merged-provider catalog observed during testing, 15-25+
     // seconds just to deserialize), leaving the grid blank that whole time on cold launch. This
@@ -193,7 +198,8 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC LIMIT 100")
     fun getVodFirstPage(): Flow<List<VodEntity>>
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY added DESC, name ASC")
-    fun getVodByCategory(categoryId: String): Flow<List<VodEntity>>
+    fun getVodByCategoryRaw(categoryId: String): Flow<List<VodEntity>>
+    fun getVodByCategory(categoryId: String): Flow<List<VodEntity>> = getVodByCategoryRaw(categoryId).retryOnTornRead()
     // Backs the TV home landing screen's "Recently Added" row — same added-string ordering
     // getAllVod already uses (Xtream's "added" field is a Unix-timestamp string; consistent
     // digit-length means lexicographic ORDER BY already sorts newest-first correctly), just
@@ -266,9 +272,11 @@ data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs
 @Dao
 interface SeriesDao {
     @Query("SELECT * FROM series WHERE isHidden = 0 ORDER BY name ASC")
-    fun getAllSeries(): Flow<List<SeriesEntity>>
+    fun getAllSeriesRaw(): Flow<List<SeriesEntity>>
+    fun getAllSeries(): Flow<List<SeriesEntity>> = getAllSeriesRaw().retryOnTornRead()
     @Query("SELECT * FROM series WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY name ASC")
-    fun getSeriesByCategory(categoryId: String): Flow<List<SeriesEntity>>
+    fun getSeriesByCategoryRaw(categoryId: String): Flow<List<SeriesEntity>>
+    fun getSeriesByCategory(categoryId: String): Flow<List<SeriesEntity>> = getSeriesByCategoryRaw(categoryId).retryOnTornRead()
     @Query("SELECT * FROM series WHERE isFavorite = 1 AND isHidden = 0 ORDER BY name ASC")
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
     @Query("SELECT * FROM series WHERE seriesId = :seriesId LIMIT 1")
@@ -382,7 +390,8 @@ interface EpgDao {
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId ORDER BY startTimestamp ASC")
     fun getEpgForStream(streamId: Int, serverIndex: Int = -1): Flow<List<EpgEntity>>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId IN (:streamIds) ORDER BY streamId ASC, startTimestamp ASC")
-    fun getEpgForStreams(streamIds: List<Int>, serverIndex: Int = -1): Flow<List<EpgEntity>>
+    fun getEpgForStreamsRaw(streamIds: List<Int>, serverIndex: Int): Flow<List<EpgEntity>>
+    fun getEpgForStreams(streamIds: List<Int>, serverIndex: Int = -1): Flow<List<EpgEntity>> = getEpgForStreamsRaw(streamIds, serverIndex).retryOnTornRead()
     @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun getStreamIdsWithEpg(serverIndex: Int = -1): List<Int>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
@@ -620,7 +629,8 @@ data class WatchedEpisodeRow(
 @Dao
 interface MergedChannelDao {
     @Query("SELECT * FROM merged_channels WHERE isHidden = 0 ORDER BY serverIndex ASC, num ASC")
-    fun getAll(): Flow<List<MergedChannelEntity>>
+    fun getAllRaw(): Flow<List<MergedChannelEntity>>
+    fun getAll(): Flow<List<MergedChannelEntity>> = getAllRaw().retryOnTornRead()
     // See ChannelDao.getFirstChannel's matching kdoc — same purpose, scoped to one server.
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND isHidden = 0 LIMIT 1")
     suspend fun getFirstChannel(serverIndex: Int): MergedChannelEntity?
@@ -682,7 +692,8 @@ interface MergedChannelDao {
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>>
 
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY num")
-    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>>
+    fun getByServerAndCategoryRaw(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>>
+    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>> = getByServerAndCategoryRaw(serverIndex, categoryId).retryOnTornRead()
 
     // Single-row lookup by composite key — used by recording retry to re-resolve a merged
     // channel's current URL/name without pulling the whole table.
@@ -746,7 +757,8 @@ data class MergedChannelUserData(val serverIndex: Int, val streamId: Int, val is
 @Dao
 interface MergedVodDao {
     @Query("SELECT * FROM merged_vod WHERE isHidden = 0 ORDER BY serverIndex ASC, name ASC")
-    fun getAll(): Flow<List<MergedVodEntity>>
+    fun getAllRaw(): Flow<List<MergedVodEntity>>
+    fun getAll(): Flow<List<MergedVodEntity>> = getAllRaw().retryOnTornRead()
 
     // Cross-provider "Recently Added" for the TV home landing screen — same added-string
     // ordering as VodDao.getRecentlyAddedVod, spanning every configured secondary provider at
@@ -770,7 +782,8 @@ interface MergedVodDao {
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedVodCategorySummary>>
 
     @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY name")
-    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>>
+    fun getByServerAndCategoryRaw(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>>
+    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>> = getByServerAndCategoryRaw(serverIndex, categoryId).retryOnTornRead()
 
     @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity?
@@ -823,7 +836,8 @@ data class MergedVodUserData(
 @Dao
 interface MergedSeriesDao {
     @Query("SELECT * FROM merged_series WHERE isHidden = 0 ORDER BY serverIndex ASC, name ASC")
-    fun getAll(): Flow<List<MergedSeriesEntity>>
+    fun getAllRaw(): Flow<List<MergedSeriesEntity>>
+    fun getAll(): Flow<List<MergedSeriesEntity>> = getAllRaw().retryOnTornRead()
     @Upsert
     suspend fun upsertAll(series: List<MergedSeriesEntity>)
     @Query("DELETE FROM merged_series")
@@ -841,7 +855,8 @@ interface MergedSeriesDao {
     fun getCategorySummaries(serverIndex: Int): Flow<List<MergedSeriesCategorySummary>>
 
     @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY name")
-    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>>
+    fun getByServerAndCategoryRaw(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>>
+    fun getByServerAndCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>> = getByServerAndCategoryRaw(serverIndex, categoryId).retryOnTornRead()
 
     @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND seriesId = :seriesId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity?
