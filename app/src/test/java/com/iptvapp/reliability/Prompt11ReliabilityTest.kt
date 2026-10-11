@@ -221,6 +221,19 @@ class Prompt11ReliabilityTest {
     }
 
     @Test
+    fun aClearRemovesOnlyWhatCameBeforeIt() {
+        CrashLog.file(context).delete()
+        CrashLog.append(context, "[t1] before\n")
+        CrashLog.clear(context)
+        CrashLog.append(context, "[t2] after\n")
+        CrashLog.appendNow(context, "=== CRASH t3 ===\n") // the crash path applies the queued clear first
+        CrashLog.drainForTest()
+        val text = CrashLog.file(context).readText()
+        assertFalse(text, text.contains("before"))
+        assertTrue(text, text.contains("after") && text.contains("CRASH"))
+    }
+
+    @Test
     fun theLogStaysTrimmed() {
         CrashLog.file(context).writeText("x".repeat(60_000))
         CrashLog.append(context, "[t] tail\n")

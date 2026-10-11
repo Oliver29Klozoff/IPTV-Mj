@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import java.io.IOException
 import javax.inject.Inject
@@ -51,8 +52,15 @@ internal object PrefsSnapshot {
             started = true
             val app = context.applicationContext
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+                // A read error keeps the last good settings and tries again (1 s, 2 s … up to 30 s)
+                // rather than ending the snapshot, which would serve stale values until restart.
+                // Corruption never gets here: prefsCorruptionHandler resets the file first.
                 app.dataStore.data
-                    .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+                    .retryWhen { e, attempt ->
+                        if (e !is IOException) return@retryWhen false
+                        kotlinx.coroutines.delay(minOf(30_000L, 1_000L shl minOf(attempt, 5L).toInt()))
+                        true
+                    }
                     .collect { latest.value = it }
             }
         }
