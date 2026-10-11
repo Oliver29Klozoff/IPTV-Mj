@@ -1,103 +1,48 @@
 rules_version = '2';
 
-// Firestore security rules for the mktv-apk project.
+// Phase 1 Firestore rules for mktv-apk.
 //
-// Written after finding that an anonymous client could LIST /cast_sessions and read
-// every document in it, including old ones still holding a plaintext stream URL from
-// before casts were encrypted.
+// Deploying this file changes only users/{uid} and codes/{code}.
+// cast_sessions, watch_parties, playback_sessions, community_health events,
+// and rewatch_notes notes stay on the behavior of the deployed ruleset
+// 49be0297-4176-46e6-8cfb-5e536c688ffc (updated 2026-09-20): any signed-in
+// client can read and write them, and read includes list. The stricter cast
+// rules are in git at d8b3aa6 and are not part of this phase.
 //
-// The split between `get` and `list` is the whole point. `allow read` grants both.
-// Granting list is what lets a stranger enumerate every active cast and walk off with
-// the sealed boxes to crack offline at their leisure; with list denied, they must
-// already know the session code — which IS the secret — before they can fetch
-// anything, and guessing it becomes an online game against Firestore rather than an
-// offline one against a GPU. That single change is worth far more than making the
-// code longer.
+// There is no catch-all deny. Production does not have one, and adding one
+// would reject any path this file does not name.
 //
-// Collections here were taken from every `.collection("…")` in the app. Only
-// community_health/*/events and rewatch_notes/*/notes are read as collections; every
-// other access is by document id, so denying list on them costs nothing.
-//
-// NOTE: there is deliberately no catch-all `match /{document=**} { deny }` at the
-// bottom. It is good practice, but a wrong deny silently breaks a feature, and these
-// rules have not been exercised against the live app yet. Add it once you have
-// confirmed nothing else touches Firestore.
-//
-// Test first — firestore-tests/rules.test.js runs these against the emulator, and the
-// first version of this file failed it in four ways that would each have broken casting.
-//
-// Production was read on 2026-10-10 and is NOT this file.
-//   project:  mktv-apk
-//   release:  projects/mktv-apk/releases/cloud.firestore
-//   ruleset:  49be0297-4176-46e6-8cfb-5e536c688ffc (updated 2026-09-20)
-// That ruleset is `allow read, write: if request.auth != null` on every collection,
-// so it also allows listing them. Deploying this file publishes the cast and list
-// tightening below as well as the sync rules. Do not deploy until that is intended.
-//
+// Test first — firestore-tests/rules.test.js
 // Deploy:  firebase deploy --only firestore:rules --project mktv-apk
-//          (or paste into Firebase console -> Firestore -> Rules)
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── cast sessions ───────────────────────────────────────────────────────
-    // One document per "Receive a cast" screen, holding `box`: the stream URL (and
-    // optional channel pack and mini-guide) sealed to a key that only ever appeared
-    // on the receiver's screen — the QR, or the typed code. The server never sees it.
-    //
-    // A session lives as long as someone is watching: the receiver polls it, and the
-    // sender re-casts into it when changing channel. So the window below is a
-    // viewing session, not a handshake. An earlier 30-minute window would have cut
-    // live sessions off mid-evening — and the TV answers a denied read by signing in
-    // anonymously again, so it would have minted a new Firebase account on every
-    // poll, every 2.5 seconds, for as long as it stayed on.
+    // ─── unchanged from the deployed ruleset ─────────────────────────────────
     match /cast_sessions/{code} {
-
-      // resource == null is a read of a document that doesn't exist yet. Both the TV
-      // and the phone create a session by first reading a random code to check it is
-      // free, expecting "not found" — without this clause that check is denied and no
-      // session can ever be created. It reveals nothing: there is nothing there.
-      allow get: if request.auth != null
-                 && (resource == null
-                     || request.time < resource.data.createdAt + duration.value(12, 'h'));
-      allow list: if false;
-
-      // Receiver creates the session; sender merges the sealed box in. Both are
-      // anonymous clients with no owner to compare against — knowing the code is the
-      // capability. The field allow-list and size cap stop the collection being used
-      // as free storage by anyone who finds the project id.
-      allow create: if request.auth != null
-                    && request.resource.data.keys().hasOnly(
-                         ['createdAt', 'updatedAt', 'box', 'url', 'title']);
-
-      // senderVersion / packSize are written in the clear on every send for
-      // diagnostics (see CastRelayManager.send) — they must be allowed or every cast
-      // fails. The box cap sits under Firestore's 1 MiB document limit; a real pack
-      // is ~28KB, or ~90KB with a mini-guide (200 channels, measured).
-      allow update: if request.auth != null
-                    && request.time < resource.data.createdAt + duration.value(12, 'h')
-                    && request.resource.data.keys().hasOnly(
-                         ['createdAt', 'updatedAt', 'box', 'url', 'title',
-                          'senderVersion', 'packSize'])
-                    && (!('box' in request.resource.data)
-                        || (request.resource.data.box is string
-                            && request.resource.data.box.size() < 900000));
-
-      // Both ends delete when done. Anything missed becomes unreadable once the
-      // window above passes.
-      allow delete: if request.auth != null;
+      allow read, write: if request.auth != null;
     }
 
-    // ─── sync: phone -> TV favourites and watch state ────────────────────────
-    // These are not license documents. `users/{uid}` is one anonymous account's
-    // library. `codes/{shortCode}` is the first 8 characters of that uid, so the
-    // other device can resolve the code it was given and read that library.
-    //
-    // Knowing the code is the capability to READ. It is not a capability to write.
-    // Only the account whose uid starts with that code may publish or refresh it,
-    // and only that account may write its own library. There is no premium,
-    // expiry, admin, or device-limit field; an extra key is rejected so a client
-    // cannot invent one.
+    match /watch_parties/{code} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /playback_sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Parents are not writable in production. Only the documents the app queries are.
+    match /community_health/{providerHostHash}/events/{eventId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /rewatch_notes/{contentKey}/notes/{noteId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ─── pairing code: first 8 characters of the anonymous uid ───────────────
+    // Knowing the code is enough to read the pointer. It is not enough to write it.
+    // v7.24 publishes with set({uid}), which these rules accept.
     function codeOwner(shortCode) {
       return request.auth != null
         && request.auth.uid.size() >= 8
@@ -119,17 +64,16 @@ service cloud.firestore {
       allow get: if request.auth != null;
       allow list: if false;
       allow create: if codeOwner(shortCode);
-      // The owner may refresh the pointer. A poisoned pointer whose uid does not
-      // actually start with this code can be taken back by the real prefix owner.
-      // A second account that happens to share the prefix cannot.
-      // Read the stored uid only when the key is present. A missing field errors
-      // the whole expression, which would leave a broken pointer unrecoverable.
+      // A missing uid must not error the rule, or a broken pointer cannot be reclaimed.
+      // A second account that shares the prefix cannot take a pointer that already
+      // matches. A pointer whose stored uid does not start with this code can.
       allow update: if codeOwner(shortCode)
         && ((resource.data.keys().hasAll(['uid']) && resource.data.uid == request.auth.uid)
             || !storedCodeMatches(shortCode));
       allow delete: if false;
     }
 
+    // ─── sync library ────────────────────────────────────────────────────────
     function syncKeys() {
       return [
         'version', 'syncedAt', 'device',
@@ -150,6 +94,7 @@ service cloud.firestore {
       return !(key in data) || (data[key] is map && data[key].size() <= max);
     }
 
+    // Create has no legacy keys to preserve, so the whole document is checked.
     function syncShape(data) {
       return data.keys().hasOnly(syncKeys())
         && data.keys().size() >= 1
@@ -174,49 +119,60 @@ service cloud.firestore {
         && optList(data, 'hiddenMergedSeriesCategories', 8000);
     }
 
+    // affectedKeys() includes removed keys. Requiring it to be a subset of the
+    // sync fields would reject the next release's set(), which deletes a legacy
+    // key by leaving it out. Added and changed keys are the ones the client is
+    // writing, and those have to be approved. A legacy key may stay or be removed.
+    // It may not be added or given a new value.
+    function touched(diff, key) {
+      return diff.addedKeys().hasAny([key]) || diff.changedKeys().hasAny([key]);
+    }
+
+    function changedList(data, diff, key, max) {
+      return !touched(diff, key) || (data[key] is list && data[key].size() <= max);
+    }
+
+    function changedMap(data, diff, key, max) {
+      return !touched(diff, key) || (data[key] is map && data[key].size() <= max);
+    }
+
+    function syncChanges(data, diff) {
+      return diff.addedKeys().hasOnly(syncKeys())
+        && diff.changedKeys().hasOnly(syncKeys())
+        && (!touched(diff, 'version') || (data.version is int && data.version == 1))
+        && (!touched(diff, 'syncedAt') || (data.syncedAt is int && data.syncedAt > 0
+              && data.syncedAt < 4102444800000))
+        && (!touched(diff, 'device') || (data.device is string && data.device.size() <= 120))
+        && changedList(data, diff, 'favoriteChannelIds', 20000)
+        && changedList(data, diff, 'favoriteCategoryIds', 4000)
+        && changedList(data, diff, 'recentlyWatchedIds', 100)
+        && changedList(data, diff, 'favoriteFolders', 500)
+        && changedMap(data, diff, 'channelFolders', 20000)
+        && changedList(data, diff, 'favoriteOrder', 20000)
+        && changedMap(data, diff, 'vodProgress', 20000)
+        && changedMap(data, diff, 'seriesProgress', 20000)
+        && changedList(data, diff, 'episodesWatched', 20000)
+        && changedList(data, diff, 'mergedFavorites', 20000)
+        && changedList(data, diff, 'mergedFavoriteCategories', 8000)
+        && changedList(data, diff, 'mergedVodFavorites', 20000)
+        && changedList(data, diff, 'mergedSeriesFavorites', 20000)
+        && changedList(data, diff, 'hiddenMergedVodCategories', 8000)
+        && changedList(data, diff, 'hiddenMergedSeriesCategories', 8000);
+    }
+
     match /users/{uid} {
-      // The other device reads this after it resolves the pairing code. The uid is
-      // not enumerable, and list stays closed.
+      // The other device reads this after it resolves the pairing code.
       allow get: if request.auth != null;
       allow list: if false;
-      allow create, update: if request.auth != null
+      allow create: if request.auth != null
         && request.auth.uid == uid
         && syncShape(request.resource.data);
-      // Own document only. Deleting it drops this device's cloud library. It does
-      // not grant or reset an entitlement, because the document has none.
-      allow delete: if request.auth != null && request.auth.uid == uid;
-    }
-
-    // ─── watch party / handoff ───────────────────────────────────────────────
-    // Joined by knowing the party code; never enumerated.
-    match /watch_parties/{party} {
-      allow get: if request.auth != null;
-      allow list: if false;
-      allow write: if request.auth != null;
-    }
-
-    match /playback_sessions/{session} {
-      allow get: if request.auth != null;
-      allow list: if false;
-      allow write: if request.auth != null;
-    }
-
-    // ─── collections that are genuinely read as collections ──────────────────
-    // These two ARE queried by the app (CommunityHealthManager orders and filters
-    // events; RewatchNotesManager reads a content key's notes), so list must stay
-    // allowed or those features break.
-    match /community_health/{providerHash} {
-      allow read, write: if request.auth != null;
-      match /events/{event} {
-        allow read, write: if request.auth != null;
-      }
-    }
-
-    match /rewatch_notes/{contentKey} {
-      allow read, write: if request.auth != null;
-      match /notes/{note} {
-        allow read, write: if request.auth != null;
-      }
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && syncChanges(request.resource.data, request.resource.data.diff(resource.data));
+      // The app never deletes a library. Sync removes a legacy key by replacing
+      // the document, which is an update, not a delete.
+      allow delete: if false;
     }
   }
 }

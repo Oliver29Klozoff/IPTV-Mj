@@ -1,18 +1,15 @@
-/* Tests for firestore.rules (cast_sessions), run against the real rules engine in
-   the Firestore emulator using the exact request shapes the TV (REST) and the
-   phone (SDK merge writes) send.
+/* Tests for firestore.rules, run against the real rules engine in the Firestore
+   emulator. Phase 1 locks down users and codes. Cast, watch party, playback,
+   community health, and rewatch notes stay as open as the deployed ruleset, so
+   several older cast restrictions are asserted to remain allowed.
 
    Run from the repo root (needs Java 11+; Android Studio's bundled JBR works):
      JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" \
        firebase emulators:exec --only firestore --project demo-mktv \
        "node firestore-tests/rules.test.js"
 
-   Why this exists: the first version of these rules looked right and would have
-   broken casting completely if deployed - it denied the "is this code free?" read
-   every session starts with, rejected the diagnostics fields every send writes,
-   capped the sealed box far below a real channel pack, and cut sessions off after
-   30 minutes. All four fail here against that version. Run this before deploying
-   any change to the rules. */
+   Run this before deploying any change to the rules. The cast restrictions from
+   d8b3aa6 are intentionally not enforced in this phase. */
 const HOST = 'http://127.0.0.1:8085';
 const PROJECT = 'demo-mktv';
 const BASE = `${HOST}/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -35,6 +32,14 @@ async function call(method, path, uid, body) {
     else if (uid) headers.Authorization = 'Bearer ' + token(uid);
     const r = await fetch(BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
     return r.status;
+}
+
+async function readJson(path, uid) {
+    const headers = {};
+    if (uid === 'owner') headers.Authorization = 'Bearer owner';
+    else if (uid) headers.Authorization = 'Bearer ' + token(uid);
+    const r = await fetch(BASE + path, { headers });
+    return r.json();
 }
 
 function value(v) {
@@ -66,16 +71,17 @@ function check(name, got, want) {
 (async () => {
     const fresh = () => ({ createdAt: new Date(), box: null, url: null, title: null });
 
-    console.log('session creation:');
+    console.log('phase 1 cast sessions stay open to a signed-in client:');
     check('collision check on a free code is allowed (404, not 403)',
         await call('GET', '/cast_sessions/free0001', 'tv'), 404);
     check('unauthenticated read refused', await call('GET', '/cast_sessions/free0001', null), 403);
     check('receiver creates a session',
         await call('PATCH', '/cast_sessions/sess0001', 'tv', doc(fresh())), 200);
     check('receiver polls it', await call('GET', '/cast_sessions/sess0001', 'tv'), 200);
-    check('nobody can list the collection', await call('GET', '/cast_sessions', 'attacker'), 403);
-    check('create with an unknown field refused',
-        await call('PATCH', '/cast_sessions/sess0002', 'tv', doc({ ...fresh(), evil: 'x' })), 403);
+    check('a signed-in client can still list cast sessions',
+        await call('GET', '/cast_sessions', 'attacker'), 200);
+    check('an extra cast field is still allowed',
+        await call('PATCH', '/cast_sessions/sess0002', 'tv', doc({ ...fresh(), evil: 'x' })), 200);
 
     console.log('sending a cast (the phone\'s merge write):');
     const mask = (keys) => '?' + keys.map(k => 'updateMask.fieldPaths=' + k).join('&');
@@ -88,16 +94,16 @@ function check(name, got, want) {
     check('200-channel pack with guide (~90KB)',
         await call('PATCH', '/cast_sessions/sess0001' + mask(['box', 'senderVersion', 'packSize', 'updatedAt']),
             'phone', send(withGuide)), 200);
-    check('box over the cap refused',
+    check('a large cast box is still allowed',
         await call('PATCH', '/cast_sessions/sess0001' + mask(['box']),
-            'phone', doc({ box: 'a'.repeat(950000) })), [403, 400]);
-    check('smuggling an extra field refused',
-        await call('PATCH', '/cast_sessions/sess0001' + mask(['evil']), 'phone', doc({ evil: 'x' })), 403);
+            'phone', doc({ box: 'a'.repeat(950000) })), 200);
+    check('an extra field on an existing cast is still allowed',
+        await call('PATCH', '/cast_sessions/sess0001' + mask(['evil']), 'phone', doc({ evil: 'x' })), 200);
 
     console.log('session lifetime:');
     const old = new Date(Date.now() - 13 * 3600 * 1000);
     await call('PATCH', '/cast_sessions/old00001', 'tv', doc({ ...fresh(), createdAt: old }));
-    check('a session past 12h can no longer be read', await call('GET', '/cast_sessions/old00001', 'tv'), 403);
+    check('a session past 12h is still readable', await call('GET', '/cast_sessions/old00001', 'tv'), 200);
     const mid = new Date(Date.now() - 3 * 3600 * 1000);
     await call('PATCH', '/cast_sessions/mid00001', 'tv', doc({ ...fresh(), createdAt: mid }));
     check('a 3-hour viewing session is still readable', await call('GET', '/cast_sessions/mid00001', 'tv'), 200);
@@ -105,8 +111,22 @@ function check(name, got, want) {
         await call('PATCH', '/cast_sessions/mid00001' + mask(['box', 'senderVersion', 'packSize', 'updatedAt']),
             'phone', send(small)), 200);
 
-    console.log('cleanup:');
+    console.log('cleanup and the other deployed collections:');
     check('either end can delete', await call('DELETE', '/cast_sessions/sess0001', 'tv'), 200);
+    check('watch parties can still be listed', await call('GET', '/watch_parties', 'tv'), 200);
+    check('playback sessions can still be listed', await call('GET', '/playback_sessions', 'tv'), 200);
+    check('a community-health event can be written',
+        await call('PATCH', '/community_health/hosthash/events/e1', 'tv', doc({ channelName: 'News' })), 200);
+    check('community-health events can still be listed',
+        await call('GET', '/community_health/hosthash/events', 'tv'), 200);
+    check('a community-health parent document stays denied',
+        await call('PATCH', '/community_health/hosthash', 'tv', doc({ channelName: 'News' })), 403);
+    check('a rewatch note can be written',
+        await call('PATCH', '/rewatch_notes/some-title/notes/n1', 'tv', doc({ text: 'hi' })), 200);
+    check('rewatch notes can still be listed',
+        await call('GET', '/rewatch_notes/some-title/notes', 'tv'), 200);
+    check('a rewatch-notes parent document stays denied',
+        await call('PATCH', '/rewatch_notes/some-title', 'tv', doc({ text: 'hi' })), 403);
 
     // Pairing sync. `owner` is the anonymous account whose library it is.
     // `other` is a different account. `sharesPrefix` starts with the same 8
@@ -166,15 +186,41 @@ function check(name, got, want) {
     check('another account cannot delete the library',
         await call('DELETE', '/users/' + owner, other), 403);
 
-    // A full replace drops a poisoned key. A masked merge keeps it, so the rules
-    // must reject that merge. This is why the app uses set(), not set(merge).
+    // v7.24 merges the approved fields and leaves anything already on the document.
+    // The next release replaces the document and thereby drops the legacy key.
     const libraryKeys = Object.keys(library());
-    check('emulator admin can poison a library',
-        await call('PATCH', '/users/' + owner, 'owner', doc({ ...library(), premium: true })), 200);
-    check('a merge that keeps the poisoned field is rejected',
-        await call('PATCH', '/users/' + owner + mask(libraryKeys), owner, doc(library())), 403);
-    check('a full replace clears the poisoned field',
+    check('emulator admin can leave a legacy field on a library',
+        await call('PATCH', '/users/' + owner, 'owner', doc({ ...library(), legacyNote: 'keep', premium: true })), 200);
+    check('a v7.24 merge of one approved field keeps the legacy field',
+        await call('PATCH', '/users/' + owner + mask(['device']), owner, doc({ device: 'Phone' })), 200);
+    const afterMerge = await readJson('/users/' + owner, owner);
+    check('the legacy field is still stored',
+        afterMerge.fields && afterMerge.fields.legacyNote && afterMerge.fields.legacyNote.stringValue === 'keep' ? 200 : 0,
+        200);
+    check('a v7.24 merge of the whole library keeps the legacy field',
+        await call('PATCH', '/users/' + owner + mask(libraryKeys), owner, doc(library())), 200);
+    check('the legacy field cannot be changed',
+        await call('PATCH', '/users/' + owner + mask(['legacyNote']), owner, doc({ legacyNote: 'changed' })), 403);
+    check('the legacy premium flag cannot be changed',
+        await call('PATCH', '/users/' + owner + mask(['premium']), owner, doc({ premium: false })), 403);
+    check('a new unknown field cannot be added',
+        await call('PATCH', '/users/' + owner + mask(['admin']), owner, doc({ admin: true })), 403);
+    check('another account cannot modify a library that has a legacy field',
+        await call('PATCH', '/users/' + owner + mask(['device']), other, doc({ device: 'Stolen' })), 403);
+    check('an oversized device is rejected while a legacy field remains',
+        await call('PATCH', '/users/' + owner + mask(['device']), owner, doc({ device: 'x'.repeat(121) })), 403);
+    check('a string version is rejected while a legacy field remains',
+        await call('PATCH', '/users/' + owner + mask(['version']), owner, doc({ version: '1' })), 403);
+    const afterInvalid = await readJson('/users/' + owner, owner);
+    check('a rejected write leaves the legacy field untouched',
+        afterInvalid.fields && afterInvalid.fields.legacyNote && afterInvalid.fields.legacyNote.stringValue === 'keep'
+            && afterInvalid.fields.device && afterInvalid.fields.device.stringValue === 'Test' ? 200 : 0,
+        200);
+    check('a full replace clears the legacy field',
         await call('PATCH', '/users/' + owner, owner, doc(library())), 200);
+    const afterReplace = await readJson('/users/' + owner, owner);
+    check('the legacy field is gone after replace',
+        afterReplace.fields && afterReplace.fields.legacyNote ? 0 : 200, 200);
 
     console.log('pairing codes:');
     check('signed-out client cannot read a code', await call('GET', '/codes/abcdefgh', null), 403);
@@ -212,7 +258,7 @@ function check(name, got, want) {
     check('the real prefix owner can take a poisoned pointer back',
         await call('PATCH', '/codes/poisoned', 'poisonedUSERAAAA', doc({ uid: 'poisonedUSERAAAA' })), 200);
 
-    check('owner can delete their own library', await call('DELETE', '/users/' + owner, owner), 200);
+    check('the owner cannot delete their library', await call('DELETE', '/users/' + owner, owner), 403);
 
     console.log('\n' + pass + ' passed, ' + fail + ' failed');
     process.exit(fail ? 1 : 0);
