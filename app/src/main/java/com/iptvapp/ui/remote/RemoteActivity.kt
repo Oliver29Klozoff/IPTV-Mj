@@ -93,7 +93,7 @@ class RemoteActivity : AppCompatActivity() {
             // Typing a search in portrait: the buttons step aside so the list has room above the keyboard.
             val typing = insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())
             val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-            binding.remotePadScroll.visibility = if (typing && portrait) View.GONE else View.VISIBLE
+            binding.remotePadScroll.visibility = if (typing && portrait && favoritesOpen) View.GONE else View.VISIBLE
             insets
         }
         val header = binding.remoteHeader
@@ -200,7 +200,16 @@ class RemoteActivity : AppCompatActivity() {
         store.edit().putBoolean("favorites_open", open).apply()
         binding.remoteList.root.visibility = if (open) View.VISIBLE else View.GONE
         binding.btnRemoteFavorites.text = if (open) "Hide favorites" else "Favorites"
-        if (open) showChannels(binding.remoteList.etRemoteSearch.text?.toString().orEmpty().trim(), immediate = true)
+        if (open) {
+            showChannels(binding.remoteList.etRemoteSearch.text?.toString().orEmpty().trim(), immediate = true)
+        } else {
+            // Closing while typing a search: put the keyboard away and the buttons back.
+            val search = binding.remoteList.etRemoteSearch
+            search.clearFocus()
+            androidx.core.content.ContextCompat.getSystemService(this, android.view.inputmethod.InputMethodManager::class.java)
+                ?.hideSoftInputFromWindow(search.windowToken, 0)
+            binding.remotePadScroll.visibility = View.VISIBLE
+        }
     }
 
     private fun showChannels(query: String, immediate: Boolean = false) {

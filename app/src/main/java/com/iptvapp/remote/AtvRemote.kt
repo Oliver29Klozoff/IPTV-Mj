@@ -83,7 +83,16 @@ internal object AtvRemote {
 
     private val CANCELLED = Outcome.Refused("MKTV on the TV closed. Open it and press Power again.")
 
+    // Off from cancel() (the remote server stopping) until the server starts again: a request it had
+    // already accepted must not press power or start a pairing once MKTV on the TV has closed.
+    @Volatile private var accepting = true
+
+    fun resume() {
+        accepting = true
+    }
+
     fun cancel() {
+        accepting = false
         generation.incrementAndGet()
         dropPending()
         openSockets.toList().forEach { close(it) }
@@ -93,6 +102,7 @@ internal object AtvRemote {
         if (!busy.compareAndSet(false, true)) return Outcome.Refused("Still working on the last press. Try again in a moment.")
         try {
             pressGeneration = generation.get()
+            if (!accepting) return CANCELLED
             val cleaned = AtvRemoteProto.cleanCode(code)
             if (code?.isNotBlank() == true && cleaned == null) {
                 return Outcome.Refused("The code is the 6 characters shown on the TV.")

@@ -137,6 +137,7 @@ object RemoteControlServer {
     @Synchronized
     fun start(context: Context) {
         if (users++ > 0) return
+        AtvRemote.resume()
         val app = context.applicationContext
         appContext = app
         RemoteControlHooks.install(app as android.app.Application)
