@@ -51,5 +51,27 @@ class AtvRemoteProtoTest {
         assertEquals("MKTV", AtvRemoteProto.blob(request, 2)!!.toString(Charsets.UTF_8))
     }
 
+    // Malformed messages from the service are rejected, not read as something else.
+    private fun rejects(bytes: IntArray) {
+        try {
+            AtvRemoteProto.parse(ByteArray(bytes.size) { bytes[it].toByte() })
+            org.junit.Assert.fail("expected a parse error")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    @Test fun aNestedLengthPastTheEndIsRejected() = rejects(intArrayOf(0x0A, 0x05, 0x01, 0x02))
+
+    @Test fun aLengthThatWouldWrapWhenNarrowedIsRejected() =
+        // field 1, length 4294967301 (5 once cut to an Int), then 5 bytes
+        rejects(intArrayOf(0x0A, 0x85, 0x80, 0x80, 0x80, 0x10, 1, 2, 3, 4, 5))
+
+    @Test fun aTruncatedFixedWidthFieldIsRejected() {
+        rejects(intArrayOf(0x0D, 1, 2)) // fixed32 with 2 of its 4 bytes
+        rejects(intArrayOf(0x09, 1, 2, 3, 4)) // fixed64 with 4 of its 8 bytes
+    }
+
+    @Test fun aTruncatedVarintIsRejected() = rejects(intArrayOf(0x08, 0x80))
+
     private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
 }

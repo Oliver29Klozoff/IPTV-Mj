@@ -101,13 +101,15 @@ internal object AtvRemoteProto {
             when ((tag and 7).toInt()) {
                 0 -> values.add(Part.Num(varint()))
                 2 -> {
-                    val len = varint().toInt()
-                    if (len < 0 || i + len > payload.size) throw IllegalArgumentException("length")
+                    // Compared as a Long against what is left, before narrowing: no overflow either way.
+                    val declared = varint()
+                    if (declared < 0 || declared > (payload.size - i).toLong()) throw IllegalArgumentException("length")
+                    val len = declared.toInt()
                     values.add(Part.Blob(payload.copyOfRange(i, i + len)))
                     i += len
                 }
-                5 -> i += 4
-                1 -> i += 8
+                5 -> { if (payload.size - i < 4) throw IllegalArgumentException("truncated"); i += 4 }
+                1 -> { if (payload.size - i < 8) throw IllegalArgumentException("truncated"); i += 8 }
                 else -> throw IllegalArgumentException("wire")
             }
         }

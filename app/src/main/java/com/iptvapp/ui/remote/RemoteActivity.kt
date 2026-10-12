@@ -546,16 +546,25 @@ class RemoteActivity : AppCompatActivity() {
             .setTitle("Code on the TV")
             .setMessage("Type the 6-character code the Shield is showing. This is only needed once.")
             .setView(input)
-            .setPositiveButton("Turn off") { _, _ ->
-                send(JSONObject().put("cmd", "power").put("code", input.text.toString())) { ok, json ->
-                    when {
-                        json?.optBoolean("alreadyOff") == true -> setStatus("The Shield is already off", holdMs = 4_000)
-                        ok -> setStatus("Turning the TV off", holdMs = 4_000)
-                    }
-                }
-            }
+            .setPositiveButton("Turn off", null) // set below, so an empty code keeps the dialog open
             .setNegativeButton("Cancel", null)
             .show()
+        powerCodeDialog?.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val code = input.text.toString().trim()
+            if (code.isEmpty()) {
+                input.error = "Type the code shown on the TV"
+                return@setOnClickListener
+            }
+            powerCodeDialog?.dismiss()
+            send(JSONObject().put("cmd", "power").put("code", code)) { ok, json ->
+                when {
+                    // The TV started a new pairing (the old code had expired): ask for the new code.
+                    json?.optBoolean("needCode") == true -> askPowerCode()
+                    json?.optBoolean("alreadyOff") == true -> setStatus("The Shield is already off", holdMs = 4_000)
+                    ok -> setStatus("Turning the TV off", holdMs = 4_000)
+                }
+            }
+        }
     }
 
     private fun askAddress() {

@@ -16,7 +16,13 @@ import java.net.SocketTimeoutException
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
+import java.util.Collections
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
@@ -53,30 +59,45 @@ internal object AtvRemote {
         class Refused(val reason: String) : Outcome()
     }
 
-    private val gate = Any()
-    private var pending: Pending? = null
+    // One press at a time, without holding a lock across network I/O: an overlapping press is
+    // refused at once, and cancel() (called from the TV home's onDestroy, on the main thread) only
+    // closes sockets, which ends any blocked read in the running press.
+    private val busy = AtomicBoolean(false)
+    private val pending = AtomicReference<Pending?>(null)
+    private val openSockets = Collections.newSetFromMap(ConcurrentHashMap<SSLSocket, Boolean>())
+    private val expiry = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "mktv-atv-remote").apply { isDaemon = true } }
 
     private class Pending(val socket: SSLSocket, val serverCert: X509Certificate, val clientCert: X509Certificate, val startedAt: Long)
 
-    fun cancel() = synchronized(gate) { dropPending() }
+    private fun now() = System.nanoTime() / 1_000_000
 
-    fun sleep(code: String?): Outcome = synchronized(gate) {
-        val cleaned = AtvRemoteProto.cleanCode(code)
-        if (code?.isNotBlank() == true && cleaned == null) {
-            return@synchronized Outcome.Refused("The code is the 6 characters shown on the TV.")
-        }
-        if (cleaned != null) return@synchronized finish(cleaned)
-        when (val attempt = sendPower()) {
-            Attempt.Asleep -> Outcome.Asleep
-            Attempt.AlreadyOff -> Outcome.AlreadyOff
-            Attempt.NoService -> Outcome.Refused("This device has no Android TV remote service, so MKTV can't turn it off.")
-            is Attempt.NeedsPairing -> begin(attempt.host)
+    fun cancel() {
+        dropPending()
+        openSockets.toList().forEach { close(it) }
+    }
+
+    fun sleep(code: String?): Outcome {
+        if (!busy.compareAndSet(false, true)) return Outcome.Refused("Still working on the last press. Try again in a moment.")
+        try {
+            val cleaned = AtvRemoteProto.cleanCode(code)
+            if (code?.isNotBlank() == true && cleaned == null) {
+                return Outcome.Refused("The code is the 6 characters shown on the TV.")
+            }
+            if (cleaned != null) return finish(cleaned)
+            return when (val attempt = sendPower()) {
+                Attempt.Asleep -> Outcome.Asleep
+                Attempt.AlreadyOff -> Outcome.AlreadyOff
+                Attempt.NoService -> Outcome.Refused("This device has no Android TV remote service, so MKTV can't turn it off.")
+                is Attempt.NeedsPairing -> begin(attempt.host)
+            }
+        } finally {
+            busy.set(false)
         }
     }
 
     private fun finish(code: String): Outcome {
-        val session = pending
-        if (session == null || System.currentTimeMillis() - session.startedAt > CODE_TTL_MS) {
+        val session = pending.get()
+        if (session == null || now() - session.startedAt > CODE_TTL_MS) {
             dropPending()
             return Outcome.Refused("The code on the TV expired. Press Power again.")
         }
@@ -110,8 +131,8 @@ internal object AtvRemote {
     }
 
     private fun begin(host: String): Outcome {
-        val current = pending
-        if (current != null && System.currentTimeMillis() - current.startedAt <= CODE_TTL_MS) return Outcome.NeedCode
+        val current = pending.get()
+        if (current != null && now() - current.startedAt <= CODE_TTL_MS) return Outcome.NeedCode
         dropPending()
         val socket = try {
             open(host, PAIR_PORT)
@@ -136,7 +157,10 @@ internal object AtvRemote {
                 }
             }
             if (!ready) throw IOException("pairing")
-            pending = Pending(socket, serverCert, clientCert, System.currentTimeMillis())
+            val session = Pending(socket, serverCert, clientCert, now())
+            pending.set(session)
+            // Nobody may come back with the code: close the TV's pairing session when it expires.
+            expiry.schedule({ if (pending.compareAndSet(session, null)) close(session.socket) }, CODE_TTL_MS, TimeUnit.MILLISECONDS)
             Outcome.NeedCode
         } catch (e: Exception) {
             close(socket)
@@ -237,6 +261,7 @@ internal object AtvRemote {
         val context = SSLContext.getInstance("TLS")
         context.init(arrayOf<KeyManager>(clientKeyManager()), arrayOf<TrustManager>(trust), null)
         val socket = context.socketFactory.createSocket() as SSLSocket
+        openSockets.add(socket)
         socket.useClientMode = true
         socket.soTimeout = 8_000
         try {
@@ -304,8 +329,10 @@ internal object AtvRemote {
     private fun readFrame(socket: SSLSocket): ByteArray = readFrame(socket.inputStream)
 
     private fun readFrame(input: InputStream): ByteArray {
-        val len = readVarint(input).toInt()
-        if (len !in 1..65_536) throw IOException("bad frame")
+        // Checked as a Long: narrowing first would turn a huge declared length into a small one.
+        val declared = readVarint(input)
+        if (declared !in 1L..65_536L) throw IOException("bad frame")
+        val len = declared.toInt()
         val buf = ByteArray(len)
         var off = 0
         while (off < len) {
@@ -336,12 +363,13 @@ internal object AtvRemote {
     }
 
     private fun dropPending() {
-        close(pending?.socket)
-        pending = null
+        close(pending.getAndSet(null)?.socket)
     }
 
     private fun close(socket: SSLSocket?) {
-        try { socket?.close() } catch (_: Exception) {}
+        if (socket == null) return
+        openSockets.remove(socket)
+        try { socket.close() } catch (_: Exception) {}
     }
 
     private fun X509Certificate.modulus(): BigInteger = (publicKey as java.security.interfaces.RSAPublicKey).modulus

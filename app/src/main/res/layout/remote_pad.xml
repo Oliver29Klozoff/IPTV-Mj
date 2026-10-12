@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Phone remote buttons: Power, D-pad, Back / Home / Play, Full screen, then CH and VOL. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_horizontal"
@@ -14,7 +15,7 @@
         android:layout_marginBottom="@dimen/remote_row_gap"
         android:contentDescription="Power"
         android:src="@drawable/ic_remote_power"
-        android:tint="@color/rack_danger_text" />
+        app:tint="@color/rack_danger_text" />
 
     <com.iptvapp.ui.remote.RemoteDpadView
         android:id="@+id/remoteDpad"
