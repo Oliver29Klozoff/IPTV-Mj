@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.27 - 2026-10-12
+- **New**: the phone remote has a **Power** button that turns the Shield off, the same as its own
+  power button (the TV goes off with it when the Shield's HDMI power control is on). The first
+  time, the Shield shows a 6-character code — type it on the phone once and it's remembered.
+- **New**: **Full screen** on the phone remote hides MKTV's menus on the TV so the video fills it.
+- **Changed**: on the phone remote, favorites start closed so the buttons have the whole screen;
+  tap Favorites to show them.
+
 ## v7.26 - 2026-10-12
 - **Fixed**: refreshing Movies or Series on a very large catalog (100,000+ titles) could crash
   MKTV when your provider had removed titles, and could use so much memory that the app was

@@ -1,7 +1,7 @@
 {
-  "versionCode": 564,
-  "versionName": "7.26",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.26/MKTV.apk",
-  "apkSha256": "3e727759c78598220b81378013b3e5da67cbeb8e03372ed4549c306991ef31f8",
-  "changelog": "Large movie and series refreshes no longer crash, an empty provider list keeps your catalog, Android TV opens the TV home after login, and MKTV starts faster."
+  "versionCode": 565,
+  "versionName": "7.27",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.27/MKTV.apk",
+  "apkSha256": "d8058129d1c16ff749788faf10c9e9677fbe003758dc6edbfd3e96a9cc44a664",
+  "changelog": "The phone remote can now turn the Shield off with a Power button, and Full screen fills the TV with the video."
 }
