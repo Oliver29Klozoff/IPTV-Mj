@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Phone remote buttons (v7.19), laid out like the Shield remote: the round D-pad, then Back /
-     Home / Play-Pause, then the CH and VOL rockers either side of Guide / Last / Mute. -->
+<!-- Phone remote buttons: Power, D-pad, Back / Home / Play, Full screen, then CH and VOL. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_horizontal"
     android:orientation="vertical"
     android:paddingTop="8dp"
-    android:paddingBottom="12dp">
+    android:paddingBottom="16dp">
+
+    <ImageButton
+        android:id="@+id/btnKeyPower"
+        style="@style/RemoteRoundKey"
+        android:layout_marginBottom="@dimen/remote_row_gap"
+        android:contentDescription="Power"
+        android:src="@drawable/ic_remote_power"
+        android:tint="@color/rack_danger_text" />
 
     <com.iptvapp.ui.remote.RemoteDpadView
         android:id="@+id/remoteDpad"
@@ -39,16 +46,25 @@
             android:src="@drawable/ic_remote_playpause" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/btnKeyFullscreen"
+        style="@style/RemotePill"
+        android:layout_width="@dimen/remote_cluster_width"
+        android:layout_height="@dimen/remote_pill_height"
+        android:layout_marginTop="@dimen/remote_row_gap"
+        android:text="Full screen" />
+
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="@dimen/remote_cluster_width"
         android:layout_height="@dimen/remote_rocker_height"
         android:layout_marginTop="@dimen/remote_row_gap"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
         <LinearLayout
-            android:layout_width="68dp"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
+            android:layout_weight="1"
             android:background="@drawable/remote_rocker_bg"
             android:orientation="vertical">
 
@@ -70,9 +86,10 @@
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="96dp"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="20dp"
+            android:layout_marginHorizontal="12dp"
+            android:layout_weight="1.15"
             android:orientation="vertical">
 
             <TextView
@@ -92,8 +109,9 @@
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="68dp"
+            android:layout_width="0dp"
             android:layout_height="match_parent"
+            android:layout_weight="1"
             android:background="@drawable/remote_rocker_bg"
             android:orientation="vertical">
 

@@ -41,12 +41,16 @@ import java.net.URL
 import javax.inject.Inject
 
 /**
- * Phone remote (v7.18): drives MKTV on the TV (the Shield) over the home Wi-Fi. The TV plays from
- * its own provider — this only presses its buttons and tells it which channel to put on.
+ * Phone remote: drives MKTV on the TV (the Shield) over the home Wi-Fi. The TV plays from
+ * its own provider — this presses its buttons, including Full screen. Favorites open from the
+ * Favorites button and start closed, so the buttons fill the screen until then.
  *
  * Finds the TV by mDNS (RemoteControlServer.SERVICE_TYPE), or by an address typed in when the
  * network blocks discovery. Pairs once with the code the TV shows; the token it gets back is kept
- * in SharedPreferences "remote_phone" with the TV's name and last address.
+ * in SharedPreferences "remote_phone" with the TV's name and last address. Full screen hides the
+ * TV's menus so the video fills it. Power sleeps the Shield, the same as its own power button,
+ * and the TV turns off with it when HDMI power control is on. The first time, the Shield shows
+ * a code to allow that.
  */
 @AndroidEntryPoint
 class RemoteActivity : AppCompatActivity() {
@@ -67,6 +71,7 @@ class RemoteActivity : AppCompatActivity() {
     private val resolveQueue = ArrayDeque<NsdServiceInfo>()
     private var resolving = false
     private var searchJob: Job? = null
+    private var favoritesOpen = false
     private var pairPrompted = false
     private val sendLock = kotlinx.coroutines.sync.Mutex()
 
@@ -85,11 +90,10 @@ class RemoteActivity : AppCompatActivity() {
                     androidx.core.view.WindowInsetsCompat.Type.ime()
             )
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            // Typing a search in portrait: the buttons step aside so the results have room above
-            // the keyboard (landscape has them side by side already).
+            // Typing a search in portrait: the buttons step aside so the list has room above the keyboard.
             val typing = insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())
             val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
-            binding.remotePad.root.visibility = if (typing && portrait) View.GONE else View.VISIBLE
+            binding.remotePadScroll.visibility = if (typing && portrait) View.GONE else View.VISIBLE
             insets
         }
         val header = binding.remoteHeader
@@ -111,6 +115,20 @@ class RemoteActivity : AppCompatActivity() {
         pad.btnKeyHome.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             send(JSONObject().put("cmd", "home"))
+        }
+        pad.btnKeyFullscreen.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            send(JSONObject().put("cmd", "fullscreen"))
+        }
+        pad.btnKeyPower.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            send(JSONObject().put("cmd", "power")) { ok, json ->
+                when {
+                    json?.optBoolean("needCode") == true -> askPowerCode()
+                    json?.optBoolean("alreadyOff") == true -> setStatus("The Shield is already off", holdMs = 4_000)
+                    ok -> setStatus("Turning the TV off", holdMs = 4_000)
+                }
+            }
         }
         mapOf(pad.btnKeyVolUp to "up", pad.btnKeyVolDown to "down", pad.btnKeyMute to "mute").forEach { (view, dir) ->
             view.setOnClickListener {
@@ -141,7 +159,8 @@ class RemoteActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) { showChannels(s?.toString().orEmpty().trim()) }
         })
-        showChannels("")
+        binding.btnRemoteFavorites.setOnClickListener { setFavoritesOpen(!favoritesOpen) }
+        setFavoritesOpen(store.getBoolean("favorites_open", false))
 
         // What the TV is showing, while this screen is up.
         lifecycleScope.launch {
@@ -157,7 +176,7 @@ class RemoteActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (true) {
                     delay(60_000)
-                    showChannels(binding.remoteList.etRemoteSearch.text?.toString().orEmpty().trim(), immediate = true)
+                    if (favoritesOpen) showChannels(binding.remoteList.etRemoteSearch.text?.toString().orEmpty().trim(), immediate = true)
                 }
             }
         }
@@ -174,6 +193,15 @@ class RemoteActivity : AppCompatActivity() {
     }
 
     // ── Channels ────────────────────────────────────────────────────────────
+
+    /** Favorites start closed. Opening them shares the screen with the buttons; closing gives the buttons the room back. */
+    private fun setFavoritesOpen(open: Boolean) {
+        favoritesOpen = open
+        store.edit().putBoolean("favorites_open", open).apply()
+        binding.remoteList.root.visibility = if (open) View.VISIBLE else View.GONE
+        binding.btnRemoteFavorites.text = if (open) "Hide favorites" else "Favorites"
+        if (open) showChannels(binding.remoteList.etRemoteSearch.text?.toString().orEmpty().trim(), immediate = true)
+    }
 
     private fun showChannels(query: String, immediate: Boolean = false) {
         searchJob?.cancel()
@@ -346,7 +374,8 @@ class RemoteActivity : AppCompatActivity() {
             val text = body?.toString().orEmpty()
             val conn = URL("http://${hostForUrl(host)}:$port$path").openConnection() as HttpURLConnection
             conn.connectTimeout = 3_000
-            conn.readTimeout = 5_000
+            // Power waits while the Shield shows a code or goes to sleep. The other buttons answer at once.
+            conn.readTimeout = if (body?.optString("cmd") == "power") 15_000 else 5_000
             conn.requestMethod = method
             val key = token
             if (tv == null && key != null) {
@@ -498,6 +527,32 @@ class RemoteActivity : AppCompatActivity() {
             .setTitle(if (tvs.isEmpty()) "No TV found yet — open MKTV on the TV" else "Pick your TV")
             .setItems(labels.toTypedArray()) { _, which ->
                 if (which < tvs.size) startPairing(tvs[which]) else askAddress()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private var powerCodeDialog: AlertDialog? = null
+
+    /** The Shield shows a 6-character code the first time Power is allowed to turn it off. */
+    private fun askPowerCode() {
+        if (isFinishing || powerCodeDialog?.isShowing == true) return
+        val input = EditText(this).apply {
+            hint = "6 characters"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            setText("")
+        }
+        powerCodeDialog = AlertDialog.Builder(this)
+            .setTitle("Code on the TV")
+            .setMessage("Type the 6-character code the Shield is showing. This is only needed once.")
+            .setView(input)
+            .setPositiveButton("Turn off") { _, _ ->
+                send(JSONObject().put("cmd", "power").put("code", input.text.toString())) { ok, json ->
+                    when {
+                        json?.optBoolean("alreadyOff") == true -> setStatus("The Shield is already off", holdMs = 4_000)
+                        ok -> setStatus("Turning the TV off", holdMs = 4_000)
+                    }
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()

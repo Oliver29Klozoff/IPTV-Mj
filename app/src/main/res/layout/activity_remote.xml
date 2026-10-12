@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Phone remote: drives MKTV on the TV over Wi-Fi (ui/remote/RemoteActivity). Channels on top, the
-     Shield-style buttons at the bottom (v7.19). layout-land/activity_remote.xml has them side by side. -->
+<!-- Phone remote. Favorites start closed, so the buttons fill the screen until they are opened. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/remoteRoot"
     android:layout_width="match_parent"
@@ -12,15 +11,52 @@
         android:id="@+id/remoteHeader"
         layout="@layout/remote_header" />
 
+    <TextView
+        android:id="@+id/btnRemoteFavorites"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/home_chip_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:gravity="center"
+        android:letterSpacing="0.1"
+        android:text="Favorites"
+        android:textAllCaps="true"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp" />
+
     <include
         android:id="@+id/remoteList"
         layout="@layout/remote_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginHorizontal="12dp"
-        android:layout_weight="1" />
+        android:layout_weight="1.4"
+        android:visibility="gone" />
 
-    <include
-        android:id="@+id/remotePad"
-        layout="@layout/remote_pad" />
+    <ScrollView
+        android:id="@+id/remotePadScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <include
+                android:id="@+id/remotePad"
+                layout="@layout/remote_pad"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout>
