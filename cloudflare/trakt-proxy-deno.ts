@@ -21,29 +21,64 @@
 
 // Debug reports: what one may contain, and how many one address may send.
 const REPORT_MAX_CHARS = 1_000_000;
+const REPORT_MAX_BYTES = 1_100_000; // the whole request body, read no further than this
 const REPORT_TITLE_MAX = 200;
 const REPORTS_PER_WINDOW = 5;
 const REPORT_WINDOW_MS = 10 * 60 * 1000;
 const recentReports = new Map<string, number[]>();
 
+/** Takes one of [ip]'s report slots, or returns false when it has none left. Synchronous — no
+ * await between the check and the update — so simultaneous requests can't all pass the check. */
+function takeReportSlot(ip: string, now: number): boolean {
+  if (recentReports.size > 10_000) {
+    for (const [key, times] of recentReports) {
+      if (times.every((t) => now - t >= REPORT_WINDOW_MS)) recentReports.delete(key);
+    }
+  }
+  const sent = (recentReports.get(ip) ?? []).filter((t) => now - t < REPORT_WINDOW_MS);
+  if (sent.length >= REPORTS_PER_WINDOW) return false;
+  sent.push(now);
+  recentReports.set(ip, sent);
+  return true;
+}
+
+/** The body as text, or null once it passes [maxBytes] (the rest is never read). */
+async function readLimited(req: Request, maxBytes: number): Promise<string | null> {
+  const declared = Number(req.headers.get("content-length") ?? "0");
+  if (declared > maxBytes) return null;
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) { all.set(c, at); at += c.byteLength; }
+  return new TextDecoder().decode(all);
+}
+
 async function handleReport(req: Request, ip: string): Promise<Response> {
   const webhook = Deno.env.get("DISCORD_WEBHOOK") ?? "";
   if (!webhook) return new Response("Reports are not configured", { status: 503 });
+  // Counted before anything is read: a rejected or malformed report still uses a slot.
+  if (!takeReportSlot(ip, Date.now())) return new Response("Too many reports", { status: 429 });
 
-  const now = Date.now();
-  const sent = (recentReports.get(ip) ?? []).filter((t) => now - t < REPORT_WINDOW_MS);
-  if (sent.length >= REPORTS_PER_WINDOW) return new Response("Too many reports", { status: 429 });
-
-  const text = await req.text().catch(() => "");
-  if (text.length > REPORT_MAX_CHARS + 10_000) return new Response("Report too large", { status: 413 });
+  const text = await readLimited(req, REPORT_MAX_BYTES).catch(() => null);
+  if (text === null) return new Response("Report too large", { status: 413 });
   let body: { title?: unknown; report?: unknown };
   try { body = JSON.parse(text); } catch { return new Response("Bad request", { status: 400 }); }
   const title = typeof body.title === "string" ? body.title.slice(0, REPORT_TITLE_MAX) : "";
   const report = typeof body.report === "string" ? body.report : "";
   if (!title || !report || report.length > REPORT_MAX_CHARS) return new Response("Bad request", { status: 400 });
-
-  sent.push(now);
-  recentReports.set(ip, sent);
 
   // Sent as a text attachment so the whole report arrives (message text is capped at 2000).
   // allowed_mentions: a report can't ping @everyone or anyone else.

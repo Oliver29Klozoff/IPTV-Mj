@@ -42,6 +42,36 @@ check("5th report from one address in 10 min is accepted", (await call("/report"
 check("6th is refused (429)", (await call("/report", JSON.stringify({ title: "t", report: "r" }), "9.9.9.9")).status === 429);
 check("another address is unaffected", (await call("/report", JSON.stringify({ title: "t", report: "r" }), "8.8.8.8")).status === 200);
 
+{
+  // Twenty at once from one address: only the first five get through.
+  const before = posted.length;
+  const results = await Promise.all(Array.from({ length: 20 }, () =>
+    call("/report", JSON.stringify({ title: "t", report: "r" }), "6.6.6.6")));
+  check("simultaneous reports: 5 forwarded", posted.length - before === 5);
+  check("simultaneous reports: 15 refused (429)", results.filter((x) => x.status === 429).length === 15);
+}
+{
+  // A large body with no Content-Length is cut off once it passes the cap, not read to the end.
+  let pulled = 0;
+  const chunk = new Uint8Array(64 * 1024).fill(97);
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (pulled >= 4 * 1024 * 1024) { controller.close(); return; }
+      pulled += chunk.byteLength;
+      controller.enqueue(chunk);
+    },
+  });
+  const res = await handler(
+    new Request("https://proxy.test/report", { method: "POST", body: stream, duplex: "half" }),
+    { remoteAddr: { hostname: "4.4.4.4" } });
+  check("a streamed oversized body is 413", res.status === 413);
+  check("and is not read to the end", pulled < 2 * 1024 * 1024);
+  const declared = await handler(
+    new Request("https://proxy.test/report", { method: "POST", body: "{}", headers: { "content-length": "50000000" } }),
+    { remoteAddr: { hostname: "4.4.4.5" } });
+  check("a declared oversized body is 413", declared.status === 413);
+}
+
 delete env.DISCORD_WEBHOOK;
 check("no webhook configured is 503", (await call("/report", JSON.stringify({ title: "t", report: "r" }), "7.7.7.7")).status === 503);
 const dbg = await (await call("/debug", undefined, "1.1.1.1", "GET")).json();
@@ -49,4 +79,4 @@ check("/debug reports configuration without the value", dbg.reportsConfigured ==
 check("trakt routes still 404 for unknown paths", (await call("/nope", "{}")).status === 404);
 
 console.log(failed ? `${failed} failed` : "proxy tests passed");
-process.exit(failed ? 1 : 0);
+process.exitCode = failed ? 1 : 0;
