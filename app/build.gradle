@@ -102,7 +102,6 @@ android {
         versionCode 563
         versionName "7.25"
 
-        buildConfigField "String", "DISCORD_WEBHOOK", "\"${mktvLocalProps['DISCORD_WEBHOOK'] ?: ''}\""
         // Trakt.tv API app — create one free at https://trakt.tv/oauth/applications
         // (any redirect_uri works, e.g. urn:ietf:wg:oauth:2.0:oob; the device-code flow used
         // here doesn't redirect). client_id is not sensitive and is embedded directly, but

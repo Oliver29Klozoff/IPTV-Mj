@@ -67,7 +67,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -2369,41 +2368,25 @@ class SettingsActivity : AppCompatActivity() {
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
                 val reportTitle = "Debug Report — v${pInfo.versionName} — ${Build.MODEL}"
-                // Used to cram the whole thing into an embed's description field via
-                // fullDebug.take(3900) — Discord embed descriptions cap at 4096 characters, a
-                // hard platform limit, not something raising the number fixes. Combined with
-                // getCrashLog()'s own now-larger budget, that truncation could still cut a crash
-                // entry's tail off, or (since recent entries sort last in that budget while
-                // take() keeps only the FRONT of the combined text) drop the newest crash
-                // entirely in favor of an older one. Sent as a plain-text file attachment
-                // instead — Discord webhooks accept those well past this size, and the whole
-                // report goes through untruncated regardless of how large the crash log gets.
-                val payloadJson = JSONObject().apply {
-                    put("username", "Captain Hook")
-                    put("content", "**$reportTitle**")
+                // Sent to our proxy, which holds the Discord webhook and posts the report there as
+                // a text attachment (untruncated). The webhook used to be compiled into the APK,
+                // where anyone who unpacked it could post to, edit or delete it.
+                val reportUrl = AppConstants.REPORT_URL
+                if (reportUrl == null) {
+                    binding.tvReportStatus.text = "Reports aren't set up in this build"
+                    return@launch
                 }
-                val multipartBody = MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart("payload_json", payloadJson.toString())
-                    .addFormDataPart(
-                        "files[0]", "debug_report.txt",
-                        fullDebug.toRequestBody("text/plain".toMediaType())
-                    )
-                    .build()
+                val payload = JSONObject()
+                    .put("title", reportTitle)
+                    .put("report", fullDebug)
+                    .toString()
+                    .toRequestBody("application/json".toMediaType())
                 binding.tvReportStatus.text = "Sending report..."
-                val response = withContext(Dispatchers.IO) {
-                    OkHttpClient().newCall(
-                        Request.Builder()
-                            .url(AppConstants.DISCORD_WEBHOOK)
-                            .post(multipartBody)
-                            .build()
-                    ).execute()
+                val code = withContext(Dispatchers.IO) {
+                    OkHttpClient().newCall(Request.Builder().url(reportUrl).post(payload).build())
+                        .execute().use { it.code }
                 }
-                if (response.isSuccessful || response.code == 204) {
-                    binding.tvReportStatus.text = "✓ Report sent"
-                } else {
-                    binding.tvReportStatus.text = "Send failed (HTTP ${response.code})"
-                }
+                binding.tvReportStatus.text = if (code in 200..299) "✓ Report sent" else "Send failed (HTTP $code)"
             } catch (e: Exception) {
                 binding.tvReportStatus.text = "Error: ${e.message}"
             } finally {
