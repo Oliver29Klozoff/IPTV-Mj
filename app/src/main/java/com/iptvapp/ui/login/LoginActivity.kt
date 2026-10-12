@@ -24,7 +24,9 @@ import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityLoginBinding
 import com.iptvapp.ui.home.HomeActivity
+import com.iptvapp.ui.home.TvHomeActivity
 import com.iptvapp.util.Resource
+import com.iptvapp.util.isLargeScreenDevice
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -457,8 +459,11 @@ class LoginActivity : AppCompatActivity() {
         Snackbar.make(binding.root, message ?: "Error", Snackbar.LENGTH_LONG).show()
     }
 
+    // Same choice as SplashActivity. This always opened the phone home, so a TV's first session
+    // after logging in ran the phone UI until the app was next launched.
     private fun goToHome() {
-        startActivity(Intent(this, HomeActivity::class.java))
+        val homeClass = if (isLargeScreenDevice()) TvHomeActivity::class.java else HomeActivity::class.java
+        startActivity(Intent(this, homeClass))
         finish()
     }
 }

@@ -2568,6 +2568,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The feature tour sits on top of everything: its two buttons get the keys, not the
+        // sidebar/panel handling below (which moved focus behind it and out of reach).
+        if (com.iptvapp.ui.onboarding.SpotlightTourController.isShowing(this)) return super.dispatchKeyEvent(event)
         // The remote's search / mic key, where the box passes it to the app: voice tune.
         if (event.keyCode == KeyEvent.KEYCODE_SEARCH) {
             if (event.action == KeyEvent.ACTION_UP) startVoiceTune()

@@ -3,6 +3,7 @@ package com.iptvapp.ui.onboarding
 import android.app.Activity
 import android.graphics.Rect
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -36,6 +37,13 @@ data class SpotlightStep(
 
 object SpotlightTourController {
 
+    private const val TAG_TOUR = "mktv_spotlight_tour"
+
+    /** Whether a tour is on screen. Screens that handle D-pad keys themselves let them through
+     * to the tour's buttons while it is. */
+    fun isShowing(activity: Activity): Boolean =
+        activity.window?.decorView?.findViewWithTag<View>(TAG_TOUR) != null
+
     fun start(activity: Activity, steps: List<SpotlightStep>, onDone: (() -> Unit)? = null) {
         val root = activity.window.decorView as? ViewGroup ?: return
         val contentRoot = root.findViewById<ViewGroup>(android.R.id.content) ?: root
@@ -43,6 +51,7 @@ object SpotlightTourController {
         val overlay = SpotlightOverlayView(activity)
         val captionView = LayoutInflater.from(activity).inflate(R.layout.view_tour_caption, contentRoot, false)
         val container = FrameLayout(activity).apply {
+            tag = TAG_TOUR
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             addView(overlay, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             addView(captionView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -115,12 +124,30 @@ object SpotlightTourController {
                         (contentRoot.height - captionView.height - 16 * density).toInt().coerceAtLeast((16 * density).toInt())
                     )
                     captionView.layoutParams = lp
+                    btnNext.requestFocus() // no-op in touch mode
                 }
             }
         }
 
         btnNext.setOnClickListener { showStep(index + 1) }
         btnSkip.setOnClickListener { finish() }
+
+        // A remote has no touch: focus stayed on the screen underneath, so on a TV the tour's
+        // buttons couldn't be reached and D-pad presses moved around behind it. Keep the D-pad
+        // inside the caption while it is up (Skip and Next, nothing else).
+        listOf(btnSkip, btnNext).forEach { b -> b.nextFocusUpId = b.id; b.nextFocusDownId = b.id }
+        btnSkip.nextFocusLeftId = btnSkip.id
+        btnSkip.nextFocusRightId = btnNext.id
+        btnNext.nextFocusLeftId = btnSkip.id
+        btnNext.nextFocusRightId = btnNext.id
+        // Back closes the tour, as Skip does, rather than acting on the screen underneath.
+        listOf(btnSkip, btnNext).forEach { b ->
+            b.setOnKeyListener { _, keyCode, event ->
+                if (keyCode != KeyEvent.KEYCODE_BACK) return@setOnKeyListener false
+                if (event.action == KeyEvent.ACTION_UP) finish()
+                true
+            }
+        }
 
         showStep(0)
     }
