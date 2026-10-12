@@ -1,7 +1,7 @@
 {
-  "versionCode": 563,
-  "versionName": "7.25",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.25/MKTV.apk",
-  "apkSha256": "6d3a13d97783dd12412db8295f7e9e358a16f0690e29eac011b9ad3caefece16",
-  "changelog": "Cloud sync now replaces the saved library so an old leftover field cannot make later syncs fail."
+  "versionCode": 564,
+  "versionName": "7.26",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.26/MKTV.apk",
+  "apkSha256": "3e727759c78598220b81378013b3e5da67cbeb8e03372ed4549c306991ef31f8",
+  "changelog": "Large movie and series refreshes no longer crash, an empty provider list keeps your catalog, Android TV opens the TV home after login, and MKTV starts faster."
 }

@@ -1,5 +1,22 @@
 # IPTV App - Changelog
 
+## v7.26 - 2026-10-12
+- **Fixed**: refreshing Movies or Series on a very large catalog (100,000+ titles) could crash
+  MKTV when your provider had removed titles, and could use so much memory that the app was
+  closed. It now refreshes without crashing and uses a fraction of the memory.
+- **Fixed**: if your provider briefly sends an empty movie or series list (during an outage or
+  maintenance), MKTV keeps your current list instead of emptying it, and tells you so.
+- **Fixed**: on Android TV boxes, logging in now opens the TV home screen straight away instead
+  of the phone layout, and the feature tour can be closed with the remote (Skip, Next, or Back).
+- **Changed**: debug reports from Settings now go through MKTV's own server. Reports sent from
+  older versions will no longer arrive.
+- **Improved**: steadier everyday use — MKTV opens faster (no fixed 4-second splash), the home
+  screen widget no longer leaks memory, background guide refresh and clean-ups are scheduled
+  once instead of from several screens (and the automatic guide refresh now follows your "Only
+  refresh channels missing guide data" setting), a damaged settings file is reset instead of crashing,
+  the mini player stops streaming when you leave the app, and screen readers now name every
+  icon button.
+
 ## v7.25 - 2026-10-11
 - **Fixed**: cloud sync. Pushing your library now replaces the saved copy instead of
   merging into it. A field left behind by an older sync could make every later sync
