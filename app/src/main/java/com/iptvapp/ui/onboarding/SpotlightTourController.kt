@@ -44,6 +44,13 @@ object SpotlightTourController {
     fun isShowing(activity: Activity): Boolean =
         activity.window?.decorView?.findViewWithTag<View>(TAG_TOUR) != null
 
+    /** Closes the tour as Skip does (it counts as seen). For Back, which reaches the screen rather
+     * than the tour's buttons in touch mode, where those buttons can't hold focus. */
+    fun dismiss(activity: Activity): Boolean {
+        val tour = activity.window?.decorView?.findViewWithTag<View>(TAG_TOUR) ?: return false
+        return tour.findViewById<View>(R.id.btnTourSkip)?.performClick() ?: false
+    }
+
     fun start(activity: Activity, steps: List<SpotlightStep>, onDone: (() -> Unit)? = null) {
         val root = activity.window.decorView as? ViewGroup ?: return
         val contentRoot = root.findViewById<ViewGroup>(android.R.id.content) ?: root
