@@ -34,6 +34,8 @@ check("the report is attached as a file", (await form.get("files[0]").text()) ==
 check("the webhook is never echoed back", !(await r.text()).includes("discord"));
 
 check("bad JSON is 400", (await call("/report", "{nope", "5.5.5.5")).status === 400);
+check("a JSON null body is 400", (await call("/report", "null", "5.5.5.8")).status === 400);
+check("a JSON number body is 400", (await call("/report", "42", "5.5.5.9")).status === 400);
 check("missing report is 400", (await call("/report", JSON.stringify({ title: "x" }), "5.5.5.6")).status === 400);
 check("oversized report is 413", (await call("/report", JSON.stringify({ title: "x", report: "a".repeat(1_100_000) }), "5.5.5.7")).status === 413);
 

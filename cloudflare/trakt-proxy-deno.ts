@@ -76,6 +76,7 @@ async function handleReport(req: Request, ip: string): Promise<Response> {
   if (text === null) return new Response("Report too large", { status: 413 });
   let body: { title?: unknown; report?: unknown };
   try { body = JSON.parse(text); } catch { return new Response("Bad request", { status: 400 }); }
+  if (body === null || typeof body !== "object") return new Response("Bad request", { status: 400 });
   const title = typeof body.title === "string" ? body.title.slice(0, REPORT_TITLE_MAX) : "";
   const report = typeof body.report === "string" ? body.report : "";
   if (!title || !report || report.length > REPORT_MAX_CHARS) return new Response("Bad request", { status: 400 });
