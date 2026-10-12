@@ -446,6 +446,10 @@ class LoginActivity : AppCompatActivity() {
             prefs.setPendingFavoriteChannelIds(ids.toSet())
         }
 
+        // App start already scheduled background work from the settings it had then (none, on a
+        // fresh install); bring it in line with the restored ones now, not at the next start.
+        com.iptvapp.worker.BackgroundWork.syncAll(applicationContext, prefs)
+
         android.util.Log.d("RESTORE", "Restore complete")
     }
 

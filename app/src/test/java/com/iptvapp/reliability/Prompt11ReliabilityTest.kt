@@ -136,6 +136,20 @@ class Prompt11ReliabilityTest {
     // ── Worker scheduling ────────────────────────────────────────────────────────────────
 
     @Test
+    fun settingsRestoredAfterStartupAreScheduledWithoutARestart() = runBlocking {
+        val prefs = PreferencesManager(context)
+        prefs.setEpgAutoRefreshHours(0)
+        prefs.setAutoDeleteRecordingsDays(0)
+        BackgroundWork.syncAll(context, prefs) // app start on a fresh install: nothing to run
+        assertTrue(live(BackgroundWork.AUTO_EPG_WORK_NAME).isEmpty())
+        prefs.setEpgAutoRefreshHours(12) // a backup restored from the login screen or Settings
+        prefs.setAutoDeleteRecordingsDays(7)
+        BackgroundWork.syncAll(context, prefs) // what both restore paths now finish with
+        assertEquals(1, live(BackgroundWork.AUTO_EPG_WORK_NAME).size)
+        assertEquals(1, live(RecordingCleanupWorker.WORK_NAME).size)
+    }
+
+    @Test
     fun schedulingAgainAndAgainLeavesOneJobEach() {
         repeat(4) { // app start, Settings, and so on
             BackgroundWork.applyAutoEpgRefresh(context, 6)

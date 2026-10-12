@@ -41,8 +41,10 @@ abstract class LatestOnlyListAdapter<T : Any, VH : RecyclerView.ViewHolder>(
         }
         diffing = true
         super.submitList(list) {
-            diffing = false
+            // Still "diffing" while the callback runs: a list it submits waits like any other and
+            // replaces an older waiting one, rather than starting now and being overtaken by it.
             commitCallback?.run()
+            diffing = false
             if (hasWaiting) {
                 val next = waiting
                 val callbacks = waitingCallbacks.toList()

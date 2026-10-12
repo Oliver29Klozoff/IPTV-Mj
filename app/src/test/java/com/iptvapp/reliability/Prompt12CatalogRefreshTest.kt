@@ -124,6 +124,32 @@ class Prompt12CatalogRefreshTest {
         assertEquals(listOf(a, c, c), seen)
     }
 
+    // A list submitted from a commit callback is the newest: it must not be overtaken by an older
+    // list that was already waiting.
+    private fun callbackSubmits(fromCallback: (Adapter) -> List<Int>?): List<Int> {
+        val adapter = Adapter()
+        adapter.submitList(listOf(1))
+        adapter.submitList(listOf(1, 9)) { adapter.submitList(fromCallback(adapter)) } // diffing
+        adapter.submitList(listOf(2)) // waiting, older than whatever the callback submits
+        shadowOf(Looper.getMainLooper()).idle()
+        return adapter.currentList
+    }
+
+    @Test
+    fun aListSubmittedFromACommitCallbackBeatsAnOlderWaitingOne() {
+        assertEquals(listOf(3), callbackSubmits { listOf(3) })
+    }
+
+    @Test
+    fun aNullSubmittedFromACommitCallbackBeatsAnOlderWaitingOne() {
+        assertEquals(emptyList<Int>(), callbackSubmits { null })
+    }
+
+    @Test
+    fun theSameListSubmittedFromACommitCallbackBeatsAnOlderWaitingOne() {
+        assertEquals(listOf(1, 9), callbackSubmits { it.currentList })
+    }
+
     @Test
     fun withNothingRunningAListIsDiffedRightAway() {
         val adapter = Adapter()

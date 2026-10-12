@@ -4838,6 +4838,9 @@ class SettingsActivity : AppCompatActivity() {
             prefs.setSubtitleOutlineColor(s.optInt("outlineColor", 0xFF000000.toInt()))
         }
 
+        // Guide refresh and the clean-ups run on the schedule saved here, not the one from before.
+        com.iptvapp.worker.BackgroundWork.syncAll(applicationContext, prefs)
+
         // Reload UI after all prefs are set
         loadSettings()
         binding.tvBackupStatus.text = "✓ Restored successfully"
