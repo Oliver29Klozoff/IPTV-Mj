@@ -1,4 +1,5 @@
 package com.iptvapp.ui.settings
+import com.iptvapp.data.repository.keptCatalogMessage
 import com.iptvapp.data.repository.wasSuperseded
 import com.iptvapp.BuildConfig
 import com.iptvapp.util.Resource
@@ -687,7 +688,7 @@ class SettingsActivity : AppCompatActivity() {
                 else if (result.wasSuperseded())
                     "Movies refresh replaced by a newer one"
                 else
-                    "Failed — server timeout or no content"
+                    result.keptCatalogMessage() ?: "Failed — server timeout or no content"
                 Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
@@ -704,7 +705,7 @@ class SettingsActivity : AppCompatActivity() {
                 else if (result.wasSuperseded())
                     "Series refresh replaced by a newer one"
                 else
-                    "Failed — server timeout or no content"
+                    result.keptCatalogMessage() ?: "Failed — server timeout or no content"
                 Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
