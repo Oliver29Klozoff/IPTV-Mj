@@ -26,7 +26,7 @@ class MergedVodAdapter(
     private val onItemLongClick: (MergedVodEntity) -> Unit = {},
     // Feature A: see VodAdapter's matching parameter kdoc — null means preview unsupported here.
     private val vodPreviewUrlProvider: (suspend (MergedVodEntity) -> String?)? = null
-) : ListAdapter<MergedVodRow, RecyclerView.ViewHolder>(DiffCallback()) {
+) : LatestOnlyListAdapter<MergedVodRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
         private const val TYPE_HEADER = 0

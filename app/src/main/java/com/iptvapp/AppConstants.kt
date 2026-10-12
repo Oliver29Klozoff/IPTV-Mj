@@ -1,7 +1,11 @@
 package com.iptvapp
 
 object AppConstants {
-    val DISCORD_WEBHOOK: String get() = BuildConfig.DISCORD_WEBHOOK
+    // Debug reports go to /report on the same proxy that holds the Trakt secret; the proxy keeps
+    // the Discord webhook. Nothing but this public proxy address is in the APK. Null = no proxy
+    // configured for this build.
+    val REPORT_URL: String?
+        get() = BuildConfig.TRAKT_PROXY_URL.trim().trimEnd('/').takeIf { it.isNotEmpty() }?.let { "$it/report" }
 
     // Fallback XMLTV guide for providers whose Xtream panel doesn't supply EPG data at all —
     // offered as a one-tap default rather than making someone go find a guide URL themselves,

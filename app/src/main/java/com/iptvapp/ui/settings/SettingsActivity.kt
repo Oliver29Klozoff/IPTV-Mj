@@ -1,4 +1,5 @@
 package com.iptvapp.ui.settings
+import com.iptvapp.data.repository.keptCatalogMessage
 import com.iptvapp.data.repository.wasSuperseded
 import com.iptvapp.BuildConfig
 import com.iptvapp.util.Resource
@@ -66,7 +67,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -509,18 +509,6 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         workManager = WorkManager.getInstance(this)
 
-        // Re-establish in case it was cleared by an app update (KEEP = don't reset the timer) —
-        // mirrors RecordingSchedulerActivity's identical re-arm for RecordingCleanupWorker.
-        lifecycleScope.launch {
-            if (prefs.autoClearContinueWatchingDays.first() > 0) {
-                val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.ContinueWatchingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                workManager.enqueueUniquePeriodicWork(
-                    com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME,
-                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                    request
-                )
-            }
-        }
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSettingsHelp.setOnClickListener { showSettingsHelp() }
@@ -699,7 +687,7 @@ class SettingsActivity : AppCompatActivity() {
                 else if (result.wasSuperseded())
                     "Movies refresh replaced by a newer one"
                 else
-                    "Failed — server timeout or no content"
+                    result.keptCatalogMessage() ?: "Failed — server timeout or no content"
                 Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
@@ -716,7 +704,7 @@ class SettingsActivity : AppCompatActivity() {
                 else if (result.wasSuperseded())
                     "Series refresh replaced by a newer one"
                 else
-                    "Failed — server timeout or no content"
+                    result.keptCatalogMessage() ?: "Failed — server timeout or no content"
                 Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_LONG).show()
             }
         }
@@ -2380,41 +2368,25 @@ class SettingsActivity : AppCompatActivity() {
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
                 val reportTitle = "Debug Report — v${pInfo.versionName} — ${Build.MODEL}"
-                // Used to cram the whole thing into an embed's description field via
-                // fullDebug.take(3900) — Discord embed descriptions cap at 4096 characters, a
-                // hard platform limit, not something raising the number fixes. Combined with
-                // getCrashLog()'s own now-larger budget, that truncation could still cut a crash
-                // entry's tail off, or (since recent entries sort last in that budget while
-                // take() keeps only the FRONT of the combined text) drop the newest crash
-                // entirely in favor of an older one. Sent as a plain-text file attachment
-                // instead — Discord webhooks accept those well past this size, and the whole
-                // report goes through untruncated regardless of how large the crash log gets.
-                val payloadJson = JSONObject().apply {
-                    put("username", "Captain Hook")
-                    put("content", "**$reportTitle**")
+                // Sent to our proxy, which holds the Discord webhook and posts the report there as
+                // a text attachment (untruncated). The webhook used to be compiled into the APK,
+                // where anyone who unpacked it could post to, edit or delete it.
+                val reportUrl = AppConstants.REPORT_URL
+                if (reportUrl == null) {
+                    binding.tvReportStatus.text = "Reports aren't set up in this build"
+                    return@launch
                 }
-                val multipartBody = MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart("payload_json", payloadJson.toString())
-                    .addFormDataPart(
-                        "files[0]", "debug_report.txt",
-                        fullDebug.toRequestBody("text/plain".toMediaType())
-                    )
-                    .build()
+                val payload = JSONObject()
+                    .put("title", reportTitle)
+                    .put("report", fullDebug)
+                    .toString()
+                    .toRequestBody("application/json".toMediaType())
                 binding.tvReportStatus.text = "Sending report..."
-                val response = withContext(Dispatchers.IO) {
-                    OkHttpClient().newCall(
-                        Request.Builder()
-                            .url(AppConstants.DISCORD_WEBHOOK)
-                            .post(multipartBody)
-                            .build()
-                    ).execute()
+                val code = withContext(Dispatchers.IO) {
+                    OkHttpClient().newCall(Request.Builder().url(reportUrl).post(payload).build())
+                        .execute().use { it.code }
                 }
-                if (response.isSuccessful || response.code == 204) {
-                    binding.tvReportStatus.text = "✓ Report sent"
-                } else {
-                    binding.tvReportStatus.text = "Send failed (HTTP ${response.code})"
-                }
+                binding.tvReportStatus.text = if (code in 200..299) "✓ Report sent" else "Send failed (HTTP $code)"
             } catch (e: Exception) {
                 binding.tvReportStatus.text = "Error: ${e.message}"
             } finally {
@@ -2653,16 +2625,7 @@ class SettingsActivity : AppCompatActivity() {
                     lifecycleScope.launch {
                         prefs.setAutoClearContinueWatchingDays(days)
                         binding.tvAutoClearContinueWatchingValue.text = autoClearContinueWatchingLabel(days)
-                        if (days > 0) {
-                            val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.ContinueWatchingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                            androidx.work.WorkManager.getInstance(this@SettingsActivity).enqueueUniquePeriodicWork(
-                                com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME,
-                                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                                request
-                            )
-                        } else {
-                            androidx.work.WorkManager.getInstance(this@SettingsActivity).cancelUniqueWork(com.iptvapp.worker.ContinueWatchingCleanupWorker.WORK_NAME)
-                        }
+                        com.iptvapp.worker.BackgroundWork.applyContinueWatchingCleanup(this@SettingsActivity, days)
                     }
                     dialog.dismiss()
                 }
@@ -2745,15 +2708,6 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun loadSettings() {
         lifecycleScope.launch {
-            // Re-establish periodic work in case it was cleared by an app update (KEEP = don't reset the timer)
-            val savedHours = prefs.epgAutoRefreshHours.first()
-            if (savedHours > 0) {
-                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(savedHours.toLong(), TimeUnit.HOURS)
-                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
-                    .build()
-                workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, req)
-            }
-
             isLoadingSettings = true
             try {
                 val savedEpgUrl = com.iptvapp.AppConstants.currentEpgUrl(prefs.epgUrl.first())
@@ -2814,8 +2768,10 @@ class SettingsActivity : AppCompatActivity() {
                     else      -> binding.rbDohCloudflare.isChecked = true
                 }
                 currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
-                currentAccentColor = prefs.accentColor.first()
-                currentAccentColorEnd = prefs.accentColorEnd.first()
+                // Checked here: every swatch and picker below parses these. A bad saved value (old
+                // build, restored backup) shows the default instead of crashing Settings.
+                currentAccentColor = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
+                currentAccentColorEnd = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
                 setupAccentPicker()
                 // Also sets the Sort channels label, with its value in the accent.
                 applyAccentToSettings()
@@ -2882,16 +2838,7 @@ class SettingsActivity : AppCompatActivity() {
             }
     }
 
-    private fun scheduleAutoEpgRefresh(hours: Int) {
-        if (hours == 0) {
-            workManager.cancelUniqueWork(AUTO_EPG_WORK_NAME)
-            return
-        }
-        val request = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
-            .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
-            .build()
-        workManager.enqueueUniquePeriodicWork(AUTO_EPG_WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
-    }
+    private fun scheduleAutoEpgRefresh(hours: Int) = com.iptvapp.worker.BackgroundWork.applyAutoEpgRefresh(this, hours)
 
     // Also feeds the status strip's GUIDE readout: the time for a refresh today, otherwise the date.
     private suspend fun updateLastRefreshText() {
@@ -4355,7 +4302,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val AUTO_EPG_WORK_NAME = "auto_epg_refresh_work"
 
         // android:tag values the Rack styles put on views (styles_settings.xml has the full list),
         // read by applyRackAccent / wireToggleRows.
@@ -4875,6 +4821,9 @@ class SettingsActivity : AppCompatActivity() {
             prefs.setSubtitleOutlineEnabled(s.optBoolean("outlineEnabled", true))
             prefs.setSubtitleOutlineColor(s.optInt("outlineColor", 0xFF000000.toInt()))
         }
+
+        // Guide refresh and the clean-ups run on the schedule saved here, not the one from before.
+        com.iptvapp.worker.BackgroundWork.syncAll(applicationContext, prefs)
 
         // Reload UI after all prefs are set
         loadSettings()

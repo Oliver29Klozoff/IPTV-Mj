@@ -259,16 +259,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     prefs.setRecordingFolderName(folderName)
                     prefs.setAutoDeleteRecordingsDays(days)
                     prefs.setRecordingSize(size)
-                    if (days > 0) {
-                        val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.RecordingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                        androidx.work.WorkManager.getInstance(this@TvRecordingActivity).enqueueUniquePeriodicWork(
-                            com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME,
-                            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                            request
-                        )
-                    } else {
-                        androidx.work.WorkManager.getInstance(this@TvRecordingActivity).cancelUniqueWork(com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME)
-                    }
+                    com.iptvapp.worker.BackgroundWork.applyRecordingCleanup(this@TvRecordingActivity, days)
                     Toast.makeText(this@TvRecordingActivity, "New recordings will save to Movies/$folderName", Toast.LENGTH_SHORT).show()
                 }
             }

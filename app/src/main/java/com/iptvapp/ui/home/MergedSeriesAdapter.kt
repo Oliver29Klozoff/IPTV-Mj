@@ -25,7 +25,7 @@ class MergedSeriesAdapter(
     private val onItemClick: (MergedSeriesEntity) -> Unit,
     private val onFavoriteClick: (MergedSeriesEntity) -> Unit = {},
     private val onItemLongClick: (MergedSeriesEntity) -> Unit = {}
-) : ListAdapter<MergedSeriesRow, RecyclerView.ViewHolder>(DiffCallback()) {
+) : LatestOnlyListAdapter<MergedSeriesRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
         private const val TYPE_HEADER = 0

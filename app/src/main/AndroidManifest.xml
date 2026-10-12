@@ -113,11 +113,6 @@
             android:screenOrientation="unspecified" />
 
         <activity
-            android:name=".ui.MainActivity"
-            android:exported="false"
-            android:screenOrientation="unspecified" />
-
-        <activity
             android:name=".ui.player.PlayerActivity"
             android:theme="@style/Theme.IptvApp.Fullscreen"
             android:exported="false"

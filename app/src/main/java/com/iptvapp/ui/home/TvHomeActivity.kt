@@ -22,10 +22,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
@@ -40,7 +36,6 @@ import com.iptvapp.tv.LauncherPending
 import com.iptvapp.tv.TvHomeChannelPublisher
 import com.iptvapp.ui.onboarding.FeatureTourDialog
 import com.iptvapp.update.UpdateChecker
-import com.iptvapp.worker.EpgRefreshWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -52,7 +47,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
 class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
@@ -586,7 +580,6 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         UpdateChecker(this).check(lifecycleScope)
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
-        rescheduleEpgRefreshIfNeeded()
         // Cross-device live-TV handoff (see PlaybackHandoffManager kdoc) — only a prompt, never
         // auto-plays, so it doesn't fight with the cold-boot resume block above (which already
         // may have started this device's own last-played channel by the time this dialog shows;
@@ -622,26 +615,6 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
     }
 
-    // Android (and TV-box "clear background apps" utilities especially) can force-stop
-    // an app, which silently cancels ALL of its scheduled WorkManager jobs — including the
-    // periodic EPG auto-refresh. The phone's HomeActivity already re-asserts this on every
-    // launch; TvHomeActivity never did, so once that job got killed on a Shield/TV box, EPG
-    // auto-refresh would just stop forever until the user happened to open Settings and
-    // re-touch the Auto Refresh option. KEEP means this won't reset the interval clock if
-    // the job is already alive — it only revives it if something cancelled it.
-    private fun rescheduleEpgRefreshIfNeeded() {
-        lifecycleScope.launch {
-            val hours = prefs.epgAutoRefreshHours.first()
-            if (hours > 0) {
-                val req = PeriodicWorkRequestBuilder<EpgRefreshWorker>(hours.toLong(), TimeUnit.HOURS)
-                    .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true))
-                    .build()
-                WorkManager.getInstance(this@TvHomeActivity).enqueueUniquePeriodicWork(
-                    "auto_epg_refresh_work", ExistingPeriodicWorkPolicy.KEEP, req
-                )
-            }
-        }
-    }
 
     // Selecting a sidebar section re-colors the active button (selectSection() below) using
     // this field rather than a hardcoded blue, so the accent survives navigation instead of
@@ -941,7 +914,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) {
-            miniPlayer?.pause()
+            // Same as the phone home screen: a live channel is stopped (decoder and provider
+            // connection released; onResume re-prepares it at the live edge), VOD pauses in place.
+            if (currentMiniIsVod) {
+                miniPlayer?.pause()
+            } else {
+                miniPlayJob?.cancel() // a pending retry would restart it in the background
+                miniPlayer?.stop()
+            }
             // Guide requests belong to this screen being in front; the clock tick restarts them.
             viewModel.cancelEpgLoads()
         }
@@ -1821,6 +1801,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         showSidebar()
     }
 
+    /** The phone remote's Full screen: the video fills the TV, with the sidebar and footer hidden. */
+    fun remoteFullscreen() {
+        if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) hideMoviesFullScreen()
+        if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) hideSeriesFullScreen()
+        if (navState != NavState.SIDEBAR) showSidebar()
+        expandMiniPlayerFullScreen()
+    }
+
     private fun showSidebar() {
         cancelTvAutoCollapse()
         navState = NavState.SIDEBAR
@@ -2580,6 +2568,17 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The feature tour sits on top of everything: its two buttons get the keys, not the
+        // sidebar/panel handling below (which moved focus behind it and out of reach). Back closes
+        // the tour, whatever has focus — in touch mode its buttons can't, and Back would otherwise
+        // leave the app with the tour still unseen.
+        if (com.iptvapp.ui.onboarding.SpotlightTourController.isShowing(this)) {
+            if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                if (event.action == KeyEvent.ACTION_UP) com.iptvapp.ui.onboarding.SpotlightTourController.dismiss(this)
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
         // The remote's search / mic key, where the box passes it to the app: voice tune.
         if (event.keyCode == KeyEvent.KEYCODE_SEARCH) {
             if (event.action == KeyEvent.ACTION_UP) startVoiceTune()

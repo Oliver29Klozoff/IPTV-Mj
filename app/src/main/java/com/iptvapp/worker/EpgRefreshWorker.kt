@@ -49,7 +49,7 @@ class EpgRefreshWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         createNotificationChannel()
 
-        val missingOnly = inputData.getBoolean(KEY_MISSING_ONLY, false)
+        val missingOnly = resolveMissingOnly(inputData) { prefs.epgRefreshMissingOnly.first() }
         val notificationManager =
             appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -78,12 +78,10 @@ class EpgRefreshWorker @AssistedInject constructor(
 
             val allChannels = db.channelDao().getFavoriteChannels().first()
 
-            val channelsToRefresh = if (missingOnly) {
-                val idsWithEpg = db.epgDao().getStreamIdsWithEpg().toSet()
-                allChannels.filter { it.streamId !in idsWithEpg }
-            } else {
-                allChannels
-            }
+            val channelsToRefresh = selectChannels(
+                allChannels, missingOnly,
+                idsWithEpg = { db.epgDao().getStreamIdsWithEpg().toSet() }
+            )
 
             val total = channelsToRefresh.size
 
@@ -227,6 +225,23 @@ class EpgRefreshWorker @AssistedInject constructor(
         const val KEY_PROGRESS = "progress"
         const val KEY_STATUS = "status"
         const val KEY_MISSING_ONLY = "missing_only"
+        // Set on the automatic (periodic) refresh: read "Only refresh channels missing guide data"
+        // when it runs. Automatic refresh used to be scheduled with missing_only hard-coded to true,
+        // ignoring the setting.
+        const val KEY_USE_SAVED_SETTING = "use_saved_missing_only"
+
+        /** The automatic refresh follows the saved setting; a manual run uses what it was given. */
+        internal suspend fun resolveMissingOnly(input: androidx.work.Data, saved: suspend () -> Boolean): Boolean =
+            if (input.getBoolean(KEY_USE_SAVED_SETTING, false)) saved() else input.getBoolean(KEY_MISSING_ONLY, false)
+
+        /** Favorites to fetch a short guide for: all of them, or only those with no guide rows yet. */
+        internal suspend fun <T : com.iptvapp.data.local.entities.ChannelEntity> selectChannels(
+            favorites: List<T>, missingOnly: Boolean, idsWithEpg: suspend () -> Set<Int>
+        ): List<T> {
+            if (!missingOnly) return favorites
+            val have = idsWithEpg()
+            return favorites.filter { it.streamId !in have }
+        }
 
         private const val CHANNEL_ID = "epg_refresh_channel"
         private const val NOTIFICATION_ID = 3001

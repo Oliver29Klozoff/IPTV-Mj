@@ -44,6 +44,7 @@
 
     <ImageButton
         android:id="@+id/btnPlay"
+        android:contentDescription="Play recording"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_marginEnd="8dp"
@@ -54,6 +55,7 @@
 
     <ImageButton
         android:id="@+id/btnShare"
+        android:contentDescription="Share recording"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_marginEnd="8dp"
@@ -64,6 +66,7 @@
 
     <ImageButton
         android:id="@+id/btnRetry"
+        android:contentDescription="Retry recording"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_marginEnd="8dp"
@@ -101,6 +104,7 @@
 
     <ImageButton
         android:id="@+id/btnDelete"
+        android:contentDescription="Delete recording"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:background="?attr/selectableItemBackgroundBorderless"

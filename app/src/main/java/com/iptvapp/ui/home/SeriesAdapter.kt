@@ -22,7 +22,7 @@ class SeriesAdapter(
     private val onSeriesClick: (SeriesEntity) -> Unit,
     private val onFavoriteClick: (SeriesEntity) -> Unit = {},
     private val onSeriesLongClick: (SeriesEntity) -> Unit = {}
-) : ListAdapter<SeriesRow, RecyclerView.ViewHolder>(DiffCallback()) {
+) : LatestOnlyListAdapter<SeriesRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
         private const val TYPE_HEADER = 0
@@ -147,7 +147,7 @@ class SeriesAdapter(
 class TvSeriesPosterAdapter(
     private val onSeriesClick: (SeriesEntity) -> Unit,
     private val onSeriesLongClick: (SeriesEntity) -> Unit = {}
-) : ListAdapter<SeriesEntity, TvSeriesPosterAdapter.ViewHolder>(PosterDiffCallback()) {
+) : LatestOnlyListAdapter<SeriesEntity, TvSeriesPosterAdapter.ViewHolder>(PosterDiffCallback()) {
 
     inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvSeriesPosterBinding) :
         RecyclerView.ViewHolder(binding.root) {

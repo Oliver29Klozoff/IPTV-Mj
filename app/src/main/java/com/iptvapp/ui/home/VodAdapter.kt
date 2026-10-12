@@ -30,7 +30,7 @@ class VodAdapter(
     // preview entirely (e.g. Settings toggle off, or BandwidthBudgetManager.isNearOrOverBudget
     // is true for this provider — see HomeActivity/TvHomeActivity's wiring of this lambda).
     private val vodPreviewUrlProvider: (suspend (VodEntity) -> String?)? = null
-) : ListAdapter<VodRow, RecyclerView.ViewHolder>(DiffCallback()) {
+) : LatestOnlyListAdapter<VodRow, RecyclerView.ViewHolder>(DiffCallback()) {
 
     companion object {
         private const val TYPE_HEADER = 0
@@ -177,7 +177,7 @@ class TvVodPosterAdapter(
     private val onVodLongClick: (VodEntity) -> Unit = {},
     // See VodAdapter's matching parameter kdoc.
     private val vodPreviewUrlProvider: (suspend (VodEntity) -> String?)? = null
-) : ListAdapter<VodEntity, TvVodPosterAdapter.ViewHolder>(PosterDiffCallback()) {
+) : LatestOnlyListAdapter<VodEntity, TvVodPosterAdapter.ViewHolder>(PosterDiffCallback()) {
 
     inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvVodPosterBinding) :
         RecyclerView.ViewHolder(binding.root) {

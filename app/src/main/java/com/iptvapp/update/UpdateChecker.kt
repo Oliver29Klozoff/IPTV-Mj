@@ -323,9 +323,7 @@ class UpdateChecker(
     // only SettingsActivity's manual "Check for Updates" button respected. Most users only
     // ever see the automatic popup, so the toggle effectively did nothing for them.
     private fun installApk(apkFile: File) {
-        val silentEnabled = kotlinx.coroutines.runBlocking {
-            com.iptvapp.data.local.PreferencesManager(context).silentSelfUpdateEnabled.first()
-        }
+        val silentEnabled = com.iptvapp.data.local.PreferencesManager(context).silentSelfUpdateEnabledNow()
         if (silentEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             com.iptvapp.IptvApplication.logPlaybackEvent(context, "SILENT UPDATE (auto-popup path): attempting session install")
             try {

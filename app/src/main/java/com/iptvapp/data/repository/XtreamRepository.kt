@@ -648,13 +648,22 @@ class XtreamRepository @Inject constructor(
                 val startMs = android.os.SystemClock.elapsedRealtime()
                 val response = api.getVodStreams(b.apiUrl(), c.username, c.password)
                 if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-                // Null is a bad body, not an empty catalog. An empty catalog is a real empty list.
+                // Null is a bad body, not an empty catalog.
                 val list = response.body() ?: throw Exception("Empty response")
                 val fetchedMs = android.os.SystemClock.elapsedRealtime()
                 if (!still() || !samePrimary(identity)) {
                     throw CatalogRefreshSuperseded()
                 }
                 checkActive()
+                // A successful but empty list while movies are stored is a provider hiccup, not a
+                // catalog with nothing in it: keep what is stored (see EmptyCatalogKept).
+                if (list.isEmpty()) {
+                    val stored = db.vodDao().getCount()
+                    if (stored > 0) {
+                        android.util.Log.w("PrimaryCatalog", "Provider returned an empty movie list; kept $stored stored titles")
+                        throw EmptyCatalogKept("movies", stored)
+                    }
+                }
                 // Without this, every VOD refresh (auto-refresh, pull-to-refresh, stale-cache
                 // reload) silently un-favorited every movie and reset all watch progress back to
                 // zero — @Upsert replaces the whole row, and a freshly-built VodEntity defaults
@@ -847,6 +856,14 @@ class XtreamRepository @Inject constructor(
                     throw CatalogRefreshSuperseded()
                 }
                 checkActive()
+                // Same empty-list guard as fetchVodStreams.
+                if (list.isEmpty()) {
+                    val stored = db.seriesDao().getCount()
+                    if (stored > 0) {
+                        android.util.Log.w("PrimaryCatalog", "Provider returned an empty series list; kept $stored stored titles")
+                        throw EmptyCatalogKept("series", stored)
+                    }
+                }
                 // Same preserve-across-refresh fix as fetchVodStreams above — without it, every
                 // series refresh silently un-favorited every show and reset watch progress.
                 val userData = db.seriesDao().getUserData().associateBy { it.seriesId }

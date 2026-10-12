@@ -266,16 +266,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     prefs.setRecordingFolderName(folderName)
                     prefs.setAutoDeleteRecordingsDays(days)
                     prefs.setRecordingSize(size)
-                    if (days > 0) {
-                        val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.RecordingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                        androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).enqueueUniquePeriodicWork(
-                            com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME,
-                            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                            request
-                        )
-                    } else {
-                        androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).cancelUniqueWork(com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME)
-                    }
+                    com.iptvapp.worker.BackgroundWork.applyRecordingCleanup(this@RecordingSchedulerActivity, days)
                     Toast.makeText(this@RecordingSchedulerActivity, "New recordings will save to Movies/$folderName", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -354,18 +345,6 @@ class RecordingSchedulerActivity : AppCompatActivity() {
 
         lifecycleScope.launch { cleanupStaleRecordings() }
 
-        // Re-establish the cleanup worker in case it was cleared by an app update (KEEP = don't
-        // reset the timer) — mirrors how EpgRefreshWorker is re-armed in SettingsActivity.
-        lifecycleScope.launch {
-            if (prefs.autoDeleteRecordingsDays.first() > 0) {
-                val request = androidx.work.PeriodicWorkRequestBuilder<com.iptvapp.worker.RecordingCleanupWorker>(1, java.util.concurrent.TimeUnit.DAYS).build()
-                androidx.work.WorkManager.getInstance(this@RecordingSchedulerActivity).enqueueUniquePeriodicWork(
-                    com.iptvapp.worker.RecordingCleanupWorker.WORK_NAME,
-                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                    request
-                )
-            }
-        }
 
         lifecycleScope.launch {
             database.recordingDao().getAll().collect { list ->

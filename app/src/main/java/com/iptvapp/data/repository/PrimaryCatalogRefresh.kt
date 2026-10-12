@@ -33,14 +33,29 @@ fun com.iptvapp.util.Resource<*>.wasSuperseded(): Boolean =
     this is com.iptvapp.util.Resource.Error && cause is CatalogRefreshSuperseded
 
 /**
+ * A routine refresh that succeeded but listed no titles while titles are stored. Providers do this
+ * when briefly overloaded or mid-maintenance; emptying the table for it dropped a 100k-title catalog
+ * to the handful with favorites or progress on them. The refresh keeps what is stored instead.
+ * Switching or removing a provider still clears the catalog (clearPrimaryProviderData), and a new
+ * provider with nothing stored can still come back empty.
+ */
+class EmptyCatalogKept(kind: String, kept: Int) :
+    Exception("Your provider listed no $kind this time, so your $kept $kind were kept. Try again later.")
+
+/** What to tell the user when this refresh kept the stored catalog; null otherwise. */
+fun com.iptvapp.util.Resource<*>.keptCatalogMessage(): String? =
+    ((this as? com.iptvapp.util.Resource.Error)?.cause as? EmptyCatalogKept)?.message
+
+/**
  * Primary movie and series catalog writes.
  *
  * One refresh of a kind runs at a time. Starting another, or a provider switch
  * ([supersede]), makes the older one write nothing. A switch cancels the download
  * and does not wait for the old provider to answer; it only waits for a write that
  * has already started. Rows are stored before any old row is removed, and a refresh
- * that lost its turn removes nothing. An empty list is a real empty catalog and
- * clears that table. A null response never reaches these methods.
+ * that lost its turn removes nothing. An empty list given here clears that table; the
+ * routine refresh only passes one when nothing is stored (see [EmptyCatalogKept]).
+ * A null response never reaches these methods.
  *
  * Titles are mapped one chunk at a time so a 100k-title catalog is not held twice.
  */
