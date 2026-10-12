@@ -1,6 +1,9 @@
 package com.iptvapp.remote
 
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
+import java.io.IOException
+import java.io.InputStream
 import java.math.BigInteger
 import java.security.MessageDigest
 
@@ -80,19 +83,34 @@ internal object AtvRemoteProto {
         return code.takeIf { it.length == 6 && it.all { ch -> ch in '0'..'9' || ch in 'A'..'F' } }
     }
 
+    /**
+     * A varint read one byte at a time from [next] (-1 = no more). The tenth byte may only hold the
+     * last bit of a 64-bit value: anything more would be shifted out and silently lost, turning an
+     * enormous length into a small one.
+     */
+    private inline fun varint(next: () -> Int, fail: (String) -> Nothing): Long {
+        var result = 0L
+        var shift = 0
+        while (true) {
+            val b = next()
+            if (b < 0) fail("truncated")
+            if (shift == 63 && b > 1) fail("varint overflow")
+            result = result or ((b and 0x7F).toLong() shl shift)
+            if (b and 0x80 == 0) return result
+            shift += 7
+        }
+    }
+
+    /** A varint length prefix from the service's stream. */
+    fun readVarint(input: InputStream): Long = varint({ input.read() }) { reason ->
+        if (reason == "truncated") throw EOFException() else throw IOException(reason)
+    }
+
     fun parse(payload: ByteArray): Map<Int, List<Part>> {
         val out = linkedMapOf<Int, MutableList<Part>>()
         var i = 0
-        fun varint(): Long {
-            var result = 0L
-            var shift = 0
-            while (i < payload.size && shift <= 63) {
-                val b = payload[i++].toInt() and 0xFF
-                result = result or ((b and 0x7F).toLong() shl shift)
-                if (b and 0x80 == 0) return result
-                shift += 7
-            }
-            throw IllegalArgumentException("truncated")
+        fun varint(): Long = varint({ if (i < payload.size) payload[i++].toInt() and 0xFF else -1 }) { reason ->
+            throw IllegalArgumentException(reason)
         }
         while (i < payload.size) {
             val tag = varint()

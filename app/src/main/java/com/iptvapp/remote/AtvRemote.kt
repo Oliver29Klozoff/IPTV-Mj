@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.KeyManager
 import javax.net.ssl.SSLContext
@@ -71,7 +72,19 @@ internal object AtvRemote {
 
     private fun now() = System.nanoTime() / 1_000_000
 
+    // cancel() moves this on. A press started before that may still be running (its socket was
+    // just closed under it): it must not then open another connection or leave a pairing behind.
+    private val generation = AtomicInteger(0)
+    @Volatile private var pressGeneration = -1
+
+    private fun cancelled() = pressGeneration != generation.get()
+
+    private class CancelledPress : IOException("cancelled")
+
+    private val CANCELLED = Outcome.Refused("MKTV on the TV closed. Open it and press Power again.")
+
     fun cancel() {
+        generation.incrementAndGet()
         dropPending()
         openSockets.toList().forEach { close(it) }
     }
@@ -79,6 +92,7 @@ internal object AtvRemote {
     fun sleep(code: String?): Outcome {
         if (!busy.compareAndSet(false, true)) return Outcome.Refused("Still working on the last press. Try again in a moment.")
         try {
+            pressGeneration = generation.get()
             val cleaned = AtvRemoteProto.cleanCode(code)
             if (code?.isNotBlank() == true && cleaned == null) {
                 return Outcome.Refused("The code is the 6 characters shown on the TV.")
@@ -87,6 +101,7 @@ internal object AtvRemote {
             return when (val attempt = sendPower()) {
                 Attempt.Asleep -> Outcome.Asleep
                 Attempt.AlreadyOff -> Outcome.AlreadyOff
+                Attempt.Cancelled -> CANCELLED
                 Attempt.NoService -> Outcome.Refused("This device has no Android TV remote service, so MKTV can't turn it off.")
                 is Attempt.NeedsPairing -> begin(attempt.host)
             }
@@ -119,12 +134,14 @@ internal object AtvRemote {
                 when (val attempt = sendPower()) {
                     Attempt.Asleep -> Outcome.Asleep
                     Attempt.AlreadyOff -> Outcome.AlreadyOff
+                    Attempt.Cancelled -> CANCELLED
                     Attempt.NoService, is Attempt.NeedsPairing ->
                         Outcome.Refused("The Shield didn't accept the power button. Press Power again.")
                 }
             }
         } catch (e: Exception) {
             dropPending()
+            if (cancelled()) return CANCELLED
             Log.w(TAG, "power code failed")
             Outcome.Refused("The code on the TV expired. Press Power again.")
         }
@@ -137,6 +154,7 @@ internal object AtvRemote {
         val socket = try {
             open(host, PAIR_PORT)
         } catch (e: Exception) {
+            if (cancelled()) return CANCELLED
             Log.w(TAG, "power pairing couldn't start")
             return Outcome.Refused("The Shield didn't show a code. Press Power again.")
         }
@@ -159,11 +177,17 @@ internal object AtvRemote {
             if (!ready) throw IOException("pairing")
             val session = Pending(socket, serverCert, clientCert, now())
             pending.set(session)
+            // A cancel that came in meanwhile wins: drop the session it could not see yet.
+            if (cancelled()) {
+                if (pending.compareAndSet(session, null)) close(socket)
+                return CANCELLED
+            }
             // Nobody may come back with the code: close the TV's pairing session when it expires.
             expiry.schedule({ if (pending.compareAndSet(session, null)) close(session.socket) }, CODE_TTL_MS, TimeUnit.MILLISECONDS)
             Outcome.NeedCode
         } catch (e: Exception) {
             close(socket)
+            if (cancelled()) return CANCELLED
             Log.w(TAG, "power pairing failed")
             Outcome.Refused("The Shield didn't show a code. Press Power again.")
         }
@@ -173,24 +197,28 @@ internal object AtvRemote {
         object Asleep : Attempt()
         object AlreadyOff : Attempt()
         object NoService : Attempt()
+        object Cancelled : Attempt()
         class NeedsPairing(val host: String) : Attempt()
     }
 
     private fun sendPower(): Attempt {
         var sawService = false
         for (host in hosts()) {
+            if (cancelled()) return Attempt.Cancelled
             var socket: SSLSocket? = null
             try {
                 socket = open(host, COMMAND_PORT)
                 sawService = true
                 return command(socket)
             } catch (_: NotPaired) {
-                return Attempt.NeedsPairing(host)
+                return if (cancelled()) Attempt.Cancelled else Attempt.NeedsPairing(host)
             } catch (_: ConnectException) {
                 // Nothing is listening here. Try the next address.
             } catch (_: SocketTimeoutException) {
                 // This address didn't answer. Try the next one.
             } catch (_: Exception) {
+                // A socket closed by cancel() also looks connected: that is not "unpaired".
+                if (cancelled()) return Attempt.Cancelled
                 // The service accepted the connection, then dropped a client it has not paired.
                 if (socket?.isConnected == true) return Attempt.NeedsPairing(host)
                 Log.w(TAG, "power couldn't connect")
@@ -198,6 +226,7 @@ internal object AtvRemote {
                 close(socket)
             }
         }
+        if (cancelled()) return Attempt.Cancelled
         return if (sawService) Attempt.NeedsPairing(hosts().first()) else Attempt.NoService
     }
 
@@ -260,8 +289,14 @@ internal object AtvRemote {
         }
         val context = SSLContext.getInstance("TLS")
         context.init(arrayOf<KeyManager>(clientKeyManager()), arrayOf<TrustManager>(trust), null)
+        if (cancelled()) throw CancelledPress()
         val socket = context.socketFactory.createSocket() as SSLSocket
         openSockets.add(socket)
+        // cancel() may have run between the check above and the add: it never saw this socket.
+        if (cancelled()) {
+            close(socket)
+            throw CancelledPress()
+        }
         socket.useClientMode = true
         socket.soTimeout = 8_000
         try {
@@ -343,18 +378,7 @@ internal object AtvRemote {
         return buf
     }
 
-    private fun readVarint(input: InputStream): Long {
-        var result = 0L
-        var shift = 0
-        while (shift <= 63) {
-            val b = input.read()
-            if (b < 0) throw EOFException()
-            result = result or ((b and 0x7F).toLong() shl shift)
-            if (b and 0x80 == 0) return result
-            shift += 7
-        }
-        throw IOException("varint")
-    }
+    private fun readVarint(input: InputStream): Long = AtvRemoteProto.readVarint(input)
 
     private fun parseFrame(payload: ByteArray) = try {
         AtvRemoteProto.parse(payload)

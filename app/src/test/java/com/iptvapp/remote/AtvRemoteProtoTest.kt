@@ -73,5 +73,23 @@ class AtvRemoteProtoTest {
 
     @Test fun aTruncatedVarintIsRejected() = rejects(intArrayOf(0x08, 0x80))
 
+    // 0x82, eight 0x80, then 0x02: the 2 in the tenth byte overflows 64 bits; read loosely it
+    // decodes as 2 and would pass every length check.
+    private val overflowing = intArrayOf(0x82, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02)
+
+    @Test fun anOverflowingNestedLengthIsRejected() = rejects(intArrayOf(0x0A) + overflowing + intArrayOf(1, 2))
+
+    @Test fun anOverflowingFrameLengthIsRejected() {
+        val stream = java.io.ByteArrayInputStream(ByteArray(overflowing.size) { overflowing[it].toByte() } + byteArrayOf(1, 2))
+        try {
+            AtvRemoteProto.readVarint(stream)
+            org.junit.Assert.fail("expected an overflow error")
+        } catch (_: java.io.IOException) {
+        }
+        // The largest legal tenth byte still reads.
+        val max = java.io.ByteArrayInputStream(byteArrayOf(-1, -1, -1, -1, -1, -1, -1, -1, -1, 1))
+        assertEquals(-1L, AtvRemoteProto.readVarint(max))
+    }
+
     private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
 }
