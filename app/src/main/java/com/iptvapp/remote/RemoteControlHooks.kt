@@ -79,6 +79,12 @@ object RemoteControlHooks {
                             )
                         }
                     }
+                    is RemoteControlServer.Command.Fullscreen -> if (dialog == null) front?.get()?.let { activity ->
+                        when (activity) {
+                            is com.iptvapp.ui.home.TvHomeActivity -> activity.remoteFullscreen()
+                            is com.iptvapp.ui.home.HomeActivity -> activity.remoteFullscreen()
+                        }
+                    }
                 }
             }
         }

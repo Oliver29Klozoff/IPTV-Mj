@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Phone remote (v7.19): full-size pad where the screen has the height for it. -->
+<!-- Phone remote on a tall screen: a larger pad, still one column of buttons. -->
 <resources>
-    <dimen name="remote_dpad_size">200dp</dimen>
-    <dimen name="remote_round_key">60dp</dimen>
-    <dimen name="remote_round_key_padding">17dp</dimen>
-    <dimen name="remote_rocker_height">150dp</dimen>
-    <dimen name="remote_pill_height">38dp</dimen>
-    <dimen name="remote_row_gap">15dp</dimen>
-    <dimen name="remote_pill_gap">4dp</dimen>
+    <dimen name="remote_dpad_size">240dp</dimen>
+    <dimen name="remote_round_key">68dp</dimen>
+    <dimen name="remote_round_key_padding">18dp</dimen>
+    <dimen name="remote_cluster_width">340dp</dimen>
+    <dimen name="remote_rocker_height">200dp</dimen>
+    <dimen name="remote_pill_height">46dp</dimen>
+    <dimen name="remote_row_gap">20dp</dimen>
+    <dimen name="remote_pill_gap">6dp</dimen>
 </resources>
