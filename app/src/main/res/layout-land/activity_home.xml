@@ -244,7 +244,6 @@
         <!-- Hidden views required by HomeActivity binding -->
         <Button android:id="@+id/btnHeroWatch" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         <ImageButton android:id="@+id/btnFullscreen" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        android:contentDescription="Full screen"
         <ImageView android:id="@+id/ivHeroChannelLogo" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
 
     </LinearLayout>
