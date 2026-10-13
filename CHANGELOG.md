@@ -5,6 +5,9 @@
   turning the Shield off. The phone now talks to the Shield directly. Update MKTV on both the
   phone and the Shield, then press Power: the Shield shows a code one last time — type it on the
   phone, and from then on Power just turns the Shield off.
+- **New**: Power on the phone remote also turns the Shield back on when it is asleep (and the TV
+  with it when the Shield's HDMI power control is on). The Shield needs to be asleep, not
+  unplugged, and on the same network as the phone.
 
 ## v7.27 - 2026-10-12
 - **New**: the phone remote has a **Power** button that turns the Shield off, the same as its own

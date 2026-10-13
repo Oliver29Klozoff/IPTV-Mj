@@ -2,6 +2,6 @@
   "versionCode": 566,
   "versionName": "7.28",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.28/MKTV.apk",
-  "apkSha256": "60e7c2063c0ff6da18facbed5bc32e72145055037732cfcb0f91544afc2339cd",
-  "changelog": "Power on the phone remote now turns the Shield off. Update MKTV on the phone and the Shield, then enter the code on the TV one last time."
+  "apkSha256": "b1cab49e0af5f4bc71d2894b3ebaa6b240601fb4fcd5446cdc3f26b877e6b3aa",
+  "changelog": "Power on the phone remote now turns the Shield off and back on. Update MKTV on the phone and the Shield, then enter the code on the TV one last time."
 }
