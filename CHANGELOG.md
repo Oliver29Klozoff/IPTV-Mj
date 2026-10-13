@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.30 - 2026-10-13
+- **Improved**: Movies search on Android TV (Shield) now searches every provider at once —
+  results from your other providers show the provider's name under the title — and puts the
+  closest title first instead of A–Z.
+- **Fixed**: Movies search on Android TV found little or nothing while a large catalog was still
+  loading, and could take minutes to update after the full catalog arrived. Results now appear
+  within about a second, and titles typed with their words joined ("spiderman", "antman") are
+  found too.
+
 ## v7.29 - 2026-10-13
 - **New**: **Guide** on the phone remote opens MKTV's guide on the TV, from whatever MKTV screen
   is showing (the player or Settings close first). Update MKTV on the Shield for this.

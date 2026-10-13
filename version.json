@@ -1,7 +1,7 @@
 {
-  "versionCode": 567,
-  "versionName": "7.29",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.29/MKTV.apk",
-  "apkSha256": "075c3b3a14f9e2104abd286fb67d4ef1bd73ee605cc0d6b650265c79b746f28f",
-  "changelog": "Guide on the phone remote now opens the guide on the TV."
+  "versionCode": 568,
+  "versionName": "7.30",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.30/MKTV.apk",
+  "apkSha256": "be5c9e3add4e99e6b28413ce587d19a481c2d9f14f05ef22f115acd6d3230e98",
+  "changelog": "Movies search on the Shield is faster, searches every provider, and shows the closest title first."
 }
