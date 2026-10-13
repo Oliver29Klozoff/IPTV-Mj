@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.28 - 2026-10-12
+- **Fixed**: the phone remote's **Power** button kept asking for a new code on the TV instead of
+  turning the Shield off. The phone now talks to the Shield directly. Update MKTV on both the
+  phone and the Shield, then press Power: the Shield shows a code one last time — type it on the
+  phone, and from then on Power just turns the Shield off.
+
 ## v7.27 - 2026-10-12
 - **New**: the phone remote has a **Power** button that turns the Shield off, the same as its own
   power button (the TV goes off with it when the Shield's HDMI power control is on). The first
