@@ -1522,10 +1522,6 @@ class HomeActivity : AppCompatActivity() {
         // Already on screen (a reminder tapped over the app). The player exists, so tune now —
         // onStart will not run initMiniPlayer again.
         if (miniPlayer != null) consumePendingJump()
-        if (intent.getBooleanExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE, false)) {
-            intent.removeExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE)
-            remoteGuide()
-        }
     }
 
     /** The phone remote's Guide: the Guide tab. */
@@ -1966,6 +1962,12 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Here rather than onNewIntent: a phone Guide press that had to recreate this screen
+        // arrives through onCreate instead.
+        if (intent.getBooleanExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE, false)) {
+            intent.removeExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE)
+            remoteGuide()
+        }
         lifecycleScope.launch {
             val endHex = prefs.accentColorEnd.first()
             applyAccent(

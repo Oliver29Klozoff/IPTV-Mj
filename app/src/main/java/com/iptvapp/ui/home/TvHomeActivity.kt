@@ -665,10 +665,6 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             intent.removeExtra(EXTRA_REMOTE_HOME)
             remoteHome()
         }
-        if (intent.getBooleanExtra(EXTRA_REMOTE_GUIDE, false)) {
-            intent.removeExtra(EXTRA_REMOTE_GUIDE)
-            remoteGuide()
-        }
         LauncherPending.take(this, intent)?.let { card ->
             // onResume, which follows this, finds nothing left to take.
             launchLauncherCard(card)
@@ -853,6 +849,12 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onResume() {
         super.onResume()
+        // Here rather than onNewIntent: a phone Guide press that had to recreate this screen
+        // arrives through onCreate instead.
+        if (intent.getBooleanExtra(EXTRA_REMOTE_GUIDE, false)) {
+            intent.removeExtra(EXTRA_REMOTE_GUIDE)
+            remoteGuide()
+        }
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
