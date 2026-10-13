@@ -791,12 +791,13 @@ class XtreamRepository @Inject constructor(
         val merged = mergedOf(fts, 5_000)().toMutableList()
         val compact = com.iptvapp.util.MovieSearch.compact(raw)
         if (compact.length >= 4 && primary.size + merged.size < 30) {
-            val start = "${compact.take(4)}*"
             val joined = { name: String -> com.iptvapp.util.MovieSearch.compact(name).contains(compact) }
             val seenPrimary = primary.mapTo(HashSet()) { it.streamId }
-            primaryOf(start, 3_000)().filterTo(primary) { joined(it.name) && seenPrimary.add(it.streamId) }
             val seenMerged = merged.mapTo(HashSet()) { it.serverIndex to it.streamId }
-            mergedOf(start, 3_000)().filterTo(merged) { joined(it.name) && seenMerged.add(it.serverIndex to it.streamId) }
+            for (start in joinedWordQueries(compact)) {
+                primaryOf(start, 3_000)().filterTo(primary) { joined(it.name) && seenPrimary.add(it.streamId) }
+                mergedOf(start, 3_000)().filterTo(merged) { joined(it.name) && seenMerged.add(it.serverIndex to it.streamId) }
+            }
         }
         return primary to merged
     }
@@ -813,6 +814,21 @@ class XtreamRepository @Inject constructor(
         val includeOtherProviders: Boolean = true,
         val otherCategoryNames: Collection<String>? = null
     )
+
+    /**
+     * Index lookups that find a title typed with its words joined ([compact], e.g. "antman"):
+     * the index only knows whole words, so these cover where the first word could end. A first
+     * word of 4+ letters starts like the query ("spid*" for Spider-Man); a shorter one is the
+     * first 1–3 letters followed by a word starting with the next ones ("ant* man*" for Ant-Man,
+     * "x* men*" for X-Men). The caller keeps only titles whose letters contain [compact].
+     */
+    internal fun joinedWordQueries(compact: String): List<String> = buildList {
+        add("${compact.take(4)}*")
+        for (firstWord in 1..3) {
+            val rest = compact.drop(firstWord)
+            if (rest.length >= 2) add("${compact.take(firstWord)}* ${rest.take(3)}*")
+        }
+    }
 
     /** Every other provider's category names (for the English-only filter). */
     suspend fun otherProviderMovieCategoryNames(): List<String> =
