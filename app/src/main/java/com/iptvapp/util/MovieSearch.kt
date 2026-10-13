@@ -35,9 +35,11 @@ object MovieSearch {
      * Lower is better: 0 the whole title, 1 the start of the title, 2 the start of the title
      * typed without spaces, 3 every typed word starts a title word, 4 anything else that matched.
      */
-    fun score(title: String, query: String): Int {
-        val t = normalizeTitle(title).lowercase()
-        val q = normalizeTitle(query).lowercase()
+    fun score(title: String, query: String): Int =
+        scoreNormalized(normalizeTitle(title).lowercase(), normalizeTitle(query).lowercase())
+
+    // [t] and [q] already normalized and lowercase.
+    private fun scoreNormalized(t: String, q: String): Int {
         if (q.isEmpty()) return 4
         if (t == q) return 0
         if (t.startsWith(q)) return 1
@@ -50,8 +52,13 @@ object MovieSearch {
     }
 
     /** [items] best match first; equally good matches shortest title first, then A–Z. */
-    fun <T> rank(items: List<T>, query: String, title: (T) -> String): List<T> =
-        items.map { Triple(it, score(title(it), query), normalizeTitle(title(it)).lowercase()) }
+    fun <T> rank(items: List<T>, query: String, title: (T) -> String): List<T> {
+        val q = normalizeTitle(query).lowercase()
+        return items.map {
+            val t = normalizeTitle(title(it)).lowercase()
+            Triple(it, scoreNormalized(t, q), t)
+        }
             .sortedWith(compareBy({ it.second }, { it.third.length }, { it.third }))
             .map { it.first }
+    }
 }

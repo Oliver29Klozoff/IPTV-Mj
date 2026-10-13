@@ -2900,9 +2900,21 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var moviesFsBecauseYouWatched: Boolean = false
     private var moviesFsSearchQuery: String = ""
     private var moviesFsSearchDebounceJob: kotlinx.coroutines.Job? = null
-    // Search results from other providers, by the stand-in id their tile carries in the grid
-    // (negative, so it never meets a main-provider streamId). Empty when not searching.
-    private var moviesFsOtherProviders: Map<Int, com.iptvapp.data.local.entities.MergedVodEntity> = emptyMap()
+    // Search results from other providers, by the stand-in id their tile carries in the grid:
+    // negative, so it never meets a main-provider streamId, and the same for a given movie for as
+    // long as this screen lives. Never cleared — a tile from an earlier search can still be on
+    // screen while the grid catches up, and must still open its own movie. (Only search hits are
+    // kept, so this stays small.)
+    private val moviesFsOtherProviders = java.util.concurrent.ConcurrentHashMap<Int, com.iptvapp.data.local.entities.MergedVodEntity>()
+    private val moviesFsOtherIds = java.util.concurrent.ConcurrentHashMap<Pair<Int, Int>, Int>()
+    private val moviesFsNextOtherId = java.util.concurrent.atomic.AtomicInteger(-1)
+
+    /** [vod]'s stand-in id in the Movies grid; its entry is refreshed so a tile opens it as it is now. */
+    private fun moviesFsOtherId(vod: com.iptvapp.data.local.entities.MergedVodEntity): Int {
+        val id = moviesFsOtherIds.getOrPut(vod.serverIndex to vod.streamId) { moviesFsNextOtherId.getAndDecrement() }
+        moviesFsOtherProviders[id] = vod
+        return id
+    }
 
     private fun openMergedVodDetail(vod: com.iptvapp.data.local.entities.MergedVodEntity) {
         startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
@@ -3087,9 +3099,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // catalog can take a while to load, and other providers' movies aren't in it.
                 // Results keep their best-match-first order; the chips still narrow them.
                 val hits = viewModel.searchMoviesEverywhere(query)
-                val (tiles, others) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val tiles = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                     val tiles = ArrayList<com.iptvapp.data.local.entities.VodEntity>()
-                    val others = HashMap<Int, com.iptvapp.data.local.entities.MergedVodEntity>()
                     for (hit in hits) when (hit) {
                         is GlobalSearchResult.Vod -> {
                             val v = hit.entity
@@ -3106,19 +3117,16 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                             if (watchedOnly || becauseYouWatched) continue
                             if (favoritesOnly && !m.isFavorite) continue
                             if (genre != null && com.iptvapp.util.GenreBuckets.bucketsFor(listOf(m.categoryName.orEmpty())).firstOrNull() != genre) continue
-                            val id = -(others.size + 1)
-                            others[id] = m
                             tiles += com.iptvapp.data.local.entities.VodEntity(
-                                streamId = id, name = m.name, streamIcon = m.streamIcon, categoryId = m.categoryId,
+                                streamId = moviesFsOtherId(m), name = m.name, streamIcon = m.streamIcon, categoryId = m.categoryId,
                                 rating = m.rating, containerExtension = m.containerExtension, added = m.added,
                                 isFavorite = m.isFavorite, watchedMs = m.watchedMs, durationMs = m.durationMs
                             )
                         }
                         else -> {}
                     }
-                    tiles to others
+                    tiles
                 }
-                moviesFsOtherProviders = others
                 tvVodPosterAdapter.submitList(tiles)
                 return@launch
             }
@@ -3144,7 +3152,6 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     else recommendedFiltered.filter { genreMap?.get(it.categoryId) == genre }
                 if (becauseYouWatched) genreFiltered else viewModel.applyVodSort(genreFiltered)
             }
-            moviesFsOtherProviders = emptyMap()
             tvVodPosterAdapter.submitList(sorted)
         }
     }

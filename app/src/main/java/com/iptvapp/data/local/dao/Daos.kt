@@ -222,13 +222,16 @@ interface VodDao {
         LIMIT 200
     """)
     fun searchVod(query: String): Flow<List<VodEntity>>
-    // The TV Movies search: one lookup, unsorted (MovieSearch ranks), with room for a common
-    // word's matches before ranking.
+    // The TV Movies search: one lookup, ranked afterwards (MovieSearch), and filtered afterwards by
+    // the screen's chips and the English-only setting. Shortest titles first, so a cap only ever
+    // drops the loosest matches of a very common word: 2 letters matching all of a 176k catalog
+    // took 0.4 s on the emulator, a real title ~1 ms.
     @Query("""
         SELECT vod_streams.* FROM vod_streams
         JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
         WHERE vod_streams_fts.name MATCH :query
-        LIMIT 500
+        ORDER BY LENGTH(vod_streams.name)
+        LIMIT 5000
     """)
     suspend fun searchVodOnce(query: String): List<VodEntity>
     // Candidates for words typed joined ("spiderman" for "Spider-Man"), which FTS can't match
@@ -820,7 +823,8 @@ interface MergedVodDao {
         SELECT merged_vod.* FROM merged_vod
         JOIN merged_vod_fts ON merged_vod.rowid = merged_vod_fts.docid
         WHERE merged_vod_fts MATCH :query AND merged_vod.isHidden = 0
-        LIMIT 500
+        ORDER BY LENGTH(merged_vod.name)
+        LIMIT 5000
     """)
     suspend fun searchOnce(query: String): List<MergedVodEntity>
 
