@@ -113,7 +113,7 @@ internal object AtvRemote {
             if (code?.isNotBlank() == true && cleaned == null) {
                 return Outcome.Refused("The code is the 6 characters shown on the TV.")
             }
-            if (cleaned != null) return finish(cleaned)
+            if (cleaned != null) return finish(host, cleaned)
             return when (val attempt = sendPower(host)) {
                 Attempt.Asleep -> Outcome.Asleep
                 Attempt.AlreadyOff -> Outcome.AlreadyOff
@@ -127,9 +127,10 @@ internal object AtvRemote {
         }
     }
 
-    private fun finish(code: String): Outcome {
+    private fun finish(host: String, code: String): Outcome {
         val session = pending.get()
-        if (session == null || now() - session.startedAt > CODE_TTL_MS) {
+        // A code typed for another TV (the user switched TVs meanwhile) must not reach this one.
+        if (session == null || session.host != host || now() - session.startedAt > CODE_TTL_MS) {
             dropPending()
             return Outcome.Refused("The code on the TV expired. Press Power again.")
         }
@@ -167,7 +168,7 @@ internal object AtvRemote {
 
     private fun begin(host: String): Outcome {
         val current = pending.get()
-        if (current != null && now() - current.startedAt <= CODE_TTL_MS) return Outcome.NeedCode
+        if (current != null && current.host == host && now() - current.startedAt <= CODE_TTL_MS) return Outcome.NeedCode
         dropPending()
         val socket = try {
             open(host, PAIR_PORT)
