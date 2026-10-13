@@ -10,6 +10,7 @@ import java.io.InputStream
 import java.math.BigInteger
 import java.net.ConnectException
 import java.net.InetSocketAddress
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -255,16 +256,41 @@ internal object AtvRemote {
         var features = AtvRemoteProto.FEATURES
         var sentAt = 0L
         repeat(40) {
+            if (sentAt != 0L) {
+                // One deadline for the whole confirmation: a timed-out read may have consumed part
+                // of a frame, so the stream is never read again after one.
+                val left = POWER_CONFIRM_MS - (now() - sentAt)
+                if (left <= 0) return Attempt.Ignored
+                socket.soTimeout = left.toInt()
+            }
             val fields = try {
                 parseFrame(readFrame(socket))
             } catch (e: SocketTimeoutException) {
                 if (sentAt == 0L) throw e
-                if (now() - sentAt > POWER_CONFIRM_MS) return Attempt.Ignored
-                return@repeat
-            } catch (e: IOException) {
+                return Attempt.Ignored
+            } catch (e: EOFException) {
                 // After power, the box going to sleep may end the connection.
                 if (sentAt != 0L && !cancelled()) return Attempt.Asleep
                 throw e
+            } catch (e: SocketException) {
+                if (sentAt != 0L && !cancelled()) return Attempt.Asleep
+                throw e
+            } catch (e: javax.net.ssl.SSLException) {
+                // A reset under TLS surfaces as this rather than SocketException.
+                if (sentAt != 0L && !cancelled()) return Attempt.Asleep
+                throw e
+            } catch (e: IOException) {
+                // A garbled frame after power says nothing about the screen.
+                if (sentAt != 0L && !cancelled()) return Attempt.Ignored
+                throw e
+            }
+            if (sentAt != 0L) {
+                // Power is out: only the screen state matters now, and nothing here may turn a
+                // garbled message into a new pairing.
+                val started = AtvRemoteProto.blob(fields, 40) ?: return@repeat
+                val on = runCatching { AtvRemoteProto.num(parseFrame(started), 1) }.getOrNull() == 1L
+                if (!on) return Attempt.Asleep
+                return@repeat
             }
             when {
                 AtvRemoteProto.blob(fields, 1) != null -> {
@@ -281,21 +307,17 @@ internal object AtvRemote {
                 AtvRemoteProto.blob(fields, 40) != null -> {
                     // Absent means off.
                     val on = AtvRemoteProto.blob(fields, 40)?.let { AtvRemoteProto.num(parseFrame(it), 1) } == 1L
-                    if (sentAt != 0L) {
-                        if (!on) return Attempt.Asleep
-                    } else if (!on) {
+                    if (!on) {
                         return Attempt.AlreadyOff
                     } else {
                         Thread.sleep(POWER_SETTLE_MS)
                         if (cancelled()) return Attempt.Cancelled
                         writeFrame(socket, AtvRemoteProto.powerKey())
                         sentAt = now()
-                        socket.soTimeout = 1_000
                     }
                 }
                 AtvRemoteProto.blob(fields, 3) != null -> throw IOException("rejected")
             }
-            if (sentAt != 0L && now() - sentAt > POWER_CONFIRM_MS) return Attempt.Ignored
         }
         if (sentAt != 0L) return Attempt.Ignored
         throw IOException("no session")
