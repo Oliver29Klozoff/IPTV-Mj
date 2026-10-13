@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
+import com.iptvapp.util.isLargeScreenDevice
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
@@ -85,10 +86,30 @@ object RemoteControlHooks {
                             is com.iptvapp.ui.home.HomeActivity -> activity.remoteFullscreen()
                         }
                     }
+                    is RemoteControlServer.Command.Guide -> if (dialog == null) front?.get()?.let { openGuide(it) }
                 }
             }
         }
         scope.launch { RemoteControlServer.pairingNumber.collect { showPairingNumber(it) } }
+    }
+
+    private fun openGuide(activity: Activity) {
+        when (activity) {
+            is com.iptvapp.ui.guide.EpgTimelineActivity -> {}
+            is com.iptvapp.ui.home.TvHomeActivity -> activity.remoteGuide()
+            is com.iptvapp.ui.home.HomeActivity -> activity.remoteGuide()
+            // The player, Settings and the rest: back to the home screen (closing what's over it),
+            // which opens its guide.
+            else -> {
+                val home = if (activity.isLargeScreenDevice()) com.iptvapp.ui.home.TvHomeActivity::class.java
+                    else com.iptvapp.ui.home.HomeActivity::class.java
+                activity.startActivity(
+                    Intent(activity, home)
+                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        .putExtra(com.iptvapp.ui.home.TvHomeActivity.EXTRA_REMOTE_GUIDE, true)
+                )
+            }
+        }
     }
 
     private suspend fun tune(app: Application, name: String) {

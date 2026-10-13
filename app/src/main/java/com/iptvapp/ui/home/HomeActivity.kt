@@ -1524,6 +1524,11 @@ class HomeActivity : AppCompatActivity() {
         if (miniPlayer != null) consumePendingJump()
     }
 
+    /** The phone remote's Guide: the Guide tab. */
+    fun remoteGuide() {
+        binding.tabLayout.getTabAt(TAB_GUIDE)?.select()
+    }
+
     // Lets other screens (Settings' "Play This Channel", the widget, a channel reminder)
     // hand off to a specific channel without duplicating playback logic there.
     // "open_stream_id" is what reminder notifications posted before v6.96 put on the intent.
@@ -1957,6 +1962,12 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Here rather than onNewIntent: a phone Guide press that had to recreate this screen
+        // arrives through onCreate instead.
+        if (intent.getBooleanExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE, false)) {
+            intent.removeExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE)
+            remoteGuide()
+        }
         lifecycleScope.launch {
             val endHex = prefs.accentColorEnd.first()
             applyAccent(
