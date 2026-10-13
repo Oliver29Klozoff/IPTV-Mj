@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.29 - 2026-10-13
+- **New**: **Guide** on the phone remote opens MKTV's guide on the TV, from whatever MKTV screen
+  is showing (the player or Settings close first). Update MKTV on the Shield for this.
+
 ## v7.28 - 2026-10-12
 - **Fixed**: the phone remote's **Power** button kept asking for a new code on the TV instead of
   turning the Shield off. The phone now talks to the Shield directly. Update MKTV on both the
