@@ -164,4 +164,42 @@ class Prompt12CatalogRefreshTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(listOf(2), adapter.currentList)
     }
+
+    // A few search results after a whole catalog (or back): shown at once, not after a diff that
+    // takes minutes, even while another diff is still running.
+    @Test
+    fun aListFarLargerOrSmallerIsShownAtOnceWithoutADiff() {
+        val adapter = Adapter()
+        val catalog = (1..5_000).toList()
+        adapter.submitList(listOf(1, 2, 3))
+        val seen = mutableListOf<String>()
+        adapter.submitList(listOf(1, 2, 3, 4)) { seen += "running diff" } // diff starts
+        adapter.submitList(listOf(1, 2)) { seen += "waiting" } // waits
+        adapter.submitList(catalog) { seen += "catalog" }
+        // No looper run needed: it's already on screen, and the replaced lists' callbacks ran.
+        assertEquals(catalog, adapter.currentList)
+        assertEquals(listOf("running diff", "waiting", "catalog"), seen)
+
+        val results = listOf(7, 42)
+        adapter.submitList(results)
+        assertEquals(results, adapter.currentList)
+
+        // The overtaken diff's late result doesn't land, and ordinary diffs still work.
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(results, adapter.currentList)
+        adapter.submitList(listOf(7, 42, 99))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(7, 42, 99), adapter.currentList)
+    }
+
+    @Test
+    fun aLargeListSubmittedFromACommitCallbackIsShownAtOnce() {
+        val adapter = Adapter()
+        val catalog = (1..5_000).toList()
+        adapter.submitList(listOf(1))
+        adapter.submitList(listOf(1, 9)) { adapter.submitList(catalog) }
+        adapter.submitList(listOf(2)) // waiting, older than the catalog
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(catalog, adapter.currentList)
+    }
 }

@@ -222,6 +222,25 @@ interface VodDao {
         LIMIT 200
     """)
     fun searchVod(query: String): Flow<List<VodEntity>>
+    // The TV Movies search: one lookup, ranked afterwards (MovieSearch). The screen's filters are
+    // applied here, before the cap, so a cap only ever drops matches nobody would see. A null
+    // filter is off; [categoryIds] and [streamIds] are the allowed values, each wrapped in
+    // char(31) (one bound string, so no limit on how many). Shortest titles first, so the cap
+    // drops the loosest matches of a very common word: 2 letters matching all of a 176k catalog
+    // took 0.4 s on the emulator, a real title ~1 ms.
+    @Query("""
+        SELECT vod_streams.* FROM vod_streams
+        JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
+        WHERE vod_streams_fts.name MATCH :query
+        AND (:favoritesOnly = 0 OR vod_streams.isFavorite = 1)
+        AND (:categoryIds IS NULL OR instr(:categoryIds, char(31) || vod_streams.categoryId || char(31)) > 0)
+        AND (:streamIds IS NULL OR instr(:streamIds, char(31) || vod_streams.streamId || char(31)) > 0)
+        ORDER BY LENGTH(vod_streams.name)
+        LIMIT :limit
+    """)
+    suspend fun searchVodFiltered(
+        query: String, favoritesOnly: Boolean, categoryIds: String?, streamIds: String?, limit: Int
+    ): List<VodEntity>
     @Upsert
     suspend fun upsertVod(vod: List<VodEntity>)
     @Query("UPDATE vod_streams SET isFavorite = :isFavorite WHERE streamId = :streamId")
@@ -796,6 +815,22 @@ interface MergedVodDao {
         LIMIT 200
     """)
     fun search(query: String): Flow<List<MergedVodEntity>>
+
+    // See VodDao.searchVodFiltered. [categoryNames]: the allowed category names, each wrapped in
+    // char(31); null for all.
+    @Query("""
+        SELECT merged_vod.* FROM merged_vod
+        JOIN merged_vod_fts ON merged_vod.rowid = merged_vod_fts.docid
+        WHERE merged_vod_fts MATCH :query AND merged_vod.isHidden = 0
+        AND (:favoritesOnly = 0 OR merged_vod.isFavorite = 1)
+        AND (:categoryNames IS NULL OR instr(:categoryNames, char(31) || IFNULL(merged_vod.categoryName, '') || char(31)) > 0)
+        ORDER BY LENGTH(merged_vod.name)
+        LIMIT :limit
+    """)
+    suspend fun searchFiltered(query: String, favoritesOnly: Boolean, categoryNames: String?, limit: Int): List<MergedVodEntity>
+
+    @Query("SELECT DISTINCT categoryName FROM merged_vod WHERE isHidden = 0")
+    suspend fun getCategoryNames(): List<String?>
 
     @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId, watchedMs, durationMs, isHidden FROM merged_vod")
     suspend fun getUserData(): List<MergedVodUserData>

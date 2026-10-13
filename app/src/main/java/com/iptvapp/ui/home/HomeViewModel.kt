@@ -2279,6 +2279,31 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The TV Movies search: movies from the main provider ([GlobalSearchResult.Vod]) and every
+     * other provider ([GlobalSearchResult.MergedVod]), best match first. [filter] is the screen's
+     * own (its chips, and the main provider's categories it shows); other providers' English-only
+     * setting is added here.
+     */
+    suspend fun searchMoviesEverywhere(query: String, filter: XtreamRepository.MovieSearchFilter): List<GlobalSearchResult> {
+        val englishOnly = prefs.englishOnlyMovies.first()
+        val withLanguage = if (englishOnly && filter.includeOtherProviders && filter.otherCategoryNames == null) {
+            filter.copy(otherCategoryNames = repository.otherProviderMovieCategoryNames().filter { isEnglishCategory(it) })
+        } else filter
+        val (primary, merged) = repository.searchMoviesEverywhere(query, withLanguage)
+        val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val hits = primary.map { GlobalSearchResult.Vod(it, primaryLabel) } + merged.map { GlobalSearchResult.MergedVod(it) }
+            com.iptvapp.util.MovieSearch.rank(hits, query) {
+                when (it) {
+                    is GlobalSearchResult.Vod -> it.entity.name
+                    is GlobalSearchResult.MergedVod -> it.entity.name
+                    else -> ""
+                }
+            }
+        }
+    }
+
     fun clearGlobalSearch() {
         globalSearchJob?.cancel()
         _globalSearchResults.value = emptyList()

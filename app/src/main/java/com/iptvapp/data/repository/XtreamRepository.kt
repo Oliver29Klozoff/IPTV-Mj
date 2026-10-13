@@ -749,16 +749,6 @@ class XtreamRepository @Inject constructor(
         val containerExtension: String
     )
 
-    // IPTV catalogs commonly prefix VOD titles with a 2-3 letter language/region code and a
-    // separator (e.g. "EN - Billy Madison (1995)", "US - ..."), which is meaningless for matching
-    // the same movie across two different providers' catalogs — strip it before searching. Kept
-    // to a known list rather than stripping any leading uppercase word, since a title could
-    // legitimately start with an acronym that's part of the actual name.
-    private val vodTitlePrefixRegex = Regex(
-        "^(EN|US|UK|FR|DE|ES|IT|PT|AR|IN|CA|AU|NZ|MX|BR)\\s*[-|:]\\s*",
-        RegexOption.IGNORE_CASE
-    )
-
     /** Reduces a VOD title down to just its real title words for cross-provider matching — used
      * by BOTH the FTS4-backed primary search and the LIKE-backed merged search (see
      * findWatchPartyVodMatches). Originally this only stripped the leading language prefix for
@@ -770,15 +760,84 @@ class XtreamRepository @Inject constructor(
      * match, not just narrow it down. Strips: a leading language/region prefix, any parenthesized
      * or bracketed content anywhere in the title (ratings, years, quality tags, whatever a
      * provider stuffs in there), and all punctuation — leaving just the bare title words either
-     * search backend can then match against loosely. */
-    fun normalizeVodTitleForSearch(rawTitle: String): String {
-        val withoutPrefix = rawTitle.trim().replace(vodTitlePrefixRegex, "")
-        val withoutBracketed = withoutPrefix
-            .replace(Regex("\\([^)]*\\)"), " ")
-            .replace(Regex("\\[[^]]*]"), " ")
-        return withoutBracketed.replace(Regex("[^\\p{L}\\p{N} ]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+     * search backend can then match against loosely. (The rules live in MovieSearch, which the
+     * TV Movies search shares.) */
+    fun normalizeVodTitleForSearch(rawTitle: String): String = com.iptvapp.util.MovieSearch.normalizeTitle(rawTitle)
+
+    /**
+     * The TV Movies search: the main provider and every other provider at once, one lookup each
+     * through the title indexes (not a scan of the loaded catalog, which may still be loading).
+     * Words typed joined ("spiderman"), which the indexes can't match as typed, are found among
+     * titles with a word starting like the query ("spid*") when the indexes found little.
+     * Unranked: see MovieSearch.rank.
+     */
+    suspend fun searchMoviesEverywhere(raw: String, filter: MovieSearchFilter): Pair<List<VodEntity>, List<MergedVodEntity>> {
+        val words = normalizeVodTitleForSearch(raw)
+        if (words.isEmpty()) return emptyList<VodEntity>() to emptyList()
+        val categoryIds = filter.categoryIds?.let(::sqlSet)
+        val streamIds = filter.streamIds?.let { ids -> sqlSet(ids.map { it.toString() }) }
+        val categoryNames = filter.otherCategoryNames?.let(::sqlSet)
+        val primaryOf = { fts: String, limit: Int ->
+            suspend { db.vodDao().searchVodFiltered(fts, filter.favoritesOnly, categoryIds, streamIds, limit) }
+        }
+        val mergedOf = { fts: String, limit: Int ->
+            suspend {
+                if (filter.includeOtherProviders) db.mergedVodDao().searchFiltered(fts, filter.favoritesOnly, categoryNames, limit)
+                else emptyList()
+            }
+        }
+        val fts = ftsQuery(words)
+        val primary = primaryOf(fts, 5_000)().toMutableList()
+        val merged = mergedOf(fts, 5_000)().toMutableList()
+        val compact = com.iptvapp.util.MovieSearch.compact(raw)
+        if (compact.length >= 4 && primary.size + merged.size < 30) {
+            val joined = { name: String -> com.iptvapp.util.MovieSearch.compact(name).contains(compact) }
+            val seenPrimary = primary.mapTo(HashSet()) { it.streamId }
+            val seenMerged = merged.mapTo(HashSet()) { it.serverIndex to it.streamId }
+            for (start in joinedWordQueries(compact)) {
+                primaryOf(start, 3_000)().filterTo(primary) { joined(it.name) && seenPrimary.add(it.streamId) }
+                mergedOf(start, 3_000)().filterTo(merged) { joined(it.name) && seenMerged.add(it.serverIndex to it.streamId) }
+            }
+        }
+        return primary to merged
+    }
+
+    /**
+     * What the TV Movies search may return, applied in the database before its cap. Null is no
+     * limit: [categoryIds] / [streamIds] for the main provider, [otherCategoryNames] for other
+     * providers, which are left out entirely unless [includeOtherProviders].
+     */
+    data class MovieSearchFilter(
+        val favoritesOnly: Boolean = false,
+        val categoryIds: Collection<String>? = null,
+        val streamIds: Collection<Int>? = null,
+        val includeOtherProviders: Boolean = true,
+        val otherCategoryNames: Collection<String>? = null
+    )
+
+    /**
+     * Index lookups that find a title typed with its words joined ([compact], e.g. "antman"):
+     * the index only knows whole words, so these cover where the first word could end. A first
+     * word of 4+ letters starts like the query ("spid*" for Spider-Man); a shorter one is the
+     * first 1–3 letters followed by a word starting with the next ones ("ant* man*" for Ant-Man,
+     * "x* men*" for X-Men). The caller keeps only titles whose letters contain [compact].
+     */
+    internal fun joinedWordQueries(compact: String): List<String> = buildList {
+        add("${compact.take(4)}*")
+        for (firstWord in 1..3) {
+            val rest = compact.drop(firstWord)
+            if (rest.length >= 2) add("${compact.take(firstWord)}* ${rest.take(3)}*")
+        }
+    }
+
+    /** Every other provider's category names (for the English-only filter). */
+    suspend fun otherProviderMovieCategoryNames(): List<String> =
+        db.mergedVodDao().getCategoryNames().map { it.orEmpty() }
+
+    // The SQL side of VodDao.searchVodFiltered's set parameters: each value wrapped in char(31).
+    private fun sqlSet(values: Collection<String>): String {
+        val sep = '\u001F'
+        return values.joinToString(separator = "$sep", prefix = "$sep", postfix = "$sep")
     }
 
     /** Searches this device's own catalogs (primary + every merged/secondary provider) for VOD
