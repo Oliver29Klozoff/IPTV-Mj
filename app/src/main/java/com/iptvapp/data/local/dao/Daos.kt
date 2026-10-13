@@ -222,6 +222,24 @@ interface VodDao {
         LIMIT 200
     """)
     fun searchVod(query: String): Flow<List<VodEntity>>
+    // The TV Movies search: one lookup, unsorted (MovieSearch ranks), with room for a common
+    // word's matches before ranking.
+    @Query("""
+        SELECT vod_streams.* FROM vod_streams
+        JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
+        WHERE vod_streams_fts.name MATCH :query
+        LIMIT 500
+    """)
+    suspend fun searchVodOnce(query: String): List<VodEntity>
+    // Candidates for words typed joined ("spiderman" for "Spider-Man"), which FTS can't match
+    // as typed: every title with a word starting like the query ("spid*"), checked by the caller.
+    @Query("""
+        SELECT vod_streams.* FROM vod_streams
+        JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
+        WHERE vod_streams_fts.name MATCH :query
+        LIMIT 3000
+    """)
+    suspend fun searchVodCandidates(query: String): List<VodEntity>
     @Upsert
     suspend fun upsertVod(vod: List<VodEntity>)
     @Query("UPDATE vod_streams SET isFavorite = :isFavorite WHERE streamId = :streamId")
@@ -796,6 +814,23 @@ interface MergedVodDao {
         LIMIT 200
     """)
     fun search(query: String): Flow<List<MergedVodEntity>>
+
+    // See VodDao.searchVodOnce / searchVodCandidates.
+    @Query("""
+        SELECT merged_vod.* FROM merged_vod
+        JOIN merged_vod_fts ON merged_vod.rowid = merged_vod_fts.docid
+        WHERE merged_vod_fts MATCH :query AND merged_vod.isHidden = 0
+        LIMIT 500
+    """)
+    suspend fun searchOnce(query: String): List<MergedVodEntity>
+
+    @Query("""
+        SELECT merged_vod.* FROM merged_vod
+        JOIN merged_vod_fts ON merged_vod.rowid = merged_vod_fts.docid
+        WHERE merged_vod_fts MATCH :query AND merged_vod.isHidden = 0
+        LIMIT 3000
+    """)
+    suspend fun searchCandidates(query: String): List<MergedVodEntity>
 
     @Query("SELECT serverIndex, streamId, isFavorite, favoriteFolderId, watchedMs, durationMs, isHidden FROM merged_vod")
     suspend fun getUserData(): List<MergedVodUserData>

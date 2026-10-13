@@ -749,16 +749,6 @@ class XtreamRepository @Inject constructor(
         val containerExtension: String
     )
 
-    // IPTV catalogs commonly prefix VOD titles with a 2-3 letter language/region code and a
-    // separator (e.g. "EN - Billy Madison (1995)", "US - ..."), which is meaningless for matching
-    // the same movie across two different providers' catalogs — strip it before searching. Kept
-    // to a known list rather than stripping any leading uppercase word, since a title could
-    // legitimately start with an acronym that's part of the actual name.
-    private val vodTitlePrefixRegex = Regex(
-        "^(EN|US|UK|FR|DE|ES|IT|PT|AR|IN|CA|AU|NZ|MX|BR)\\s*[-|:]\\s*",
-        RegexOption.IGNORE_CASE
-    )
-
     /** Reduces a VOD title down to just its real title words for cross-provider matching — used
      * by BOTH the FTS4-backed primary search and the LIKE-backed merged search (see
      * findWatchPartyVodMatches). Originally this only stripped the leading language prefix for
@@ -770,15 +760,33 @@ class XtreamRepository @Inject constructor(
      * match, not just narrow it down. Strips: a leading language/region prefix, any parenthesized
      * or bracketed content anywhere in the title (ratings, years, quality tags, whatever a
      * provider stuffs in there), and all punctuation — leaving just the bare title words either
-     * search backend can then match against loosely. */
-    fun normalizeVodTitleForSearch(rawTitle: String): String {
-        val withoutPrefix = rawTitle.trim().replace(vodTitlePrefixRegex, "")
-        val withoutBracketed = withoutPrefix
-            .replace(Regex("\\([^)]*\\)"), " ")
-            .replace(Regex("\\[[^]]*]"), " ")
-        return withoutBracketed.replace(Regex("[^\\p{L}\\p{N} ]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+     * search backend can then match against loosely. (The rules live in MovieSearch, which the
+     * TV Movies search shares.) */
+    fun normalizeVodTitleForSearch(rawTitle: String): String = com.iptvapp.util.MovieSearch.normalizeTitle(rawTitle)
+
+    /**
+     * The TV Movies search: the main provider and every other provider at once, one lookup each
+     * through the title indexes (not a scan of the loaded catalog, which may still be loading).
+     * Words typed joined ("spiderman"), which the indexes can't match as typed, are found among
+     * titles with a word starting like the query ("spid*") when the indexes found little.
+     * Unranked: see MovieSearch.rank.
+     */
+    suspend fun searchMoviesEverywhere(raw: String): Pair<List<VodEntity>, List<MergedVodEntity>> {
+        val words = normalizeVodTitleForSearch(raw)
+        if (words.isEmpty()) return emptyList<VodEntity>() to emptyList()
+        val fts = ftsQuery(words)
+        val primary = db.vodDao().searchVodOnce(fts).toMutableList()
+        val merged = db.mergedVodDao().searchOnce(fts).toMutableList()
+        val compact = com.iptvapp.util.MovieSearch.compact(raw)
+        if (compact.length >= 4 && primary.size + merged.size < 30) {
+            val start = "${compact.take(4)}*"
+            val joined = { name: String -> com.iptvapp.util.MovieSearch.compact(name).contains(compact) }
+            val seenPrimary = primary.mapTo(HashSet()) { it.streamId }
+            db.vodDao().searchVodCandidates(start).filterTo(primary) { joined(it.name) && seenPrimary.add(it.streamId) }
+            val seenMerged = merged.mapTo(HashSet()) { it.serverIndex to it.streamId }
+            db.mergedVodDao().searchCandidates(start).filterTo(merged) { joined(it.name) && seenMerged.add(it.serverIndex to it.streamId) }
+        }
+        return primary to merged
     }
 
     /** Searches this device's own catalogs (primary + every merged/secondary provider) for VOD

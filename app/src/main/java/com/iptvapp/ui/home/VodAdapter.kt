@@ -176,14 +176,19 @@ class TvVodPosterAdapter(
     private val onVodClick: (VodEntity) -> Unit,
     private val onVodLongClick: (VodEntity) -> Unit = {},
     // See VodAdapter's matching parameter kdoc.
-    private val vodPreviewUrlProvider: (suspend (VodEntity) -> String?)? = null
+    private val vodPreviewUrlProvider: (suspend (VodEntity) -> String?)? = null,
+    // Which provider a tile is from, shown under its title (null for none) — search results mix
+    // providers.
+    private val providerLabel: (VodEntity) -> String? = { null }
 ) : LatestOnlyListAdapter<VodEntity, TvVodPosterAdapter.ViewHolder>(PosterDiffCallback()) {
 
     inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvVodPosterBinding) :
         RecyclerView.ViewHolder(binding.root) {
         fun bind(item: VodEntity) {
             binding.tvVodName.text = item.name
-            binding.tvVodRating.text = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
+            val rating = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
+            val source = providerLabel(item)
+            binding.tvVodRating.text = if (source == null) rating else listOf(rating, source).filter { it.isNotEmpty() }.joinToString(" · ")
             Glide.with(binding.ivVodPoster)
                 .load(item.streamIcon)
                 .placeholder(android.R.drawable.ic_menu_gallery)

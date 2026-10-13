@@ -1370,16 +1370,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     updateTvBulkSelectUi()
                     return@onItemClick
                 }
-                startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
-                    putExtra("server_index", vod.serverIndex)
-                    putExtra("vod_stream_id", vod.streamId)
-                    putExtra("vod_name", vod.name)
-                    putExtra("vod_container_extension", vod.containerExtension)
-                    putExtra("vod_cover", vod.streamIcon)
-                    putExtra("vod_rating", vod.rating)
-                    putExtra("vod_is_favorite", vod.isFavorite)
-                    putExtra("server_nickname", vod.serverNickname)
-                })
+                openMergedVodDetail(vod)
             },
             onFavoriteClick = { vod ->
                 viewModel.setMergedVodFavorite(vod, !vod.isFavorite)
@@ -1561,7 +1552,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Long-press still opens the same detail screen; short-press on the star still favorites
         // without opening/playing anything.
         tvVodPosterAdapter = TvVodPosterAdapter(
-            onVodClick = { vod ->
+            onVodClick = onVodClick@{ vod ->
+                moviesFsOtherProviders[vod.streamId]?.let { playMergedVod(it); return@onVodClick }
                 lifecycleScope.launch {
                     try {
                         val url = viewModel.getVodStreamUrl(vod.streamId, vod.containerExtension)
@@ -1577,7 +1569,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     }
                 }
             },
-            onVodLongClick = { vod ->
+            onVodLongClick = onVodLongClick@{ vod ->
+                moviesFsOtherProviders[vod.streamId]?.let { openMergedVodDetail(it); return@onVodLongClick }
                 startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
                     putExtra("vod_stream_id", vod.streamId)
                     putExtra("vod_name", vod.name)
@@ -1586,6 +1579,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     putExtra("vod_rating", vod.rating)
                 })
             },
+            providerLabel = { vod -> moviesFsOtherProviders[vod.streamId]?.serverNickname },
             // Feature A: Auto-Generated VOD Trailers — focus-preview wiring. Reuses the SAME
             // stream-URL builder onVodClick above uses (HomeViewModel.getVodStreamUrl ->
             // XtreamRepository.getVodStreamUrl -> XtreamUrlBuilder.vodStreamUrl), never a separate
@@ -1593,7 +1587,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // toggle is off or Feature C's warn-only budget check says the monthly cap is at/over
             // 80% — BandwidthBudgetManager.isNearOrOverBudget is checked for real here, not stubbed.
             vodPreviewUrlProvider = { vod ->
-                try { viewModel.getVodPreviewUrl(vod) } catch (_: Exception) { null }
+                val other = moviesFsOtherProviders[vod.streamId]
+                try {
+                    if (other != null) viewModel.getMergedVodPreviewUrl(other) else viewModel.getVodPreviewUrl(vod)
+                } catch (_: Exception) { null }
             }
         )
 
@@ -2903,6 +2900,42 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var moviesFsBecauseYouWatched: Boolean = false
     private var moviesFsSearchQuery: String = ""
     private var moviesFsSearchDebounceJob: kotlinx.coroutines.Job? = null
+    // Search results from other providers, by the stand-in id their tile carries in the grid
+    // (negative, so it never meets a main-provider streamId). Empty when not searching.
+    private var moviesFsOtherProviders: Map<Int, com.iptvapp.data.local.entities.MergedVodEntity> = emptyMap()
+
+    private fun openMergedVodDetail(vod: com.iptvapp.data.local.entities.MergedVodEntity) {
+        startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
+            putExtra("server_index", vod.serverIndex)
+            putExtra("vod_stream_id", vod.streamId)
+            putExtra("vod_name", vod.name)
+            putExtra("vod_container_extension", vod.containerExtension)
+            putExtra("vod_cover", vod.streamIcon)
+            putExtra("vod_rating", vod.rating)
+            putExtra("vod_is_favorite", vod.isFavorite)
+            putExtra("server_nickname", vod.serverNickname)
+        })
+    }
+
+    /** Another provider's movie straight into the player, as MergedVodDetailActivity's Play does. */
+    private fun playMergedVod(vod: com.iptvapp.data.local.entities.MergedVodEntity) {
+        lifecycleScope.launch {
+            try {
+                val url = viewModel.getMergedVodStreamUrl(vod.serverIndex, vod.streamId, vod.containerExtension)
+                startActivity(Intent(this@TvHomeActivity, com.iptvapp.ui.player.PlayerActivity::class.java).apply {
+                    putExtra("stream_url", url)
+                    putExtra("stream_title", vod.name)
+                    putExtra("stream_id", -1)
+                    putExtra("is_vod", true)
+                    putExtra("server_index", vod.serverIndex)
+                    putExtra("merged_stream_id", vod.streamId)
+                    if (vod.watchedMs > 0) putExtra("resume_ms", vod.watchedMs)
+                })
+            } catch (_: Exception) {
+                Toast.makeText(this@TvHomeActivity, "Couldn't load this title", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     private fun setupMoviesFullScreen() {
         binding.tvBtnMoviesFsBack.setOnClickListener { hideMoviesFullScreen() }
@@ -3049,6 +3082,46 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val recommendedIds = if (becauseYouWatched)
                 viewModel.computeBecauseYouWatchedVod(viewModel.watchHistoryVod.value, list).map { it.streamId }.toSet()
             else null
+            if (query.isNotBlank()) {
+                // Search goes to the title indexes of every provider, not this list: the full
+                // catalog can take a while to load, and other providers' movies aren't in it.
+                // Results keep their best-match-first order; the chips still narrow them.
+                val hits = viewModel.searchMoviesEverywhere(query)
+                val (tiles, others) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    val tiles = ArrayList<com.iptvapp.data.local.entities.VodEntity>()
+                    val others = HashMap<Int, com.iptvapp.data.local.entities.MergedVodEntity>()
+                    for (hit in hits) when (hit) {
+                        is GlobalSearchResult.Vod -> {
+                            val v = hit.entity
+                            if (allowedCategoryIds.isNotEmpty() && v.categoryId !in allowedCategoryIds) continue
+                            if (favoritesOnly && !v.isFavorite) continue
+                            if (watchedOnly && v.streamId !in (watchedIds ?: emptySet())) continue
+                            if (becauseYouWatched && v.streamId !in (recommendedIds ?: emptySet())) continue
+                            if (genre != null && genreMap?.get(v.categoryId) != genre) continue
+                            tiles += v
+                        }
+                        is GlobalSearchResult.MergedVod -> {
+                            val m = hit.entity
+                            // Watched and Because You Watched come from the main provider's history.
+                            if (watchedOnly || becauseYouWatched) continue
+                            if (favoritesOnly && !m.isFavorite) continue
+                            if (genre != null && com.iptvapp.util.GenreBuckets.bucketsFor(listOf(m.categoryName.orEmpty())).firstOrNull() != genre) continue
+                            val id = -(others.size + 1)
+                            others[id] = m
+                            tiles += com.iptvapp.data.local.entities.VodEntity(
+                                streamId = id, name = m.name, streamIcon = m.streamIcon, categoryId = m.categoryId,
+                                rating = m.rating, containerExtension = m.containerExtension, added = m.added,
+                                isFavorite = m.isFavorite, watchedMs = m.watchedMs, durationMs = m.durationMs
+                            )
+                        }
+                        else -> {}
+                    }
+                    tiles to others
+                }
+                moviesFsOtherProviders = others
+                tvVodPosterAdapter.submitList(tiles)
+                return@launch
+            }
             val sorted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 // viewModel.vod (list here) is every movie across every provider/category
                 // unfiltered — viewModel.vodCategories, by contrast, already respects the
@@ -3069,10 +3142,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val recommendedFiltered = if (becauseYouWatched) watchedFiltered.filter { it.streamId in (recommendedIds ?: emptySet()) } else watchedFiltered
                 val genreFiltered = if (genre == null) recommendedFiltered
                     else recommendedFiltered.filter { genreMap?.get(it.categoryId) == genre }
-                val searchFiltered = if (query.isBlank()) genreFiltered
-                    else genreFiltered.filter { it.name.contains(query, ignoreCase = true) }
-                if (becauseYouWatched) searchFiltered else viewModel.applyVodSort(searchFiltered)
+                if (becauseYouWatched) genreFiltered else viewModel.applyVodSort(genreFiltered)
             }
+            moviesFsOtherProviders = emptyMap()
             tvVodPosterAdapter.submitList(sorted)
         }
     }
