@@ -665,6 +665,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             intent.removeExtra(EXTRA_REMOTE_HOME)
             remoteHome()
         }
+        if (intent.getBooleanExtra(EXTRA_REMOTE_GUIDE, false)) {
+            intent.removeExtra(EXTRA_REMOTE_GUIDE)
+            remoteGuide()
+        }
         LauncherPending.take(this, intent)?.let { card ->
             // onResume, which follows this, finds nothing left to take.
             launchLauncherCard(card)
@@ -1792,6 +1796,15 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     companion object {
         /** Set by the phone remote's Home from another screen, so this one comes back to its sidebar. */
         const val EXTRA_REMOTE_HOME = "remote_home"
+        /** Set by the phone remote's Guide from another screen, so this one opens the guide. */
+        const val EXTRA_REMOTE_GUIDE = "remote_guide"
+    }
+
+    /** The phone remote's Guide (and the TV remote's): the guide grid, as the sidebar's Guide opens it. */
+    fun remoteGuide() {
+        if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) hideMoviesFullScreen()
+        if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) hideSeriesFullScreen()
+        binding.btnTvGuide.performClick()
     }
 
     /** The phone remote's Home: closes Movies or Series browsing if open, then shows the sidebar. */
@@ -2790,7 +2803,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         }
                     }
                 }
-                KeyEvent.KEYCODE_GUIDE -> return true
+                KeyEvent.KEYCODE_GUIDE -> { remoteGuide(); return true }
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_BUTTON_Y -> {
                     if (currentMiniUrl.isNotEmpty()) {
                         val pos = miniPlayer?.currentPosition ?: 0L

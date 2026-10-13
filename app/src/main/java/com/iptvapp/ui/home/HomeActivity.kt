@@ -1522,6 +1522,15 @@ class HomeActivity : AppCompatActivity() {
         // Already on screen (a reminder tapped over the app). The player exists, so tune now —
         // onStart will not run initMiniPlayer again.
         if (miniPlayer != null) consumePendingJump()
+        if (intent.getBooleanExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE, false)) {
+            intent.removeExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE)
+            remoteGuide()
+        }
+    }
+
+    /** The phone remote's Guide: the Guide tab. */
+    fun remoteGuide() {
+        binding.tabLayout.getTabAt(TAB_GUIDE)?.select()
     }
 
     // Lets other screens (Settings' "Play This Channel", the widget, a channel reminder)

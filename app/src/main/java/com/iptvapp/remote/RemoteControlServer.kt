@@ -67,6 +67,8 @@ object RemoteControlServer {
         /** Hide the home-screen chrome so the video fills the TV. On a phone home screen this
          * opens the fullscreen player instead. */
         object Fullscreen : Command()
+        /** Open the guide: the TV home's guide grid, or the Guide tab on a phone home screen. */
+        object Guide : Command()
     }
 
     private val _commands = MutableSharedFlow<Command>(extraBufferCapacity = 16)
@@ -427,7 +429,8 @@ object RemoteControlServer {
                 }
                 val command = when (cmd.optString("cmd")) {
                     "tune" -> cmd.optString("name").takeIf { it.isNotBlank() }?.let { Command.Tune(it) }
-                    "key" -> KEYS[cmd.optString("key")]?.let { Command.Key(it) }
+                    // Guide opens MKTV's guide from any screen rather than pressing a key there.
+                    "key" -> if (cmd.optString("key") == "guide") Command.Guide else KEYS[cmd.optString("key")]?.let { Command.Key(it) }
                     "home" -> Command.Home
                     "fullscreen" -> Command.Fullscreen
                     else -> null
