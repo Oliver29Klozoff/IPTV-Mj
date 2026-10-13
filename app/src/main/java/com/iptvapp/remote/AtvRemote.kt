@@ -287,9 +287,24 @@ internal object AtvRemote {
             if (sentAt != 0L) {
                 // Power is out: only the screen state matters now, and nothing here may turn a
                 // garbled message into a new pairing.
+                val ping = AtvRemoteProto.blob(fields, 8)
+                if (ping != null) {
+                    // Unanswered, the service would hang up — which would look like sleeping.
+                    val value = runCatching { AtvRemoteProto.num(parseFrame(ping), 1) }.getOrNull() ?: 0L
+                    try {
+                        writeFrame(socket, AtvRemoteProto.pingResponse(value))
+                    } catch (_: IOException) {
+                        return Attempt.Ignored
+                    }
+                    return@repeat
+                }
                 val started = AtvRemoteProto.blob(fields, 40) ?: return@repeat
-                val on = runCatching { AtvRemoteProto.num(parseFrame(started), 1) }.getOrNull() == 1L
-                if (!on) return Attempt.Asleep
+                val state = try {
+                    parseFrame(started)
+                } catch (_: IOException) {
+                    return Attempt.Ignored
+                }
+                if (AtvRemoteProto.num(state, 1) != 1L) return Attempt.Asleep
                 return@repeat
             }
             when {
