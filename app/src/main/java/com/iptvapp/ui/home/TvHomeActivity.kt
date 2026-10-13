@@ -855,6 +855,12 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             intent.removeExtra(EXTRA_REMOTE_GUIDE)
             remoteGuide()
         }
+        // Search results are a snapshot: back from a movie's page (favorited, watched), they're
+        // looked up again. Main-provider changes also arrive through the catalog; other
+        // providers' don't.
+        if (binding.tvMoviesFullScreen.visibility == View.VISIBLE && moviesFsSearchQuery.isNotBlank()) {
+            submitFilteredMoviesFs(viewModel.vod.value)
+        }
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
@@ -3098,25 +3104,32 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // Search goes to the title indexes of every provider, not this list: the full
                 // catalog can take a while to load, and other providers' movies aren't in it.
                 // Results keep their best-match-first order; the chips still narrow them.
-                val hits = viewModel.searchMoviesEverywhere(query)
+                // The filters go to the database with the search, so its cap never hides a match
+                // they'd keep. Other providers are left out under Watched and Because You Watched
+                // (the main provider's history) and a genre (the chips are the main provider's).
+                val genreCategoryIds = if (genre != null) genreMap.orEmpty().filterValues { it == genre }.keys else null
+                val categoryIds = when {
+                    genreCategoryIds == null -> allowedCategoryIds.takeIf { it.isNotEmpty() }
+                    allowedCategoryIds.isEmpty() -> genreCategoryIds
+                    else -> genreCategoryIds intersect allowedCategoryIds
+                }
+                val filter = com.iptvapp.data.repository.XtreamRepository.MovieSearchFilter(
+                    favoritesOnly = favoritesOnly,
+                    categoryIds = categoryIds,
+                    streamIds = when {
+                        watchedOnly -> watchedIds.orEmpty()
+                        becauseYouWatched -> recommendedIds.orEmpty()
+                        else -> null
+                    },
+                    includeOtherProviders = !watchedOnly && !becauseYouWatched && genre == null
+                )
+                val hits = viewModel.searchMoviesEverywhere(query, filter)
                 val tiles = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                     val tiles = ArrayList<com.iptvapp.data.local.entities.VodEntity>()
                     for (hit in hits) when (hit) {
-                        is GlobalSearchResult.Vod -> {
-                            val v = hit.entity
-                            if (allowedCategoryIds.isNotEmpty() && v.categoryId !in allowedCategoryIds) continue
-                            if (favoritesOnly && !v.isFavorite) continue
-                            if (watchedOnly && v.streamId !in (watchedIds ?: emptySet())) continue
-                            if (becauseYouWatched && v.streamId !in (recommendedIds ?: emptySet())) continue
-                            if (genre != null && genreMap?.get(v.categoryId) != genre) continue
-                            tiles += v
-                        }
+                        is GlobalSearchResult.Vod -> tiles += hit.entity
                         is GlobalSearchResult.MergedVod -> {
                             val m = hit.entity
-                            // Watched and Because You Watched come from the main provider's history.
-                            if (watchedOnly || becauseYouWatched) continue
-                            if (favoritesOnly && !m.isFavorite) continue
-                            if (genre != null && com.iptvapp.util.GenreBuckets.bucketsFor(listOf(m.categoryName.orEmpty())).firstOrNull() != genre) continue
                             tiles += com.iptvapp.data.local.entities.VodEntity(
                                 streamId = moviesFsOtherId(m), name = m.name, streamIcon = m.streamIcon, categoryId = m.categoryId,
                                 rating = m.rating, containerExtension = m.containerExtension, added = m.added,

@@ -771,22 +771,57 @@ class XtreamRepository @Inject constructor(
      * titles with a word starting like the query ("spid*") when the indexes found little.
      * Unranked: see MovieSearch.rank.
      */
-    suspend fun searchMoviesEverywhere(raw: String): Pair<List<VodEntity>, List<MergedVodEntity>> {
+    suspend fun searchMoviesEverywhere(raw: String, filter: MovieSearchFilter): Pair<List<VodEntity>, List<MergedVodEntity>> {
         val words = normalizeVodTitleForSearch(raw)
         if (words.isEmpty()) return emptyList<VodEntity>() to emptyList()
+        val categoryIds = filter.categoryIds?.let(::sqlSet)
+        val streamIds = filter.streamIds?.let { ids -> sqlSet(ids.map { it.toString() }) }
+        val categoryNames = filter.otherCategoryNames?.let(::sqlSet)
+        val primaryOf = { fts: String, limit: Int ->
+            suspend { db.vodDao().searchVodFiltered(fts, filter.favoritesOnly, categoryIds, streamIds, limit) }
+        }
+        val mergedOf = { fts: String, limit: Int ->
+            suspend {
+                if (filter.includeOtherProviders) db.mergedVodDao().searchFiltered(fts, filter.favoritesOnly, categoryNames, limit)
+                else emptyList()
+            }
+        }
         val fts = ftsQuery(words)
-        val primary = db.vodDao().searchVodOnce(fts).toMutableList()
-        val merged = db.mergedVodDao().searchOnce(fts).toMutableList()
+        val primary = primaryOf(fts, 5_000)().toMutableList()
+        val merged = mergedOf(fts, 5_000)().toMutableList()
         val compact = com.iptvapp.util.MovieSearch.compact(raw)
         if (compact.length >= 4 && primary.size + merged.size < 30) {
             val start = "${compact.take(4)}*"
             val joined = { name: String -> com.iptvapp.util.MovieSearch.compact(name).contains(compact) }
             val seenPrimary = primary.mapTo(HashSet()) { it.streamId }
-            db.vodDao().searchVodCandidates(start).filterTo(primary) { joined(it.name) && seenPrimary.add(it.streamId) }
+            primaryOf(start, 3_000)().filterTo(primary) { joined(it.name) && seenPrimary.add(it.streamId) }
             val seenMerged = merged.mapTo(HashSet()) { it.serverIndex to it.streamId }
-            db.mergedVodDao().searchCandidates(start).filterTo(merged) { joined(it.name) && seenMerged.add(it.serverIndex to it.streamId) }
+            mergedOf(start, 3_000)().filterTo(merged) { joined(it.name) && seenMerged.add(it.serverIndex to it.streamId) }
         }
         return primary to merged
+    }
+
+    /**
+     * What the TV Movies search may return, applied in the database before its cap. Null is no
+     * limit: [categoryIds] / [streamIds] for the main provider, [otherCategoryNames] for other
+     * providers, which are left out entirely unless [includeOtherProviders].
+     */
+    data class MovieSearchFilter(
+        val favoritesOnly: Boolean = false,
+        val categoryIds: Collection<String>? = null,
+        val streamIds: Collection<Int>? = null,
+        val includeOtherProviders: Boolean = true,
+        val otherCategoryNames: Collection<String>? = null
+    )
+
+    /** Every other provider's category names (for the English-only filter). */
+    suspend fun otherProviderMovieCategoryNames(): List<String> =
+        db.mergedVodDao().getCategoryNames().map { it.orEmpty() }
+
+    // The SQL side of VodDao.searchVodFiltered's set parameters: each value wrapped in char(31).
+    private fun sqlSet(values: Collection<String>): String {
+        val sep = '\u001F'
+        return values.joinToString(separator = "$sep", prefix = "$sep", postfix = "$sep")
     }
 
     /** Searches this device's own catalogs (primary + every merged/secondary provider) for VOD
