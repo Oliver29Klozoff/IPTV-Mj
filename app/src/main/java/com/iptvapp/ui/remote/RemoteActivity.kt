@@ -48,8 +48,8 @@ import javax.inject.Inject
  * Finds the TV by mDNS (RemoteControlServer.SERVICE_TYPE), or by an address typed in when the
  * network blocks discovery. Pairs once with the code the TV shows; the token it gets back is kept
  * in SharedPreferences "remote_phone" with the TV's name and last address. Full screen hides the
- * TV's menus so the video fills it. Power sleeps the Shield, the same as its own power button,
- * and the TV turns off with it when HDMI power control is on. The first time, the Shield shows
+ * TV's menus so the video fills it. Power sleeps or wakes the Shield, the same as its own power
+ * button, and the TV follows when HDMI power control is on. The first time, the Shield shows
  * a code to allow that.
  */
 @AndroidEntryPoint
@@ -196,7 +196,7 @@ class RemoteActivity : AppCompatActivity() {
     // ── Power ───────────────────────────────────────────────────────────────
 
     /**
-     * Sleeps the Shield through its own remote service, straight from this phone (see AtvRemote:
+     * Turns the Shield off, or on when it is asleep, through its own remote service, straight from this phone (see AtvRemote:
      * the service won't take commands from MKTV on the Shield itself). [code] is the one the TV
      * showed after an earlier press.
      */
@@ -209,13 +209,13 @@ class RemoteActivity : AppCompatActivity() {
         }
         setStatus(if (code == null) "Talking to the Shield…" else "Checking the code…", holdMs = 15_000)
         lifecycleScope.launch {
-            val outcome = withContext(Dispatchers.IO) { com.iptvapp.remote.AtvRemote.sleep(host, code) }
+            val outcome = withContext(Dispatchers.IO) { com.iptvapp.remote.AtvRemote.press(host, code) }
             when (outcome) {
                 com.iptvapp.remote.AtvRemote.Outcome.NeedCode -> {
                     setStatus("Type the code shown on the TV", holdMs = 4_000)
                     askPowerCode()
                 }
-                com.iptvapp.remote.AtvRemote.Outcome.AlreadyOff -> setStatus("The Shield is already off", holdMs = 4_000)
+                com.iptvapp.remote.AtvRemote.Outcome.Awake -> setStatus("Turning the TV on", holdMs = 4_000)
                 com.iptvapp.remote.AtvRemote.Outcome.Asleep -> setStatus("Turning the TV off", holdMs = 4_000)
                 is com.iptvapp.remote.AtvRemote.Outcome.Refused -> setStatus(outcome.reason, holdMs = 6_000)
             }
@@ -572,7 +572,7 @@ class RemoteActivity : AppCompatActivity() {
 
     private var powerCodeDialog: AlertDialog? = null
 
-    /** The Shield shows a 6-character code the first time Power is allowed to turn it off. */
+    /** The Shield shows a 6-character code the first time Power is allowed to control it. */
     private fun askPowerCode() {
         if (isFinishing || powerCodeDialog?.isShowing == true) return
         val input = EditText(this).apply {
@@ -584,7 +584,7 @@ class RemoteActivity : AppCompatActivity() {
             .setTitle("Code on the TV")
             .setMessage("Type the 6-character code the Shield is showing. This is only needed once.")
             .setView(input)
-            .setPositiveButton("Turn off", null) // set below, so an empty code keeps the dialog open
+            .setPositiveButton("OK", null) // set below, so an empty code keeps the dialog open
             .setNegativeButton("Cancel", null)
             .show()
         powerCodeDialog?.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
