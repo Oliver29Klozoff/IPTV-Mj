@@ -122,13 +122,7 @@ class RemoteActivity : AppCompatActivity() {
         }
         pad.btnKeyPower.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            send(JSONObject().put("cmd", "power")) { ok, json ->
-                when {
-                    json?.optBoolean("needCode") == true -> askPowerCode()
-                    json?.optBoolean("alreadyOff") == true -> setStatus("The Shield is already off", holdMs = 4_000)
-                    ok -> setStatus("Turning the TV off", holdMs = 4_000)
-                }
-            }
+            powerPress(null)
         }
         mapOf(pad.btnKeyVolUp to "up", pad.btnKeyVolDown to "down", pad.btnKeyMute to "mute").forEach { (view, dir) ->
             view.setOnClickListener {
@@ -184,12 +178,48 @@ class RemoteActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        com.iptvapp.remote.AtvRemote.resume()
         startDiscovery()
     }
 
     override fun onStop() {
         super.onStop()
         stopDiscovery()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Ends a Power press still talking to the Shield, and any pairing still waiting for its code.
+        if (!isChangingConfigurations) com.iptvapp.remote.AtvRemote.cancel()
+    }
+
+    // ── Power ───────────────────────────────────────────────────────────────
+
+    /**
+     * Sleeps the Shield through its own remote service, straight from this phone (see AtvRemote:
+     * the service won't take commands from MKTV on the Shield itself). [code] is the one the TV
+     * showed after an earlier press.
+     */
+    private fun powerPress(code: String?) {
+        val host = pairedHost
+        if (token == null || host == null) {
+            Toast.makeText(this, "Pick your TV first", Toast.LENGTH_SHORT).show()
+            pickTv()
+            return
+        }
+        setStatus(if (code == null) "Talking to the Shield…" else "Checking the code…", holdMs = 15_000)
+        lifecycleScope.launch {
+            val outcome = withContext(Dispatchers.IO) { com.iptvapp.remote.AtvRemote.sleep(host, code) }
+            when (outcome) {
+                com.iptvapp.remote.AtvRemote.Outcome.NeedCode -> {
+                    setStatus("Type the code shown on the TV", holdMs = 4_000)
+                    askPowerCode()
+                }
+                com.iptvapp.remote.AtvRemote.Outcome.AlreadyOff -> setStatus("The Shield is already off", holdMs = 4_000)
+                com.iptvapp.remote.AtvRemote.Outcome.Asleep -> setStatus("Turning the TV off", holdMs = 4_000)
+                is com.iptvapp.remote.AtvRemote.Outcome.Refused -> setStatus(outcome.reason, holdMs = 6_000)
+            }
+        }
     }
 
     // ── Channels ────────────────────────────────────────────────────────────
@@ -383,8 +413,7 @@ class RemoteActivity : AppCompatActivity() {
             val text = body?.toString().orEmpty()
             val conn = URL("http://${hostForUrl(host)}:$port$path").openConnection() as HttpURLConnection
             conn.connectTimeout = 3_000
-            // Power waits while the Shield shows a code or goes to sleep. The other buttons answer at once.
-            conn.readTimeout = if (body?.optString("cmd") == "power") 15_000 else 5_000
+            conn.readTimeout = 5_000
             conn.requestMethod = method
             val key = token
             if (tv == null && key != null) {
@@ -565,14 +594,7 @@ class RemoteActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             powerCodeDialog?.dismiss()
-            send(JSONObject().put("cmd", "power").put("code", code)) { ok, json ->
-                when {
-                    // The TV started a new pairing (the old code had expired): ask for the new code.
-                    json?.optBoolean("needCode") == true -> askPowerCode()
-                    json?.optBoolean("alreadyOff") == true -> setStatus("The Shield is already off", holdMs = 4_000)
-                    ok -> setStatus("Turning the TV off", holdMs = 4_000)
-                }
-            }
+            powerPress(code)
         }
     }
 

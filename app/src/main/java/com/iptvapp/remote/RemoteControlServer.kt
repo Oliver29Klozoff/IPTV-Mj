@@ -137,7 +137,6 @@ object RemoteControlServer {
     @Synchronized
     fun start(context: Context) {
         if (users++ > 0) return
-        AtvRemote.resume()
         val app = context.applicationContext
         appContext = app
         RemoteControlHooks.install(app as android.app.Application)
@@ -172,7 +171,6 @@ object RemoteControlServer {
         if (users == 0 || --users > 0) return
         try { registration?.let { nsdManager?.unregisterService(it) } } catch (_: Exception) {}
         registration = null
-        AtvRemote.cancel()
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
     }
@@ -422,9 +420,11 @@ object RemoteControlServer {
                     ?: return "400 Bad Request" to JSONObject().put("error", "Bad JSON")
                 // Volume works whatever is on screen, so it's done here rather than queued for one.
                 if (cmd.optString("cmd") == "volume") return volume(context, cmd.optString("dir"))
-                // Like volume: it has to work while another screen is in front, and it is not a key
-                // the app can inject. The first press may answer with a code to type on the phone.
-                if (cmd.optString("cmd") == "power") return power(cmd.optString("code"))
+                // v7.27 phones asked the TV to press power through the box's own remote service,
+                // which refuses commands from the box itself. Phones now do it directly (AtvRemote).
+                if (cmd.optString("cmd") == "power") {
+                    return "409 Conflict" to JSONObject().put("error", "Update MKTV on this phone to use Power.")
+                }
                 val command = when (cmd.optString("cmd")) {
                     "tune" -> cmd.optString("name").takeIf { it.isNotBlank() }?.let { Command.Tune(it) }
                     "key" -> KEYS[cmd.optString("key")]?.let { Command.Key(it) }
@@ -442,14 +442,6 @@ object RemoteControlServer {
             }
             else -> "404 Not Found" to JSONObject().put("error", "Not found")
         }
-    }
-
-    /** Sleeps the Shield. The phone sends [code] only after the TV has shown one. */
-    private fun power(code: String): Pair<String, JSONObject> = when (val outcome = AtvRemote.sleep(code)) {
-        AtvRemote.Outcome.Asleep -> "200 OK" to JSONObject().put("ok", true)
-        AtvRemote.Outcome.AlreadyOff -> "200 OK" to JSONObject().put("ok", true).put("alreadyOff", true)
-        AtvRemote.Outcome.NeedCode -> "200 OK" to JSONObject().put("needCode", true)
-        is AtvRemote.Outcome.Refused -> "409 Conflict" to JSONObject().put("error", outcome.reason)
     }
 
     /** The TV's media volume, up / down / mute, as its own volume keys would set it (with the

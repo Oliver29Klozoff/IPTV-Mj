@@ -9,9 +9,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.math.BigInteger
 import java.net.ConnectException
-import java.net.Inet4Address
 import java.net.InetSocketAddress
-import java.net.NetworkInterface
 import java.net.SocketTimeoutException
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -33,12 +31,14 @@ import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 
 /**
- * Sleeps the Shield the way its own power button does.
+ * Sleeps the Shield the way its own power button does, from the phone.
  *
  * An app cannot inject that key itself. The Android TV remote service, which is already on the
- * Shield and is what the Google TV phone app talks to, can. The first press shows a code on the
- * TV; after that code is entered on the phone, later presses just send power. A short press sleeps
- * the box. The TV turns off with it when the Shield's HDMI power control is on.
+ * Shield and is what the Google TV phone app talks to, can — but only for another device: it
+ * pairs with a client on the Shield itself and then refuses that client's commands. So the phone
+ * remote talks to it directly, at the TV's address. The first press shows a code on the TV; after
+ * that code is entered on the phone, later presses just send power. A short press sleeps the box.
+ * The TV turns off with it when the Shield's HDMI power control is on.
  */
 internal object AtvRemote {
 
@@ -49,6 +49,9 @@ internal object AtvRemote {
     private const val PAIR_PORT = 6467
     private const val CLIENT_NAME = "MKTV"
     private const val CODE_TTL_MS = 120_000L
+    // Power right after the session starts is ignored; and how long to wait for the screen to report off.
+    private const val POWER_SETTLE_MS = 500L
+    private const val POWER_CONFIRM_MS = 4_000L
 
     sealed class Outcome {
         /** The power key was sent. The Shield sleeps; the connection usually drops as it does. */
@@ -61,14 +64,16 @@ internal object AtvRemote {
     }
 
     // One press at a time, without holding a lock across network I/O: an overlapping press is
-    // refused at once, and cancel() (called from the TV home's onDestroy, on the main thread) only
+    // refused at once, and cancel() (the remote screen's onDestroy, on the main thread) only
     // closes sockets, which ends any blocked read in the running press.
     private val busy = AtomicBoolean(false)
     private val pending = AtomicReference<Pending?>(null)
     private val openSockets = Collections.newSetFromMap(ConcurrentHashMap<SSLSocket, Boolean>())
     private val expiry = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "mktv-atv-remote").apply { isDaemon = true } }
 
-    private class Pending(val socket: SSLSocket, val serverCert: X509Certificate, val clientCert: X509Certificate, val startedAt: Long)
+    private class Pending(
+        val host: String, val socket: SSLSocket, val serverCert: X509Certificate, val clientCert: X509Certificate, val startedAt: Long
+    )
 
     private fun now() = System.nanoTime() / 1_000_000
 
@@ -81,10 +86,10 @@ internal object AtvRemote {
 
     private class CancelledPress : IOException("cancelled")
 
-    private val CANCELLED = Outcome.Refused("MKTV on the TV closed. Open it and press Power again.")
+    private val CANCELLED = Outcome.Refused("The remote closed. Press Power again.")
 
-    // Off from cancel() (the remote server stopping) until the server starts again: a request it had
-    // already accepted must not press power or start a pairing once MKTV on the TV has closed.
+    // Off from cancel() (the remote screen closing) until it opens again: a press already on its
+    // way must not press power or start a pairing after the screen is gone.
     @Volatile private var accepting = true
 
     fun resume() {
@@ -98,7 +103,8 @@ internal object AtvRemote {
         openSockets.toList().forEach { close(it) }
     }
 
-    fun sleep(code: String?): Outcome {
+    /** Blocking network work: call off the main thread. [host] is the TV's address. */
+    fun sleep(host: String, code: String?): Outcome {
         if (!busy.compareAndSet(false, true)) return Outcome.Refused("Still working on the last press. Try again in a moment.")
         try {
             pressGeneration = generation.get()
@@ -108,11 +114,12 @@ internal object AtvRemote {
                 return Outcome.Refused("The code is the 6 characters shown on the TV.")
             }
             if (cleaned != null) return finish(cleaned)
-            return when (val attempt = sendPower()) {
+            return when (val attempt = sendPower(host)) {
                 Attempt.Asleep -> Outcome.Asleep
                 Attempt.AlreadyOff -> Outcome.AlreadyOff
                 Attempt.Cancelled -> CANCELLED
-                Attempt.NoService -> Outcome.Refused("This device has no Android TV remote service, so MKTV can't turn it off.")
+                Attempt.Ignored -> Outcome.Refused("The Shield didn't turn off. Press Power again.")
+                Attempt.NoService -> Outcome.Refused("Can't reach the Shield's remote service. Is the phone on the same Wi-Fi?")
                 is Attempt.NeedsPairing -> begin(attempt.host)
             }
         } finally {
@@ -141,10 +148,11 @@ internal object AtvRemote {
             if (status != 200L || AtvRemoteProto.blob(reply, 41) == null) {
                 Outcome.Refused("That code was refused. Press Power and use the new code on the TV.")
             } else {
-                when (val attempt = sendPower()) {
+                when (val attempt = sendPower(session.host)) {
                     Attempt.Asleep -> Outcome.Asleep
                     Attempt.AlreadyOff -> Outcome.AlreadyOff
                     Attempt.Cancelled -> CANCELLED
+                    Attempt.Ignored -> Outcome.Refused("The Shield didn't turn off. Press Power again.")
                     Attempt.NoService, is Attempt.NeedsPairing ->
                         Outcome.Refused("The Shield didn't accept the power button. Press Power again.")
                 }
@@ -185,7 +193,7 @@ internal object AtvRemote {
                 }
             }
             if (!ready) throw IOException("pairing")
-            val session = Pending(socket, serverCert, clientCert, now())
+            val session = Pending(host, socket, serverCert, clientCert, now())
             pending.set(session)
             // A cancel that came in meanwhile wins: drop the session it could not see yet.
             if (cancelled()) {
@@ -208,43 +216,55 @@ internal object AtvRemote {
         object AlreadyOff : Attempt()
         object NoService : Attempt()
         object Cancelled : Attempt()
+        /** Power was sent but the Shield still reports its screen on. */
+        object Ignored : Attempt()
         class NeedsPairing(val host: String) : Attempt()
     }
 
-    private fun sendPower(): Attempt {
-        var sawService = false
-        for (host in hosts()) {
-            if (cancelled()) return Attempt.Cancelled
-            var socket: SSLSocket? = null
-            try {
-                socket = open(host, COMMAND_PORT)
-                sawService = true
-                return command(socket)
-            } catch (_: NotPaired) {
-                return if (cancelled()) Attempt.Cancelled else Attempt.NeedsPairing(host)
-            } catch (_: ConnectException) {
-                // Nothing is listening here. Try the next address.
-            } catch (_: SocketTimeoutException) {
-                // This address didn't answer. Try the next one.
-            } catch (_: Exception) {
-                // A socket closed by cancel() also looks connected: that is not "unpaired".
-                if (cancelled()) return Attempt.Cancelled
-                // The service accepted the connection, then dropped a client it has not paired.
-                if (socket?.isConnected == true) return Attempt.NeedsPairing(host)
-                Log.w(TAG, "power couldn't connect")
-            } finally {
-                close(socket)
-            }
-        }
+    private fun sendPower(host: String): Attempt {
         if (cancelled()) return Attempt.Cancelled
-        return if (sawService) Attempt.NeedsPairing(hosts().first()) else Attempt.NoService
+        var socket: SSLSocket? = null
+        return try {
+            socket = open(host, COMMAND_PORT)
+            command(socket)
+        } catch (_: NotPaired) {
+            if (cancelled()) Attempt.Cancelled else Attempt.NeedsPairing(host)
+        } catch (_: ConnectException) {
+            if (cancelled()) Attempt.Cancelled else Attempt.NoService
+        } catch (_: SocketTimeoutException) {
+            if (cancelled()) Attempt.Cancelled else Attempt.NoService
+        } catch (_: Exception) {
+            // A socket closed by cancel() also looks connected: that is not "unpaired".
+            if (cancelled()) return Attempt.Cancelled
+            // The service accepted the connection, then dropped a client it has not paired.
+            if (socket?.isConnected == true) Attempt.NeedsPairing(host) else Attempt.NoService
+        } finally {
+            close(socket)
+        }
     }
 
-    /** @return asleep, or already off. Throws when the service drops a client it hasn't paired. */
+    /**
+     * The remote session: configure, set active, then wait for the service's "started" message
+     * (its screen state). Power goes only to a screen that is on — it would wake one that is off.
+     * The service ignores a key sent the moment it says it has started, so power waits a moment,
+     * then this waits for the screen to report off (or the connection to drop as the box sleeps).
+     * Throws when the service drops a client it hasn't paired.
+     */
     private fun command(socket: SSLSocket): Attempt {
         var features = AtvRemoteProto.FEATURES
-        repeat(20) {
-            val fields = parseFrame(readFrame(socket))
+        var sentAt = 0L
+        repeat(40) {
+            val fields = try {
+                parseFrame(readFrame(socket))
+            } catch (e: SocketTimeoutException) {
+                if (sentAt == 0L) throw e
+                if (now() - sentAt > POWER_CONFIRM_MS) return Attempt.Ignored
+                return@repeat
+            } catch (e: IOException) {
+                // After power, the box going to sleep may end the connection.
+                if (sentAt != 0L && !cancelled()) return Attempt.Asleep
+                throw e
+            }
             when {
                 AtvRemoteProto.blob(fields, 1) != null -> {
                     val offered = AtvRemoteProto.blob(fields, 1)?.let { AtvRemoteProto.num(parseFrame(it), 1) }?.toInt()
@@ -258,34 +278,26 @@ internal object AtvRemote {
                     writeFrame(socket, AtvRemoteProto.pingResponse(ping))
                 }
                 AtvRemoteProto.blob(fields, 40) != null -> {
-                    // Absent means off. Power would wake a sleeping Shield, so it is only sent while the screen is on.
+                    // Absent means off.
                     val on = AtvRemoteProto.blob(fields, 40)?.let { AtvRemoteProto.num(parseFrame(it), 1) } == 1L
-                    if (!on) return Attempt.AlreadyOff
-                    writeFrame(socket, AtvRemoteProto.powerKey())
-                    socket.outputStream.flush()
-                    return Attempt.Asleep
+                    if (sentAt != 0L) {
+                        if (!on) return Attempt.Asleep
+                    } else if (!on) {
+                        return Attempt.AlreadyOff
+                    } else {
+                        Thread.sleep(POWER_SETTLE_MS)
+                        if (cancelled()) return Attempt.Cancelled
+                        writeFrame(socket, AtvRemoteProto.powerKey())
+                        sentAt = now()
+                        socket.soTimeout = 1_000
+                    }
                 }
                 AtvRemoteProto.blob(fields, 3) != null -> throw IOException("rejected")
             }
+            if (sentAt != 0L && now() - sentAt > POWER_CONFIRM_MS) return Attempt.Ignored
         }
+        if (sentAt != 0L) return Attempt.Ignored
         throw IOException("no session")
-    }
-
-    private fun hosts(): List<String> {
-        val found = mutableListOf("127.0.0.1")
-        try {
-            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return found
-            for (nif in interfaces) {
-                if (!nif.isUp || nif.isLoopback) continue
-                for (addr in nif.inetAddresses) {
-                    val ipv4 = addr as? Inet4Address ?: continue
-                    val host = ipv4.hostAddress ?: continue
-                    if (!ipv4.isLoopbackAddress && !host.startsWith("169.254.")) found.add(host)
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return found.distinct()
     }
 
     @SuppressLint("CustomX509TrustManager", "TrustAllX509TrustManager")
