@@ -68,6 +68,15 @@ class SearchActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySearchBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Edge to edge (target SDK 35): keep the bar below the status bar and the list above the
+        // navigation bar and keyboard.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
+            val bars = insets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.ime()
+            )
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
 
         binding.btnSearchBack.setOnClickListener { finish() }
         binding.rvSearchResults.layoutManager = LinearLayoutManager(this)
