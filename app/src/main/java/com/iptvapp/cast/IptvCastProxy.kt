@@ -116,6 +116,14 @@ class IptvCastProxy(
 
     private val baseUrl get() = "http://${if (localIp.contains(':')) "[$localIp]" else localIp}:$listeningPort"
 
+    // For saying why a cast didn't start (CastNetwork.problemMessage): how many requests the
+    // receiver made with this session's token, and the provider's last HTTP status (-1: no
+    // answer; null: not asked yet).
+    private val receiverRequestCount = AtomicInteger(0)
+    val receiverRequests: Int get() = receiverRequestCount.get()
+    @Volatile var lastUpstreamStatus: Int? = null
+        private set
+
     fun start() {
         // On the network the receiver is on — the cast's own Wi-Fi address — not every interface.
         val socket = try {
@@ -174,7 +182,7 @@ class IptvCastProxy(
     fun proxyLiveUrl(originalUrl: String, userAgent: String?): String {
         if (!guard.allowCastSource(originalUrl)) return proxyUrl(originalUrl)
         val (id, path) = guard.registerLive() ?: return originalUrl
-        val session = LiveHlsSession(id, originalUrl, userAgent, client) { n -> baseUrl + guard.segmentPath(id, n) }
+        val session = LiveHlsSession(id, originalUrl, userAgent, client, { lastUpstreamStatus = it }) { n -> baseUrl + guard.segmentPath(id, n) }
         liveSessions[id] = session
         session.start()
         return baseUrl + path
@@ -223,7 +231,9 @@ class IptvCastProxy(
                 val method = parts.getOrElse(0) { "" }
                 val path = parts.getOrElse(1) { "" }
 
-                when (val route = guard.route(method, path)) {
+                val route = guard.route(method, path)
+                if (route !is CastProxyGuard.Route.Rejected) receiverRequestCount.incrementAndGet()
+                when (route) {
                     is CastProxyGuard.Route.Rejected ->
                         writeResponse(socket, route.status, "text/plain", ByteArray(0))
                     CastProxyGuard.Route.Options ->
@@ -278,6 +288,13 @@ class IptvCastProxy(
                 .build()
             client.newCall(req).execute().use { resp ->
                 val status = resp.code
+                lastUpstreamStatus = status
+                // A refusal (403, 509 "too many connections"...) passed on as 200 left the
+                // receiver trying to play an error page, loading forever. It gets the error.
+                if (status !in 200..299) {
+                    writeResponse(socket, "$status ${resp.message.ifBlank { "Error" }.take(64)}", "text/plain", ByteArray(0))
+                    return
+                }
                 val serverCt = resp.header("Content-Type") ?: ""
                 val body = resp.body ?: run {
                     writeResponse(socket, "502 Bad Gateway", "text/plain", ByteArray(0))
@@ -308,6 +325,7 @@ class IptvCastProxy(
         } catch (e: Exception) {
             // No detail back to the requester: an upstream error message can carry the stream URL.
             Log.w("CastProxy", "Upstream error: ${e.javaClass.simpleName}")
+            lastUpstreamStatus = -1
             try { writeResponse(socket, "502 Bad Gateway", "text/plain", ByteArray(0)) } catch (_: Exception) {}
         }
     }
@@ -485,6 +503,8 @@ private class LiveHlsSession(
     private val upstreamUrl: String,
     private val userAgent: String?,
     private val client: OkHttpClient,
+    // The provider's HTTP status for this session's stream (-1: no answer).
+    private val reportStatus: (Int) -> Unit,
     // Full URL of segment n for this session — token-scoped, built by the proxy's guard.
     private val segmentUrl: (Long) -> String
 ) {
@@ -552,7 +572,14 @@ private class LiveHlsSession(
         Log.d("CastProxy", "LiveHlsSession[$id]: connecting to upstream ${com.iptvapp.util.LogSanitizer.redactCredentials(upstreamUrl)}")
         val call = client.newCall(req)
         activeCall = call
-        call.execute().use { resp ->
+        val response = try {
+            call.execute()
+        } catch (e: IOException) {
+            if (running) reportStatus(-1)
+            throw e
+        }
+        response.use { resp ->
+            reportStatus(resp.code)
             Log.d("CastProxy", "LiveHlsSession[$id]: upstream responded status=${resp.code} ct=${resp.header("Content-Type")}")
             val body = resp.body ?: run {
                 Log.e("CastProxy", "LiveHlsSession[$id]: no body")

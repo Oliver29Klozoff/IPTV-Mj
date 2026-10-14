@@ -66,6 +66,7 @@ class IptvCastProxyServerTest {
                 "/live/user/pass/seg1.ts" -> ok("SEGMENT-ONE", "video/mp2t")
                 "/redirect-tls" -> "HTTP/1.1 302 Found\r\nLocation: https://127.0.0.1:$loopbackPort/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 "/redirect" -> "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:$loopbackPort/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                "/refused" -> "HTTP/1.1 509 Bandwidth Limit Exceeded\r\nContent-Type: text/html\r\nContent-Length: 9\r\nConnection: close\r\n\r\nToo many!"
                 else -> "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             }
         }
@@ -109,6 +110,20 @@ class IptvCastProxyServerTest {
         assertEquals(502, get(children[1]).first)
         assertEquals(502, get(children[2]).first) // https: no TCP connection or TLS handshake either
         assertEquals(0, loopbackHits.get())
+    }
+
+    // The receiver used to get the provider's error page as a 200 and load forever.
+    @Test fun aProviderRefusalReachesTheReceiverAsAnError() {
+        assertEquals(0, proxy.receiverRequests)
+        assertEquals(null, proxy.lastUpstreamStatus)
+        val (code, body) = get(proxy.proxyUrl("http://$lanIp:$providerPort/refused"))
+        assertEquals(509, code)
+        assertEquals("", body)
+        assertEquals(509, proxy.lastUpstreamStatus)
+        assertEquals(1, proxy.receiverRequests)
+        // A request without the token isn't the receiver's.
+        get("http://$lanIp:${proxy.listeningPort}/nope/r/x.m3u8")
+        assertEquals(1, proxy.receiverRequests)
     }
 
     @Test fun redirectToThisDeviceIsRefused() {
