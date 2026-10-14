@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v7.32 - 2026-10-14
+- **New**: one search for everything, on all your providers at once — live channels, the guide
+  (on now, upcoming, and catch-up you can still replay), movies, series, episodes and your
+  recordings, closest match first, with filters for each kind. Find an episode by adding it to
+  the series name: "breaking bad s5e14", or words from its title. Open it from the search
+  button on phones and tablets, SEARCH ALL in the landscape menu, or SEARCH in the Android TV
+  menu.
+- Picking a channel or a show that's on plays it; a replay opens in the player; an upcoming
+  show offers Remind me, Record or Watch the channel now.
+
 ## v7.31 - 2026-10-13
 - **Fixed**: casting a channel to a Chromecast or Google TV could stay on the loading screen and
   never play, when the phone also had mobile data on. MKTV now sends the Chromecast to the
