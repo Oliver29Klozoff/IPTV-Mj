@@ -303,7 +303,9 @@ class SearchActivity : AppCompatActivity() {
             "DONE" -> com.iptvapp.util.RecordingFileUtils.playInApp(this, rec)
             "RECORDING" -> Toast.makeText(this, R.string.search_recording_now, Toast.LENGTH_SHORT).show()
             "SCHEDULED" -> Toast.makeText(this, getString(R.string.search_recording_scheduled, formatWhen(rec.scheduledStartMs, past = false)), Toast.LENGTH_SHORT).show()
-            else -> Toast.makeText(this, rec.failureReason ?: getString(R.string.search_recording_failed), Toast.LENGTH_LONG).show()
+            "FAILED" -> Toast.makeText(this, rec.failureReason ?: getString(R.string.search_recording_failed), Toast.LENGTH_LONG).show()
+            // COMPRESSING, or any later in-progress state: not playable yet, not failed.
+            else -> Toast.makeText(this, R.string.search_recording_finishing, Toast.LENGTH_SHORT).show()
         }
     }
 

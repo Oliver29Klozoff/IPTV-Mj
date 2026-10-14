@@ -13,6 +13,7 @@
     <string name="search_recording_now">Recording now. It can be played when it finishes.</string>
     <string name="search_recording_scheduled">Scheduled to record %1$s</string>
     <string name="search_recording_failed">This recording failed.</string>
+    <string name="search_recording_finishing">Finishing this recording. It can be played in a moment.</string>
     <string name="search_today_at">today %1$s</string>
     <string name="search_until">until %1$s</string>
     <string name="search_aired">aired %1$s</string>
