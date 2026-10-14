@@ -1,7 +1,7 @@
 {
-  "versionCode": 571,
-  "versionName": "7.33",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.33/MKTV.apk",
-  "apkSha256": "126b9700c0062fcc30b00bbb14a150807d00d8dbffe282ec752f2655ffce6f7d",
-  "changelog": "Home keeps your live channel at the top, with rows for what's on, continue watching, favorites, recordings, and recommendations."
+  "versionCode": 572,
+  "versionName": "7.34",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.34/MKTV.apk",
+  "apkSha256": "168c64fdde340bc8061eabfc537ff889c257996da8cb28f196e8e4869b1e34fd",
+  "changelog": "Pause and rewind live TV, a low-latency Sports Mode, and Start From Beginning when a show is already underway."
 }

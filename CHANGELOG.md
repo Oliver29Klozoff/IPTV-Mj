@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.34 - 2026-10-14
+- **New**: Pause and rewind live TV. The buffer shortens itself when storage is low. The
+  default is 30 minutes. Off leaves live playback as it was.
+- **New**: Sports Mode uses a shorter buffer for games, or for every live channel. Off
+  leaves playback as it is. Go Live, instant replay, a score only when the guide title
+  already has one, favorite-team shortcuts, and frame-rate matching.
+- **New**: When the guide says a show started 35 minutes ago and the provider supports
+  catch-up, the player offers Watch Live or Start From Beginning.
+
 ## v7.33 - 2026-10-14
 - **New**: Home keeps your live channel playing at the top, with rows under it: Continue
   Watching, On Now, Favorite Channels, Recently Watched, Starting Soon, New Episodes,
