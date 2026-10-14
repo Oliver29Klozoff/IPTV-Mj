@@ -83,6 +83,14 @@ class IptvApplication : Application(), Configuration.Provider {
             runCatching { com.iptvapp.worker.BackgroundWork.syncAll(app, prefs) }
             runCatching { com.iptvapp.service.RecordingRecovery.run(app, db) }
             runCatching { com.iptvapp.ui.guide.ChannelTimerScheduler.recover(app) }
+            // A killed player cannot delete its own timeshift files. The next start sweeps them.
+            // A session this process has already opened is left alone. Recordings are not here.
+            runCatching {
+                com.iptvapp.ui.player.timeshift.TimeshiftStore.sweepStale(
+                    File(cacheDir, com.iptvapp.ui.player.timeshift.TimeshiftStore.ROOT_NAME),
+                    keep = null,
+                )
+            }
         }
     }
 

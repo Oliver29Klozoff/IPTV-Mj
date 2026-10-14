@@ -55,6 +55,23 @@
         </LinearLayout>
     </LinearLayout>
 
+    <HorizontalScrollView
+        android:id="@+id/teamShortcutRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="8dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/teamShortcuts"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
     <TextView
         android:id="@+id/tvSportsEmpty"
         android:layout_width="match_parent"
