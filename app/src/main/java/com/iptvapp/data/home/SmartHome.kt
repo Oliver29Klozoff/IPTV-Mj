@@ -106,8 +106,8 @@ class SmartHome @Inject constructor(
             .mapNotNull { program(it, SearchHit.Kind.ON_NOW) }.take(ROW_LIMIT)
         // The next show on each channel, starting soon (not already on).
         val startingSoon = guide.filter { ms(it.startTimestamp) > nowMs && ms(it.startTimestamp) <= nowMs + STARTING_SOON_MS }
-            .groupBy { it.serverIndex to it.streamId }.values.map { airings -> airings.minBy { it.startTimestamp } }
-            .sortedBy { it.startTimestamp }
+            .groupBy { it.serverIndex to it.streamId }.values.map { airings -> airings.minBy { ms(it.startTimestamp) } }
+            .sortedBy { ms(it.startTimestamp) }
             .mapNotNull { program(it, SearchHit.Kind.UPCOMING) }.take(ROW_LIMIT)
 
         val favoriteCards = favorites.map { HomeCard(SearchHit.Channel(it, null, primaryLabel), line = nowTitle(-1, it.streamId)) } +
@@ -132,9 +132,8 @@ class SmartHome @Inject constructor(
     }
 
     private suspend fun programs(ids: List<Int>, serverIndex: Int, nowMs: Long): List<EpgEntity> {
-        val nowSec = nowMs / 1000
-        val toSec = (nowMs + STARTING_SOON_MS) / 1000
-        return ids.chunked(500).flatMap { db.epgDao().getProgramsBetween(it, serverIndex, nowSec, toSec) }
+        val toMs = nowMs + STARTING_SOON_MS
+        return ids.chunked(500).flatMap { db.epgDao().getProgramsBetween(it, serverIndex, nowMs, toMs) }
     }
 
     // Movies and series partway through, most recently watched first.

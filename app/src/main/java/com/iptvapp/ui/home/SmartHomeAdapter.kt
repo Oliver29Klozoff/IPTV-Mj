@@ -53,13 +53,19 @@ class SmartHomeAdapter(private val onClick: (HomeCard) -> Unit) :
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CardHolder {
             val b = ItemHomeCardBinding.inflate(LayoutInflater.from(parent.context), parent, false)
             val d = parent.resources.displayMetrics.density
+            val wideCard = viewType == 1
+            val imageWidth = if (wideCard) 144 else 92
+            val imageHeight = if (wideCard) 81 else 138
             b.homeCardImageFrame.layoutParams = b.homeCardImageFrame.layoutParams.apply {
-                if (viewType == 1) { width = (144 * d).toInt(); height = (81 * d).toInt() }
-                else { width = (92 * d).toInt(); height = (138 * d).toInt() }
+                width = (imageWidth * d).toInt()
+                height = (imageHeight * d).toInt()
             }
+            // A horizontal row measures this card with no width bound. The title is match_parent
+            // inside a wrap_content root, so pin the card to the picture plus its own padding.
+            b.root.layoutParams.width = (imageWidth * d).toInt() + b.root.paddingLeft + b.root.paddingRight
             // Channel logos are shown whole on a dark card; posters fill theirs.
-            b.ivHomeCard.scaleType = if (viewType == 1) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.CENTER_CROP
-            if (viewType == 1) b.ivHomeCard.setPadding((12 * d).toInt(), (8 * d).toInt(), (12 * d).toInt(), (8 * d).toInt())
+            b.ivHomeCard.scaleType = if (wideCard) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.CENTER_CROP
+            if (wideCard) b.ivHomeCard.setPadding((12 * d).toInt(), (8 * d).toInt(), (12 * d).toInt(), (8 * d).toInt())
             // A little lift under the D-pad, like the movie posters.
             b.root.setOnFocusChangeListener { v, focused ->
                 v.animate().scaleX(if (focused) 1.06f else 1f).scaleY(if (focused) 1.06f else 1f).setDuration(120).start()

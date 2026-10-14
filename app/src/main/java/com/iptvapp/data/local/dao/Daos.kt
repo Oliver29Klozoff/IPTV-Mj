@@ -449,14 +449,17 @@ interface EpgDao {
     fun getEpgForStreamsRaw(streamIds: List<Int>, serverIndex: Int): Flow<List<EpgEntity>>
     fun getEpgForStreams(streamIds: List<Int>, serverIndex: Int = -1): Flow<List<EpgEntity>> = getEpgForStreamsRaw(streamIds, serverIndex).retryOnTornRead()
     // Smart Home's On Now and Starting Soon: programmes on these channels still to finish and
-    // starting by [toSec]. Keep [streamIds] under SQLite's variable limit (callers chunk).
+    // starting by [toMs]. Providers store seconds or milliseconds; a value under 100000000000
+    // is seconds (the same rule as SmartHome.ms). Keep [streamIds] under SQLite's variable
+    // limit (callers chunk).
     @Query("""
         SELECT * FROM epg_entries
         WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)
-        AND stopTimestamp > :nowSec AND startTimestamp <= :toSec
+        AND (CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp * 1000 ELSE stopTimestamp END) > :nowMs
+        AND (CASE WHEN startTimestamp < 100000000000 THEN startTimestamp * 1000 ELSE startTimestamp END) <= :toMs
         ORDER BY startTimestamp ASC
     """)
-    suspend fun getProgramsBetween(streamIds: List<Int>, serverIndex: Int, nowSec: Long, toSec: Long): List<EpgEntity>
+    suspend fun getProgramsBetween(streamIds: List<Int>, serverIndex: Int, nowMs: Long, toMs: Long): List<EpgEntity>
     @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun getStreamIdsWithEpg(serverIndex: Int = -1): List<Int>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")

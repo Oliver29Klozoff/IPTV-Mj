@@ -547,9 +547,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         // Same LAST_PLAYED_* cold-boot resume phone's HomeActivity does — TV previously always
         // cold-booted straight to an empty sidebar with nothing auto-playing at all, unlike
-        // phone which restores whatever was last playing (primary or merged) and, for a merged
-        // channel, jumps the Providers list straight to it too. coldBootResumeInProgress guards
-        // onResume()'s own separate "nothing playing yet, resume something" fallback, which
+        // phone which restores whatever was last playing (primary or merged) and stays on Home.
+        // Opening Providers from the sidebar is what jumps that list to the channel.
+        // coldBootResumeInProgress guards onResume()'s own separate "nothing playing yet,
+        // resume something" fallback, which
         // otherwise fires immediately (synchronously ahead of this async retry loop) and wins
         // the race with a primary channel every time, even when this block is about to resolve
         // to the actual last-played merged channel a moment later.
@@ -603,10 +604,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     lifecycleScope.launch {
                         if (session.serverIndex != -1) {
                             val channel = viewModel.getMergedChannelByIndexAndId(session.serverIndex, session.streamId)
-                            if (channel != null) {
-                                playMergedChannel(channel)
-                                selectSection(Section.PROVIDERS)
-                            }
+                            // Play it and leave Home up. Providers still opens from the sidebar.
+                            if (channel != null) playMergedChannel(channel)
                         } else {
                             val channel = viewModel.getChannelById(session.streamId)
                             if (channel != null) playInMiniPlayer(channel)
@@ -709,8 +708,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 delay(300)
             }
             if (channel != null) {
+                // Stay on Home. Selecting Providers here hides the rows; that screen
+                // still jumps to this channel when the user opens it.
                 playMergedChannel(channel)
-                selectSection(Section.PROVIDERS)
                 return
             }
         }

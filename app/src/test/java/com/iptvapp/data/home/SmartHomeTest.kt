@@ -80,6 +80,12 @@ class SmartHomeTest {
         startTimestamp = nowSec + startMin * 60, stopTimestamp = nowSec + (startMin + lengthMin) * 60, nowPlaying = 0, hasArchive = 0
     )
 
+    /** A programme stored in milliseconds, the other unit some providers use. */
+    private fun programAt(streamId: Int, title: String, startMs: Long, stopMs: Long) = EpgEntity(
+        serverIndex = -1, id = "e${epgId++}", streamId = streamId, title = title, description = "",
+        startTimestamp = startMs, stopTimestamp = stopMs, nowPlaying = 0, hasArchive = 0
+    )
+
     private fun row(rows: List<HomeRow>, kind: HomeRow.Kind) = rows.firstOrNull { it.kind == kind }
     private fun titles(row: HomeRow?) = row?.cards?.map { it.hit.title }
 
@@ -87,7 +93,8 @@ class SmartHomeTest {
     fun rowsShowWhatsOnYourChannelsNowAndSoonAndHideWhenEmpty() = runBlocking {
         db.channelDao().upsertChannels(listOf(
             channel(1, "News", favorite = true), channel(2, "Sports", favorite = true),
-            channel(3, "Movies HD", lastWatched = now - 60_000), channel(4, "Unwatched")
+            channel(3, "Movies HD", lastWatched = now - 60_000), channel(4, "Unwatched"),
+            channel(5, "Millis", favorite = true)
         ))
         db.mergedChannelDao().upsertAll(listOf(MergedChannelEntity(1, 9, "UK News", null, 9, "Backup", categoryId = "1", categoryName = "News", isFavorite = true)))
         db.epgDao().upsertEpg(listOf(
@@ -97,15 +104,18 @@ class SmartHomeTest {
             program(2, "Big Match", startMin = 200, lengthMin = 90),     // beyond Starting Soon
             program(3, "Film", startMin = -5, lengthMin = 120),
             program(4, "Nobody's Show", startMin = -5, lengthMin = 30),  // not a channel of yours
-            program(9, "UK Bulletin", startMin = -1, lengthMin = 15, serverIndex = 1)
+            program(9, "UK Bulletin", startMin = -1, lengthMin = 15, serverIndex = 1),
+            programAt(5, "Millis Now", now - 10 * 60_000, now + 30 * 60_000),
+            programAt(5, "Millis Soon", now + 20 * 60_000, now + 50 * 60_000)
         ))
 
         val rows = home.rows(now)
-        assertEquals(setOf("Evening News", "Film", "UK Bulletin"), titles(row(rows, HomeRow.Kind.ON_NOW))?.toSet())
-        assertEquals(listOf("Late News"), titles(row(rows, HomeRow.Kind.STARTING_SOON)))
+        assertEquals(setOf("Evening News", "Film", "UK Bulletin", "Millis Now"), titles(row(rows, HomeRow.Kind.ON_NOW))?.toSet())
+        assertEquals(listOf("Millis Soon", "Late News"), titles(row(rows, HomeRow.Kind.STARTING_SOON)))
         val favorites = row(rows, HomeRow.Kind.FAVORITES)!!
-        assertEquals(listOf("News", "Sports", "UK News"), titles(favorites))
-        assertEquals("Evening News", favorites.cards.first().line)
+        assertEquals(listOf("Millis", "News", "Sports", "UK News"), titles(favorites))
+        assertEquals("Evening News", favorites.cards.first { it.hit.title == "News" }.line)
+        assertEquals("Millis Now", favorites.cards.first { it.hit.title == "Millis" }.line)
         assertEquals(listOf("Movies HD"), titles(row(rows, HomeRow.Kind.RECENT)))
         val onNow = row(rows, HomeRow.Kind.ON_NOW)!!.cards.first { it.hit.title == "Evening News" }
         assertEquals(25, onNow.progress) // 10 of 40 minutes
