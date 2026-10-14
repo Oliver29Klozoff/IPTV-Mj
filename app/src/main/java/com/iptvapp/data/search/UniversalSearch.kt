@@ -102,7 +102,18 @@ class UniversalSearch @Inject constructor(
         const val CATCH_UP_DAYS = 7L
         /** How far ahead upcoming looks. */
         const val UPCOMING_DAYS = 3L
-        private const val MAX_RESULTS = 300
+        /** At most this many of each kind, so a broad query keeps every kind (and its filter). */
+        const val MAX_PER_KIND = 150
+
+        /** [ranked], keeping only the first [MAX_PER_KIND] of each kind, in order. */
+        fun capPerKind(ranked: List<SearchHit>): List<SearchHit> {
+            val counts = HashMap<SearchHit.Kind, Int>()
+            return ranked.filter { hit ->
+                val n = counts.getOrDefault(hit.kind, 0)
+                counts[hit.kind] = n + 1
+                n < MAX_PER_KIND
+            }
+        }
 
         // Equal scores: the kind most likely meant first.
         private val kindOrder = listOf(
@@ -177,7 +188,7 @@ class UniversalSearch @Inject constructor(
         val series = async { series(q, primaryLabel, englishOnly) }
         val recordings = async { db.recordingDao().search(q).map { SearchHit.Recording(it) } }
         val all = listOf(channels, programs, movies, series, recordings).awaitAll().flatten()
-        withContext(Dispatchers.Default) { rank(all, q).take(MAX_RESULTS) }
+        withContext(Dispatchers.Default) { capPerKind(rank(all, q)) }
     }
 
     private suspend fun channels(q: String, primaryLabel: String): List<SearchHit> {

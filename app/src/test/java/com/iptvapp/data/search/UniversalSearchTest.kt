@@ -147,6 +147,16 @@ class UniversalSearchTest {
     }
 
     @Test
+    fun theCapIsPerKindSoEveryKindKeepsItsResults() = runBlocking {
+        db.channelDao().upsertChannels((1..400).map { channel(it, "Star $it") })
+        db.recordingDao().insert(RecordingEntity(streamId = 1, channelName = "x", scheduledStartMs = now, durationMs = 1,
+            outputPath = "/x.ts", status = "DONE", programTitle = "Star Trek Night"))
+        val hits = search.search("star", now)
+        assertEquals(UniversalSearch.MAX_PER_KIND, hits.count { it.kind == SearchHit.Kind.CHANNEL })
+        assertEquals(1, hits.count { it.kind == SearchHit.Kind.RECORDING })
+    }
+
+    @Test
     fun oneLetterSearchesNothing() = runBlocking {
         db.channelDao().upsertChannels(listOf(channel(1, "A")))
         assertTrue(search.search("a", now).isEmpty())
