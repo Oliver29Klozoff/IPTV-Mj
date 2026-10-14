@@ -388,6 +388,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) { castSession = session; stopLocalAndCast(session) }
         override fun onSessionEnded(session: CastSession, error: Int) {
             castSession = null
+            stopCastWatch()
             castProxy?.stop()
             castProxy = null
             loadStream(streamUrl)
@@ -3400,7 +3401,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Start local CORS proxy — Chromecast Default Media Receiver runs in a browser
             // context and enforces CORS; most IPTV servers don't send CORS headers.
             castProxy?.stop()
-            val localIp = getLocalIpAddress()
+            val localIp = getLocalIpAddress(session.castDevice?.inetAddress)
             // A raw .ts live channel (no HLS manifest at all — common on IPTV panels) can't be
             // handed to the receiver as-is: its video pipeline expects segmented media (HLS/
             // DASH/progressive MP4), not an infinite raw transport-stream socket — it connects
@@ -3501,8 +3502,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 Log.e("CastDebug", "remoteMediaClient is null")
                 return@launch
             }
+            watchCast(client, proxied = localIp != null)
             client.load(loadRequest).setResultCallback { result ->
                 Log.d("CastDebug", "load result: success=${result.status.isSuccess} code=${result.status.statusCode}")
+                if (!result.status.isSuccess) onCastLoadFailed?.invoke()
             }
         }
     }
@@ -4562,6 +4565,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             kotlinx.coroutines.GlobalScope.launch { prefs.clearLivePlaybackActive() }
         }
         upNextJob?.cancel()
+        stopCastWatch()
         castProxy?.stop()
         castProxy = null
         hideHandler.removeCallbacks(hideRunnable)
@@ -4577,23 +4581,81 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
     }
 
-    private fun getLocalIpAddress(): String? {
+    /** This phone's address on the [receiver]'s network (see CastNetwork.pickAddress). The first
+     * IPv4 address found used to be taken, and with mobile data kept on alongside Wi-Fi that
+     * could be the mobile one — a Chromecast can't reach it, and loaded forever. */
+    private fun getLocalIpAddress(receiver: java.net.InetAddress?): String? {
         try {
+            val candidates = mutableListOf<com.iptvapp.cast.CastNetwork.Candidate>()
             for (iface in java.net.NetworkInterface.getNetworkInterfaces() ?: return null) {
                 if (iface.isLoopback) continue
-                for (addr in iface.inetAddresses) {
-                    if (addr.isLoopbackAddress) continue
-                    if (addr is java.net.Inet4Address) {
-                        val ip = addr.hostAddress ?: continue
-                        Log.d("CastProxy", "Local IP: $ip (${iface.name} up=${iface.isUp})")
-                        return ip
-                    }
+                for (ia in iface.interfaceAddresses) {
+                    val addr = ia.address as? java.net.Inet4Address ?: continue
+                    candidates += com.iptvapp.cast.CastNetwork.Candidate(iface.name, addr, ia.networkPrefixLength.toInt())
                 }
             }
-            Log.e("CastProxy", "No non-loopback IPv4 address found")
+            val picked = com.iptvapp.cast.CastNetwork.pickAddress(candidates, receiver)
+            if (com.iptvapp.BuildConfig.DEBUG) Log.d("CastProxy", "Local IP: $picked of ${candidates.map { it.interfaceName }}")
+            return picked
         } catch (e: Exception) {
             Log.e("CastProxy", "getLocalIpAddress failed", e)
         }
         return null
     }
+
+    // Watches the receiver after a load, to say why a cast didn't start instead of leaving the
+    // TV loading with no word (see CastNetwork.problemMessage).
+    private val CAST_START_TIMEOUT_MS = 30_000L
+    private var castWatchJob: Job? = null
+    private var castWatch: Pair<com.google.android.gms.cast.framework.media.RemoteMediaClient, com.google.android.gms.cast.framework.media.RemoteMediaClient.Callback>? = null
+
+    private fun stopCastWatch() {
+        castWatchJob?.cancel()
+        castWatchJob = null
+        castWatch?.let { (client, callback) -> client.unregisterCallback(callback) }
+        castWatch = null
+    }
+
+    private fun watchCast(client: com.google.android.gms.cast.framework.media.RemoteMediaClient, proxied: Boolean) {
+        stopCastWatch()
+        var reported = false
+        fun report(why: String) {
+            if (reported) return
+            reported = true
+            stopCastWatch()
+            val proxy = castProxy
+            val requests = proxy?.receiverRequests ?: 0
+            val upstream = proxy?.lastUpstreamStatus
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext,
+                "CAST FAILED: $why proxied=$proxied receiverRequests=$requests upstreamStatus=$upstream isVod=$isVod"
+            )
+            Toast.makeText(this, com.iptvapp.cast.CastNetwork.problemMessage(proxied, requests, upstream), Toast.LENGTH_LONG).show()
+        }
+        val callback = object : com.google.android.gms.cast.framework.media.RemoteMediaClient.Callback() {
+            override fun onStatusUpdated() {
+                val status = client.mediaStatus ?: return
+                when {
+                    status.playerState == com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PLAYING -> stopCastWatch()
+                    status.playerState == com.google.android.gms.cast.MediaStatus.PLAYER_STATE_IDLE &&
+                        status.idleReason == com.google.android.gms.cast.MediaStatus.IDLE_REASON_ERROR -> report("receiver error")
+                }
+            }
+        }
+        client.registerCallback(callback)
+        castWatch = client to callback
+        // A receiver that can't fetch the stream can sit on its loading screen without ever
+        // reporting an error.
+        castWatchJob = lifecycleScope.launch {
+            delay(CAST_START_TIMEOUT_MS)
+            val state = client.mediaStatus?.playerState
+            if (state != com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PLAYING &&
+                state != com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PAUSED
+            ) report("not playing after ${CAST_START_TIMEOUT_MS / 1000}s")
+        }
+        onCastLoadFailed = { report("load failed") }
+    }
+
+    // Set by watchCast for the load result callback, which fires after it is registered.
+    private var onCastLoadFailed: (() -> Unit)? = null
 }
