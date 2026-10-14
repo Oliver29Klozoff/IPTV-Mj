@@ -1,7 +1,7 @@
 {
-  "versionCode": 570,
-  "versionName": "7.32",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.32/MKTV.apk",
-  "apkSha256": "757b6fa5e0087df8587effe83362f6156da04e4518a19a829520d5ae2a5cd011",
-  "changelog": "One search for channels, the guide, catch-up, movies, series, episodes and recordings on all your providers."
+  "versionCode": 571,
+  "versionName": "7.33",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.33/MKTV.apk",
+  "apkSha256": "a2beda86efc267243a030ace599b1e277ae4784832e82a414ccc837c1223376b",
+  "changelog": "Home keeps your live channel at the top, with rows for what's on, continue watching, favorites, recordings, and recommendations."
 }

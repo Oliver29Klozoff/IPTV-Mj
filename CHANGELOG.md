@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.33 - 2026-10-14
+- **New**: Home keeps your live channel playing at the top, with rows under it: Continue
+  Watching, On Now, Favorite Channels, Recently Watched, Starting Soon, New Episodes,
+  Recordings, and Recommended. A row only appears when it has something to show.
+- On a phone, open the HOME tab. On Android TV and the car box, open HOME in the side menu.
+
 ## v7.32 - 2026-10-14
 - **New**: one search for everything, on all your providers at once — live channels, the guide
   (on now, upcoming, and catch-up you can still replay), movies, series, episodes and your
