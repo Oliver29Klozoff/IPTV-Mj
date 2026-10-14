@@ -1,7 +1,7 @@
 {
-  "versionCode": 568,
-  "versionName": "7.30",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.30/MKTV.apk",
-  "apkSha256": "be5c9e3add4e99e6b28413ce587d19a481c2d9f14f05ef22f115acd6d3230e98",
-  "changelog": "Movies search on the Shield is faster, searches every provider, and shows the closest title first."
+  "versionCode": 569,
+  "versionName": "7.31",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.31/MKTV.apk",
+  "apkSha256": "bc42089708aed8ee958216f517d465fd3d3c0207b3f96573da4a9a91235ab25d",
+  "changelog": "Casting to a Chromecast no longer gets stuck loading when mobile data is on, and a cast that fails now says why."
 }

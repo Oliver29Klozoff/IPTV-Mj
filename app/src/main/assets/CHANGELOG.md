@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.31 - 2026-10-13
+- **Fixed**: casting a channel to a Chromecast or Google TV could stay on the loading screen and
+  never play, when the phone also had mobile data on. MKTV now sends the Chromecast to the
+  phone's address on the same Wi-Fi network.
+- **Improved**: when a cast doesn't start, the phone now says why — the TV couldn't reach the
+  phone, your provider refused or didn't answer, or the TV couldn't play the channel — instead
+  of leaving the TV loading.
+
 ## v7.30 - 2026-10-13
 - **Improved**: Movies search on Android TV (Shield) now searches every provider at once —
   results from your other providers show the provider's name under the title — and puts the
