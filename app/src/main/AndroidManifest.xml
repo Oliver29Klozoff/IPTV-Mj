@@ -171,6 +171,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ui.search.SearchActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+
+        <activity
             android:name=".ui.recordings.RecordingSchedulerActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />

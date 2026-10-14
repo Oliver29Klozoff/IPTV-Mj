@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_prompt">Search channels, the guide, movies, series, episodes and recordings on all your providers. For an episode, add it to the series name: \"breaking bad s5e14\".</string>
+    <string name="search_more_letters">Type at least 2 letters.</string>
+    <string name="search_nothing_found">Nothing matches that on any of your providers.</string>
+    <string name="search_nothing_in_filter">No %1$s results. Pick All to see the rest.</string>
+    <string name="search_filter_description">%1$s, %2$d results</string>
+    <string name="search_replay_failed">Couldn\'t open that replay. Try again.</string>
+    <string name="search_watch_channel_now">Watch channel now</string>
+    <string name="search_remind_me">Remind me</string>
+    <string name="search_record">Record</string>
+    <string name="search_reminder_set">Reminder set for %1$s</string>
+    <string name="search_recording_now">Recording now. It can be played when it finishes.</string>
+    <string name="search_recording_scheduled">Scheduled to record %1$s</string>
+    <string name="search_recording_failed">This recording failed.</string>
+    <string name="search_today_at">today %1$s</string>
+    <string name="search_until">until %1$s</string>
+    <string name="search_aired">aired %1$s</string>
+</resources>

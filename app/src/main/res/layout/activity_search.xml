@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Universal search (SearchActivity): the search box, a row of kind filters, and one ranked list
+     of everything that matched, on every provider. Same rack look as the guide. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/rack_bg"
+    android:orientation="vertical"
+    android:theme="@style/ThemeOverlay.HomeRack">
+
+    <LinearLayout
+        android:id="@+id/searchTopBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/rack_surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="6dp">
+
+        <Button
+            android:id="@+id/btnSearchBack"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            app:backgroundTint="@null"
+            android:background="@drawable/home_tab_bg"
+            android:minWidth="0dp"
+            android:paddingHorizontal="10dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.12"
+            android:text="←  SEARCH"
+            android:textColor="@color/rack_text"
+            android:textSize="20sp" />
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="8dp"
+            android:background="@drawable/home_search_bg"
+            android:hint="Channels, shows, movies, series, recordings"
+            android:imeOptions="actionSearch"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:paddingHorizontal="12dp"
+            android:singleLine="true"
+            android:textColor="@color/rack_text"
+            android:textColorHint="@color/rack_text_muted"
+            android:textSize="16sp" />
+
+        <ProgressBar
+            android:id="@+id/searchProgress"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:id="@+id/searchFilterScroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/searchFilters"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp" />
+    </HorizontalScrollView>
+
+    <TextView
+        android:id="@+id/tvSearchStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="24dp"
+        android:gravity="center"
+        android:text="Search channels, the guide, movies, series, episodes and recordings on all your providers."
+        android:textColor="@color/rack_text_secondary"
+        android:textSize="15sp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvSearchResults"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp" />
+</LinearLayout>
