@@ -296,6 +296,28 @@ object SmartCatchUp {
         return nowMs - programmeStartMs >= OFFER_AFTER_MS
     }
 
+    /**
+     * How long until [shouldOffer] becomes true for a show that is on now.
+     * Null when it will not: already time, the show ends first, or it is not eligible.
+     */
+    fun msUntilOffer(
+        archiveEnabled: Boolean,
+        programmeStartMs: Long,
+        programmeStopMs: Long,
+        nowMs: Long,
+        alreadyOnCatchup: Boolean,
+        dismissedForStartMs: Long,
+        blocked: Boolean
+    ): Long? {
+        if (blocked || !archiveEnabled || alreadyOnCatchup) return null
+        if (programmeStartMs <= 0L || programmeStopMs <= programmeStartMs) return null
+        if (nowMs < programmeStartMs || nowMs >= programmeStopMs) return null
+        if (dismissedForStartMs == programmeStartMs) return null
+        val due = programmeStartMs + OFFER_AFTER_MS
+        if (nowMs >= due || due >= programmeStopMs) return null
+        return due - nowMs
+    }
+
     fun startedLabel(programmeStartMs: Long, nowMs: Long): String {
         val mins = ((nowMs - programmeStartMs).coerceAtLeast(0L) / 60_000L).toInt()
         return "Started $mins min ago"

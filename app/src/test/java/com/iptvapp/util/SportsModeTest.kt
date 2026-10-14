@@ -156,6 +156,10 @@ class SportsModeTest {
         assertFalse(SmartCatchUp.shouldOffer(true, start, stop, at, false, 0L, true))
         assertFalse(SmartCatchUp.shouldOffer(true, start, stop, stop, false, 0L, false))
         assertFalse(SmartCatchUp.shouldOffer(true, start, stop, start - 1, false, 0L, false))
+        assertEquals(SmartCatchUp.OFFER_AFTER_MS - 60_000L, SmartCatchUp.msUntilOffer(true, start, stop, start + 60_000L, false, 0L, false))
+        assertNull(SmartCatchUp.msUntilOffer(true, start, stop, at, false, 0L, false))
+        assertNull(SmartCatchUp.msUntilOffer(true, start, stop, start + 60_000L, false, start, false))
+        assertNull(SmartCatchUp.msUntilOffer(true, start, start + 20L * 60_000L, start + 60_000L, false, 0L, false))
     }
 
     private fun game(title: String, start: Long, stop: Long, channel: SportsFinder.Channel) =

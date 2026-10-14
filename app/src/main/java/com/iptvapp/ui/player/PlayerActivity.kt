@@ -3920,15 +3920,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         margin(binding.smartCatchupBar)
     }
 
-    private val catchupOfferRunnable = object : Runnable {
-        override fun run() {
-            if (binding.smartCatchupBar.visibility != View.VISIBLE) return
-            refreshSmartCatchUp()
-            if (binding.smartCatchupBar.visibility == View.VISIBLE) {
-                seekHandler.postDelayed(this, 30_000L)
-            }
-        }
-    }
+    private val catchupOfferRunnable = Runnable { refreshSmartCatchUp() }
 
     private fun refreshSmartCatchUp(nowMs: Long = System.currentTimeMillis()) {
         val show = liveNowShow
@@ -3952,6 +3944,21 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (!offer) {
             binding.smartCatchupBar.visibility = View.GONE
             seekHandler.removeCallbacks(catchupOfferRunnable)
+            // Controls hide and stop the one-second ticker. A show that is not at 35 minutes
+            // yet still needs a check at that moment, or the offer never appears.
+            val waiting = show
+            if (waiting != null) {
+                val wait = SmartCatchUp.msUntilOffer(
+                    archiveEnabled = archive,
+                    programmeStartMs = waiting.startMs,
+                    programmeStopMs = waiting.stopMs,
+                    nowMs = nowMs,
+                    alreadyOnCatchup = isCatchup || startedOverFromLive,
+                    dismissedForStartMs = smartCatchupDismissedStartMs,
+                    blocked = blocked
+                )
+                if (wait != null) seekHandler.postDelayed(catchupOfferRunnable, wait)
+            }
             return
         }
         val programme = show ?: return
@@ -4783,7 +4790,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         } else if (!isVod && serverIndex != -1) {
             lifecycleScope.launch {
-                val nowNext = try { repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId) } catch (_: Exception) { null }
+                val lookupServer = serverIndex
+                val lookupStream = mergedStreamId
+                val nowNext = try { repository.fetchMergedEpgNowNext(lookupServer, lookupStream) } catch (_: Exception) { null }
+                // Another merged channel can share a nonnegative server index. Drop a late answer.
+                if (isVod || serverIndex != lookupServer || mergedStreamId != lookupStream) return@launch
                 binding.tvEpgNow.text = if (nowNext != null) nowNext.nowTitle + " · " + minutesLeftLabel(nowNext.nowStopMs - System.currentTimeMillis()) + " left" else ""
                 liveEdgeEpgText = binding.tvEpgNow.text?.toString().orEmpty()
                 timeshiftEpg = if (nowNext != null) {
@@ -4794,7 +4805,6 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "Next · " + clockLabel(nowNext.nowStopMs) + " · " + nowNext.nextTitle else ""
                 binding.tvEpgNext.visibility = if (nowNext?.nextTitle != null) View.VISIBLE else View.GONE
                 showLiveProgress(nowNext?.nowStartMs, nowNext?.nowStopMs)
-                if (isVod || serverIndex == -1) return@launch
                 liveNowShow = nowNext?.let { LiveShow(-1, it.nowStartMs, it.nowStopMs, it.nowTitle) }
                 applySportsChrome()
                 syncSportsPlayback()
@@ -5556,6 +5566,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // onStop runs.
             if (!isVod) kotlinx.coroutines.GlobalScope.launch { playbackHandoffManager.clearOwnSession() }
             stopTimeshiftTicker()
+            seekHandler.removeCallbacks(catchupOfferRunnable)
             stopTimeshift()
             player?.release()
             player = null
@@ -5597,6 +5608,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // that does recreate it (locale, for example) must drop the pump and the player
             // here, or the replacement opens a second provider connection.
             stopTimeshiftTicker()
+            seekHandler.removeCallbacks(catchupOfferRunnable)
             stopTimeshift()
             binding.playerView.player = null
             player?.release()
