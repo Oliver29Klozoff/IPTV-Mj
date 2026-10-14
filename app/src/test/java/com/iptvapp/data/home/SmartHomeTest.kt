@@ -119,6 +119,9 @@ class SmartHomeTest {
         assertEquals(listOf("Movies HD"), titles(row(rows, HomeRow.Kind.RECENT)))
         val onNow = row(rows, HomeRow.Kind.ON_NOW)!!.cards.first { it.hit.title == "Evening News" }
         assertEquals(25, onNow.progress) // 10 of 40 minutes
+        val (guide, otherGuide) = home.guideChannels()
+        assertEquals(listOf("Millis", "News", "Sports", "Movies HD"), guide.map { it.name })
+        assertEquals(listOf("UK News"), otherGuide.map { it.name })
         assertNull(row(rows, HomeRow.Kind.CONTINUE))
         assertNull(row(rows, HomeRow.Kind.RECORDINGS))
     }

@@ -66,15 +66,38 @@ class SmartHome @Inject constructor(
             if (watched > 0 && duration > 0) ((watched * 100) / duration).toInt().coerceIn(1, 99) else null
     }
 
-    suspend fun rows(nowMs: Long = System.currentTimeMillis()): List<HomeRow> = coroutineScope {
-        val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
-        val favorites = repository.getFavoriteChannels().first().filter { !it.isHidden }
-        val otherFavorites = db.mergedChannelDao().getAllFavorites().first()
-        val recent = repository.getRecentChannels().first()
+    /**
+     * Channels On Now and Starting Soon are drawn from. Favorites first, then recently watched,
+     * plus other providers' favorites. Callers top up the stored guide for this same set.
+     */
+    suspend fun guideChannels(): Pair<List<ChannelEntity>, List<MergedChannelEntity>> {
+        val shelf = shelf()
+        return shelf.guideChannels to shelf.guideOthers
+    }
 
-        // The guide for the channels the rows show: favorites first, then recently watched.
+    private data class Shelf(
+        val favorites: List<ChannelEntity>,
+        val otherFavorites: List<MergedChannelEntity>,
+        val recent: List<ChannelEntity>
+    ) {
         val guideChannels = (favorites + recent).distinctBy { it.streamId }.take(GUIDE_CHANNELS)
         val guideOthers = otherFavorites.take(GUIDE_CHANNELS)
+    }
+
+    private suspend fun shelf() = Shelf(
+        favorites = repository.getFavoriteChannels().first().filter { !it.isHidden },
+        otherFavorites = db.mergedChannelDao().getAllFavorites().first(),
+        recent = repository.getRecentChannels().first()
+    )
+
+    suspend fun rows(nowMs: Long = System.currentTimeMillis()): List<HomeRow> = coroutineScope {
+        val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
+        val shelf = shelf()
+        val favorites = shelf.favorites
+        val otherFavorites = shelf.otherFavorites
+        val recent = shelf.recent
+        val guideChannels = shelf.guideChannels
+        val guideOthers = shelf.guideOthers
         val primaryGuide = async { programs(guideChannels.map { it.streamId }, -1, nowMs) }
         val otherGuide = async {
             guideOthers.groupBy { it.serverIndex }.flatMap { (idx, list) -> programs(list.map { it.streamId }, idx, nowMs) }

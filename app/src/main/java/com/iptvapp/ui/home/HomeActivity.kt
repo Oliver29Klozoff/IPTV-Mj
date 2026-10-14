@@ -5028,6 +5028,15 @@ class HomeActivity : AppCompatActivity() {
         homeRefreshJob?.cancel()
         homeRefreshJob = lifecycleScope.launch {
             while (binding.tabLayout.selectedTabPosition == TAB_HOME) {
+                // The same bounded guide top-up Favorites uses. A channel is fetched only when
+                // its stored guide is missing or about to run out, and not again for 30 minutes.
+                try {
+                    val (primary, others) = smartHome.guideChannels()
+                    viewModel.loadEpgForChannels(primary)
+                    viewModel.loadEpgForMergedChannels(others)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
                 val rows = try { smartHome.rows() } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
@@ -5317,7 +5326,12 @@ class HomeActivity : AppCompatActivity() {
             // combinedLiveChannels now) — this only still exists to keep EPG text loading for
             // whatever primary channels are in the currently-selected category.
             viewModel.channels.collect { list ->
-                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES) return@collect
+                // Home tops up its own channels (favorites and recently watched). This list is
+                // whichever live category was last opened, so loading it here used to leave
+                // Home's On Now empty.
+                if (binding.tabLayout.selectedTabPosition == TAB_FAVORITES ||
+                    binding.tabLayout.selectedTabPosition == TAB_HOME
+                ) return@collect
                 viewModel.loadEpgForChannels(list)
             }
         }

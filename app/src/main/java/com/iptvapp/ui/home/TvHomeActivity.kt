@@ -1895,6 +1895,15 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         homeRefreshJob?.cancel()
         homeRefreshJob = lifecycleScope.launch {
             while (homeShowing) {
+                // Same bounded guide top-up as the phone. Stored rows show on this pass; a
+                // fetch that was missing lands on the next minute.
+                try {
+                    val (primary, others) = smartHome.guideChannels()
+                    viewModel.loadEpgForChannels(primary)
+                    viewModel.loadEpgForMergedChannels(others)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
                 val rows = try { smartHome.rows() } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
@@ -3828,7 +3837,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (focusedPos >= 0) focusAdapterPositionRetrying(binding.tvRvContent, focusedPos)
                     else if (wantFocus) focusAdapterPositionRetrying(binding.tvRvContent, 0)
                 }
-                viewModel.loadEpgForChannels(channels)
+                // Home tops up its own channels. This list is the open live category.
+                if (!homeShowing) viewModel.loadEpgForChannels(channels)
             }
         }
         lifecycleScope.launch {
