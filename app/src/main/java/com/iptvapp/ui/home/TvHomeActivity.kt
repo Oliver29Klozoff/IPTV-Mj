@@ -1948,7 +1948,16 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             } else if (event.keyCode == KeyEvent.KEYCODE_BACK) {
                 return true
             }
-            return super.dispatchKeyEvent(event)
+            // Only D-pad and the confirm key stay here. The sidebar's own Up/Down would
+            // otherwise steal them. Channel numbers, Guide, and Menu fall through so they
+            // still work while a card has focus.
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER ->
+                    return super.dispatchKeyEvent(event)
+            }
+            return null
         }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT &&
             binding.tvSidebar.hasFocus() && navState == NavState.SIDEBAR
