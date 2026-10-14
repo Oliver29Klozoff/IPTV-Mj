@@ -1227,6 +1227,10 @@ class HomeActivity : AppCompatActivity() {
                     )
                 } else {
                     playInMiniPlayer(channel)
+                    // Recently watched / view counts and cold-boot resume, as TvHomeActivity's
+                    // guideLauncher does for the same picks (guide grid and search).
+                    viewModel.markChannelWatched(channel.streamId)
+                    viewModel.setCurrentlyPlaying(channel.streamId)
                 }
             }
         }
