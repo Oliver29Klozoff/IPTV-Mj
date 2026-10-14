@@ -521,6 +521,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         com.iptvapp.remote.RemoteControlServer.start(this)
         observeEpgGuide()
         observeSidebarVisibility()
+        setupHome()
+        // Opens on Home: the live channel (resumed below) with the rows under it.
+        showHome()
         viewModel.loadAll()
         // Same cold-start auto-refresh as the phone: the merged "All Providers" cache used to
         // sit empty until the user manually hit Refresh, even on a device with providers
@@ -636,17 +639,18 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         currentAccent = accent
         currentAccentEnd = rack.end
         listOf(
-            binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories,
+            binding.btnTvHome, binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories,
             binding.btnTvMovies, binding.btnTvSeries, binding.btnTvGuide,
             binding.btnTvProviders
         ).forEach { com.iptvapp.util.TvAccentHelper.applyToButton(it, accent, rack.end) }
         // The currently active section's button should stay accent-colored and keep its
         // left-accent-bar marker (isSelected — see TvAccentHelper.buildFocusDrawable), not fall
         // back to the dim grey/unselected state applyToButton's fresh drawable would otherwise
-        // leave every button in.
+        // leave every button in. While Home shows, that's Home's button (no section is open).
         sectionButtons.forEach { paintSectionLabel(it, false); it.isSelected = false }
-        paintSectionLabel(activeSidebarButton(), true)
-        activeSidebarButton().isSelected = true
+        val active = if (homeShowing) binding.btnTvHome else activeSidebarButton()
+        paintSectionLabel(active, true)
+        active.isSelected = true
         updateProvidersHealthBadge(lastProvidersDownCount)
 
         com.iptvapp.util.AccentText.apply(binding.tvMktvWordmark, accent, rack.end)
@@ -861,6 +865,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (binding.tvMoviesFullScreen.visibility == View.VISIBLE && moviesFsSearchQuery.isNotBlank()) {
             submitFilteredMoviesFs(viewModel.vod.value)
         }
+        // Back from watching something: Continue Watching and Recently Watched have moved on.
+        if (homeShowing) refreshHome()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
@@ -1698,7 +1704,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun computeSidebarContentWidth(): Int {
         if (sidebarContentWidthPx > 0) return sidebarContentWidthPx
         val buttons = listOf(
-            binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
+            binding.btnTvHome, binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
             binding.btnTvSeries, binding.btnTvGuide, binding.btnTvSports, binding.btnTvSearch, binding.btnTvVoice, binding.btnTvRecordings, binding.btnTvSettings
         )
         val density = resources.displayMetrics.density
@@ -1766,6 +1772,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // inside tvLeftPanel), so it no longer gets hidden for free by the tvLeftPanel.GONE above
         // — needs its own explicit hide/restore here, same as the other chrome on this screen.
         binding.tvWhatsOnNowContainer.visibility = View.GONE
+        binding.tvRvHome.visibility = View.GONE
         // tvMiniPlayerContainer's tv_mini_player_focus drawable only ever draws while it's the
         // D-pad-focused view — normally correct (it's the same accent-color ring every other
         // focusable element on this screen uses), but with the sidebar/footer gone there's
@@ -1787,9 +1794,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Mirrors the same has-entries gate viewModel.whatsOnNow's own collector applies (no
         // longer Favorites-only — the strip now shows on every section whenever the sidebar is
         // showing, per updated request).
-        if (tvWhatsOnNowAdapter.itemCount > 0) {
+        if (tvWhatsOnNowAdapter.itemCount > 0 && !homeShowing) {
             binding.tvWhatsOnNowContainer.visibility = View.VISIBLE
         }
+        if (homeShowing) binding.tvRvHome.visibility = View.VISIBLE
         resetMiniPreviewToNowPlaying()
         // Restore normal D-pad navigation now that the sidebar/footer are back — re-enable
         // focusability (see expandMiniPlayerFullScreen's kdoc for why it was turned off) before
@@ -1812,11 +1820,146 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.btnTvGuide.performClick()
     }
 
-    /** The phone remote's Home: closes Movies or Series browsing if open, then shows the sidebar. */
+    /** The phone remote's Home: closes Movies or Series browsing if open, then shows Home. */
     fun remoteHome() {
         if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) hideMoviesFullScreen()
         if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) hideSeriesFullScreen()
-        showSidebar()
+        showHome()
+    }
+
+    // ── Smart Home ──────────────────────────────────────────────────────────
+    // Home isn't a Section: it's this screen with no section open — the sidebar, the live
+    // channel, and the rows (tvRvHome) under it. Picking any section hides it (selectSection).
+
+    @javax.inject.Inject lateinit var smartHome: com.iptvapp.data.home.SmartHome
+    @javax.inject.Inject lateinit var homeRepository: com.iptvapp.data.repository.XtreamRepository
+    private var homeShowing = false
+    private var homeRefreshJob: kotlinx.coroutines.Job? = null
+    private lateinit var homeAdapter: SmartHomeAdapter
+    private val homeHitUi by lazy {
+        com.iptvapp.ui.search.SearchHitUi(this, homeRepository,
+            playChannel = { channel, merged ->
+                if (channel != null) {
+                    lifecycleScope.launch {
+                        playInMiniPlayer(channel)
+                        viewModel.markChannelWatched(channel.streamId)
+                        viewModel.setCurrentlyPlaying(channel.streamId)
+                    }
+                } else if (merged != null) {
+                    playMergedChannel(merged)
+                }
+            },
+            playReplay = { replay ->
+                openPlayer(
+                    replay.url, replay.title, replay.channel.streamId,
+                    catchupStartSec = replay.startSec,
+                    catchupDurationMin = replay.durationMin,
+                    catchupChannelName = replay.channel.name
+                )
+            })
+    }
+
+    private fun setupHome() {
+        homeAdapter = SmartHomeAdapter { card -> homeHitUi.open(card.hit) }
+        binding.tvRvHome.adapter = homeAdapter
+        binding.tvRvHome.itemAnimator = null
+        binding.btnTvHome.setOnClickListener { showHome() }
+    }
+
+    private fun showHome() {
+        showBareSidebar()
+        homeShowing = true
+        binding.tvRvHome.visibility = if (miniPlayerExpanded) View.GONE else View.VISIBLE
+        // On Now is a row here; the strip above the player would repeat it.
+        binding.tvWhatsOnNowContainer.visibility = View.GONE
+        paintSectionLabel(binding.btnTvHome, true)
+        binding.btnTvHome.isSelected = true
+        binding.btnTvHome.requestFocus()
+        refreshHome()
+    }
+
+    private fun hideHome() {
+        if (!homeShowing) return
+        homeShowing = false
+        homeRefreshJob?.cancel()
+        binding.tvRvHome.visibility = View.GONE
+        if (tvWhatsOnNowAdapter.itemCount > 0 && !miniPlayerExpanded) binding.tvWhatsOnNowContainer.visibility = View.VISIBLE
+        paintSectionLabel(binding.btnTvHome, false)
+        binding.btnTvHome.isSelected = false
+    }
+
+    /** Fills the rows now, then again every minute while Home shows (On Now moves on). */
+    private fun refreshHome() {
+        homeRefreshJob?.cancel()
+        homeRefreshJob = lifecycleScope.launch {
+            while (homeShowing) {
+                val rows = try { smartHome.rows() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    emptyList()
+                }
+                homeAdapter.submitList(rows)
+                // New Episodes asks providers: it joins the rows when it has an answer.
+                val fresh = try { smartHome.newEpisodes() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    null
+                }
+                if (fresh != null) homeAdapter.submitList(withNewEpisodes(rows, fresh))
+                delay(60_000L)
+            }
+        }
+    }
+
+    /** [rows] with [newEpisodes] placed after Starting Soon (or wherever its turn comes). */
+    private fun withNewEpisodes(rows: List<com.iptvapp.data.home.HomeRow>, newEpisodes: com.iptvapp.data.home.HomeRow) =
+        (rows + newEpisodes).sortedBy { it.kind.ordinal }
+
+    /** The first card of the first row, from the sidebar. False when there are no rows. */
+    private fun focusHomeRows(): Boolean {
+        val firstRow = binding.tvRvHome.getChildAt(0) ?: return false
+        val cards = firstRow.findViewById<androidx.recyclerview.widget.RecyclerView>(com.iptvapp.R.id.rvHomeRowCards) ?: return false
+        return cards.getChildAt(0)?.requestFocus() == true
+    }
+
+    /**
+     * D-pad on Home. In the rows, default focus search moves between cards and rows (the
+     * sidebar's own Up/Down handling would otherwise take over), Left from a row's first card or
+     * Back returns to the sidebar. From the sidebar, Right goes into the rows.
+     * Returns true when the key was handled.
+     */
+    private fun handleHomeKey(event: KeyEvent): Boolean? {
+        if (!homeShowing || miniPlayerExpanded) return null
+        val inRows = binding.tvRvHome.hasFocus()
+        if (inRows) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                resetIdleExpandTimer()
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_BACK -> { binding.btnTvHome.requestFocus(); return true }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        val focused = currentFocus
+                        val cards = focused?.parent as? androidx.recyclerview.widget.RecyclerView
+                        if (cards != null && cards.getChildAdapterPosition(focused) == 0) {
+                            binding.btnTvHome.requestFocus()
+                            return true
+                        }
+                    }
+                }
+            } else if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT &&
+            binding.tvSidebar.hasFocus() && navState == NavState.SIDEBAR
+        ) {
+            if (focusHomeRows()) return true
+        }
+        // Down from the live channel: the rows under it (the player's own Down goes to the sidebar).
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN &&
+            currentFocus === binding.tvMiniPlayerContainer
+        ) {
+            if (focusHomeRows()) return true
+        }
+        return null
     }
 
     /** The phone remote's Full screen: the video fills the TV, with the sidebar and footer hidden. */
@@ -1840,7 +1983,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // through the 10s sidebar auto-collapse (this function), only disappearing once the mini
         // player goes fullscreen on idle (see observeViewModel's whatsOnNow collector, gated on
         // miniPlayerExpanded now instead of navState/currentSection).
-        activeSidebarButton().requestFocus()
+        // Home has no section open: its own button.
+        (if (homeShowing) binding.btnTvHome else activeSidebarButton()).requestFocus()
         resetMiniPreviewToNowPlaying()
         resetIdleExpandTimer()
     }
@@ -2011,6 +2155,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Order must match the visual top-to-bottom order in activity_tv_home.xml —
         // Providers sits directly under Favorites now.
         val buttons = listOf(
+            binding.btnTvHome,
             binding.btnTvFavorites,
             binding.btnTvProviders,
             binding.btnTvLive,
@@ -2165,6 +2310,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun selectSection(section: Section) {
+        hideHome()
         currentSection = section
         sectionButtons.forEach { paintSectionLabel(it, false); it.isSelected = false }
         paintSectionLabel(activeSidebarButton(), true)
@@ -2607,6 +2753,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             if (event.action == KeyEvent.ACTION_UP) startVoiceTune()
             return true
         }
+        handleHomeKey(event)?.let { return it }
         // Movies full-screen browse (tvMoviesFullScreen) is a separate, simpler screen that
         // doesn't participate in navState/tvLeftPanel/tvChanPanel at all — it's just a search
         // bar, a chip row, and a grid, all of which default Android focus search already handles
@@ -3611,7 +3758,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // states (SIDEBAR just means "at rest on the bare nav list", not hidden), so
                 // navState itself was the wrong signal for this and got fixed in v6.28 for the
                 // narrower Favorites-only behavior that request predates.
-                if (miniPlayerExpanded) {
+                // Home shows On Now as a row instead.
+                if (miniPlayerExpanded || homeShowing) {
                     binding.tvWhatsOnNowContainer.visibility = View.GONE
                     return@collect
                 }

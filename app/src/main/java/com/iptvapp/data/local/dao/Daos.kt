@@ -260,6 +260,18 @@ interface VodDao {
     suspend fun getDurationMs(streamId: Int): Long?
     @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 AND dismissedFromContinueWatching = 0 ORDER BY watchedMs DESC LIMIT 20")
     fun getInProgressVod(): Flow<List<VodEntity>>
+    // Smart Home's Recommended: unwatched movies from the categories watched most (the three
+    // with the most started or finished movies), best rated and newest first.
+    @Query("""
+        SELECT * FROM vod_streams
+        WHERE watchedMs = 0 AND categoryId IN (
+            SELECT categoryId FROM vod_streams WHERE watchedMs > 0 AND categoryId IS NOT NULL
+            GROUP BY categoryId ORDER BY COUNT(*) DESC LIMIT 3
+        )
+        ORDER BY CAST(rating AS REAL) DESC, added DESC
+        LIMIT :limit
+    """)
+    suspend fun getRecommended(limit: Int): List<VodEntity>
     // Watched History — the complement of getInProgressVod's 0.95 threshold, movies considered
     // "finished" rather than still in progress. Not capped/limited like Continue Watching (that
     // row only ever shows a handful of recents) — this is the full log, sorted most-recent-first.
@@ -372,6 +384,31 @@ interface SeriesDao {
         LIMIT 20
     """)
     fun getInProgressSeries(): Flow<List<InProgressSeriesRow>>
+    // Smart Home's Recommended (series): unwatched series from the categories of the series
+    // watched most, best rated first. Same idea as VodDao.getRecommended.
+    @Query("""
+        SELECT * FROM series
+        WHERE isHidden = 0 AND seriesId NOT IN (SELECT seriesId FROM episode_watched)
+        AND categoryId IN (
+            SELECT s.categoryId FROM series s
+            INNER JOIN (SELECT DISTINCT seriesId FROM episode_watched) w ON w.seriesId = s.seriesId
+            WHERE s.categoryId IS NOT NULL
+            GROUP BY s.categoryId ORDER BY COUNT(*) DESC LIMIT 3
+        )
+        ORDER BY CAST(rating AS REAL) DESC
+        LIMIT :limit
+    """)
+    suspend fun getRecommended(limit: Int): List<SeriesEntity>
+    // Series to look for new episodes in: the most recently watched ones (episode_watched rowid
+    // stands in for recency, as in getInProgressSeries), then favorites.
+    @Query("""
+        SELECT s.* FROM series s
+        LEFT JOIN (SELECT seriesId, MAX(rowid) AS rid FROM episode_watched GROUP BY seriesId) w ON w.seriesId = s.seriesId
+        WHERE s.isHidden = 0 AND (w.rid IS NOT NULL OR s.isFavorite = 1)
+        ORDER BY CASE WHEN w.rid IS NULL THEN 1 ELSE 0 END, w.rid DESC
+        LIMIT :limit
+    """)
+    suspend fun getFollowed(limit: Int): List<SeriesEntity>
     @Query("UPDATE series SET dismissedFromContinueWatching = 1 WHERE seriesId = :seriesId")
     suspend fun dismissFromContinueWatching(seriesId: Int)
     @Query("UPDATE series SET lastWatchedAt = :nowMs WHERE seriesId = :seriesId")
@@ -411,6 +448,15 @@ interface EpgDao {
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId IN (:streamIds) ORDER BY streamId ASC, startTimestamp ASC")
     fun getEpgForStreamsRaw(streamIds: List<Int>, serverIndex: Int): Flow<List<EpgEntity>>
     fun getEpgForStreams(streamIds: List<Int>, serverIndex: Int = -1): Flow<List<EpgEntity>> = getEpgForStreamsRaw(streamIds, serverIndex).retryOnTornRead()
+    // Smart Home's On Now and Starting Soon: programmes on these channels still to finish and
+    // starting by [toSec]. Keep [streamIds] under SQLite's variable limit (callers chunk).
+    @Query("""
+        SELECT * FROM epg_entries
+        WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)
+        AND stopTimestamp > :nowSec AND startTimestamp <= :toSec
+        ORDER BY startTimestamp ASC
+    """)
+    suspend fun getProgramsBetween(streamIds: List<Int>, serverIndex: Int, nowSec: Long, toSec: Long): List<EpgEntity>
     @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun getStreamIdsWithEpg(serverIndex: Int = -1): List<Int>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
@@ -477,6 +523,15 @@ interface RecordingDao {
         LIMIT 50
     """)
     suspend fun search(query: String): List<RecordingEntity>
+    // Smart Home's Recordings row: what's recording now, what's next, then the latest finished.
+    @Query("""
+        SELECT * FROM recordings
+        WHERE status IN ('RECORDING', 'COMPRESSING', 'SCHEDULED', 'DONE')
+        ORDER BY CASE status WHEN 'RECORDING' THEN 0 WHEN 'COMPRESSING' THEN 1 WHEN 'SCHEDULED' THEN 2 ELSE 3 END,
+                 CASE WHEN status = 'SCHEDULED' THEN scheduledStartMs ELSE -scheduledStartMs END
+        LIMIT 20
+    """)
+    suspend fun getForHome(): List<RecordingEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(recording: RecordingEntity): Long
     @Query("UPDATE recordings SET status = :status WHERE id = :id")

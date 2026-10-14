@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One Smart Home card: picture (16:9 for channels, a poster otherwise — sized in
+     SmartHomeAdapter), progress for something started, title and one line under it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/homeCardRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="4dp"
+    android:background="@drawable/home_tab_bg"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <FrameLayout
+        android:id="@+id/homeCardImageFrame"
+        android:layout_width="160dp"
+        android:layout_height="90dp"
+        android:background="@color/rack_surface">
+
+        <ImageView
+            android:id="@+id/ivHomeCard"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <ProgressBar
+            android:id="@+id/pbHomeCard"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progressBackgroundTint="@color/rack_control_off"
+            android:progressTint="@color/oled_cyan_primary"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvHomeCardBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="4dp"
+            android:background="#CC000000"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.08"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="1dp"
+            android:textAllCaps="true"
+            android:textColor="@color/rack_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvHomeCardTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/tvHomeCardLine"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/rack_text_secondary"
+        android:textSize="12sp" />
+</LinearLayout>
