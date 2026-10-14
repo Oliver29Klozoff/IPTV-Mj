@@ -15,6 +15,8 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
+import com.iptvapp.util.SmartCatchUp
+import com.iptvapp.util.SportsMode
 import com.iptvapp.util.isLargeScreenDevice
 import android.util.Rational
 import android.view.GestureDetector
@@ -31,6 +33,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -49,6 +52,16 @@ import com.google.android.gms.cast.framework.SessionManagerListener
 import com.iptvapp.data.local.entities.ChannelEntity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.iptvapp.ui.home.ChannelAdapter
+import com.iptvapp.ui.player.timeshift.LiveTimeshiftSession
+import com.iptvapp.ui.player.timeshift.TimeshiftCopy
+import com.iptvapp.ui.player.timeshift.TimeshiftEpg
+import com.iptvapp.ui.player.timeshift.TimeshiftLimits
+import com.iptvapp.ui.player.timeshift.TimeshiftLoop
+import com.iptvapp.ui.player.timeshift.TimeshiftNavigator
+import com.iptvapp.ui.player.timeshift.TimeshiftPlaybackState
+import com.iptvapp.ui.player.timeshift.TimeshiftSessionGate
+import com.iptvapp.ui.player.timeshift.TimeshiftSource
+import com.iptvapp.ui.player.timeshift.TimeshiftStore
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.iptvapp.data.repository.XtreamRepository
@@ -94,6 +107,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.bottomControls.visibility = View.GONE
         binding.btnDvrRewind.visibility = View.GONE
         binding.btnDvrLive.visibility = View.GONE
+        binding.btnLiveFwd10.visibility = View.GONE
+        stopTimeshiftTicker()
         binding.btnRecordDot.visibility = View.GONE
         binding.btnVodBack.visibility = View.GONE
         binding.btnVodFwd.visibility = View.GONE
@@ -104,7 +119,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // (see startSeekBarUpdater's original comment) so it stayed visible the whole time like
         // some video apps do — explicitly asked to auto-hide with everything else instead, same
         // as every other transient control here.
-        if (isVod) binding.vodSeekContainer.visibility = View.GONE
+        binding.vodSeekContainer.visibility = View.GONE
+        placeSportsChrome(false)
     }
 
     private val osdHandler = Handler(Looper.getMainLooper())
@@ -142,6 +158,35 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // stream_title). This flag exists only to pick a different ExoPlayer data source in
     // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
     private var isRecordingPlayback: Boolean = false
+    // Live timeshift (pause / rewind / go live). NONE means the player is on the provider URL
+    // with no local buffer. NATIVE means that URL already has a usable DVR window. LOCAL means
+    // the player is reading a bounded temp playlist and LiveTimeshiftSession holds the only
+    // provider connection. Not a recording: files stay in cacheDir/timeshift.
+    private val timeshiftGate = TimeshiftSessionGate()
+    private var timeshiftSession: LiveTimeshiftSession? = null
+    private var timeshiftMode = TimeshiftSource.NONE
+    private var timeshiftState = TimeshiftPlaybackState.LIVE
+    private var timeshiftSeeking = false
+    private var timeshiftReturning = false
+    // D-pad seeks have no touch-up. Hold the thumb until the player position catches up.
+    private var liveSeekHoldUntil = 0L
+    private var liveSeekBound = false
+    private var timeshiftDirectFallback = false
+    private var timeshiftFrozen = false
+    /** Wall time of the retained window's end. Zero while the pump is still following live. */
+    private var timeshiftFrozenAtMs = 0L
+    private var timeshiftStarting = false
+    private var timeshiftStartSettled = false
+    private var timeshiftAutoplay = true
+    /** Behind-live offset to restore after a sports rebuild of a native DVR window. TIME_UNSET means none. */
+    private var pendingNativeBehindMs = C.TIME_UNSET
+    private var timeshiftRepairs = 0
+    private var timeshiftWatchdog: Job? = null
+    private var timeshiftEpg: List<TimeshiftEpg.Show> = emptyList()
+    private var liveEdgeEpgText: String = ""
+    private var liveSkipPendingMs = 0L
+    private var liveSkipLong = false
+    private var timeshiftUiRunning = false
     // Catch-up: a past programme replayed from the provider's archive. It runs as VOD (seek bar,
     // pause, skip buttons) but the provider serves it from a timeshift URL that begins at a whole
     // minute, so positions here are relative to the programme start: catchupOffsetSec is where the
@@ -170,6 +215,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // The show on now from the overlay's guide lookup, tied to the channel it was looked up for.
     private data class LiveShow(val streamId: Int, val startMs: Long, val stopMs: Long, val title: String)
     private var liveNowShow: LiveShow? = null
+    // Sports Mode for this viewing. Null follows the saved setting. The fast buffer is never
+    // the default for ordinary live TV.
+    private var sportsSessionOn: Boolean? = null
+    private var scoreOverlaySession: Boolean? = null
+    private var sportsLoadControlOn = false
+    private var sportsRebuildAfterReady = false
+    private var appliedDisplayModeId = 0
+    // Catch-up offer is per airing. Watch Live remembers the programme start and does not seek.
+    private var smartCatchupDismissedStartMs = 0L
+    private var smartCatchupArchive: Boolean? = null
+    private var smartCatchupArchiveStreamId = Int.MIN_VALUE
     // Where a debounced reopen is headed, so further skips add on to it rather than to the old
     // position (-1 = none pending).
     private var catchupPendingTargetMs = -1L
@@ -249,6 +305,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     @Inject lateinit var communityHealthManager: com.iptvapp.sync.CommunityHealthManager
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     private var bandwidthTracker: BandwidthTracker? = null
+    private var playbackDataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null
 
     // ─── Cast to a Device (see CastRelayManager kdoc) ──────────────────────────
     // Set when THIS Activity instance is the RECEIVER (launched off a scanned cast, not by the
@@ -462,6 +519,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
         setupChannelZones()
         setupVodSkipButtons()
+        setupSportsAndCatchUp()
         setupGestureDetector()
         setupNetworkChangeReconnect()
         binding.tvChannelTitle.text = streamTitle
@@ -1173,7 +1231,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // isApplyingRemoteUpdate guards this so the pause itself doesn't get mistaken for
                 // a "real user action" and re-written back over the isPlaying=false already sent.
                 isApplyingRemoteUpdate = true
-                player?.pause()
+                requestTimeshiftPlayback(false)
                 updatePlayPauseButton()
                 isApplyingRemoteUpdate = false
                 val startPositionMs = if (isVod) player?.currentPosition ?: 0L else 0L
@@ -1387,7 +1445,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     // that immediately instead of letting the member watch a moment of playback
                     // before the trailing position/play-state sync below would otherwise catch it.
                     if (!state.isPlaying) {
-                        player?.pause()
+                        requestTimeshiftPlayback(false)
                         updatePlayPauseButton()
                     }
                 } catch (_: Exception) {
@@ -1415,7 +1473,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             p.seekTo(expectedPosition.coerceAtLeast(0L))
         }
         if (p.isPlaying != state.isPlaying) {
-            if (state.isPlaying) p.play() else p.pause()
+            requestTimeshiftPlayback(state.isPlaying)
             updatePlayPauseButton()
         }
         isApplyingRemoteUpdate = false
@@ -1477,7 +1535,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // instead of momentarily auto-playing from 0 before a later sync corrects it.
             if (state.positionMs > 0L) player?.seekTo(state.positionMs)
             if (!state.isPlaying) {
-                player?.pause()
+                requestTimeshiftPlayback(false)
                 updatePlayPauseButton()
             }
             isApplyingRemoteUpdate = false
@@ -1589,7 +1647,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             loadStream(url)
             if (state.positionMs > 0L) player?.seekTo(state.positionMs)
             if (!state.isPlaying) {
-                player?.pause()
+                requestTimeshiftPlayback(false)
                 updatePlayPauseButton()
             }
             isApplyingRemoteUpdate = false
@@ -2120,7 +2178,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.btnSleep.text = "Sleep ${(ms + 59_999L) / 60_000}m"
             }
             override fun onFinish() {
-                player?.pause()
+                requestTimeshiftPlayback(false)
                 sleepDeadlineMs = 0L
                 binding.btnSleep.text = "Sleep"
                 binding.btnSleep.setTextColor(getColor(R.color.rack_text))
@@ -2246,6 +2304,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             retryJob?.cancel()
             retryCount = 0
             vodFormatFallbackTried = false
+            stopTimeshift()
+            clearDisplayMode()
+            // Catch-up is a replay, not the live edge. A sports buffer would starve it.
+            if (sportsLoadControlOn || player == null) {
+                binding.playerView.player = null
+                player?.release()
+                player = null
+                player = buildPlayer()
+            }
             streamTitle = "${ch.name} — $title"
             binding.tvChannelTitle.text = streamTitle
             // The line under the title described the live broadcast ("28 min left").
@@ -2307,6 +2374,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun enterAudioOnly() {
         if (isVod || audioOnly || castSession != null || streamUrl.isEmpty()) return
         audioOnly = true
+        // The listen service opens the channel itself. Drop the timeshift connection first.
+        clearDisplayMode()
+        stopTimeshift()
         retryJob?.cancel()
         hideHandler.removeCallbacks(hideRunnable)
         hideRunnable.run()
@@ -2363,7 +2433,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             notifyPartyStateChange()
             updateSeekBar()
         }
-        binding.btnVodBack.setOnClickListener { skip(-10_000L) }
+        binding.btnVodBack.setOnClickListener {
+            resetHideTimer()
+            if (!isVod && timeshiftControlsOpen()) seekTimeshiftBy(-TimeshiftNavigator.REPLAY_10_MS)
+            else skip(-10_000L)
+        }
         binding.btnVodFwd.setOnClickListener { skip(30_000L) }
         binding.btnVodFwdBig.setOnClickListener { skip(120_000L) }
         binding.btnStartOver.setOnClickListener { resetHideTimer(); startOverCurrentShow() }
@@ -2604,16 +2678,22 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // load/seek for fewer mid-playback stalls, since some IPTV providers are slow or
         // inconsistent enough that the default buffer runs dry mid-stream.
         val extraBufferingEnabled = prefs.extraBufferingEnabledNow()
+        // Sports Mode replaces these numbers only while it is on. Off keeps both profiles above.
+        // Load control is fixed for the life of this player, so turning Sports on rebuilds it.
+        val sportsBuffer = sportsActiveNow()
+        sportsLoadControlOn = sportsBuffer
+        val bufferProfile = SportsMode.loadControl(sportsBuffer, extraBufferingEnabled)
         val loadControl = DefaultLoadControl.Builder()
-            .apply {
-                if (extraBufferingEnabled) setBufferDurationsMs(90_000, 240_000, 10_000, 15_000)
-                else setBufferDurationsMs(50_000, 120_000, 5_000, 10_000)
-            }
+            .setBufferDurationsMs(
+                bufferProfile.minBufferMs,
+                bufferProfile.maxBufferMs,
+                bufferProfile.bufferForPlaybackMs,
+                bufferProfile.bufferForPlaybackAfterRebufferMs
+            )
             .setPrioritizeTimeOverSizeThresholds(true)
-            // Retain already-played media so live channels can rewind without a network
-            // re-fetch for the last couple of minutes; older content still seeks fine via
-            // the on-disk timeshift cache below.
-            .setBackBuffer(120_000, true)
+            // In-memory rewind for the last couple of minutes. A longer pause/rewind window
+            // is the separate bounded store in TimeshiftStore, not this cache.
+            .setBackBuffer(bufferProfile.backBufferMs, bufferProfile.retainBackBufferFromKeyframe)
             .build()
 
         // Without an explicit User-Agent, OkHttpDataSource sends OkHttp's own default
@@ -2627,22 +2707,23 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // screen's "Play in App" action so they can scrobble to Trakt) aren't HTTP resources at
         // all — OkHttpDataSource can't read them, so this case needs the plain platform data
         // source instead of the IPTV-CDN-tuned OkHttp one used for every live/VOD stream.
+        val playbackUserAgent = "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1"
+        val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient).setUserAgent(playbackUserAgent)
+        // DefaultDataSource sends file:// (the local timeshift playlist) to a file source and
+        // http(s) to the same OkHttp stack live TV already used. Recording playback is unchanged.
         val upstreamDataSourceFactory = if (isRecordingPlayback) {
             androidx.media3.datasource.DefaultDataSource.Factory(this)
         } else {
-            OkHttpDataSource.Factory(okHttpClient)
-                .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+            androidx.media3.datasource.DefaultDataSource.Factory(this, httpDataSourceFactory)
         }
         // Live TV used to route through an on-disk cache (ManifestBypassCacheDataSource) to
         // power a DVR/rewind buffer beyond ExoPlayer's in-memory back buffer. Confirmed by
         // A/B testing on the Shield and phone: some providers (shop4uu at least) reuse the
-        // same live segment URL while overwriting its content server-side — the cache assumed
-        // URLs are immutable (standard HTTP caching semantics) and kept serving stale cached
-        // bytes instead of refetching, which manifested as a fullscreen-only reconnect loop
-        // (PlaylistStuckException) that never happened in the mini player, which has no cache
-        // at all. Rewinding on live TV is now limited to the in-memory back buffer configured
-        // above (setBackBuffer, ~2 minutes) rather than a disk-backed multi-minute window —
-        // a real feature reduction, but a stuck live stream is worse than a shorter rewind.
+        // same live segment URL while overwriting its content server-side — a URL-keyed cache
+        // kept serving stale bytes and the fullscreen player reconnect-looped. This download
+        // cache stays read-only during playback. Timeshift stores its own segments under
+        // cacheDir/timeshift, named by sequence, and only when the provider window is too
+        // short to seek. Streams that already advertise a DVR window play the provider URL.
         // Transparently serves a completed offline download's bytes from Media3's own
         // SimpleCache (keyed by the same source URL DownloadRepository.startDownload downloaded
         // it under) instead of hitting the network, when one exists — CacheDataSource checks the
@@ -2672,6 +2753,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             com.iptvapp.ui.player.BandwidthBudgetManager(db, prefs).checkAndWarn(this@PlayerActivity, serverIndex)
         }.also { it.startPeriodicFlush() }
         val trackedDataSourceFactory = bandwidthTracker!!.wrap(cacheDataSourceFactory)
+        playbackDataSourceFactory = trackedDataSourceFactory
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(trackedDataSourceFactory)
 
         val tunnelingEnabled = prefs.tunneledPlaybackEnabledNow()
@@ -2751,6 +2833,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                         val f = exoPlayer.videoFormat ?: return
                         Log.i("MKTV_QUALITY", "dataSaver=$dataSaver playing ${f.width}x${f.height} @ ${f.bitrate / 1000} kbps")
+                        applyFrameRateMatch(sportsActiveNow())
                     }
                 })
                 applyResizeStep()
@@ -2767,42 +2850,31 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 }
 
                 binding.btnPlayPause.setOnClickListener {
-                    val wasPlaying = exoPlayer.isPlaying
-                    if (wasPlaying) exoPlayer.pause() else exoPlayer.play()
+                    val wasPlaying = if (!isVod && timeshiftSettingOn()) timeshiftIntendedPlaying()
+                        else exoPlayer.playWhenReady
+                    // Resume where playback was paused. Go Live is the only jump to the edge.
+                    requestTimeshiftPlayback(!wasPlaying)
                     updatePlayPauseButton()
                     notifyPartyStateChange()
                     resetHideTimer()
                     if (wasPlaying) traktScrobble(::scrobblePauseCall)
                     else if (traktScrobbleStarted) traktScrobble(::scrobbleStartCall)
+                    if (!isVod) refreshTimeshiftUi()
                 }
 
                 binding.btnDvrRewind.setOnClickListener {
-                    if (!isVod) {
-                        exoPlayer.seekTo((exoPlayer.currentPosition - 60_000L).coerceAtLeast(0L))
-                        updateDvrLiveButton()
-                        resetHideTimer()
-                    }
+                    if (!isVod) seekTimeshiftBy(-TimeshiftNavigator.REPLAY_30_MS)
+                }
+                binding.btnDvrRewind.setOnLongClickListener {
+                    if (isVod) return@setOnLongClickListener false
+                    seekTimeshiftBy(-TimeshiftNavigator.REPLAY_60_MS)
+                    true
+                }
+                binding.btnLiveFwd10.setOnClickListener {
+                    if (!isVod) seekTimeshiftBy(TimeshiftNavigator.REPLAY_10_MS)
                 }
 
-                binding.btnDvrLive.setOnClickListener {
-                    if (startedOverFromLive) { backToLive(); return@setOnClickListener }
-                    if (!isVod) {
-                        // seekToDefaultPosition() relies on ExoPlayer's live-window detection,
-                        // which some providers' HLS playlists don't signal correctly — it was
-                        // landing at the start of the buffered window instead of the live edge.
-                        // Seeking straight to the timeline's current duration is a more reliable
-                        // way to reach "now" regardless of whether live metadata is present.
-                        val dur = exoPlayer.duration
-                        if (dur != androidx.media3.common.C.TIME_UNSET && dur > 0) {
-                            exoPlayer.seekTo(dur)
-                        } else {
-                            exoPlayer.seekToDefaultPosition()
-                        }
-                        exoPlayer.play()
-                        updateDvrLiveButton()
-                        resetHideTimer()
-                    }
-                }
+                binding.btnDvrLive.setOnClickListener { goToLiveEdge() }
 
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -2821,6 +2893,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
                             setPictureInPictureParams(buildPipParams())
                         }
+                        applyFrameRateMatch(sportsActiveNow())
+                    }
+
+                    override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                        restoreNativeBehindIfReady()
                     }
 
                     override fun onPlaybackStateChanged(state: Int) {
@@ -2850,6 +2927,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                     exoPlayer.seekTo(resumePositionMs)
                                     resumePositionMs = 0L
                                 }
+                                restoreNativeBehindIfReady()
                                 if (isCatchup && catchupPendingSeekMs > 0L) {
                                     val fine = catchupPendingSeekMs
                                     catchupPendingSeekMs = 0L
@@ -2869,6 +2947,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                 bufferWatchdog?.let { hideHandler.removeCallbacks(it) }
                                 bufferWatchdog = Runnable {
                                     if (player?.playbackState == Player.STATE_BUFFERING) {
+                                        if (timeshiftStarting || timeshiftSession?.running == true) {
+                                            scheduleRetry()
+                                            return@Runnable
+                                        }
+                                        if (timeshiftFrozen) {
+                                            val atEdge = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
+                                            if (atEdge) returnToProviderLive(tellUser = true)
+                                            return@Runnable
+                                        }
                                         if (!outcomeRecordedForThisPlayback) {
                                             outcomeRecordedForThisPlayback = true
                                             recordPlaybackOutcome(success = false)
@@ -2892,6 +2979,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                 binding.progressBuffering.visibility = View.GONE
                                 // A Start Over replay ran out (the show ended or it caught up with now).
                                 if (startedOverFromLive) backToLive()
+                                else if (handleTimeshiftEnded()) Unit
                                 else if (!isVod) scheduleRetry()
                                 else showUpNextIfAvailable()
                                 if (isVod) traktScrobble(::scrobbleStopCall, progressOverride = 100f)
@@ -2903,6 +2991,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         // Releasing this player for Listen can itself report an error (a release
                         // timeout on a slow device) — not the channel's fault, and nothing to retry.
                         if (audioOnly) return
+                        // Stopping the outgoing item while a timeshift buffer starts, or a glitch
+                        // in the local playlist, is not the channel failing.
+                        if (timeshiftStarting || handleTimeshiftPlayerError(error)) return
                         binding.progressBuffering.visibility = View.GONE
                         // A busy account says nothing about this channel's own reliability.
                         if (!outcomeRecordedForThisPlayback && !com.iptvapp.util.StreamErrors.isAccountInUse(error)) {
@@ -2992,23 +3083,31 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
     }
 
+    /** Startup holds the player paused. The button follows the pending request, not that hold. */
+    private fun timeshiftIntendedPlaying(): Boolean = TimeshiftNavigator.intendedPlaying(
+        starting = !isVod && timeshiftStarting && !timeshiftStartSettled,
+        autoplay = timeshiftAutoplay,
+        playWhenReady = player?.playWhenReady == true,
+    )
+
     private fun updatePlayPauseButton() {
-        val isPlaying = player?.isPlaying ?: false
+        val playing = if (!isVod && timeshiftSettingOn()) timeshiftIntendedPlaying()
+            else player?.isPlaying == true
         binding.btnPlayPause.setImageResource(
-            if (isPlaying) android.R.drawable.ic_media_pause
+            if (playing) android.R.drawable.ic_media_pause
             else android.R.drawable.ic_media_play
         )
+        binding.btnPlayPause.contentDescription = if (!isVod && timeshiftSettingOn()) {
+            TimeshiftCopy.pauseDescription(playing)
+        } else {
+            "Play or pause"
+        }
     }
 
-    /** Dims the "● LIVE" button while behind the live edge, highlights it once caught up. */
+    /** Red filled LIVE at the edge; gray outlined LIVE with the offset when behind. */
     private fun updateDvrLiveButton() {
         if (isVod) return
-        val p = player ?: return
-        val offsetMs = p.currentLiveOffset
-        val atLiveEdge = offsetMs == androidx.media3.common.C.TIME_UNSET || offsetMs < 5_000L
-        binding.btnDvrLive.setTextColor(
-            if (atLiveEdge) getColor(R.color.rack_text) else getColor(R.color.rack_danger_text)
-        )
+        refreshTimeshiftUi()
     }
 
     // Global (not per-server) — if this network/provider is stalling repeatedly in the same
@@ -3192,6 +3291,32 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * (see StreamErrors) — the status line names that instead of a generic reconnect/give-up. */
     private fun scheduleRetry(suspectConnectionLimit: Boolean = false, accountInUse: Boolean = false) {
         if (audioOnly) return
+        // A local buffer owns the only provider connection. Repair that, and do not open
+        // the channel a second time. Giving up drops the buffer and comes back at live.
+        if (timeshiftStarting) return
+        // The provider read already stopped. Finishing the saved window must not open a
+        // second connection. At the end of that window, come back to the live edge.
+        if (timeshiftFrozen) {
+            val atEdge = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: false
+            if (atEdge) returnToProviderLive(tellUser = true)
+            return
+        }
+        if (timeshiftSession?.running == true) {
+            timeshiftRepairs++
+            if (timeshiftRepairs <= 3) {
+                timeshiftSession?.forceReconnect()
+                repairLocalPlayer()
+                return
+            }
+            returnToProviderLive(tellUser = true)
+            return
+        }
+        val wasBehindLive = !isVod && (
+            timeshiftState == TimeshiftPlaybackState.PAUSED ||
+                timeshiftState == TimeshiftPlaybackState.BEHIND_LIVE ||
+                timeshiftState == TimeshiftPlaybackState.SEEKING ||
+                timeshiftState == TimeshiftPlaybackState.RETURNING_TO_LIVE
+            )
         val givenUpText = if (accountInUse) com.iptvapp.util.StreamErrors.ACCOUNT_IN_USE_MESSAGE
             else "Stream unavailable after $maxRetries attempts"
         noteStallEvent()
@@ -3293,6 +3418,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         it.prepare()
                         it.playWhenReady = true
                     }
+                    if (wasBehindLive) announceBackToLive()
                 } else {
                     binding.tvRetryStatus.text = givenUpText
                     binding.tvRetryStatus.visibility = View.VISIBLE
@@ -3307,6 +3433,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         retryJob?.cancel()
         // Captured now, before the delay below — otherwise a paused/stalled player's
         // currentPosition could drift or reset by the time the retry actually reloads.
+        // A native DVR window does not survive a new media item (wasBehindLive, above).
         val resumeAt = if (isVod) (player?.currentPosition ?: 0L) else 0L
         val catchupResumeAt = if (isCatchup) vodPositionMs() else 0L
         retryJob = lifecycleScope.launch {
@@ -3359,6 +3486,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 it.prepare()
                 it.playWhenReady = true
             }
+            if (wasBehindLive && !isVod) announceBackToLive()
         }
     }
 
@@ -3386,6 +3514,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun stopLocalAndCast(session: CastSession) {
         if (streamUrl.isBlank()) return
+        // Cast opens the provider URL itself. The timeshift pump must let go of that connection.
+        stopTimeshift()
         val localPositionMs = if (isVod) (player?.currentPosition?.takeIf { it > 0 } ?: resumePositionMs) else 0L
         player?.stop()
         player?.clearMediaItems()
@@ -3512,6 +3642,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onResume() {
         super.onResume()
+        if (sportsActiveNow()) applyFrameRateMatch(true)
         castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
         // If the session started while we were paused (cast picker caused onPause),
         // onSessionStarted already fired with no listener — catch it here
@@ -3524,8 +3655,317 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onPause() {
+        clearDisplayMode()
         super.onPause()
         castContext?.sessionManager?.removeSessionManagerListener(castSessionListener, CastSession::class.java)
+    }
+
+    private fun sportsActiveNow(): Boolean {
+        if (isVod || audioOnly || isRecordingPlayback || castSession != null) return false
+        return SportsMode.active(prefs.sportsModeNow(), liveNowShow?.title, sportsSessionOn)
+    }
+
+    private fun scoreOverlayWanted(): Boolean = scoreOverlaySession ?: prefs.sportsScoreOverlayNow()
+
+    private fun setupSportsAndCatchUp() {
+        binding.btnSportsMode.setOnClickListener {
+            resetHideTimer()
+            sportsSessionOn = !sportsActiveNow()
+            syncSportsPlayback()
+        }
+        binding.btnPinTeams.setOnClickListener {
+            resetHideTimer()
+            pinCurrentTeams()
+        }
+        binding.btnScoreOverlay.setOnClickListener {
+            resetHideTimer()
+            scoreOverlaySession = !scoreOverlayWanted()
+            applySportsChrome()
+        }
+        binding.btnWatchLive.setOnClickListener {
+            // Stays on the live stream. Does not seek.
+            val start = liveNowShow?.startMs ?: return@setOnClickListener
+            smartCatchupDismissedStartMs = start
+            refreshSmartCatchUp()
+        }
+        binding.btnStartFromBeginning.setOnClickListener {
+            val start = liveNowShow?.startMs ?: return@setOnClickListener
+            smartCatchupDismissedStartMs = start
+            refreshSmartCatchUp()
+            startOverCurrentShow()
+        }
+    }
+
+    private fun clearLiveProgramme() {
+        liveNowShow = null
+        smartCatchupArchive = null
+        smartCatchupArchiveStreamId = Int.MIN_VALUE
+        smartCatchupDismissedStartMs = 0L
+        binding.smartCatchupBar.visibility = View.GONE
+        binding.tvSportsScore.visibility = View.GONE
+    }
+
+    private fun syncSportsPlayback() {
+        if (isFinishing || isVod || audioOnly || castSession != null || isCatchup || startedOverFromLive) {
+            if (!sportsActiveNow()) clearDisplayMode()
+            applySportsChrome()
+            refreshSmartCatchUp()
+            return
+        }
+        val want = sportsActiveNow()
+        applySportsChrome()
+        applyFrameRateMatch(want)
+        val saved = prefs.timeshiftMinutesNow()
+        if (!want && saved == 0 && (timeshiftSession != null || timeshiftStarting || sportsLoadControlOn)) {
+            sportsRebuildAfterReady = false
+            val play = timeshiftIntendedPlaying()
+            // Captured before stopTimeshift clears NATIVE. A rewind in the provider window
+            // has to survive the rebuild; a sports-only local pump has no provider position.
+            // Assigned after the old player is released so its callbacks cannot consume it.
+            val behind = nativeBehindToKeep()
+            timeshiftDirectFallback = false
+            stopTimeshift()
+            if (player == null || sportsLoadControlOn) {
+                reopenCurrent(playLocal = null, positionMs = 0L, play = play, hold = false)
+                pendingNativeBehindMs = behind
+            } else if (streamUrl.isNotEmpty()) {
+                playProviderUrl(streamUrl, play)
+                pendingNativeBehindMs = behind
+            }
+            return
+        }
+        val sessionRunning = timeshiftSession?.running == true || timeshiftStarting
+        val needSession = streamUrl.isNotEmpty() && SportsMode.needsSessionBuffer(
+            sportsOn = want,
+            savedMinutes = saved,
+            sessionRunning = sessionRunning,
+            directFallback = timeshiftDirectFallback,
+            nativeSettled = timeshiftMode == TimeshiftSource.NATIVE
+        )
+        val needRebuild = player != null && want != sportsLoadControlOn
+        if (timeshiftStarting && needRebuild) {
+            sportsRebuildAfterReady = true
+            return
+        }
+        if (!needSession && !needRebuild) return
+        // A paused or storage-frozen window keeps its files after the pump stops.
+        val local = timeshiftSession?.sessionDir?.resolve("index.m3u8")?.takeIf {
+            it.exists() && (timeshiftMode == TimeshiftSource.LOCAL || timeshiftFrozen)
+        }
+        val pos = player?.currentPosition ?: 0L
+        val play = if (player == null) true else timeshiftIntendedPlaying()
+        if (needRebuild) {
+            // A native DVR seek is an offset from the live edge. The local playlist keeps
+            // its own absolute position, and a new pump starts at the edge.
+            val behind = if (local == null && !needSession) nativeBehindToKeep() else C.TIME_UNSET
+            reopenCurrent(if (needSession) null else local, pos, play, hold = needSession)
+            pendingNativeBehindMs = behind
+        }
+        if (needSession) {
+            pendingNativeBehindMs = C.TIME_UNSET
+            startTimeshift(streamUrl)
+        }
+    }
+
+    /**
+     * Swaps the player so a sports buffer can take effect. The timeshift pump, when one is
+     * already running, keeps the provider connection. [hold] waits for [startTimeshift]
+     * instead of opening the provider URL from here.
+     */
+    private fun reopenCurrent(playLocal: java.io.File?, positionMs: Long, play: Boolean, hold: Boolean) {
+        timeshiftAutoplay = play
+        binding.playerView.player = null
+        player?.release()
+        player = null
+        player = buildPlayer()
+        when {
+            playLocal != null -> {
+                val budgetMs = replayBudgetMinutes().coerceAtLeast(1) * 60_000L
+                playLocalPlaylist(playLocal, budgetMs, startMs = positionMs.coerceAtLeast(0L))
+            }
+            hold -> Unit
+            streamUrl.isNotEmpty() -> playProviderUrl(streamUrl, play)
+        }
+    }
+
+    private fun applySportsChrome() {
+        val liveControls = !isVod && !audioOnly && castSession == null
+        val sportsOn = sportsActiveNow()
+        binding.btnSportsMode.visibility = if (liveControls) View.VISIBLE else View.GONE
+        binding.btnSportsMode.text = if (sportsOn) "Sports on" else "Sports"
+        binding.btnSportsMode.contentDescription = if (sportsOn) {
+            "Sports mode, on. Low-latency buffer for this viewing. Go Live and instant replay stay on the playback controls."
+        } else {
+            "Sports mode, off. Turns on the low-latency buffer, instant replay, and Go Live for this viewing."
+        }
+        val teams = SportsMode.teamsInTitle(liveNowShow?.title.orEmpty())
+        val showPin = sportsOn && teams.size == 2
+        binding.btnPinTeams.visibility = if (showPin) View.VISIBLE else View.GONE
+        if (showPin) {
+            binding.btnPinTeams.contentDescription = "Pin ${teams[0]} and ${teams[1]} as favorite teams"
+        }
+        binding.btnScoreOverlay.visibility = if (sportsOn) View.VISIBLE else View.GONE
+        val scoreOn = scoreOverlayWanted()
+        binding.btnScoreOverlay.text = if (scoreOn) "Score on" else "Score"
+        binding.btnScoreOverlay.contentDescription = if (scoreOn) "Hide the score" else "Show the score"
+        val score = if (sportsOn && scoreOn) SportsMode.scoreInTitle(liveNowShow?.title.orEmpty()) else null
+        if (score == null) {
+            binding.tvSportsScore.visibility = View.GONE
+        } else {
+            binding.tvSportsScore.text = score
+            binding.tvSportsScore.contentDescription = SportsMode.scoreDescription(score)
+            binding.tvSportsScore.visibility = View.VISIBLE
+        }
+    }
+
+    private fun pinCurrentTeams() {
+        val teams = SportsMode.teamsInTitle(liveNowShow?.title.orEmpty())
+        if (teams.isEmpty()) return
+        lifecycleScope.launch {
+            var stored = prefs.favoriteTeams.first()
+            val added = ArrayList<String>()
+            for (team in teams) {
+                val next = SportsMode.addFavorite(stored, team)
+                if (next != stored) added += team
+                stored = next
+            }
+            if (added.isNotEmpty()) prefs.setFavoriteTeams(stored)
+            val full = added.size < teams.size && SportsMode.parseTeams(stored).size >= SportsMode.MAX_FAVORITE_TEAMS
+            val message = when {
+                added.isEmpty() -> "Already in favorite teams"
+                added.size == 1 && full -> "Pinned ${added[0]}. The team list is full."
+                added.size == 1 -> "Pinned ${added[0]}"
+                full -> "Pinned ${added.joinToString(" and ")}. The team list is full."
+                else -> "Pinned ${added.joinToString(" and ")}"
+            }
+            Toast.makeText(this@PlayerActivity, message, Toast.LENGTH_SHORT).show()
+            applySportsChrome()
+        }
+    }
+
+    /** Offset to keep when the provider URL itself is the DVR. Local files use their own position. */
+    private fun nativeBehindToKeep(): Long {
+        if (timeshiftMode != TimeshiftSource.NATIVE) return C.TIME_UNSET
+        val reading = timeshiftReading() ?: return C.TIME_UNSET
+        if (!reading.seekable || TimeshiftNavigator.atLiveEdge(reading)) return C.TIME_UNSET
+        return TimeshiftNavigator.behindMs(reading)
+    }
+
+    private fun restoreNativeBehindIfReady() {
+        val behind = pendingNativeBehindMs
+        if (behind == C.TIME_UNSET || isVod) return
+        val p = player ?: return
+        val reading = timeshiftReading()
+        if (reading == null || !reading.seekable) {
+            if (p.playbackState == Player.STATE_READY && !p.isCurrentMediaItemSeekable) {
+                pendingNativeBehindMs = C.TIME_UNSET
+            }
+            return
+        }
+        val target = TimeshiftNavigator.nativeResumeMs(
+            behind, true, reading.earliestMs, reading.liveEdgeMs
+        ) ?: run {
+            pendingNativeBehindMs = C.TIME_UNSET
+            return
+        }
+        pendingNativeBehindMs = C.TIME_UNSET
+        p.seekTo(target)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplayModes(): List<SportsMode.RefreshMode> {
+        val screen = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
+        val modes = screen?.supportedModes ?: return emptyList()
+        return modes.map { SportsMode.RefreshMode(it.modeId, it.refreshRate, it.physicalWidth, it.physicalHeight) }
+    }
+
+    private fun applyFrameRateMatch(sportsOn: Boolean) {
+        if (!sportsOn) {
+            setPreferredDisplayMode(0)
+            return
+        }
+        val fps = player?.videoFormat?.frameRate ?: return
+        val size = currentDisplaySize()
+        setPreferredDisplayMode(SportsMode.displayModeId(fps, currentDisplayModes(), size.first, size.second))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplaySize(): Pair<Int, Int> {
+        val screen = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
+        val mode = screen?.mode ?: return 0 to 0
+        return mode.physicalWidth to mode.physicalHeight
+    }
+
+    private fun clearDisplayMode() {
+        setPreferredDisplayMode(0)
+    }
+
+    private fun setPreferredDisplayMode(modeId: Int) {
+        if (appliedDisplayModeId == modeId) return
+        val attrs = window.attributes
+        attrs.preferredDisplayModeId = modeId
+        window.attributes = attrs
+        appliedDisplayModeId = modeId
+    }
+
+    private fun placeSportsChrome(overlayOpen: Boolean) {
+        val top = ((if (overlayOpen) 76 else 12) * resources.displayMetrics.density).toInt()
+        fun margin(view: View) {
+            val lp = view.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams ?: return
+            if (lp.topMargin == top) return
+            lp.topMargin = top
+            view.layoutParams = lp
+        }
+        margin(binding.tvSportsScore)
+        margin(binding.smartCatchupBar)
+    }
+
+    private val catchupOfferRunnable = object : Runnable {
+        override fun run() {
+            if (binding.smartCatchupBar.visibility != View.VISIBLE) return
+            refreshSmartCatchUp()
+            if (binding.smartCatchupBar.visibility == View.VISIBLE) {
+                seekHandler.postDelayed(this, 30_000L)
+            }
+        }
+    }
+
+    private fun refreshSmartCatchUp(nowMs: Long = System.currentTimeMillis()) {
+        val show = liveNowShow
+        val blocked = isVod || audioOnly || isRecordingPlayback || castSession != null ||
+            partyCode.isNotEmpty() || serverIndex != -1 || streamId == -1
+        val archive = smartCatchupArchive == true && smartCatchupArchiveStreamId == streamId
+        val offer = show != null && SmartCatchUp.shouldOffer(
+            archiveEnabled = archive,
+            programmeStartMs = show.startMs,
+            programmeStopMs = show.stopMs,
+            nowMs = nowMs,
+            alreadyOnCatchup = isCatchup || startedOverFromLive,
+            dismissedForStartMs = smartCatchupDismissedStartMs,
+            blocked = blocked
+        )
+        val classicStartOver = show != null && archive && !blocked && !isCatchup && !startedOverFromLive &&
+            nowMs - show.startMs > 60_000L
+        if (!isVod && show != null) {
+            binding.btnStartOver.visibility = if (!offer && classicStartOver) View.VISIBLE else View.GONE
+        }
+        if (!offer) {
+            binding.smartCatchupBar.visibility = View.GONE
+            seekHandler.removeCallbacks(catchupOfferRunnable)
+            return
+        }
+        val programme = show ?: return
+        val label = SmartCatchUp.startedLabel(programme.startMs, nowMs)
+        if (binding.tvSmartCatchup.text?.toString() != label) {
+            binding.tvSmartCatchup.text = label
+            binding.tvSmartCatchup.contentDescription = label
+        }
+        binding.btnWatchLive.contentDescription = "Watch live"
+        binding.btnStartFromBeginning.contentDescription = "Start from the beginning"
+        binding.smartCatchupBar.visibility = View.VISIBLE
+        binding.btnStartOver.visibility = View.GONE
+        seekHandler.removeCallbacks(catchupOfferRunnable)
+        seekHandler.postDelayed(catchupOfferRunnable, 30_000L)
     }
 
     private fun loadStream(url: String) {
@@ -3534,16 +3974,513 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         vodFormatFallbackTried = false
         retryJob?.cancel()
         streamUrl = url
+        pendingNativeBehindMs = C.TIME_UNSET
+        timeshiftDirectFallback = false
+        timeshiftAutoplay = true
+        timeshiftEpg = emptyList()
+        liveEdgeEpgText = ""
         val activeSession = castSession
         if (activeSession != null) {
+            stopTimeshift()
             stopLocalAndCast(activeSession)
         } else {
-            player?.let {
-                it.setMediaItem(MediaItem.fromUri(url))
-                it.prepare()
-                it.playWhenReady = true
+            // The buffer is chosen when the player is built. Match it before opening the stream.
+            if (player != null && sportsLoadControlOn != sportsActiveNow()) {
+                reopenCurrent(playLocal = null, positionMs = 0L, play = timeshiftAutoplay, hold = true)
+            }
+            if (shouldBufferTimeshift()) {
+                startTimeshift(url)
+            } else {
+                stopTimeshift()
+                playProviderUrl(url, playWhenReady = true)
             }
         }
+    }
+
+    private fun timeshiftSettingOn(): Boolean = !isVod && !audioOnly && replayBudgetMinutes() > 0
+
+    private fun replayBudgetMinutes(): Int =
+        SportsMode.replayMinutes(prefs.timeshiftMinutesNow(), sportsActiveNow())
+
+    private fun shouldBufferTimeshift(): Boolean {
+        if (!timeshiftSettingOn() || isRecordingPlayback || timeshiftDirectFallback) return false
+        return TimeshiftLimits.resolve(replayBudgetMinutes(), cacheDir.usableSpace).localEnabled
+    }
+
+    /**
+     * Pause and play have to be remembered while a timeshift buffer is still starting.
+     * The playlist, and the direct provider fallback, apply [timeshiftAutoplay] when they
+     * become ready. Pausing only the empty player would be overwritten.
+     */
+    private fun requestTimeshiftPlayback(play: Boolean) {
+        if (!isVod) {
+            timeshiftAutoplay = play
+            if (!play) timeshiftReturning = false
+        }
+        if (play) player?.play() else player?.pause()
+    }
+
+    private fun playProviderUrl(url: String, playWhenReady: Boolean) {
+        val p = player ?: return
+        if (sportsLoadControlOn) {
+            // Closer to the live edge for this viewing. Ordinary live TV still uses fromUri.
+            val item = MediaItem.Builder()
+                .setUri(url)
+                .setLiveConfiguration(
+                    MediaItem.LiveConfiguration.Builder()
+                        .setTargetOffsetMs(SportsMode.TARGET_OFFSET_MS)
+                        .setMinOffsetMs(SportsMode.MIN_OFFSET_MS)
+                        .setMaxOffsetMs(SportsMode.MAX_OFFSET_MS)
+                        .setMinPlaybackSpeed(1f)
+                        .setMaxPlaybackSpeed(1f)
+                        .build()
+                )
+                .build()
+            p.setMediaItem(item)
+        } else {
+            p.setMediaItem(MediaItem.fromUri(url))
+        }
+        p.prepare()
+        p.playWhenReady = playWhenReady
+    }
+
+    private fun playLocalPlaylist(playlist: java.io.File, budgetMs: Long, startMs: Long? = null) {
+        val item = MediaItem.Builder()
+            .setUri(android.net.Uri.fromFile(playlist))
+            .setMimeType(MimeTypes.APPLICATION_M3U8)
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder()
+                    .setTargetOffsetMs(3_000L)
+                    .setMinOffsetMs(1_000L)
+                    .setMaxOffsetMs((budgetMs + 30_000L).coerceAtLeast(60_000L))
+                    .setMinPlaybackSpeed(1f)
+                    .setMaxPlaybackSpeed(1f)
+                    .build()
+            )
+            .build()
+        val p = player ?: return
+        val explicit = TimeshiftNavigator.mediaStartMs(startMs)
+        val dataSource = playbackDataSourceFactory
+        if (dataSource != null) {
+            // HLS read behavior and PID track ids. Provider HLS still uses the player factory.
+            val source = androidx.media3.exoplayer.hls.HlsMediaSource.Factory(dataSource)
+                .setExtractorFactory(com.iptvapp.ui.player.timeshift.TimeshiftHlsExtractorFactory())
+                .createMediaSource(item)
+            if (explicit != null) p.setMediaSource(source, explicit) else p.setMediaSource(source)
+        } else if (explicit != null) {
+            p.setMediaItem(item, explicit)
+        } else {
+            p.setMediaItem(item)
+        }
+        p.prepare()
+        p.playWhenReady = timeshiftAutoplay
+    }
+
+    private fun startTimeshift(url: String) {
+        stopTimeshift()
+        val generation = timeshiftGate.generation
+        timeshiftStarting = true
+        // Drop the previous channel's audio without treating that as a channel failure.
+        player?.playWhenReady = false
+        player?.clearMediaItems()
+        updatePlayPauseButton()
+        binding.progressBuffering.visibility = View.VISIBLE
+        val minutes = replayBudgetMinutes()
+        val budget = TimeshiftLimits.resolve(minutes, cacheDir.usableSpace)
+        if (!budget.localEnabled) {
+            settleTimeshiftDirect(generation)
+            return
+        }
+        val root = java.io.File(cacheDir, TimeshiftStore.ROOT_NAME)
+        root.mkdirs()
+        val store = TimeshiftStore.create(root, budget) { root.usableSpace }
+        // A killed process can leave a large directory. Delete it off the main thread.
+        // create() has already registered this session, so the sweep leaves it alone.
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                TimeshiftStore.sweepStale(root, keep = null)
+            } catch (_: Exception) {
+            }
+        }
+        val userAgent = "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1"
+        val session = LiveTimeshiftSession(okHttpClient, store, userAgent, onNetworkBytes = { bytes ->
+            bandwidthTracker?.addNetworkBytes(bytes)
+        })
+        timeshiftSession = session
+        timeshiftWatchdog?.cancel()
+        timeshiftWatchdog = lifecycleScope.launch {
+            delay(12_000L)
+            if (generation == timeshiftGate.generation && !timeshiftStartSettled) {
+                session.close()
+                settleTimeshiftDirect(generation)
+            }
+        }
+        session.start(url, object : TimeshiftLoop.Listener {
+            override fun onReady(playlist: java.io.File) {
+                runOnUiThread {
+                    if (generation != timeshiftGate.generation || timeshiftStartSettled) return@runOnUiThread
+                    timeshiftStartSettled = true
+                    timeshiftStarting = false
+                    timeshiftWatchdog?.cancel()
+                    timeshiftMode = TimeshiftSource.LOCAL
+                    playLocalPlaylist(playlist, budget.durationMs)
+                    if (sportsRebuildAfterReady) {
+                        sportsRebuildAfterReady = false
+                        syncSportsPlayback()
+                    }
+                }
+            }
+
+            override fun onNeedDirect() {
+                runOnUiThread { settleTimeshiftDirect(generation) }
+            }
+
+            override fun onContinuityLost() {
+                runOnUiThread {
+                    if (generation != timeshiftGate.generation) return@runOnUiThread
+                    val tell = timeshiftStartSettled || timeshiftMode == TimeshiftSource.LOCAL
+                    returnToProviderLive(tellUser = tell)
+                }
+            }
+
+            override fun onStorageDegraded() {
+                runOnUiThread {
+                    if (generation != timeshiftGate.generation) return@runOnUiThread
+                    onTimeshiftStorageDegraded()
+                }
+            }
+
+            override fun onGiveUp() {
+                runOnUiThread {
+                    if (generation != timeshiftGate.generation) return@runOnUiThread
+                    val tell = timeshiftState != TimeshiftPlaybackState.LIVE || timeshiftMode == TimeshiftSource.LOCAL
+                    returnToProviderLive(tellUser = tell)
+                }
+            }
+
+            override fun onRetainFailed() {
+                runOnUiThread {
+                    if (generation != timeshiftGate.generation) return@runOnUiThread
+                    returnToProviderLive(tellUser = true)
+                }
+            }
+        })
+    }
+
+    private fun settleTimeshiftDirect(generation: Long) {
+        if (generation != timeshiftGate.generation || timeshiftStartSettled) return
+        timeshiftStartSettled = true
+        timeshiftStarting = false
+        timeshiftWatchdog?.cancel()
+        timeshiftMode = TimeshiftSource.NATIVE
+        playProviderUrl(streamUrl, timeshiftAutoplay)
+    }
+
+    private fun stopTimeshift() {
+        timeshiftGate.channelChanged()
+        timeshiftWatchdog?.cancel()
+        timeshiftWatchdog = null
+        val session = timeshiftSession
+        timeshiftSession = null
+        timeshiftMode = TimeshiftSource.NONE
+        timeshiftSeeking = false
+        timeshiftReturning = false
+        timeshiftFrozen = false
+        timeshiftFrozenAtMs = 0L
+        timeshiftStarting = false
+        timeshiftStartSettled = false
+        timeshiftRepairs = 0
+        timeshiftState = TimeshiftPlaybackState.LIVE
+        session?.close()
+    }
+
+    private fun returnToProviderLive(tellUser: Boolean) {
+        val url = streamUrl
+        pendingNativeBehindMs = C.TIME_UNSET
+        timeshiftDirectFallback = true
+        timeshiftFrozen = false
+        stopTimeshift()
+        if (tellUser) announceBackToLive()
+        playProviderUrl(url, playWhenReady = true)
+    }
+
+    private fun announceBackToLive() {
+        timeshiftState = TimeshiftPlaybackState.LIVE
+        timeshiftReturning = false
+        timeshiftSeeking = false
+        Toast.makeText(this, "Back to live", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun onTimeshiftStorageDegraded() {
+        timeshiftFrozen = true
+        timeshiftStarting = false
+        val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
+        if (TimeshiftNavigator.followProviderOnStorageLoss(atLive, timeshiftIntendedPlaying())) {
+            timeshiftSession?.close()
+            timeshiftSession = null
+            returnToProviderLive(tellUser = false)
+        } else {
+            // The window stops here. Guide times stay on this instant while the viewer
+            // sits inside the retained buffer. Keep the session so leaving this channel,
+            // or Go Live, can still delete the files.
+            if (timeshiftFrozenAtMs == 0L) timeshiftFrozenAtMs = System.currentTimeMillis()
+            timeshiftSession?.stopKeepingFiles()
+        }
+    }
+
+    private fun repairLocalPlayer() {
+        val file = timeshiftSession?.sessionDir?.resolve("index.m3u8") ?: return
+        if (!file.exists()) return
+        val pos = player?.currentPosition ?: 0L
+        val wantPlay = player?.playWhenReady ?: true
+        timeshiftAutoplay = wantPlay
+        val budgetMs = replayBudgetMinutes().coerceAtLeast(1) * 60_000L
+        playLocalPlaylist(file, budgetMs, startMs = pos.coerceAtLeast(0L))
+        player?.playWhenReady = wantPlay
+    }
+
+    private fun handleTimeshiftEnded(): Boolean {
+        if (timeshiftMode != TimeshiftSource.LOCAL && !timeshiftFrozen) return false
+        if (timeshiftSession?.running == true) repairLocalPlayer()
+        else returnToProviderLive(tellUser = true)
+        return true
+    }
+
+    private fun handleTimeshiftPlayerError(error: PlaybackException): Boolean {
+        val local = timeshiftMode == TimeshiftSource.LOCAL || timeshiftFrozen
+        if (!local && timeshiftSession == null) return false
+        if (!local) return false
+        val behindWindow = error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+        if (behindWindow && timeshiftSession?.running == true) {
+            val p = player ?: return true
+            val stayPaused = !p.playWhenReady
+            // The error leaves the player idle. Seek alone does not start it again.
+            p.seekTo(0L)
+            p.prepare()
+            p.playWhenReady = !stayPaused
+            return true
+        }
+        if (timeshiftSession?.running == true && timeshiftRepairs < 3) {
+            timeshiftRepairs++
+            timeshiftSession?.forceReconnect()
+            repairLocalPlayer()
+            return true
+        }
+        returnToProviderLive(tellUser = true)
+        return true
+    }
+
+    private fun timeshiftReading(): com.iptvapp.ui.player.timeshift.TimeshiftReading? {
+        val p = player ?: return null
+        if (isVod) return null
+        return TimeshiftNavigator.readingFromTimeline(
+            isLive = p.isCurrentMediaItemLive || timeshiftMode == TimeshiftSource.LOCAL,
+            seekable = p.isCurrentMediaItemSeekable,
+            durationMs = p.duration.takeIf { it != C.TIME_UNSET },
+            positionMs = p.currentPosition,
+            liveOffsetMs = p.currentLiveOffset.takeIf { it != C.TIME_UNSET },
+            playWhenReady = p.playWhenReady,
+            seeking = timeshiftSeeking,
+            returningToLive = timeshiftReturning,
+        )
+    }
+
+    private fun timeshiftControlsOpen(): Boolean {
+        val reading = timeshiftReading() ?: return false
+        return TimeshiftNavigator.controlsAvailable(
+            timeshiftSettingOn(),
+            reading.seekable,
+            TimeshiftNavigator.windowMs(reading),
+        )
+    }
+
+    private fun seekTimeshiftBy(deltaMs: Long) {
+        val p = player ?: return
+        val reading = timeshiftReading() ?: return
+        if (!reading.seekable) return
+        val target = if (deltaMs < 0) TimeshiftNavigator.rewind(reading, -deltaMs)
+        else TimeshiftNavigator.forward(reading, deltaMs)
+        timeshiftReturning = false
+        timeshiftState = TimeshiftPlaybackState.SEEKING
+        p.seekTo(target)
+        timeshiftSeeking = false
+        refreshTimeshiftUi()
+        resetHideTimer()
+    }
+
+    private fun goToLiveEdge() {
+        if (startedOverFromLive) {
+            backToLive()
+            return
+        }
+        if (isVod) return
+        if (timeshiftFrozen || (timeshiftMode == TimeshiftSource.LOCAL && timeshiftSession?.running != true)) {
+            returnToProviderLive(tellUser = false)
+            return
+        }
+        val p = player ?: return
+        val reading = timeshiftReading()
+        timeshiftReturning = true
+        timeshiftSeeking = false
+        timeshiftState = TimeshiftPlaybackState.RETURNING_TO_LIVE
+        if (reading != null && reading.seekable) {
+            p.seekTo(TimeshiftNavigator.goLive(reading))
+        } else {
+            val dur = p.duration
+            if (dur != C.TIME_UNSET && dur > 0L) p.seekTo(dur) else p.seekToDefaultPosition()
+        }
+        requestTimeshiftPlayback(true)
+        refreshTimeshiftUi()
+        resetHideTimer()
+    }
+
+    private fun refreshTimeshiftUi() {
+        if (isVod || !isOverlayVisible) return
+        val reading = timeshiftReading() ?: return
+        timeshiftState = TimeshiftNavigator.state(reading)
+        if (timeshiftReturning && TimeshiftNavigator.atLiveEdge(reading)) timeshiftReturning = false
+        val open = TimeshiftNavigator.controlsAvailable(
+            timeshiftSettingOn(), reading.seekable, TimeshiftNavigator.windowMs(reading)
+        )
+        applyTimeshiftControlVisibility(open)
+        if (!open) {
+            val liveText = TimeshiftCopy.liveButtonText(0L, true)
+            if (binding.tvOsdLive.text?.toString() != liveText) {
+                binding.tvOsdLive.text = liveText
+                binding.tvOsdLive.setTextColor(getColor(R.color.rack_danger_text))
+                binding.tvOsdLive.contentDescription = TimeshiftCopy.liveButtonDescription(0L, true)
+            }
+            return
+        }
+        // The scrubber can appear after this overlay opened, once the window is long enough.
+        bindLiveSeekBar()
+        val behind = TimeshiftNavigator.behindMs(reading)
+        val atLive = TimeshiftNavigator.atLiveEdge(reading)
+        val text = TimeshiftCopy.liveButtonText(behind, atLive)
+        if (binding.btnDvrLive.text?.toString() != text) binding.btnDvrLive.text = text
+        if (binding.tvOsdLive.text?.toString() != text) binding.tvOsdLive.text = text
+        val description = TimeshiftCopy.liveButtonDescription(behind, atLive)
+        binding.btnDvrLive.contentDescription = description
+        binding.tvOsdLive.contentDescription = description
+        val color = if (atLive) getColor(R.color.rack_danger_text) else getColor(R.color.rack_text_secondary)
+        binding.btnDvrLive.setTextColor(color)
+        binding.tvOsdLive.setTextColor(color)
+        binding.btnDvrLive.setBackgroundResource(
+            if (atLive) R.drawable.player_live_at_edge_bg else R.drawable.player_live_behind_bg
+        )
+        binding.seekBar.contentDescription = if (atLive) "Timeshift position, at the live edge"
+        else "Timeshift position, ${TimeshiftCopy.spokenDuration(behind)} behind live"
+        val userHoldingSeek = seekBarDragging ||
+            android.os.SystemClock.elapsedRealtime() < liveSeekHoldUntil
+        if (!userHoldingSeek) {
+            val window = TimeshiftNavigator.windowMs(reading).coerceAtLeast(1L)
+            if (window <= Int.MAX_VALUE) {
+                binding.seekBar.max = window.toInt()
+                binding.seekBar.keyProgressIncrement = TimeshiftNavigator.REPLAY_10_MS.toInt()
+                binding.seekBar.progress = reading.positionMs.coerceIn(0L, window).toInt()
+            }
+            binding.tvTimeElapsed.text = TimeshiftCopy.formatClock(reading.positionMs)
+            binding.tvTimeRemaining.text = if (atLive) "LIVE" else "-" + TimeshiftCopy.formatClock(behind)
+        }
+        refreshTimeshiftEpg(behind, atLive)
+        updatePlayPauseButton()
+    }
+
+    private fun applyTimeshiftControlVisibility(open: Boolean) {
+        val show = if (open) View.VISIBLE else View.GONE
+        binding.btnDvrRewind.visibility = show
+        binding.btnDvrLive.visibility = show
+        binding.btnVodBack.visibility = show
+        binding.btnLiveFwd10.visibility = show
+        binding.vodSeekContainer.visibility = show
+        if (open) {
+            binding.btnVodBack.contentDescription = TimeshiftCopy.REPLAY_10
+            binding.btnDvrRewind.contentDescription = TimeshiftCopy.REPLAY_30
+            binding.btnLiveFwd10.contentDescription = TimeshiftCopy.FORWARD_10
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                binding.btnDvrRewind.tooltipText = "Replay 60 seconds"
+            }
+        }
+    }
+
+    private fun refreshTimeshiftEpg(behindMs: Long, atLive: Boolean) {
+        val nowMs = System.currentTimeMillis()
+        val frozenAt = if (timeshiftFrozen) timeshiftFrozenAtMs else 0L
+        val show = TimeshiftEpg.programmeForUi(timeshiftEpg, nowMs, behindMs, atLive, frozenAt)
+        if (frozenAt <= 0L && (atLive || behindMs < TimeshiftEpg.LIVE_EPG_SLACK_MS)) {
+            if (liveEdgeEpgText.isNotEmpty() && binding.tvEpgNow.text?.toString() != liveEdgeEpgText) {
+                binding.tvEpgNow.text = liveEdgeEpgText
+            }
+            // The bar was painted for the rewound show. Put it back on the live one.
+            if (show != null) showLiveProgress(show.startMs, show.stopMs, nowMs)
+            return
+        }
+        if (show == null) return
+        if (binding.tvEpgNow.text?.toString() != show.title) binding.tvEpgNow.text = show.title
+        val anchor = if (frozenAt > 0L) frozenAt else nowMs
+        showLiveProgress(show.startMs, show.stopMs, TimeshiftEpg.playbackWallMs(anchor, behindMs))
+    }
+
+    private fun bindLiveSeekBar() {
+        if (liveSeekBound) return
+        liveSeekBound = true
+        binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                val reading = timeshiftReading() ?: return
+                val window = TimeshiftNavigator.windowMs(reading).coerceAtLeast(1L)
+                val target = TimeshiftNavigator.clamp(progress.toLong(), reading.earliestMs, reading.liveEdgeMs)
+                val behind = (window - target).coerceAtLeast(0L)
+                binding.tvTimeElapsed.text = TimeshiftCopy.formatClock(target)
+                binding.tvTimeRemaining.text = "-" + TimeshiftCopy.formatClock(behind)
+                // A finger seek lands in onStopTrackingTouch. A D-pad or keyboard change never
+                // starts a touch, so SeekBar does not call that. Seek now, as the VOD bar does.
+                if (!sb.isPressed) {
+                    timeshiftReturning = false
+                    liveSeekHoldUntil = android.os.SystemClock.elapsedRealtime() + 400L
+                    player?.seekTo(target)
+                }
+            }
+
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar) {
+                timeshiftSeeking = true
+                timeshiftState = TimeshiftPlaybackState.SEEKING
+                seekBarDragging = true
+                hideHandler.removeCallbacks(hideRunnable)
+            }
+
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar) {
+                val reading = timeshiftReading()
+                if (reading != null) {
+                    val target = TimeshiftNavigator.clamp(sb.progress.toLong(), reading.earliestMs, reading.liveEdgeMs)
+                    timeshiftReturning = false
+                    player?.seekTo(target)
+                }
+                timeshiftSeeking = false
+                seekBarDragging = false
+                refreshTimeshiftUi()
+                resetHideTimer()
+            }
+        })
+    }
+
+    private val timeshiftUiRunnable = object : Runnable {
+        override fun run() {
+            refreshTimeshiftUi()
+            refreshSmartCatchUp()
+            if (timeshiftUiRunning) seekHandler.postDelayed(this, 1_000L)
+        }
+    }
+
+    private fun startTimeshiftTicker() {
+        if (timeshiftUiRunning || isVod || !timeshiftSettingOn()) return
+        timeshiftUiRunning = true
+        seekHandler.post(timeshiftUiRunnable)
+    }
+
+    private fun stopTimeshiftTicker() {
+        timeshiftUiRunning = false
+        seekHandler.removeCallbacks(timeshiftUiRunnable)
     }
 
     private fun saveVodProgress() {
@@ -3720,6 +4657,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun startSeekBarUpdater() {
         if (!isVod) return
+        // Start Over replaces this listener. Coming back to live must be allowed to install its own.
+        liveSeekBound = false
         binding.vodSeekContainer.visibility = View.VISIBLE
         binding.seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
@@ -3775,24 +4714,34 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (isVod) {
             binding.vodSeekContainer.visibility = View.VISIBLE
             binding.btnVodBack.visibility = View.VISIBLE
+            binding.btnVodBack.contentDescription = "Back 10 seconds"
             binding.btnVodFwd.visibility = View.VISIBLE
             binding.btnVodFwdBig.visibility = View.VISIBLE
+            binding.btnLiveFwd10.visibility = View.GONE
             // Started over from live: LIVE goes back to the broadcast (red: you're behind it).
             if (startedOverFromLive) {
                 binding.btnDvrLive.visibility = View.VISIBLE
                 binding.btnDvrLive.setTextColor(getColor(R.color.rack_danger_text))
+                binding.btnDvrLive.contentDescription = "Go live"
             }
         }
         if (!isVod) {
-            binding.btnDvrRewind.visibility = View.VISIBLE
-            binding.btnDvrLive.visibility = View.VISIBLE
+            val open = timeshiftControlsOpen()
+            applyTimeshiftControlVisibility(open)
+            bindLiveSeekBar()
             updateDvrLiveButton()
+            startTimeshiftTicker()
             if (streamId != -1 || serverIndex != -1) binding.btnRecordDot.visibility = View.VISIBLE
         }
         if (castAvailable) binding.btnCast.visibility = View.VISIBLE
         if (isHealthBadgeActive) binding.bufferHealthBadge.visibility = View.VISIBLE
         updatePlayPauseButton()
         resetHideTimer()
+        placeSportsChrome(true)
+        if (!isVod) {
+            applySportsChrome()
+            refreshSmartCatchUp()
+        }
         binding.btnPlayPause.post { binding.btnPlayPause.requestFocus() }
         if (!isVod && streamId != -1) {
             lifecycleScope.launch {
@@ -3805,37 +4754,62 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val now  = epg.firstOrNull { startMs(it) <= nowMs && stopMs(it) > nowMs }
                 val next = epg.firstOrNull { now != null && startMs(it) > stopMs(now) }
                 binding.tvEpgNow.text = if (now != null) now.title + " · " + minutesLeftLabel(stopMs(now) - nowMs) + " left" else ""
+                liveEdgeEpgText = binding.tvEpgNow.text?.toString().orEmpty()
+                timeshiftEpg = epg.map { TimeshiftEpg.Show(it.title, startMs(it), stopMs(it)) }
                 binding.tvEpgNext.text = if (next != null) "Next · " + clockLabel(startMs(next)) + " · " + next.title else ""
                 binding.tvEpgNext.visibility = if (next != null) View.VISIBLE else View.GONE
                 showLiveProgress(now?.let { startMs(it) }, now?.let { stopMs(it) })
                 // The lookup is async; a channel change meanwhile makes this result stale.
                 if (isVod || lookupStreamId != streamId) return@launch
                 liveNowShow = now?.let { LiveShow(lookupStreamId, startMs(it), stopMs(it), it.title) }
-                // Start Over needs catch-up on this channel and a show that's been on a minute or more.
-                val canStartOver = now != null && nowMs - startMs(now) > 60_000L &&
-                    repository.getChannelById(lookupStreamId)?.tvArchive == 1
+                // One archive lookup per channel. The offer reads the cached flag after that.
+                val archive = if (smartCatchupArchiveStreamId == lookupStreamId && smartCatchupArchive != null) {
+                    smartCatchupArchive == true
+                } else {
+                    val enabled = repository.getChannelById(lookupStreamId)?.tvArchive == 1
+                    if (lookupStreamId == streamId) {
+                        smartCatchupArchiveStreamId = lookupStreamId
+                        smartCatchupArchive = enabled
+                    }
+                    enabled
+                }
                 if (isVod || lookupStreamId != streamId) return@launch
+                // Start Over needs catch-up on this channel and a show that's been on a minute or more.
+                val canStartOver = now != null && nowMs - startMs(now) > 60_000L && archive
                 binding.btnStartOver.visibility = if (canStartOver && !isVod) View.VISIBLE else View.GONE
+                refreshSmartCatchUp(nowMs)
+                applySportsChrome()
+                syncSportsPlayback()
             }
         } else if (!isVod && serverIndex != -1) {
             lifecycleScope.launch {
                 val nowNext = try { repository.fetchMergedEpgNowNext(serverIndex, mergedStreamId) } catch (_: Exception) { null }
                 binding.tvEpgNow.text = if (nowNext != null) nowNext.nowTitle + " · " + minutesLeftLabel(nowNext.nowStopMs - System.currentTimeMillis()) + " left" else ""
+                liveEdgeEpgText = binding.tvEpgNow.text?.toString().orEmpty()
+                timeshiftEpg = if (nowNext != null) {
+                    listOf(TimeshiftEpg.Show(nowNext.nowTitle, nowNext.nowStartMs, nowNext.nowStopMs))
+                } else {
+                    emptyList()
+                }
                 binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "Next · " + clockLabel(nowNext.nowStopMs) + " · " + nowNext.nextTitle else ""
                 binding.tvEpgNext.visibility = if (nowNext?.nextTitle != null) View.VISIBLE else View.GONE
                 showLiveProgress(nowNext?.nowStartMs, nowNext?.nowStopMs)
+                if (isVod || serverIndex == -1) return@launch
+                liveNowShow = nowNext?.let { LiveShow(-1, it.nowStartMs, it.nowStopMs, it.nowTitle) }
+                applySportsChrome()
+                syncSportsPlayback()
             }
         }
     }
 
     /** The live show's progress bar (v6.99): start — progress in the accent — end, while the overlay is
      * up and the guide knows what's on; hidden otherwise. */
-    private fun showLiveProgress(startMs: Long?, stopMs: Long?) {
+    private fun showLiveProgress(startMs: Long?, stopMs: Long?, atMs: Long = System.currentTimeMillis()) {
         if (startMs == null || stopMs == null || stopMs <= startMs || !isOverlayVisible || isVod) {
             binding.liveProgramBar.visibility = View.GONE
             return
         }
-        val now = System.currentTimeMillis()
+        val now = atMs
         binding.tvLiveProgramStart.text = clockLabel(startMs)
         binding.tvLiveProgramEnd.text = clockLabel(stopMs)
         com.iptvapp.util.RackAccent.paintProgress(binding.liveProgramProgress, playerAccent)
@@ -3955,7 +4929,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // (skip if this "change" is actually just re-selecting the same channel already
             // playing, which would otherwise make LAST just toggle in place doing nothing).
             // The show cached for Start Over belongs to the channel being left.
-            liveNowShow = null
+            clearLiveProgramme()
             binding.btnStartOver.visibility = View.GONE
             if (streamId != channel.streamId || serverIndex != -1) {
                 previousServerIndex = serverIndex
@@ -3996,6 +4970,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val debounceMs = prefs.channelZapDebounceMs.first()
                 if (debounceMs > 0) kotlinx.coroutines.delay(debounceMs.toLong())
                 exitStartOverState()
+                clearLiveProgramme()
                 // Same recall-snapshot guard as playChannel — see its own kdoc.
                 if (serverIndex != channel.serverIndex || mergedStreamId != channel.streamId) {
                     previousServerIndex = serverIndex
@@ -4235,19 +5210,53 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() - nextVodSkipAmountMs()); notifyPartyStateChange(); true }
+                timeshiftControlsOpen() && (event?.repeatCount ?: 0) == 0 -> {
+                    event?.startTracking()
+                    liveSkipPendingMs = -TimeshiftNavigator.REPLAY_10_MS
+                    liveSkipLong = false
+                    true
+                }
                 else -> true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
                 isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() + nextVodSkipAmountMs()); notifyPartyStateChange(); true }
+                timeshiftControlsOpen() && (event?.repeatCount ?: 0) == 0 -> {
+                    event?.startTracking()
+                    liveSkipPendingMs = TimeshiftNavigator.REPLAY_10_MS
+                    liveSkipLong = false
+                    true
+                }
                 else -> true
             }
             // Dedicated channel keys (and the phone remote's CH buttons): zap even with the controls open.
             KeyEvent.KEYCODE_CHANNEL_UP -> { if (!isVod) zapWithBanner { nextChannel() }; true }
             KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (!isVod) zapWithBanner { previousChannel() }; true }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                if (player?.isPlaying == true) player?.pause() else player?.play()
-                updatePlayPauseButton(); notifyPartyStateChange(); true
+                requestTimeshiftPlayback(!timeshiftIntendedPlaying())
+                updatePlayPauseButton(); notifyPartyStateChange(); if (!isVod) refreshTimeshiftUi(); true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                requestTimeshiftPlayback(true)
+                updatePlayPauseButton(); notifyPartyStateChange(); if (!isVod) refreshTimeshiftUi(); true
+            }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                requestTimeshiftPlayback(false)
+                updatePlayPauseButton(); notifyPartyStateChange(); if (!isVod) refreshTimeshiftUi(); true
+            }
+            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                if (!isVod && timeshiftControlsOpen()) {
+                    seekTimeshiftBy(-TimeshiftNavigator.REPLAY_10_MS)
+                    showOverlay()
+                    true
+                } else super.onKeyDown(keyCode, event)
+            }
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                if (!isVod && timeshiftControlsOpen()) {
+                    seekTimeshiftBy(TimeshiftNavigator.REPLAY_10_MS)
+                    showOverlay()
+                    true
+                } else super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
                 // Skip break showing over a recording: OK skips it, without opening the controls first.
@@ -4266,6 +5275,41 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             KeyEvent.KEYCODE_PROG_YELLOW, KeyEvent.KEYCODE_F -> { cycleResizeMode(); true }
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent?): Boolean {
+        if (!audioOnly && !isVod && !isOverlayVisible && timeshiftControlsOpen()) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    liveSkipLong = true
+                    seekTimeshiftBy(-TimeshiftNavigator.REPLAY_30_MS)
+                    showOverlay()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    liveSkipLong = true
+                    seekTimeshiftBy(TimeshiftNavigator.REPLAY_30_MS)
+                    showOverlay()
+                    return true
+                }
+            }
+        }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && liveSkipPendingMs != 0L) {
+            val delta = liveSkipPendingMs
+            liveSkipPendingMs = 0L
+            val wasLong = liveSkipLong
+            liveSkipLong = false
+            if (!wasLong && !isVod && !isOverlayVisible && timeshiftControlsOpen()) {
+                seekTimeshiftBy(delta)
+                showOverlay()
+            }
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     // PiP's floating window has no overlay controls of its own — until now the only way to
@@ -4293,7 +5337,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun buildPipParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder().setAspectRatio(pipAspectRatio())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val isPlaying = player?.isPlaying ?: false
+            val isPlaying = if (!isVod && timeshiftSettingOn()) timeshiftIntendedPlaying()
+                else player?.isPlaying == true
             val icon = android.graphics.drawable.Icon.createWithResource(
                 this, if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
             )
@@ -4301,9 +5346,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 this, 0, Intent(pipPlayPauseAction).setPackage(packageName),
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
-            val action = android.app.RemoteAction(
-                icon, if (isPlaying) "Pause" else "Play", if (isPlaying) "Pause" else "Play", pendingIntent
-            )
+            val actionLabel = when {
+                !isVod && timeshiftSettingOn() && isPlaying -> "Pause live TV"
+                !isVod && timeshiftSettingOn() -> "Resume"
+                isPlaying -> "Pause"
+                else -> "Play"
+            }
+            val action = android.app.RemoteAction(icon, actionLabel, actionLabel, pendingIntent)
             builder.setActions(listOf(action))
         }
         return builder.build()
@@ -4314,7 +5363,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         pipActionReceiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
                 if (intent.action != pipPlayPauseAction) return
-                player?.let { if (it.isPlaying) it.pause() else it.play() }
+                val wantPlay = if (!isVod && timeshiftSettingOn()) !timeshiftIntendedPlaying()
+                    else player?.playWhenReady != true
+                requestTimeshiftPlayback(wantPlay)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) setPictureInPictureParams(buildPipParams())
             }
         }
@@ -4474,7 +5525,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 player?.playWhenReady = !partyStartPaused
             } else {
                 loadStream(streamUrl)
-                if (partyStartPaused) player?.pause()
+                if (partyStartPaused) requestTimeshiftPlayback(false)
             }
             if (partyStartPaused) updatePlayPauseButton()
         }
@@ -4504,6 +5555,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // tracker flush below is — lifecycleScope may already be cancelling by the time
             // onStop runs.
             if (!isVod) kotlinx.coroutines.GlobalScope.launch { playbackHandoffManager.clearOwnSession() }
+            stopTimeshiftTicker()
+            stopTimeshift()
             player?.release()
             player = null
             bandwidthTracker?.stop()
@@ -4538,6 +5591,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onDestroy() {
+        if (isChangingConfigurations) {
+            // onStop keeps the session across a configuration change. Rotation is listed in
+            // configChanges, so it never destroys this activity and the window stays. A change
+            // that does recreate it (locale, for example) must drop the pump and the player
+            // here, or the replacement opens a second provider connection.
+            stopTimeshiftTicker()
+            stopTimeshift()
+            binding.playerView.player = null
+            player?.release()
+            player = null
+        }
         super.onDestroy()
         if (!isChangingConfigurations) {
             partyListenerReg?.remove()

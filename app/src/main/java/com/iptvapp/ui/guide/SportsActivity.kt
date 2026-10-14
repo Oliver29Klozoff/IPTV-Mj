@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
@@ -20,8 +21,10 @@ import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.databinding.ActivitySportsBinding
 import com.iptvapp.util.SportsFinder
+import com.iptvapp.util.SportsMode
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -73,8 +76,12 @@ class SportsActivity : AppCompatActivity() {
     }
 
     private var shownSignature: String? = null
+    private var shownTeams: String? = null
+    private var latestGames: List<SportsFinder.Game> = emptyList()
 
     private fun show(games: List<SportsFinder.Game>, accent: Int) {
+        latestGames = games
+        lifecycleScope.launch { bindTeamShortcuts(prefs.favoriteTeams.first(), accent) }
         val items = buildItems(games)
         val now = System.currentTimeMillis()
         // What's on screen depends on these: which rows, in which section, live or not — and the
@@ -140,6 +147,52 @@ class SportsActivity : AppCompatActivity() {
             items += g
         }
         return items
+    }
+
+    private fun bindTeamShortcuts(stored: String, accent: Int) {
+        if (stored == shownTeams) return
+        shownTeams = stored
+        val teams = SportsMode.parseTeams(stored)
+        binding.teamShortcuts.removeAllViews()
+        binding.teamShortcutRow.visibility = if (teams.isEmpty()) View.GONE else View.VISIBLE
+        val d = resources.displayMetrics.density
+        for (team in teams) {
+            val chip = TextView(this).apply {
+                text = team
+                contentDescription = "$team. Play the game. Long press to remove."
+                setTextColor(accent)
+                typeface = ResourcesCompat.getFont(this@SportsActivity, R.font.barlow_condensed_bold)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setBackgroundResource(R.drawable.rack_row_bg)
+                setPadding((12 * d).toInt(), (8 * d).toInt(), (12 * d).toInt(), (8 * d).toInt())
+                isFocusable = true
+                isClickable = true
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = (8 * d).toInt() }
+                setOnClickListener { tuneTeam(team) }
+                setOnLongClickListener {
+                    lifecycleScope.launch {
+                        val next = SportsMode.removeFavorite(prefs.favoriteTeams.first(), team)
+                        prefs.setFavoriteTeams(next)
+                        shownTeams = null
+                        bindTeamShortcuts(next, accent)
+                    }
+                    true
+                }
+            }
+            binding.teamShortcuts.addView(chip)
+        }
+    }
+
+    private fun tuneTeam(team: String) {
+        val game = SportsMode.gameForTeam(latestGames, team, System.currentTimeMillis())
+        if (game == null) {
+            Toast.makeText(this, "No $team game in the guide right now", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pick(game)
     }
 
     private fun pick(game: SportsFinder.Game) {

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -131,6 +132,43 @@ class Prompt11ReliabilityTest {
         // Untouched settings keep the same defaults as their flows.
         assertEquals(prefs.extraBufferingEnabled.first(), prefs.extraBufferingEnabledNow())
         assertEquals(prefs.pipEnabled.first(), prefs.pipEnabledNow())
+        assertEquals(30, prefs.timeshiftMinutesNow())
+        assertEquals(prefs.timeshiftMinutes.first(), prefs.timeshiftMinutesNow())
+        prefs.setTimeshiftMinutes(15)
+        withTimeout(5_000) {
+            PrefsSnapshot.awaitForTest { it[intPreferencesKey("timeshift_minutes")] == 15 }
+        }
+        assertEquals(15, prefs.timeshiftMinutesNow())
+        prefs.setTimeshiftMinutes(99)
+        withTimeout(5_000) {
+            PrefsSnapshot.awaitForTest { it[intPreferencesKey("timeshift_minutes")] == 30 }
+        }
+        assertEquals(30, prefs.timeshiftMinutesNow())
+        assertEquals(30, prefs.timeshiftMinutes.first())
+        assertEquals(0, prefs.sportsModeNow())
+        assertEquals(prefs.sportsMode.first(), prefs.sportsModeNow())
+        assertTrue(prefs.sportsScoreOverlayNow())
+        assertEquals("", prefs.favoriteTeamsNow())
+        prefs.setSportsMode(2)
+        withTimeout(5_000) {
+            PrefsSnapshot.awaitForTest { it[intPreferencesKey("sports_mode")] == 2 }
+        }
+        assertEquals(2, prefs.sportsModeNow())
+        prefs.setSportsMode(9)
+        withTimeout(5_000) {
+            PrefsSnapshot.awaitForTest { it[intPreferencesKey("sports_mode")] == 0 }
+        }
+        assertEquals(0, prefs.sportsModeNow())
+        prefs.setSportsScoreOverlay(false)
+        withTimeout(5_000) {
+            PrefsSnapshot.awaitForTest { it[androidx.datastore.preferences.core.booleanPreferencesKey("sports_score_overlay")] == false }
+        }
+        assertFalse(prefs.sportsScoreOverlayNow())
+        prefs.setFavoriteTeams("Yankees\n yankees \nRed Sox")
+        withTimeout(5_000) {
+            PrefsSnapshot.awaitForTest { it[stringPreferencesKey("favorite_teams")]?.contains("Red Sox") == true }
+        }
+        assertEquals("Yankees\nRed Sox", prefs.favoriteTeamsNow())
     }
 
     // ── Worker scheduling ────────────────────────────────────────────────────────────────

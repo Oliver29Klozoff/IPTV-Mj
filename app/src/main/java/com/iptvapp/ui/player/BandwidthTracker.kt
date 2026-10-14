@@ -40,6 +40,11 @@ class BandwidthTracker(
      * without this, bytes transferred after a zap/failover would stay credited to whichever
      * provider was playing when this tracker was first constructed. Flushing before switching the
      * key attributes everything counted so far to the correct (old) provider. */
+    /** Bytes read by the timeshift pump, which does not go through ExoPlayer's data source. */
+    fun addNetworkBytes(bytes: Long) {
+        if (bytes > 0L) pendingBytes.addAndGet(bytes)
+    }
+
     fun updateServerIndex(newServerIndex: Int) {
         if (newServerIndex == serverIndex) return
         // flush() reads the mutable `serverIndex` field at whatever point its coroutine actually

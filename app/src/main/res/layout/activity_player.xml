@@ -424,6 +424,25 @@
             android:text="Marks"
             android:visibility="gone" />
 
+        <!-- Sports Mode for this viewing: fast buffer, and the existing replay / Go Live controls. -->
+        <Button
+            android:id="@+id/btnSportsMode"
+            style="@style/PlayerChip"
+            android:text="Sports"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnPinTeams"
+            style="@style/PlayerChip"
+            android:text="Pin teams"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnScoreOverlay"
+            style="@style/PlayerChip"
+            android:text="Score"
+            android:visibility="gone" />
+
         <!-- Audio only — live channels; hands the stream to AudioOnlyService (see audioOnlyPanel) -->
         <Button
             android:id="@+id/btnAudioOnly"
@@ -477,6 +496,66 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Score already written in the guide title. Stays up while Sports Mode is on. -->
+    <TextView
+        android:id="@+id/tvSportsScore"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="12dp"
+        android:background="#CC000000"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:textColor="@color/rack_text"
+        android:textSize="20sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Watch Live stays on this stream. Start From Beginning uses the existing catch-up. -->
+    <HorizontalScrollView
+        android:id="@+id/smartCatchupBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="8dp"
+        android:scrollbars="none"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/tvSportsScore"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#CC000000"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp">
+
+            <TextView
+                android:id="@+id/tvSmartCatchup"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:textColor="@color/rack_text"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btnWatchLive"
+                style="@style/PlayerChip"
+                android:text="Watch Live" />
+
+            <Button
+                android:id="@+id/btnStartFromBeginning"
+                style="@style/PlayerChip"
+                android:text="Start From Beginning" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
     <!-- Back 30 s · play / pause · LIVE, near the bottom (v6.99): stacked above the seek bar
          and the Quick Zap strip; hidden ones drop out, so live TV puts it just above the edge. -->
     <LinearLayout
@@ -506,7 +585,7 @@
             android:layout_height="56dp"
             android:layout_marginEnd="32dp"
             android:background="@drawable/player_round_bg"
-            android:contentDescription="Back 30 seconds"
+            android:contentDescription="Replay 30 seconds"
             android:src="@drawable/ic_player_rewind"
             android:scaleType="fitCenter"
             android:padding="15dp"
@@ -523,6 +602,12 @@
             android:padding="16dp"
             app:tint="#FF000000" />
 
+        <Button
+            android:id="@+id/btnLiveFwd10"
+            style="@style/PlayerSkipButton"
+            android:layout_marginStart="20dp"
+            android:contentDescription="Forward 10 seconds"
+            android:text="+10" />
 
         <Button
             android:id="@+id/btnVodFwd"

@@ -107,6 +107,10 @@ class PreferencesManager @Inject constructor(
     fun preferredAudioLanguageNow() = PrefsSnapshot.read(context, readPreferredAudioLanguage)
     fun preferredSubtitleLanguageNow() = PrefsSnapshot.read(context, readPreferredSubtitleLanguage)
     fun extraBufferingEnabledNow() = PrefsSnapshot.read(context, readExtraBufferingEnabled)
+    fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
+    fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
+    fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
+    fun favoriteTeamsNow() = PrefsSnapshot.read(context, readFavoriteTeams)
     fun tunneledPlaybackEnabledNow() = PrefsSnapshot.read(context, readTunneledPlaybackEnabled)
     fun dv7FallbackEnabledNow() = PrefsSnapshot.read(context, readDv7FallbackEnabled)
     fun audioPassthroughFallbackEnabledNow() = PrefsSnapshot.read(context, readAudioPassthroughFallbackEnabled)
@@ -119,6 +123,10 @@ class PreferencesManager @Inject constructor(
     private val readDv7FallbackEnabled = { p: Preferences -> p[Keys.DV7_FALLBACK_ENABLED] ?: false }
     private val readAudioPassthroughFallbackEnabled = { p: Preferences -> p[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
     private val readExtraBufferingEnabled = { p: Preferences -> p[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
+    private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
+    private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
+    private val readSportsScoreOverlay = { p: Preferences -> p[Keys.SPORTS_SCORE_OVERLAY] ?: true }
+    private val readFavoriteTeams = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeStoredTeams(p[Keys.FAVORITE_TEAMS] ?: "") }
     private val readSubtitlesEnabled = { p: Preferences -> p[Keys.SUBTITLES_ENABLED] ?: true }
     private val readPreferredAudioLanguage = { p: Preferences -> p[Keys.PREFERRED_AUDIO_LANGUAGE] ?: "" }
     private val readPreferredSubtitleLanguage = { p: Preferences -> p[Keys.PREFERRED_SUBTITLE_LANGUAGE] ?: "" }
@@ -282,6 +290,14 @@ class PreferencesManager @Inject constructor(
         val LIVE_RECONNECT_SPEED = stringPreferencesKey("live_reconnect_speed")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
+        // Live timeshift window in minutes. 0 is off. Anything else snaps to 15, 30, or 60.
+        val TIMESHIFT_MINUTES = intPreferencesKey("timeshift_minutes")
+        // Sports Mode: 0 off, 1 games, 2 all live. Off leaves the normal live buffer alone.
+        val SPORTS_MODE = intPreferencesKey("sports_mode")
+        // When a guide title already contains a score, Sports Mode can show it. Default on.
+        val SPORTS_SCORE_OVERLAY = booleanPreferencesKey("sports_score_overlay")
+        // Newline-separated team names, capped by SportsMode. Shortcuts on the sports list.
+        val FAVORITE_TEAMS = stringPreferencesKey("favorite_teams")
         val ENGLISH_ONLY_MOVIES = booleanPreferencesKey("english_only_movies")
         // Favorites' "Other" genre chip is user-renameable (long-press) — the internal genre
         // key GenreClassifier.OTHER never changes (matching/filtering still keys off it), this
@@ -388,6 +404,38 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readExtraBufferingEnabled)
     suspend fun setExtraBufferingEnabled(v: Boolean) = context.dataStore.edit { it[Keys.EXTRA_BUFFERING_ENABLED] = v }
+
+    // Default 30 minutes. A low-storage device shortens the buffer at playback time and does not
+    // rewrite this saved value. Off (0) leaves live playback exactly as it was.
+    val timeshiftMinutes: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readTimeshiftMinutes)
+    suspend fun setTimeshiftMinutes(v: Int) = context.dataStore.edit { it[Keys.TIMESHIFT_MINUTES] = normalizeTimeshiftMinutes(v) }
+
+    private fun normalizeTimeshiftMinutes(value: Int): Int = when (value) {
+        0, 15, 30, 60 -> value
+        else -> 30
+    }
+
+    // Off until the viewer asks. Games follows the guide. All live uses the fast buffer on every channel.
+    val sportsMode: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSportsMode)
+    suspend fun setSportsMode(v: Int) = context.dataStore.edit {
+        it[Keys.SPORTS_MODE] = com.iptvapp.util.SportsMode.normalizeSetting(v)
+    }
+
+    val sportsScoreOverlay: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSportsScoreOverlay)
+    suspend fun setSportsScoreOverlay(v: Boolean) = context.dataStore.edit { it[Keys.SPORTS_SCORE_OVERLAY] = v }
+
+    val favoriteTeams: Flow<String> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readFavoriteTeams)
+    suspend fun setFavoriteTeams(v: String) = context.dataStore.edit {
+        it[Keys.FAVORITE_TEAMS] = com.iptvapp.util.SportsMode.normalizeStoredTeams(v)
+    }
 
     data class SubtitleStyle(
         val sizeScale: Float,

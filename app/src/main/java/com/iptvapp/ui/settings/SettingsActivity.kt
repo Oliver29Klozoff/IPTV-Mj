@@ -266,6 +266,10 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Subtitle Background Color", 0, R.id.hdrLanguage, R.id.rowSubBgColor),
             SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
+            SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
+            SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
+            SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
+            SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
             SettingSearchEntry("Channel Change Speed", 0, null, R.id.rowChannelZapSpeed),
             SettingSearchEntry("Pre-warm Streams on Focus", 0, null, R.id.switchPreWarmOnFocus),
@@ -2474,6 +2478,96 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun timeshiftMinutesLabel(minutes: Int) = when (minutes) {
+        0 -> "Off"
+        15 -> "15 minutes"
+        60 -> "60 minutes"
+        else -> "30 minutes"
+    }
+
+    private fun showSportsModeDialog() {
+        lifecycleScope.launch {
+            val current = prefs.sportsMode.first()
+            val options = arrayOf("Off", "Games", "All live TV")
+            val values = intArrayOf(0, 1, 2)
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Sports mode")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val mode = values[which]
+                    lifecycleScope.launch {
+                        prefs.setSportsMode(mode)
+                        binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(mode)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun favoriteTeamsLabel(stored: String): String {
+        val teams = com.iptvapp.util.SportsMode.parseTeams(stored)
+        return when (teams.size) {
+            0 -> "None"
+            1 -> teams[0]
+            else -> "${teams.size} teams"
+        }
+    }
+
+    private fun showFavoriteTeamsDialog() {
+        lifecycleScope.launch {
+            val stored = prefs.favoriteTeams.first()
+            val teams = com.iptvapp.util.SportsMode.parseTeams(stored)
+            if (teams.isEmpty()) {
+                AlertDialog.Builder(this@SettingsActivity)
+                    .setTitle("Favorite teams")
+                    .setMessage("None yet. On a game, pin the teams from the player. They show up here and as shortcuts on Sports.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@launch
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Favorite teams")
+                .setItems(teams.toTypedArray()) { _, which ->
+                    val name = teams[which]
+                    lifecycleScope.launch {
+                        prefs.setFavoriteTeams(com.iptvapp.util.SportsMode.removeFavorite(stored, name))
+                        binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
+                    }
+                }
+                .setNeutralButton("Clear all") { _, _ ->
+                    lifecycleScope.launch {
+                        prefs.setFavoriteTeams("")
+                        binding.tvFavoriteTeamsValue.text = "None"
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun showTimeshiftDialog() {
+        lifecycleScope.launch {
+            val current = prefs.timeshiftMinutes.first()
+            val options = arrayOf("Off", "15 minutes", "30 minutes", "60 minutes")
+            val values = intArrayOf(0, 15, 30, 60)
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Timeshift")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val minutes = values[which]
+                    lifecycleScope.launch {
+                        prefs.setTimeshiftMinutes(minutes)
+                        binding.tvTimeshiftValue.text = timeshiftMinutesLabel(minutes)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun showLiveReconnectSpeedDialog() {
         lifecycleScope.launch {
             val current = prefs.liveReconnectSpeed.first()
@@ -2754,6 +2848,10 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
                 binding.switchPreferReliableCopy.isChecked = prefs.preferReliableCopy.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
+                binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
+                binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
+                binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
+                binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
                 binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
                 binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
@@ -3971,6 +4069,13 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
+        binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
+        binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
+        binding.switchSportsScore.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setSportsScoreOverlay(enabled) }
+        }
+        binding.rowFavoriteTeams.setOnClickListener { showFavoriteTeamsDialog() }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
         binding.rowChannelZapSpeed.setOnClickListener { showChannelZapSpeedDialog() }
         binding.rowHiddenChannels.setOnClickListener { showHiddenChannelsDialog() }
@@ -4349,6 +4454,10 @@ class SettingsActivity : AppCompatActivity() {
             put("preferReliableCopy", prefs.preferReliableCopy.first())
             put("showAlertKeywords", org.json.JSONArray(prefs.getShowAlertKeywords()))
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
+            put("timeshiftMinutes", prefs.timeshiftMinutes.first())
+            put("sportsMode", prefs.sportsMode.first())
+            put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
+            put("favoriteTeams", prefs.favoriteTeams.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
             put("crashReportingEnabled", prefs.crashReportingEnabled.first())
             put("recordingFolderName", prefs.recordingFolderName.first())
@@ -4566,6 +4675,10 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("preferReliableCopy")) prefs.setPreferReliableCopy(json.optBoolean("preferReliableCopy", true))
         json.optJSONArray("showAlertKeywords")?.let { arr -> prefs.setShowAlertKeywords((0 until arr.length()).map { arr.optString(it) }) }
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
+        if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
+        if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
+        if (json.has("sportsScoreOverlay")) prefs.setSportsScoreOverlay(json.optBoolean("sportsScoreOverlay", true))
+        if (json.has("favoriteTeams")) prefs.setFavoriteTeams(json.optString("favoriteTeams", ""))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
         if (json.has("crashReportingEnabled")) prefs.setCrashReportingEnabled(json.optBoolean("crashReportingEnabled", true))
         json.optString("recordingFolderName", "").takeIf { it.isNotEmpty() }?.let { prefs.setRecordingFolderName(it) }
