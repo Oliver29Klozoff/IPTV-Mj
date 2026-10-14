@@ -161,7 +161,7 @@ class SmartHome @Inject constructor(
 
     // Movies and series partway through, most recently watched first.
     private suspend fun continueWatching(primaryLabel: String): List<HomeCard> {
-        val movies = repository.getInProgressVod().first().map { vod ->
+        val movies = db.vodDao().getInProgressVodRecent(ROW_LIMIT).map { vod ->
             vod.lastWatchedAt to HomeCard(SearchHit.Movie(vod, null, primaryLabel), progress = percent(vod.watchedMs, vod.durationMs))
         }
         val series = repository.getInProgressSeries().first().mapIndexed { i, row ->

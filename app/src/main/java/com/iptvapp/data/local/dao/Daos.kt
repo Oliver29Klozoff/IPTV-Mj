@@ -260,6 +260,17 @@ interface VodDao {
     suspend fun getDurationMs(streamId: Int): Long?
     @Query("SELECT * FROM vod_streams WHERE watchedMs > 0 AND durationMs > 0 AND CAST(watchedMs AS REAL) / durationMs < 0.95 AND dismissedFromContinueWatching = 0 ORDER BY watchedMs DESC LIMIT 20")
     fun getInProgressVod(): Flow<List<VodEntity>>
+    // Home's Continue Watching. Same unfinished rule, ordered by when you last watched so a
+    // movie just started is not dropped in favor of older ones with more minutes on them.
+    @Query("""
+        SELECT * FROM vod_streams
+        WHERE watchedMs > 0 AND durationMs > 0
+          AND CAST(watchedMs AS REAL) / durationMs < 0.95
+          AND dismissedFromContinueWatching = 0
+        ORDER BY lastWatchedAt DESC
+        LIMIT :limit
+    """)
+    suspend fun getInProgressVodRecent(limit: Int): List<VodEntity>
     // Smart Home's Recommended: unwatched movies from the categories watched most (the three
     // with the most started or finished movies), best rated and newest first.
     @Query("""

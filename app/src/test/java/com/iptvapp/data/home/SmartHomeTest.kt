@@ -145,6 +145,20 @@ class SmartHomeTest {
     }
 
     @Test
+    fun continueWatchingKeepsTheMovieYouJustStarted() = runBlocking {
+        val old = (1..20).map { id ->
+            VodEntity(id, "Old $id", null, "1", null, "mkv", null,
+                watchedMs = 5_000_000, durationMs = 6_000_000, lastWatchedAt = now - 86_400_000L * id)
+        }
+        db.vodDao().upsertVod(old + VodEntity(99, "Just Started", null, "1", null, "mkv", null,
+            watchedMs = 1_000, durationMs = 6_000_000, lastWatchedAt = now))
+        val cont = row(home.rows(now), HomeRow.Kind.CONTINUE)!!
+        assertEquals("Just Started", cont.cards.first().hit.title)
+        assertEquals(20, cont.cards.size)
+        assertTrue(cont.cards.none { it.hit.title == "Old 20" })
+    }
+
+    @Test
     fun recordingsPutWhatsRecordingFirst() = runBlocking {
         fun rec(title: String, status: String, start: Long) = RecordingEntity(streamId = 1, channelName = "News",
             scheduledStartMs = start, durationMs = 1, outputPath = "/x.ts", status = status, programTitle = title)
