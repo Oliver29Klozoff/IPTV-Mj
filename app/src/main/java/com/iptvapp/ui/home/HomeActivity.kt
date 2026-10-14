@@ -1451,28 +1451,24 @@ class HomeActivity : AppCompatActivity() {
         // _channels showing stale data from the previous session otherwise.
         if (restoredMiniState == null) {
             // A true cold boot (process was killed, not just rotated) — viewModel is fresh, so
-            // lastTabPosition is useless here. LAST_PLAYED_* survives process death (DataStore),
-            // so route straight to wherever the last-played channel actually lives: Providers
-            // (jumping to its server+category, same "go to where I'm watching" behavior as the
-            // rotation/fullscreen-exit cases) for a merged channel, Favorites for a primary one
-            // or if nothing was ever played.
+            // lastTabPosition is useless here. Opens on HOME (v7.33): the last-played channel
+            // resumes in the mini player (LAST_PLAYED_* survives process death; a merged one
+            // needs its server+id noted here), with the Smart Home rows in the list.
             lifecycleScope.launch {
                 val lastServerIndex = prefs.lastPlayedServerIndex.first()
                 val lastStreamId = prefs.lastPlayedStreamId.first()
                 if (lastServerIndex != -1 && lastStreamId != -1) {
                     currentMiniServerIndex = lastServerIndex
                     currentMiniMergedStreamId = lastStreamId
-                    providersTabVisitedSinceTabSwitch = false
-                    binding.tabLayout.getTabAt(TAB_PROVIDERS)?.select()
-                } else {
-                    binding.tabLayout.getTabAt(TAB_FAVORITES)?.select()
-                    showFavorites()
                 }
+                // HOME is tab 0, which TabLayout selects on inflation without a callback.
+                binding.tabLayout.getTabAt(TAB_HOME)?.select()
+                showHome()
             }
         } else {
             val startTab = viewModel.lastTabPosition
             binding.tabLayout.getTabAt(startTab)?.select()
-            if (startTab == TAB_FAVORITES) showFavorites()
+            if (startTab == TAB_HOME) showHome()
         }
         // Landscape: land on the plain sidebar + mini player view (last-playing channel
         // loads into it via the existing initMiniPlayer()/restoredMiniState flow either
@@ -1639,20 +1635,22 @@ class HomeActivity : AppCompatActivity() {
         // landscape). Every position check goes through these; scattering raw indices is what
         // made the last reorder (Providers moving next to Favorites) so error-prone, and had
         // already left observeTabVisibility hiding the WRONG tabs after an earlier reorder.
-        const val TAB_FAVORITES = 0
-        const val TAB_PROVIDERS = 1
-        const val TAB_LIVE = 2
-        const val TAB_CATEGORIES = 3
-        const val TAB_MOVIES = 4
-        const val TAB_SERIES = 5
-        const val TAB_GUIDE = 6
-        const val TAB_HISTORY = 7
+        const val TAB_HOME = 0
+        const val TAB_FAVORITES = 1
+        const val TAB_PROVIDERS = 2
+        const val TAB_LIVE = 3
+        const val TAB_CATEGORIES = 4
+        const val TAB_MOVIES = 5
+        const val TAB_SERIES = 6
+        const val TAB_GUIDE = 7
+        const val TAB_HISTORY = 8
     }
 
     private fun setupLandscapeSidebar() {
         val root = binding.root
         fun btn(id: Int) = root.findViewById<android.widget.Button?>(id)
         val tabs = listOf(
+            btn(R.id.landBtnHome) to TAB_HOME,
             btn(R.id.landBtnFavorites) to TAB_FAVORITES,
             btn(R.id.landBtnProviders) to TAB_PROVIDERS,
             btn(R.id.landBtnLive) to TAB_LIVE,
@@ -1911,7 +1909,7 @@ class HomeActivity : AppCompatActivity() {
         // Re-highlight the active sidebar button (landscape layouts only)
         val tabIdx = binding.tabLayout.selectedTabPosition
         val sidebarMap = listOf(
-            R.id.landBtnFavorites to TAB_FAVORITES, R.id.landBtnProviders to TAB_PROVIDERS,
+            R.id.landBtnHome to TAB_HOME, R.id.landBtnFavorites to TAB_FAVORITES, R.id.landBtnProviders to TAB_PROVIDERS,
             R.id.landBtnLive to TAB_LIVE, R.id.landBtnCategories to TAB_CATEGORIES,
             R.id.landBtnMovies to TAB_MOVIES, R.id.landBtnSeries to TAB_SERIES,
             R.id.landBtnGuide to TAB_GUIDE, R.id.landBtnWatching to TAB_HISTORY
@@ -1972,6 +1970,8 @@ class HomeActivity : AppCompatActivity() {
             intent.removeExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE)
             remoteGuide()
         }
+        // Back from watching something: Continue Watching and Recently Watched have moved on.
+        if (binding.tabLayout.selectedTabPosition == TAB_HOME && binding.rvChannels.adapter === homeAdapter) refreshHome()
         lifecycleScope.launch {
             val endHex = prefs.accentColorEnd.first()
             applyAccent(
@@ -3715,6 +3715,7 @@ class HomeActivity : AppCompatActivity() {
                     binding.rvWhatsOnNow?.visibility = View.GONE
                 }
                 when (tab?.position) {
+                    TAB_HOME -> showHome()
                     TAB_FAVORITES -> showFavorites()
                     TAB_PROVIDERS -> showAllProviders()
                     TAB_LIVE -> showLive()
@@ -3729,6 +3730,7 @@ class HomeActivity : AppCompatActivity() {
                 if (tab?.position == TAB_GUIDE) {
                     binding.guideModeRow?.visibility = View.GONE
                 }
+                if (tab?.position == TAB_HOME) homeRefreshJob?.cancel()
             }
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
@@ -3777,12 +3779,19 @@ class HomeActivity : AppCompatActivity() {
     // One search across every provider and content type (see SearchActivity) — distinct from
     // etSearch above, which only searches whatever single provider/content-type tab is open.
     // A channel or replay picked there comes back through timelineLauncher, like a guide pick.
-    private fun openSearch() {
-        timelineLauncher.launch(Intent(this, com.iptvapp.ui.search.SearchActivity::class.java))
+    private fun openSearch(query: String? = null) {
+        timelineLauncher.launch(Intent(this, com.iptvapp.ui.search.SearchActivity::class.java).apply {
+            if (!query.isNullOrBlank()) putExtra(com.iptvapp.ui.search.SearchActivity.EXTRA_QUERY, query)
+        })
     }
 
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
+            // HOME has no list of its own to filter: what's typed goes to the search for everything.
+            TAB_HOME -> if (query.isNotBlank()) {
+                binding.etSearch.setText("")
+                openSearch(query)
+            }
             TAB_MOVIES -> viewModel.searchVod(query)
             TAB_SERIES -> viewModel.searchSeries(query)
             TAB_LIVE, TAB_CATEGORIES -> {
@@ -4964,6 +4973,67 @@ class HomeActivity : AppCompatActivity() {
             params.width = newWidth
             params.weight = 0f
             col.layoutParams = params
+        }
+    }
+
+    // ── Smart Home ──────────────────────────────────────────────────────────
+    // The HOME tab: the Smart Home rows in the main list (rvChannels), as Guide puts its own
+    // there, with the live channel in the mini player.
+
+    @Inject lateinit var smartHome: com.iptvapp.data.home.SmartHome
+    private var homeRefreshJob: kotlinx.coroutines.Job? = null
+    private val homeAdapter by lazy { SmartHomeAdapter { card -> homeHitUi.open(card.hit) } }
+    private val homeHitUi by lazy {
+        com.iptvapp.ui.search.SearchHitUi(this, repository,
+            playChannel = { channel, merged ->
+                if (channel != null) {
+                    lifecycleScope.launch {
+                        playInMiniPlayer(channel)
+                        viewModel.markChannelWatched(channel.streamId)
+                        viewModel.setCurrentlyPlaying(channel.streamId)
+                    }
+                } else if (merged != null) {
+                    playMergedChannel(merged)
+                }
+            },
+            playReplay = { replay ->
+                openPlayer(
+                    replay.url, replay.title, replay.channel.streamId,
+                    catchupStartSec = replay.startSec,
+                    catchupDurationMin = replay.durationMin,
+                    catchupChannelName = replay.channel.name
+                )
+            })
+    }
+
+    private fun showHome() {
+        landscapeShowChannelsMode()
+        setGenreFilterVisible(false)
+        binding.rvCategories.visibility = View.GONE
+        binding.rvChannels.adapter = homeAdapter
+        refreshHome()
+    }
+
+    /** Fills the rows now, then again every minute while HOME is the tab (On Now moves on). */
+    private fun refreshHome() {
+        homeRefreshJob?.cancel()
+        homeRefreshJob = lifecycleScope.launch {
+            while (binding.tabLayout.selectedTabPosition == TAB_HOME) {
+                val rows = try { smartHome.rows() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    emptyList()
+                }
+                if (binding.tabLayout.selectedTabPosition != TAB_HOME) break
+                homeAdapter.submitList(rows)
+                // New Episodes asks providers: it joins the rows when it has an answer.
+                val fresh = try { smartHome.newEpisodes() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    null
+                }
+                if (binding.tabLayout.selectedTabPosition != TAB_HOME) break
+                if (fresh != null) homeAdapter.submitList((rows + fresh).sortedBy { it.kind.ordinal })
+                kotlinx.coroutines.delay(60_000L)
+            }
         }
     }
 
