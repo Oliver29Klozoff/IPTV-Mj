@@ -37,6 +37,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 class UniversalSearchTest {
     private lateinit var db: IptvDatabase
     private lateinit var search: UniversalSearch
+    private lateinit var prefs: PreferencesManager
     private val now = 1_800_000_000_000L // a fixed "now", in ms
     private val nowSec = now / 1000
 
@@ -55,8 +56,11 @@ class UniversalSearchTest {
         val api = Retrofit.Builder().baseUrl("http://localhost/").client(client)
             .addConverterFactory(GsonConverterFactory.create()).build()
             .create(XtreamApiService::class.java)
-        val prefs = PreferencesManager(context)
-        runBlocking { prefs.saveCredentials("http://provider.test", "u", "p") }
+        prefs = PreferencesManager(context)
+        runBlocking {
+            prefs.saveCredentials("http://provider.test", "u", "p")
+            prefs.setEnglishOnlyMovies(false)
+        }
         search = UniversalSearch(XtreamRepository(api, db, prefs, client), db, prefs)
     }
 
@@ -180,6 +184,30 @@ class UniversalSearchTest {
         assertEquals(20, titleHits.single().series.series?.seriesId)
 
         assertTrue(search.episodes("world of wonders nothing like it", search.search("world of wonders nothing like it", now)).isEmpty())
+    }
+
+    // A long-running show's history mustn't crowd what's on now out of the guide lookup's cap.
+    @Test
+    fun manyPastAiringsDontHideWhatsOnNow() = runBlocking {
+        db.channelDao().upsertChannels(listOf(channel(1, "News One", archive = true, days = 7), channel(2, "News Two")))
+        db.epgDao().upsertEpg((1..700).map { program(2, "News Hour", startMin = -60L * it - 60, lengthMin = 30) } +
+            program(1, "News Hour", startMin = -5, lengthMin = 30))
+        val programs = search.search("news hour", now).filterIsInstance<SearchHit.Program>()
+        assertEquals(listOf("ON_NOW:News One"), programs.map { "${it.kind}:${it.channelName}" })
+    }
+
+    @Test
+    fun englishOnlyAlsoLimitsTheSeriesAnEpisodeIsLookedUpIn() = runBlocking {
+        db.categoryDao().upsertCategories(listOf(
+            com.iptvapp.data.local.entities.CategoryEntity("1", "EN | Drama", 0, "series"),
+            com.iptvapp.data.local.entities.CategoryEntity("2", "FR | Drame", 0, "series")
+        ))
+        db.seriesDao().upsertSeries(listOf(SeriesEntity(20, "World of Wonders", null, null, null, null, "2")))
+        prefs.setEnglishOnlyMovies(true)
+        val q = "world of wonders dinner"
+        assertTrue(search.episodes(q, search.search(q, now)).isEmpty())
+        prefs.setEnglishOnlyMovies(false)
+        assertEquals(1, search.episodes(q, search.search(q, now)).size)
     }
 
     @Test

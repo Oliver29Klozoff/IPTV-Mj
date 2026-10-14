@@ -424,17 +424,31 @@ interface EpgDao {
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND startTimestamp <= :nowSec AND stopTimestamp >= :nowSec LIMIT 1")
     fun getCurrentProgramForWidget(streamId: Int, nowSec: Long, serverIndex: Int = -1): EpgEntity?
 
-    // Universal search: programmes whose title matches, from [fromSec] (catch-up's reach back)
-    // to [toSec] (how far ahead upcoming goes), every airing — UniversalSearch keeps the useful one
-    // per channel and title. Title only: descriptions match far too loosely to rank.
+    // Universal search: programmes whose title matches, on now or starting by [toSec], soonest
+    // first — UniversalSearch keeps the useful one per channel and title. Title only:
+    // descriptions match far too loosely to rank. Past airings are a separate query
+    // ([searchReplayableProgramTitles]) so a long history can't crowd these out of the cap.
     @Query("""
         SELECT * FROM epg_entries
-        WHERE stopTimestamp >= :fromSec AND startTimestamp <= :toSec
+        WHERE stopTimestamp > :nowSec AND startTimestamp <= :toSec
         AND title LIKE '%' || :query || '%'
         ORDER BY startTimestamp ASC
         LIMIT 600
     """)
-    suspend fun searchProgramTitles(query: String, fromSec: Long, toSec: Long): List<EpgEntity>
+    suspend fun searchProgramTitles(query: String, nowSec: Long, toSec: Long): List<EpgEntity>
+
+    // Past airings since [fromSec] on main-provider channels that keep replays (the only ones
+    // catch-up can play), latest first. UniversalSearch applies each channel's own window.
+    @Query("""
+        SELECT epg_entries.* FROM epg_entries
+        JOIN channels ON channels.streamId = epg_entries.streamId
+        WHERE epg_entries.serverIndex = -1 AND channels.tvArchive = 1
+        AND epg_entries.stopTimestamp <= :nowSec AND epg_entries.stopTimestamp >= :fromSec
+        AND epg_entries.title LIKE '%' || :query || '%'
+        ORDER BY epg_entries.startTimestamp DESC
+        LIMIT 300
+    """)
+    suspend fun searchReplayableProgramTitles(query: String, nowSec: Long, fromSec: Long): List<EpgEntity>
     @Upsert
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")

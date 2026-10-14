@@ -188,7 +188,8 @@ class UniversalSearch @Inject constructor(
 
     private suspend fun programs(q: String, nowMs: Long, primaryLabel: String): List<SearchHit> {
         val nowSec = nowMs / 1000
-        val rows = db.epgDao().searchProgramTitles(q, nowSec - CATCH_UP_DAYS * 86_400, nowSec + UPCOMING_DAYS * 86_400)
+        val rows = db.epgDao().searchProgramTitles(q, nowSec, nowSec + UPCOMING_DAYS * 86_400) +
+            db.epgDao().searchReplayableProgramTitles(q, nowSec, nowSec - CATCH_UP_DAYS * 86_400)
         if (rows.isEmpty()) return emptyList()
         val primary = rows.filter { it.serverIndex == -1 }.map { it.streamId }.distinct().chunked(900)
             .flatMap { db.channelDao().getChannelsByIds(it) }.associateBy { it.streamId }
@@ -251,12 +252,19 @@ class UniversalSearch @Inject constructor(
         return primary + merged
     }
 
-    /** Series on any provider whose bare name is exactly [name] (normalized, lowercase). */
+    /** Series on any provider whose bare name is exactly [name] (normalized, lowercase), under
+     * the English-only setting like [series]. */
     private suspend fun seriesNamed(name: String): List<SearchHit.Series> {
         fun same(title: String) = MovieSearch.normalizeTitle(title).lowercase() == name
         val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
-        return repository.searchSeries(name).first().filter { same(it.name) }.map { SearchHit.Series(it, null, primaryLabel) } +
-            repository.searchMergedSeries(name).first().filter { same(it.name) }.map { SearchHit.Series(null, it, it.serverNickname) }
+        val englishOnly = prefs.englishOnlyMovies.first()
+        val allowed = if (englishOnly) englishCategoryIds(repository.getSeriesCategories().first()) else null
+        return repository.searchSeries(name).first()
+            .filter { same(it.name) && (allowed == null || it.categoryId in allowed) }
+            .map { SearchHit.Series(it, null, primaryLabel) } +
+            repository.searchMergedSeries(name).first()
+                .filter { same(it.name) && (!englishOnly || CategoryLanguage.isEnglish(it.categoryName)) }
+                .map { SearchHit.Series(null, it, it.serverNickname) }
     }
 
     // Null when no category is English, so the setting doesn't hide everything on a provider
