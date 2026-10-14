@@ -931,6 +931,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStop() {
         super.onStop()
+        // No Home refreshes while hidden; onResume starts them again while Home shows.
+        homeRefreshJob?.cancel()
         if (!isChangingConfigurations) {
             // Same as the phone home screen: a live channel is stopped (decoder and provider
             // connection released; onResume re-prepares it at the live edge), VOD pauses in place.

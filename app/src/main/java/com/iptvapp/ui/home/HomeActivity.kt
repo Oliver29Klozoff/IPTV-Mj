@@ -2072,6 +2072,8 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        // No Home refreshes while hidden; onResume starts them again on HOME.
+        homeRefreshJob?.cancel()
         if (!isChangingConfigurations) {
             // Leaving the screen (background, or another screen on top). A live channel is stopped,
             // not paused: a paused live stream kept its decoder and its connection to the provider
@@ -3745,7 +3747,17 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupSearch() {
         binding.etSearch.setOnEditorActionListener { _, _, _ ->
-            dispatchSearch(binding.etSearch.text.toString())
+            val query = binding.etSearch.text.toString()
+            // HOME has no list of its own to filter: a submitted query goes to the search for
+            // everything (only on submit — the live filter below would interrupt the typing).
+            if (binding.tabLayout.selectedTabPosition == TAB_HOME) {
+                if (query.isNotBlank()) {
+                    binding.etSearch.setText("")
+                    openSearch(query)
+                }
+            } else {
+                dispatchSearch(query)
+            }
             true
         }
         binding.etSearch.addTextChangedListener(object : android.text.TextWatcher {
@@ -3787,11 +3799,8 @@ class HomeActivity : AppCompatActivity() {
 
     private fun dispatchSearch(query: String) {
         when (binding.tabLayout.selectedTabPosition) {
-            // HOME has no list of its own to filter: what's typed goes to the search for everything.
-            TAB_HOME -> if (query.isNotBlank()) {
-                binding.etSearch.setText("")
-                openSearch(query)
-            }
+            // HOME: nothing to filter while typing (see setupSearch's editor action).
+            TAB_HOME -> {}
             TAB_MOVIES -> viewModel.searchVod(query)
             TAB_SERIES -> viewModel.searchSeries(query)
             TAB_LIVE, TAB_CATEGORIES -> {
