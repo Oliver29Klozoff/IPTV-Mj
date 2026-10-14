@@ -164,34 +164,69 @@ class SmartHome @Inject constructor(
         return out.take(ROW_LIMIT)
     }
 
-    private data class Cached(val atMs: Long, val card: HomeCard?)
-    private val episodeCache = HashMap<Int, Cached>()
+    private data class ListedEpisode(val season: Int, val episodeNum: Int, val title: String, val addedSec: Long)
+
+    /** Null [episodes] means the provider did not answer. A list is kept so a later watch can change the card. */
+    private data class CachedListing(val atMs: Long, val episodes: List<ListedEpisode>?)
+
+    private val episodeCache = HashMap<String, CachedListing>()
+
+    /** Account the cache currently belongs to. A request still in flight after a provider switch must not write. */
+    @Volatile private var episodeCacheAccount: String = ""
+
+    private suspend fun accountKey(): String {
+        val creds = prefs.credentials.first()
+        return creds.serverUrl + "\n" + creds.username
+    }
 
     /**
      * New Episodes: for the series you watch (most recent first) and your favorite series, the
      * first episode you haven't seen that the provider added since you last watched — or, for a
      * series you haven't started, one added in the last two weeks. Asks each series' provider,
      * at most four at a time; each answer is kept for half an hour.
+     * The kept answer is the provider's episode list, for this account only. Which episode is
+     * new is decided from what you have watched now, so watching one drops it from the row.
      */
     suspend fun newEpisodes(nowMs: Long = System.currentTimeMillis()): HomeRow? = coroutineScope {
+        val account = accountKey()
+        episodeCacheAccount = account
         val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
         val followed = db.seriesDao().getFollowed(FOLLOWED_SERIES)
         val gate = Semaphore(4)
         val cards = followed.map { series ->
             async {
-                synchronized(episodeCache) { episodeCache[series.seriesId] }
-                    ?.takeIf { nowMs - it.atMs < NEW_EPISODES_TTL_MS }?.let { return@async it.card }
-                val card = gate.withPermit { withTimeoutOrNull(8_000) { newEpisodeOf(series, primaryLabel, nowMs) } }
-                synchronized(episodeCache) { episodeCache[series.seriesId] = Cached(nowMs, card) }
-                card
+                val key = account + "#" + series.seriesId
+                val cached = synchronized(episodeCache) { episodeCache[key] }
+                    ?.takeIf { nowMs - it.atMs < NEW_EPISODES_TTL_MS }
+                val episodes = if (cached != null) {
+                    cached.episodes
+                } else {
+                    val fetched = gate.withPermit { withTimeoutOrNull(8_000) { listingOf(series.seriesId) } }
+                    synchronized(episodeCache) {
+                        if (episodeCacheAccount == account) episodeCache[key] = CachedListing(nowMs, fetched)
+                    }
+                    fetched
+                }
+                if (episodes == null) return@async null
+                cardFor(series, episodes, primaryLabel, nowMs)
             }
         }.awaitAll().filterNotNull()
         if (cards.isEmpty()) null else HomeRow(HomeRow.Kind.NEW_EPISODES, cards)
     }
 
-    private suspend fun newEpisodeOf(series: SeriesEntity, primaryLabel: String, nowMs: Long): HomeCard? {
-        val info = repository.fetchSeriesInfo(series.seriesId) as? Resource.Success ?: return null
-        val episodes = info.data.episodes?.values?.flatten().orEmpty().sortedWith(compareBy({ it.season }, { it.episodeNum }))
+    private suspend fun listingOf(seriesId: Int): List<ListedEpisode>? {
+        val info = repository.fetchSeriesInfo(seriesId) as? Resource.Success ?: return null
+        return info.data.episodes?.values?.flatten().orEmpty()
+            .sortedWith(compareBy({ it.season }, { it.episodeNum }))
+            .map { ListedEpisode(it.season, it.episodeNum, it.title.orEmpty(), it.added?.toLongOrNull() ?: 0L) }
+    }
+
+    private suspend fun cardFor(
+        series: SeriesEntity,
+        episodes: List<ListedEpisode>,
+        primaryLabel: String,
+        nowMs: Long
+    ): HomeCard? {
         if (episodes.isEmpty()) return null
         val seen = db.episodeWatchedDao().getForSeries(series.seriesId)
             .filter { it.watchedAt > 0 || it.watchedMs > 0 }
@@ -201,7 +236,7 @@ class SmartHome @Inject constructor(
         val fresh = episodes.filter { ep ->
             (ep.season to ep.episodeNum) !in seen &&
                 (last == null || ep.season > last.first || (ep.season == last.first && ep.episodeNum > last.second)) &&
-                (ep.added?.toLongOrNull() ?: 0L) > since
+                ep.addedSec > since
         }
         val first = fresh.firstOrNull() ?: return null
         val hit = SearchHit.Series(series, null, primaryLabel)

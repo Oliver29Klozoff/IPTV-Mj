@@ -38,6 +38,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 class SmartHomeTest {
     private lateinit var db: IptvDatabase
     private lateinit var home: SmartHome
+    private lateinit var prefs: PreferencesManager
     private val now = 1_800_000_000_000L
     private val nowSec = now / 1000
 
@@ -60,7 +61,7 @@ class SmartHomeTest {
         val api = Retrofit.Builder().baseUrl("http://localhost/").client(client)
             .addConverterFactory(GsonConverterFactory.create()).build()
             .create(XtreamApiService::class.java)
-        val prefs = PreferencesManager(context)
+        prefs = PreferencesManager(context)
         runBlocking { prefs.saveCredentials("http://provider.test", "u", "p") }
         home = SmartHome(XtreamRepository(api, db, prefs, client), db, prefs)
     }
@@ -170,5 +171,19 @@ class SmartHomeTest {
         db.episodeWatchedDao().upsert(EpisodeWatchedEntity(21, 1, 3, watchedAt = 1))
         val again = home.newEpisodes(now)!!
         assertTrue(again.cards.none { (it.hit as SearchHit.Episode).series.title == "Quiet Show" })
+
+        // Watching the suggested episode drops it on the next Home refresh, inside the cache time.
+        db.episodeWatchedDao().upsert(EpisodeWatchedEntity(20, 1, 2, watchedAt = now))
+        val afterWatch = home.newEpisodes(now)!!
+        val moved = afterWatch.cards.single { (it.hit as SearchHit.Episode).series.series?.seriesId == 20 }.hit as SearchHit.Episode
+        assertEquals("Third", moved.episodeTitle)
+
+        // A different provider does not reuse this account's cached episode list.
+        seriesInfo = """{"info":{"name":"Show"},"episodes":{"1":[
+            {"id":"9","episode_num":4,"title":"Fourth","container_extension":"mkv","season":1,"added":"${nowSec - 60}"}]}}"""
+        prefs.saveCredentials("http://other.test", "u2", "p2")
+        val other = home.newEpisodes(now)!!
+        val switched = other.cards.single { (it.hit as SearchHit.Episode).series.series?.seriesId == 20 }.hit as SearchHit.Episode
+        assertEquals("Fourth", switched.episodeTitle)
     }
 }
