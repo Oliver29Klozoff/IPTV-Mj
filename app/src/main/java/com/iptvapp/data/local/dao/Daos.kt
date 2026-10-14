@@ -423,22 +423,32 @@ interface EpgDao {
     suspend fun getNowPlaying(streamId: Int, serverIndex: Int = -1): EpgEntity?
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND startTimestamp <= :nowSec AND stopTimestamp >= :nowSec LIMIT 1")
     fun getCurrentProgramForWidget(streamId: Int, nowSec: Long, serverIndex: Int = -1): EpgEntity?
-    // "What's airing" search — matches program title/description rather than channel name, so a
-    // search for e.g. a movie title finds every channel currently or soon showing it, which
-    // plain channel-name search can never do. Bounded to stopTimestamp >= :nowSec (nothing that
-    // already ended) so results stay actionable — a match from three days ago that already aired
-    // isn't useful to a "what can I watch" search. One row per (serverIndex, streamId) via
-    // GROUP BY, since the same channel can have many matching programs across its EPG window and
-    // the caller only cares about which channels to show, not every individual match.
+
+    // Universal search: programmes whose title matches, on now or starting by [toSec], soonest
+    // first — UniversalSearch keeps the useful one per channel and title. Title only:
+    // descriptions match far too loosely to rank. Past airings are a separate query
+    // ([searchReplayableProgramTitles]) so a long history can't crowd these out of the cap.
     @Query("""
         SELECT * FROM epg_entries
-        WHERE stopTimestamp >= :nowSec
-        AND (title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%')
-        GROUP BY serverIndex, streamId
+        WHERE stopTimestamp > :nowSec AND startTimestamp <= :toSec
+        AND title LIKE '%' || :query || '%'
         ORDER BY startTimestamp ASC
-        LIMIT 100
+        LIMIT 600
     """)
-    suspend fun searchProgramsAcrossChannels(query: String, nowSec: Long = System.currentTimeMillis() / 1000): List<EpgEntity>
+    suspend fun searchProgramTitles(query: String, nowSec: Long, toSec: Long): List<EpgEntity>
+
+    // Past airings since [fromSec] on main-provider channels that keep replays (the only ones
+    // catch-up can play), latest first. UniversalSearch applies each channel's own window.
+    @Query("""
+        SELECT epg_entries.* FROM epg_entries
+        JOIN channels ON channels.streamId = epg_entries.streamId
+        WHERE epg_entries.serverIndex = -1 AND channels.tvArchive = 1
+        AND epg_entries.stopTimestamp <= :nowSec AND epg_entries.stopTimestamp >= :fromSec
+        AND epg_entries.title LIKE '%' || :query || '%'
+        ORDER BY epg_entries.startTimestamp DESC
+        LIMIT 300
+    """)
+    suspend fun searchReplayableProgramTitles(query: String, nowSec: Long, fromSec: Long): List<EpgEntity>
     @Upsert
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")
@@ -460,6 +470,13 @@ interface EpgDao {
 interface RecordingDao {
     @Query("SELECT * FROM recordings ORDER BY scheduledStartMs ASC")
     fun getAll(): Flow<List<RecordingEntity>>
+    @Query("""
+        SELECT * FROM recordings
+        WHERE programTitle LIKE '%' || :query || '%' OR channelName LIKE '%' || :query || '%'
+        ORDER BY scheduledStartMs DESC
+        LIMIT 50
+    """)
+    suspend fun search(query: String): List<RecordingEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(recording: RecordingEntity): Long
     @Query("UPDATE recordings SET status = :status WHERE id = :id")

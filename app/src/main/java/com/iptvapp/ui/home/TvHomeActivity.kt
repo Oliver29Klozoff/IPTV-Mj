@@ -1699,7 +1699,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (sidebarContentWidthPx > 0) return sidebarContentWidthPx
         val buttons = listOf(
             binding.btnTvFavorites, binding.btnTvLive, binding.btnTvCategories, binding.btnTvMovies,
-            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvSports, binding.btnTvVoice, binding.btnTvRecordings, binding.btnTvSettings
+            binding.btnTvSeries, binding.btnTvGuide, binding.btnTvSports, binding.btnTvSearch, binding.btnTvVoice, binding.btnTvRecordings, binding.btnTvSettings
         )
         val density = resources.displayMetrics.density
         val paint = android.graphics.Paint().apply {
@@ -2019,6 +2019,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.btnTvSeries,
             binding.btnTvGuide,
             binding.btnTvSports,
+            binding.btnTvSearch,
             binding.btnTvVoice,
             binding.btnTvRecordings,
             binding.btnTvSettings
@@ -2055,6 +2056,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Sports Now hands back the same result as the guide grid, so guideLauncher tunes the pick.
         binding.btnTvSports.setOnClickListener {
             guideLauncher.launch(Intent(this, com.iptvapp.ui.guide.SportsActivity::class.java))
+        }
+        // Search also hands a channel or replay back like the guide grid does.
+        binding.btnTvSearch.setOnClickListener {
+            guideLauncher.launch(Intent(this, com.iptvapp.ui.search.SearchActivity::class.java))
         }
         binding.btnTvVoice.setOnClickListener { startVoiceTune() }
         binding.btnTvProviders.setOnClickListener { selectSection(Section.PROVIDERS) }

@@ -37,10 +37,9 @@
             android:src="@android:drawable/ic_menu_sort_by_size"
             android:tint="#FFFFFF" />
 
-        <!-- Opens a dialog that searches every configured provider (primary + all extraServers)
-             at once across channels/movies/series, tagging each result with its provider —
-             distinct from the per-tab etSearch below, which only searches whatever single
-             provider/content-type tab is currently open. -->
+        <!-- Opens SearchActivity: one search across every provider and content type (channels,
+             the guide, movies, series, episodes, recordings) — distinct from the per-tab etSearch
+             below, which only searches whatever single provider/content-type tab is open. -->
         <ImageButton
             android:id="@+id/btnSearchAllProviders"
             android:layout_width="36dp"

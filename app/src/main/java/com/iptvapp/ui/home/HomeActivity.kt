@@ -1227,6 +1227,10 @@ class HomeActivity : AppCompatActivity() {
                     )
                 } else {
                     playInMiniPlayer(channel)
+                    // Recently watched / view counts and cold-boot resume, as TvHomeActivity's
+                    // guideLauncher does for the same picks (guide grid and search).
+                    viewModel.markChannelWatched(channel.streamId)
+                    viewModel.setCurrentlyPlaying(channel.streamId)
                 }
             }
         }
@@ -2799,7 +2803,8 @@ class HomeActivity : AppCompatActivity() {
         binding.btnPhoneRemote?.setOnClickListener {
             startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))
         }
-        binding.btnSearchAllProviders?.setOnClickListener { showGlobalSearchDialog() }
+        binding.btnSearchAllProviders?.setOnClickListener { openSearch() }
+        binding.btnSearchAllProvidersLand?.setOnClickListener { openSearch() }
         binding.btnCollapsePip?.setOnClickListener { togglePipMode() }
         binding.root.findViewById<android.widget.TextView?>(R.id.btnPipRestore)
             ?.setOnClickListener { togglePipMode() }
@@ -3769,130 +3774,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    // Searches primary + every extraServer at once across channels/movies/series, tagging each
-    // result with its provider — distinct from etSearch above, which only ever searches whatever
-    // single provider/content-type tab is currently open.
-    private fun showGlobalSearchDialog() {
-        val container = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 0)
-        }
-        val input = EditText(this).apply {
-            hint = "Search all providers…"
-            setPadding(32, 16, 32, 16)
-        }
-        val resultsList = androidx.recyclerview.widget.RecyclerView(this).apply {
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@HomeActivity)
-        }
-        container.addView(input)
-        container.addView(resultsList, android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (500 * resources.displayMetrics.density).toInt()
-        ))
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Search All Providers")
-            .setView(container)
-            .setNegativeButton("Close", null)
-            .create()
-
-        val adapter = GlobalSearchAdapter { result ->
-            dialog.dismiss()
-            onGlobalSearchResultClick(result)
-        }
-        resultsList.adapter = adapter
-
-        var debounceJob: kotlinx.coroutines.Job? = null
-        input.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val query = s.toString()
-                debounceJob?.cancel()
-                debounceJob = lifecycleScope.launch {
-                    if (query.length >= 2) kotlinx.coroutines.delay(300)
-                    viewModel.searchAllProviders(query)
-                }
-            }
-        })
-
-        lifecycleScope.launch {
-            viewModel.globalSearchResults.collect { adapter.submitList(it) }
-        }
-
-        dialog.setOnDismissListener { viewModel.clearGlobalSearch() }
-        dialog.show()
-    }
-
-    private fun onGlobalSearchResultClick(result: GlobalSearchResult) {
-        when (result) {
-            is GlobalSearchResult.Channel -> lifecycleScope.launch {
-                playInMiniPlayer(result.entity)
-                viewModel.markChannelWatched(result.entity.streamId)
-                viewModel.setCurrentlyPlaying(result.entity.streamId)
-            }
-            is GlobalSearchResult.MergedChannel -> playMergedChannel(result.entity)
-            is GlobalSearchResult.Vod -> {
-                val vod = result.entity
-                startActivity(Intent(this, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
-                    putExtra("vod_stream_id", vod.streamId)
-                    putExtra("vod_name", vod.name)
-                    putExtra("vod_container_extension", vod.containerExtension)
-                    putExtra("vod_cover", vod.streamIcon)
-                    putExtra("vod_rating", vod.rating)
-                })
-            }
-            is GlobalSearchResult.MergedVod -> {
-                val vod = result.entity
-                startActivity(Intent(this, com.iptvapp.ui.vod.MergedVodDetailActivity::class.java).apply {
-                    putExtra("server_index", vod.serverIndex)
-                    putExtra("vod_stream_id", vod.streamId)
-                    putExtra("vod_name", vod.name)
-                    putExtra("vod_container_extension", vod.containerExtension)
-                    putExtra("vod_cover", vod.streamIcon)
-                    putExtra("vod_rating", vod.rating)
-                    putExtra("vod_is_favorite", vod.isFavorite)
-                    putExtra("server_nickname", vod.serverNickname)
-                })
-            }
-            is GlobalSearchResult.Series -> {
-                val series = result.entity
-                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
-                    putExtra("series_id", series.seriesId)
-                    putExtra("series_name", series.name)
-                    putExtra("series_cover", series.cover)
-                    putExtra("series_genre", series.genre)
-                    putExtra("series_rating", series.rating)
-                    putExtra("series_plot", series.plot)
-                })
-            }
-            is GlobalSearchResult.MergedSeries -> {
-                val series = result.entity
-                startActivity(Intent(this, SeriesDetailActivity::class.java).apply {
-                    putExtra("series_id", series.seriesId)
-                    putExtra("series_name", series.name)
-                    putExtra("series_cover", series.cover)
-                    putExtra("series_genre", series.genre)
-                    putExtra("series_rating", series.rating)
-                    putExtra("series_plot", series.plot)
-                    putExtra("server_index", series.serverIndex)
-                })
-            }
-            // "What's airing" result — plays whichever side (primary/merged) actually resolved,
-            // same as tapping the equivalent Channel/MergedChannel result directly.
-            is GlobalSearchResult.ProgramMatch -> {
-                val ch = result.channel
-                val merged = result.mergedChannel
-                if (ch != null) {
-                    lifecycleScope.launch {
-                        playInMiniPlayer(ch)
-                        viewModel.markChannelWatched(ch.streamId)
-                        viewModel.setCurrentlyPlaying(ch.streamId)
-                    }
-                } else if (merged != null) {
-                    playMergedChannel(merged)
-                }
-            }
-        }
+    // One search across every provider and content type (see SearchActivity) — distinct from
+    // etSearch above, which only searches whatever single provider/content-type tab is open.
+    // A channel or replay picked there comes back through timelineLauncher, like a guide pick.
+    private fun openSearch() {
+        timelineLauncher.launch(Intent(this, com.iptvapp.ui.search.SearchActivity::class.java))
     }
 
     private fun dispatchSearch(query: String) {

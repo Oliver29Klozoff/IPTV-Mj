@@ -34,6 +34,12 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class SeriesDetailActivity : AppCompatActivity() {
 
+    companion object {
+        /** Optional: the season and episode number to open on (an episode picked in search). */
+        const val EXTRA_FOCUS_SEASON = "focus_season"
+        const val EXTRA_FOCUS_EPISODE = "focus_episode"
+    }
+
     private lateinit var binding: ActivitySeriesDetailBinding
     private lateinit var episodeAdapter: EpisodeAdapter
 
@@ -208,15 +214,33 @@ class SeriesDetailActivity : AppCompatActivity() {
                         )
                     }
 
-                    fun showSeason(seasonKey: String) {
+                    // An episode picked in search opens its season, scrolled to and focused on it.
+                    val focusSeason = intent.getIntExtra(EXTRA_FOCUS_SEASON, -1)
+                    val focusEpisode = intent.getIntExtra(EXTRA_FOCUS_EPISODE, -1)
+                    val focusSeasonIndex = seasons.indexOfFirst { it.toIntOrNull() == focusSeason }
+
+                    fun showSeason(seasonKey: String, focusOn: Int = -1) {
                         val episodes = allEpisodes[seasonKey].orEmpty()
                             .sortedBy { it.episodeNum }
                         currentSeasonEpisodes = episodes
-                        episodeAdapter.submitList(episodes)
+                        val at = episodes.indexOfFirst { it.episodeNum == focusOn }
+                        episodeAdapter.submitList(episodes) {
+                            if (at >= 0) {
+                                binding.rvEpisodes.scrollToPosition(at)
+                                binding.rvEpisodes.post {
+                                    binding.rvEpisodes.findViewHolderForAdapterPosition(at)?.itemView?.requestFocus()
+                                }
+                            }
+                        }
                         binding.tvEmpty.visibility = if (episodes.isEmpty()) View.VISIBLE else View.GONE
                     }
 
-                    showSeason(seasons.first())
+                    if (focusSeasonIndex >= 0) {
+                        binding.tabSeasons.getTabAt(focusSeasonIndex)?.select()
+                        showSeason(seasons[focusSeasonIndex], focusEpisode)
+                    } else {
+                        showSeason(seasons.first())
+                    }
 
                     binding.tabSeasons.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
                         override fun onTabSelected(tab: TabLayout.Tab?) {

@@ -48,35 +48,15 @@ private fun List<EpgEntity>.nextProgram(current: EpgEntity?): EpgEntity? {
     return firstOrNull { it.startMs() > current.stopMs() }
 }
 
-// One tap-through result from searching every configured provider (primary + every extraServer)
-// at once, across every content type — unlike each tab's own search (which only ever looks at
-// whatever provider/content type that tab already had selected). providerLabel is the primary
-// provider's nickname (or "Primary" if unset) for primary rows, or the merged row's own
-// serverNickname for extraServer rows — always non-blank so results can always show which
-// provider they came from, per the original ask.
+// A TV Movies search result (HomeViewModel.searchMoviesEverywhere): a main-provider movie, or
+// another provider's. providerLabel is the main provider's nickname ("Primary" if unset) or the
+// other provider's serverNickname. Everything else searches through UniversalSearch.
 sealed class GlobalSearchResult {
     abstract val providerLabel: String
-    data class Channel(val entity: ChannelEntity, override val providerLabel: String) : GlobalSearchResult()
     data class Vod(val entity: VodEntity, override val providerLabel: String) : GlobalSearchResult()
-    data class Series(val entity: SeriesEntity, override val providerLabel: String) : GlobalSearchResult()
-    data class MergedChannel(val entity: com.iptvapp.data.local.entities.MergedChannelEntity) : GlobalSearchResult() {
-        override val providerLabel get() = entity.serverNickname
-    }
     data class MergedVod(val entity: com.iptvapp.data.local.entities.MergedVodEntity) : GlobalSearchResult() {
         override val providerLabel get() = entity.serverNickname
     }
-    data class MergedSeries(val entity: com.iptvapp.data.local.entities.MergedSeriesEntity) : GlobalSearchResult() {
-        override val providerLabel get() = entity.serverNickname
-    }
-    // "What's airing" match — the search term matched a program's title/description, not the
-    // channel's own name, so programTitle is carried along for display ("Airing: <title>")
-    // since the channel row alone wouldn't explain why it showed up in these results at all.
-    data class ProgramMatch(
-        val channel: ChannelEntity?,
-        val mergedChannel: com.iptvapp.data.local.entities.MergedChannelEntity?,
-        val programTitle: String,
-        override val providerLabel: String
-    ) : GlobalSearchResult()
 }
 
 @HiltViewModel
@@ -1282,13 +1262,7 @@ class HomeViewModel @Inject constructor(
     // merely start with those letters, like "ENTERTAINMENT", "ENCORE", or "USA NETWORK".
     // Experimental: depends entirely on the provider's own naming convention, which varies
     // a lot — "US" added after "EN" alone didn't match anything on this provider's catalog.
-    private fun isEnglishCategory(name: String?): Boolean {
-        if (name.isNullOrBlank()) return false
-        val n = name.trim().uppercase()
-        return n.split(Regex("[|\\-\\s:]+")).any {
-            it == "EN" || it == "ENG" || it == "ENGLISH" || it == "US" || it == "USA"
-        }
-    }
+    private fun isEnglishCategory(name: String?): Boolean = com.iptvapp.util.CategoryLanguage.isEnglish(name)
 
     fun loadAll() {
         // Start DB observers immediately so cached data shows at once
@@ -2218,67 +2192,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private val _globalSearchResults = MutableStateFlow<List<GlobalSearchResult>>(emptyList())
-    val globalSearchResults: StateFlow<List<GlobalSearchResult>> = _globalSearchResults
-    private var globalSearchJob: Job? = null
-
-    // Searches primary + every extraServer at once, across channels/movies/series, unlike every
-    // other search entry point in the app (each of those only searches whatever single
-    // provider/content-type tab is currently open). Deliberately reads the raw repository Flows
-    // directly rather than reusing searchVod()/searchMergedChannels()/etc. above — those write
-    // into the shared _vod/_mergedChannels/... StateFlows that back the normal tabs, and this
-    // must not disturb whatever the user had open on another tab while this runs alongside it.
-    fun searchAllProviders(query: String) {
-        globalSearchJob?.cancel()
-        if (query.isBlank()) {
-            _globalSearchResults.value = emptyList()
-            return
-        }
-        globalSearchJob = viewModelScope.launch {
-            val primaryResults = combine(
-                repository.searchChannels(query),
-                repository.searchVod(query),
-                repository.searchSeries(query),
-                prefs.serverNickname
-            ) { channels, vod, series, primaryNick ->
-                val label = primaryNick.ifBlank { "Primary" }
-                buildList<GlobalSearchResult> {
-                    addAll(channels.map { GlobalSearchResult.Channel(it, label) })
-                    addAll(vod.map { GlobalSearchResult.Vod(it, label) })
-                    addAll(series.map { GlobalSearchResult.Series(it, label) })
-                }
-            }
-            val mergedResults = combine(
-                repository.searchMergedChannels(query),
-                repository.searchMergedVod(query),
-                repository.searchMergedSeries(query)
-            ) { mergedChannels, mergedVod, mergedSeries ->
-                buildList<GlobalSearchResult> {
-                    addAll(mergedChannels.map { GlobalSearchResult.MergedChannel(it) })
-                    addAll(mergedVod.map { GlobalSearchResult.MergedVod(it) })
-                    addAll(mergedSeries.map { GlobalSearchResult.MergedSeries(it) })
-                }
-            }
-            // "What's airing" matches — a one-shot lookup rather than a reactive Flow like the
-            // sources above, since EPG data doesn't change on the timescale a search session
-            // lasts. Computed once up front and merged into every emission below so it doesn't
-            // need re-querying every time the reactive sources emit.
-            val primaryNick = prefs.serverNickname.first().ifBlank { "Primary" }
-            // Program-title search is a scan of the guide table. Two characters matches too
-            // much of it to be worth running on every keystroke; channel and title FTS still run.
-            val programResults = if (query.trim().length < 3) emptyList() else repository.searchProgramsAcrossChannels(query).map { match ->
-                GlobalSearchResult.ProgramMatch(
-                    channel = match.channel,
-                    mergedChannel = match.mergedChannel,
-                    programTitle = match.programTitle,
-                    providerLabel = match.mergedChannel?.serverNickname ?: primaryNick
-                )
-            }
-            combine(primaryResults, mergedResults) { primary, merged -> primary + merged + programResults }
-                .collectLatest { _globalSearchResults.value = it }
-        }
-    }
-
     /**
      * The TV Movies search: movies from the main provider ([GlobalSearchResult.Vod]) and every
      * other provider ([GlobalSearchResult.MergedVod]), best match first. [filter] is the screen's
@@ -2302,11 +2215,6 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
-    }
-
-    fun clearGlobalSearch() {
-        globalSearchJob?.cancel()
-        _globalSearchResults.value = emptyList()
     }
 
     fun showContinueWatching() {
