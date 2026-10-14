@@ -3502,10 +3502,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 Log.e("CastDebug", "remoteMediaClient is null")
                 return@launch
             }
-            watchCast(client, proxied = localIp != null)
+            val onLoadFailed = watchCast(client, proxied = localIp != null)
             client.load(loadRequest).setResultCallback { result ->
                 Log.d("CastDebug", "load result: success=${result.status.isSuccess} code=${result.status.statusCode}")
-                if (!result.status.isSuccess) onCastLoadFailed?.invoke()
+                if (!result.status.isSuccess) onLoadFailed()
             }
         }
     }
@@ -4609,18 +4609,25 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var castWatchJob: Job? = null
     private var castWatch: Pair<com.google.android.gms.cast.framework.media.RemoteMediaClient, com.google.android.gms.cast.framework.media.RemoteMediaClient.Callback>? = null
 
+    // Moves on whenever a watch starts or stops, so a late result from an older load is ignored.
+    private var castWatchGeneration = 0
+
     private fun stopCastWatch() {
+        castWatchGeneration++
         castWatchJob?.cancel()
         castWatchJob = null
         castWatch?.let { (client, callback) -> client.unregisterCallback(callback) }
         castWatch = null
     }
 
-    private fun watchCast(client: com.google.android.gms.cast.framework.media.RemoteMediaClient, proxied: Boolean) {
+    /** Returns what the load's result callback calls on a failure; it does nothing once this
+     * watch has been stopped or replaced. */
+    private fun watchCast(client: com.google.android.gms.cast.framework.media.RemoteMediaClient, proxied: Boolean): () -> Unit {
         stopCastWatch()
+        val generation = castWatchGeneration
         var reported = false
         fun report(why: String) {
-            if (reported) return
+            if (reported || generation != castWatchGeneration) return
             reported = true
             stopCastWatch()
             val proxy = castProxy
@@ -4653,9 +4660,6 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 state != com.google.android.gms.cast.MediaStatus.PLAYER_STATE_PAUSED
             ) report("not playing after ${CAST_START_TIMEOUT_MS / 1000}s")
         }
-        onCastLoadFailed = { report("load failed") }
+        return { report("load failed") }
     }
-
-    // Set by watchCast for the load result callback, which fires after it is registered.
-    private var onCastLoadFailed: (() -> Unit)? = null
 }

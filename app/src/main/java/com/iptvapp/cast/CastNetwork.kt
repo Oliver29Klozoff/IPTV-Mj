@@ -26,7 +26,11 @@ object CastNetwork {
     fun pickAddress(candidates: List<Candidate>, receiver: InetAddress?): String? {
         val usable = candidates.filter { !it.address.isLoopbackAddress && !it.address.isLinkLocalAddress }
         if (receiver is Inet4Address) {
-            usable.firstOrNull { sameSubnet(it.address, receiver, it.prefixLength) }?.let { return it.address.hostAddress }
+            // Overlapping subnets (a VPN's /16 around the Wi-Fi's /24): the narrowest is the
+            // network the receiver is actually on; Wi-Fi first among equals.
+            usable.filter { sameSubnet(it.address, receiver, it.prefixLength) }
+                .sortedWith(compareByDescending<Candidate> { it.prefixLength }.thenByDescending { local.matches(it.interfaceName) })
+                .firstOrNull()?.let { return it.address.hostAddress }
         }
         return (usable.firstOrNull { local.matches(it.interfaceName) }
             ?: usable.firstOrNull { !unreachable.matches(it.interfaceName) })?.address?.hostAddress

@@ -26,6 +26,13 @@ class CastNetworkTest {
         assertEquals("192.168.50.20", CastNetwork.pickAddress(phone, ip("172.16.0.9")))
     }
 
+    @Test fun overlappingSubnetsPickTheNarrowest() {
+        val withWideVpn = listOf(c("tun0", "192.168.0.2", 16), c("wlan0", "192.168.50.20", 24))
+        assertEquals("192.168.50.20", CastNetwork.pickAddress(withWideVpn, ip("192.168.50.77")))
+        val sameWidth = listOf(c("tun0", "192.168.50.2", 24), c("wlan0", "192.168.50.20", 24))
+        assertEquals("192.168.50.20", CastNetwork.pickAddress(sameWidth, ip("192.168.50.77")))
+    }
+
     @Test fun aReceiverOnTheVpnsSubnetGetsTheVpnAddress() {
         assertEquals("10.8.0.2", CastNetwork.pickAddress(phone, ip("10.8.0.40")))
     }
