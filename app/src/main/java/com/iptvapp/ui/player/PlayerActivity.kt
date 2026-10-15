@@ -3602,6 +3602,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 .setStreamType(streamType)
                 .setContentType(contentType)
                 .setMetadata(metadata)
+                .apply {
+                    // Live HLS here is MPEG-TS with audio and video muxed together: the provider's own
+                    // live HLS, or LiveHlsSession repackaging a raw .ts channel. Left unstated, the
+                    // receiver guesses the segment format, and a wrong guess showed as speech a little
+                    // ahead of or behind the lips for the whole cast (other apps on the same TV fine).
+                    if (!isVod && !isRecordingPlayback && contentType == "application/x-mpegURL") {
+                        setHlsSegmentFormat(com.google.android.gms.cast.HlsSegmentFormat.TS)
+                        setHlsVideoSegmentFormat(com.google.android.gms.cast.HlsVideoSegmentFormat.MPEG2_TS)
+                    }
+                }
                 .build()
             val loadRequest = MediaLoadRequestData.Builder()
                 .setMediaInfo(mediaInfo)
