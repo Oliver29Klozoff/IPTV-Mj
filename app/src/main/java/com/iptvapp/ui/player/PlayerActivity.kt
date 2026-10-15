@@ -4306,7 +4306,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             playWhenReady = p.playWhenReady,
             seeking = timeshiftSeeking,
             returningToLive = timeshiftReturning,
-            edgeHoldbackMs = if (timeshiftMode == TimeshiftSource.LOCAL) localLiveCushionMs else 0L,
+            // A frozen window has stopped growing. It is a finished recording, played to its end.
+            edgeHoldbackMs = if (timeshiftMode == TimeshiftSource.LOCAL && !timeshiftFrozen) localLiveCushionMs else 0L,
         )
     }
 
@@ -4352,7 +4353,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             p.seekTo(TimeshiftNavigator.goLive(reading))
         } else {
             val dur = p.duration
-            if (dur != C.TIME_UNSET && dur > 0L) p.seekTo(dur) else p.seekToDefaultPosition()
+            // The local playlist's default position is its live cushion, not the newest byte.
+            if (timeshiftMode != TimeshiftSource.LOCAL && dur != C.TIME_UNSET && dur > 0L) p.seekTo(dur)
+            else p.seekToDefaultPosition()
         }
         requestTimeshiftPlayback(true)
         refreshTimeshiftUi()

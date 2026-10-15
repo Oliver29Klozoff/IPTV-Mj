@@ -676,20 +676,31 @@ class TimeshiftTest {
     }
 
     @Test
-    fun `a window shorter than the cushion is not seekable yet`() {
-        val reading = TimeshiftNavigator.readingFromTimeline(
+    fun `inside the cushion playback is the edge and Forward does not step back`() {
+        fun at(durationMs: Long, positionMs: Long) = TimeshiftNavigator.readingFromTimeline(
             isLive = true,
             seekable = true,
-            durationMs = 6_000L,
-            positionMs = 2_000L,
+            durationMs = durationMs,
+            positionMs = positionMs,
             liveOffsetMs = null,
             playWhenReady = true,
             seeking = false,
             returningToLive = false,
             edgeHoldbackMs = 10_000L,
         )
-        assertFalse(reading.seekable)
-        assertTrue(TimeshiftNavigator.atLiveEdge(reading))
+        // A window still shorter than the cushion, just starting.
+        assertTrue(TimeshiftNavigator.atLiveEdge(at(6_000L, 2_000L)))
+        assertEquals(2_000L, TimeshiftNavigator.forward(at(6_000L, 2_000L), 10_000L))
+        // Playback that got closer than the cushion (a Go Live before this fix, say).
+        val close = at(100_000L, 97_000L)
+        assertEquals(97_000L, close.liveEdgeMs)
+        assertEquals(97_000L, TimeshiftNavigator.forward(close, 10_000L))
+        // No cushion: a frozen window plays to its very end.
+        val frozen = TimeshiftNavigator.readingFromTimeline(
+            isLive = true, seekable = true, durationMs = 100_000L, positionMs = 85_000L,
+            liveOffsetMs = null, playWhenReady = true, seeking = false, returningToLive = false,
+        )
+        assertEquals(95_000L, TimeshiftNavigator.forward(frozen, 10_000L))
     }
 
     @Test
