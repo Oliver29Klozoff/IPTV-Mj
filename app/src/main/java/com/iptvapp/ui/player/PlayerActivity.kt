@@ -4236,9 +4236,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun onTimeshiftStorageDegraded() {
+        // Judged while the window still has its live cushion. Frozen, the edge is the last byte.
+        val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
         timeshiftFrozen = true
         timeshiftStarting = false
-        val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
         if (TimeshiftNavigator.followProviderOnStorageLoss(atLive, timeshiftIntendedPlaying())) {
             timeshiftSession?.close()
             timeshiftSession = null
