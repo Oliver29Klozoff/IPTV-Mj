@@ -129,8 +129,12 @@ object TimeshiftNavigator {
         playWhenReady: Boolean,
         seeking: Boolean,
         returningToLive: Boolean,
+        edgeHoldbackMs: Long = 0L,
     ): TimeshiftReading {
+        // A local playlist plays a cushion behind its newest piece. That spot is live. The very
+        // end of the window is not: playing there leaves nothing in hand for a slow piece.
         val window = durationMs?.takeIf { it > 0L }
+            ?.let { (it - edgeHoldbackMs.coerceAtLeast(0L)).coerceAtLeast(0L) }
         val offset = liveOffsetMs?.takeIf { it >= 0L }
         // currentLiveOffset is distance from wall-clock live, not duration minus position.
         // Seeks use the timeline position. The offset only fills in an edge when duration is unknown.

@@ -654,6 +654,45 @@ class TimeshiftTest {
     }
 
     @Test
+    fun `local cushion behind the newest piece still counts as live`() {
+        fun at(positionMs: Long) = TimeshiftNavigator.readingFromTimeline(
+            isLive = true,
+            seekable = true,
+            durationMs = 100_000L,
+            positionMs = positionMs,
+            liveOffsetMs = null,
+            playWhenReady = true,
+            seeking = false,
+            returningToLive = false,
+            edgeHoldbackMs = 10_000L,
+        )
+        // Playing 10 s behind the newest piece is where a local playlist sits at live.
+        assertTrue(TimeshiftNavigator.atLiveEdge(at(90_000L)))
+        // Go Live lands on the cushion, not the very end of the window.
+        assertEquals(90_000L, TimeshiftNavigator.goLive(at(50_000L)))
+        // Forward cannot push past the cushion either.
+        assertEquals(90_000L, TimeshiftNavigator.forward(at(85_000L), 30_000L))
+        assertFalse(TimeshiftNavigator.atLiveEdge(at(80_000L)))
+    }
+
+    @Test
+    fun `a window shorter than the cushion is not seekable yet`() {
+        val reading = TimeshiftNavigator.readingFromTimeline(
+            isLive = true,
+            seekable = true,
+            durationMs = 6_000L,
+            positionMs = 2_000L,
+            liveOffsetMs = null,
+            playWhenReady = true,
+            seeking = false,
+            returningToLive = false,
+            edgeHoldbackMs = 10_000L,
+        )
+        assertFalse(reading.seekable)
+        assertTrue(TimeshiftNavigator.atLiveEdge(reading))
+    }
+
+    @Test
     fun encryptedOrMappedPlaylistsAreNotCopied() {
         val text = """
             #EXTM3U
