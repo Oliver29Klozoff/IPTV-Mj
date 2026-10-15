@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.38 - 2026-10-15
+- **Fixed**: the v7.35 Chromecast lip-sync fix now applies only to channels known to use the
+  stream format it describes, including your main provider. Channels from added providers
+  are left for the Chromecast to detect, since they may be packaged differently.
+
 ## v7.37 - 2026-10-15
 - **Fixed**: live TV buffered more often since v7.34. With Pause and rewind live TV on, playback
   started and resumed with only about a second and a half in hand, so any network hiccup

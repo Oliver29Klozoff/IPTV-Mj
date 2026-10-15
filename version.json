@@ -1,7 +1,7 @@
 {
-  "versionCode": 575,
-  "versionName": "7.37",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.37/MKTV.apk",
-  "apkSha256": "125b8a6d4a7c6875e149e293a798fc1c59c38eef77dbf6e6547486ee447f8ffa",
-  "changelog": "Live TV buffers less: playback keeps more in hand when pause and rewind is on."
+  "versionCode": 576,
+  "versionName": "7.38",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.38/MKTV.apk",
+  "apkSha256": "3c7f9b4573a3fb694735168d80654a01fcb375d0acb25501428f8755d83da2f1",
+  "changelog": "The Chromecast lip-sync fix applies only where the stream format is known."
 }
