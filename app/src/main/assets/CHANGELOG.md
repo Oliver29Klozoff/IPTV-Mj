@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.37 - 2026-10-15
+- **Fixed**: live TV buffered more often since v7.34. With Pause and rewind live TV on, playback
+  started and resumed with only about a second and a half in hand, so any network hiccup
+  froze the picture. It now keeps 10 seconds (15 with Extra buffering) like before. Sports
+  Mode still stays close to live.
+
 ## v7.36 - 2026-10-15
 - **Improved**: Playback uses a newer engine. A live stream that offers a backup address can
   switch to it when the first one fails to load.
