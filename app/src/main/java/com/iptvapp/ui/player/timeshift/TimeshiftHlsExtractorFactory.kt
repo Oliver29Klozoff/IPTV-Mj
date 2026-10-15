@@ -12,6 +12,7 @@ import androidx.media3.extractor.Extractor
 import androidx.media3.extractor.ExtractorInput
 import androidx.media3.extractor.ExtractorOutput
 import androidx.media3.extractor.PositionHolder
+import androidx.media3.extractor.text.DefaultSubtitleParserFactory
 import androidx.media3.extractor.text.SubtitleParser
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.extractor.ts.TimeshiftTsExtractor
@@ -21,10 +22,43 @@ import androidx.media3.extractor.ts.TimeshiftTsExtractor
  * Media3's progressive TS modes duration-probe that file and return [Extractor.RESULT_SEEK].
  * The HLS chunk loader does not perform that seek; it treats the segment as finished.
  * [TimeshiftTsExtractor] keeps the HLS read path and names tracks by elementary PID.
- * Provider HLS does not use this factory.
+ * Subtitles are parsed while the segment is read. Media3 1.11's text renderer accepts
+ * those cues and rejects raw DVB samples. Provider HLS does not use this factory.
  */
 @UnstableApi
 class TimeshiftHlsExtractorFactory : HlsExtractorFactory {
+    private var subtitleParserFactory: SubtitleParser.Factory = DefaultSubtitleParserFactory()
+    private var parseSubtitlesDuringExtraction = true
+
+    override fun setSubtitleParserFactory(
+        subtitleParserFactory: SubtitleParser.Factory,
+    ): HlsExtractorFactory {
+        this.subtitleParserFactory = subtitleParserFactory
+        return this
+    }
+
+    @Deprecated("Media3 still calls this while building an HLS source.")
+    override fun experimentalParseSubtitlesDuringExtraction(
+        parseSubtitlesDuringExtraction: Boolean,
+    ): HlsExtractorFactory {
+        this.parseSubtitlesDuringExtraction = parseSubtitlesDuringExtraction
+        return this
+    }
+
+    override fun getOutputTextFormat(sourceFormat: Format): Format {
+        if (parseSubtitlesDuringExtraction && subtitleParserFactory.supportsFormat(sourceFormat)) {
+            val mime = sourceFormat.sampleMimeType.orEmpty()
+            val codecs = sourceFormat.codecs
+            return sourceFormat.buildUpon()
+                .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
+                .setCueReplacementBehavior(subtitleParserFactory.getCueReplacementBehavior(sourceFormat))
+                .setCodecs(mime + if (codecs != null) " $codecs" else "")
+                .setSubsampleOffsetUs(Format.OFFSET_SAMPLE_RELATIVE)
+                .build()
+        }
+        return sourceFormat
+    }
+
     override fun createExtractor(
         uri: Uri,
         format: Format,
@@ -37,10 +71,20 @@ class TimeshiftHlsExtractorFactory : HlsExtractorFactory {
         val captions = muxedCaptionFormats ?: listOf(
             Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).build(),
         )
+        val parser = if (parseSubtitlesDuringExtraction) {
+            subtitleParserFactory
+        } else {
+            SubtitleParser.Factory.UNSUPPORTED
+        }
+        val flags = if (parseSubtitlesDuringExtraction) {
+            0
+        } else {
+            TimeshiftTsExtractor.FLAG_EMIT_RAW_SUBTITLE_DATA
+        }
         val extractor = TimeshiftTsExtractor(
             TimeshiftTsExtractor.MODE_HLS,
-            TimeshiftTsExtractor.FLAG_EMIT_RAW_SUBTITLE_DATA,
-            SubtitleParser.Factory.UNSUPPORTED,
+            flags,
+            parser,
             timestampAdjuster,
             DefaultTsPayloadReaderFactory(
                 DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM,

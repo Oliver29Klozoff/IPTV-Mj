@@ -63,6 +63,14 @@ class TimeshiftExtractorTest {
     }
 
     @Test
+    fun dvbSubtitlesAreParsedIntoCuesBeforeTheyReachThePlayer() {
+        val factory = TimeshiftHlsExtractorFactory()
+        val dvb = Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_DVBSUBS).build()
+        val output = factory.getOutputTextFormat(dvb)
+        assertEquals(MimeTypes.APPLICATION_MEDIA3_CUES, output.sampleMimeType)
+    }
+
+    @Test
     fun progressiveSinglePmtModeSeeksOnTheSameSegment() {
         val bytes = twoAudioProgram()
         val extractor = TsExtractor(
