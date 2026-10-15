@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 /*
- * MKTV local-timeshift fork of androidx.media3.extractor.ts.TsExtractor from Media3 1.4.1.
+ * MKTV local-timeshift fork of androidx.media3.extractor.ts.TsExtractor from Media3 1.11.1.
  * Read behavior stays MODE_HLS: continuity counters are ignored, packets before the
  * program map are consumed, and a known-length file is not duration-probed. That probe
  * returns RESULT_SEEK, and the HLS chunk loader treats the seek as the end of the segment.
@@ -25,6 +25,8 @@ package androidx.media3.extractor.ts;
 
 import static androidx.media3.extractor.ts.TsPayloadReader.EsInfo.AUDIO_TYPE_UNDEFINED;
 import static androidx.media3.extractor.ts.TsPayloadReader.FLAG_PAYLOAD_UNIT_START_INDICATOR;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static java.lang.annotation.ElementType.TYPE_USE;
 
 import android.util.SparseArray;
@@ -35,7 +37,6 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.ParserException;
-import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.NullableType;
 import androidx.media3.common.util.ParsableBitArray;
 import androidx.media3.common.util.ParsableByteArray;
@@ -200,7 +201,7 @@ public final class TimeshiftTsExtractor implements Extractor {
         /* extractorFlags= */ FLAG_EMIT_RAW_SUBTITLE_DATA,
         SubtitleParser.Factory.UNSUPPORTED,
         new TimestampAdjuster(0),
-        new DefaultTsPayloadReaderFactory(/* defaultTsPayloadReaderFlags= */ 0),
+        new DefaultTsPayloadReaderFactory(/* flags= */ 0),
         DEFAULT_TIMESTAMP_SEARCH_BYTES);
   }
 
@@ -216,7 +217,7 @@ public final class TimeshiftTsExtractor implements Extractor {
         /* extractorFlags= */ 0,
         subtitleParserFactory,
         new TimestampAdjuster(0),
-        new DefaultTsPayloadReaderFactory(/* defaultTsPayloadReaderFlags= */ 0),
+        new DefaultTsPayloadReaderFactory(/* flags= */ 0),
         DEFAULT_TIMESTAMP_SEARCH_BYTES);
   }
 
@@ -233,7 +234,7 @@ public final class TimeshiftTsExtractor implements Extractor {
         extractorFlags,
         subtitleParserFactory,
         new TimestampAdjuster(0),
-        new DefaultTsPayloadReaderFactory(/* defaultTsPayloadReaderFlags= */ 0),
+        new DefaultTsPayloadReaderFactory(/* flags= */ 0),
         DEFAULT_TIMESTAMP_SEARCH_BYTES);
   }
 
@@ -333,7 +334,7 @@ public final class TimeshiftTsExtractor implements Extractor {
       TimestampAdjuster timestampAdjuster,
       TsPayloadReader.Factory payloadReaderFactory,
       int timestampSearchBytes) {
-    this.payloadReaderFactory = Assertions.checkNotNull(payloadReaderFactory);
+    this.payloadReaderFactory = checkNotNull(payloadReaderFactory);
     this.timestampSearchBytes = timestampSearchBytes;
     if (mode != MODE_HLS) {
       throw new IllegalArgumentException("local timeshift segments must use MODE_HLS");
@@ -391,7 +392,7 @@ public final class TimeshiftTsExtractor implements Extractor {
 
   @Override
   public void seek(long position, long timeUs) {
-    Assertions.checkState(mode != MODE_HLS);
+    checkState(mode != MODE_HLS);
     int timestampAdjustersCount = timestampAdjusters.size();
     for (int i = 0; i < timestampAdjustersCount; i++) {
       TimestampAdjuster timestampAdjuster = timestampAdjusters.get(i);
