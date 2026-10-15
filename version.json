@@ -1,7 +1,7 @@
 {
-  "versionCode": 572,
-  "versionName": "7.34",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.34/MKTV.apk",
-  "apkSha256": "168c64fdde340bc8061eabfc537ff889c257996da8cb28f196e8e4869b1e34fd",
-  "changelog": "Pause and rewind live TV, a low-latency Sports Mode, and Start From Beginning when a show is already underway."
+  "versionCode": 573,
+  "versionName": "7.35",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.35/MKTV.apk",
+  "apkSha256": "c108b39d820b337a08c7cad771fabddbff76e947a7b05f038849c12309e07eb3",
+  "changelog": "Casting a live channel to a Chromecast keeps voices in step with mouths."
 }

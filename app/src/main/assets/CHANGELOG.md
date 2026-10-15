@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.35 - 2026-10-14
+- **Fixed**: when casting a live channel to a Chromecast or Google TV, voices could be slightly
+  out of step with mouths for the whole cast. MKTV now tells the Chromecast how the stream is
+  packaged, so it no longer has to guess.
+
 ## v7.34 - 2026-10-14
 - **New**: Pause and rewind live TV. The buffer shortens itself when storage is low. The
   default is 30 minutes. Off leaves live playback as it was.
