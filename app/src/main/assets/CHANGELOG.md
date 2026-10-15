@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.36 - 2026-10-15
+- **Improved**: Playback uses a newer engine. A live stream that offers a backup address can
+  switch to it when the first one fails to load.
+
 ## v7.35 - 2026-10-14
 - **Fixed**: when casting a live channel to a Chromecast or Google TV, voices could be slightly
   out of step with mouths for the whole cast. MKTV now tells the Chromecast how the stream is

@@ -1,7 +1,7 @@
 {
-  "versionCode": 573,
-  "versionName": "7.35",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.35/MKTV.apk",
-  "apkSha256": "c108b39d820b337a08c7cad771fabddbff76e947a7b05f038849c12309e07eb3",
-  "changelog": "Casting a live channel to a Chromecast keeps voices in step with mouths."
+  "versionCode": 574,
+  "versionName": "7.36",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.36/MKTV.apk",
+  "apkSha256": "2071f2477417d29b02b156e81489fc365e6e98a85c1e4da27733c4a7779a6ea7",
+  "changelog": "Playback uses a newer engine. A live stream can switch to a backup address when the first one fails."
 }
