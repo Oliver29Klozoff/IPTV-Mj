@@ -93,7 +93,8 @@ if (mktvBlank(mktvStorePath) || mktvBlank(mktvStorePassword) || mktvBlank(mktvKe
 
 android {
     namespace 'com.iptvapp'
-    compileSdk 35
+    // Media3 1.11.1 AARs refuse to build below compileSdk 36. targetSdk stays 35.
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.iptvapp"
