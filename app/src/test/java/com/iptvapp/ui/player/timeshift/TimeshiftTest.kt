@@ -654,6 +654,56 @@ class TimeshiftTest {
     }
 
     @Test
+    fun `local cushion behind the newest piece still counts as live`() {
+        fun at(positionMs: Long) = TimeshiftNavigator.readingFromTimeline(
+            isLive = true,
+            seekable = true,
+            durationMs = 100_000L,
+            positionMs = positionMs,
+            liveOffsetMs = null,
+            playWhenReady = true,
+            seeking = false,
+            returningToLive = false,
+            edgeHoldbackMs = 10_000L,
+        )
+        // Playing 10 s behind the newest piece is where a local playlist sits at live.
+        assertTrue(TimeshiftNavigator.atLiveEdge(at(90_000L)))
+        // Go Live lands on the cushion, not the very end of the window.
+        assertEquals(90_000L, TimeshiftNavigator.goLive(at(50_000L)))
+        // Forward cannot push past the cushion either.
+        assertEquals(90_000L, TimeshiftNavigator.forward(at(85_000L), 30_000L))
+        assertFalse(TimeshiftNavigator.atLiveEdge(at(80_000L)))
+    }
+
+    @Test
+    fun `inside the cushion playback is the edge and Forward does not step back`() {
+        fun at(durationMs: Long, positionMs: Long) = TimeshiftNavigator.readingFromTimeline(
+            isLive = true,
+            seekable = true,
+            durationMs = durationMs,
+            positionMs = positionMs,
+            liveOffsetMs = null,
+            playWhenReady = true,
+            seeking = false,
+            returningToLive = false,
+            edgeHoldbackMs = 10_000L,
+        )
+        // A window still shorter than the cushion, just starting.
+        assertTrue(TimeshiftNavigator.atLiveEdge(at(6_000L, 2_000L)))
+        assertEquals(2_000L, TimeshiftNavigator.forward(at(6_000L, 2_000L), 10_000L))
+        // Playback that got closer than the cushion (a Go Live before this fix, say).
+        val close = at(100_000L, 97_000L)
+        assertEquals(97_000L, close.liveEdgeMs)
+        assertEquals(97_000L, TimeshiftNavigator.forward(close, 10_000L))
+        // No cushion: a frozen window plays to its very end.
+        val frozen = TimeshiftNavigator.readingFromTimeline(
+            isLive = true, seekable = true, durationMs = 100_000L, positionMs = 85_000L,
+            liveOffsetMs = null, playWhenReady = true, seeking = false, returningToLive = false,
+        )
+        assertEquals(95_000L, TimeshiftNavigator.forward(frozen, 10_000L))
+    }
+
+    @Test
     fun encryptedOrMappedPlaylistsAreNotCopied() {
         val text = """
             #EXTM3U

@@ -220,6 +220,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var sportsSessionOn: Boolean? = null
     private var scoreOverlaySession: Boolean? = null
     private var sportsLoadControlOn = false
+    /** How far behind the newest local timeshift piece live plays. Fixed with the load control. */
+    private var localLiveCushionMs = 0L
     private var sportsRebuildAfterReady = false
     private var appliedDisplayModeId = 0
     // Catch-up offer is per airing. Watch Live remembers the programme start and does not seek.
@@ -2683,6 +2685,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val sportsBuffer = sportsActiveNow()
         sportsLoadControlOn = sportsBuffer
         val bufferProfile = SportsMode.loadControl(sportsBuffer, extraBufferingEnabled)
+        // A live target offset also caps the wait before playback starts or resumes, at half the
+        // offset. The local timeshift playlist used 3 s, so it resumed with 1.5 s in hand and
+        // stalled on hiccups that the provider stream rode out. Sports keeps its short delay.
+        localLiveCushionMs = if (sportsBuffer) SportsMode.TARGET_OFFSET_MS
+        else bufferProfile.bufferForPlaybackAfterRebufferMs.toLong()
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 bufferProfile.minBufferMs,
@@ -4067,7 +4074,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setMimeType(MimeTypes.APPLICATION_M3U8)
             .setLiveConfiguration(
                 MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(3_000L)
+                    .setTargetOffsetMs(localLiveCushionMs)
                     .setMinOffsetMs(1_000L)
                     .setMaxOffsetMs((budgetMs + 30_000L).coerceAtLeast(60_000L))
                     .setMinPlaybackSpeed(1f)
@@ -4229,9 +4236,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun onTimeshiftStorageDegraded() {
+        // Judged while the window still has its live cushion. Frozen, the edge is the last byte.
+        val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
         timeshiftFrozen = true
         timeshiftStarting = false
-        val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
         if (TimeshiftNavigator.followProviderOnStorageLoss(atLive, timeshiftIntendedPlaying())) {
             timeshiftSession?.close()
             timeshiftSession = null
@@ -4299,6 +4307,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             playWhenReady = p.playWhenReady,
             seeking = timeshiftSeeking,
             returningToLive = timeshiftReturning,
+            // A frozen window has stopped growing. It is a finished recording, played to its end.
+            edgeHoldbackMs = if (timeshiftMode == TimeshiftSource.LOCAL && !timeshiftFrozen) localLiveCushionMs else 0L,
         )
     }
 
@@ -4344,7 +4354,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             p.seekTo(TimeshiftNavigator.goLive(reading))
         } else {
             val dur = p.duration
-            if (dur != C.TIME_UNSET && dur > 0L) p.seekTo(dur) else p.seekToDefaultPosition()
+            // The local playlist's default position is its live cushion, not the newest byte.
+            if (timeshiftMode != TimeshiftSource.LOCAL && dur != C.TIME_UNSET && dur > 0L) p.seekTo(dur)
+            else p.seekToDefaultPosition()
         }
         requestTimeshiftPlayback(true)
         refreshTimeshiftUi()
