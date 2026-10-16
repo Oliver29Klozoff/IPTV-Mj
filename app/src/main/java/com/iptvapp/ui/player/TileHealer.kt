@@ -114,10 +114,12 @@ class TileHealer(
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             when (state) {
-                Player.STATE_BUFFERING -> armStuck()
+                Player.STATE_BUFFERING -> {
+                    healthySince = 0L
+                    armStuck()
+                }
                 Player.STATE_READY -> {
                     stuckJob?.cancel()
-                    if (healthySince == 0L) healthySince = android.os.SystemClock.elapsedRealtime()
                     if (healJob?.isActive != true) onStatus(null)
                 }
                 // A live stream that ends has dropped, not finished.
@@ -156,6 +158,7 @@ class TileHealer(
      */
     fun pause() {
         paused = true
+        healthySince = 0L
         if (healJob?.isActive == true) {
             healJob?.cancel()
             deferredReason = deferredReason ?: "repair postponed"
@@ -202,6 +205,9 @@ class TileHealer(
             while (isActive) {
                 delay(2_000L)
                 val now = android.os.SystemClock.elapsedRealtime()
+                // Only unbroken playing counts as healthy: buffering, a pause or a repair starts it over.
+                if (!player.isPlaying || healJob?.isActive == true) healthySince = 0L
+                else if (healthySince == 0L) healthySince = now
                 if (healthySince > 0L && attempt > 0 && now - healthySince >= TileHealPolicy.HEALTHY_AFTER_MS) {
                     attempt = 0
                 }

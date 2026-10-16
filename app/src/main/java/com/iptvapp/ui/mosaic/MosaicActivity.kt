@@ -43,6 +43,8 @@ class MosaicActivity : AppCompatActivity() {
     private var gridSize = 4 // 2, 4, or 6
     private var allMuted = false
     private var focusedCell = -1 // -1 = none focused
+    /** Bumped by every grid rebuild, so a layout or favorites load still running can tell it is stale. */
+    private var gridGeneration = 0
 
     // Mosaic's channel picker previously only ever listed primary-provider favorites (viewModel
     // .channels is documented as primary-only) — a merged/extra-provider favorite couldn't be
@@ -87,8 +89,11 @@ class MosaicActivity : AppCompatActivity() {
 
     private fun loadFavorites() {
         viewModel.showFavoriteChannels()
+        val grid = gridGeneration
         lifecycleScope.launch {
             val favs = viewModel.channels.first { it.isNotEmpty() }
+            // A layout opened while favorites loaded owns the grid now.
+            if (grid != gridGeneration) return@launch
             favs.take(gridSize).forEachIndexed { i, ch ->
                 if (i < cells.size) loadChannel(i, MosaicChannel.Primary(ch))
             }
@@ -96,6 +101,7 @@ class MosaicActivity : AppCompatActivity() {
     }
 
     private fun setupGrid(size: Int) {
+        gridGeneration++
         binding.mosaicGrid.removeAllViews()
         healers.forEach { it.release() }
         healers.clear()
@@ -451,6 +457,7 @@ class MosaicActivity : AppCompatActivity() {
         gridSize = layout.gridSize
         binding.btnGridSize.text = gridLabel(gridSize)
         setupGrid(gridSize)
+        val grid = gridGeneration
         layout.tiles.forEachIndexed { i, tile ->
             if (tile == null || i >= cells.size) return@forEachIndexed
             val exact = try { resolveChannel(tile.serverIndex, tile.streamId) } catch (_: Exception) { null }
@@ -461,6 +468,8 @@ class MosaicActivity : AppCompatActivity() {
                 repository.findFailoverChannel(tile.channelName, excludeServerIndex = -2)
                     ?.let { (server, id, _) -> resolveChannel(server, id) }
             } catch (_: Exception) { null }
+            // The grid was rebuilt (another layout, or a new size) while this looked: stop here.
+            if (grid != gridGeneration) return
             if (ch != null) loadChannel(i, ch)
             else cells[i].tvName.text = "${tile.channelName.ifBlank { "Channel" }} is no longer available"
         }
