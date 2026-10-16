@@ -194,7 +194,7 @@ class TileHealer(
         stuckJob?.cancel()
         stuckJob = scope.launch {
             delay(TileHealPolicy.STUCK_BUFFERING_MS)
-            if (player.playbackState == Player.STATE_BUFFERING) heal("stuck buffering")
+            if (player.playbackState == Player.STATE_BUFFERING) heal(STUCK)
         }
     }
 
@@ -221,6 +221,10 @@ class TileHealer(
         }
     }
 
+    private companion object {
+        const val STUCK = "stuck buffering"
+    }
+
     private fun heal(reason: String) {
         if (released || source == null || healJob?.isActive == true) return
         if (paused) {
@@ -234,6 +238,13 @@ class TileHealer(
         healJob = scope.launch {
             onStatus("Reconnecting…")
             delay(TileHealPolicy.delayMs(n))
+            // Stuck buffering often clears by itself during the wait. Playing again: nothing to repair.
+            // A frozen picture is still frozen while the player says READY, so that repair goes ahead.
+            if (reason == STUCK && player.playbackState == Player.STATE_READY && player.isPlaying) {
+                attempt = (attempt - 1).coerceAtLeast(0)
+                onStatus(null)
+                return@launch
+            }
             var target = source ?: return@launch
             if (TileHealPolicy.tryBackup(n) && backupAllowed()) {
                 val alt = try {
