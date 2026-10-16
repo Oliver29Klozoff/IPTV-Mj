@@ -1,7 +1,7 @@
 {
-  "versionCode": 577,
-  "versionName": "7.39",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.39/MKTV.apk",
-  "apkSha256": "e5ec510df382137d9597bd4b477cf023b3f9b623af41580dcc7a23f7660332c4",
-  "changelog": "A live channel that keeps stalling switches to the best copy on your other providers."
+  "versionCode": 578,
+  "versionName": "7.40",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.40/MKTV.apk",
+  "apkSha256": "5a4dcf6884bcf460900769ead940645c45d0246e78fb35525ae8e2f0f14f61bd",
+  "changelog": "Multi-View and Mosaic tiles fix themselves, and Mosaic saves layouts."
 }

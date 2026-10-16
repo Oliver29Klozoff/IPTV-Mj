@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v7.40 - 2026-10-16
+- **New**: Multi-View and Mosaic tiles fix themselves. A tile that errors, stays stuck
+  buffering for 12 seconds, or whose picture freezes is reloaded on its own, without
+  disturbing the other tiles, and shows "Reconnecting" while it does. If it keeps failing, it
+  moves to the best backup copy of that channel (unless Automatic backup feed is off).
+- **New**: Saved Mosaic layouts. Tap Layouts to save the current grid and its channels under a
+  name like "NFL Sunday", open it again later, or delete it. Mosaic opens on the layout you
+  used last.
+- **Fixed**: changing a Mosaic tile's channel several times no longer reports each error once
+  for every channel it ever showed.
+
 ## v7.39 - 2026-10-16
 - **New**: Automatic backup feed. When a live channel stalls three times in two minutes,
   MKTV switches to the best other copy of that channel, on any of your providers, and shows
