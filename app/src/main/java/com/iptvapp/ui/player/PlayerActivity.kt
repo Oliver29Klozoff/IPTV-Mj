@@ -3423,7 +3423,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             retryJob?.cancel()
             retryJob = lifecycleScope.launch {
                 val match = try {
-                    repository.findFailoverChannel(streamTitle, serverIndex)
+                    // The catalog name: an extra provider's title also carries " · nickname".
+                    val ownId = if (serverIndex == -1) streamId else mergedStreamId
+                    val name = repository.feedCatalogName(serverIndex, ownId) ?: streamTitle.substringBeforeLast(" · ")
+                    repository.findFailoverChannel(name, serverIndex)
                 } catch (_: Exception) { null }
                 if (match != null) {
                     val (matchServerIndex, matchStreamId, matchName) = match
@@ -3439,7 +3442,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     ).show()
                     bandwidthTracker?.updateServerIndex(matchServerIndex)
                     serverIndex = matchServerIndex
-                    streamId = matchStreamId
+                    // streamId is the primary provider's id only; an extra provider's is mergedStreamId.
+                    streamId = if (matchServerIndex == -1) matchStreamId else -1
                     mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
                     // This path plays the new copy without loadStream. Score it as the new copy.
                     reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic = true))
@@ -4113,6 +4117,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val from = currentFeedKey() ?: return
         if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || audioOnly) return
         if (timeshiftFrozen) return
+        // Behind live in either window, the local one or the provider's own DVR. A new copy
+        // opens at live and would skip what the viewer has not watched yet.
+        if (timeshiftState != TimeshiftPlaybackState.LIVE) return
         if (timeshiftMode == TimeshiftSource.LOCAL) {
             val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
             if (!atLive) return
@@ -4120,8 +4127,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (backupSwitchJob?.isActive == true) return
         val title = streamTitle
         backupSwitchJob = lifecycleScope.launch {
+            // The catalog name: an extra provider's title also carries " · nickname".
+            val name = try { repository.feedCatalogName(from.serverIndex, from.streamId) } catch (_: Exception) { null }
+                ?: title.substringBeforeLast(" · ")
             val backup = try {
-                repository.findBackupFeed(title, from.serverIndex, from.streamId, backupFeedsTried)
+                repository.findBackupFeed(name, from.serverIndex, from.streamId, backupFeedsTried)
             } catch (_: Exception) { null }
             // The user changed channel while this was looking.
             if (currentFeedKey() != from || streamTitle != title) return@launch
@@ -4145,8 +4155,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             backupFeedsTried += from.serverIndex to from.streamId
             bandwidthTracker?.updateServerIndex(backup.serverIndex)
             serverIndex = backup.serverIndex
-            streamId = backup.streamId
+            // streamId is the primary provider's id only. An extra provider's copy lives in
+            // mergedStreamId, the same split playMergedChannel and the guide rely on.
+            streamId = if (backup.serverIndex == -1) backup.streamId else -1
             mergedStreamId = if (backup.serverIndex == -1) -1 else backup.streamId
+            streamTitle = if (backup.serverIndex == -1 || backup.providerName.isBlank()) backup.name
+                else "${backup.name} · ${backup.providerName}"
             val where = if (backup.serverIndex == from.serverIndex || backup.providerName.isBlank()) "another copy of this channel"
                 else backup.providerName
             Toast.makeText(this@PlayerActivity, "Switched to backup feed: $where", Toast.LENGTH_LONG).show()

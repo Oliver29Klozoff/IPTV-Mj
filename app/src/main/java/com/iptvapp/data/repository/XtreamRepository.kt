@@ -2956,6 +2956,13 @@ class XtreamRepository @Inject constructor(
         }.sortedByDescending { it.score }
     }
 
+    /** The catalog name of one provider's copy, without any display decoration. */
+    suspend fun feedCatalogName(serverIndex: Int, streamId: Int): String? = withContext(Dispatchers.IO) {
+        if (streamId < 0) return@withContext null
+        if (serverIndex == -1) db.channelDao().getChannelById(streamId)?.name
+        else db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)?.name
+    }
+
     /** A channel start on one provider's copy. [tuneMs] is open to first picture. */
     suspend fun recordFeedStart(serverIndex: Int, streamId: Int, played: Boolean, tuneMs: Long) = withContext(Dispatchers.IO) {
         if (streamId < 0) return@withContext
