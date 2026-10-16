@@ -225,6 +225,8 @@ class XtreamRepository @Inject constructor(
         sql.execSQL("DELETE FROM series")
         xmltvGuideWriter.clear(-1)
         sql.execSQL("DELETE FROM channel_reliability")
+        // Feed scores belong to the old login's stream ids, which the new one reuses for other channels.
+        feedStatsLock.withLock { db.feedStatsDao().clearForServer(-1) }
         sql.execSQL("DELETE FROM recordings WHERE serverIndex = -1")
         sql.execSQL("DELETE FROM episode_watched")
     }
@@ -241,6 +243,7 @@ class XtreamRepository @Inject constructor(
         mergedChannelsRefreshMutex.withLock { db.mergedChannelDao().clearForServer(serverIndex) }
         mergedVodRefreshMutex.withLock { db.mergedVodDao().clearForServer(serverIndex) }
         mergedSeriesRefreshMutex.withLock { db.mergedSeriesDao().clearForServer(serverIndex) }
+        feedStatsLock.withLock { db.feedStatsDao().clearForServer(serverIndex) }
         xmltvGuideWriter.clear(serverIndex)
     }
 
