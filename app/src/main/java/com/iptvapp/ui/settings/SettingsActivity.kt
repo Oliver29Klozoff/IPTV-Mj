@@ -3383,6 +3383,8 @@ class SettingsActivity : AppCompatActivity() {
                                 db.mergedChannelDao().decrementServerIndicesAfter(i)
                                 // Feed scores are keyed the same way and move with the catalog.
                                 db.feedStatsDao().removeServer(i)
+                                // Saved Mosaic layouts point at providers by index the same way.
+                                prefs.setMosaicLayouts(com.iptvapp.ui.mosaic.MosaicLayouts.encode(com.iptvapp.ui.mosaic.MosaicLayouts.afterProviderRemoved(com.iptvapp.ui.mosaic.MosaicLayouts.decode(prefs.mosaicLayouts.first()), i)))
                                 // VOD/series are always Xtream-sourced (M3U import only ever carries
                                 // live channels — see M3uParser), so the old wipe-and-let-the-next-
                                 // refresh-repopulate approach doesn't lose anything permanently here,
@@ -4463,6 +4465,7 @@ class SettingsActivity : AppCompatActivity() {
             put("showAlertKeywords", org.json.JSONArray(prefs.getShowAlertKeywords()))
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("autoBackupFeed", prefs.autoBackupFeed.first())
+            put("mosaicLayouts", prefs.mosaicLayouts.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
             put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
@@ -4685,6 +4688,7 @@ class SettingsActivity : AppCompatActivity() {
         json.optJSONArray("showAlertKeywords")?.let { arr -> prefs.setShowAlertKeywords((0 until arr.length()).map { arr.optString(it) }) }
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("autoBackupFeed")) prefs.setAutoBackupFeed(json.optBoolean("autoBackupFeed", true))
+        if (json.has("mosaicLayouts")) prefs.setMosaicLayouts(json.optString("mosaicLayouts", ""))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
         if (json.has("sportsScoreOverlay")) prefs.setSportsScoreOverlay(json.optBoolean("sportsScoreOverlay", true))

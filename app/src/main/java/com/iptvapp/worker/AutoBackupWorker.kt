@@ -59,6 +59,7 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("autoplayNextEpisodeEnabled", prefs.autoplayNextEpisodeEnabled.first())
                 put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
                 put("autoBackupFeed", prefs.autoBackupFeed.first())
+                put("mosaicLayouts", prefs.mosaicLayouts.first())
                 put("timeshiftMinutes", prefs.timeshiftMinutes.first())
                 put("sportsMode", prefs.sportsMode.first())
                 put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
