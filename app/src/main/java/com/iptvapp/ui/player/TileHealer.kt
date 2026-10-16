@@ -91,6 +91,8 @@ class TileHealer(
     private val onStatus: (String?) -> Unit,
     /** The tile moved to a backup copy for good. The screen updates its label and its saved channel. */
     private val onSwitched: (Source) -> Unit = {},
+    /** Settings > Network > Automatic backup feed. Off still reconnects, just never to another copy. */
+    private val backupAllowed: () -> Boolean = { true },
 ) {
     /** [payload] is the screen's own channel object, handed back through onSwitched. */
     class Source(val key: Any, val label: String, val payload: Any? = null, val freshUrl: suspend () -> String?)
@@ -105,6 +107,9 @@ class TileHealer(
     private var healthySince = 0L
     private val freeze = TileHealPolicy.FreezeDetector()
     private var released = false
+    private var paused = false
+    /** A repair that was due while the screen was away, carried out when it returns. */
+    private var deferredReason: String? = null
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
@@ -136,6 +141,7 @@ class TileHealer(
         backup = backupFinder
         givenUp.clear()
         attempt = 0
+        deferredReason = null
         healthySince = 0L
         healJob?.cancel()
         stuckJob?.cancel()
@@ -144,15 +150,33 @@ class TileHealer(
         startWatchdog()
     }
 
-    /** Paused with the screen: nothing to judge until it plays again. */
+    /**
+     * Paused with the screen: nothing is judged or reloaded until it returns, since a reload
+     * starts playback and would play behind the user's back. A repair that was waiting is kept.
+     */
     fun pause() {
+        paused = true
+        if (healJob?.isActive == true) {
+            healJob?.cancel()
+            deferredReason = deferredReason ?: "repair postponed"
+            attempt = (attempt - 1).coerceAtLeast(0) // it never ran
+        }
         stuckJob?.cancel()
         watchdog?.cancel()
         freeze.reset()
     }
 
     fun resume() {
-        if (source != null && !released) startWatchdog()
+        paused = false
+        if (source == null || released) return
+        startWatchdog()
+        val due = deferredReason
+        deferredReason = null
+        when {
+            due != null -> heal(due)
+            // play() does not change a state that is already BUFFERING, so no new callback comes.
+            player.playbackState == Player.STATE_BUFFERING -> armStuck()
+        }
     }
 
     fun release() {
@@ -193,6 +217,10 @@ class TileHealer(
 
     private fun heal(reason: String) {
         if (released || source == null || healJob?.isActive == true) return
+        if (paused) {
+            deferredReason = deferredReason ?: reason
+            return
+        }
         stuckJob?.cancel()
         healthySince = 0L
         attempt++
@@ -201,7 +229,7 @@ class TileHealer(
             onStatus("Reconnecting…")
             delay(TileHealPolicy.delayMs(n))
             var target = source ?: return@launch
-            if (TileHealPolicy.tryBackup(n)) {
+            if (TileHealPolicy.tryBackup(n) && backupAllowed()) {
                 val alt = try {
                     backup?.invoke(givenUp + target.key)
                 } catch (e: kotlinx.coroutines.CancellationException) {

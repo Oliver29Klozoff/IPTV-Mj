@@ -224,6 +224,7 @@ class MultiViewActivity : AppCompatActivity() {
         log = { com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, it) },
         onStatus = onStatus,
         onSwitched = { source -> if (side == "left") leftLabel = source.label else rightLabel = source.label },
+        backupAllowed = { prefs.autoBackupFeedNow() },
     )
 
     private fun showSideStatus(side: Int, status: String?) {

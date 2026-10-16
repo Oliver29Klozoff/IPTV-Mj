@@ -150,6 +150,7 @@ class MosaicActivity : AppCompatActivity() {
                     onSwitched = { source ->
                         (source.payload as? MosaicChannel)?.let { cell.channel = it }
                     },
+                    backupAllowed = { prefs.autoBackupFeedNow() },
                 )
             )
         }
