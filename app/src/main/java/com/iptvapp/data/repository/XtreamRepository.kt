@@ -2918,7 +2918,7 @@ class XtreamRepository @Inject constructor(
             } else {
                 db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
             }
-            val hits = candidates.filter { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
+            val hits = candidates.filter { sameChannel(it.third, name) }
             if (server.serverIndex == -1) primaryMatches += hits else mergedMatches += hits
         }
         // Feed scores now cover every provider, so a merged copy with a clean record can beat a
@@ -2926,6 +2926,14 @@ class XtreamRepository @Inject constructor(
         return rankFeeds(primaryMatches + mergedMatches).firstOrNull()
             ?.let { Triple(it.serverIndex, it.streamId, it.name) }
     }
+
+    /**
+     * Copies of one channel across providers. A name in a script ChannelNameMatcher drops entirely
+     * (Chinese, Arabic...) normalises to nothing and would match nothing, not even itself, so an
+     * exact name counts too.
+     */
+    private fun sameChannel(a: String, b: String): Boolean =
+        com.iptvapp.util.ChannelNameMatcher.matches(a, b) || (a.isNotBlank() && a.trim().equals(b.trim(), ignoreCase = true))
 
     /** One provider's copy of a channel, with its [com.iptvapp.util.FeedScore]. */
     data class RankedFeed(
@@ -3012,7 +3020,7 @@ class XtreamRepository @Inject constructor(
             candidates += rows.filter {
                 (it.first to it.second) != (currentServerIndex to currentStreamId) &&
                     (it.first to it.second) !in tried &&
-                    com.iptvapp.util.ChannelNameMatcher.matches(it.third, name)
+                    sameChannel(it.third, name)
             }
         }
         rankFeeds(candidates).firstOrNull()?.takeIf { it.score >= MIN_BACKUP_SCORE }
@@ -3027,7 +3035,7 @@ class XtreamRepository @Inject constructor(
             } else {
                 db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
             }
-            candidates += rows.filter { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
+            candidates += rows.filter { sameChannel(it.third, name) }
         }
         rankFeeds(candidates)
     }
