@@ -470,6 +470,9 @@ class MosaicActivity : AppCompatActivity() {
             } catch (_: Exception) { null }
             // The grid was rebuilt (another layout, or a new size) while this looked: stop here.
             if (grid != gridGeneration) return
+            // The rebuilt grid starts empty. A tile with a channel already was picked by hand
+            // while this looked, and that pick wins.
+            if (cells[i].channel != null) return@forEachIndexed
             if (ch != null) loadChannel(i, ch)
             else cells[i].tvName.text = "${tile.channelName.ifBlank { "Channel" }} is no longer available"
         }
