@@ -3015,7 +3015,7 @@ class XtreamRepository @Inject constructor(
             val rows = if (server.serverIndex == -1) {
                 db.channelDao().getAllChannels().first().filter { !it.isHidden }.map { Triple(-1, it.streamId, it.name) }
             } else {
-                db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
+                db.mergedChannelDao().getAllForServer(server.serverIndex).filter { !it.isHidden }.map { Triple(it.serverIndex, it.streamId, it.name) }
             }
             candidates += rows.filter {
                 (it.first to it.second) != (currentServerIndex to currentStreamId) &&
@@ -3033,7 +3033,7 @@ class XtreamRepository @Inject constructor(
             val rows = if (server.serverIndex == -1) {
                 db.channelDao().getAllChannels().first().filter { !it.isHidden }.map { Triple(-1, it.streamId, it.name) }
             } else {
-                db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
+                db.mergedChannelDao().getAllForServer(server.serverIndex).filter { !it.isHidden }.map { Triple(it.serverIndex, it.streamId, it.name) }
             }
             candidates += rows.filter { sameChannel(it.third, name) }
         }
