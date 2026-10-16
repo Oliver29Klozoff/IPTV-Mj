@@ -2304,6 +2304,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Still the same live channel? (It can change while the lookup above runs.)
             if (isVod || streamId != sid || serverIndex != -1) return@launch
             startedOverFromLive = true
+            // A replay is not this live copy. Save what it has and stop scoring until back at live.
+            feedFlushJob?.cancel()
+            reportFeed(feedTracker.open(null, android.os.SystemClock.elapsedRealtime()))
             liveTitleBeforeStartOver = streamTitle
             catchupLiveUrl = streamUrl
             catchupChannelName = ch.name
@@ -4141,17 +4144,23 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * is behind live in a timeshift window (a new copy would throw that window away), in a
      * watch party (the host picks the feed), while casting, or with the setting off.
      */
-    private fun maybeSwitchToBackupFeed() {
-        val from = currentFeedKey() ?: return
-        if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || isPartyHost || audioOnly) return
-        if (timeshiftFrozen) return
+    /** Checked before the lookup and again just before switching: either can change while it runs. */
+    private fun backupSwitchAllowed(): Boolean {
+        if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || isPartyHost || audioOnly) return false
+        if (timeshiftFrozen || player?.playWhenReady != true) return false
         // Behind live in either window, the local one or the provider's own DVR. A new copy
         // opens at live and would skip what the viewer has not watched yet.
-        if (timeshiftState != TimeshiftPlaybackState.LIVE) return
+        if (timeshiftState != TimeshiftPlaybackState.LIVE) return false
         if (timeshiftMode == TimeshiftSource.LOCAL) {
             val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
-            if (!atLive) return
+            if (!atLive) return false
         }
+        return true
+    }
+
+    private fun maybeSwitchToBackupFeed() {
+        val from = currentFeedKey() ?: return
+        if (!backupSwitchAllowed()) return
         if (backupSwitchJob?.isActive == true) return
         val title = streamTitle
         backupSwitchJob = lifecycleScope.launch {
@@ -4174,7 +4183,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (backup.serverIndex == -1) repository.getLiveStreamUrl(backup.streamId)
                 else repository.getMergedLiveStreamUrl(backup.serverIndex, backup.streamId)
             } catch (_: Exception) { return@launch }
-            if (currentFeedKey() != from) return@launch
+            if (currentFeedKey() != from || !backupSwitchAllowed()) return@launch
             com.iptvapp.IptvApplication.logPlaybackEvent(
                 applicationContext,
                 "BACKUP FEED: \"$title\" serverIndex=${from.serverIndex} streamId=${from.streamId} kept stalling -> " +
