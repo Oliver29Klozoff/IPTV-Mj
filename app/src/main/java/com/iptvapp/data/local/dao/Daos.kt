@@ -1103,3 +1103,15 @@ interface EpgDiffAlertDao {
     @Query("DELETE FROM epg_diff_alerts WHERE shown = 1 AND timestamp < :beforeMs")
     suspend fun pruneShownOlderThan(beforeMs: Long)
 }
+@Dao
+interface FeedStatsDao {
+    @Query("SELECT * FROM feed_stats WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun get(serverIndex: Int, streamId: Int): FeedStatsEntity?
+
+    // Callers pass a handful of failover candidates, never a whole catalog.
+    @Query("SELECT * FROM feed_stats WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)")
+    suspend fun getForServer(serverIndex: Int, streamIds: List<Int>): List<FeedStatsEntity>
+
+    @Upsert
+    suspend fun upsert(entity: FeedStatsEntity)
+}

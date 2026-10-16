@@ -420,3 +420,24 @@ data class EpgTitleRow(
     val startTimestamp: Long,
     val stopTimestamp: Long
 )
+
+// Feed scores: one row per channel copy on each provider. serverIndex -1 is the primary
+// provider, 0..N-1 an extra one, and streamId is that provider's own id, so two panels reusing a
+// number never share a row (channel_reliability is keyed on the bare primary id and cannot tell
+// them apart). Fed from every live channel start, stall and failure, and read when a channel needs
+// a backup copy. See com.iptvapp.util.FeedScore for how a row becomes a score.
+@Entity(tableName = "feed_stats", primaryKeys = ["serverIndex", "streamId"])
+data class FeedStatsEntity(
+    val serverIndex: Int,
+    val streamId: Int,
+    /** Last 10 starts, '1' played and '0' failed, oldest first. */
+    val outcomes: String = "",
+    /** Smoothed time from opening the channel to the first picture. 0 = never measured. */
+    val tuneMs: Long = 0L,
+    /** Smoothed stalls per hour of watching. */
+    val stallsPerHour: Float = 0f,
+    /** Minutes of watching behind stallsPerHour, capped so old history fades. */
+    val watchedMinutes: Float = 0f,
+    val lastFailureAt: Long = 0L,
+    val updatedAt: Long = System.currentTimeMillis()
+)

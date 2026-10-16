@@ -1019,6 +1019,31 @@
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
                         <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Automatic backup feed" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="When a live channel keeps stalling, switch to the best other copy of it, on any provider" />
+                            </LinearLayout>
+                            <Switch
+                                android:id="@+id/switchAutoBackupFeed"
+                                style="@style/Rack.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowTimeshift"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"
