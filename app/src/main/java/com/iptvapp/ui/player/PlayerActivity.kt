@@ -4130,7 +4130,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 currentIndex = channels.indexOfFirst { it.streamId == streamId }
             }
             currentZapStreamId = if (serverIndex == -1) streamId else -1
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
         }
     }
 
@@ -4142,7 +4143,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      */
     private fun maybeSwitchToBackupFeed() {
         val from = currentFeedKey() ?: return
-        if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || audioOnly) return
+        if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || isPartyHost || audioOnly) return
         if (timeshiftFrozen) return
         // Behind live in either window, the local one or the provider's own DVR. A new copy
         // opens at live and would skip what the viewer has not watched yet.
@@ -4188,7 +4189,6 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             mergedStreamId = if (backup.serverIndex == -1) -1 else backup.streamId
             streamTitle = if (backup.serverIndex == -1 || backup.providerName.isBlank()) backup.name
                 else "${backup.name} · ${backup.providerName}"
-            rebuildZapListForCurrentCopy()
             val where = if (backup.serverIndex == from.serverIndex || backup.providerName.isBlank()) "another copy of this channel"
                 else backup.providerName
             Toast.makeText(this@PlayerActivity, "Switched to backup feed: $where", Toast.LENGTH_LONG).show()
@@ -4198,6 +4198,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             } finally {
                 backupSwitchOpening = false
             }
+            // Nothing suspends between the identity change and loadStream, so a channel picked by
+            // hand cannot land in between. The list and prefs follow once the new copy is opening.
+            rebuildZapListForCurrentCopy()
         }
     }
 
