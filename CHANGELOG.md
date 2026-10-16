@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v7.41 - 2026-10-16
+- **New**: Provider Health (Settings) now covers every provider, not just the main one: whether
+  it is answering and how fast, how often its channels start, how quickly they tune and how
+  often they stall, failures in the last 24 hours, when its channel list was last refreshed,
+  and how far ahead its guide runs.
+- **New**: All Sources. Long-press a channel and pick All Sources to see every copy of it on all
+  your providers, best first, with the provider, quality (HD, FHD, 4K) and a rating (Excellent,
+  Good, Fair, Poor, or New for a copy you have not watched). Pick one to play that copy.
+- **Fixed**: channels you hid on an added provider are no longer chosen as a backup feed, and
+  channels named in non-Latin scripts now find their own copies on other providers.
+
 ## v7.40 - 2026-10-16
 - **New**: Multi-View and Mosaic tiles fix themselves. A tile that errors, stays stuck
   buffering for 12 seconds, or whose picture freezes is reloaded on its own, without

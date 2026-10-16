@@ -1,7 +1,7 @@
 {
-  "versionCode": 578,
-  "versionName": "7.40",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.40/MKTV.apk",
-  "apkSha256": "5a4dcf6884bcf460900769ead940645c45d0246e78fb35525ae8e2f0f14f61bd",
-  "changelog": "Multi-View and Mosaic tiles fix themselves, and Mosaic saves layouts."
+  "versionCode": 579,
+  "versionName": "7.41",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.41/MKTV.apk",
+  "apkSha256": "9d13e4335459da65c89db17be5edee0752c7df479f75b1eb939668291c8fb9a8",
+  "changelog": "Provider Health for every provider, and All Sources on long-press."
 }
