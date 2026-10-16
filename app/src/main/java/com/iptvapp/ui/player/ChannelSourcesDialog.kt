@@ -1,6 +1,5 @@
 package com.iptvapp.ui.player
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -12,11 +11,18 @@ import kotlinx.coroutines.launch
 /**
  * "All sources": every copy of one channel across the user's providers, best first, each with
  * its provider, the quality in its name, its rating from feed scores and how fast it tunes.
- * Picking one plays that exact copy. Shared by every long-press channel menu, phone and TV.
+ * Picking one plays that exact copy through the host's own [open], which releases the Home
+ * preview stream first (single-connection accounts) and honours an external player choice.
+ * Shared by every long-press channel menu, phone and TV.
  */
 object ChannelSourcesDialog {
 
-    fun show(activity: AppCompatActivity, repository: XtreamRepository, channelName: String) {
+    /** Arguments are openPlayer's: url, title, primary stream id or -1, serverIndex, mergedStreamId. */
+    fun interface Open {
+        fun open(url: String, title: String, streamId: Int, serverIndex: Int, mergedStreamId: Int)
+    }
+
+    fun show(activity: AppCompatActivity, repository: XtreamRepository, channelName: String, open: Open) {
         activity.lifecycleScope.launch {
             val sources = try { repository.channelSources(channelName) } catch (_: Exception) { emptyList() }
             if (sources.isEmpty()) {
@@ -27,7 +33,7 @@ object ChannelSourcesDialog {
             val lines = sources.map { describe(it, now) }
             AlertDialog.Builder(activity)
                 .setTitle("All sources: $channelName")
-                .setItems(lines.toTypedArray()) { _, which -> play(activity, repository, sources[which]) }
+                .setItems(lines.toTypedArray()) { _, which -> play(activity, repository, sources[which], open) }
                 .setNegativeButton("Close", null)
                 .show()
         }
@@ -47,7 +53,7 @@ object ChannelSourcesDialog {
         return parts.joinToString(" · ")
     }
 
-    private fun play(activity: AppCompatActivity, repository: XtreamRepository, feed: XtreamRepository.RankedFeed) {
+    private fun play(activity: AppCompatActivity, repository: XtreamRepository, feed: XtreamRepository.RankedFeed, open: Open) {
         activity.lifecycleScope.launch {
             val url = try {
                 if (feed.serverIndex == -1) repository.getLiveStreamUrl(feed.streamId)
@@ -56,19 +62,12 @@ object ChannelSourcesDialog {
                 Toast.makeText(activity, "Couldn't load this copy", Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            // The same extras Mosaic uses to open a primary or an extra provider's channel.
-            activity.startActivity(Intent(activity, PlayerActivity::class.java).apply {
-                putExtra("stream_url", url)
-                if (feed.serverIndex == -1) {
-                    putExtra("stream_title", feed.name)
-                    putExtra("stream_id", feed.streamId)
-                } else {
-                    putExtra("stream_title", if (feed.providerName.isBlank()) feed.name else "${feed.name} · ${feed.providerName}")
-                    putExtra("stream_id", -1)
-                    putExtra("server_index", feed.serverIndex)
-                    putExtra("merged_stream_id", feed.streamId)
-                }
-            })
+            if (feed.serverIndex == -1) open.open(url, feed.name, feed.streamId, -1, -1)
+            else open.open(
+                url,
+                if (feed.providerName.isBlank()) feed.name else "${feed.name} · ${feed.providerName}",
+                -1, feed.serverIndex, feed.streamId,
+            )
         }
     }
 }

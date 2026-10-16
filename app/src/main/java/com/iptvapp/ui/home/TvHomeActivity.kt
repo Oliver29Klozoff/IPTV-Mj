@@ -1316,7 +1316,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .setItems(options.toTypedArray()) { _, which ->
                         when (options[which]) {
                             HomeActivity.ALL_SOURCES ->
-                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name)
+                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                             "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
@@ -2464,7 +2464,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .setItems(options.toTypedArray()) { _, which ->
                         when (options[which]) {
                             HomeActivity.ALL_SOURCES ->
-                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name)
+                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                             "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
@@ -4383,7 +4383,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setItems(options.toTypedArray()) { _, i ->
                 when {
                     options[i] == HomeActivity.ALL_SOURCES ->
-                        com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name)
+                        com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     options[i] == "Set Reminder" -> showTvReminderDialog(channel)
                     options[i].startsWith("Set Channel Number") || options[i].startsWith("Change Channel Number") ->
                         showTvSetChannelNumberDialog(channel)
