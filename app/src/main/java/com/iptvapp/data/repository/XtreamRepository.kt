@@ -2934,6 +2934,8 @@ class XtreamRepository @Inject constructor(
         val name: String,
         val score: Int,
         val providerName: String,
+        /** The history behind [score], or null for a copy never played. */
+        val stats: com.iptvapp.data.local.entities.FeedStatsEntity? = null,
     )
 
     /** Best first. Ties keep the order given, which is primary then extra providers in config order. */
@@ -2955,7 +2957,7 @@ class XtreamRepository @Inject constructor(
                 ?: legacy[id]?.takeIf { server == -1 }?.let {
                     com.iptvapp.data.local.entities.FeedStatsEntity(server, id, outcomes = it)
                 }
-            RankedFeed(server, id, name, com.iptvapp.util.FeedScore.score(row, now), names[server].orEmpty())
+            RankedFeed(server, id, name, com.iptvapp.util.FeedScore.score(row, now), names[server].orEmpty(), row)
         }.sortedByDescending { it.score }
     }
 
@@ -3014,6 +3016,63 @@ class XtreamRepository @Inject constructor(
             }
         }
         rankFeeds(candidates).firstOrNull()?.takeIf { it.score >= MIN_BACKUP_SCORE }
+    }
+
+    /** Every copy of [name] on every provider, best first, for the All Sources list. */
+    suspend fun channelSources(name: String): List<RankedFeed> = withContext(Dispatchers.IO) {
+        val candidates = mutableListOf<Triple<Int, Int, String>>()
+        for (server in allConfiguredServers()) {
+            val rows = if (server.serverIndex == -1) {
+                db.channelDao().getAllChannels().first().filter { !it.isHidden }.map { Triple(-1, it.streamId, it.name) }
+            } else {
+                db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
+            }
+            candidates += rows.filter { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
+        }
+        rankFeeds(candidates)
+    }
+
+    /** One provider's block in Provider Health. */
+    data class ProviderDashboardRow(
+        val serverIndex: Int,
+        val nickname: String,
+        /** Null for an M3U playlist, which has no login to test. */
+        val reachable: Boolean?,
+        val responseMs: Long?,
+        val error: String?,
+        val feeds: com.iptvapp.util.ProviderDashboard.FeedSummary,
+        val catalogRefreshedAt: Long,
+        val guideEndsAt: Long?,
+    )
+
+    /** Every provider, checked live and summed from its feed scores, in config order. */
+    suspend fun providerDashboard(): List<ProviderDashboardRow> = coroutineScope {
+        val now = System.currentTimeMillis()
+        val reach = async { checkAllProviderHealth().associateBy { it.serverIndex } }
+        val primaryFetched = prefs.lastChannelsFetchTime.first()
+        val rows = allConfiguredServers().map { server ->
+            val feeds = withContext(Dispatchers.IO) {
+                com.iptvapp.util.ProviderDashboard.summarize(db.feedStatsDao().getAllForServer(server.serverIndex), now)
+            }
+            val refreshed = if (server.serverIndex == -1) primaryFetched
+                else withContext(Dispatchers.IO) { db.mergedChannelDao().lastCachedAt(server.serverIndex) } ?: 0L
+            val guide = withContext(Dispatchers.IO) { db.epgDao().guideEndsAt(server.serverIndex) }
+            Triple(server, feeds, refreshed to guide)
+        }
+        val live = reach.await()
+        rows.map { (server, feeds, times) ->
+            val status = live[server.serverIndex]
+            ProviderDashboardRow(
+                serverIndex = server.serverIndex,
+                nickname = server.nickname,
+                reachable = status?.reachable,
+                responseMs = status?.responseMs,
+                error = status?.error,
+                feeds = feeds,
+                catalogRefreshedAt = times.first,
+                guideEndsAt = times.second,
+            )
+        }
     }
 
     companion object {

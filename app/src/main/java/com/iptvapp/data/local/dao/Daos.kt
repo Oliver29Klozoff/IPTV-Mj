@@ -443,6 +443,11 @@ data class InProgressSeriesRow(
 
 @Dao
 interface EpgDao {
+    // How far ahead this provider's guide runs, for Provider Health. Seconds or milliseconds,
+    // as the panel sent them; the caller normalises.
+    @Query("SELECT MAX(stopTimestamp) FROM epg_entries WHERE serverIndex = :serverIndex")
+    suspend fun guideEndsAt(serverIndex: Int): Long?
+
     @Query("SELECT COUNT(*) FROM epg_entries")
     suspend fun getEpgCount(): Int
 
@@ -733,6 +738,10 @@ data class WatchedEpisodeRow(
 
 @Dao
 interface MergedChannelDao {
+    // When this provider's channel list was last synced, for Provider Health.
+    @Query("SELECT MAX(cachedAt) FROM merged_channels WHERE serverIndex = :serverIndex")
+    suspend fun lastCachedAt(serverIndex: Int): Long?
+
     @Query("SELECT * FROM merged_channels WHERE isHidden = 0 ORDER BY serverIndex ASC, num ASC")
     fun getAllRaw(): Flow<List<MergedChannelEntity>>
     fun getAll(): Flow<List<MergedChannelEntity>> = getAllRaw().retryOnTornRead()
@@ -1114,6 +1123,10 @@ interface FeedStatsDao {
 
     @Upsert
     suspend fun upsert(entity: FeedStatsEntity)
+
+    // Only channels actually watched have rows, so one provider's list stays small.
+    @Query("SELECT * FROM feed_stats WHERE serverIndex = :serverIndex")
+    suspend fun getAllForServer(serverIndex: Int): List<FeedStatsEntity>
 
     // Removing an extra provider: drop its rows and move later providers down one, through the same
     // two-pass offset as MergedChannelDao.decrementServerIndicesAfter, since stream ids repeat across
