@@ -1114,4 +1114,23 @@ interface FeedStatsDao {
 
     @Upsert
     suspend fun upsert(entity: FeedStatsEntity)
+
+    // Removing an extra provider: drop its rows and move later providers down one, through the same
+    // two-pass offset as MergedChannelDao.decrementServerIndicesAfter, since stream ids repeat across
+    // providers and a one-pass UPDATE can collide on the key. The primary (-1) never moves.
+    @Query("DELETE FROM feed_stats WHERE serverIndex = :serverIndex")
+    suspend fun clearForServer(serverIndex: Int)
+
+    @Query("UPDATE feed_stats SET serverIndex = serverIndex + 1000000 WHERE serverIndex > :removedIndex")
+    suspend fun offsetServerIndicesAfter(removedIndex: Int)
+
+    @Query("UPDATE feed_stats SET serverIndex = serverIndex - 1000001 WHERE serverIndex > 1000000")
+    suspend fun unoffsetServerIndices()
+
+    @androidx.room.Transaction
+    suspend fun removeServer(removedIndex: Int) {
+        clearForServer(removedIndex)
+        offsetServerIndicesAfter(removedIndex)
+        unoffsetServerIndices()
+    }
 }

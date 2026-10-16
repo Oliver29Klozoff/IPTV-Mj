@@ -3381,6 +3381,8 @@ class SettingsActivity : AppCompatActivity() {
                                 // actually being removed. See decrementServerIndicesAfter's own kdoc.
                                 db.mergedChannelDao().clearForServer(i)
                                 db.mergedChannelDao().decrementServerIndicesAfter(i)
+                                // Feed scores are keyed the same way and move with the catalog.
+                                db.feedStatsDao().removeServer(i)
                                 // VOD/series are always Xtream-sourced (M3U import only ever carries
                                 // live channels — see M3uParser), so the old wipe-and-let-the-next-
                                 // refresh-repopulate approach doesn't lose anything permanently here,

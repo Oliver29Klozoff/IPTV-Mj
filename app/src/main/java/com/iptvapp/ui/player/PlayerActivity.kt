@@ -3447,6 +3447,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
                     // This path plays the new copy without loadStream. Score it as the new copy.
                     reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic = true))
+                    rebuildZapListForCurrentCopy()
                     streamUrl = try {
                         if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
                         else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
@@ -4092,7 +4093,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     /** Fire and forget, like recordPlaybackOutcome: a DB write must never disturb playback. */
     private fun reportFeed(reports: List<FeedTracker.Report>) {
         if (reports.isEmpty()) return
-        lifecycleScope.launch {
+        // GlobalScope like the bandwidth flush: the last report is sent from onStop, and leaving
+        // the player cancels lifecycleScope before the write lands. A small Room write is safe.
+        kotlinx.coroutines.GlobalScope.launch {
             for (r in reports) {
                 try {
                     when (r) {
@@ -4104,6 +4107,26 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 } catch (_: Exception) {
                 }
             }
+        }
+    }
+
+    /**
+     * Up/down zaps through the list of the provider now playing. After a switch to another
+     * provider's copy, rebuild that list from the copy's own category so zapping keeps working.
+     */
+    private suspend fun rebuildZapListForCurrentCopy() {
+        try {
+            if (serverIndex != -1) {
+                val current = repository.getMergedChannelByIndexAndId(serverIndex, mergedStreamId) ?: return
+                mergedChannels = repository.getMergedChannelsByCategory(serverIndex, current.categoryId).first()
+                mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == mergedStreamId }
+            } else {
+                // The list this player opened with may be a filtered one without this copy in it.
+                if (channels.none { it.streamId == streamId }) channels = repository.getAllChannels().first()
+                currentIndex = channels.indexOfFirst { it.streamId == streamId }
+            }
+            currentZapStreamId = if (serverIndex == -1) streamId else -1
+        } catch (_: Exception) {
         }
     }
 
@@ -4161,6 +4184,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             mergedStreamId = if (backup.serverIndex == -1) -1 else backup.streamId
             streamTitle = if (backup.serverIndex == -1 || backup.providerName.isBlank()) backup.name
                 else "${backup.name} · ${backup.providerName}"
+            if (backup.serverIndex != from.serverIndex) rebuildZapListForCurrentCopy()
             val where = if (backup.serverIndex == from.serverIndex || backup.providerName.isBlank()) "another copy of this channel"
                 else backup.providerName
             Toast.makeText(this@PlayerActivity, "Switched to backup feed: $where", Toast.LENGTH_LONG).show()
