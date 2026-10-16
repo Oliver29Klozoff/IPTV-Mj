@@ -267,6 +267,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
             SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
+            SettingSearchEntry("Picture", 0, null, R.id.rowPictureMode),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
@@ -2485,6 +2486,32 @@ class SettingsActivity : AppCompatActivity() {
         else -> "30 minutes"
     }
 
+    private fun showPictureModeDialog() {
+        lifecycleScope.launch {
+            val current = prefs.pictureMode.first()
+            val options = arrayOf("Auto", "Sports", "Movie", "Standard")
+            val values = intArrayOf(
+                com.iptvapp.util.PictureMode.AUTO,
+                com.iptvapp.util.PictureMode.SPORTS,
+                com.iptvapp.util.PictureMode.MOVIE,
+                com.iptvapp.util.PictureMode.STANDARD
+            )
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Picture")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val mode = values[which]
+                    lifecycleScope.launch {
+                        prefs.setPictureMode(mode)
+                        binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(mode)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun showSportsModeDialog() {
         lifecycleScope.launch {
             val current = prefs.sportsMode.first()
@@ -2849,6 +2876,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchPreferReliableCopy.isChecked = prefs.preferReliableCopy.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
+                binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(prefs.pictureMode.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
@@ -4070,6 +4098,7 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
         binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
+        binding.rowPictureMode.setOnClickListener { showPictureModeDialog() }
         binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
         binding.switchSportsScore.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
@@ -4456,6 +4485,7 @@ class SettingsActivity : AppCompatActivity() {
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
+            put("pictureMode", prefs.pictureMode.first())
             put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
             put("favoriteTeams", prefs.favoriteTeams.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
@@ -4677,6 +4707,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
+        if (json.has("pictureMode")) prefs.setPictureMode(json.optInt("pictureMode", 0))
         if (json.has("sportsScoreOverlay")) prefs.setSportsScoreOverlay(json.optBoolean("sportsScoreOverlay", true))
         if (json.has("favoriteTeams")) prefs.setFavoriteTeams(json.optString("favoriteTeams", ""))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
