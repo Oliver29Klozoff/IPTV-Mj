@@ -2007,22 +2007,27 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val report = com.iptvapp.util.ProviderHealth.build(this@SettingsActivity, db, prefs)
 
-            // Live reachability check for EVERY configured provider — the reliability-history
-            // numbers above only exist for the primary provider (ChannelReliabilityEntity has
-            // no serverIndex/merged-channel tracking at all), so "how's this other provider
-            // doing" can only be answered as "is it responding right now", not a history.
-            val allHealth = repository.checkAllProviderHealth()
-            val allHealthText = allHealth.joinToString("\n\n") { s ->
-                val statusLine = when {
-                    s.reachable -> "✓ Online (${s.responseMs}ms)"
-                    else -> "✗ Unreachable — ${s.error}"
-                }
-                val label = if (s.serverIndex == -1) "${s.nickname} (Primary)" else s.nickname
-                "$label\n$statusLine"
+            // Every provider: answering now, plus its channels' history from feed scores (starts,
+            // tune time, stalls, recent failures), when its list was synced and how far its guide runs.
+            val now = System.currentTimeMillis()
+            val providers = try { repository.providerDashboard() } catch (_: Exception) { emptyList() }
+            val providersText = providers.joinToString("\n\n") { p ->
+                com.iptvapp.util.ProviderDashboard.providerBlock(
+                    name = p.nickname,
+                    isPrimary = p.serverIndex == -1,
+                    reachable = p.reachable,
+                    responseMs = p.responseMs,
+                    error = p.error,
+                    feeds = p.feeds,
+                    catalogRefreshedAt = p.catalogRefreshedAt,
+                    guideEnd = p.guideEndsAt,
+                    nowMs = now,
+                )
             }
 
-            val message = com.iptvapp.util.ProviderHealth.formatReport(report) +
-                "\n\n— All Providers —\n\n" + allHealthText
+            val message = providersText +
+                "\n\n— This device, last 24 h —\n" +
+                "Playback errors: ${report.stallsLast24h} · automatic retries: ${report.retriesLast24h}"
 
             val builder = AlertDialog.Builder(this@SettingsActivity)
                 .setTitle("Provider Health")

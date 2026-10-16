@@ -1306,6 +1306,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (bulkSelectedMergedKeys.contains(key)) "Deselect (bulk)" else "Select (bulk add to favorites)"
                 )
                 if (channel.isFavorite) options.add("Move to Folder")
+                options.add(HomeActivity.ALL_SOURCES)
                 if (bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) {
                     options.add(0, "✓ Hide ${bulkSelectedMergedKeys.size} selected")
                     options.add(0, "✓ Add ${bulkSelectedMergedKeys.size} selected to favorites")
@@ -1314,6 +1315,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .setTitle("${channel.name} · ${channel.serverNickname}")
                     .setItems(options.toTypedArray()) { _, which ->
                         when (options[which]) {
+                            HomeActivity.ALL_SOURCES ->
+                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                             "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
@@ -2455,10 +2458,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
                 )
                 if (channel.isFavorite) options.add("Move to Folder")
+                options.add(HomeActivity.ALL_SOURCES)
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("${channel.name} · ${channel.serverNickname}")
                     .setItems(options.toTypedArray()) { _, which ->
                         when (options[which]) {
+                            HomeActivity.ALL_SOURCES ->
+                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                             "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
@@ -4362,7 +4368,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             "Set Reminder",
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
             "Hide Channel",
-            "Channels Like This"
+            "Channels Like This",
+            HomeActivity.ALL_SOURCES
         )
         if (isUs) {
             options.add(if (channel.customNum != null) "Change Channel Number (${channel.customNum})" else "Set Channel Number")
@@ -4375,6 +4382,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setTitle(channel.name)
             .setItems(options.toTypedArray()) { _, i ->
                 when {
+                    options[i] == HomeActivity.ALL_SOURCES ->
+                        com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     options[i] == "Set Reminder" -> showTvReminderDialog(channel)
                     options[i].startsWith("Set Channel Number") || options[i].startsWith("Change Channel Number") ->
                         showTvSetChannelNumberDialog(channel)

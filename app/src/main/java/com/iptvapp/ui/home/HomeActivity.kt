@@ -1616,6 +1616,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Long-press menu entry: every copy of the channel across providers (ChannelSourcesDialog). */
+        const val ALL_SOURCES = "All Sources"
         const val EXTRA_JUMP_TO_STREAM_ID = "jump_to_stream_id"
         const val EXTRA_JUMP_SERVER_INDEX = "jump_server_index"
 
@@ -5601,6 +5603,7 @@ class HomeActivity : AppCompatActivity() {
             if (bulkSelectedLiveIds.contains(row.id)) "Deselect (bulk)" else "Select (bulk add to favorites)"
         )
         if (ch != null) options.add("Hide Channel")
+        options.add(ALL_SOURCES)
         if (bulkSelectLiveMode && bulkSelectedLiveIds.isNotEmpty()) {
             options.add(0, "✓ Hide ${bulkSelectedLiveIds.size} selected")
             options.add(0, "✓ Add ${bulkSelectedLiveIds.size} selected to favorites")
@@ -5609,6 +5612,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
+                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, row.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Add to Favorites", "Remove from Favorites" -> {
                         viewModel.toggleLiveRowFavorite(row)
                         Toast.makeText(this, if (row.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
@@ -5734,7 +5738,8 @@ class HomeActivity : AppCompatActivity() {
             "Set Reminder",
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
             "Hide Channel",
-            "Channels Like This"
+            "Channels Like This",
+            ALL_SOURCES
         )
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Hide ${bulkSelectedIds.size} selected")
@@ -5744,6 +5749,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
+                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Set Reminder" -> showReminderDialog(channel)
                     "Select (bulk add to favorites)" -> {
                         bulkSelectMode = true
@@ -5845,6 +5851,7 @@ class HomeActivity : AppCompatActivity() {
             if (bulkSelectedMergedKeys.contains(key)) "Deselect (bulk)" else "Select (bulk add to favorites)"
         )
         if (channel.isFavorite) options.add("Move to Folder")
+        options.add(ALL_SOURCES)
         if (bulkSelectMergedMode && bulkSelectedMergedKeys.isNotEmpty()) {
             options.add(0, "✓ Hide ${bulkSelectedMergedKeys.size} selected")
             options.add(0, "✓ Add ${bulkSelectedMergedKeys.size} selected to favorites")
@@ -5853,6 +5860,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle("${channel.name} · ${channel.serverNickname}")
             .setItems(options.toTypedArray()) { _, which ->
                 when (options[which]) {
+                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Play Fullscreen" -> lifecycleScope.launch {
                         try {
                             val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
