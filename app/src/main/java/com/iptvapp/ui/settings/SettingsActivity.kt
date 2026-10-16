@@ -266,6 +266,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Subtitle Background Color", 0, R.id.hdrLanguage, R.id.rowSubBgColor),
             SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
+            SettingSearchEntry("Automatic Backup Feed", 0, null, R.id.switchAutoBackupFeed),
             SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
@@ -2848,6 +2849,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
                 binding.switchPreferReliableCopy.isChecked = prefs.preferReliableCopy.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
+                binding.switchAutoBackupFeed.isChecked = prefs.autoBackupFeed.first()
                 binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
@@ -3379,6 +3381,8 @@ class SettingsActivity : AppCompatActivity() {
                                 // actually being removed. See decrementServerIndicesAfter's own kdoc.
                                 db.mergedChannelDao().clearForServer(i)
                                 db.mergedChannelDao().decrementServerIndicesAfter(i)
+                                // Feed scores are keyed the same way and move with the catalog.
+                                db.feedStatsDao().removeServer(i)
                                 // VOD/series are always Xtream-sourced (M3U import only ever carries
                                 // live channels — see M3uParser), so the old wipe-and-let-the-next-
                                 // refresh-repopulate approach doesn't lose anything permanently here,
@@ -4069,6 +4073,10 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
+        binding.switchAutoBackupFeed.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setAutoBackupFeed(enabled) }
+        }
         binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
         binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
         binding.switchSportsScore.setOnCheckedChangeListener { _, enabled ->
@@ -4454,6 +4462,7 @@ class SettingsActivity : AppCompatActivity() {
             put("preferReliableCopy", prefs.preferReliableCopy.first())
             put("showAlertKeywords", org.json.JSONArray(prefs.getShowAlertKeywords()))
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
+            put("autoBackupFeed", prefs.autoBackupFeed.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
             put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
@@ -4675,6 +4684,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("preferReliableCopy")) prefs.setPreferReliableCopy(json.optBoolean("preferReliableCopy", true))
         json.optJSONArray("showAlertKeywords")?.let { arr -> prefs.setShowAlertKeywords((0 until arr.length()).map { arr.optString(it) }) }
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
+        if (json.has("autoBackupFeed")) prefs.setAutoBackupFeed(json.optBoolean("autoBackupFeed", true))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
         if (json.has("sportsScoreOverlay")) prefs.setSportsScoreOverlay(json.optBoolean("sportsScoreOverlay", true))

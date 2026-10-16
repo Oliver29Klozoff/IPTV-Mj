@@ -225,6 +225,8 @@ class XtreamRepository @Inject constructor(
         sql.execSQL("DELETE FROM series")
         xmltvGuideWriter.clear(-1)
         sql.execSQL("DELETE FROM channel_reliability")
+        // Feed scores belong to the old login's stream ids, which the new one reuses for other channels.
+        feedStatsLock.withLock { db.feedStatsDao().clearForServer(-1) }
         sql.execSQL("DELETE FROM recordings WHERE serverIndex = -1")
         sql.execSQL("DELETE FROM episode_watched")
     }
@@ -241,6 +243,7 @@ class XtreamRepository @Inject constructor(
         mergedChannelsRefreshMutex.withLock { db.mergedChannelDao().clearForServer(serverIndex) }
         mergedVodRefreshMutex.withLock { db.mergedVodDao().clearForServer(serverIndex) }
         mergedSeriesRefreshMutex.withLock { db.mergedSeriesDao().clearForServer(serverIndex) }
+        feedStatsLock.withLock { db.feedStatsDao().clearForServer(serverIndex) }
         xmltvGuideWriter.clear(serverIndex)
     }
 
@@ -2918,16 +2921,107 @@ class XtreamRepository @Inject constructor(
             val hits = candidates.filter { com.iptvapp.util.ChannelNameMatcher.matches(it.third, name) }
             if (server.serverIndex == -1) primaryMatches += hits else mergedMatches += hits
         }
-        if (primaryMatches.isNotEmpty()) {
-            val scores = db.reliabilityDao().getForStreamIds(primaryMatches.map { it.second })
-                .filter { it.outcomes.isNotEmpty() }
-                .associate { it.streamId to (it.outcomes.count { c -> c == '1' } * 100 / it.outcomes.length) }
-            val best = primaryMatches.maxByOrNull { scores[it.second] ?: -1 }
-            // Only trust the ranking if at least one candidate actually has reliability history —
-            // otherwise every candidate ties at -1 and maxByOrNull's pick is arbitrary, not a
-            // deliberate "best" choice, so fall through to the original first-match behavior.
-            if (best != null && scores.containsKey(best.second)) return best
+        // Feed scores now cover every provider, so a merged copy with a clean record can beat a
+        // flaky primary one. With no history anywhere, every copy ties and config order wins.
+        return rankFeeds(primaryMatches + mergedMatches).firstOrNull()
+            ?.let { Triple(it.serverIndex, it.streamId, it.name) }
+    }
+
+    /** One provider's copy of a channel, with its [com.iptvapp.util.FeedScore]. */
+    data class RankedFeed(
+        val serverIndex: Int,
+        val streamId: Int,
+        val name: String,
+        val score: Int,
+        val providerName: String,
+    )
+
+    /** Best first. Ties keep the order given, which is primary then extra providers in config order. */
+    private suspend fun rankFeeds(candidates: List<Triple<Int, Int, String>>): List<RankedFeed> {
+        if (candidates.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val names = allConfiguredServers().associate { it.serverIndex to it.nickname }
+        val stats = candidates.groupBy { it.first }.flatMap { (server, list) ->
+            db.feedStatsDao().getForServer(server, list.map { it.second })
+        }.associateBy { it.serverIndex to it.streamId }
+        // History from before feed scores existed: primary channels only, plays without stalls.
+        val legacy = candidates.filter { it.first == -1 }.map { it.second }.takeIf { it.isNotEmpty() }
+            ?.let { ids -> db.reliabilityDao().getForStreamIds(ids) }
+            ?.filter { it.outcomes.isNotEmpty() }
+            ?.associate { it.streamId to it.outcomes }
+            .orEmpty()
+        return candidates.map { (server, id, name) ->
+            val row = stats[server to id]
+                ?: legacy[id]?.takeIf { server == -1 }?.let {
+                    com.iptvapp.data.local.entities.FeedStatsEntity(server, id, outcomes = it)
+                }
+            RankedFeed(server, id, name, com.iptvapp.util.FeedScore.score(row, now), names[server].orEmpty())
+        }.sortedByDescending { it.score }
+    }
+
+    /** The catalog name of one provider's copy, without any display decoration. */
+    suspend fun feedCatalogName(serverIndex: Int, streamId: Int): String? = withContext(Dispatchers.IO) {
+        if (streamId < 0) return@withContext null
+        if (serverIndex == -1) db.channelDao().getChannelById(streamId)?.name
+        else db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)?.name
+    }
+
+    /** A channel start on one provider's copy. [tuneMs] is open to first picture. */
+    suspend fun recordFeedStart(serverIndex: Int, streamId: Int, played: Boolean, tuneMs: Long) = withContext(Dispatchers.IO) {
+        if (streamId < 0) return@withContext
+        feedStatsLock.withLock {
+            val now = System.currentTimeMillis()
+            val row = db.feedStatsDao().get(serverIndex, streamId)
+                ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
+            db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterStart(row, played, tuneMs, now))
         }
-        return primaryMatches.firstOrNull() ?: mergedMatches.firstOrNull()
+    }
+
+    /** [minutes] watched on one provider's copy, with [stalls] rebuffers in them. */
+    suspend fun recordFeedWatching(serverIndex: Int, streamId: Int, minutes: Float, stalls: Int) = withContext(Dispatchers.IO) {
+        if (streamId < 0 || minutes <= 0f) return@withContext
+        feedStatsLock.withLock {
+            val now = System.currentTimeMillis()
+            val row = db.feedStatsDao().get(serverIndex, streamId)
+                ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
+            db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterWatching(row, minutes, stalls, now))
+        }
+    }
+
+    /**
+     * The best other copy of [name] for a channel that keeps stalling: any provider, including
+     * another copy on the current one, but never the copy playing now or one in [tried].
+     * Null when nothing else exists or every other copy has a record worse than [MIN_BACKUP_SCORE],
+     * since swapping one bad feed for another only adds an interruption.
+     */
+    suspend fun findBackupFeed(
+        name: String,
+        currentServerIndex: Int,
+        currentStreamId: Int,
+        tried: Set<Pair<Int, Int>>,
+    ): RankedFeed? = withContext(Dispatchers.IO) {
+        val candidates = mutableListOf<Triple<Int, Int, String>>()
+        for (server in allConfiguredServers()) {
+            val rows = if (server.serverIndex == -1) {
+                db.channelDao().getAllChannels().first().filter { !it.isHidden }.map { Triple(-1, it.streamId, it.name) }
+            } else {
+                db.mergedChannelDao().getAllForServer(server.serverIndex).map { Triple(it.serverIndex, it.streamId, it.name) }
+            }
+            candidates += rows.filter {
+                (it.first to it.second) != (currentServerIndex to currentStreamId) &&
+                    (it.first to it.second) !in tried &&
+                    com.iptvapp.util.ChannelNameMatcher.matches(it.third, name)
+            }
+        }
+        rankFeeds(candidates).firstOrNull()?.takeIf { it.score >= MIN_BACKUP_SCORE }
+    }
+
+    companion object {
+        /** A copy scoring below this has failed or stalled enough that it is not worth moving to. */
+        const val MIN_BACKUP_SCORE = 35
+
+        // recordFeedStart and recordFeedWatching read a row and write it back. Reports arrive from
+        // separate coroutines (a start and the exit flush can land together), so they take turns.
+        private val feedStatsLock = Mutex()
     }
 }

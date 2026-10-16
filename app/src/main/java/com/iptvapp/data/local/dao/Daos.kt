@@ -1103,3 +1103,34 @@ interface EpgDiffAlertDao {
     @Query("DELETE FROM epg_diff_alerts WHERE shown = 1 AND timestamp < :beforeMs")
     suspend fun pruneShownOlderThan(beforeMs: Long)
 }
+@Dao
+interface FeedStatsDao {
+    @Query("SELECT * FROM feed_stats WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun get(serverIndex: Int, streamId: Int): FeedStatsEntity?
+
+    // Callers pass a handful of failover candidates, never a whole catalog.
+    @Query("SELECT * FROM feed_stats WHERE serverIndex = :serverIndex AND streamId IN (:streamIds)")
+    suspend fun getForServer(serverIndex: Int, streamIds: List<Int>): List<FeedStatsEntity>
+
+    @Upsert
+    suspend fun upsert(entity: FeedStatsEntity)
+
+    // Removing an extra provider: drop its rows and move later providers down one, through the same
+    // two-pass offset as MergedChannelDao.decrementServerIndicesAfter, since stream ids repeat across
+    // providers and a one-pass UPDATE can collide on the key. The primary (-1) never moves.
+    @Query("DELETE FROM feed_stats WHERE serverIndex = :serverIndex")
+    suspend fun clearForServer(serverIndex: Int)
+
+    @Query("UPDATE feed_stats SET serverIndex = serverIndex + 1000000 WHERE serverIndex > :removedIndex")
+    suspend fun offsetServerIndicesAfter(removedIndex: Int)
+
+    @Query("UPDATE feed_stats SET serverIndex = serverIndex - 1000001 WHERE serverIndex > 1000000")
+    suspend fun unoffsetServerIndices()
+
+    @androidx.room.Transaction
+    suspend fun removeServer(removedIndex: Int) {
+        clearForServer(removedIndex)
+        offsetServerIndicesAfter(removedIndex)
+        unoffsetServerIndices()
+    }
+}

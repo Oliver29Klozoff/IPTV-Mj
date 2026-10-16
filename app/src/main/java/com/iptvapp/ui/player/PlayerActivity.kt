@@ -254,6 +254,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
 
+    // Feed scores and the automatic backup feed: see FeedTracker and XtreamRepository.findBackupFeed.
+    private val feedTracker = FeedTracker()
+    /** Copies already left behind on this channel, so a backup never bounces back to them. */
+    private val backupFeedsTried = mutableSetOf<Pair<Int, Int>>()
+    /** True while loadStream runs for a backup switch, so the tracker keeps its switch budget. */
+    private var backupSwitchOpening = false
+    private var backupSwitchJob: kotlinx.coroutines.Job? = null
+    /** A seek rebuffers by design. It is not the feed stalling. */
+    private var lastSeekAtMs = 0L
+    private var feedFlushJob: kotlinx.coroutines.Job? = null
+
     // Episode playlist for auto-play next
     private var epIds: List<String> = emptyList()
     private var epTitles: List<String> = emptyList()
@@ -2293,6 +2304,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Still the same live channel? (It can change while the lookup above runs.)
             if (isVod || streamId != sid || serverIndex != -1) return@launch
             startedOverFromLive = true
+            // A replay is not this live copy. Save what it has and stop scoring until back at live.
+            feedFlushJob?.cancel()
+            reportFeed(feedTracker.open(null, android.os.SystemClock.elapsedRealtime()))
             liveTitleBeforeStartOver = streamTitle
             catchupLiveUrl = streamUrl
             catchupChannelName = ch.name
@@ -2891,6 +2905,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
                             setPictureInPictureParams(buildPipParams())
                         }
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (isPlaying) reportFeed(feedTracker.onReady(now)) else feedTracker.onNotPlaying(now)
+                    }
+
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int,
+                    ) {
+                        if (reason == Player.DISCONTINUITY_REASON_SEEK) lastSeekAtMs = android.os.SystemClock.elapsedRealtime()
                     }
 
                     // Refreshes the PiP window's aspect ratio once the real video dimensions
@@ -2922,6 +2946,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                     recordPlaybackOutcome(success = true)
                                     maybeShowCommunityHealthBanner()
                                 }
+                                val readyAt = android.os.SystemClock.elapsedRealtime()
+                                reportFeed(feedTracker.onReady(readyAt))
+                                if (!exoPlayer.playWhenReady) feedTracker.onNotPlaying(readyAt)
                                 if (isVod) startSeekBarUpdater()
                                 if (isVod && epIds.isNotEmpty()) startSkipNextPoller()
                                 startHealthBadge()
@@ -2947,6 +2974,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                             }
                             Player.STATE_BUFFERING -> {
                                 binding.progressBuffering.visibility = View.VISIBLE
+                                val stallAt = android.os.SystemClock.elapsedRealtime()
+                                if (!timeshiftSeeking && stallAt - lastSeekAtMs > 5_000L && feedTracker.onBuffering(stallAt)) {
+                                    maybeSwitchToBackupFeed()
+                                }
                                 // Neither onPlayerError nor STATE_ENDED necessarily fires if a
                                 // stream just stalls indefinitely — that leaves a black screen
                                 // with zero trace in the debug report. Log once if buffering
@@ -3006,6 +3037,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         if (!outcomeRecordedForThisPlayback && !com.iptvapp.util.StreamErrors.isAccountInUse(error)) {
                             outcomeRecordedForThisPlayback = true
                             recordPlaybackOutcome(success = false)
+                        }
+                        if (!com.iptvapp.util.StreamErrors.isAccountInUse(error)) {
+                            reportFeed(feedTracker.onFailed(android.os.SystemClock.elapsedRealtime()))
                         }
                         com.iptvapp.IptvApplication.logPlaybackEvent(
                             applicationContext,
@@ -3392,7 +3426,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             retryJob?.cancel()
             retryJob = lifecycleScope.launch {
                 val match = try {
-                    repository.findFailoverChannel(streamTitle, serverIndex)
+                    // The catalog name: an extra provider's title also carries " · nickname".
+                    val ownId = if (serverIndex == -1) streamId else mergedStreamId
+                    val name = repository.feedCatalogName(serverIndex, ownId) ?: streamTitle.substringBeforeLast(" · ")
+                    repository.findFailoverChannel(name, serverIndex)
                 } catch (_: Exception) { null }
                 if (match != null) {
                     val (matchServerIndex, matchStreamId, matchName) = match
@@ -3408,8 +3445,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     ).show()
                     bandwidthTracker?.updateServerIndex(matchServerIndex)
                     serverIndex = matchServerIndex
-                    streamId = matchStreamId
+                    // streamId is the primary provider's id only; an extra provider's is mergedStreamId.
+                    streamId = if (matchServerIndex == -1) matchStreamId else -1
                     mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
+                    // This path plays the new copy without loadStream. Score it as the new copy.
+                    reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic = true))
+                    rebuildZapListForCurrentCopy()
                     streamUrl = try {
                         if (matchServerIndex == -1) repository.getLiveStreamUrl(matchStreamId)
                         else repository.getMergedLiveStreamUrl(matchServerIndex, matchStreamId)
@@ -3997,6 +4038,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun loadStream(url: String) {
         com.iptvapp.remote.RemoteControlServer.nowPlaying = streamTitle
+        openFeedTracking(automatic = backupSwitchOpening)
         retryCount = 0
         vodFormatFallbackTried = false
         retryJob?.cancel()
@@ -4021,6 +4063,153 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 stopTimeshift()
                 playProviderUrl(url, playWhenReady = true)
             }
+        }
+    }
+
+    /** The live copy playing now, or null for anything feed scores do not cover. */
+    private fun currentFeedKey(): FeedTracker.Key? {
+        if (isVod || isCatchup || isRecordingPlayback || startedOverFromLive) return null
+        val id = if (serverIndex == -1) streamId else mergedStreamId
+        return if (id < 0) null else FeedTracker.Key(serverIndex, id)
+    }
+
+    /**
+     * Starts tracking the copy about to open. A channel the user picked clears the copies tried;
+     * a backup switch keeps them, and the tracker keeps its switch budget.
+     */
+    private fun openFeedTracking(automatic: Boolean) {
+        if (!automatic) {
+            backupSwitchJob?.cancel()
+            backupFeedsTried.clear()
+        }
+        reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic))
+        feedFlushJob?.cancel()
+        // Watching time is saved every few minutes, so a long evening is not lost to a crash.
+        feedFlushJob = lifecycleScope.launch {
+            while (true) {
+                delay(5 * 60_000L)
+                reportFeed(feedTracker.flush(android.os.SystemClock.elapsedRealtime()))
+            }
+        }
+    }
+
+    /** Fire and forget, like recordPlaybackOutcome: a DB write must never disturb playback. */
+    private fun reportFeed(reports: List<FeedTracker.Report>) {
+        if (reports.isEmpty()) return
+        // GlobalScope like the bandwidth flush: the last report is sent from onStop, and leaving
+        // the player cancels lifecycleScope before the write lands. A small Room write is safe.
+        kotlinx.coroutines.GlobalScope.launch {
+            for (r in reports) {
+                try {
+                    when (r) {
+                        is FeedTracker.Report.Started ->
+                            repository.recordFeedStart(r.key.serverIndex, r.key.streamId, r.played, r.tuneMs)
+                        is FeedTracker.Report.Watched ->
+                            repository.recordFeedWatching(r.key.serverIndex, r.key.streamId, r.minutes, r.stalls)
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    /**
+     * After a backup switch or failover, everything outside this screen follows the new copy:
+     * up/down zaps through its provider's list (rebuilt from the copy's own category), the
+     * recording screens see which account is streaming, and a cold start resumes on it, the same
+     * as a channel change by hand.
+     */
+    private suspend fun rebuildZapListForCurrentCopy() {
+        try {
+            prefs.setLivePlaybackActive(serverIndex)
+            prefs.setLastPlayedChannel(serverIndex, if (serverIndex == -1) streamId else mergedStreamId)
+            if (serverIndex != -1) {
+                val current = repository.getMergedChannelByIndexAndId(serverIndex, mergedStreamId) ?: return
+                mergedChannels = repository.getMergedChannelsByCategory(serverIndex, current.categoryId).first()
+                mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == mergedStreamId }
+            } else {
+                // The list this player opened with may be a filtered one without this copy in it.
+                if (channels.none { it.streamId == streamId }) channels = repository.getAllChannels().first()
+                currentIndex = channels.indexOfFirst { it.streamId == streamId }
+            }
+            currentZapStreamId = if (serverIndex == -1) streamId else -1
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+        }
+    }
+
+    /**
+     * The copy playing now has stalled three times in two minutes. Move to the best-scoring
+     * other copy of the same channel, on any provider, and say so. Left alone while the viewer
+     * is behind live in a timeshift window (a new copy would throw that window away), in a
+     * watch party (the host picks the feed), while casting, or with the setting off.
+     */
+    /** Checked before the lookup and again just before switching: either can change while it runs. */
+    private fun backupSwitchAllowed(): Boolean {
+        if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || isPartyHost || audioOnly) return false
+        if (timeshiftFrozen || player?.playWhenReady != true) return false
+        // Behind live in either window, the local one or the provider's own DVR. A new copy
+        // opens at live and would skip what the viewer has not watched yet.
+        if (timeshiftState != TimeshiftPlaybackState.LIVE) return false
+        if (timeshiftMode == TimeshiftSource.LOCAL) {
+            val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
+            if (!atLive) return false
+        }
+        return true
+    }
+
+    private fun maybeSwitchToBackupFeed() {
+        val from = currentFeedKey() ?: return
+        if (!backupSwitchAllowed()) return
+        if (backupSwitchJob?.isActive == true) return
+        val title = streamTitle
+        backupSwitchJob = lifecycleScope.launch {
+            // The catalog name: an extra provider's title also carries " · nickname".
+            val name = try { repository.feedCatalogName(from.serverIndex, from.streamId) } catch (_: Exception) { null }
+                ?: title.substringBeforeLast(" · ")
+            val backup = try {
+                repository.findBackupFeed(name, from.serverIndex, from.streamId, backupFeedsTried)
+            } catch (_: Exception) { null }
+            // The user changed channel while this was looking.
+            if (currentFeedKey() != from || streamTitle != title) return@launch
+            if (backup == null) {
+                com.iptvapp.IptvApplication.logPlaybackEvent(
+                    applicationContext,
+                    "BACKUP FEED: \"$title\" serverIndex=${from.serverIndex} streamId=${from.streamId} keeps stalling, no other copy worth trying"
+                )
+                return@launch
+            }
+            val url = try {
+                if (backup.serverIndex == -1) repository.getLiveStreamUrl(backup.streamId)
+                else repository.getMergedLiveStreamUrl(backup.serverIndex, backup.streamId)
+            } catch (_: Exception) { return@launch }
+            if (currentFeedKey() != from || !backupSwitchAllowed()) return@launch
+            com.iptvapp.IptvApplication.logPlaybackEvent(
+                applicationContext,
+                "BACKUP FEED: \"$title\" serverIndex=${from.serverIndex} streamId=${from.streamId} kept stalling -> " +
+                    "\"${backup.name}\" serverIndex=${backup.serverIndex} streamId=${backup.streamId} score=${backup.score}"
+            )
+            backupFeedsTried += from.serverIndex to from.streamId
+            bandwidthTracker?.updateServerIndex(backup.serverIndex)
+            serverIndex = backup.serverIndex
+            // streamId is the primary provider's id only. An extra provider's copy lives in
+            // mergedStreamId, the same split playMergedChannel and the guide rely on.
+            streamId = if (backup.serverIndex == -1) backup.streamId else -1
+            mergedStreamId = if (backup.serverIndex == -1) -1 else backup.streamId
+            streamTitle = if (backup.serverIndex == -1 || backup.providerName.isBlank()) backup.name
+                else "${backup.name} · ${backup.providerName}"
+            val where = if (backup.serverIndex == from.serverIndex || backup.providerName.isBlank()) "another copy of this channel"
+                else backup.providerName
+            Toast.makeText(this@PlayerActivity, "Switched to backup feed: $where", Toast.LENGTH_LONG).show()
+            backupSwitchOpening = true
+            try {
+                loadStream(url)
+            } finally {
+                backupSwitchOpening = false
+            }
+            // Nothing suspends between the identity change and loadStream, so a channel picked by
+            // hand cannot land in between. The list and prefs follow once the new copy is opening.
+            rebuildZapListForCurrentCopy()
         }
     }
 
@@ -5568,6 +5757,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStop() {
         super.onStop()
+        // Out of sight is not watching. Playing resumes the count through onIsPlayingChanged.
+        val stoppedAt = android.os.SystemClock.elapsedRealtime()
+        feedTracker.onNotPlaying(stoppedAt)
+        reportFeed(feedTracker.flush(stoppedAt))
         if (isCatchup && !isChangingConfigurations && player != null) {
             // vodPositionMs includes a queued reopen's target; the resume path in onStart takes
             // over from here, so the queued reopen must not also fire on the new player.

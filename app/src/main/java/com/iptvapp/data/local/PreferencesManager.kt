@@ -107,6 +107,7 @@ class PreferencesManager @Inject constructor(
     fun preferredAudioLanguageNow() = PrefsSnapshot.read(context, readPreferredAudioLanguage)
     fun preferredSubtitleLanguageNow() = PrefsSnapshot.read(context, readPreferredSubtitleLanguage)
     fun extraBufferingEnabledNow() = PrefsSnapshot.read(context, readExtraBufferingEnabled)
+    fun autoBackupFeedNow() = PrefsSnapshot.read(context, readAutoBackupFeed)
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
@@ -123,6 +124,7 @@ class PreferencesManager @Inject constructor(
     private val readDv7FallbackEnabled = { p: Preferences -> p[Keys.DV7_FALLBACK_ENABLED] ?: false }
     private val readAudioPassthroughFallbackEnabled = { p: Preferences -> p[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
     private val readExtraBufferingEnabled = { p: Preferences -> p[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
+    private val readAutoBackupFeed = { p: Preferences -> p[Keys.AUTO_BACKUP_FEED] ?: true }
     private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
     private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
     private val readSportsScoreOverlay = { p: Preferences -> p[Keys.SPORTS_SCORE_OVERLAY] ?: true }
@@ -290,6 +292,8 @@ class PreferencesManager @Inject constructor(
         val LIVE_RECONNECT_SPEED = stringPreferencesKey("live_reconnect_speed")
         val SILENT_SELF_UPDATE_ENABLED = booleanPreferencesKey("silent_self_update_enabled")
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
+        // Move a live channel that keeps stalling to another provider's copy of it. On by default.
+        val AUTO_BACKUP_FEED = booleanPreferencesKey("auto_backup_feed")
         // Live timeshift window in minutes. 0 is off. Anything else snaps to 15, 30, or 60.
         val TIMESHIFT_MINUTES = intPreferencesKey("timeshift_minutes")
         // Sports Mode: 0 off, 1 games, 2 all live. Off leaves the normal live buffer alone.
@@ -404,6 +408,10 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readExtraBufferingEnabled)
     suspend fun setExtraBufferingEnabled(v: Boolean) = context.dataStore.edit { it[Keys.EXTRA_BUFFERING_ENABLED] = v }
+    val autoBackupFeed: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readAutoBackupFeed)
+    suspend fun setAutoBackupFeed(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_BACKUP_FEED] = v }
 
     // Default 30 minutes. A low-storage device shortens the buffer at playback time and does not
     // rewrite this saved value. Off (0) leaves live playback exactly as it was.
