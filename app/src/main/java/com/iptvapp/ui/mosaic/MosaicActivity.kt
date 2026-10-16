@@ -33,8 +33,12 @@ class MosaicActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMosaicBinding
     private val viewModel: HomeViewModel by viewModels()
     @javax.inject.Inject lateinit var okHttpClient: okhttp3.OkHttpClient
+    @javax.inject.Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
+    @javax.inject.Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private val players = mutableListOf<ExoPlayer>()
+    // One per tile: reloads that tile alone when it errors, sticks buffering, or freezes.
+    private val healers = mutableListOf<com.iptvapp.ui.player.TileHealer>()
     private val cells = mutableListOf<MosaicCell>()
     private var gridSize = 4 // 2, 4, or 6
     private var allMuted = false
@@ -67,9 +71,18 @@ class MosaicActivity : AppCompatActivity() {
         binding.btnMosaicBack.setOnClickListener { finish() }
         binding.btnGridSize.setOnClickListener { cycleGridSize() }
         binding.btnMuteAll.setOnClickListener { toggleMuteAll() }
+        binding.btnLayouts.setOnClickListener { showLayoutsMenu() }
 
-        setupGrid(gridSize)
-        loadFavorites()
+        // Opens on the layout used last, if it still exists. Otherwise the first favorites.
+        lifecycleScope.launch {
+            val lastName = prefs.mosaicLastLayout.first()
+            val last = MosaicLayouts.decode(prefs.mosaicLayouts.first())
+                .firstOrNull { it.name.equals(lastName, ignoreCase = true) }
+            if (last != null) applyLayout(last) else {
+                setupGrid(gridSize)
+                loadFavorites()
+            }
+        }
     }
 
     private fun loadFavorites() {
@@ -84,6 +97,8 @@ class MosaicActivity : AppCompatActivity() {
 
     private fun setupGrid(size: Int) {
         binding.mosaicGrid.removeAllViews()
+        healers.forEach { it.release() }
+        healers.clear()
         cells.forEach { it.playerView.player = null }
         players.forEach { it.release() }
         players.clear()
@@ -107,6 +122,36 @@ class MosaicActivity : AppCompatActivity() {
             val cell = buildCell(index, player, cols)
             cells.add(cell)
             binding.mosaicGrid.addView(cell.root)
+            // Added once per player. loadChannel used to add these on every channel change,
+            // so a tile changed a few times reported each error once per old channel.
+            player.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    cell.progress.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    com.iptvapp.IptvApplication.logPlaybackEvent(
+                        applicationContext,
+                        "MOSAIC PLAYER ERROR: cell=$index streamId=${cell.channel?.streamId} " +
+                            "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
+                            "message=${error.message}"
+                    )
+                }
+            })
+            healers.add(
+                com.iptvapp.ui.player.TileHealer(
+                    player = player,
+                    scope = lifecycleScope,
+                    tag = "MOSAIC cell=$index",
+                    log = { com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, it) },
+                    onStatus = { status ->
+                        val label = cell.channel?.let { labelOf(it) } ?: ""
+                        cell.tvName.text = if (status == null) label else "$label  ·  $status"
+                    },
+                    onSwitched = { source ->
+                        (source.payload as? MosaicChannel)?.let { cell.channel = it }
+                    },
+                )
+            )
         }
 
         // Default to the first tile focused, not none — loadChannel() only mutes a cell when
@@ -258,42 +303,167 @@ class MosaicActivity : AppCompatActivity() {
         val cell = cells.getOrNull(index) ?: return
         val player = players.getOrNull(index) ?: return
         cell.channel = channel
-        cell.tvName.text = when (channel) {
-            is MosaicChannel.Primary -> channel.name
-            is MosaicChannel.Merged -> "${channel.name} · ${channel.entity.serverNickname}"
-        }
+        cell.tvName.text = labelOf(channel)
         cell.progress.visibility = View.VISIBLE
+        healers.getOrNull(index)?.watch(sourceOf(channel)) { tried -> backupFor(cell, tried) }
 
         lifecycleScope.launch {
-            val url = when (channel) {
-                is MosaicChannel.Primary -> viewModel.getLiveStreamUrl(channel.streamId)
-                is MosaicChannel.Merged -> viewModel.getMergedLiveStreamUrl(channel.entity.serverIndex, channel.entity.streamId)
-            }
+            val url = urlOf(channel)
+            // The user may have picked another channel for this tile while the URL was built.
+            if (cell.channel !== channel) return@launch
             player.stop()
             player.clearMediaItems()
             player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
             player.playWhenReady = true
             player.volume = if (allMuted || (focusedCell != -1 && focusedCell != index)) 0f else 1f
-
-            player.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    cell.progress.visibility =
-                        if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
-                }
-                // Mosaic previously logged nothing at all — any failure (very plausible given
-                // it opens several simultaneous connections on one account, which can exceed a
-                // provider's concurrent-connection limit) left zero trace anywhere.
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    com.iptvapp.IptvApplication.logPlaybackEvent(
-                        applicationContext,
-                        "MOSAIC PLAYER ERROR: cell=$index streamId=${channel.streamId} " +
-                            "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
-                            "message=${error.message} url=$url"
-                    )
-                }
-            })
         }
+    }
+
+    private fun labelOf(ch: MosaicChannel) = when (ch) {
+        is MosaicChannel.Primary -> ch.name
+        is MosaicChannel.Merged -> "${ch.name} · ${ch.entity.serverNickname}"
+    }
+
+    private fun keyOf(ch: MosaicChannel): Pair<Int, Int> = when (ch) {
+        is MosaicChannel.Primary -> -1 to ch.streamId
+        is MosaicChannel.Merged -> ch.entity.serverIndex to ch.entity.streamId
+    }
+
+    private suspend fun urlOf(ch: MosaicChannel): String = when (ch) {
+        is MosaicChannel.Primary -> viewModel.getLiveStreamUrl(ch.streamId)
+        is MosaicChannel.Merged -> viewModel.getMergedLiveStreamUrl(ch.entity.serverIndex, ch.entity.streamId)
+    }
+
+    private fun sourceOf(ch: MosaicChannel) = com.iptvapp.ui.player.TileHealer.Source(
+        key = keyOf(ch),
+        label = labelOf(ch),
+        payload = ch,
+        freshUrl = { urlOf(ch) },
+    )
+
+    /** Same pick as the full-screen backup feed: the best-scoring other copy, on any provider. */
+    private suspend fun backupFor(cell: MosaicCell, tried: Set<Any>): com.iptvapp.ui.player.TileHealer.Source? {
+        val now = cell.channel ?: return null
+        val (server, id) = keyOf(now)
+        val skip = tried.filterIsInstance<Pair<Int, Int>>().toSet()
+        val best = repository.findBackupFeed(now.name, server, id, skip) ?: return null
+        val next = resolveChannel(best.serverIndex, best.streamId) ?: return null
+        return sourceOf(next)
+    }
+
+    private suspend fun resolveChannel(serverIndex: Int, streamId: Int): MosaicChannel? =
+        if (serverIndex == -1) repository.getChannelById(streamId)?.let { MosaicChannel.Primary(it) }
+        else repository.getMergedChannelByIndexAndId(serverIndex, streamId)?.let { MosaicChannel.Merged(it) }
+
+    // ─── Saved layouts ───────────────────────────────────────────────────────
+
+    private fun gridLabel(size: Int) = when (size) {
+        2 -> "1×2"
+        4 -> "2×2"
+        else -> "2×3"
+    }
+
+    private fun showLayoutsMenu() {
+        lifecycleScope.launch {
+            val saved = MosaicLayouts.decode(prefs.mosaicLayouts.first())
+            val items = listOf("Save this layout…") + saved.map { "${it.name}  (${gridLabel(it.gridSize)})" } +
+                (if (saved.isNotEmpty()) listOf("Delete a layout…") else emptyList())
+            AlertDialog.Builder(this@MosaicActivity)
+                .setTitle("Layouts")
+                .setItems(items.toTypedArray()) { _, which ->
+                    when {
+                        which == 0 -> promptSaveLayout(saved)
+                        which <= saved.size -> lifecycleScope.launch {
+                            val layout = saved[which - 1]
+                            prefs.setMosaicLastLayout(layout.name)
+                            applyLayout(layout)
+                        }
+                        else -> showDeleteLayout(saved)
+                    }
+                }
+                .setNegativeButton("Close", null)
+                .show()
+        }
+    }
+
+    private fun promptSaveLayout(saved: List<MosaicLayout>) {
+        val input = android.widget.EditText(this).apply {
+            hint = "Name, like NFL Sunday"
+            setSingleLine()
+            filters = arrayOf(android.text.InputFilter.LengthFilter(MosaicLayouts.MAX_NAME))
+        }
+        val box = FrameLayout(this).apply {
+            setPadding(48, 16, 48, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Save layout")
+            .setMessage("Saves the grid size and the channel in each tile.")
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isEmpty()) return@setPositiveButton
+                val tiles = cells.map { c ->
+                    c.channel?.let { ch ->
+                        val (server, id) = keyOf(ch)
+                        MosaicLayout.Tile(server, id, ch.name)
+                    }
+                }
+                val replacing = saved.any { it.name.equals(name, ignoreCase = true) }
+                lifecycleScope.launch {
+                    prefs.setMosaicLayouts(MosaicLayouts.encode(MosaicLayouts.upsert(saved, MosaicLayout(name, gridSize, tiles))))
+                    prefs.setMosaicLastLayout(name)
+                    android.widget.Toast.makeText(
+                        this@MosaicActivity,
+                        if (replacing) "Updated \"$name\"" else "Saved \"$name\"",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+        input.requestFocus()
+    }
+
+    private fun showDeleteLayout(saved: List<MosaicLayout>) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete a layout")
+            .setItems(saved.map { it.name }.toTypedArray()) { _, which ->
+                val name = saved[which].name
+                lifecycleScope.launch {
+                    prefs.setMosaicLayouts(MosaicLayouts.encode(MosaicLayouts.remove(saved, name)))
+                    if (prefs.mosaicLastLayout.first().equals(name, ignoreCase = true)) prefs.setMosaicLastLayout("")
+                    android.widget.Toast.makeText(this@MosaicActivity, "Deleted \"$name\"", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /**
+     * Rebuilds the grid at the layout's size and loads each saved tile. A saved copy whose name
+     * no longer matches (the provider's login changed and the id now means another channel), or
+     * that is gone, is replaced by the best copy of the saved channel name on any provider.
+     */
+    private suspend fun applyLayout(layout: MosaicLayout) {
+        gridSize = layout.gridSize
+        binding.btnGridSize.text = gridLabel(gridSize)
+        setupGrid(gridSize)
+        layout.tiles.forEachIndexed { i, tile ->
+            if (tile == null || i >= cells.size) return@forEachIndexed
+            val exact = try { resolveChannel(tile.serverIndex, tile.streamId) } catch (_: Exception) { null }
+            val ch = exact?.takeIf {
+                tile.channelName.isBlank() || com.iptvapp.util.ChannelNameMatcher.matches(it.name, tile.channelName)
+            } ?: try {
+                // -2 excludes no provider: every copy of the name is a candidate.
+                repository.findFailoverChannel(tile.channelName, excludeServerIndex = -2)
+                    ?.let { (server, id, _) -> resolveChannel(server, id) }
+            } catch (_: Exception) { null }
+            if (ch != null) loadChannel(i, ch)
+            else cells[i].tvName.text = "${tile.channelName.ifBlank { "Channel" }} is no longer available"
+        }
+        cells.forEach { if (it.channel == null) it.progress.visibility = View.GONE }
     }
 
     // A plain AlertDialog.setItems() list of every favorite's name was fine for a handful of
@@ -366,11 +536,9 @@ class MosaicActivity : AppCompatActivity() {
             4 -> 6
             else -> 2
         }
-        binding.btnGridSize.text = when (gridSize) {
-            2 -> "1×2"
-            4 -> "2×2"
-            else -> "2×3"
-        }
+        binding.btnGridSize.text = gridLabel(gridSize)
+        // A new grid is no longer the saved layout. Next time opens on favorites again.
+        lifecycleScope.launch { prefs.setMosaicLastLayout("") }
         setupGrid(gridSize)
         loadFavorites()
     }
@@ -390,15 +558,19 @@ class MosaicActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        healers.forEach { it.pause() }
         players.forEach { it.pause() }
     }
 
     override fun onResume() {
         super.onResume()
         players.forEach { it.play() }
+        healers.forEach { it.resume() }
     }
 
     override fun onDestroy() {
+        healers.forEach { it.release() }
+        healers.clear()
         cells.forEach { it.playerView.player = null }
         players.forEach { it.release() }
         players.clear()

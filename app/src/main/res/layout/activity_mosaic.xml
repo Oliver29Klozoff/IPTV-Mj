@@ -33,6 +33,17 @@
             android:textStyle="bold" />
 
         <Button
+            android:id="@+id/btnLayouts"
+            android:layout_width="wrap_content"
+            android:layout_height="35dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Saved layouts"
+            android:text="Layouts"
+            android:textAllCaps="false"
+            android:textColor="#008CFF"
+            android:textSize="13sp" />
+
+        <Button
             android:id="@+id/btnGridSize"
             android:layout_width="wrap_content"
             android:layout_height="35dp"

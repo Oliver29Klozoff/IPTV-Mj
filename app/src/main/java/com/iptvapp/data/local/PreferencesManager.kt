@@ -294,6 +294,9 @@ class PreferencesManager @Inject constructor(
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         // Move a live channel that keeps stalling to another provider's copy of it. On by default.
         val AUTO_BACKUP_FEED = booleanPreferencesKey("auto_backup_feed")
+        // Saved Mosaic layouts as JSON (see MosaicLayouts), and the name of the one last opened.
+        val MOSAIC_LAYOUTS = stringPreferencesKey("mosaic_layouts")
+        val MOSAIC_LAST_LAYOUT = stringPreferencesKey("mosaic_last_layout")
         // Live timeshift window in minutes. 0 is off. Anything else snaps to 15, 30, or 60.
         val TIMESHIFT_MINUTES = intPreferencesKey("timeshift_minutes")
         // Sports Mode: 0 off, 1 games, 2 all live. Off leaves the normal live buffer alone.
@@ -412,6 +415,14 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readAutoBackupFeed)
     suspend fun setAutoBackupFeed(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_BACKUP_FEED] = v }
+    val mosaicLayouts: Flow<String> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.MOSAIC_LAYOUTS] ?: "" }
+    suspend fun setMosaicLayouts(json: String) = context.dataStore.edit { it[Keys.MOSAIC_LAYOUTS] = json }
+    val mosaicLastLayout: Flow<String> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.MOSAIC_LAST_LAYOUT] ?: "" }
+    suspend fun setMosaicLastLayout(name: String) = context.dataStore.edit { it[Keys.MOSAIC_LAST_LAYOUT] = name }
 
     // Default 30 minutes. A low-storage device shortens the buffer at playback time and does not
     // rewrite this saved value. Off (0) leaves live playback exactly as it was.

@@ -41,6 +41,12 @@ class MultiViewActivity : AppCompatActivity() {
 
     private var leftPlayer: ExoPlayer? = null
     private var rightPlayer: ExoPlayer? = null
+    // Each side reloads on its own when it errors, sticks buffering, or freezes.
+    private var leftHealer: TileHealer? = null
+    private var rightHealer: TileHealer? = null
+    /** What each side shows, for its label while it reconnects. */
+    private var leftLabel = ""
+    private var rightLabel = ""
     private var activeSide = 0   // 0 = left, 1 = right
     private var audioSide = 0    // 0 = left has audio, 1 = right
 
@@ -88,6 +94,8 @@ class MultiViewActivity : AppCompatActivity() {
         }
         leftPlayer?.addListener(bufferListener(binding.progressLeft))
         rightPlayer?.addListener(bufferListener(binding.progressRight))
+        leftHealer = leftPlayer?.let { healerFor(it, "left") { s -> showSideStatus(0, s) } }
+        rightHealer = rightPlayer?.let { healerFor(it, "right") { s -> showSideStatus(1, s) } }
         setupTileDrag()
         binding.root.post { updateActiveSideUI() } // wait for a layout pass so parent width/height are known
     }
@@ -208,18 +216,59 @@ class MultiViewActivity : AppCompatActivity() {
         }
     }
 
+    /** One side's player that looks after itself; see TileHealer. */
+    private fun healerFor(player: ExoPlayer, side: String, onStatus: (String?) -> Unit) = TileHealer(
+        player = player,
+        scope = lifecycleScope,
+        tag = "MULTIVIEW $side",
+        log = { com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, it) },
+        onStatus = onStatus,
+        onSwitched = { source -> if (side == "left") leftLabel = source.label else rightLabel = source.label },
+    )
+
+    private fun showSideStatus(side: Int, status: String?) {
+        val label = if (side == 0) leftLabel else rightLabel
+        val text = if (status == null) label else "$label  ·  $status"
+        if (side == 0) binding.tvLeftChannel.text = text else binding.tvRightChannel.text = text
+    }
+
+    private fun sourceFor(serverIndex: Int, streamId: Int, label: String) = TileHealer.Source(
+        key = serverIndex to streamId,
+        label = label,
+        freshUrl = {
+            if (serverIndex == -1) repository.getLiveStreamUrl(streamId)
+            else repository.getMergedLiveStreamUrl(serverIndex, streamId)
+        },
+    )
+
+    /** The best-scoring other copy of [name], the same pick as the full-screen backup feed. */
+    private suspend fun backupFor(name: String, current: Pair<Int, Int>, tried: Set<Any>): TileHealer.Source? {
+        val skip = tried.filterIsInstance<Pair<Int, Int>>().toSet()
+        val best = repository.findBackupFeed(name, current.first, current.second, skip) ?: return null
+        val label = if (best.serverIndex == -1 || best.providerName.isBlank()) best.name else "${best.name} · ${best.providerName}"
+        return sourceFor(best.serverIndex, best.streamId, label)
+    }
+
     private fun playChannel(channel: ChannelEntity) {
+        // The side is the one active when the channel was picked, even if it changes while loading.
+        val side = activeSide
+        if (side == 0) leftLabel = channel.name else rightLabel = channel.name
+        val healer = if (side == 0) leftHealer else rightHealer
+        var current = -1 to channel.streamId
+        healer?.watch(sourceFor(-1, channel.streamId, channel.name)) { tried ->
+            backupFor(channel.name, current, tried)?.also { current = it.key as Pair<Int, Int> }
+        }
         lifecycleScope.launch {
             val url = repository.getLiveStreamUrl(channel.streamId)
             val epgText = repository.getEpgForStream(channel.streamId).first()
                 .firstOrNull()?.title ?: ""
 
-            val player = if (activeSide == 0) leftPlayer else rightPlayer
+            val player = if (side == 0) leftPlayer else rightPlayer
             player?.setMediaItem(MediaItem.fromUri(url))
             player?.prepare()
             player?.playWhenReady = true
 
-            if (activeSide == 0) {
+            if (side == 0) {
                 binding.tvLeftChannel.text = channel.name
                 binding.tvLeftEpg.text = epgText
             } else {
@@ -362,16 +411,22 @@ class MultiViewActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) { leftPlayer?.pause(); rightPlayer?.pause() }
+        if (!isChangingConfigurations) {
+            leftHealer?.pause(); rightHealer?.pause()
+            leftPlayer?.pause(); rightPlayer?.pause()
+        }
     }
 
     override fun onStart() {
         super.onStart()
         leftPlayer?.play(); rightPlayer?.play()
+        leftHealer?.resume(); rightHealer?.resume()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        leftHealer?.release(); leftHealer = null
+        rightHealer?.release(); rightHealer = null
         leftPlayer?.release(); leftPlayer = null
         rightPlayer?.release(); rightPlayer = null
     }
