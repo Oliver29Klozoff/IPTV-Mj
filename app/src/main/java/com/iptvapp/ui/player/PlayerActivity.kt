@@ -4111,11 +4111,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     /**
-     * Up/down zaps through the list of the provider now playing. After a switch to another
-     * provider's copy, rebuild that list from the copy's own category so zapping keeps working.
+     * After a backup switch or failover, everything outside this screen follows the new copy:
+     * up/down zaps through its provider's list (rebuilt from the copy's own category), the
+     * recording screens see which account is streaming, and a cold start resumes on it, the same
+     * as a channel change by hand.
      */
     private suspend fun rebuildZapListForCurrentCopy() {
         try {
+            prefs.setLivePlaybackActive(serverIndex)
+            prefs.setLastPlayedChannel(serverIndex, if (serverIndex == -1) streamId else mergedStreamId)
             if (serverIndex != -1) {
                 val current = repository.getMergedChannelByIndexAndId(serverIndex, mergedStreamId) ?: return
                 mergedChannels = repository.getMergedChannelsByCategory(serverIndex, current.categoryId).first()
@@ -4184,7 +4188,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             mergedStreamId = if (backup.serverIndex == -1) -1 else backup.streamId
             streamTitle = if (backup.serverIndex == -1 || backup.providerName.isBlank()) backup.name
                 else "${backup.name} · ${backup.providerName}"
-            if (backup.serverIndex != from.serverIndex) rebuildZapListForCurrentCopy()
+            rebuildZapListForCurrentCopy()
             val where = if (backup.serverIndex == from.serverIndex || backup.providerName.isBlank()) "another copy of this channel"
                 else backup.providerName
             Toast.makeText(this@PlayerActivity, "Switched to backup feed: $where", Toast.LENGTH_LONG).show()

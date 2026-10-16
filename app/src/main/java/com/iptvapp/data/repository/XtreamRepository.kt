@@ -2966,19 +2966,23 @@ class XtreamRepository @Inject constructor(
     /** A channel start on one provider's copy. [tuneMs] is open to first picture. */
     suspend fun recordFeedStart(serverIndex: Int, streamId: Int, played: Boolean, tuneMs: Long) = withContext(Dispatchers.IO) {
         if (streamId < 0) return@withContext
-        val now = System.currentTimeMillis()
-        val row = db.feedStatsDao().get(serverIndex, streamId)
-            ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
-        db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterStart(row, played, tuneMs, now))
+        feedStatsLock.withLock {
+            val now = System.currentTimeMillis()
+            val row = db.feedStatsDao().get(serverIndex, streamId)
+                ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
+            db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterStart(row, played, tuneMs, now))
+        }
     }
 
     /** [minutes] watched on one provider's copy, with [stalls] rebuffers in them. */
     suspend fun recordFeedWatching(serverIndex: Int, streamId: Int, minutes: Float, stalls: Int) = withContext(Dispatchers.IO) {
         if (streamId < 0 || minutes <= 0f) return@withContext
-        val now = System.currentTimeMillis()
-        val row = db.feedStatsDao().get(serverIndex, streamId)
-            ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
-        db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterWatching(row, minutes, stalls, now))
+        feedStatsLock.withLock {
+            val now = System.currentTimeMillis()
+            val row = db.feedStatsDao().get(serverIndex, streamId)
+                ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
+            db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterWatching(row, minutes, stalls, now))
+        }
     }
 
     /**
@@ -3012,5 +3016,9 @@ class XtreamRepository @Inject constructor(
     companion object {
         /** A copy scoring below this has failed or stalled enough that it is not worth moving to. */
         const val MIN_BACKUP_SCORE = 35
+
+        // recordFeedStart and recordFeedWatching read a row and write it back. Reports arrive from
+        // separate coroutines (a start and the exit flush can land together), so they take turns.
+        private val feedStatsLock = Mutex()
     }
 }
