@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v7.39 - 2026-10-16
+- **New**: Automatic backup feed. When a live channel stalls three times in two minutes,
+  MKTV switches to the best other copy of that channel, on any of your providers, and shows
+  "Switched to backup feed". It will not switch while you are paused or rewound, in a watch
+  party, or while casting. Turn it off in Settings > Network > Automatic backup feed.
+- **Improved**: MKTV now remembers how well each provider's copy of a channel plays (how often
+  it starts, how fast, and how often it stalls) and uses that to pick the best copy whenever it
+  has to switch, including when a channel fails outright.
+- **Fixed**: after switching to another provider's copy of a channel, channel up/down keeps
+  working, and channels from added providers find their backups by name.
+
 ## v7.38 - 2026-10-15
 - **Fixed**: the v7.35 Chromecast lip-sync fix now applies only to channels known to use the
   stream format it describes, including your main provider. Channels from added providers

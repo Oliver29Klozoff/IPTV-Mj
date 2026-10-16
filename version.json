@@ -1,7 +1,7 @@
 {
-  "versionCode": 576,
-  "versionName": "7.38",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.38/MKTV.apk",
-  "apkSha256": "3c7f9b4573a3fb694735168d80654a01fcb375d0acb25501428f8755d83da2f1",
-  "changelog": "The Chromecast lip-sync fix applies only where the stream format is known."
+  "versionCode": 577,
+  "versionName": "7.39",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.39/MKTV.apk",
+  "apkSha256": "e5ec510df382137d9597bd4b477cf023b3f9b623af41580dcc7a23f7660332c4",
+  "changelog": "A live channel that keeps stalling switches to the best copy on your other providers."
 }
