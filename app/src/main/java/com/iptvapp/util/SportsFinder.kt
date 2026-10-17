@@ -21,6 +21,8 @@ object SportsFinder {
         val name: String,
         val isFavorite: Boolean,
         val score: Int? = null,
+        /** When this feed's airing of the game ends (feeds can differ by minutes). 0 = unknown. */
+        val stopMs: Long = 0L,
     ) {
         /** The network: the channel's own name without " · provider", for preferred networks. */
         val network: String get() = name.substringBeforeLast(" · ")
@@ -148,7 +150,7 @@ object SportsFinder {
             val airing = airings.getOrPut(key) { Airing(league, title, start, stop, mutableListOf()) }
             if (stop > airing.stopMs) airing.stopMs = stop
             if (airing.channels.none { it.serverIndex == channel.serverIndex && it.streamId == channel.streamId }) {
-                airing.channels += channel
+                airing.channels += channel.copy(stopMs = stop)
             }
         }
         val order = LEAGUES.map { it.first }

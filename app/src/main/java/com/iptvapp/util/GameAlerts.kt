@@ -104,11 +104,16 @@ object GameAlerts {
         if (teams.none { SportsMode.titleHasTeam(game.title, it) }) return
         val now = System.currentTimeMillis()
         // Android can run a background job late on an idle device. While the game is on, it is
-        // still worth telling; once it has ended, Watch would tune to something else.
-        if (game.stopMs <= now) return
-        post(app, game, now)
+        // still worth telling, on the best feed still carrying it; once that feed's airing has
+        // ended, Watch would tune to something else.
+        val feed = game.feeds.firstOrNull { feedEndMs(game, it) > now } ?: return
+        post(app, game, feed, now)
         markSent(app, key, now)
     }
+
+    /** A feed's own end of the game; the game's when the guide gave no per-feed time. */
+    private fun feedEndMs(game: SportsFinder.Game, feed: SportsFinder.Channel): Long =
+        feed.stopMs.takeIf { it > 0L } ?: game.stopMs
 
     fun canNotify(context: Context): Boolean {
         if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
@@ -120,10 +125,9 @@ object GameAlerts {
         return true
     }
 
-    private fun post(context: Context, game: SportsFinder.Game, nowMs: Long) {
+    private fun post(context: Context, game: SportsFinder.Game, feed: SportsFinder.Channel, nowMs: Long) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
-        val feed = game.channel
         val requestCode = keyOf(game).hashCode()
         // The same tune path as Show Alerts' Watch.
         val watch = Intent(context, ReminderTapActivity::class.java).apply {
@@ -146,8 +150,8 @@ object GameAlerts {
             .addAction(0, "Watch", watchPi)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
-            // Gone when the game ends: Watch would tune to whatever is on by then.
-            .setTimeoutAfter((game.stopMs - System.currentTimeMillis()).coerceAtLeast(1_000L))
+            // Gone when this feed's airing ends: Watch would tune to whatever is on by then.
+            .setTimeoutAfter((feedEndMs(game, feed) - System.currentTimeMillis()).coerceAtLeast(1_000L))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
         nm.notify(requestCode, notification)
