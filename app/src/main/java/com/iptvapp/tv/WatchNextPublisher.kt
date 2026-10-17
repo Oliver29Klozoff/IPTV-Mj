@@ -122,10 +122,15 @@ object WatchNextPublisher {
             // Removed from the row by the viewer: stays removed until the title is played again.
             if (old != null && !old.browsable && item.engagedAtMs <= old.engagedAtMs) continue
             val values = program(item).toContentValues()
-            if (old == null) {
-                resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values)
-            } else {
-                resolver.update(TvContractCompat.buildWatchNextProgramUri(old.id), values, null, null)
+            when {
+                old == null -> resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values)
+                // Removed by the viewer, played again since. An update cannot make it visible again:
+                // toContentValues() leaves out the protected browsable column. A fresh row can.
+                !old.browsable -> {
+                    resolver.delete(TvContractCompat.buildWatchNextProgramUri(old.id), null, null)
+                    resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values)
+                }
+                else -> resolver.update(TvContractCompat.buildWatchNextProgramUri(old.id), values, null, null)
             }
         }
     }
