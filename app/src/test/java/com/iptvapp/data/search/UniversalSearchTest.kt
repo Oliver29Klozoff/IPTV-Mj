@@ -248,4 +248,21 @@ class UniversalSearchTest {
         assertEquals(2, hits.size)
         assertTrue(hits.all { it.feed == null })
     }
+
+    @Test
+    fun anotherProvidersArchiveOffersCatchUpToo() = runBlocking {
+        db.mergedChannelDao().upsertAll(listOf(
+            other(5, "Sports Arena").copy(tvArchive = 1, tvArchiveDuration = 2),
+            other(6, "No Archive TV"),
+        ))
+        db.epgDao().upsertEpg(listOf(
+            program(5, "Big Match", startMin = -180, lengthMin = 120, serverIndex = 1),
+            program(6, "Big Match Rerun", startMin = -180, lengthMin = 120, serverIndex = 1),
+            // Older than the channel's two-day archive.
+            program(5, "Big Match Classic", startMin = -60L * 24 * 3, lengthMin = 120, serverIndex = 1),
+        ))
+        val hits = search.search("big match", now).filterIsInstance<SearchHit.Program>()
+        assertEquals(listOf("Big Match"), hits.filter { it.kind == SearchHit.Kind.CATCH_UP }.map { it.title })
+        assertEquals(5, hits.first { it.kind == SearchHit.Kind.CATCH_UP }.merged?.streamId)
+    }
 }

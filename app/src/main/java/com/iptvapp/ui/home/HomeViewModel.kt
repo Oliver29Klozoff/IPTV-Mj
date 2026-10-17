@@ -2525,6 +2525,10 @@ class HomeViewModel @Inject constructor(
     suspend fun getTimeshiftUrl(streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
         repository.getTimeshiftUrl(streamId, startTimestampSec, durationMinutes)
 
+    /** A replay on any provider; see XtreamRepository.getTimeshiftUrlFor. */
+    suspend fun getTimeshiftUrlFor(serverIndex: Int, streamId: Int, startTimestampSec: Long, durationMinutes: Int): String =
+        repository.getTimeshiftUrlFor(serverIndex, streamId, startTimestampSec, durationMinutes)
+
     fun saveFavOrder(orderedIds: List<Int>) {
         viewModelScope.launch { repository.saveFavOrder(orderedIds) }
     }

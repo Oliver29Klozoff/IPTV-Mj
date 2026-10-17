@@ -770,22 +770,34 @@ class EpgTimelineActivity : AppCompatActivity() {
                 // Upcoming — offer to set a reminder (stay in grid)
                 showTimerDialog(row, program)
             }
-            ch != null && row.canReplay(program, nowMs) -> {
-                // Past with replay archive — return to home and play timeshift in mini player.
-                // Timeshift is primary-only (merged channels have no tvArchive), so this branch
-                // never applies to a merged row — ch is smart-cast non-null here.
+            row.canReplay(program, nowMs) -> {
+                // Past with replay archive, on any provider — back to home, which opens it full
+                // screen in catch-up mode. An extra provider's row goes back as server_index +
+                // merged_stream_id, as its live channel does.
                 lifecycleScope.launch {
                     val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp
                     else program.startTimestamp / 1000L
                     val durationMin = ((pStopMs - pStartMs) / 60_000L).toInt().coerceAtLeast(1)
-                    val url = viewModel.getTimeshiftUrl(ch.streamId, startSec, durationMin)
-                    setResult(RESULT_OK, Intent()
-                        .putExtra("stream_id", ch.streamId)
-                        .putExtra("timeshift_url", url)
-                        .putExtra("timeshift_title", "${ch.name} — ${program.title}")
-                        .putExtra("catchup_start_sec", startSec)
-                        .putExtra("catchup_duration_min", durationMin)
-                        .putExtra("catchup_channel_name", ch.name))
+                    val url = try {
+                        viewModel.getTimeshiftUrlFor(row.serverIndex, row.streamId, startSec, durationMin)
+                    } catch (_: Exception) {
+                        Toast.makeText(this@EpgTimelineActivity, "Couldn't open that replay", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    setResult(RESULT_OK, Intent().apply {
+                        if (row.serverIndex == -1) {
+                            putExtra("stream_id", row.streamId)
+                        } else {
+                            putExtra("stream_id", -1)
+                            putExtra("server_index", row.serverIndex)
+                            putExtra("merged_stream_id", row.streamId)
+                        }
+                        putExtra("timeshift_url", url)
+                        putExtra("timeshift_title", "${row.name} — ${program.title}")
+                        putExtra("catchup_start_sec", startSec)
+                        putExtra("catchup_duration_min", durationMin)
+                        putExtra("catchup_channel_name", row.name)
+                    })
                     finish()
                 }
             }
@@ -793,10 +805,10 @@ class EpgTimelineActivity : AppCompatActivity() {
                 // Past and not replayable. This used to tune the channel live without a word, which
                 // looked like the replay was broken — say why and stay in the guide (the detail
                 // panel still offers Watch live).
+                val days = (ch?.tvArchiveDuration ?: row.mergedChannel?.tvArchiveDuration ?: 0).takeIf { it > 0 } ?: 3
                 val why = when {
-                    ch == null -> "Replays aren't available for other-provider channels"
-                    ch.tvArchive != 1 -> "${ch.name} doesn't offer replays"
-                    else -> "That's older than the ${ch.tvArchiveDuration.takeIf { it > 0 } ?: 3} days ${ch.name} keeps"
+                    !row.supportsReplay -> "${row.name} doesn't offer replays"
+                    else -> "That's older than the $days days ${row.name} keeps"
                 }
                 Toast.makeText(this, why, Toast.LENGTH_LONG).show()
             }

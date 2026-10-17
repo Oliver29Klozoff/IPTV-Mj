@@ -182,13 +182,22 @@ class SearchActivity : AppCompatActivity() {
         SearchHitUi(this, repository,
             playChannel = { channel, merged -> returnChannel(channel?.streamId, merged) },
             playReplay = { replay ->
-                setResult(RESULT_OK, Intent()
-                    .putExtra("stream_id", replay.channel.streamId)
-                    .putExtra("timeshift_url", replay.url)
-                    .putExtra("timeshift_title", replay.title)
-                    .putExtra("catchup_start_sec", replay.startSec)
-                    .putExtra("catchup_duration_min", replay.durationMin)
-                    .putExtra("catchup_channel_name", replay.channel.name))
+                setResult(RESULT_OK, Intent().apply {
+                    // The same identity the guide sends back: stream_id on the main provider,
+                    // server_index + merged_stream_id on another.
+                    if (replay.serverIndex == -1) {
+                        putExtra("stream_id", replay.streamId)
+                    } else {
+                        putExtra("stream_id", -1)
+                        putExtra("server_index", replay.serverIndex)
+                        putExtra("merged_stream_id", replay.streamId)
+                    }
+                    putExtra("timeshift_url", replay.url)
+                    putExtra("timeshift_title", replay.title)
+                    putExtra("catchup_start_sec", replay.startSec)
+                    putExtra("catchup_duration_min", replay.durationMin)
+                    putExtra("catchup_channel_name", replay.channelName)
+                })
                 finish()
             })
     }

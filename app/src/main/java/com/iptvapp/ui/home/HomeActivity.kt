@@ -1208,7 +1208,20 @@ class HomeActivity : AppCompatActivity() {
             if (streamId == -1) {
                 lifecycleScope.launch {
                     val channel = viewModel.getMergedChannelByIndexAndId(serverIndex, mergedStreamId) ?: return@launch
-                    playMergedChannel(channel)
+                    val replayUrl = data.getStringExtra("timeshift_url")
+                    val replayTitle = data.getStringExtra("timeshift_title")
+                    if (replayUrl != null && replayTitle != null) {
+                        // A replay on another provider: full screen in catch-up mode, like the main one.
+                        openPlayer(
+                            replayUrl, replayTitle, -1,
+                            serverIndex = serverIndex, mergedStreamId = mergedStreamId,
+                            catchupStartSec = data.getLongExtra("catchup_start_sec", 0L),
+                            catchupDurationMin = data.getIntExtra("catchup_duration_min", 0),
+                            catchupChannelName = channel.name
+                        )
+                    } else {
+                        playMergedChannel(channel)
+                    }
                 }
                 return@registerForActivityResult
             }
@@ -3573,25 +3586,35 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             onReplayClick = { row, program ->
-                // Timeshift/replay is a primary-provider-only feature (row.supportsReplay is
-                // false for merged rows, so onReplayClick is never reachable for them — see
-                // GuideAdapter's isReplay check), so row.channel is always non-null here.
-                row.channel?.let { ch ->
-                    lifecycleScope.launch {
-                        val startSec = if (program.startTimestamp < 100000000000L)
-                            program.startTimestamp
-                        else
-                            program.startTimestamp / 1000L
-                        val stopSec = if (program.stopTimestamp < 100000000000L)
-                            program.stopTimestamp
-                        else
-                            program.stopTimestamp / 1000L
-                        val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
-                        val url = viewModel.getTimeshiftUrl(ch.streamId, startSec, durationMin)
-                        val title = "${ch.name} — ${program.title}"
+                // Replays on any provider with an archive (GuideAdapter shows the replay only when
+                // row.canReplay): the main one by stream id, another by server index + its own id.
+                lifecycleScope.launch {
+                    val startSec = if (program.startTimestamp < 100000000000L)
+                        program.startTimestamp
+                    else
+                        program.startTimestamp / 1000L
+                    val stopSec = if (program.stopTimestamp < 100000000000L)
+                        program.stopTimestamp
+                    else
+                        program.stopTimestamp / 1000L
+                    val durationMin = ((stopSec - startSec) / 60).toInt().coerceAtLeast(1)
+                    val url = try {
+                        viewModel.getTimeshiftUrlFor(row.serverIndex, row.streamId, startSec, durationMin)
+                    } catch (_: Exception) {
+                        Toast.makeText(this@HomeActivity, "Couldn't open that replay", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val title = "${row.name} — ${program.title}"
+                    if (row.serverIndex == -1) {
                         openPlayer(
-                            url, title, ch.streamId,
-                            catchupStartSec = startSec, catchupDurationMin = durationMin, catchupChannelName = ch.name
+                            url, title, row.streamId,
+                            catchupStartSec = startSec, catchupDurationMin = durationMin, catchupChannelName = row.name
+                        )
+                    } else {
+                        openPlayer(
+                            url, title, -1,
+                            serverIndex = row.serverIndex, mergedStreamId = row.streamId,
+                            catchupStartSec = startSec, catchupDurationMin = durationMin, catchupChannelName = row.name
                         )
                     }
                 }
@@ -5017,12 +5040,22 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             playReplay = { replay ->
-                openPlayer(
-                    replay.url, replay.title, replay.channel.streamId,
-                    catchupStartSec = replay.startSec,
-                    catchupDurationMin = replay.durationMin,
-                    catchupChannelName = replay.channel.name
-                )
+                if (replay.serverIndex == -1) {
+                    openPlayer(
+                        replay.url, replay.title, replay.streamId,
+                        catchupStartSec = replay.startSec,
+                        catchupDurationMin = replay.durationMin,
+                        catchupChannelName = replay.channelName
+                    )
+                } else {
+                    openPlayer(
+                        replay.url, replay.title, -1,
+                        serverIndex = replay.serverIndex, mergedStreamId = replay.streamId,
+                        catchupStartSec = replay.startSec,
+                        catchupDurationMin = replay.durationMin,
+                        catchupChannelName = replay.channelName
+                    )
+                }
             })
     }
 

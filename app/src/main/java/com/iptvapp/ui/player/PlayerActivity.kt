@@ -233,7 +233,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // Catch-up offer is per airing. Watch Live remembers the programme start and does not seek.
     private var smartCatchupDismissedStartMs = 0L
     private var smartCatchupArchive: Boolean? = null
-    private var smartCatchupArchiveStreamId = Int.MIN_VALUE
+    // Whose archive flag smartCatchupArchive is: (serverIndex, that provider's stream id).
+    private var smartCatchupArchiveKey: Pair<Int, Int>? = null
+
+    /** A channel that keeps past shows, on any provider: its name. */
+    private data class ArchivedChannel(val name: String)
+
+    /** [server]/[id]'s channel when its provider keeps an archive for it, else null. */
+    private suspend fun archivedChannel(server: Int, id: Int): ArchivedChannel? =
+        if (server == -1) repository.getChannelById(id)?.takeIf { it.tvArchive == 1 }?.let { ArchivedChannel(it.name) }
+        else repository.getMergedChannelByIndexAndId(server, id)?.takeIf { it.tvArchive == 1 }?.let { ArchivedChannel(it.name) }
+
+    /** The playing channel's id on its own provider: streamId on the main one, mergedStreamId elsewhere. */
+    private fun liveCopyId(): Int = if (serverIndex == -1) streamId else mergedStreamId
     // Where a debounced reopen is headed, so further skips add on to it rather than to the old
     // position (-1 = none pending).
     private var catchupPendingTargetMs = -1L
@@ -513,13 +525,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         isVod = intent.getBooleanExtra("is_vod", false)
         isRecordingPlayback = intent.getBooleanExtra("is_recording", false)
         catchupDurationMin = intent.getIntExtra("catchup_duration_min", 0)
-        if (catchupDurationMin > 0 && streamId != -1) {
+        // A replay on any provider: the main one by streamId, another by serverIndex + mergedStreamId.
+        if (catchupDurationMin > 0 && liveCopyId() != -1) {
             isCatchup = true
             isVod = true
             catchupStartSec = intent.getLongExtra("catchup_start_sec", 0L)
             catchupChannelName = intent.getStringExtra("catchup_channel_name") ?: ""
+            val server = serverIndex
+            val id = liveCopyId()
             lifecycleScope.launch {
-                catchupLiveUrl = try { repository.getLiveStreamUrl(streamId) } catch (_: Exception) { "" }
+                catchupLiveUrl = try {
+                    if (server == -1) repository.getLiveStreamUrl(id) else repository.getMergedLiveStreamUrl(server, id)
+                } catch (_: Exception) { "" }
             }
         }
         resumePositionMs = intent.getLongExtra("resume_ms", 0L)
@@ -2301,7 +2318,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * first minute — the same catch-up mode a guide replay uses (seek bar, pause, skip). LIVE, or
      * the replay running out, comes back to the broadcast (backToLive). Catch-up channels only. */
     private fun startOverCurrentShow() {
-        val show = liveNowShow?.takeIf { it.streamId == streamId } ?: return
+        val show = liveNowShow?.takeIf { it.streamId == liveCopyId() } ?: return
         val startMs = show.startMs
         val stopMs = show.stopMs
         val title = show.title
@@ -2309,18 +2326,20 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             Toast.makeText(this, "Leave the watch party to start over", Toast.LENGTH_LONG).show()
             return
         }
-        if (isVod || serverIndex != -1 || streamId == -1 || castSession != null || audioOnly) return
-        val sid = streamId
+        if (isVod || liveCopyId() == -1 || castSession != null || audioOnly) return
+        // Any provider with an archive: the main one's channel row, or an extra provider's.
+        val server = serverIndex
+        val sid = liveCopyId()
         // Tracked as catchupReloadJob so LIVE (backToLive) can cancel a start that's still loading.
         catchupReloadJob?.cancel()
         catchupReloadJob = lifecycleScope.launch {
-            val ch = repository.getChannelById(sid)
-            if (ch?.tvArchive != 1) {
+            val ch = archivedChannel(server, sid)
+            if (ch == null) {
                 Toast.makeText(this@PlayerActivity, "This channel doesn't keep past shows, so it can't start over", Toast.LENGTH_LONG).show()
                 return@launch
             }
             // Still the same live channel? (It can change while the lookup above runs.)
-            if (isVod || streamId != sid || serverIndex != -1) return@launch
+            if (isVod || serverIndex != server || liveCopyId() != sid) return@launch
             startedOverFromLive = true
             // A replay is not this live copy. Save what it has and stop scoring until back at live.
             feedFlushJob?.cancel()
@@ -3772,7 +3791,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         pictureTitleJob?.cancel()
         appliedPictureName = null
         smartCatchupArchive = null
-        smartCatchupArchiveStreamId = Int.MIN_VALUE
+        smartCatchupArchiveKey = null
         smartCatchupDismissedStartMs = 0L
         binding.smartCatchupBar.visibility = View.GONE
         binding.tvSportsScore.visibility = View.GONE
@@ -4028,8 +4047,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun refreshSmartCatchUp(nowMs: Long = System.currentTimeMillis()) {
         val show = liveNowShow
         val blocked = isVod || audioOnly || isRecordingPlayback || castSession != null ||
-            partyCode.isNotEmpty() || serverIndex != -1 || streamId == -1
-        val archive = smartCatchupArchive == true && smartCatchupArchiveStreamId == streamId
+            partyCode.isNotEmpty() || liveCopyId() == -1
+        val archive = smartCatchupArchive == true && smartCatchupArchiveKey == (serverIndex to liveCopyId())
         val offer = show != null && SmartCatchUp.shouldOffer(
             archiveEnabled = archive,
             programmeStartMs = show.startMs,
@@ -5061,7 +5080,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private suspend fun loadCatchupAt(targetMs: Long, roundUp: Boolean = false) {
         val offsetMin = catchupOffsetMinFor(targetMs, roundUp)
         val base = try {
-            repository.getTimeshiftUrl(streamId, catchupStartSec + offsetMin * 60L, catchupDurationMin - offsetMin)
+            repository.getTimeshiftUrlFor(serverIndex, liveCopyId(), catchupStartSec + offsetMin * 60L, catchupDurationMin - offsetMin)
         } catch (_: Exception) { catchupPendingTargetMs = -1L; return }
         // Left the replay (LIVE, or a Start Over cancelled) while the URL was being built.
         if (!isCatchup) return
@@ -5238,12 +5257,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (isVod || lookupStreamId != streamId) return@launch
                 liveNowShow = now?.let { LiveShow(lookupStreamId, startMs(it), stopMs(it), it.title) }
                 // One archive lookup per channel. The offer reads the cached flag after that.
-                val archive = if (smartCatchupArchiveStreamId == lookupStreamId && smartCatchupArchive != null) {
+                val archive = if (smartCatchupArchiveKey == (-1 to lookupStreamId) && smartCatchupArchive != null) {
                     smartCatchupArchive == true
                 } else {
                     val enabled = repository.getChannelById(lookupStreamId)?.tvArchive == 1
                     if (lookupStreamId == streamId) {
-                        smartCatchupArchiveStreamId = lookupStreamId
+                        smartCatchupArchiveKey = -1 to lookupStreamId
                         smartCatchupArchive = enabled
                     }
                     enabled
@@ -5273,7 +5292,22 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.tvEpgNext.text = if (nowNext?.nextTitle != null) "Next · " + clockLabel(nowNext.nowStopMs) + " · " + nowNext.nextTitle else ""
                 binding.tvEpgNext.visibility = if (nowNext?.nextTitle != null) View.VISIBLE else View.GONE
                 showLiveProgress(nowNext?.nowStartMs, nowNext?.nowStopMs)
-                liveNowShow = nowNext?.let { LiveShow(-1, it.nowStartMs, it.nowStopMs, it.nowTitle) }
+                liveNowShow = nowNext?.let { LiveShow(lookupStream, it.nowStartMs, it.nowStopMs, it.nowTitle) }
+                // Catch-up on other providers too: their archive flag, looked up once per channel.
+                val key = lookupServer to lookupStream
+                val archive = if (smartCatchupArchiveKey == key && smartCatchupArchive != null) {
+                    smartCatchupArchive == true
+                } else {
+                    val enabled = archivedChannel(lookupServer, lookupStream) != null
+                    if (isVod || serverIndex != lookupServer || mergedStreamId != lookupStream) return@launch
+                    smartCatchupArchiveKey = key
+                    smartCatchupArchive = enabled
+                    enabled
+                }
+                val nowMs = System.currentTimeMillis()
+                val canStartOver = nowNext != null && nowMs - nowNext.nowStartMs > 60_000L && archive
+                binding.btnStartOver.visibility = if (canStartOver && !isVod) View.VISIBLE else View.GONE
+                refreshSmartCatchUp(nowMs)
                 applySportsChrome()
                 syncSportsPlayback()
             }
