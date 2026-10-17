@@ -97,6 +97,9 @@ object GameAlerts {
         if (!canNotify(app)) return
         val preferred = SportsFinder.decodePreferred(prefs.sportsPreferredNetworks.first())
         val game = SportsFinder.find(db, AHEAD_HOURS, preferred).firstOrNull { keyOf(it) == key } ?: return
+        // A team removed since this was scheduled no longer gets alerts.
+        val teams = SportsMode.parseTeams(prefs.favoriteTeams.first())
+        if (teams.none { SportsMode.titleHasTeam(game.title, it) }) return
         val now = System.currentTimeMillis()
         if (now - game.startMs > LATE_MS || game.stopMs <= now) return
         post(app, game)
