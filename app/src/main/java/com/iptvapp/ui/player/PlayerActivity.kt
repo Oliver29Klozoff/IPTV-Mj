@@ -4668,11 +4668,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         externalSubtitlePath = file.absolutePath
         externalSubtitle = subtitleConfiguration(file)
         subtitleOfferShown = true
+        // The player may already have been released. The preference still has to stick,
+        // or the next session builds with text tracks disabled.
+        lifecycleScope.launch { prefs.setSubtitlesEnabled(true) }
         val p = player ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
             .build()
-        lifecycleScope.launch { prefs.setSubtitlesEnabled(true) }
         val position = p.currentPosition.coerceAtLeast(0L)
         val play = p.playWhenReady
         val base = p.currentMediaItem ?: MediaItem.fromUri(streamUrl)
