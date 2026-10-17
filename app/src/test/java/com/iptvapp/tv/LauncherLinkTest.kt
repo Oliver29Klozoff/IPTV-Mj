@@ -192,4 +192,35 @@ class LauncherLinkTest {
     fun buildRejectsMalformedToken() {
         LauncherLink.build(1, "not-a-token")
     }
+
+    @Test
+    fun watchNextMovieAndEpisodeLinksRoundTripAndVerifyOnlyForTheirAccount() {
+        val movieId = LauncherLink.movieIdentity("http://Provider.TEST/", "u", 501)
+        val movie = LauncherLink.buildMovie(501, LauncherLink.token(key, movieId))
+        val parsedMovie = LauncherLink.parse(LauncherLink.ACTION_VIEW, movie) as LauncherLink.Parsed.Movie
+        assertEquals(501, parsedMovie.vodId)
+        assertTrue(LauncherLink.verifyIdentity(key, LauncherLink.movieIdentity("http://provider.test", "u", 501), parsedMovie.token))
+        // Another login, another title, or another install's key: not this card.
+        assertFalse(LauncherLink.verifyIdentity(key, LauncherLink.movieIdentity("http://provider.test", "other", 501), parsedMovie.token))
+        assertFalse(LauncherLink.verifyIdentity(key, LauncherLink.movieIdentity("http://provider.test", "u", 502), parsedMovie.token))
+        assertFalse(LauncherLink.verifyIdentity(otherKey, movieId, parsedMovie.token))
+
+        val epId = LauncherLink.episodeIdentity("http://provider.test", "u", 77, 2, 14)
+        val episode = LauncherLink.buildEpisode(77, 2, 14, LauncherLink.token(key, epId))
+        val parsedEp = LauncherLink.parse(LauncherLink.ACTION_VIEW, episode) as LauncherLink.Parsed.Episode
+        assertEquals(listOf(77, 2, 14), listOf(parsedEp.seriesId, parsedEp.season, parsedEp.episode))
+        assertTrue(LauncherLink.verifyIdentity(key, epId, parsedEp.token))
+        // A card for S2E14 cannot open S2E15.
+        assertFalse(LauncherLink.verifyIdentity(key, LauncherLink.episodeIdentity("http://provider.test", "u", 77, 2, 15), parsedEp.token))
+        // A movie token is not an episode token for the same number.
+        assertFalse(LauncherLink.verifyIdentity(key, LauncherLink.episodeIdentity("http://provider.test", "u", 501, 0, 0), parsedMovie.token))
+    }
+
+    @Test
+    fun watchNextLinksAreStrict() {
+        val t = "0123456789abcdef0123456789abcdef"
+        assertTrue(LauncherLink.parse(LauncherLink.ACTION_VIEW, "mktv://play/v2/m/5/$t?x=1") is LauncherLink.Parsed.Invalid)
+        assertTrue(LauncherLink.parse(LauncherLink.ACTION_VIEW, "mktv://play/v2/e/5/1/$t") is LauncherLink.Parsed.Invalid)
+        assertTrue(LauncherLink.parse("android.intent.action.SEND", "mktv://play/v2/m/5/$t") is LauncherLink.Parsed.Invalid)
+    }
 }

@@ -838,7 +838,63 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 launcherRepublish.value++
                 return false
             }
+            is LauncherLink.Parsed.Movie, is LauncherLink.Parsed.Episode -> {
+                // A Watch Next card: open the title where Continue Watching would, if it still exists
+                // and the card was made for the provider account signed in now.
+                val hit = try {
+                    watchNextTitle(parsed)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                if (generation != reminderTuneGen) return false
+                if (hit == null) {
+                    Toast.makeText(this, "That title isn't available any more.", Toast.LENGTH_LONG).show()
+                    publishWatchNext()
+                    return false
+                }
+                kotlin.coroutines.coroutineContext.ensureActive()
+                homeHitUi.open(hit)
+                return true
+            }
             LauncherLink.Parsed.Invalid -> return false
+        }
+    }
+
+    /** The movie or episode a Watch Next card names, checked against this install's key and login. */
+    private suspend fun watchNextTitle(parsed: LauncherLink.Parsed): com.iptvapp.data.search.SearchHit? {
+        val creds = prefs.credentials.first()
+        val key = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.iptvapp.tv.LauncherLinkKey.get(this@TvHomeActivity) }
+        val label = prefs.serverNickname.first().ifBlank { "Primary" }
+        return when (parsed) {
+            is LauncherLink.Parsed.Movie -> {
+                val identity = LauncherLink.movieIdentity(creds.serverUrl, creds.username, parsed.vodId)
+                if (!LauncherLink.verifyIdentity(key, identity, parsed.token)) return null
+                val vod = db.vodDao().getVodByStreamId(parsed.vodId) ?: return null
+                com.iptvapp.data.search.SearchHit.Movie(vod, null, label)
+            }
+            is LauncherLink.Parsed.Episode -> {
+                val identity = LauncherLink.episodeIdentity(creds.serverUrl, creds.username, parsed.seriesId, parsed.season, parsed.episode)
+                if (!LauncherLink.verifyIdentity(key, identity, parsed.token)) return null
+                val series = db.seriesDao().getSeriesById(parsed.seriesId) ?: return null
+                val hit = com.iptvapp.data.search.SearchHit.Series(series, null, label)
+                com.iptvapp.data.search.SearchHit.Episode(hit, parsed.season, parsed.episode, "")
+            }
+            else -> null
+        }
+    }
+
+    /** Matches the Watch Next row to what is in progress now. Off the main thread; never throws. */
+    private fun publishWatchNext() {
+        val app = applicationContext
+        lifecycleScope.launch {
+            try {
+                com.iptvapp.tv.WatchNextPublisher.publish(app, com.iptvapp.tv.WatchNextPublisher.items(app, db, prefs))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -849,6 +905,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         com.iptvapp.service.AudioOnlyService.stop(this)
         // Back in front: guide loads onStop cut short carry on (the clock tick only covers channel lists).
         viewModel.refreshEpgDisplay()
+        // Back from a movie or episode: its new position goes to the TV home screen's Watch Next row.
+        publishWatchNext()
     }
 
     override fun onResume() {
