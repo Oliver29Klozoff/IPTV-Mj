@@ -3091,6 +3091,8 @@ class HomeActivity : AppCompatActivity() {
             // without needing to rebuild the adapter.
             livePreviewUrlProvider = { channel -> viewModel.getLiveChannelPreviewUrl(channel) }
         )
+        // "+N" only for the exact category list it was counted for (Combine duplicate channels).
+        channelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
 
         mergedChannelAdapter = MergedChannelAdapter(
             onChannelClick = { channel ->
@@ -3123,6 +3125,8 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         )
+        // "+N" only for the exact category list it was counted for (Combine duplicate channels).
+        mergedChannelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
 
         mergedVodAdapter = MergedVodAdapter(
             onItemClick = onItemClick@{ vod ->
@@ -3403,6 +3407,8 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         )
+        // "+N" only for the exact category list it was counted for (Combine duplicate channels).
+        liveChannelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
@@ -5344,14 +5350,6 @@ class HomeActivity : AppCompatActivity() {
                 binding.tvWhatsOnNowHeader?.visibility = if (visible) View.VISIBLE else View.GONE
                 binding.rvWhatsOnNow?.visibility = if (visible) View.VISIBLE else View.GONE
                 whatsOnNowAdapter.submitList(entries)
-            }
-        }
-        lifecycleScope.launch {
-            // "+N" on rows standing for more copies of one channel (Settings > Combine duplicate channels).
-            viewModel.duplicateCopies.collect { copies ->
-                if (::liveChannelAdapter.isInitialized) liveChannelAdapter.submitDuplicateCopies(copies)
-                if (::channelAdapter.isInitialized) channelAdapter.submitDuplicateCopies(copies)
-                if (::mergedChannelAdapter.isInitialized) mergedChannelAdapter.submitDuplicateCopies(copies)
             }
         }
         lifecycleScope.launch {

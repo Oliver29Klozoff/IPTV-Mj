@@ -54,7 +54,20 @@ class MergedChannelAdapter(
     // "+N" on a row that stands for N more copies (HomeViewModel.duplicateCopies, same keys).
     private var extraCopiesByKey: Map<String, Int> = emptyMap()
 
-    fun submitDuplicateCopies(map: Map<String, Int>) {
+    /** The screen's lookup: the "+N" counts that belong to exactly the list being shown, or none. */
+    var duplicateCountsFor: ((List<*>) -> Map<String, Int>)? = null
+
+    override fun submitList(list: List<MergedChannelEntity>?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list)
+    }
+
+    override fun submitList(list: List<MergedChannelEntity>?, commitCallback: Runnable?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list, commitCallback)
+    }
+
+    private fun submitDuplicateCopies(map: Map<String, Int>) {
         val old = extraCopiesByKey
         extraCopiesByKey = map
         notifyChangedRows { old[it] != map[it] }

@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -462,20 +461,14 @@ class HomeViewModel @Inject constructor(
     private val mergedCounts = MutableStateFlow<Counted<*>?>(null)
 
     /**
-     * How many more copies a collapsed category row stands for, by the row id convention
-     * LiveChannelRow uses ("primary:12", "3:45"). Adapters show it as "+N". Counts only apply
-     * while their own list is the one showing: a search or favorites list that later lands in
-     * the same flow shows every copy, so it gets no badges.
+     * How many more copies each collapsed row of [list] stands for, by the row id convention
+     * LiveChannelRow uses ("primary:12", "3:45"); adapters show it as "+N". Only a list that is
+     * exactly one of the collapsed category lists gets counts: a search or favorites list showing
+     * every copy gets none, whatever was browsed before.
      */
-    val duplicateCopies: StateFlow<Map<String, Int>> = combine(
-        combine(_combinedLiveChannels, combinedCounts, ::countsIfShowing),
-        combine(_channels, primaryCounts, ::countsIfShowing),
-        combine(_mergedChannels, mergedCounts, ::countsIfShowing),
-    ) { a, b, c -> a + b + c }
-        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, emptyMap())
-
-    private fun countsIfShowing(list: List<*>, counted: Counted<*>?): Map<String, Int> =
-        if (counted != null && counted.list == list) counted.counts else emptyMap()
+    fun duplicateCountsFor(list: List<*>): Map<String, Int> =
+        listOf(combinedCounts.value, primaryCounts.value, mergedCounts.value)
+            .firstOrNull { it != null && it.list.isNotEmpty() && it.list == list }?.counts.orEmpty()
 
     private fun copyId(serverIndex: Int, streamId: Int) = if (serverIndex == -1) "primary:$streamId" else "$serverIndex:$streamId"
 
@@ -529,9 +522,10 @@ class HomeViewModel @Inject constructor(
             }
             // The setting is part of the list: switching it reshapes the category already open.
             flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }.collectLatest { (rows, on) ->
-                val result = collapseDuplicates(applySortToLiveRows(rows), on, { it.serverIndex to it.streamId }, { it.name })
-                val shown = result.list
-                combinedCounts.value = result
+                // Collapse, then sort: the copy kept may sort elsewhere than the group's first copy.
+                val collapsed = collapseDuplicates(rows, on, { it.serverIndex to it.streamId }, { it.name })
+                val shown = applySortToLiveRows(collapsed.list)
+                combinedCounts.value = Counted(shown, collapsed.counts)
                 _combinedLiveChannels.value = shown
                 if (row.category != null) _channels.value = applySortToChannels(shown.mapNotNull { it.channel })
             }
@@ -1702,9 +1696,10 @@ class HomeViewModel @Inject constructor(
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
             repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
-                val result = collapseDuplicates(applySortToChannels(list), on, { c -> -1 to c.streamId }, { c -> c.name })
-                primaryCounts.value = result
-                _channels.value = result.list
+                val collapsed = collapseDuplicates(list, on, { c -> -1 to c.streamId }, { c -> c.name })
+                val shown = applySortToChannels(collapsed.list)
+                primaryCounts.value = Counted(shown, collapsed.counts)
+                _channels.value = shown
             }
         }
     }

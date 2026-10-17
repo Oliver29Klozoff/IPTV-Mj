@@ -1261,6 +1261,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // this actually decodes and shows a muted preview once focus settles.
             livePreviewUrlProvider = { channel -> viewModel.getLiveChannelPreviewUrl(channel) }
         )
+        // "+N" only for the exact category list it was counted for (Combine duplicate channels).
+        channelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
         channelAdapter.isTvMode = true
         channelAdapter.onChannelFocused = { channel ->
             binding.tvTvChannelName.text = miniPlayerTitleFor(channel)
@@ -1370,6 +1372,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .show()
             }
         )
+        // "+N" only for the exact category list it was counted for (Combine duplicate channels).
+        mergedChannelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
         mergedChannelAdapter.isTvMode = true
 
         // Providers' Movies mode — same shape as mergedChannelAdapter above, but plays directly
@@ -3826,13 +3830,6 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         lifecycleScope.launch {
             viewModel.combinedFavorites.collect { favs ->
                 updateSidebarLabel(binding.btnTvFavorites, "FAVORITES", favs.size)
-            }
-        }
-        lifecycleScope.launch {
-            // "+N" on rows standing for more copies of one channel (Settings > Combine duplicate channels).
-            viewModel.duplicateCopies.collect { copies ->
-                if (::channelAdapter.isInitialized) channelAdapter.submitDuplicateCopies(copies)
-                if (::mergedChannelAdapter.isInitialized) mergedChannelAdapter.submitDuplicateCopies(copies)
             }
         }
         lifecycleScope.launch {
