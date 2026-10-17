@@ -1,7 +1,7 @@
 {
-  "versionCode": 581,
-  "versionName": "7.43",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.43/MKTV.apk",
-  "apkSha256": "2eccfe38d7cae01d2068c5ddab077dcf91724ce253ad7fcc665dc5941d57a05c",
-  "changelog": "Faster channel changes, a Picture setting, and search that puts the best copy first."
+  "versionCode": 582,
+  "versionName": "7.44",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.44/MKTV.apk",
+  "apkSha256": "9d7fa773d62e8d40062c31afa4eb0c92ca3a8bcbf6d99017f558974747470bfc",
+  "changelog": "One row per channel: duplicate copies combine into the one that plays best."
 }

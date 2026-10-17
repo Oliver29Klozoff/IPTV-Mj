@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.44 - 2026-10-17
+- **New**: One row per channel. When a category has the same channel more than once ("ESPN",
+  "ESPN HD", "ESPN FHD"), MKTV shows it once, plays the copy that has worked best for you,
+  and marks the row "+2" for the other copies. Long-press and pick All Sources to see or play
+  any copy. Turn it off in Settings > Network > Combine duplicate channels.
+- **Fixed**: channels named in non-Latin scripts, and channels whose names differ only by a "+"
+  (ESPN and ESPN+, or a channel and its "+1" version), are no longer treated as the same
+  channel when MKTV picks a backup or a failover.
+
 ## v7.43 - 2026-10-17
 - **New**: Faster channel changes. When your account has a spare connection, MKTV quietly
   prepares the next and previous channel while you watch, so CH+ and CH- start almost
