@@ -4482,6 +4482,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun openSubtitleFile() {
+        val previousResume = resumePositionMs
+        val previousPaused = resumePausedAfterPicker
         val p = player
         if (p != null && isVod && !isCatchup) {
             val pos = p.currentPosition
@@ -4491,7 +4493,14 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         subtitlePickGeneration = subtitleGeneration
         subtitlePickUrl = streamUrl
-        pickSubtitleFile.launch(arrayOf("*/*"))
+        try {
+            pickSubtitleFile.launch(arrayOf("*/*"))
+        } catch (_: android.content.ActivityNotFoundException) {
+            resumePositionMs = previousResume
+            resumePausedAfterPicker = previousPaused
+            subtitlePickerPending = false
+            Toast.makeText(this, "This device has no app that can open a subtitle file.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun searchOpenSubtitles() {
