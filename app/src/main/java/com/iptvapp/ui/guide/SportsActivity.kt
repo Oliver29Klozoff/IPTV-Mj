@@ -210,20 +210,30 @@ class SportsActivity : AppCompatActivity() {
         val lines = feeds.map { feedLine(it) }.toMutableList()
         val preferAt = lines.size
         lines += "Prefer a network for ${game.league}…"
-        val live = latestGames.filter { it.isLive(now) }
-        val mosaicAt = if (live.size >= 2) lines.size.also { lines += "Watch ${minOf(live.size, 6)} live games in Mosaic" } else -1
+        // Only games on now: this one first when it is live, never an upcoming one.
+        val others = latestGames.filter { it.isLive(now) && !sameGame(it, game) }
+        val grid = ((if (game.isLive(now)) listOf(game) else emptyList()) + others).take(6)
+        val mosaicAt = if (grid.size >= 2) lines.size.also { lines += "Watch ${grid.size} live games in Mosaic" } else -1
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(game.title)
             .setItems(lines.toTypedArray()) { _, which ->
                 when (which) {
                     in feeds.indices -> pick(game, feeds[which])
                     preferAt -> choosePreferredNetwork(game)
-                    mosaicAt -> openInMosaic(game, live)
+                    mosaicAt -> openInMosaic(grid)
                 }
             }
             .setNegativeButton("Close", null)
             .show()
     }
+
+    /**
+     * The same game across refreshes, which build new Game objects: same title and start, and a
+     * feed in common (two regional games with one generic title air on different channels).
+     */
+    private fun sameGame(a: SportsFinder.Game, b: SportsFinder.Game): Boolean =
+        a.title == b.title && a.startMs == b.startMs &&
+            a.feeds.any { f -> b.feeds.any { it.serverIndex == f.serverIndex && it.streamId == f.streamId } }
 
     /** "ESPN HD · T-Rex · FHD · Excellent" */
     private fun feedLine(feed: SportsFinder.Channel): String {
@@ -260,11 +270,10 @@ class SportsActivity : AppCompatActivity() {
     }
 
     /**
-     * The live games in a Mosaic grid, this one in the first tile, each on its best feed. Opens
+     * Live games in a Mosaic grid, the chosen one first when it is live, each on its best feed. Opens
      * as a one-off grid: the viewer's saved layouts and their last layout are left as they were.
      */
-    private fun openInMosaic(first: SportsFinder.Game, live: List<SportsFinder.Game>) {
-        val games = (listOf(first) + live.filter { it !== first }).take(6)
+    private fun openInMosaic(games: List<SportsFinder.Game>) {
         val size = when {
             games.size <= 2 -> 2
             games.size <= 4 -> 4
