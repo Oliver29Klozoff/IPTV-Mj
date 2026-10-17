@@ -139,14 +139,14 @@ object ExternalSubtitles {
                 var fallback: ByteArray? = null
                 var spent = 0
                 while (entry != null) {
+                    val room = MAX_BYTES - spent
+                    // A directory entry can still hold compressed bytes. nextEntry would inflate them.
+                    if (room <= 0 || (entry.size >= 0 && entry.size > room)) {
+                        throw Rejected("That subtitle is too large.")
+                    }
+                    val data = readCapped(zip, room)
+                    spent += data.size
                     if (!entry.isDirectory) {
-                        val room = MAX_BYTES - spent
-                        // nextEntry would inflate the rest of an entry that was only partly read.
-                        if (room <= 0 || (entry.size >= 0 && entry.size > room)) {
-                            throw Rejected("That subtitle is too large.")
-                        }
-                        val data = readCapped(zip, room)
-                        spent += data.size
                         val name = entry.name.lowercase()
                         if (name.endsWith(".srt") || name.endsWith(".vtt")) return data
                         if (fallback == null) fallback = data
