@@ -326,7 +326,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var bandwidthTracker: BandwidthTracker? = null
     private var playbackDataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null
     private val pictureProfiles = PictureProfiles()
-    private val zapPreloader = ZapPreloader(this)
+    // Lazy: it reads applicationContext, which an activity has only once it is attached (onCreate).
+    private val zapPreloader by lazy { ZapPreloader(this) }
     private var zapPreloadJob: Job? = null
     private var pictureTitleJob: Job? = null
     private var zapMemoryPressure = false
@@ -2729,6 +2730,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // In-memory rewind for the last couple of minutes. A longer pause/rewind window
             // is the separate bounded store in TimeshiftStore, not this cache.
             .setBackBuffer(bufferProfile.backBufferMs, bufferProfile.retainBackBufferFromKeyframe)
+            // Shared with the preload manager (see ZapPreloader.buildPlayer). A neighbor channel gets
+            // its own small byte budget, so preparing it never eats into the playing channel's buffer.
+            .setPlayerTargetBufferBytes(androidx.media3.exoplayer.analytics.PlayerId.PRELOAD.name, 8 * 1024 * 1024)
             .build()
 
         // Without an explicit User-Agent, OkHttpDataSource sends OkHttp's own default
@@ -2829,7 +2833,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
         val preferredSubtitleLanguage = prefs.preferredSubtitleLanguageNow()
         val dataSaver = prefs.dataSaverEnabledNow()
-        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+        // A factory, not one selector: the preload manager makes its own from the same settings.
+        val trackSelectorFactory = androidx.media3.exoplayer.trackselection.TrackSelector.Factory { ctx ->
+            androidx.media3.exoplayer.trackselection.DefaultTrackSelector(ctx).apply {
             parameters = buildUponParameters()
                 .apply { if (tunnelingEnabled) setTunnelingEnabled(true) }
                 // Data Saver: ExoPlayer still plays the only rendition when a stream has just one
@@ -2841,14 +2847,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
                 .apply { if (subtitlesEnabled && preferredSubtitleLanguage.isNotBlank()) setPreferredTextLanguage(preferredSubtitleLanguage) }
                 .build()
+            }
         }
 
-        return ExoPlayer.Builder(this)
-            .setLoadControl(loadControl)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setRenderersFactory(renderersFactory)
-            .setTrackSelector(trackSelector)
-            .build()
+        // Built with its preload manager so a prepared neighbor channel can be played: Media3
+        // needs both on one playback thread. See ZapPreloader.buildPlayer.
+        return zapPreloader.buildPlayer(mediaSourceFactory, renderersFactory, loadControl, trackSelectorFactory)
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
                 exoPlayer.addListener(object : Player.Listener {
@@ -4271,9 +4275,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (live) scheduleZapPreload()
     }
 
+    /**
+     * Drops the prepared neighbors, for a cast or a timeshift pump that needs the connection.
+     * The manager stays: it belongs to the player and is released with it ([releasePlayerPreload]).
+     */
     private fun releaseZapPreload() {
         zapPreloadJob?.cancel()
         zapPreloadJob = null
+        zapPreloader.clear()
+    }
+
+    private fun releasePlayerPreload() {
+        releaseZapPreload()
         zapPreloader.release()
     }
 
@@ -4388,7 +4401,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val playingId = currentLiveMediaId()
         val index = currentZapIndex()
         if (factory == null || !canPreloadLiveNeighbors()) {
-            if (factory != null) zapPreloader.replace(factory, serverIndex, playingId, index, emptyList())
+            if (factory != null) zapPreloader.replace(serverIndex, playingId, index, emptyList())
             zapPreloadJob = null
             return
         }
@@ -4439,7 +4452,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
             if (!isActive) return@launch
             val sourceFactory = playbackDataSourceFactory ?: return@launch
-            zapPreloader.replace(sourceFactory, serverIndex, currentLiveMediaId(), currentZapIndex(), neighbors)
+            zapPreloader.replace(serverIndex, currentLiveMediaId(), currentZapIndex(), neighbors)
         }
     }
 
@@ -5952,7 +5965,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         zapPreloadJob = null
         val factory = playbackDataSourceFactory
         if (factory != null) {
-            zapPreloader.replace(factory, serverIndex, currentLiveMediaId(), currentZapIndex(), emptyList())
+            zapPreloader.replace(serverIndex, currentLiveMediaId(), currentZapIndex(), emptyList())
         }
     }
 
@@ -5989,7 +6002,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             stopTimeshift()
             player?.release()
             player = null
-            releaseZapPreload()
+            releasePlayerPreload()
             pictureTitleJob?.cancel()
             bandwidthTracker?.stop()
             // Fire-and-forget on a process-wide scope: lifecycleScope may already be cancelling
@@ -6034,7 +6047,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.playerView.player = null
             player?.release()
             player = null
-            releaseZapPreload()
+            releasePlayerPreload()
             pictureTitleJob?.cancel()
         }
         super.onDestroy()
