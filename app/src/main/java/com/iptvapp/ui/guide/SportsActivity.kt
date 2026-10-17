@@ -107,7 +107,7 @@ class SportsActivity : AppCompatActivity() {
         binding.rvSports.visibility = View.VISIBLE
         val existing = binding.rvSports.adapter as? SportsAdapter
         if (existing == null) {
-            binding.rvSports.adapter = SportsAdapter(items, accent, onPick = { pick(it) }, onHold = { gameView(it) })
+            binding.rvSports.adapter = SportsAdapter(items, accent, onPick = { pick(current(it)) }, onHold = { gameView(current(it)) })
             binding.rvSports.post { binding.rvSports.getChildAt(1)?.requestFocus() }
             return
         }
@@ -226,6 +226,11 @@ class SportsActivity : AppCompatActivity() {
             .setNegativeButton("Close", null)
             .show()
     }
+
+    /** A row's game as of the latest refresh: a refresh that only changed its other feeds or
+     * their ratings leaves the row on screen holding the older copy. */
+    private fun current(held: SportsFinder.Game): SportsFinder.Game =
+        latestGames.firstOrNull { sameGame(it, held) } ?: held
 
     /**
      * The same game across refreshes, which build new Game objects: same title and start, and a
