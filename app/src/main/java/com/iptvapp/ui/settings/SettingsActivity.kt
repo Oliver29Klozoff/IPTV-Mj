@@ -269,6 +269,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Automatic Backup Feed", 0, null, R.id.switchAutoBackupFeed),
             SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
+            SettingSearchEntry("Match frame rate", 0, null, R.id.rowFrameRateMatch),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
@@ -2491,6 +2492,35 @@ class SettingsActivity : AppCompatActivity() {
         else -> "30 minutes"
     }
 
+    private fun showFrameRateMatchDialog() {
+        lifecycleScope.launch {
+            val current = prefs.frameRateMatch.first()
+            val values = intArrayOf(
+                com.iptvapp.util.FrameRateMatch.OFF,
+                com.iptvapp.util.FrameRateMatch.ON_DEMAND,
+                com.iptvapp.util.FrameRateMatch.EVERYTHING,
+            )
+            val options = arrayOf(
+                "Off",
+                "Movies & series (recommended)",
+                "Everything, including live TV",
+            )
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Match frame rate")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val mode = values[which]
+                    lifecycleScope.launch {
+                        prefs.setFrameRateMatch(mode)
+                        binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(mode)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun showSportsModeDialog() {
         lifecycleScope.launch {
             val current = prefs.sportsMode.first()
@@ -2857,6 +2887,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchAutoBackupFeed.isChecked = prefs.autoBackupFeed.first()
                 binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
+                binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(prefs.frameRateMatch.first())
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
@@ -4086,6 +4117,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
         binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
+        binding.rowFrameRateMatch.setOnClickListener { showFrameRateMatchDialog() }
         binding.switchSportsScore.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setSportsScoreOverlay(enabled) }
@@ -4473,6 +4505,7 @@ class SettingsActivity : AppCompatActivity() {
             put("mosaicLayouts", prefs.mosaicLayouts.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
+            put("frameRateMatch", prefs.frameRateMatch.first())
             put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
             put("favoriteTeams", prefs.favoriteTeams.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
@@ -4696,6 +4729,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("mosaicLayouts")) prefs.setMosaicLayouts(json.optString("mosaicLayouts", ""))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
+        if (json.has("frameRateMatch")) prefs.setFrameRateMatch(json.optInt("frameRateMatch", com.iptvapp.util.FrameRateMatch.DEFAULT))
         if (json.has("sportsScoreOverlay")) prefs.setSportsScoreOverlay(json.optBoolean("sportsScoreOverlay", true))
         if (json.has("favoriteTeams")) prefs.setFavoriteTeams(json.optString("favoriteTeams", ""))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))

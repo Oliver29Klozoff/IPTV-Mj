@@ -110,6 +110,7 @@ class PreferencesManager @Inject constructor(
     fun autoBackupFeedNow() = PrefsSnapshot.read(context, readAutoBackupFeed)
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
+    fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)
     fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
     fun favoriteTeamsNow() = PrefsSnapshot.read(context, readFavoriteTeams)
     fun tunneledPlaybackEnabledNow() = PrefsSnapshot.read(context, readTunneledPlaybackEnabled)
@@ -127,6 +128,9 @@ class PreferencesManager @Inject constructor(
     private val readAutoBackupFeed = { p: Preferences -> p[Keys.AUTO_BACKUP_FEED] ?: true }
     private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
     private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
+    private val readFrameRateMatch = { p: Preferences ->
+        com.iptvapp.util.FrameRateMatch.normalize(p[Keys.FRAME_RATE_MATCH] ?: com.iptvapp.util.FrameRateMatch.DEFAULT)
+    }
     private val readSportsScoreOverlay = { p: Preferences -> p[Keys.SPORTS_SCORE_OVERLAY] ?: true }
     private val readFavoriteTeams = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeStoredTeams(p[Keys.FAVORITE_TEAMS] ?: "") }
     private val readSubtitlesEnabled = { p: Preferences -> p[Keys.SUBTITLES_ENABLED] ?: true }
@@ -301,6 +305,8 @@ class PreferencesManager @Inject constructor(
         val TIMESHIFT_MINUTES = intPreferencesKey("timeshift_minutes")
         // Sports Mode: 0 off, 1 games, 2 all live. Off leaves the normal live buffer alone.
         val SPORTS_MODE = intPreferencesKey("sports_mode")
+        // When the player switches the TV's display mode to the video's frame rate. See FrameRateMatch.
+        val FRAME_RATE_MATCH = intPreferencesKey("frame_rate_match")
         // When a guide title already contains a score, Sports Mode can show it. Default on.
         val SPORTS_SCORE_OVERLAY = booleanPreferencesKey("sports_score_overlay")
         // Newline-separated team names, capped by SportsMode. Shortcuts on the sports list.
@@ -437,6 +443,12 @@ class PreferencesManager @Inject constructor(
     }
 
     // Off until the viewer asks. Games follows the guide. All live uses the fast buffer on every channel.
+    val frameRateMatch: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readFrameRateMatch)
+    suspend fun setFrameRateMatch(v: Int) = context.dataStore.edit {
+        it[Keys.FRAME_RATE_MATCH] = com.iptvapp.util.FrameRateMatch.normalize(v)
+    }
     val sportsMode: Flow<Int> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readSportsMode)
