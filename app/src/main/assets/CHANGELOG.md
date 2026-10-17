@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.42 - 2026-10-16
+- **New**: Match frame rate. Movies, series, replays and recordings now switch your TV to the
+  video's own rate (24 Hz for films, 50 Hz for European TV) for smoother motion, where the TV
+  supports it, and switch back when you leave. Choose Off, Movies & series (the default), or
+  Everything, which includes live TV, in Settings next to Sports mode. Some TVs go black for a
+  moment while they switch.
+
 ## v7.41 - 2026-10-16
 - **New**: Provider Health (Settings) now covers every provider, not just the main one: whether
   it is answering and how fast, how often its channels start, how quickly they tune and how
