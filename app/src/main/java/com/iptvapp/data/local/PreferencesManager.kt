@@ -152,6 +152,11 @@ class PreferencesManager @Inject constructor(
         // ISO 639-2 codes (e.g. "eng", "spa"), empty string = no preference/auto.
         val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("preferred_audio_language")
         val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("preferred_subtitle_language")
+        // The viewer's own OpenSubtitles consumer key. Left out of settings backup so a
+        // shared backup file does not carry it. A username spends that account's downloads.
+        val OPENSUBTITLES_API_KEY = stringPreferencesKey("opensubtitles_api_key")
+        val OPENSUBTITLES_USERNAME = stringPreferencesKey("opensubtitles_username")
+        val OPENSUBTITLES_PASSWORD = stringPreferencesKey("opensubtitles_password")
         // Folder name under Environment.DIRECTORY_MOVIES that recordings are saved to via
         // MediaStore (e.g. "MKTV" -> Movies/MKTV) — see RecordingFolderName kdoc.
         val RECORDING_FOLDER_NAME = stringPreferencesKey("recording_folder_name")
@@ -598,6 +603,21 @@ class PreferencesManager @Inject constructor(
 
     val preferredSubtitleLanguage: Flow<String> = context.dataStore.data
         .map(readPreferredSubtitleLanguage)
+
+    val opensubtitlesApiKey: Flow<String> = context.dataStore.data
+        .map { it[Keys.OPENSUBTITLES_API_KEY] ?: "" }
+    val opensubtitlesUsername: Flow<String> = context.dataStore.data
+        .map { it[Keys.OPENSUBTITLES_USERNAME] ?: "" }
+    val opensubtitlesPassword: Flow<String> = context.dataStore.data
+        .map { it[Keys.OPENSUBTITLES_PASSWORD] ?: "" }
+
+    suspend fun setOpenSubtitlesAccount(apiKey: String, username: String, password: String) {
+        context.dataStore.edit {
+            it[Keys.OPENSUBTITLES_API_KEY] = apiKey.trim()
+            it[Keys.OPENSUBTITLES_USERNAME] = username.trim()
+            it[Keys.OPENSUBTITLES_PASSWORD] = password
+        }
+    }
 
     val recordingFolderName: Flow<String> = context.dataStore.data
         .map { it[Keys.RECORDING_FOLDER_NAME] ?: "MKTV" }
