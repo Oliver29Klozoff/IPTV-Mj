@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.48 - 2026-10-17
+- **New**: Game alerts. When a game with one of your favorite teams starts, MKTV sends a
+  notification; tap Watch to open it on the best feed (your preferred network first). Pick your
+  teams in Settings > Favorite teams; turn alerts off with Settings > Game alerts.
+
 ## v7.47 - 2026-10-17
 - **New**: Sports Hub. On the Sports screen, each game now opens on the feed that plays best
   for you. Hold a game for Game View: every channel and provider carrying it with its quality

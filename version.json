@@ -1,7 +1,7 @@
 {
-  "versionCode": 585,
-  "versionName": "7.47",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.47/MKTV.apk",
-  "apkSha256": "fdb81319dae7f617121c676788be13d09190e14f899406ba2f0dd4920b52f5e9",
-  "changelog": "Sports Hub: Game View, best feed per game, preferred networks, live games in Mosaic."
+  "versionCode": 586,
+  "versionName": "7.48",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.48/MKTV.apk",
+  "apkSha256": "59830c9f1c633980995c31f8479899767ffaa5a990dafc059fed2395bdc8068f",
+  "changelog": "Game alerts: a notification when your team's game starts, with Watch."
 }
