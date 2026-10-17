@@ -111,9 +111,11 @@ object WatchNextPublisher {
             }
         }
         val wanted = items.associateBy { it.key }
-        // Finished, dismissed or out of the top: off the row.
+        // Finished, dismissed or out of the top: off the row. A card the viewer removed is kept,
+        // hidden: it is the only record of that removal, and dropping it would let the title come
+        // back on its own once newer titles finish and it ranks in the top again.
         for ((providerId, row) in existing) {
-            if (providerId !in wanted) {
+            if (providerId !in wanted && row.browsable) {
                 resolver.delete(TvContractCompat.buildWatchNextProgramUri(row.id), null, null)
             }
         }
