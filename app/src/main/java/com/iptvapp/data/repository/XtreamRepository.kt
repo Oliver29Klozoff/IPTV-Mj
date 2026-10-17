@@ -2951,22 +2951,42 @@ class XtreamRepository @Inject constructor(
         if (candidates.isEmpty()) return emptyList()
         val now = System.currentTimeMillis()
         val names = allConfiguredServers().associate { it.serverIndex to it.nickname }
-        val stats = candidates.groupBy { it.first }.flatMap { (server, list) ->
-            db.feedStatsDao().getForServer(server, list.map { it.second })
-        }.associateBy { it.serverIndex to it.streamId }
-        // History from before feed scores existed: primary channels only, plays without stalls.
-        val legacy = candidates.filter { it.first == -1 }.map { it.second }.takeIf { it.isNotEmpty() }
-            ?.let { ids -> db.reliabilityDao().getForStreamIds(ids) }
-            ?.filter { it.outcomes.isNotEmpty() }
-            ?.associate { it.streamId to it.outcomes }
-            .orEmpty()
+        val rows = feedRows(candidates.map { it.first to it.second })
         return candidates.map { (server, id, name) ->
-            val row = stats[server to id]
-                ?: legacy[id]?.takeIf { server == -1 }?.let {
-                    com.iptvapp.data.local.entities.FeedStatsEntity(server, id, outcomes = it)
-                }
+            val row = rows[server to id]
             RankedFeed(server, id, name, com.iptvapp.util.FeedScore.score(row, now), names[server].orEmpty(), row)
         }.sortedByDescending { it.score }
+    }
+
+    /**
+     * Feed history for each (serverIndex, streamId) copy that has any. A primary channel with no
+     * feed row yet falls back to channel_reliability, its history from before feed scores (plays
+     * only, no stalls). Queried in chunks, since a broad search can hold more ids than SQLite
+     * allows in one IN list.
+     */
+    private suspend fun feedRows(keys: Collection<Pair<Int, Int>>): Map<Pair<Int, Int>, com.iptvapp.data.local.entities.FeedStatsEntity> =
+        withContext(Dispatchers.IO) {
+            val out = HashMap<Pair<Int, Int>, com.iptvapp.data.local.entities.FeedStatsEntity>()
+            keys.groupBy({ it.first }, { it.second }).forEach { (server, ids) ->
+                ids.distinct().chunked(500).forEach { chunk ->
+                    db.feedStatsDao().getForServer(server, chunk).forEach { out[it.serverIndex to it.streamId] = it }
+                }
+            }
+            val missingPrimary = keys.filter { it.first == -1 && (it !in out) }.map { it.second }.distinct()
+            missingPrimary.chunked(500).forEach { chunk ->
+                db.reliabilityDao().getForStreamIds(chunk).filter { it.outcomes.isNotEmpty() }.forEach {
+                    out[-1 to it.streamId] = com.iptvapp.data.local.entities.FeedStatsEntity(-1, it.streamId, outcomes = it.outcomes)
+                }
+            }
+            out
+        }
+
+    /** Feed score per copy, for ranking search results. Copies with no history are left out. */
+    suspend fun feedQuality(keys: Collection<Pair<Int, Int>>): Map<Pair<Int, Int>, com.iptvapp.data.search.SearchHit.Feed> {
+        val now = System.currentTimeMillis()
+        return feedRows(keys).mapValues { (_, row) ->
+            com.iptvapp.data.search.SearchHit.Feed(com.iptvapp.util.FeedScore.score(row, now), rated = true)
+        }
     }
 
     /** The catalog name of one provider's copy, without any display decoration. */
