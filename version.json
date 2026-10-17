@@ -1,7 +1,7 @@
 {
-  "versionCode": 584,
-  "versionName": "7.46",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.46/MKTV.apk",
-  "apkSha256": "d73cf3438460cfeaad4d447ad1e706286b5e11aa390175aab713cb0c8bbb503e",
-  "changelog": "Dolby Vision plays its HDR10 picture on screens without Dolby Vision."
+  "versionCode": 585,
+  "versionName": "7.47",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.47/MKTV.apk",
+  "apkSha256": "fdb81319dae7f617121c676788be13d09190e14f899406ba2f0dd4920b52f5e9",
+  "changelog": "Sports Hub: Game View, best feed per game, preferred networks, live games in Mosaic."
 }

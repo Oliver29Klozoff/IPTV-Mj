@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.47 - 2026-10-17
+- **New**: Sports Hub. On the Sports screen, each game now opens on the feed that plays best
+  for you. Hold a game for Game View: every channel and provider carrying it with its quality
+  and rating, so you can pick any one; "Prefer a network" so, say, NBA games always open on
+  ESPN; and "Watch live games in Mosaic" to put the games on now side by side.
+
 ## v7.46 - 2026-10-17
 - **Improved**: Dolby Vision on a TV or screen that cannot show Dolby Vision now plays the
   ordinary HDR10 (or HLG/SDR) picture underneath it automatically, instead of failing or
