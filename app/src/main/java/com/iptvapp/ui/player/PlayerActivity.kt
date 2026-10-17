@@ -330,6 +330,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private val zapPreloader by lazy { ZapPreloader(this) }
     private var zapPreloadJob: Job? = null
     private var pictureTitleJob: Job? = null
+    /** Set when a live channel opens. Its first READY schedules the neighbor preload. */
+    private var zapPreloadWhenReady = false
+    private val ZAP_PRELOAD_SETTLE_MS = 5_000L
     private var zapMemoryPressure = false
     private var appliedPictureName: String? = null
     private var appliedPictureProfile: Any? = null
@@ -2940,6 +2943,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         when (state) {
                             Player.STATE_READY -> {
                                 retryCount = 0
+                                if (zapPreloadWhenReady) {
+                                    zapPreloadWhenReady = false
+                                    scheduleZapPreload()
+                                }
                                 binding.progressBuffering.visibility = View.GONE
                                 binding.tvRetryStatus.visibility = View.GONE
                                 // Ghost Channel Radar / Provider Health Weather Map — a real
@@ -4275,7 +4282,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (preloaded != null) p.setMediaSource(preloaded) else p.setMediaItem(item)
         p.prepare()
         p.playWhenReady = playWhenReady
-        if (live) scheduleZapPreload()
+        // Neighbors wait until this channel is playing; see onPlaybackStateChanged and scheduleZapPreload.
+        zapPreloadWhenReady = live
     }
 
     /**
@@ -4309,7 +4317,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         !isVod && !isRecordingPlayback && !audioOnly && !isCatchup
 
     private fun programmeTitle(): String {
-        val guide = liveNowShow?.title?.takeIf { it.isNotBlank() }
+        // A show that has ended says nothing about what is on now; the guide lookup does.
+        val guide = liveNowShow?.takeIf { it.stopMs > System.currentTimeMillis() }?.title?.takeIf { it.isNotBlank() }
             ?: pictureProgrammeTitle.takeIf { it.isNotBlank() }
         return guide ?: streamTitle
     }
@@ -4365,29 +4374,40 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * The guide title, when it is already stored. This does not ask the panel.
      * Auto picture mode uses it. A missing row leaves the channel name.
      */
-    private fun refreshPictureFromGuide() {
+    /**
+     * [reset] false is the follow-up when a programme ends: the picture keeps its profile until
+     * the next title is known, instead of dropping to Standard for a moment.
+     */
+    private fun refreshPictureFromGuide(reset: Boolean = true) {
         pictureTitleJob?.cancel()
-        pictureProgrammeTitle = ""
-        updatePictureProfile()
+        if (reset) {
+            pictureProgrammeTitle = ""
+            updatePictureProfile()
+        }
         if (!pictureLive()) return
         val lookupServer = serverIndex
         val lookupStream = if (lookupServer == -1) streamId else mergedStreamId
         if (lookupStream == -1) return
         pictureTitleJob = lifecycleScope.launch {
-            val title = try {
-                val epg = db.epgDao().getEpgForStream(lookupStream, lookupServer).first()
-                val nowMs = System.currentTimeMillis()
-                fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
-                epg.firstOrNull { toMs(it.startTimestamp) <= nowMs && toMs(it.stopTimestamp) > nowMs }?.title
+            fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
+            val nowMs = System.currentTimeMillis()
+            val onNow = try {
+                db.epgDao().getEpgForStream(lookupStream, lookupServer).first()
+                    .firstOrNull { toMs(it.startTimestamp) <= nowMs && toMs(it.stopTimestamp) > nowMs }
             } catch (_: Exception) {
                 null
             }
             val currentStream = if (serverIndex == -1) streamId else mergedStreamId
             if (!isActive || serverIndex != lookupServer || currentStream != lookupStream) return@launch
-            val next = title?.trim().orEmpty()
-            if (next.isEmpty() || next == pictureProgrammeTitle) return@launch
-            pictureProgrammeTitle = next
-            applyFrameRateMatch()
+            val next = onNow?.title?.trim().orEmpty()
+            if (next != pictureProgrammeTitle) {
+                pictureProgrammeTitle = next
+                applyFrameRateMatch()
+            }
+            // Auto follows the programme: look again when this one ends (a game, then the news).
+            val endsAt = onNow?.let { toMs(it.stopTimestamp) } ?: return@launch
+            delay((endsAt - System.currentTimeMillis()).coerceAtLeast(0L) + 2_000L)
+            if (isActive) refreshPictureFromGuide(reset = false)
         }
     }
 
@@ -4409,6 +4429,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             return
         }
         zapPreloadJob = lifecycleScope.launch {
+            // Give the panel time to count the stream that just started, then ask it fresh. A cached or
+            // early count can miss this stream, and a provider that evicts instead of refusing would
+            // knock another viewer off the account.
+            delay(ZAP_PRELOAD_SETTLE_MS)
             val targets = if (serverIndex == -1) {
                 channels.map { ZapTarget(-1, it.streamId) }
             } else {
@@ -4419,7 +4443,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val order = ChannelZap.neighborOrder(here, targets.size)
             val spare = HashMap<Int, Int>()
             for (server in order.map { targets[it].server }.distinct()) {
-                val limits = repository.accountLimits(server)
+                val limits = repository.accountLimits(server, forceRefresh = true)
                 spare[server] = ChannelZap.spareWhilePlaying(
                     limits?.maxConnections,
                     limits?.activeConnections,
