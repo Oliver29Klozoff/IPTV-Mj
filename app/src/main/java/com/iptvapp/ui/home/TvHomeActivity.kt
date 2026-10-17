@@ -890,7 +890,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val app = applicationContext
         lifecycleScope.launch {
             try {
-                com.iptvapp.tv.WatchNextPublisher.publish(app, com.iptvapp.tv.WatchNextPublisher.items(app, db, prefs))
+                com.iptvapp.tv.WatchNextPublisher.refresh(app, db, prefs)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {

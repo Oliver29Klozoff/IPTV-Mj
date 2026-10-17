@@ -4966,7 +4966,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         kotlinx.coroutines.GlobalScope.launch {
             try {
                 save()
-                com.iptvapp.tv.WatchNextPublisher.publish(app, com.iptvapp.tv.WatchNextPublisher.items(app, db, prefs))
+                com.iptvapp.tv.WatchNextPublisher.refresh(app, db, prefs)
             } catch (_: Exception) {
             }
         }

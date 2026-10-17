@@ -529,6 +529,8 @@ class SettingsActivity : AppCompatActivity() {
                 .setPositiveButton("Logout") { _, _ ->
                     lifecycleScope.launch {
                         try { repository.logout() } catch (_: Exception) {}
+                        // The TV home screen's Watch Next row is viewing history too; it goes with the account.
+                        try { com.iptvapp.tv.WatchNextPublisher.clearAll(applicationContext) } catch (_: Exception) {}
                         val intent = Intent(this@SettingsActivity, com.iptvapp.ui.login.LoginActivity::class.java)
                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         startActivity(intent)

@@ -75,15 +75,34 @@ object WatchNextPublisher {
             .take(MAX_ITEMS)
     }
 
-    suspend fun publish(context: Context, items: List<Item>) {
+    /**
+     * Reads what is in progress and matches the row to it, as one step under the lock: two
+     * refreshes at once (the player saving, the home screen returning) cannot let an older
+     * reading land after a newer one.
+     */
+    suspend fun refresh(context: Context, db: IptvDatabase, prefs: PreferencesManager) {
         if (!hasTvHome(context)) return
         lock.withLock {
             withContext(Dispatchers.IO) {
                 try {
-                    sync(context, items)
+                    sync(context, items(context, db, prefs))
                 } catch (e: Exception) {
                     // The home screen is a nicety: never let it break MKTV.
                     Log.w(TAG, "Watch Next publish failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /** Logging out: the viewing history leaves the TV home screen with the account. */
+    suspend fun clearAll(context: Context) {
+        if (!hasTvHome(context)) return
+        lock.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.delete(TvContractCompat.WatchNextPrograms.CONTENT_URI, null, null)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Watch Next clear failed: ${e.message}")
                 }
             }
         }
