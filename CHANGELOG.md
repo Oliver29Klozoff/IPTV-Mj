@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.46 - 2026-10-17
+- **Improved**: Dolby Vision on a TV or screen that cannot show Dolby Vision now plays the
+  ordinary HDR10 (or HLG/SDR) picture underneath it automatically, instead of failing or
+  looking wrong. Dolby Vision TVs keep Dolby Vision.
+- **Fixed**: the Dolby Vision fallback setting (was "DV7 to HEVC fallback") no longer turns
+  Dolby Vision profile 5 purple and green; that profile always plays as Dolby Vision.
+
 ## v7.45 - 2026-10-17
 - **New**: On Android TV and Google TV, movies and episodes you have started now appear in the
   home screen's Watch Next row with how far you got. Pick one to open it in MKTV and carry on.

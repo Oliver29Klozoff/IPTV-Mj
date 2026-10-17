@@ -1,7 +1,7 @@
 {
-  "versionCode": 583,
-  "versionName": "7.45",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.45/MKTV.apk",
-  "apkSha256": "96e54adbe0e335ec95e32fbebd3e89cd41edf118c8ac2a9b42e6534c9b02e564",
-  "changelog": "Unfinished movies and episodes appear in the Android TV Watch Next row."
+  "versionCode": 584,
+  "versionName": "7.46",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.46/MKTV.apk",
+  "apkSha256": "d73cf3438460cfeaad4d447ad1e706286b5e11aa390175aab713cb0c8bbb503e",
+  "changelog": "Dolby Vision plays its HDR10 picture on screens without Dolby Vision."
 }
