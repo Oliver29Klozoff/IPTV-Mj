@@ -51,6 +51,15 @@ class MergedChannelAdapter(
         }
     }
 
+    // "+N" on a row that stands for N more copies (HomeViewModel.duplicateCopies, same keys).
+    private var extraCopiesByKey: Map<String, Int> = emptyMap()
+
+    fun submitDuplicateCopies(map: Map<String, Int>) {
+        val old = extraCopiesByKey
+        extraCopiesByKey = map
+        notifyChangedRows { old[it] != map[it] }
+    }
+
     fun submitEpgText(map: Map<String, String>) {
         val old = epgTextByKey
         epgTextByKey = map
@@ -97,7 +106,7 @@ class MergedChannelAdapter(
             } else {
                 binding.ivFavorite.isFocusable = false
             }
-            binding.tvChannelName.text = item.name
+            binding.tvChannelName.text = com.iptvapp.util.DuplicateChannels.label(item.name, extraCopiesByKey["${item.serverIndex}:${item.streamId}"])
             val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
             binding.tvQualityBadge?.apply {
                 visibility = if (quality != null) View.VISIBLE else View.GONE

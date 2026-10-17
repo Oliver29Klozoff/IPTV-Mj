@@ -3829,6 +3829,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         }
         lifecycleScope.launch {
+            // "+N" on rows standing for more copies of one channel (Settings > Combine duplicate channels).
+            viewModel.duplicateCopies.collect { copies ->
+                if (::channelAdapter.isInitialized) channelAdapter.submitDuplicateCopies(copies)
+                if (::mergedChannelAdapter.isInitialized) mergedChannelAdapter.submitDuplicateCopies(copies)
+            }
+        }
+        lifecycleScope.launch {
             viewModel.channels.collect { channels ->
                 if (currentSection == Section.MOVIES || currentSection == Section.SERIES) return@collect
                 if (binding.tvRvContent.adapter !== channelAdapter) return@collect

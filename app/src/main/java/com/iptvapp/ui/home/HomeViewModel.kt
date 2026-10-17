@@ -15,6 +15,7 @@ import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.ui.guide.GuideRow
 import com.iptvapp.ui.player.BandwidthBudgetManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -27,7 +28,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 // Guide top-ups for the channel lists (see HomeViewModel.startEpgLoad): how many channels from the
@@ -451,6 +454,35 @@ class HomeViewModel @Inject constructor(
     private var selectedCombinedCategory: LiveCategoryRow? = null
     private val _combinedLiveChannels = MutableStateFlow<List<LiveChannelRow>>(emptyList())
     val combinedLiveChannels: StateFlow<List<LiveChannelRow>> = _combinedLiveChannels
+
+    private val _duplicateCopies = MutableStateFlow<Map<String, Int>>(emptyMap())
+    /**
+     * How many more copies a collapsed category row stands for, by the row id convention
+     * LiveChannelRow uses ("primary:12", "3:45"). Adapters show it as "+N".
+     */
+    val duplicateCopies: StateFlow<Map<String, Int>> = _duplicateCopies
+
+    private fun copyId(serverIndex: Int, streamId: Int) = if (serverIndex == -1) "primary:$streamId" else "$serverIndex:$streamId"
+
+    /**
+     * One row per channel for a category list (Settings > Combine duplicate channels): copies
+     * with the same name collapse into the one that has played best. See DuplicateChannels.
+     */
+    private suspend fun <T> collapseDuplicates(items: List<T>, keyOf: (T) -> Pair<Int, Int>, nameOf: (T) -> String): List<T> {
+        val ids = items.map { keyOf(it).let { (s, id) -> copyId(s, id) } }.toSet()
+        if (!prefs.combineDuplicatesNow() || items.size < 2) {
+            _duplicateCopies.update { it - ids }
+            return items
+        }
+        val scores = try { repository.feedQuality(items.map(keyOf)) } catch (_: Exception) { emptyMap() }
+        val collapsed = withContext(Dispatchers.Default) {
+            com.iptvapp.util.DuplicateChannels.collapse(items, nameOf) { scores[keyOf(it)]?.score }
+        }
+        val extra = collapsed.filter { it.extraCopies > 0 }
+            .associate { c -> keyOf(c.item).let { (s, id) -> copyId(s, id) } to c.extraCopies }
+        _duplicateCopies.update { (it - ids) + extra }
+        return collapsed.map { it.item }
+    }
     private var combinedLiveChannelsJob: Job? = null
 
     fun hasSelectedCombinedCategory(): Boolean = selectedCombinedCategory != null
@@ -480,8 +512,9 @@ class HomeViewModel @Inject constructor(
                     .map { list -> list.map { LiveChannelRow(mergedChannel = it, categoryName = categoryName) } }
             }
             flow.collectLatest { rows ->
-                _combinedLiveChannels.value = applySortToLiveRows(rows)
-                if (row.category != null) _channels.value = applySortToChannels(rows.mapNotNull { it.channel })
+                val shown = collapseDuplicates(applySortToLiveRows(rows), { it.serverIndex to it.streamId }, { it.name })
+                _combinedLiveChannels.value = shown
+                if (row.category != null) _channels.value = applySortToChannels(shown.mapNotNull { it.channel })
             }
         }
     }
@@ -586,7 +619,9 @@ class HomeViewModel @Inject constructor(
         hasMergedCategorySelected = true
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
-            repository.getMergedChannelsByCategory(serverIndex, categoryId).collectLatest { _mergedChannels.value = it }
+            repository.getMergedChannelsByCategory(serverIndex, categoryId).collectLatest {
+                _mergedChannels.value = collapseDuplicates(it, { m -> m.serverIndex to m.streamId }, { m -> m.name })
+            }
         }
     }
 
@@ -1646,7 +1681,7 @@ class HomeViewModel @Inject constructor(
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
             repository.getChannelsByCategory(categoryId).collectLatest {
-                _channels.value = applySortToChannels(it)
+                _channels.value = collapseDuplicates(applySortToChannels(it), { c -> -1 to c.streamId }, { c -> c.name })
             }
         }
     }

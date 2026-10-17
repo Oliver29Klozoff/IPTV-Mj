@@ -5347,6 +5347,14 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
+            // "+N" on rows standing for more copies of one channel (Settings > Combine duplicate channels).
+            viewModel.duplicateCopies.collect { copies ->
+                if (::liveChannelAdapter.isInitialized) liveChannelAdapter.submitDuplicateCopies(copies)
+                if (::channelAdapter.isInitialized) channelAdapter.submitDuplicateCopies(copies)
+                if (::mergedChannelAdapter.isInitialized) mergedChannelAdapter.submitDuplicateCopies(copies)
+            }
+        }
+        lifecycleScope.launch {
             viewModel.combinedLiveChannels.collect { rows ->
                 if (binding.tabLayout.selectedTabPosition != TAB_LIVE && binding.tabLayout.selectedTabPosition != TAB_CATEGORIES) return@collect
                 liveChannelAdapter.submitList(rows)

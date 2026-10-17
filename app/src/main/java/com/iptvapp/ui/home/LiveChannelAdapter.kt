@@ -46,6 +46,15 @@ class LiveChannelAdapter(
         notifyChangedRows { it == old || it == id }
     }
 
+    // "+N" on a row that stands for N more copies of the channel (HomeViewModel.duplicateCopies).
+    private var extraCopiesById: Map<String, Int> = emptyMap()
+
+    fun submitDuplicateCopies(map: Map<String, Int>) {
+        val old = extraCopiesById
+        extraCopiesById = map
+        notifyChangedRows { old[it] != map[it] }
+    }
+
     fun submitEpgText(epgMap: Map<String, String>) {
         val old = epgTextById
         epgTextById = epgMap
@@ -92,7 +101,7 @@ class LiveChannelAdapter(
         private var heldPreviewKey: String? = null
 
         fun bind(item: LiveChannelRow) {
-            binding.tvChannelName.text = item.name
+            binding.tvChannelName.text = com.iptvapp.util.DuplicateChannels.label(item.name, extraCopiesById[item.id])
             val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
             binding.tvQualityBadge?.apply {
                 visibility = if (quality != null) View.VISIBLE else View.GONE

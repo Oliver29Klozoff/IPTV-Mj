@@ -108,6 +108,7 @@ class PreferencesManager @Inject constructor(
     fun preferredSubtitleLanguageNow() = PrefsSnapshot.read(context, readPreferredSubtitleLanguage)
     fun extraBufferingEnabledNow() = PrefsSnapshot.read(context, readExtraBufferingEnabled)
     fun autoBackupFeedNow() = PrefsSnapshot.read(context, readAutoBackupFeed)
+    fun combineDuplicatesNow() = PrefsSnapshot.read(context, readCombineDuplicates)
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)
@@ -127,6 +128,7 @@ class PreferencesManager @Inject constructor(
     private val readAudioPassthroughFallbackEnabled = { p: Preferences -> p[Keys.AUDIO_PASSTHROUGH_FALLBACK_ENABLED] ?: false }
     private val readExtraBufferingEnabled = { p: Preferences -> p[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
     private val readAutoBackupFeed = { p: Preferences -> p[Keys.AUTO_BACKUP_FEED] ?: true }
+    private val readCombineDuplicates = { p: Preferences -> p[Keys.COMBINE_DUPLICATES] ?: true }
     private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
     private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
     private val readFrameRateMatch = { p: Preferences ->
@@ -300,6 +302,8 @@ class PreferencesManager @Inject constructor(
         val EXTRA_BUFFERING_ENABLED = booleanPreferencesKey("extra_buffering_enabled")
         // Move a live channel that keeps stalling to another provider's copy of it. On by default.
         val AUTO_BACKUP_FEED = booleanPreferencesKey("auto_backup_feed")
+        // One row per channel in category lists; see DuplicateChannels. On by default.
+        val COMBINE_DUPLICATES = booleanPreferencesKey("combine_duplicates")
         // Saved Mosaic layouts as JSON (see MosaicLayouts), and the name of the one last opened.
         val MOSAIC_LAYOUTS = stringPreferencesKey("mosaic_layouts")
         val MOSAIC_LAST_LAYOUT = stringPreferencesKey("mosaic_last_layout")
@@ -425,6 +429,10 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readAutoBackupFeed)
     suspend fun setAutoBackupFeed(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_BACKUP_FEED] = v }
+    val combineDuplicates: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readCombineDuplicates)
+    suspend fun setCombineDuplicates(v: Boolean) = context.dataStore.edit { it[Keys.COMBINE_DUPLICATES] = v }
     val mosaicLayouts: Flow<String> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.MOSAIC_LAYOUTS] ?: "" }
