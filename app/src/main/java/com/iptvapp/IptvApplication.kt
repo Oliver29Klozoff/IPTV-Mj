@@ -20,6 +20,7 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.PrintWriter
@@ -68,6 +69,15 @@ class IptvApplication : Application(), Configuration.Provider {
         // the new APK but a process already alive keeps running the old code until it's fully
         // restarted, which otherwise silently defeats any logging added in the new version.
         // The log rewrite reads the whole crash file; that stays off the main thread.
+        // Game alerts follow the favorite teams, the switch and preferred networks wherever they
+        // change (Settings, the Sports screen, a restored backup). The first value schedules too.
+        CoroutineScope(Dispatchers.IO).launch {
+            kotlinx.coroutines.flow.combine(
+                prefs.favoriteTeams, prefs.gameAlerts, prefs.sportsPreferredNetworks
+            ) { teams, on, nets -> Triple(teams, on, nets) }
+                .distinctUntilChanged()
+                .collect { runCatching { com.iptvapp.util.GameAlerts.schedule(app, db, prefs) } }
+        }
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val v = packageManager.getPackageInfo(packageName, 0)

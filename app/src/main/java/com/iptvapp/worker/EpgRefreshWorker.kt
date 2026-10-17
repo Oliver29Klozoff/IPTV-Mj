@@ -89,6 +89,7 @@ class EpgRefreshWorker @AssistedInject constructor(
                 updateProgress(notificationManager, 100, "EPG already up to date")
                 prefs.setLastEpgRefreshTime(System.currentTimeMillis())
                 com.iptvapp.util.ShowAlerts.scan(appContext, db, prefs)
+                com.iptvapp.util.GameAlerts.schedule(appContext, db, prefs)
                 return Result.success(
                     Data.Builder()
                         .putInt(KEY_PROGRESS, 100)
@@ -145,6 +146,7 @@ class EpgRefreshWorker @AssistedInject constructor(
             updateProgress(notificationManager, 100, "EPG refresh complete")
             // Fresh listings: check them against the user's show alerts.
             com.iptvapp.util.ShowAlerts.scan(appContext, db, prefs)
+            com.iptvapp.util.GameAlerts.schedule(appContext, db, prefs)
 
             Result.success(
                 Data.Builder()

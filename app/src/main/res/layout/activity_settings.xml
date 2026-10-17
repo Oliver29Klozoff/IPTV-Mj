@@ -1229,6 +1229,31 @@
                                 android:text="None" />
                         </LinearLayout>
                         <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Game alerts" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="A notification when one of your teams' games starts, with Watch" />
+                            </LinearLayout>
+                            <Switch
+                                android:id="@+id/switchGameAlerts"
+                                style="@style/Rack.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowLiveReconnectSpeed"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"

@@ -61,6 +61,7 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("autoBackupFeed", prefs.autoBackupFeed.first())
                 put("combineDuplicates", prefs.combineDuplicates.first())
                 put("sportsPreferredNetworks", prefs.sportsPreferredNetworks.first())
+                put("gameAlerts", prefs.gameAlerts.first())
                 put("mosaicLayouts", prefs.mosaicLayouts.first())
                 put("timeshiftMinutes", prefs.timeshiftMinutes.first())
                 put("sportsMode", prefs.sportsMode.first())
