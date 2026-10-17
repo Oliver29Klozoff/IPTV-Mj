@@ -119,11 +119,10 @@ class SettingsActivity : AppCompatActivity() {
             + "Tunneled Playback: lets the device handle audio/video sync in hardware instead "
             + "of the app doing it in software — smoother on supported devices, but can cause "
             + "glitches on some. Off by default.\n\n"
-            + "DV7 → HEVC Fallback: some devices can't properly decode Dolby Vision Profile 7 "
-            + "and show a black screen or fail outright — this redirects that content to a "
-            + "standard HEVC decoder instead (DV7 streams always include a valid HEVC base "
-            + "layer), trading the extra HDR enhancement layer for a picture that actually "
-            + "plays.\n\n"
+            + "Dolby Vision Fallback: on a TV that can't show Dolby Vision, MKTV already plays "
+            + "the ordinary HDR10, HLG or SDR picture underneath it. Turn this on to do that on "
+            + "every screen, for a device that shows a black screen or fails on Dolby Vision. "
+            + "Profile 5 has no such picture, so it always plays as Dolby Vision.\n\n"
             + "Audio Passthrough Fallback: some TV boxes report Dolby/DTS passthrough support "
             + "but produce no sound at all when no receiver is actually connected — this forces "
             + "stereo audio instead. Off by default since it disables surround sound on setups "
@@ -256,7 +255,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Autoplay Next Episode", 0, null, R.id.switchAutoplayNextEpisode),
             SettingSearchEntry("Use the Most Reliable Copy", 0, null, R.id.switchPreferReliableCopy),
             SettingSearchEntry("Tunneled Playback", 0, null, R.id.switchTunneledPlayback),
-            SettingSearchEntry("DV7 HEVC Fallback", 0, null, R.id.switchDv7Fallback),
+            SettingSearchEntry("Dolby Vision Fallback", 0, null, R.id.switchDv7Fallback),
             SettingSearchEntry("Audio Passthrough Fallback", 0, null, R.id.switchAudioPassthroughFallback),
             SettingSearchEntry("Preferred Audio Language", 0, R.id.hdrLanguage, R.id.spinnerAudioLanguage),
             SettingSearchEntry("Preferred Subtitle Language", 0, R.id.hdrLanguage, R.id.spinnerSubtitleLanguage),

@@ -736,12 +736,12 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="DV7 → HEVC fallback" />
+                                    android:text="Dolby Vision fallback" />
                                 <TextView
                                     style="@style/Rack.Helper"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="For devices that can't play Dolby Vision profile 7" />
+                                    android:text="Always play the HDR10 picture under Dolby Vision. Automatic on TVs without Dolby Vision." />
                             </LinearLayout>
                             <Switch
                                 android:id="@+id/switchDv7Fallback"
