@@ -1,7 +1,7 @@
 {
-  "versionCode": 582,
-  "versionName": "7.44",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.44/MKTV.apk",
-  "apkSha256": "9d7fa773d62e8d40062c31afa4eb0c92ca3a8bcbf6d99017f558974747470bfc",
-  "changelog": "One row per channel: duplicate copies combine into the one that plays best."
+  "versionCode": 583,
+  "versionName": "7.45",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.45/MKTV.apk",
+  "apkSha256": "96e54adbe0e335ec95e32fbebd3e89cd41edf118c8ac2a9b42e6534c9b02e564",
+  "changelog": "Unfinished movies and episodes appear in the Android TV Watch Next row."
 }

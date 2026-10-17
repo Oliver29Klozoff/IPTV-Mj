@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.45 - 2026-10-17
+- **New**: On Android TV and Google TV, movies and episodes you have started now appear in the
+  home screen's Watch Next row with how far you got. Pick one to open it in MKTV and carry on.
+  Cards only work for the account you are signed in to, and logging out removes them.
+
 ## v7.44 - 2026-10-17
 - **New**: One row per channel. When a category has the same channel more than once ("ESPN",
   "ESPN HD", "ESPN FHD"), MKTV shows it once, plays the copy that has worked best for you,
