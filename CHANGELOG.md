@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v7.43 - 2026-10-17
+- **New**: Faster channel changes. When your account has a spare connection, MKTV quietly
+  prepares the next and previous channel while you watch, so CH+ and CH- start almost
+  instantly. It never uses a connection your account needs, and a prepared channel older than
+  30 seconds is thrown away rather than shown late.
+- **New**: Picture setting (Settings): Auto, Sports, Movie or Standard. On TVs that support it,
+  Auto picks the sports picture for a live game and the movie picture for a film.
+- **Improved**: Search puts the copy of a channel that plays best first and shows its quality
+  and rating, like All Sources.
+
 ## v7.42 - 2026-10-16
 - **New**: Match frame rate. Movies, series, replays and recordings now switch your TV to the
   video's own rate (24 Hz for films, 50 Hz for European TV) for smoother motion, where the TV

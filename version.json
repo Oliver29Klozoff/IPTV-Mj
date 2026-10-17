@@ -1,7 +1,7 @@
 {
-  "versionCode": 580,
-  "versionName": "7.42",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.42/MKTV.apk",
-  "apkSha256": "4a48361ab33a69b2d6921acb511346e2b90f7d6db008d32f5c7ac5cdb398a83a",
-  "changelog": "Movies and series switch your TV to their own frame rate for smoother motion."
+  "versionCode": 581,
+  "versionName": "7.43",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.43/MKTV.apk",
+  "apkSha256": "2eccfe38d7cae01d2068c5ddab077dcf91724ce253ad7fcc665dc5941d57a05c",
+  "changelog": "Faster channel changes, a Picture setting, and search that puts the best copy first."
 }
