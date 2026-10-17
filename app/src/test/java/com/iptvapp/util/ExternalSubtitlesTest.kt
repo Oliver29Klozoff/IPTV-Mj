@@ -107,6 +107,19 @@ class ExternalSubtitlesTest {
             }
         }.toByteArray()
         assertTrue(ExternalSubtitles.prepare(zip).text.contains("Hello"))
+        val bomb = ByteArrayOutputStream().also { out ->
+            ZipOutputStream(out).use {
+                it.putNextEntry(ZipEntry("notes.txt"))
+                it.write(ByteArray(ExternalSubtitles.MAX_BYTES + 1))
+                it.closeEntry()
+                it.putNextEntry(ZipEntry("movie.srt"))
+                it.write(srt.toByteArray())
+                it.closeEntry()
+            }
+        }.toByteArray()
+        assertTrue(bomb.size < ExternalSubtitles.MAX_BYTES)
+        val tooBig = runCatching { ExternalSubtitles.prepare(bomb) }.exceptionOrNull()
+        assertEquals("That subtitle is too large.", tooBig?.message)
         val latin = "1\n00:00:01,000 --> 00:00:02,000\nCaf\u00e9\n".toByteArray(Charsets.ISO_8859_1)
         assertTrue(ExternalSubtitles.prepare(latin).text.contains("Café"))
     }

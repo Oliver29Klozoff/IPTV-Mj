@@ -131,15 +131,22 @@ object ExternalSubtitles {
 
     private fun unpack(bytes: ByteArray): ByteArray {
         if (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) {
-            return GZIPInputStream(ByteArrayInputStream(bytes)).use { readLimited(it) }
+            return GZIPInputStream(ByteArrayInputStream(bytes)).use { readCapped(it, MAX_BYTES) }
         }
         if (bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()) {
             ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
                 var entry = zip.nextEntry
                 var fallback: ByteArray? = null
+                var spent = 0
                 while (entry != null) {
                     if (!entry.isDirectory) {
-                        val data = readLimited(zip)
+                        val room = MAX_BYTES - spent
+                        // nextEntry would inflate the rest of an entry that was only partly read.
+                        if (room <= 0 || (entry.size >= 0 && entry.size > room)) {
+                            throw Rejected("That subtitle is too large.")
+                        }
+                        val data = readCapped(zip, room)
+                        spent += data.size
                         val name = entry.name.lowercase()
                         if (name.endsWith(".srt") || name.endsWith(".vtt")) return data
                         if (fallback == null) fallback = data
@@ -152,16 +159,18 @@ object ExternalSubtitles {
         return bytes
     }
 
-    private fun readLimited(stream: InputStream): ByteArray {
+    /** Stops at [cap]. A further byte rejects the file instead of reading the rest. */
+    private fun readCapped(stream: InputStream, cap: Int): ByteArray {
         val out = ByteArrayOutputStream()
         val buf = ByteArray(8192)
         var total = 0
-        while (total <= MAX_BYTES) {
-            val n = stream.read(buf)
-            if (n < 0) break
+        while (total < cap) {
+            val n = stream.read(buf, 0, minOf(buf.size, cap - total))
+            if (n < 0) return out.toByteArray()
             total += n
             out.write(buf, 0, n)
         }
+        if (stream.read() >= 0) throw Rejected("That subtitle is too large.")
         return out.toByteArray()
     }
 

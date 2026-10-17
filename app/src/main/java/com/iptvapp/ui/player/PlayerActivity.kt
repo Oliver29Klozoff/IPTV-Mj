@@ -4542,7 +4542,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun downloadOpenSubtitle(fileId: Long, apiKey: String, userAgent: String, generation: Int, forUrl: String) {
         subtitleJob?.cancel()
         subtitleJob = lifecycleScope.launch {
-            val prepared = try {
+            val file = try {
                 withContext(Dispatchers.IO) {
                     val client = OpenSubtitlesClient()
                     val username = prefs.opensubtitlesUsername.first().trim()
@@ -4551,7 +4551,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         runCatching { client.login(apiKey, userAgent, username, password) }.getOrNull()
                     } else null
                     val link = client.downloadLink(apiKey, userAgent, token, fileId)
-                    ExternalSubtitles.prepare(client.fetch(link))
+                    writeSubtitleFile(ExternalSubtitles.prepare(client.fetch(link)))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -4564,9 +4564,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 Toast.makeText(this@PlayerActivity, "OpenSubtitles didn't answer.", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
-            val file = writeSubtitleFile(prepared)
-            applyExternalSubtitle(file, prepared.extension)
+            if (generation != subtitleGeneration || forUrl != streamUrl) {
+                file.delete()
+                return@launch
+            }
+            applyExternalSubtitle(file, file.extension)
+            discardOtherSubtitles(file)
             Toast.makeText(this@PlayerActivity, "Subtitles on.", Toast.LENGTH_SHORT).show()
         }
     }
@@ -4577,7 +4580,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (generation != subtitleGeneration || forUrl != streamUrl) return
         subtitleJob?.cancel()
         subtitleJob = lifecycleScope.launch {
-            val prepared = try {
+            val file = try {
                 withContext(Dispatchers.IO) {
                     val bytes = contentResolver.openInputStream(uri)?.use { stream ->
                         val out = java.io.ByteArrayOutputStream()
@@ -4591,7 +4594,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         }
                         out.toByteArray()
                     } ?: throw ExternalSubtitles.Rejected("Couldn't read that file.")
-                    ExternalSubtitles.prepare(bytes)
+                    writeSubtitleFile(ExternalSubtitles.prepare(bytes))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -4604,20 +4607,31 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 Toast.makeText(this@PlayerActivity, "Couldn't read that file.", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
-            val file = writeSubtitleFile(prepared)
-            applyExternalSubtitle(file, prepared.extension)
+            if (generation != subtitleGeneration || forUrl != streamUrl) {
+                file.delete()
+                return@launch
+            }
+            applyExternalSubtitle(file, file.extension)
+            discardOtherSubtitles(file)
             Toast.makeText(this@PlayerActivity, "Subtitles on.", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun writeSubtitleFile(prepared: ExternalSubtitles.Prepared): File {
         val dir = File(cacheDir, "ext-subs")
-        dir.mkdirs()
-        dir.listFiles()?.forEach { it.delete() }
-        val file = File(dir, "subtitle.${prepared.extension}")
-        file.writeText(prepared.text, Charsets.UTF_8)
+        if (!dir.isDirectory && !dir.mkdirs()) throw ExternalSubtitles.Rejected("Couldn't save that subtitle.")
+        val file = File(dir, "subtitle-${System.nanoTime()}.${prepared.extension}")
+        try {
+            file.writeText(prepared.text, Charsets.UTF_8)
+        } catch (_: Exception) {
+            file.delete()
+            throw ExternalSubtitles.Rejected("Couldn't save that subtitle.")
+        }
         return file
+    }
+
+    private fun discardOtherSubtitles(kept: File) {
+        kept.parentFile?.listFiles()?.forEach { if (it.absolutePath != kept.absolutePath) it.delete() }
     }
 
     private fun subtitleConfiguration(file: File): MediaItem.SubtitleConfiguration =
