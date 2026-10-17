@@ -62,6 +62,11 @@ class LiveChannelAdapter(
         super.submitList(list, commitCallback)
     }
 
+    /** Re-read the counts for the list already showing (HomeViewModel.duplicateCountsChanged). */
+    fun refreshDuplicateCopies() {
+        submitDuplicateCopies(duplicateCountsFor?.invoke(currentList).orEmpty())
+    }
+
     private fun submitDuplicateCopies(map: Map<String, Int>) {
         val old = extraCopiesById
         extraCopiesById = map

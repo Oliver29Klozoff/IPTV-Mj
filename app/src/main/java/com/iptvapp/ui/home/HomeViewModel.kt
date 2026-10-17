@@ -466,6 +466,13 @@ class HomeViewModel @Inject constructor(
      * exactly one of the collapsed category lists gets counts: a search or favorites list showing
      * every copy gets none, whatever was browsed before.
      */
+    private val _duplicateCountsChanged = MutableStateFlow(0)
+    /**
+     * Ticks when any list's counts change. A refresh can change only how many copies hide behind
+     * a row; the rows stay equal and StateFlow drops them, so adapters re-read on this instead.
+     */
+    val duplicateCountsChanged: StateFlow<Int> = _duplicateCountsChanged
+
     fun duplicateCountsFor(list: List<*>): Map<String, Int> =
         listOf(combinedCounts.value, primaryCounts.value, mergedCounts.value)
             .firstOrNull { it != null && it.list.isNotEmpty() && it.list == list }?.counts.orEmpty()
@@ -526,6 +533,7 @@ class HomeViewModel @Inject constructor(
                 val collapsed = collapseDuplicates(rows, on, { it.serverIndex to it.streamId }, { it.name })
                 val shown = applySortToLiveRows(collapsed.list)
                 combinedCounts.value = Counted(shown, collapsed.counts)
+                _duplicateCountsChanged.value++
                 _combinedLiveChannels.value = shown
                 if (row.category != null) _channels.value = applySortToChannels(shown.mapNotNull { it.channel })
             }
@@ -635,6 +643,7 @@ class HomeViewModel @Inject constructor(
             repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
                 val result = collapseDuplicates(list, on, { m -> m.serverIndex to m.streamId }, { m -> m.name })
                 mergedCounts.value = result
+                _duplicateCountsChanged.value++
                 _mergedChannels.value = result.list
             }
         }
@@ -1699,6 +1708,7 @@ class HomeViewModel @Inject constructor(
                 val collapsed = collapseDuplicates(list, on, { c -> -1 to c.streamId }, { c -> c.name })
                 val shown = applySortToChannels(collapsed.list)
                 primaryCounts.value = Counted(shown, collapsed.counts)
+                _duplicateCountsChanged.value++
                 _channels.value = shown
             }
         }

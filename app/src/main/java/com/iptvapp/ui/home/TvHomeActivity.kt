@@ -1263,6 +1263,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         )
         // "+N" only for the exact category list it was counted for (Combine duplicate channels).
         channelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
+        lifecycleScope.launch { viewModel.duplicateCountsChanged.collect { channelAdapter.refreshDuplicateCopies() } }
         channelAdapter.isTvMode = true
         channelAdapter.onChannelFocused = { channel ->
             binding.tvTvChannelName.text = miniPlayerTitleFor(channel)
@@ -1374,6 +1375,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         )
         // "+N" only for the exact category list it was counted for (Combine duplicate channels).
         mergedChannelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
+        lifecycleScope.launch { viewModel.duplicateCountsChanged.collect { mergedChannelAdapter.refreshDuplicateCopies() } }
         mergedChannelAdapter.isTvMode = true
 
         // Providers' Movies mode — same shape as mergedChannelAdapter above, but plays directly

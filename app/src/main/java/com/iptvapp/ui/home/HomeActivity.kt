@@ -3093,6 +3093,7 @@ class HomeActivity : AppCompatActivity() {
         )
         // "+N" only for the exact category list it was counted for (Combine duplicate channels).
         channelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
+        lifecycleScope.launch { viewModel.duplicateCountsChanged.collect { channelAdapter.refreshDuplicateCopies() } }
 
         mergedChannelAdapter = MergedChannelAdapter(
             onChannelClick = { channel ->
@@ -3127,6 +3128,7 @@ class HomeActivity : AppCompatActivity() {
         )
         // "+N" only for the exact category list it was counted for (Combine duplicate channels).
         mergedChannelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
+        lifecycleScope.launch { viewModel.duplicateCountsChanged.collect { mergedChannelAdapter.refreshDuplicateCopies() } }
 
         mergedVodAdapter = MergedVodAdapter(
             onItemClick = onItemClick@{ vod ->
@@ -3409,6 +3411,7 @@ class HomeActivity : AppCompatActivity() {
         )
         // "+N" only for the exact category list it was counted for (Combine duplicate channels).
         liveChannelAdapter.duplicateCountsFor = viewModel::duplicateCountsFor
+        lifecycleScope.launch { viewModel.duplicateCountsChanged.collect { liveChannelAdapter.refreshDuplicateCopies() } }
 
         vodAdapter = VodAdapter(
             onVodClick = { vod ->
