@@ -22,15 +22,45 @@ class PictureProfiles {
         videoAdapter?.let { push(it, next) }
     }
 
+    /**
+     * [dolbyVisionBaseLayer]: decode Dolby Vision as its base layer where the profile has one
+     * (see DolbyVisionRenderer). Off keeps the stock video renderer.
+     */
     fun renderersFactory(
         context: Context,
         selector: MediaCodecSelector,
-        passthroughAudio: Boolean
+        passthroughAudio: Boolean,
+        dolbyVisionBaseLayer: Boolean = false,
     ): DefaultRenderersFactory {
         val holder = this
         val factory = object : DefaultRenderersFactory(context) {
             override fun getCodecAdapterFactory(): MediaCodecAdapter.Factory {
                 return ProfileAdapter(super.getCodecAdapterFactory(), holder)
+            }
+
+            override fun buildVideoRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+                allowedVideoJoiningTimeMs: Long,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                super.buildVideoRenderers(
+                    context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback,
+                    eventHandler, eventListener, allowedVideoJoiningTimeMs, out
+                )
+                if (!dolbyVisionBaseLayer) return
+                val at = out.indexOfFirst { it is androidx.media3.exoplayer.video.MediaCodecVideoRenderer }
+                if (at < 0) return
+                // Built through the same Builder defaults as DefaultRenderersFactory's own (checked
+                // against Media3 1.11.1), so only the decoder choice for Dolby Vision differs.
+                out[at] = DolbyVisionRenderer(
+                    context, getCodecAdapterFactory(), mediaCodecSelector, allowedVideoJoiningTimeMs,
+                    enableDecoderFallback, eventHandler, eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY
+                )
             }
 
             override fun buildAudioSink(

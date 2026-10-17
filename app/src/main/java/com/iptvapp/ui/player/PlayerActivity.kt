@@ -2804,22 +2804,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val dv7FallbackEnabled = prefs.dv7FallbackEnabledNow()
         val audioPassthroughFallbackEnabled = prefs.audioPassthroughFallbackEnabledNow()
 
-        // DV7 fallback: some devices lack proper Dolby Vision Profile 7 (dual-layer) decode
-        // support and either fail or black-screen. When enabled, redirect DV7 content to a
-        // standard HEVC decoder instead — DV7's base layer is valid HEVC on its own.
-        val codecSelector = if (dv7FallbackEnabled) {
-            androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-                if (mimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION) {
-                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(
-                        androidx.media3.common.MimeTypes.VIDEO_H265, requiresSecureDecoder, requiresTunnelingDecoder
-                    )
-                } else {
-                    androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(
-                        mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-                    )
-                }
-            }
-        } else androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+        // Dolby Vision on a screen that cannot show it plays its base layer (HDR10, HLG, SDR),
+        // automatically; the Settings switch forces that everywhere. Only profiles that have a
+        // base layer go this way: profile 5 decoded as plain HEVC turns purple and green, which
+        // the old switch did to every profile by mapping all Dolby Vision to HEVC.
+        val codecSelector = androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+        val dolbyVisionBaseLayer = com.iptvapp.util.DolbyVisionFallback.useBaseLayer(
+            forcedInSettings = dv7FallbackEnabled,
+            displayShowsDolbyVision = displayShowsDolbyVision(),
+        )
 
         // Audio passthrough fallback: some TV boxes report E-AC3/DTS passthrough support
         // (AudioCapabilities queries the device/HDMI sink) but produce total silence or crash
@@ -2831,7 +2824,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val renderersFactory = pictureProfiles.renderersFactory(
             this,
             codecSelector,
-            passthroughAudio = audioPassthroughFallbackEnabled
+            passthroughAudio = audioPassthroughFallbackEnabled,
+            dolbyVisionBaseLayer = dolbyVisionBaseLayer,
         )
 
         val subtitlesEnabled = prefs.subtitlesEnabledNow()
@@ -3950,6 +3944,20 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         pendingNativeBehindMs = C.TIME_UNSET
         p.seekTo(target)
+    }
+
+    /** Whether the screen this plays on reports Dolby Vision (an HDR10-only TV does not). */
+    @Suppress("DEPRECATION")
+    private fun displayShowsDolbyVision(): Boolean {
+        val screen = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay)
+            ?: return false
+        val types = try {
+            if (Build.VERSION.SDK_INT >= 34) screen.mode.supportedHdrTypes
+            else screen.hdrCapabilities?.supportedHdrTypes
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        return types.contains(android.view.Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION)
     }
 
     @Suppress("DEPRECATION")
