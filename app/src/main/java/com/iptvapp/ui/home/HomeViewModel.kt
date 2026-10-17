@@ -468,9 +468,14 @@ class HomeViewModel @Inject constructor(
      * One row per channel for a category list (Settings > Combine duplicate channels): copies
      * with the same name collapse into the one that has played best. See DuplicateChannels.
      */
-    private suspend fun <T> collapseDuplicates(items: List<T>, keyOf: (T) -> Pair<Int, Int>, nameOf: (T) -> String): List<T> {
+    private suspend fun <T> collapseDuplicates(
+        items: List<T>,
+        enabled: Boolean,
+        keyOf: (T) -> Pair<Int, Int>,
+        nameOf: (T) -> String,
+    ): List<T> {
         val ids = items.map { keyOf(it).let { (s, id) -> copyId(s, id) } }.toSet()
-        if (!prefs.combineDuplicatesNow() || items.size < 2) {
+        if (!enabled || items.size < 2) {
             _duplicateCopies.update { it - ids }
             return items
         }
@@ -511,8 +516,9 @@ class HomeViewModel @Inject constructor(
                 repository.getMergedChannelsByCategory(row.serverIndex, row.mergedCategoryId)
                     .map { list -> list.map { LiveChannelRow(mergedChannel = it, categoryName = categoryName) } }
             }
-            flow.collectLatest { rows ->
-                val shown = collapseDuplicates(applySortToLiveRows(rows), { it.serverIndex to it.streamId }, { it.name })
+            // The setting is part of the list: switching it reshapes the category already open.
+            flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }.collectLatest { (rows, on) ->
+                val shown = collapseDuplicates(applySortToLiveRows(rows), on, { it.serverIndex to it.streamId }, { it.name })
                 _combinedLiveChannels.value = shown
                 if (row.category != null) _channels.value = applySortToChannels(shown.mapNotNull { it.channel })
             }
@@ -619,8 +625,8 @@ class HomeViewModel @Inject constructor(
         hasMergedCategorySelected = true
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
-            repository.getMergedChannelsByCategory(serverIndex, categoryId).collectLatest {
-                _mergedChannels.value = collapseDuplicates(it, { m -> m.serverIndex to m.streamId }, { m -> m.name })
+            repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
+                _mergedChannels.value = collapseDuplicates(list, on, { m -> m.serverIndex to m.streamId }, { m -> m.name })
             }
         }
     }
@@ -1680,8 +1686,8 @@ class HomeViewModel @Inject constructor(
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
-            repository.getChannelsByCategory(categoryId).collectLatest {
-                _channels.value = collapseDuplicates(applySortToChannels(it), { c -> -1 to c.streamId }, { c -> c.name })
+            repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
+                _channels.value = collapseDuplicates(applySortToChannels(list), on, { c -> -1 to c.streamId }, { c -> c.name })
             }
         }
     }

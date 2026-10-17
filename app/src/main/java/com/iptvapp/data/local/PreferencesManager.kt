@@ -108,7 +108,6 @@ class PreferencesManager @Inject constructor(
     fun preferredSubtitleLanguageNow() = PrefsSnapshot.read(context, readPreferredSubtitleLanguage)
     fun extraBufferingEnabledNow() = PrefsSnapshot.read(context, readExtraBufferingEnabled)
     fun autoBackupFeedNow() = PrefsSnapshot.read(context, readAutoBackupFeed)
-    fun combineDuplicatesNow() = PrefsSnapshot.read(context, readCombineDuplicates)
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)

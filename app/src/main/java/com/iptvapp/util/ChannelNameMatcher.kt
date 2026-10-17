@@ -19,7 +19,10 @@ object ChannelNameMatcher {
     // stripped so "US| ESPN" and "ESPN" normalize the same.
     private val LEADING_PREFIX = Regex("""^\s*[A-Za-z]{2,4}\s*[|:\-]+\s*""")
 
-    private val NON_ALNUM = Regex("""[^a-z0-9]+""")
+    // Letters of any script and digits survive. Keeping only a-z and 0-9 turned "新闻1" (news) and
+    // "体育1" (sports) into the same "1", which made them the same channel to failover and backups.
+    private val NON_ALNUM = Regex("""[^\p{L}\p{N}]+""")
+    private val COMBINING_MARKS = Regex("""\p{Mn}+""")
 
     /** Two channels are considered "the same real channel" if their normalized names are equal
      * and non-blank — never treats an empty/all-punctuation result as a match. */
@@ -28,6 +31,8 @@ object ChannelNameMatcher {
         n = LEADING_PREFIX.replace(n, "")
         n = QUALITY_TAG.replace(n, " ")
         n = n.lowercase()
+        // "Télé" and "TELE" are one channel: drop the accents, keep the letters.
+        n = COMBINING_MARKS.replace(java.text.Normalizer.normalize(n, java.text.Normalizer.Form.NFD), "")
         n = NON_ALNUM.replace(n, "")
         return n
     }

@@ -32,9 +32,19 @@ class DuplicateChannelsTest {
     }
 
     @Test
-    fun `numbered channels and unreadable names stay apart`() {
-        val out = collapse(listOf(Ch(1, "ESPN"), Ch(2, "ESPN 2"), Ch(3, "新闻"), Ch(4, "新闻")))
+    fun `numbered channels and names with no letters stay apart`() {
+        val out = collapse(listOf(Ch(1, "ESPN"), Ch(2, "ESPN 2"), Ch(3, "!!"), Ch(4, "!!")))
         assertEquals(4, out.size)
+    }
+
+    @Test
+    fun `channel names keep every script and lose only accents`() {
+        // News 1 and Sports 1 are different channels, not both "1".
+        assertEquals(false, ChannelNameMatcher.matches("新闻1", "体育1"))
+        assertEquals(true, ChannelNameMatcher.matches("新闻1", "新闻1 HD"))
+        assertEquals(true, ChannelNameMatcher.matches("Télé Québec", "TELE QUEBEC"))
+        assertEquals(true, ChannelNameMatcher.matches("US| ESPN FHD", "ESPN"))
+        assertEquals(2, collapse(listOf(Ch(1, "新闻1"), Ch(2, "体育1"))).size)
     }
 
     @Test
