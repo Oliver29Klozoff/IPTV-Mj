@@ -225,4 +225,27 @@ class UniversalSearchTest {
         db.seriesDao().upsertSeries(listOf(SeriesEntity(20, "Breaking Bad", null, null, null, null, "1")))
         assertEquals(listOf("SERIES:Breaking Bad"), names(search.search("breaking bad s5e14", now)))
     }
+
+    @Test
+    fun theCopyThatPlaysBestComesFirstAndSaysSo() = runBlocking {
+        db.channelDao().upsertChannels(listOf(channel(1, "ESPN")))
+        db.mergedChannelDao().upsertAll(listOf(other(5, "ESPN")))
+        // The main provider's copy keeps failing; the backup's has a clean record.
+        db.feedStatsDao().upsert(com.iptvapp.data.local.entities.FeedStatsEntity(-1, 1, "0000100000", 9_000L, 30f, 60f, now - 60_000L, now))
+        db.feedStatsDao().upsert(com.iptvapp.data.local.entities.FeedStatsEntity(1, 5, "1111111111", 1_500L, 0f, 300f, 0L, now))
+
+        val hits = search.search("espn", now).filterIsInstance<SearchHit.Channel>()
+        assertEquals(listOf("Backup", "Primary"), hits.map { it.provider })
+        assertEquals(true, hits.first().feed?.rated)
+        assertTrue(hits.first().feed!!.score > hits.last().feed!!.score)
+    }
+
+    @Test
+    fun channelsNeverPlayedKeepTheirOrderAndCarryNoRating() = runBlocking {
+        db.channelDao().upsertChannels(listOf(channel(1, "ESPN")))
+        db.mergedChannelDao().upsertAll(listOf(other(5, "ESPN")))
+        val hits = search.search("espn", now).filterIsInstance<SearchHit.Channel>()
+        assertEquals(2, hits.size)
+        assertTrue(hits.all { it.feed == null })
+    }
 }

@@ -111,6 +111,7 @@ class PreferencesManager @Inject constructor(
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)
+    fun pictureModeNow() = PrefsSnapshot.read(context, readPictureMode)
     fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
     fun favoriteTeamsNow() = PrefsSnapshot.read(context, readFavoriteTeams)
     fun tunneledPlaybackEnabledNow() = PrefsSnapshot.read(context, readTunneledPlaybackEnabled)
@@ -131,6 +132,7 @@ class PreferencesManager @Inject constructor(
     private val readFrameRateMatch = { p: Preferences ->
         com.iptvapp.util.FrameRateMatch.normalize(p[Keys.FRAME_RATE_MATCH] ?: com.iptvapp.util.FrameRateMatch.DEFAULT)
     }
+    private val readPictureMode = { p: Preferences -> com.iptvapp.util.PictureMode.normalize(p[Keys.PICTURE_MODE] ?: com.iptvapp.util.PictureMode.AUTO) }
     private val readSportsScoreOverlay = { p: Preferences -> p[Keys.SPORTS_SCORE_OVERLAY] ?: true }
     private val readFavoriteTeams = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeStoredTeams(p[Keys.FAVORITE_TEAMS] ?: "") }
     private val readSubtitlesEnabled = { p: Preferences -> p[Keys.SUBTITLES_ENABLED] ?: true }
@@ -307,6 +309,8 @@ class PreferencesManager @Inject constructor(
         val SPORTS_MODE = intPreferencesKey("sports_mode")
         // When the player switches the TV's display mode to the video's frame rate. See FrameRateMatch.
         val FRAME_RATE_MATCH = intPreferencesKey("frame_rate_match")
+        // Picture profile: 0 auto, 1 sports, 2 movie, 3 standard. Auto follows the programme.
+        val PICTURE_MODE = intPreferencesKey("picture_mode")
         // When a guide title already contains a score, Sports Mode can show it. Default on.
         val SPORTS_SCORE_OVERLAY = booleanPreferencesKey("sports_score_overlay")
         // Newline-separated team names, capped by SportsMode. Shortcuts on the sports list.
@@ -454,6 +458,14 @@ class PreferencesManager @Inject constructor(
         .map(readSportsMode)
     suspend fun setSportsMode(v: Int) = context.dataStore.edit {
         it[Keys.SPORTS_MODE] = com.iptvapp.util.SportsMode.normalizeSetting(v)
+    }
+
+    // Auto until the viewer picks Sports, Movie, or Standard. A TV without the profile keeps its picture.
+    val pictureMode: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readPictureMode)
+    suspend fun setPictureMode(v: Int) = context.dataStore.edit {
+        it[Keys.PICTURE_MODE] = com.iptvapp.util.PictureMode.normalize(v)
     }
 
     val sportsScoreOverlay: Flow<Boolean> = context.dataStore.data

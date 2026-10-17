@@ -1071,6 +1071,33 @@
                                 android:text="30 minutes" />
                         </LinearLayout>
                         <LinearLayout
+                            android:id="@+id/rowPictureMode"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Picture" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sports, Movie, or Standard on a TV that supports it. Auto follows the programme. Sports and movies also match the frame rate." />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvPictureModeValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Auto" />
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowSportsMode"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"

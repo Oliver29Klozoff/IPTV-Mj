@@ -31,13 +31,19 @@ sealed class SearchHit {
     abstract val provider: String?
     abstract val kind: Kind
 
+    /** How well this copy of a channel has played (see FeedScore). [rated] false is a copy never played. */
+    data class Feed(val score: Int, val rated: Boolean)
+
     enum class Kind(val label: String) {
         CHANNEL("Live"), ON_NOW("On now"), MOVIE("Movie"), SERIES("Series"), EPISODE("Episode"),
         RECORDING("Recording"), CATCH_UP("Catch-up"), UPCOMING("Upcoming")
     }
 
     /** A live channel: [channel] on the main provider, or [merged] on another. */
-    data class Channel(val channel: ChannelEntity?, val merged: MergedChannelEntity?, override val provider: String?) : SearchHit() {
+    data class Channel(
+        val channel: ChannelEntity?, val merged: MergedChannelEntity?, override val provider: String?,
+        val feed: Feed? = null,
+    ) : SearchHit() {
         override val title get() = channel?.name ?: merged?.name.orEmpty()
         override val kind get() = Kind.CHANNEL
         val icon get() = channel?.streamIcon ?: merged?.streamIcon
@@ -46,7 +52,8 @@ sealed class SearchHit {
     /** A guide programme: on now, upcoming, or past and replayable (catch-up, main provider only). */
     data class Program(
         val channel: ChannelEntity?, val merged: MergedChannelEntity?, val programTitle: String,
-        val startMs: Long, val stopMs: Long, override val kind: Kind, override val provider: String?
+        val startMs: Long, val stopMs: Long, override val kind: Kind, override val provider: String?,
+        val feed: Feed? = null,
     ) : SearchHit() {
         override val title get() = programTitle
         val channelName get() = channel?.name ?: merged?.name.orEmpty()
@@ -121,7 +128,11 @@ class UniversalSearch @Inject constructor(
             SearchHit.Kind.EPISODE, SearchHit.Kind.RECORDING, SearchHit.Kind.CATCH_UP, SearchHit.Kind.UPCOMING
         )
 
-        /** [hits] best first: closest title, then kind, then favorites, then shorter titles. */
+        /**
+         * [hits] best first: closest title, then kind, then favorites, then the copy that has
+         * played best (feed score, so ESPN on a solid provider beats ESPN on a flaky one), then
+         * shorter titles.
+         */
         fun rank(hits: List<SearchHit>, query: String): List<SearchHit> {
             val q = MovieSearch.normalizeTitle(query).lowercase()
             return hits.map { hit ->
@@ -129,12 +140,19 @@ class UniversalSearch @Inject constructor(
                 // An episode is only found when the query named its series and the episode
                 // (see episodes): it is what was asked for, whatever its own title.
                 val score = if (hit is SearchHit.Episode) 0 else MovieSearch.score(t, q)
-                Ranked(hit, score, kindOrder.indexOf(hit.kind), if (isFavorite(hit)) 0 else 1, t.length)
-            }.sortedWith(compareBy<Ranked>({ it.score }, { it.kind }, { it.favorite }, { it.length }))
+                Ranked(hit, score, kindOrder.indexOf(hit.kind), if (isFavorite(hit)) 0 else 1, -feedScoreOf(hit), t.length)
+            }.sortedWith(compareBy<Ranked>({ it.score }, { it.kind }, { it.favorite }, { it.feed }, { it.length }))
                 .map { it.hit }
         }
 
-        private data class Ranked(val hit: SearchHit, val score: Int, val kind: Int, val favorite: Int, val length: Int)
+        private data class Ranked(val hit: SearchHit, val score: Int, val kind: Int, val favorite: Int, val feed: Int, val length: Int)
+
+        /** A copy never played sits between proven and poor ones, as in backup choice. */
+        private fun feedScoreOf(hit: SearchHit): Int = when (hit) {
+            is SearchHit.Channel -> hit.feed?.score
+            is SearchHit.Program -> hit.feed?.score
+            else -> null
+        } ?: com.iptvapp.util.FeedScore.UNKNOWN
 
         private fun isFavorite(hit: SearchHit) = when (hit) {
             is SearchHit.Channel -> hit.channel?.isFavorite == true || hit.merged?.isFavorite == true
@@ -187,8 +205,31 @@ class UniversalSearch @Inject constructor(
         val movies = async { movies(q, primaryLabel, englishOnly) }
         val series = async { series(q, primaryLabel, englishOnly) }
         val recordings = async { db.recordingDao().search(q).map { SearchHit.Recording(it) } }
-        val all = listOf(channels, programs, movies, series, recordings).awaitAll().flatten()
+        val all = withFeeds(listOf(channels, programs, movies, series, recordings).awaitAll().flatten())
         withContext(Dispatchers.Default) { capPerKind(rank(all, q)) }
+    }
+
+    /** Channel and programme hits with their copy's feed score, looked up once for the lot. */
+    private suspend fun withFeeds(hits: List<SearchHit>): List<SearchHit> {
+        fun keyOf(channel: ChannelEntity?, merged: MergedChannelEntity?) =
+            if (channel != null) -1 to channel.streamId else merged?.let { it.serverIndex to it.streamId }
+        val keys = hits.mapNotNull {
+            when (it) {
+                is SearchHit.Channel -> keyOf(it.channel, it.merged)
+                is SearchHit.Program -> keyOf(it.channel, it.merged)
+                else -> null
+            }
+        }.toSet()
+        if (keys.isEmpty()) return hits
+        val feeds = try { repository.feedQuality(keys) } catch (_: Exception) { return hits }
+        if (feeds.isEmpty()) return hits
+        return hits.map { hit ->
+            when (hit) {
+                is SearchHit.Channel -> feeds[keyOf(hit.channel, hit.merged)]?.let { hit.copy(feed = it) } ?: hit
+                is SearchHit.Program -> feeds[keyOf(hit.channel, hit.merged)]?.let { hit.copy(feed = it) } ?: hit
+                else -> hit
+            }
+        }
     }
 
     private suspend fun channels(q: String, primaryLabel: String): List<SearchHit> {

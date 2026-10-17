@@ -192,6 +192,16 @@ class SearchHitUi(
                 }
             }
             hit.provider?.let { parts += it }
+            // Which copy of a channel this is, and how it has played: the same words as All Sources.
+            val (channelName, feed) = when (hit) {
+                is SearchHit.Channel -> hit.title to hit.feed
+                is SearchHit.Program -> hit.channelName to hit.feed
+                else -> null to null
+            }
+            if (channelName != null) {
+                com.iptvapp.util.ProviderDashboard.qualityOf(channelName)?.let { parts += it }
+                feed?.takeIf { it.rated }?.let { parts += com.iptvapp.util.ProviderDashboard.scoreLabel(it.score, true) }
+            }
             return parts.joinToString(" · ")
         }
 

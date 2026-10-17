@@ -1,12 +1,16 @@
+@file:OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package com.iptvapp.ui.player
 
 import com.iptvapp.R
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.util.Log
 import android.widget.Toast
 import com.iptvapp.service.AudioOnlyService
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -15,6 +19,7 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
+import com.iptvapp.util.PictureMode
 import com.iptvapp.util.SmartCatchUp
 import com.iptvapp.util.SportsMode
 import com.iptvapp.util.isLargeScreenDevice
@@ -71,6 +76,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -319,6 +325,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     @Inject lateinit var db: com.iptvapp.data.local.IptvDatabase
     private var bandwidthTracker: BandwidthTracker? = null
     private var playbackDataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null
+    private val pictureProfiles = PictureProfiles()
+    // Lazy: it reads applicationContext, which an activity has only once it is attached (onCreate).
+    private val zapPreloader by lazy { ZapPreloader(this) }
+    private var zapPreloadJob: Job? = null
+    private var pictureTitleJob: Job? = null
+    /** Set when a live channel opens. Its first READY schedules the neighbor preload. */
+    private var zapPreloadWhenReady = false
+    private val ZAP_PRELOAD_SETTLE_MS = 5_000L
+    private var zapMemoryPressure = false
+    private var appliedPictureName: String? = null
+    private var appliedPictureProfile: Any? = null
+    private var pictureProgrammeTitle: String = ""
 
     // ─── Cast to a Device (see CastRelayManager kdoc) ──────────────────────────
     // Set when THIS Activity instance is the RECEIVER (launched off a scanned cast, not by the
@@ -2399,6 +2417,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.playerView.player = null
         player?.release()
         player = null
+        // The listen service opens the stream itself; prepared neighbors would hold connections.
+        releasePlayerPreload()
         // buildPlayer replaces the tracker on the way back, so count what it holds now.
         bandwidthTracker?.let { t ->
             t.stop()
@@ -2715,6 +2735,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // In-memory rewind for the last couple of minutes. A longer pause/rewind window
             // is the separate bounded store in TimeshiftStore, not this cache.
             .setBackBuffer(bufferProfile.backBufferMs, bufferProfile.retainBackBufferFromKeyframe)
+            // Shared with the preload manager (see ZapPreloader.buildPlayer). A neighbor channel gets
+            // its own small byte budget, so preparing it never eats into the playing channel's buffer.
+            .setPlayerTargetBufferBytes(androidx.media3.exoplayer.analytics.PlayerId.PRELOAD.name, 8 * 1024 * 1024)
             .build()
 
         // Without an explicit User-Agent, OkHttpDataSource sends OkHttp's own default
@@ -2805,30 +2828,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // transcode instead of passing through, at the cost of losing surround sound on setups
         // that genuinely do have a receiver — same opt-in, device-specific-workaround shape as
         // the DV7 fallback above.
-        val renderersFactory = if (audioPassthroughFallbackEnabled) {
-            object : androidx.media3.exoplayer.DefaultRenderersFactory(this) {
-                override fun buildAudioSink(
-                    context: android.content.Context,
-                    enableFloatOutput: Boolean,
-                    enableAudioTrackPlaybackParams: Boolean
-                ): androidx.media3.exoplayer.audio.AudioSink {
-                    return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
-                        .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
-                        .setEnableFloatOutput(enableFloatOutput)
-                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                        .build()
-                }
-            }.setMediaCodecSelector(codecSelector)
-        } else {
-            androidx.media3.exoplayer.DefaultRenderersFactory(this)
-                .setMediaCodecSelector(codecSelector)
-        }
+        val renderersFactory = pictureProfiles.renderersFactory(
+            this,
+            codecSelector,
+            passthroughAudio = audioPassthroughFallbackEnabled
+        )
 
         val subtitlesEnabled = prefs.subtitlesEnabledNow()
         val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
         val preferredSubtitleLanguage = prefs.preferredSubtitleLanguageNow()
         val dataSaver = prefs.dataSaverEnabledNow()
-        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+        // A factory, not one selector: the preload manager makes its own from the same settings.
+        val trackSelectorFactory = androidx.media3.exoplayer.trackselection.TrackSelector.Factory { ctx ->
+            androidx.media3.exoplayer.trackselection.DefaultTrackSelector(ctx).apply {
             parameters = buildUponParameters()
                 .apply { if (tunnelingEnabled) setTunnelingEnabled(true) }
                 // Data Saver: ExoPlayer still plays the only rendition when a stream has just one
@@ -2840,14 +2852,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
                 .apply { if (subtitlesEnabled && preferredSubtitleLanguage.isNotBlank()) setPreferredTextLanguage(preferredSubtitleLanguage) }
                 .build()
+            }
         }
 
-        return ExoPlayer.Builder(this)
-            .setLoadControl(loadControl)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setRenderersFactory(renderersFactory)
-            .setTrackSelector(trackSelector)
-            .build()
+        // Built with its preload manager so a prepared neighbor channel can be played: Media3
+        // needs both on one playback thread. See ZapPreloader.buildPlayer.
+        return zapPreloader.buildPlayer(mediaSourceFactory, renderersFactory, loadControl, trackSelectorFactory)
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
                 exoPlayer.addListener(object : Player.Listener {
@@ -2935,6 +2945,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         when (state) {
                             Player.STATE_READY -> {
                                 retryCount = 0
+                                if (zapPreloadWhenReady) {
+                                    zapPreloadWhenReady = false
+                                    scheduleZapPreload()
+                                }
                                 binding.progressBuffering.visibility = View.GONE
                                 binding.tvRetryStatus.visibility = View.GONE
                                 // Ghost Channel Radar / Provider Health Weather Map — a real
@@ -3567,6 +3581,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val localPositionMs = if (isVod) (player?.currentPosition?.takeIf { it > 0 } ?: resumePositionMs) else 0L
         player?.stop()
         player?.clearMediaItems()
+        releaseZapPreload()
         binding.bufferHealthBadge.visibility = View.GONE
         lifecycleScope.launch {
             delay(1500)
@@ -3759,6 +3774,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun clearLiveProgramme() {
         liveNowShow = null
+        pictureProgrammeTitle = ""
+        pictureTitleJob?.cancel()
+        appliedPictureName = null
         smartCatchupArchive = null
         smartCatchupArchiveStreamId = Int.MIN_VALUE
         smartCatchupDismissedStartMs = 0L
@@ -3768,7 +3786,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun syncSportsPlayback() {
         if (isFinishing || isVod || audioOnly || castSession != null || isCatchup || startedOverFromLive) {
-            if (!frameMatchWanted()) clearDisplayMode()
+            applyFrameRateMatch()
             applySportsChrome()
             refreshSmartCatchUp()
             return
@@ -3838,6 +3856,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.playerView.player = null
         player?.release()
         player = null
+        releaseZapPreload()
         player = buildPlayer()
         when {
             playLocal != null -> {
@@ -3940,16 +3959,22 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return modes.map { SportsMode.RefreshMode(it.modeId, it.refreshRate, it.physicalWidth, it.physicalHeight) }
     }
 
-    /** Settings > Match frame rate, with Sports Mode, for what is playing now. See FrameRateMatch. */
+    /**
+     * Settings > Match frame rate, for what is playing now. See FrameRateMatch. Sports counts
+     * as Sports Mode's buffer or, in the Auto picture mode, a live game found from its guide title,
+     * so a match on live TV gets the same smooth motion as a film.
+     */
     private fun frameMatchWanted(): Boolean = com.iptvapp.util.FrameRateMatch.wanted(
         setting = prefs.frameRateMatchNow(),
-        sportsOn = sportsActiveNow(),
+        sportsOn = sportsActiveNow() || (pictureLive() &&
+            PictureMode.profileName(prefs.pictureModeNow(), true, programmeTitle(), false) == PictureMode.PROFILE_SPORTS),
         onDemand = isVod || isRecordingPlayback,
         casting = castSession != null,
         audioOnly = audioOnly,
     )
 
     private fun applyFrameRateMatch() {
+        updatePictureProfile()
         if (!frameMatchWanted()) {
             setPreferredDisplayMode(0)
             return
@@ -4046,6 +4071,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun loadStream(url: String) {
+        refreshPictureFromGuide()
         com.iptvapp.remote.RemoteControlServer.nowPlaying = streamTitle
         openFeedTracking(automatic = backupSwitchOpening)
         retryCount = 0
@@ -4247,26 +4273,220 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun playProviderUrl(url: String, playWhenReady: Boolean) {
         val p = player ?: return
-        if (sportsLoadControlOn) {
-            // Closer to the live edge for this viewing. Ordinary live TV still uses fromUri.
-            val item = MediaItem.Builder()
-                .setUri(url)
-                .setLiveConfiguration(
-                    MediaItem.LiveConfiguration.Builder()
-                        .setTargetOffsetMs(SportsMode.TARGET_OFFSET_MS)
-                        .setMinOffsetMs(SportsMode.MIN_OFFSET_MS)
-                        .setMaxOffsetMs(SportsMode.MAX_OFFSET_MS)
-                        .setMinPlaybackSpeed(1f)
-                        .setMaxPlaybackSpeed(1f)
-                        .build()
-                )
-                .build()
-            p.setMediaItem(item)
-        } else {
-            p.setMediaItem(MediaItem.fromUri(url))
-        }
+        updatePictureProfile()
+        val live = directLivePlayback()
+        val mediaId = if (live) currentLiveMediaId() else null
+        val item = providerMediaItem(url, mediaId, sports = live && sportsLoadControlOn)
+        val preloaded = if (live && mediaId != null) zapPreloader.source(mediaId, sportsLoadControlOn) else null
+        // Other preloads hold connections. Free them before this stream asks the account for one;
+        // scheduleZapPreload prepares the new neighbors once this channel is playing.
+        // A neighbor lookup still running belongs to the channel before this one.
+        zapPreloadJob?.cancel()
+        zapPreloadJob = null
+        zapPreloader.keepOnly(if (preloaded != null) mediaId else null)
+        if (preloaded != null) p.setMediaSource(preloaded) else p.setMediaItem(item)
         p.prepare()
         p.playWhenReady = playWhenReady
+        // Neighbors wait until this channel is playing; see onPlaybackStateChanged and scheduleZapPreload.
+        zapPreloadWhenReady = live
+    }
+
+    /**
+     * Drops the prepared neighbors, for a cast or a timeshift pump that needs the connection.
+     * The manager stays: it belongs to the player and is released with it ([releasePlayerPreload]).
+     */
+    private fun releaseZapPreload() {
+        zapPreloadJob?.cancel()
+        zapPreloadJob = null
+        zapPreloader.clear()
+    }
+
+    private fun releasePlayerPreload() {
+        releaseZapPreload()
+        zapPreloader.release()
+    }
+
+    private fun currentZapIndex(): Int = if (serverIndex == -1) currentIndex else mergedCurrentIndex
+
+    private fun currentLiveMediaId(): String {
+        val id = if (serverIndex == -1) streamId else mergedStreamId
+        return "live:$serverIndex:$id"
+    }
+
+    /** A film, not a series episode, a catch-up replay, or a recording. */
+    private fun pictureMovie(): Boolean =
+        isVod && !isCatchup && episodeSeriesId == -1 && !isRecordingPlayback
+
+    /** A live channel. Catch-up and recordings keep the picture they already had. */
+    private fun pictureLive(): Boolean =
+        !isVod && !isRecordingPlayback && !audioOnly && !isCatchup
+
+    private fun programmeTitle(): String {
+        // A show that has ended says nothing about what is on now; the guide lookup does.
+        val guide = liveNowShow?.takeIf { it.stopMs > System.currentTimeMillis() }?.title?.takeIf { it.isNotBlank() }
+            ?: pictureProgrammeTitle.takeIf { it.isNotBlank() }
+        return guide ?: streamTitle
+    }
+
+    private fun directLivePlayback(): Boolean =
+        !isVod && !isCatchup && !isRecordingPlayback && !audioOnly
+
+    private fun updatePictureProfile() {
+        val name = PictureMode.profileName(
+            prefs.pictureModeNow(),
+            pictureLive(),
+            programmeTitle(),
+            pictureMovie()
+        )
+        if (name != appliedPictureName) {
+            appliedPictureName = name
+            appliedPictureProfile = PictureProfiles.lookup(this, name)
+        }
+        pictureProfiles.apply(appliedPictureProfile)
+    }
+
+    private fun providerMediaItem(url: String, mediaId: String?, sports: Boolean): MediaItem {
+        val builder = MediaItem.Builder().setUri(url)
+        if (mediaId != null) builder.setMediaId(mediaId)
+        if (sports) {
+            builder.setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder()
+                    .setTargetOffsetMs(SportsMode.TARGET_OFFSET_MS)
+                    .setMinOffsetMs(SportsMode.MIN_OFFSET_MS)
+                    .setMaxOffsetMs(SportsMode.MAX_OFFSET_MS)
+                    .setMinPlaybackSpeed(1f)
+                    .setMaxPlaybackSpeed(1f)
+                    .build()
+            )
+        }
+        return builder.build()
+    }
+
+    private fun canPreloadLiveNeighbors(): Boolean {
+        if (!directLivePlayback() || startedOverFromLive) return false
+        if (castSession != null || castChannels.isNotEmpty()) return false
+        if (timeshiftSession != null || timeshiftStarting) return false
+        if (shouldBufferTimeshift()) return false
+        if (zapMemoryPressure) return false
+        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        if (manager.isLowRamDevice) return false
+        val index = currentZapIndex()
+        val size = if (serverIndex == -1) channels.size else mergedChannels.size
+        return index in 0 until size && size >= 2
+    }
+
+    /**
+     * The guide title, when it is already stored. This does not ask the panel.
+     * Auto picture mode uses it. A missing row leaves the channel name.
+     */
+    /**
+     * [reset] false is the follow-up when a programme ends: the picture keeps its profile until
+     * the next title is known, instead of dropping to Standard for a moment.
+     */
+    private fun refreshPictureFromGuide(reset: Boolean = true) {
+        pictureTitleJob?.cancel()
+        if (reset) {
+            pictureProgrammeTitle = ""
+            updatePictureProfile()
+        }
+        if (!pictureLive()) return
+        val lookupServer = serverIndex
+        val lookupStream = if (lookupServer == -1) streamId else mergedStreamId
+        if (lookupStream == -1) return
+        pictureTitleJob = lifecycleScope.launch {
+            fun toMs(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
+            val nowMs = System.currentTimeMillis()
+            val onNow = try {
+                db.epgDao().getEpgForStream(lookupStream, lookupServer).first()
+                    .firstOrNull { toMs(it.startTimestamp) <= nowMs && toMs(it.stopTimestamp) > nowMs }
+            } catch (_: Exception) {
+                null
+            }
+            val currentStream = if (serverIndex == -1) streamId else mergedStreamId
+            if (!isActive || serverIndex != lookupServer || currentStream != lookupStream) return@launch
+            val next = onNow?.title?.trim().orEmpty()
+            if (next != pictureProgrammeTitle) {
+                pictureProgrammeTitle = next
+                applyFrameRateMatch()
+            }
+            // Auto follows the programme: look again when this one ends (a game, then the news).
+            val endsAt = onNow?.let { toMs(it.stopTimestamp) } ?: return@launch
+            delay((endsAt - System.currentTimeMillis()).coerceAtLeast(0L) + 2_000L)
+            if (isActive) refreshPictureFromGuide(reset = false)
+        }
+    }
+
+    private data class ZapTarget(val server: Int, val streamId: Int)
+
+    /**
+     * Prepares the next channel, then the previous one, when that account has a spare connection.
+     * Timeshift already holds the stream, so this stays off while the pump is running.
+     * The preloaded source is handed to the player on the next direct zap. It is not a second open.
+     */
+    private fun scheduleZapPreload() {
+        zapPreloadJob?.cancel()
+        val factory = playbackDataSourceFactory
+        val playingId = currentLiveMediaId()
+        val index = currentZapIndex()
+        if (factory == null || !canPreloadLiveNeighbors()) {
+            if (factory != null) zapPreloader.replace(serverIndex, playingId, index, emptyList())
+            zapPreloadJob = null
+            return
+        }
+        zapPreloadJob = lifecycleScope.launch {
+            // Give the panel time to count the stream that just started, then ask it fresh. A cached or
+            // early count can miss this stream, and a provider that evicts instead of refusing would
+            // knock another viewer off the account.
+            val startedFor = currentLiveMediaId()
+            delay(ZAP_PRELOAD_SETTLE_MS)
+            val targets = if (serverIndex == -1) {
+                channels.map { ZapTarget(-1, it.streamId) }
+            } else {
+                mergedChannels.map { ZapTarget(it.serverIndex, it.streamId) }
+            }
+            val here = currentZapIndex()
+            if (!isActive || here !in targets.indices) return@launch
+            val order = ChannelZap.neighborOrder(here, targets.size)
+            val spare = HashMap<Int, Int>()
+            for (server in order.map { targets[it].server }.distinct()) {
+                val limits = repository.accountLimits(server, forceRefresh = true)
+                spare[server] = ChannelZap.spareWhilePlaying(
+                    limits?.maxConnections,
+                    limits?.activeConnections,
+                    holdsConnection = server == serverIndex
+                )
+            }
+            if (!isActive) return@launch
+            val picks = ChannelZap.select(
+                here,
+                targets.map { it.server },
+                spare,
+                lowRamDevice = false,
+                memoryPressure = zapMemoryPressure
+            )
+            val neighbors = ArrayList<ZapPreloader.Neighbor>(picks.size)
+            for (pick in picks) {
+                if (!isActive) return@launch
+                val target = targets[pick]
+                val url = try {
+                    if (target.server == -1) repository.getLiveStreamUrl(target.streamId)
+                    else repository.getMergedLiveStreamUrl(target.server, target.streamId)
+                } catch (_: Exception) {
+                    continue
+                }
+                val mediaId = "live:${target.server}:${target.streamId}"
+                if (mediaId == currentLiveMediaId()) continue
+                neighbors += ZapPreloader.Neighbor(
+                    mediaId,
+                    providerMediaItem(url, mediaId, sportsLoadControlOn),
+                    pick,
+                    sportsLoadControlOn
+                )
+            }
+            if (!isActive || currentLiveMediaId() != startedFor) return@launch
+            playbackDataSourceFactory ?: return@launch
+            zapPreloader.replace(serverIndex, currentLiveMediaId(), currentZapIndex(), neighbors)
+        }
     }
 
     private fun playLocalPlaylist(playlist: java.io.File, budgetMs: Long, startMs: Long? = null) {
@@ -4316,6 +4536,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             settleTimeshiftDirect(generation)
             return
         }
+        // The pump opens the channel itself. A prepared neighbor would be a second connection.
+        releaseZapPreload()
         val root = java.io.File(cacheDir, TimeshiftStore.ROOT_NAME)
         root.mkdirs()
         val store = TimeshiftStore.create(root, budget) { root.usableSpace }
@@ -5753,6 +5975,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // request instead of re-requesting a new range after already starting at 0.
                 val startPos = resumePositionMs
                 resumePositionMs = 0L
+                updatePictureProfile()
                 player?.setMediaItem(MediaItem.fromUri(streamUrl), startPos)
                 player?.prepare()
                 player?.playWhenReady = !partyStartPaused
@@ -5761,6 +5984,21 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (partyStartPaused) requestTimeshiftPlayback(false)
             }
             if (partyStartPaused) updatePlayPauseButton()
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        val pressure = level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+            level == ComponentCallbacks2.TRIM_MEMORY_COMPLETE
+        if (!pressure) return
+        zapMemoryPressure = true
+        zapPreloadJob?.cancel()
+        zapPreloadJob = null
+        val factory = playbackDataSourceFactory
+        if (factory != null) {
+            zapPreloader.replace(serverIndex, currentLiveMediaId(), currentZapIndex(), emptyList())
         }
     }
 
@@ -5797,6 +6035,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             stopTimeshift()
             player?.release()
             player = null
+            releasePlayerPreload()
+            pictureTitleJob?.cancel()
             bandwidthTracker?.stop()
             // Fire-and-forget on a process-wide scope: lifecycleScope may already be cancelling
             // by the time onStop runs, same reasoning as the Trakt stop-scrobble call elsewhere
@@ -5840,6 +6080,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.playerView.player = null
             player?.release()
             player = null
+            releasePlayerPreload()
+            pictureTitleJob?.cancel()
         }
         super.onDestroy()
         if (!isChangingConfigurations) {
