@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.49 - 2026-10-17
+- **New**: Catch-up on every provider. Replays, Start Over and "catch up from the start" now
+  work on your other providers' channels too, wherever that provider keeps an archive, in the
+  guide, the player and search. Each other provider's archive is learned on its next channel
+  refresh (Settings > Providers > refresh, or the automatic refresh).
+
 ## v7.48 - 2026-10-17
 - **New**: Game alerts. When a game with one of your favorite teams starts, MKTV sends a
   notification; tap Watch to open it on the best feed (your preferred network first). Pick your

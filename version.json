@@ -1,7 +1,7 @@
 {
-  "versionCode": 586,
-  "versionName": "7.48",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.48/MKTV.apk",
-  "apkSha256": "59830c9f1c633980995c31f8479899767ffaa5a990dafc059fed2395bdc8068f",
-  "changelog": "Game alerts: a notification when your team's game starts, with Watch."
+  "versionCode": 587,
+  "versionName": "7.49",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.49/MKTV.apk",
+  "apkSha256": "0e584257ea221f3efa5e618f5b8f51090885087d77512413fd93dfc3300b91bc",
+  "changelog": "Catch-up, Start Over and replays now work on every provider with an archive."
 }
