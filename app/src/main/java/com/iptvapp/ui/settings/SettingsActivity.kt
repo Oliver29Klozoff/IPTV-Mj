@@ -267,6 +267,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
             SettingSearchEntry("Automatic Backup Feed", 0, null, R.id.switchAutoBackupFeed),
+            SettingSearchEntry("Combine Duplicate Channels", 0, null, R.id.switchCombineDuplicates),
             SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
             SettingSearchEntry("Picture", 0, null, R.id.rowPictureMode),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
@@ -2912,6 +2913,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchPreferReliableCopy.isChecked = prefs.preferReliableCopy.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.switchAutoBackupFeed.isChecked = prefs.autoBackupFeed.first()
+                binding.switchCombineDuplicates.isChecked = prefs.combineDuplicates.first()
                 binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
                 binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(prefs.pictureMode.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
@@ -4143,6 +4145,10 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setAutoBackupFeed(enabled) }
         }
+        binding.switchCombineDuplicates.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setCombineDuplicates(enabled) }
+        }
         binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
         binding.rowPictureMode.setOnClickListener { showPictureModeDialog() }
         binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
@@ -4531,6 +4537,7 @@ class SettingsActivity : AppCompatActivity() {
             put("showAlertKeywords", org.json.JSONArray(prefs.getShowAlertKeywords()))
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("autoBackupFeed", prefs.autoBackupFeed.first())
+            put("combineDuplicates", prefs.combineDuplicates.first())
             put("mosaicLayouts", prefs.mosaicLayouts.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
@@ -4756,6 +4763,7 @@ class SettingsActivity : AppCompatActivity() {
         json.optJSONArray("showAlertKeywords")?.let { arr -> prefs.setShowAlertKeywords((0 until arr.length()).map { arr.optString(it) }) }
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("autoBackupFeed")) prefs.setAutoBackupFeed(json.optBoolean("autoBackupFeed", true))
+        if (json.has("combineDuplicates")) prefs.setCombineDuplicates(json.optBoolean("combineDuplicates", true))
         if (json.has("mosaicLayouts")) prefs.setMosaicLayouts(json.optString("mosaicLayouts", ""))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))

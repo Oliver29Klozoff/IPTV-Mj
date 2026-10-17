@@ -46,6 +46,33 @@ class LiveChannelAdapter(
         notifyChangedRows { it == old || it == id }
     }
 
+    // "+N" on a row that stands for N more copies of the channel (HomeViewModel.duplicateCopies).
+    private var extraCopiesById: Map<String, Int> = emptyMap()
+
+    /** The screen's lookup: the "+N" counts that belong to exactly the list being shown, or none. */
+    var duplicateCountsFor: ((List<*>) -> Map<String, Int>)? = null
+
+    override fun submitList(list: List<LiveChannelRow>?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list)
+    }
+
+    override fun submitList(list: List<LiveChannelRow>?, commitCallback: Runnable?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list, commitCallback)
+    }
+
+    /** Re-read the counts for the list already showing (HomeViewModel.duplicateCountsChanged). */
+    fun refreshDuplicateCopies() {
+        submitDuplicateCopies(duplicateCountsFor?.invoke(currentList).orEmpty())
+    }
+
+    private fun submitDuplicateCopies(map: Map<String, Int>) {
+        val old = extraCopiesById
+        extraCopiesById = map
+        notifyChangedRows { old[it] != map[it] }
+    }
+
     fun submitEpgText(epgMap: Map<String, String>) {
         val old = epgTextById
         epgTextById = epgMap
@@ -92,7 +119,7 @@ class LiveChannelAdapter(
         private var heldPreviewKey: String? = null
 
         fun bind(item: LiveChannelRow) {
-            binding.tvChannelName.text = item.name
+            binding.tvChannelName.text = com.iptvapp.util.DuplicateChannels.label(item.name, extraCopiesById[item.id])
             val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
             binding.tvQualityBadge?.apply {
                 visibility = if (quality != null) View.VISIBLE else View.GONE

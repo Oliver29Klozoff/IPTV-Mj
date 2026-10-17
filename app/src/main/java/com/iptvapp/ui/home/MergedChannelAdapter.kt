@@ -51,6 +51,33 @@ class MergedChannelAdapter(
         }
     }
 
+    // "+N" on a row that stands for N more copies (HomeViewModel.duplicateCopies, same keys).
+    private var extraCopiesByKey: Map<String, Int> = emptyMap()
+
+    /** The screen's lookup: the "+N" counts that belong to exactly the list being shown, or none. */
+    var duplicateCountsFor: ((List<*>) -> Map<String, Int>)? = null
+
+    override fun submitList(list: List<MergedChannelEntity>?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list)
+    }
+
+    override fun submitList(list: List<MergedChannelEntity>?, commitCallback: Runnable?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list, commitCallback)
+    }
+
+    /** Re-read the counts for the list already showing (HomeViewModel.duplicateCountsChanged). */
+    fun refreshDuplicateCopies() {
+        submitDuplicateCopies(duplicateCountsFor?.invoke(currentList).orEmpty())
+    }
+
+    private fun submitDuplicateCopies(map: Map<String, Int>) {
+        val old = extraCopiesByKey
+        extraCopiesByKey = map
+        notifyChangedRows { old[it] != map[it] }
+    }
+
     fun submitEpgText(map: Map<String, String>) {
         val old = epgTextByKey
         epgTextByKey = map
@@ -97,7 +124,7 @@ class MergedChannelAdapter(
             } else {
                 binding.ivFavorite.isFocusable = false
             }
-            binding.tvChannelName.text = item.name
+            binding.tvChannelName.text = com.iptvapp.util.DuplicateChannels.label(item.name, extraCopiesByKey["${item.serverIndex}:${item.streamId}"])
             val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
             binding.tvQualityBadge?.apply {
                 visibility = if (quality != null) View.VISIBLE else View.GONE

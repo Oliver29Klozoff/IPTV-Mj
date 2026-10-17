@@ -82,6 +82,33 @@ class ChannelAdapter(
         notifyChangedRows { it == old || it == streamId }
     }
 
+    // "+N" on a row that stands for N more copies (HomeViewModel.duplicateCopies, "primary:$id" keys).
+    private var extraCopiesById: Map<String, Int> = emptyMap()
+
+    /** The screen's lookup: the "+N" counts that belong to exactly the list being shown, or none. */
+    var duplicateCountsFor: ((List<*>) -> Map<String, Int>)? = null
+
+    override fun submitList(list: List<ChannelEntity>?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list)
+    }
+
+    override fun submitList(list: List<ChannelEntity>?, commitCallback: Runnable?) {
+        submitDuplicateCopies(list?.let { duplicateCountsFor?.invoke(it) }.orEmpty())
+        super.submitList(list, commitCallback)
+    }
+
+    /** Re-read the counts for the list already showing (HomeViewModel.duplicateCountsChanged). */
+    fun refreshDuplicateCopies() {
+        submitDuplicateCopies(duplicateCountsFor?.invoke(currentList).orEmpty())
+    }
+
+    private fun submitDuplicateCopies(map: Map<String, Int>) {
+        val old = extraCopiesById
+        extraCopiesById = map
+        notifyChangedRows { old["primary:$it"] != map["primary:$it"] }
+    }
+
     fun submitEpgText(epgMap: Map<Int, String>) {
         val old = epgTextByStreamId
         epgTextByStreamId = epgMap
@@ -143,7 +170,7 @@ class ChannelAdapter(
         private var heldPreviewKey: String? = null
 
         fun bind(item: ChannelEntity) {
-            binding.tvChannelName.text = item.name
+            binding.tvChannelName.text = com.iptvapp.util.DuplicateChannels.label(item.name, extraCopiesById["primary:${item.streamId}"])
             val quality = com.iptvapp.util.ChannelQualityTag.labelFor(item.name)
             binding.tvQualityBadge?.apply {
                 visibility = if (quality != null) View.VISIBLE else View.GONE
