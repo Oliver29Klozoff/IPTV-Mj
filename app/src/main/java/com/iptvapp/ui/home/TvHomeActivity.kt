@@ -242,7 +242,21 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (streamId == -1 && (serverIndex == -1 || mergedStreamId == -1)) return@registerForActivityResult
         lifecycleScope.launch {
             if (streamId == -1) {
-                viewModel.getMergedChannelByIndexAndId(serverIndex, mergedStreamId)?.let { playMergedChannel(it) }
+                val merged = viewModel.getMergedChannelByIndexAndId(serverIndex, mergedStreamId) ?: return@launch
+                val replayUrl = data.getStringExtra("timeshift_url")
+                val replayTitle = data.getStringExtra("timeshift_title")
+                if (replayUrl != null && replayTitle != null) {
+                    // A replay on another provider: full screen in catch-up mode, like the main one.
+                    openPlayer(
+                        replayUrl, replayTitle, -1,
+                        serverIndex = serverIndex, mergedStreamId = mergedStreamId,
+                        catchupStartSec = data.getLongExtra("catchup_start_sec", 0L),
+                        catchupDurationMin = data.getIntExtra("catchup_duration_min", 0),
+                        catchupChannelName = merged.name
+                    )
+                } else {
+                    playMergedChannel(merged)
+                }
                 return@launch
             }
             val channel = viewModel.getChannelById(streamId) ?: return@launch
@@ -1919,12 +1933,22 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 }
             },
             playReplay = { replay ->
-                openPlayer(
-                    replay.url, replay.title, replay.channel.streamId,
-                    catchupStartSec = replay.startSec,
-                    catchupDurationMin = replay.durationMin,
-                    catchupChannelName = replay.channel.name
-                )
+                if (replay.serverIndex == -1) {
+                    openPlayer(
+                        replay.url, replay.title, replay.streamId,
+                        catchupStartSec = replay.startSec,
+                        catchupDurationMin = replay.durationMin,
+                        catchupChannelName = replay.channelName
+                    )
+                } else {
+                    openPlayer(
+                        replay.url, replay.title, -1,
+                        serverIndex = replay.serverIndex, mergedStreamId = replay.streamId,
+                        catchupStartSec = replay.startSec,
+                        catchupDurationMin = replay.durationMin,
+                        catchupChannelName = replay.channelName
+                    )
+                }
             })
     }
 

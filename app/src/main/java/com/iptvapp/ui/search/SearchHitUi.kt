@@ -32,8 +32,19 @@ class SearchHitUi(
     /** Play a replay of a past programme (main provider; see SearchHit.Kind.CATCH_UP). */
     private val playReplay: (Replay) -> Unit
 ) {
-    /** A replay ready to play: [url] is the provider's timeshift URL for it. */
-    data class Replay(val channel: ChannelEntity, val url: String, val title: String, val startSec: Long, val durationMin: Int)
+    /**
+     * A replay ready to play: [url] is the provider's timeshift URL for it. [serverIndex] -1 is
+     * the main provider; otherwise [streamId] is that provider's own id (a merged channel).
+     */
+    data class Replay(
+        val serverIndex: Int,
+        val streamId: Int,
+        val channelName: String,
+        val url: String,
+        val title: String,
+        val startSec: Long,
+        val durationMin: Int,
+    )
 
     fun open(hit: SearchHit) {
         when (hit) {
@@ -51,15 +62,18 @@ class SearchHitUi(
     }
 
     private fun openReplay(hit: SearchHit.Program) {
-        val channel = hit.channel ?: return
+        // Main provider or another one with an archive: each replays from its own panel.
+        val server = hit.merged?.serverIndex ?: -1
+        val id = hit.channel?.streamId ?: hit.merged?.streamId ?: return
+        val name = hit.channelName
         activity.lifecycleScope.launch {
             val startSec = hit.startMs / 1000L
             val durationMin = ((hit.stopMs - hit.startMs) / 60_000L).toInt().coerceAtLeast(1)
-            val url = try { repository.getTimeshiftUrl(channel.streamId, startSec, durationMin) } catch (_: Exception) {
+            val url = try { repository.getTimeshiftUrlFor(server, id, startSec, durationMin) } catch (_: Exception) {
                 Toast.makeText(activity, R.string.search_replay_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            playReplay(Replay(channel, url, "${channel.name} — ${hit.programTitle}", startSec, durationMin))
+            playReplay(Replay(server, id, name, url, "$name — ${hit.programTitle}", startSec, durationMin))
         }
     }
 

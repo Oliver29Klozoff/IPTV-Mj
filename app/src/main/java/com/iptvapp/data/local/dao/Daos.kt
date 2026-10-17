@@ -514,6 +514,19 @@ interface EpgDao {
         LIMIT 300
     """)
     suspend fun searchReplayableProgramTitles(query: String, nowSec: Long, fromSec: Long): List<EpgEntity>
+
+    // The same for other providers' channels that keep replays (merged_channels.tvArchive).
+    @Query("""
+        SELECT epg_entries.* FROM epg_entries
+        JOIN merged_channels ON merged_channels.serverIndex = epg_entries.serverIndex
+            AND merged_channels.streamId = epg_entries.streamId
+        WHERE epg_entries.serverIndex != -1 AND merged_channels.tvArchive = 1
+        AND epg_entries.stopTimestamp <= :nowSec AND epg_entries.stopTimestamp >= :fromSec
+        AND epg_entries.title LIKE '%' || :query || '%'
+        ORDER BY epg_entries.startTimestamp DESC
+        LIMIT 300
+    """)
+    suspend fun searchReplayableMergedProgramTitles(query: String, nowSec: Long, fromSec: Long): List<EpgEntity>
     @Upsert
     suspend fun upsertEpg(entries: List<EpgEntity>)
     @Query("DELETE FROM epg_entries WHERE stopTimestamp < :before")

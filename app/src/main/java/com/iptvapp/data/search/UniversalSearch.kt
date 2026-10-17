@@ -164,10 +164,14 @@ class UniversalSearch @Inject constructor(
         private fun ms(t: Long) = if (t < 100_000_000_000L) t * 1000L else t
 
         /** Whether [program] on [channel] can be replayed (same rule as the guide's). */
-        fun canReplay(channel: ChannelEntity, program: EpgEntity, nowMs: Long): Boolean {
-            if (channel.tvArchive != 1 || ms(program.stopTimestamp) > nowMs) return false
+        fun canReplay(channel: ChannelEntity, program: EpgEntity, nowMs: Long): Boolean =
+            canReplay(channel.tvArchive, channel.tvArchiveDuration, program, nowMs)
+
+        /** The same rule from a channel's archive flag and days, for any provider. */
+        fun canReplay(tvArchive: Int, tvArchiveDuration: Int, program: EpgEntity, nowMs: Long): Boolean {
+            if (tvArchive != 1 || ms(program.stopTimestamp) > nowMs) return false
             if (program.hasArchive == 1) return true
-            val days = channel.tvArchiveDuration.takeIf { it > 0 } ?: 3
+            val days = tvArchiveDuration.takeIf { it > 0 } ?: 3
             return ms(program.startTimestamp) >= nowMs - days * 86_400_000L
         }
 
@@ -241,7 +245,8 @@ class UniversalSearch @Inject constructor(
     private suspend fun programs(q: String, nowMs: Long, primaryLabel: String): List<SearchHit> {
         val nowSec = nowMs / 1000
         val rows = db.epgDao().searchProgramTitles(q, nowSec, nowSec + UPCOMING_DAYS * 86_400) +
-            db.epgDao().searchReplayableProgramTitles(q, nowSec, nowSec - CATCH_UP_DAYS * 86_400)
+            db.epgDao().searchReplayableProgramTitles(q, nowSec, nowSec - CATCH_UP_DAYS * 86_400) +
+            db.epgDao().searchReplayableMergedProgramTitles(q, nowSec, nowSec - CATCH_UP_DAYS * 86_400)
         if (rows.isEmpty()) return emptyList()
         val primary = rows.filter { it.serverIndex == -1 }.map { it.streamId }.distinct().chunked(900)
             .flatMap { db.channelDao().getChannelsByIds(it) }.associateBy { it.streamId }
@@ -263,6 +268,7 @@ class UniversalSearch @Inject constructor(
                 start <= nowMs && stop > nowMs -> SearchHit.Kind.ON_NOW
                 start > nowMs -> SearchHit.Kind.UPCOMING
                 channel != null && canReplay(channel, row, nowMs) -> SearchHit.Kind.CATCH_UP
+                other != null && canReplay(other.tvArchive, other.tvArchiveDuration, row, nowMs) -> SearchHit.Kind.CATCH_UP
                 else -> continue
             }
             val hit = SearchHit.Program(channel, other, row.title, start, stop, kind, other?.serverNickname ?: primaryLabel)

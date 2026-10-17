@@ -33,7 +33,7 @@ import com.iptvapp.data.local.entities.*
         EpgDiffAlertEntity::class,
         FeedStatsEntity::class
     ],
-    version = 45,
+    version = 46,
     exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -649,6 +649,13 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_45_46 = object : Migration(45, 46) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN tvArchive INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE merged_channels ADD COLUMN tvArchiveDuration INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -658,7 +665,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
             MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
-            MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45
+            MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46
         )
     }
 }

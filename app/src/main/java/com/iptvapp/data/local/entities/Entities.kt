@@ -257,7 +257,11 @@ data class MergedChannelEntity(
     // provider equivalent of this). Null for every Xtream-backed merged provider, which still
     // build their URL the normal serverIndex+streamId+credentials way — see
     // XtreamRepository.getMergedLiveStreamUrl.
-    val streamUrl: String? = null
+    val streamUrl: String? = null,
+    // Catch-up, from this provider's get_live_streams (tv_archive / tv_archive_duration), so replays
+    // work on every provider, not only the main one. 0 for M3U sources, which have no archive.
+    val tvArchive: Int = 0,
+    val tvArchiveDuration: Int = 0
 )
 
 @Fts4(contentEntity = MergedChannelEntity::class)
