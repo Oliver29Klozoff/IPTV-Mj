@@ -793,7 +793,7 @@
                                     style="@style/Rack.Helper"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="Preferred languages and subtitle style" />
+                                    android:text="Languages, style, and OpenSubtitles" />
                             </LinearLayout>
                             <TextView
                                 android:id="@+id/chevLanguage"
@@ -848,6 +848,34 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="8dp"
                                     android:text="Used when a stream has more than one language. Only works if your provider tags its tracks." />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/rowOpenSubtitles"
+                                style="@style/Rack.Row.Tappable"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="OpenSubtitles" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="A free key, for a movie or episode that has no subtitles" />
+                                </LinearLayout>
+                                <TextView
+                                    android:id="@+id/tvOpenSubtitlesValue"
+                                    style="@style/Rack.Value"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Off" />
                             </LinearLayout>
                             <LinearLayout
                                 android:id="@+id/rowSubSize"

@@ -259,6 +259,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Audio Passthrough Fallback", 0, null, R.id.switchAudioPassthroughFallback),
             SettingSearchEntry("Preferred Audio Language", 0, R.id.hdrLanguage, R.id.spinnerAudioLanguage),
             SettingSearchEntry("Preferred Subtitle Language", 0, R.id.hdrLanguage, R.id.spinnerSubtitleLanguage),
+            SettingSearchEntry("OpenSubtitles", 0, R.id.hdrLanguage, R.id.rowOpenSubtitles),
             SettingSearchEntry("Subtitle Size", 0, R.id.hdrLanguage, R.id.rowSubSize),
             SettingSearchEntry("Subtitle Position", 0, R.id.hdrLanguage, R.id.rowSubOffset),
             SettingSearchEntry("Subtitle Text Color", 0, R.id.hdrLanguage, R.id.rowSubTextColor),
@@ -1452,6 +1453,71 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun openSubtitlesLabel(apiKey: String, username: String) = when {
+        apiKey.isBlank() -> "Off"
+        username.isBlank() -> "Key saved"
+        else -> username
+    }
+
+    /** A free key from opensubtitles.com/consumers. The password stays on this device. */
+    private fun showOpenSubtitlesDialog() {
+        lifecycleScope.launch {
+            val keyInput = android.widget.EditText(this@SettingsActivity).apply {
+                hint = "API key"
+                setText(prefs.opensubtitlesApiKey.first())
+                isSingleLine = true
+            }
+            val userInput = android.widget.EditText(this@SettingsActivity).apply {
+                hint = "Username, optional"
+                setText(prefs.opensubtitlesUsername.first())
+                isSingleLine = true
+            }
+            val passInput = android.widget.EditText(this@SettingsActivity).apply {
+                hint = "Password, optional"
+                setText(prefs.opensubtitlesPassword.first())
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                isSingleLine = true
+            }
+            val form = android.widget.LinearLayout(this@SettingsActivity).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                val pad = (20 * resources.displayMetrics.density).toInt()
+                setPadding(pad, 0, pad, 0)
+                val field = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                addView(keyInput, field)
+                addView(userInput, android.widget.LinearLayout.LayoutParams(field))
+                addView(passInput, android.widget.LinearLayout.LayoutParams(field))
+            }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("OpenSubtitles")
+                .setMessage("A free key from opensubtitles.com/consumers. The key can search and download a few subtitles a day. A username uses your own allowance. A subtitle file on this device needs neither.")
+                .setView(form)
+                .setPositiveButton("Save") { _, _ ->
+                    lifecycleScope.launch {
+                        prefs.setOpenSubtitlesAccount(
+                            keyInput.text.toString(),
+                            userInput.text.toString(),
+                            passInput.text.toString()
+                        )
+                        binding.tvOpenSubtitlesValue.text = openSubtitlesLabel(
+                            prefs.opensubtitlesApiKey.first(),
+                            prefs.opensubtitlesUsername.first()
+                        )
+                    }
+                }
+                .setNeutralButton("Clear") { _, _ ->
+                    lifecycleScope.launch {
+                        prefs.setOpenSubtitlesAccount("", "", "")
+                        binding.tvOpenSubtitlesValue.text = "Off"
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     // Subtitle styling (size/offset/bold/colors/outline) previously only existed on TV
     // Settings — the phone had no way to customize subtitle appearance at all, even though
     // playback already reads/applies these same PreferencesManager fields.
@@ -1481,6 +1547,7 @@ class SettingsActivity : AppCompatActivity() {
                 showSubtitleColorDialog("Background Color", prefs.subtitleStyle.first().backgroundColor) { prefs.setSubtitleBackgroundColor(it) }
             }
         }
+        binding.rowOpenSubtitles.setOnClickListener { showOpenSubtitlesDialog() }
         binding.cbSubOutline.setOnCheckedChangeListener { _, checked ->
             lifecycleScope.launch { prefs.setSubtitleOutlineEnabled(checked) }
         }
@@ -2884,6 +2951,10 @@ class SettingsActivity : AppCompatActivity() {
                 val savedSubLang = prefs.preferredSubtitleLanguage.first()
                 binding.spinnerSubtitleLanguage.setSelection(
                     languageOptions.indexOfFirst { it.second == savedSubLang }.coerceAtLeast(0)
+                )
+                binding.tvOpenSubtitlesValue.text = openSubtitlesLabel(
+                    prefs.opensubtitlesApiKey.first(),
+                    prefs.opensubtitlesUsername.first()
                 )
                 binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()

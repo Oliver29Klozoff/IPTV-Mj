@@ -19,6 +19,8 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
+import com.iptvapp.util.ExternalSubtitles
+import com.iptvapp.util.OpenSubtitlesClient
 import com.iptvapp.util.PictureMode
 import com.iptvapp.util.SmartCatchUp
 import com.iptvapp.util.SportsMode
@@ -78,6 +80,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import okhttp3.OkHttpClient
@@ -164,6 +168,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // stream_title). This flag exists only to pick a different ExoPlayer data source in
     // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
     private var isRecordingPlayback: Boolean = false
+    // A subtitle added for this movie or episode, when the file itself had none.
+    private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
+    private var externalSubtitlePath: String? = null
+    private var externalSubtitleMime: String = MimeTypes.APPLICATION_SUBRIP
+    private var externalSubtitleLanguage: String = "en"
+    private var subtitleOfferShown: Boolean = false
+    private val pickSubtitleFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) importSubtitleFile(uri)
+    }
     // Live timeshift (pause / rewind / go live). NONE means the player is on the provider URL
     // with no local buffer. NATIVE means that URL already has a usable DVR window. LOCAL means
     // the player is reading a bounded temp playlist and LiveTimeshiftSession holds the only
@@ -554,6 +567,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         castIndex = castChannels.indexOfFirst { it.url == streamUrl }.takeIf { it >= 0 } ?: 0
         if (castSessionCode.isNotEmpty()) attachCastSessionListener()
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
+        savedInstanceState?.getString("ext_sub_path")?.let { path ->
+            val file = File(path)
+            if (file.isFile) {
+                externalSubtitlePath = path
+                externalSubtitleMime = savedInstanceState.getString("ext_sub_mime") ?: MimeTypes.APPLICATION_SUBRIP
+                externalSubtitleLanguage = savedInstanceState.getString("ext_sub_lang") ?: "en"
+                externalSubtitle = subtitleConfiguration(file)
+                subtitleOfferShown = true
+            }
+        }
         isPartyContentSubstituted = intent.getBooleanExtra("watch_party_content_substituted", false)
         partyStartPaused = intent.getBooleanExtra("watch_party_start_paused", false)
 
@@ -2290,6 +2313,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         }
 
+        if (externalSubtitleChoices() && textGroups.isEmpty()) {
+            labels.add("── Subtitles ──")
+            actions.add {}
+            labels.add("    Search OpenSubtitles")
+            actions.add { searchOpenSubtitles() }
+            labels.add("    Open a subtitle file")
+            actions.add { pickSubtitleFile.launch(arrayOf("*/*")) }
+        }
+
         if (labels.isEmpty()) {
             AlertDialog.Builder(this).setTitle("Tracks").setMessage("No selectable tracks available.").setPositiveButton("OK", null).show()
             return
@@ -2875,6 +2907,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.playerView.player = exoPlayer
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                        maybeOfferExternalSubtitles(tracks)
                         val f = exoPlayer.videoFormat ?: return
                         Log.i("MKTV_QUALITY", "dataSaver=$dataSaver playing ${f.width}x${f.height} @ ${f.bitrate / 1000} kbps")
                         applyFrameRateMatch()
@@ -3556,8 +3589,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 return@launch
             }
             player?.let {
-                if (isVod && resumeAt > 0L) it.setMediaItem(MediaItem.fromUri(streamUrl), resumeAt)
-                else it.setMediaItem(MediaItem.fromUri(streamUrl))
+                val item = if (isVod) itemWithExternalSubtitle(streamUrl) else MediaItem.fromUri(streamUrl)
+                if (isVod && resumeAt > 0L) it.setMediaItem(item, resumeAt)
+                else it.setMediaItem(item)
                 it.prepare()
                 it.playWhenReady = true
             }
@@ -4098,6 +4132,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun loadStream(url: String) {
+        // Same URL is a reload (rotation, retry). A different one is a new programme.
+        if (url != streamUrl) {
+            externalSubtitle = null
+            externalSubtitlePath = null
+            subtitleOfferShown = false
+        }
         refreshPictureFromGuide()
         com.iptvapp.remote.RemoteControlServer.nowPlaying = streamTitle
         openFeedTracking(automatic = backupSwitchOpening)
@@ -4386,7 +4426,175 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .build()
             )
         }
+        if (mediaId == null) externalSubtitle?.let { builder.setSubtitleConfigurations(listOf(it)) }
         return builder.build()
+    }
+
+    private fun itemWithExternalSubtitle(url: String): MediaItem {
+        val builder = MediaItem.Builder().setUri(url)
+        externalSubtitle?.let { builder.setSubtitleConfigurations(listOf(it)) }
+        return builder.build()
+    }
+
+    private fun externalSubtitleChoices(): Boolean =
+        ExternalSubtitles.offersFor(isVod, isCatchup, isRecordingPlayback) && castSession == null
+
+    private fun maybeOfferExternalSubtitles(tracks: androidx.media3.common.Tracks) {
+        if (!externalSubtitleChoices() || subtitleOfferShown || externalSubtitle != null) return
+        val hasText = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
+        val hasPictureOrSound = tracks.groups.any {
+            (it.type == C.TRACK_TYPE_AUDIO || it.type == C.TRACK_TYPE_VIDEO) && it.length > 0
+        }
+        if (!hasPictureOrSound) return
+        subtitleOfferShown = true
+        if (hasText || isFinishing) return
+        showExternalSubtitleOffer()
+    }
+
+    private fun showExternalSubtitleOffer() {
+        AlertDialog.Builder(this)
+            .setTitle("No subtitles in this file")
+            .setMessage("Search OpenSubtitles, or open an .srt file on this device.")
+            .setPositiveButton("Search") { _, _ -> searchOpenSubtitles() }
+            .setNeutralButton("Open a file") { _, _ -> pickSubtitleFile.launch(arrayOf("*/*")) }
+            .setNegativeButton("Not now", null)
+            .show()
+    }
+
+    private fun searchOpenSubtitles() {
+        lifecycleScope.launch {
+            val apiKey = prefs.opensubtitlesApiKey.first().trim()
+            if (apiKey.isEmpty()) {
+                AlertDialog.Builder(this@PlayerActivity)
+                    .setTitle("OpenSubtitles")
+                    .setMessage("Add a free API key in Settings, under Audio & subtitles. A subtitle file on this device doesn't need one.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@launch
+            }
+            val language = prefs.preferredSubtitleLanguage.first()
+            val search = ExternalSubtitles.searchFor(streamTitle, traktSeriesName, traktSeason, traktEpisode, language)
+            val userAgent = "MKTV ${com.iptvapp.BuildConfig.VERSION_NAME}"
+            val hits = try {
+                withContext(Dispatchers.IO) {
+                    val client = OpenSubtitlesClient()
+                    val username = prefs.opensubtitlesUsername.first().trim()
+                    val password = prefs.opensubtitlesPassword.first()
+                    val token = if (username.isNotEmpty() && password.isNotEmpty()) {
+                        runCatching { client.login(apiKey, userAgent, username, password) }.getOrNull()
+                    } else null
+                    client.search(apiKey, userAgent, ExternalSubtitles.queryParams(search), token)
+                }
+            } catch (e: ExternalSubtitles.Rejected) {
+                Toast.makeText(this@PlayerActivity, e.message, Toast.LENGTH_LONG).show()
+                return@launch
+            } catch (_: Exception) {
+                Toast.makeText(this@PlayerActivity, "OpenSubtitles didn't answer.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (hits.isEmpty()) {
+                Toast.makeText(this@PlayerActivity, "No subtitles found for this title.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val labels = hits.map { ExternalSubtitles.label(it) }.toTypedArray()
+            AlertDialog.Builder(this@PlayerActivity)
+                .setTitle("Subtitles")
+                .setItems(labels) { _, which -> downloadOpenSubtitle(hits[which].fileId, apiKey, userAgent) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun downloadOpenSubtitle(fileId: Long, apiKey: String, userAgent: String) {
+        lifecycleScope.launch {
+            val prepared = try {
+                withContext(Dispatchers.IO) {
+                    val client = OpenSubtitlesClient()
+                    val username = prefs.opensubtitlesUsername.first().trim()
+                    val password = prefs.opensubtitlesPassword.first()
+                    val token = if (username.isNotEmpty() && password.isNotEmpty()) {
+                        runCatching { client.login(apiKey, userAgent, username, password) }.getOrNull()
+                    } else null
+                    val link = client.downloadLink(apiKey, userAgent, token, fileId)
+                    ExternalSubtitles.prepare(client.fetch(link))
+                }
+            } catch (e: ExternalSubtitles.Rejected) {
+                Toast.makeText(this@PlayerActivity, e.message, Toast.LENGTH_LONG).show()
+                return@launch
+            } catch (_: Exception) {
+                Toast.makeText(this@PlayerActivity, "OpenSubtitles didn't answer.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val file = writeSubtitleFile(prepared)
+            applyExternalSubtitle(file, prepared.extension)
+            Toast.makeText(this@PlayerActivity, "Subtitles on.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun importSubtitleFile(uri: android.net.Uri) {
+        lifecycleScope.launch {
+            val prepared = try {
+                withContext(Dispatchers.IO) {
+                    val bytes = contentResolver.openInputStream(uri)?.use { stream ->
+                        val out = java.io.ByteArrayOutputStream()
+                        val buf = ByteArray(8192)
+                        var total = 0
+                        while (total <= ExternalSubtitles.MAX_BYTES) {
+                            val n = stream.read(buf)
+                            if (n < 0) break
+                            total += n
+                            out.write(buf, 0, n)
+                        }
+                        out.toByteArray()
+                    } ?: throw ExternalSubtitles.Rejected("Couldn't read that file.")
+                    ExternalSubtitles.prepare(bytes)
+                }
+            } catch (e: ExternalSubtitles.Rejected) {
+                Toast.makeText(this@PlayerActivity, e.message, Toast.LENGTH_LONG).show()
+                return@launch
+            } catch (_: Exception) {
+                Toast.makeText(this@PlayerActivity, "Couldn't read that file.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val file = writeSubtitleFile(prepared)
+            applyExternalSubtitle(file, prepared.extension)
+            Toast.makeText(this@PlayerActivity, "Subtitles on.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun writeSubtitleFile(prepared: ExternalSubtitles.Prepared): File {
+        val dir = File(cacheDir, "ext-subs")
+        dir.mkdirs()
+        dir.listFiles()?.forEach { it.delete() }
+        val file = File(dir, "subtitle.${prepared.extension}")
+        file.writeText(prepared.text, Charsets.UTF_8)
+        return file
+    }
+
+    private fun subtitleConfiguration(file: File): MediaItem.SubtitleConfiguration =
+        MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(file))
+            .setMimeType(if (file.extension == "vtt") MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP)
+            .setLanguage(externalSubtitleLanguage)
+            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+            .build()
+
+    private fun applyExternalSubtitle(file: File, extension: String) {
+        externalSubtitleLanguage = ExternalSubtitles.languageCode(prefs.preferredSubtitleLanguageNow())
+        externalSubtitleMime = if (extension == "vtt") MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
+        externalSubtitlePath = file.absolutePath
+        externalSubtitle = subtitleConfiguration(file)
+        subtitleOfferShown = true
+        val p = player ?: return
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .build()
+        lifecycleScope.launch { prefs.setSubtitlesEnabled(true) }
+        val position = p.currentPosition.coerceAtLeast(0L)
+        val play = p.playWhenReady
+        val base = p.currentMediaItem ?: MediaItem.fromUri(streamUrl)
+        p.setMediaItem(base.buildUpon().setSubtitleConfigurations(listOf(externalSubtitle!!)).build(), position)
+        p.prepare()
+        p.playWhenReady = play
     }
 
     private fun canPreloadLiveNeighbors(): Boolean {
@@ -5997,6 +6205,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         player?.let { binding.playerView.player = it }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        externalSubtitlePath?.let {
+            outState.putString("ext_sub_path", it)
+            outState.putString("ext_sub_mime", externalSubtitleMime)
+            outState.putString("ext_sub_lang", externalSubtitleLanguage)
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         if (player == null) {
@@ -6033,7 +6250,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val startPos = resumePositionMs
                 resumePositionMs = 0L
                 updatePictureProfile()
-                player?.setMediaItem(MediaItem.fromUri(streamUrl), startPos)
+                player?.setMediaItem(itemWithExternalSubtitle(streamUrl), startPos)
                 player?.prepare()
                 player?.playWhenReady = !partyStartPaused
             } else {
