@@ -23,13 +23,21 @@ import androidx.media3.exoplayer.source.preload.TargetPreloadStatusControl
  * player's own sources, renderers, buffer and track selection. Each new player gets a new manager.
  */
 @UnstableApi
-class ZapPreloader(context: Context) {
+class ZapPreloader(
+    context: Context,
+    private val clock: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+) {
     data class Neighbor(val mediaId: String, val item: MediaItem, val index: Int, val sports: Boolean)
 
     private val appContext = context.applicationContext
     private val control = NeighborControl()
     private val items = LinkedHashMap<String, MediaItem>()
     private val sportsById = HashMap<String, Boolean>()
+    /** When each neighbor was prepared, and its place in the zap list. */
+    private val addedAt = HashMap<String, Long>()
+    private val indexById = HashMap<String, Int>()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val staleCheck = Runnable { dropStale() }
     private var manager: DefaultPreloadManager? = null
     private var blockedServer: Int? = null
     private var playingMediaId: String? = null
@@ -47,6 +55,8 @@ class ZapPreloader(context: Context) {
 
     fun source(mediaId: String, sports: Boolean): MediaSource? {
         if (sportsById[mediaId] != sports) return null
+        // A live preload is a buffer of the moment it was made. Old, it would play the past.
+        if (!fresh(mediaId)) return null
         val item = items[mediaId] ?: return null
         return manager?.getMediaSource(item)
     }
@@ -78,6 +88,8 @@ class ZapPreloader(context: Context) {
         for (id in gone) {
             val item = items.remove(id) ?: continue
             sportsById.remove(id)
+            addedAt.remove(id)
+            indexById.remove(id)
             mgr.remove(item)
         }
         for (neighbor in neighbors) {
@@ -86,12 +98,22 @@ class ZapPreloader(context: Context) {
             if (existingSports != null && existingSports != neighbor.sports) {
                 items.remove(neighbor.mediaId)?.let { mgr.remove(it) }
                 sportsById.remove(neighbor.mediaId)
+                addedAt.remove(neighbor.mediaId)
+                indexById.remove(neighbor.mediaId)
             }
-            if (items.containsKey(neighbor.mediaId)) continue
+            if (items.containsKey(neighbor.mediaId)) {
+                if (fresh(neighbor.mediaId)) continue
+                // Prepared too long ago: its buffer is old footage. Prepare it again from now.
+                items.remove(neighbor.mediaId)?.let { mgr.remove(it) }
+            }
             items[neighbor.mediaId] = neighbor.item
             sportsById[neighbor.mediaId] = neighbor.sports
+            addedAt[neighbor.mediaId] = clock()
+            indexById[neighbor.mediaId] = neighbor.index
             mgr.add(neighbor.item, neighbor.index)
         }
+        main.removeCallbacks(staleCheck)
+        if (items.keys.any { it != playingId }) main.postDelayed(staleCheck, STALE_MS + 1_000L)
         control.allowed = neighbors.map { it.index }.toSet()
         mgr.setCurrentPlayingIndex(currentIndex)
         mgr.invalidate()
@@ -101,9 +123,47 @@ class ZapPreloader(context: Context) {
         dropExcept(null)
     }
 
+    /**
+     * A channel is about to open. Drop every other preload first, so the account has the
+     * connection back before the new stream asks for one. [mediaId] is a preload being promoted
+     * to playing; it stays, and becomes the item the manager must not clear.
+     */
+    fun keepOnly(mediaId: String?) {
+        val keep = mediaId?.takeIf { items.containsKey(it) }
+        if (keep != null) {
+            playingMediaId = keep
+            indexById[keep]?.let { control.playingIndex = it; manager?.setCurrentPlayingIndex(it) }
+        }
+        dropExcept(keep)
+    }
+
+    /** Neighbors nobody zapped to in time free their connections. */
+    fun dropStale() {
+        val mgr = manager ?: return
+        val stale = items.keys.filter { it != playingMediaId && !fresh(it) }
+        if (stale.isEmpty()) return
+        for (id in stale) {
+            val item = items.remove(id) ?: continue
+            sportsById.remove(id)
+            addedAt.remove(id)
+            indexById.remove(id)
+            mgr.remove(item)
+        }
+        control.allowed = indexById.filterKeys { it != playingMediaId }.values.toSet()
+        mgr.invalidate()
+    }
+
+    private fun fresh(mediaId: String): Boolean {
+        val at = addedAt[mediaId] ?: return mediaId == playingMediaId
+        return clock() - at <= STALE_MS
+    }
+
     fun release() {
         items.clear()
         sportsById.clear()
+        addedAt.clear()
+        indexById.clear()
+        main.removeCallbacks(staleCheck)
         control.allowed = emptySet()
         control.playingIndex = Int.MIN_VALUE
         playingMediaId = null
@@ -119,6 +179,8 @@ class ZapPreloader(context: Context) {
         for (id in gone) {
             val item = items.remove(id) ?: continue
             sportsById.remove(id)
+            addedAt.remove(id)
+            indexById.remove(id)
             mgr.remove(item)
         }
         control.allowed = emptySet()
@@ -155,6 +217,14 @@ class ZapPreloader(context: Context) {
             current = current.cause
         }
         return null
+    }
+
+    companion object {
+        /**
+         * A preload counts this long. Channel surfing zaps within seconds; after this a live
+         * preload is old footage, and holding its connection only takes a slot from the account.
+         */
+        const val STALE_MS = 30_000L
     }
 
     private class NeighborControl : TargetPreloadStatusControl<Int, DefaultPreloadManager.PreloadStatus> {

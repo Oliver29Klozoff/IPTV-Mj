@@ -4269,6 +4269,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val mediaId = if (live) currentLiveMediaId() else null
         val item = providerMediaItem(url, mediaId, sports = live && sportsLoadControlOn)
         val preloaded = if (live && mediaId != null) zapPreloader.source(mediaId, sportsLoadControlOn) else null
+        // Other preloads hold connections. Free them before this stream asks the account for one;
+        // scheduleZapPreload prepares the new neighbors once this channel is playing.
+        zapPreloader.keepOnly(if (preloaded != null) mediaId else null)
         if (preloaded != null) p.setMediaSource(preloaded) else p.setMediaItem(item)
         p.prepare()
         p.playWhenReady = playWhenReady
