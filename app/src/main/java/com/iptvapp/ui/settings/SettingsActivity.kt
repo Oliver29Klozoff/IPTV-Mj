@@ -268,6 +268,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
             SettingSearchEntry("Automatic Backup Feed", 0, null, R.id.switchAutoBackupFeed),
             SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
+            SettingSearchEntry("Picture", 0, null, R.id.rowPictureMode),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
             SettingSearchEntry("Match frame rate", 0, null, R.id.rowFrameRateMatch),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
@@ -2521,6 +2522,32 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun showPictureModeDialog() {
+        lifecycleScope.launch {
+            val current = prefs.pictureMode.first()
+            val options = arrayOf("Auto", "Sports", "Movie", "Standard")
+            val values = intArrayOf(
+                com.iptvapp.util.PictureMode.AUTO,
+                com.iptvapp.util.PictureMode.SPORTS,
+                com.iptvapp.util.PictureMode.MOVIE,
+                com.iptvapp.util.PictureMode.STANDARD
+            )
+            val selIdx = values.indexOf(current).coerceAtLeast(0)
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Picture")
+                .setSingleChoiceItems(options, selIdx) { dialog, which ->
+                    val mode = values[which]
+                    lifecycleScope.launch {
+                        prefs.setPictureMode(mode)
+                        binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(mode)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
     private fun showSportsModeDialog() {
         lifecycleScope.launch {
             val current = prefs.sportsMode.first()
@@ -2886,6 +2913,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.switchAutoBackupFeed.isChecked = prefs.autoBackupFeed.first()
                 binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
+                binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(prefs.pictureMode.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
                 binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(prefs.frameRateMatch.first())
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
@@ -4116,6 +4144,7 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setAutoBackupFeed(enabled) }
         }
         binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
+        binding.rowPictureMode.setOnClickListener { showPictureModeDialog() }
         binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
         binding.rowFrameRateMatch.setOnClickListener { showFrameRateMatchDialog() }
         binding.switchSportsScore.setOnCheckedChangeListener { _, enabled ->
@@ -4506,6 +4535,7 @@ class SettingsActivity : AppCompatActivity() {
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
             put("frameRateMatch", prefs.frameRateMatch.first())
+            put("pictureMode", prefs.pictureMode.first())
             put("sportsScoreOverlay", prefs.sportsScoreOverlay.first())
             put("favoriteTeams", prefs.favoriteTeams.first())
             put("silentSelfUpdateEnabled", prefs.silentSelfUpdateEnabled.first())
@@ -4730,6 +4760,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
         if (json.has("frameRateMatch")) prefs.setFrameRateMatch(json.optInt("frameRateMatch", com.iptvapp.util.FrameRateMatch.DEFAULT))
+        if (json.has("pictureMode")) prefs.setPictureMode(json.optInt("pictureMode", 0))
         if (json.has("sportsScoreOverlay")) prefs.setSportsScoreOverlay(json.optBoolean("sportsScoreOverlay", true))
         if (json.has("favoriteTeams")) prefs.setFavoriteTeams(json.optString("favoriteTeams", ""))
         if (json.has("silentSelfUpdateEnabled")) prefs.setSilentSelfUpdateEnabled(json.optBoolean("silentSelfUpdateEnabled", false))
