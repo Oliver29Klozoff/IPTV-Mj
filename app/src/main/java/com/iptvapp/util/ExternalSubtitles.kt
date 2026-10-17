@@ -199,10 +199,9 @@ object ExternalSubtitles {
         val ext = text.substringAfterLast('.', "")
         if (ext.lowercase() in VIDEO_EXTENSIONS) text = text.substringBeforeLast('.')
         text = text.replace('.', ' ').replace('_', ' ')
+        // Only a year in parentheses is release metadata. 1917 and 2001 are titles.
         val year = YEAR_PARENS.find(text)?.groupValues?.get(1)?.toInt()
-            ?: YEAR_WORD.find(text)?.value?.toInt()
         text = YEAR_PARENS.replace(text, " ")
-        text = YEAR_WORD.replace(text, " ")
         text = SEASON_EPISODE.replace(text, " ")
         val words = text.split(Regex("\\s+")).filter { it.isNotBlank() && it.lowercase() !in QUALITY }
         return words.joinToString(" ") to year
@@ -231,7 +230,6 @@ object ExternalSubtitles {
     }
 
     private val YEAR_PARENS = Regex("""\(((?:19|20)\d{2})\)""")
-    private val YEAR_WORD = Regex("""\b(?:19|20)\d{2}\b""")
     private val SEASON_EPISODE = Regex("""(?i)\bs\d{1,2}\s*e\d{1,3}\b""")
     private val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "avi", "m4v", "ts", "mpg", "mpeg")
     private val QUALITY = setOf(

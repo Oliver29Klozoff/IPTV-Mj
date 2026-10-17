@@ -173,6 +173,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var externalSubtitleMime: String = MimeTypes.APPLICATION_SUBRIP
     private var externalSubtitleLanguage: String = "en"
     private var subtitleOfferShown: Boolean = false
+    private var subtitleGeneration: Int = 0
+    private var subtitleJob: kotlinx.coroutines.Job? = null
+    // Captured when the file picker opens, so a programme change while it is open is rejected.
+    private var subtitlePickGeneration: Int = -1
+    private var subtitlePickUrl: String? = null
     private val pickSubtitleFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importSubtitleFile(uri)
     }
@@ -2318,7 +2323,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             labels.add("    Search OpenSubtitles")
             actions.add { searchOpenSubtitles() }
             labels.add("    Open a subtitle file")
-            actions.add { pickSubtitleFile.launch(arrayOf("*/*")) }
+            actions.add {
+                subtitlePickGeneration = subtitleGeneration
+                subtitlePickUrl = streamUrl
+                pickSubtitleFile.launch(arrayOf("*/*"))
+            }
         }
 
         if (labels.isEmpty()) {
@@ -4133,6 +4142,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun loadStream(url: String) {
         // Same URL is a reload (rotation, retry). A different one is a new programme.
         if (url != streamUrl) {
+            subtitleGeneration += 1
+            subtitleJob?.cancel()
             externalSubtitle = null
             externalSubtitlePath = null
             subtitleOfferShown = false
@@ -4455,15 +4466,23 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setTitle("No subtitles in this file")
             .setMessage("Search OpenSubtitles, or open an .srt file on this device.")
             .setPositiveButton("Search") { _, _ -> searchOpenSubtitles() }
-            .setNeutralButton("Open a file") { _, _ -> pickSubtitleFile.launch(arrayOf("*/*")) }
+            .setNeutralButton("Open a file") { _, _ ->
+                subtitlePickGeneration = subtitleGeneration
+                subtitlePickUrl = streamUrl
+                pickSubtitleFile.launch(arrayOf("*/*"))
+            }
             .setNegativeButton("Not now", null)
             .show()
     }
 
     private fun searchOpenSubtitles() {
-        lifecycleScope.launch {
+        val generation = ++subtitleGeneration
+        val forUrl = streamUrl
+        subtitleJob?.cancel()
+        subtitleJob = lifecycleScope.launch {
             val apiKey = prefs.opensubtitlesApiKey.first().trim()
             if (apiKey.isEmpty()) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 AlertDialog.Builder(this@PlayerActivity)
                     .setTitle("OpenSubtitles")
                     .setMessage("Add a free API key in Settings, under Audio & subtitles. A subtitle file on this device doesn't need one.")
@@ -4484,13 +4503,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     } else null
                     client.search(apiKey, userAgent, ExternalSubtitles.queryParams(search), token)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: ExternalSubtitles.Rejected) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 Toast.makeText(this@PlayerActivity, e.message, Toast.LENGTH_LONG).show()
                 return@launch
             } catch (_: Exception) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 Toast.makeText(this@PlayerActivity, "OpenSubtitles didn't answer.", Toast.LENGTH_LONG).show()
                 return@launch
             }
+            if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
             if (hits.isEmpty()) {
                 Toast.makeText(this@PlayerActivity, "No subtitles found for this title.", Toast.LENGTH_LONG).show()
                 return@launch
@@ -4498,14 +4522,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val labels = hits.map { ExternalSubtitles.label(it) }.toTypedArray()
             AlertDialog.Builder(this@PlayerActivity)
                 .setTitle("Subtitles")
-                .setItems(labels) { _, which -> downloadOpenSubtitle(hits[which].fileId, apiKey, userAgent) }
+                .setItems(labels) { _, which ->
+                    if (generation == subtitleGeneration && forUrl == streamUrl) {
+                        downloadOpenSubtitle(hits[which].fileId, apiKey, userAgent, generation, forUrl)
+                    }
+                }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
     }
 
-    private fun downloadOpenSubtitle(fileId: Long, apiKey: String, userAgent: String) {
-        lifecycleScope.launch {
+    private fun downloadOpenSubtitle(fileId: Long, apiKey: String, userAgent: String, generation: Int, forUrl: String) {
+        subtitleJob?.cancel()
+        subtitleJob = lifecycleScope.launch {
             val prepared = try {
                 withContext(Dispatchers.IO) {
                     val client = OpenSubtitlesClient()
@@ -4517,13 +4546,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     val link = client.downloadLink(apiKey, userAgent, token, fileId)
                     ExternalSubtitles.prepare(client.fetch(link))
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: ExternalSubtitles.Rejected) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 Toast.makeText(this@PlayerActivity, e.message, Toast.LENGTH_LONG).show()
                 return@launch
             } catch (_: Exception) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 Toast.makeText(this@PlayerActivity, "OpenSubtitles didn't answer.", Toast.LENGTH_LONG).show()
                 return@launch
             }
+            if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
             val file = writeSubtitleFile(prepared)
             applyExternalSubtitle(file, prepared.extension)
             Toast.makeText(this@PlayerActivity, "Subtitles on.", Toast.LENGTH_SHORT).show()
@@ -4531,7 +4565,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun importSubtitleFile(uri: android.net.Uri) {
-        lifecycleScope.launch {
+        val generation = subtitlePickGeneration
+        val forUrl = subtitlePickUrl
+        if (generation != subtitleGeneration || forUrl != streamUrl) return
+        subtitleJob?.cancel()
+        subtitleJob = lifecycleScope.launch {
             val prepared = try {
                 withContext(Dispatchers.IO) {
                     val bytes = contentResolver.openInputStream(uri)?.use { stream ->
@@ -4548,13 +4586,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     } ?: throw ExternalSubtitles.Rejected("Couldn't read that file.")
                     ExternalSubtitles.prepare(bytes)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: ExternalSubtitles.Rejected) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 Toast.makeText(this@PlayerActivity, e.message, Toast.LENGTH_LONG).show()
                 return@launch
             } catch (_: Exception) {
+                if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
                 Toast.makeText(this@PlayerActivity, "Couldn't read that file.", Toast.LENGTH_LONG).show()
                 return@launch
             }
+            if (generation != subtitleGeneration || forUrl != streamUrl) return@launch
             val file = writeSubtitleFile(prepared)
             applyExternalSubtitle(file, prepared.extension)
             Toast.makeText(this@PlayerActivity, "Subtitles on.", Toast.LENGTH_SHORT).show()

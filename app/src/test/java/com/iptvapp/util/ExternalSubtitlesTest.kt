@@ -24,11 +24,13 @@ class ExternalSubtitlesTest {
     @Test
     fun aReleaseNameBecomesATitleAndAYear() {
         val (title, year) = ExternalSubtitles.cleanTitle("The.Matrix.1999.1080p.BluRay.x264.mkv")
-        assertEquals("The Matrix", title)
-        assertEquals(1999, year)
+        assertEquals("The Matrix 1999", title)
+        assertNull(year)
         val (film, filmYear) = ExternalSubtitles.cleanTitle("Inception (2010)")
         assertEquals("Inception", film)
         assertEquals(2010, filmYear)
+        assertEquals("2001: A Space Odyssey" to null, ExternalSubtitles.cleanTitle("2001: A Space Odyssey"))
+        assertEquals("1917" to null, ExternalSubtitles.cleanTitle("1917"))
     }
 
     @Test
