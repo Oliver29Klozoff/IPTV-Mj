@@ -14,7 +14,17 @@ import com.iptvapp.data.local.IptvDatabase
  */
 object SportsFinder {
 
-    data class Channel(val serverIndex: Int, val streamId: Int, val name: String, val isFavorite: Boolean)
+    /** [score] is the copy's feed score, or null with no history. */
+    data class Channel(
+        val serverIndex: Int,
+        val streamId: Int,
+        val name: String,
+        val isFavorite: Boolean,
+        val score: Int? = null,
+    ) {
+        /** The network: the channel's own name without " · provider", for preferred networks. */
+        val network: String get() = name.substringBeforeLast(" · ")
+    }
 
     data class Game(
         val league: String,
@@ -22,7 +32,9 @@ object SportsFinder {
         val startMs: Long,
         val stopMs: Long,
         val channel: Channel,
-        val otherChannels: Int
+        val otherChannels: Int,
+        /** Every feed carrying this game, best first; [channel] is the first. */
+        val feeds: List<Channel> = listOf(channel),
     ) {
         fun isLive(nowMs: Long) = startMs <= nowMs && stopMs > nowMs
     }
@@ -68,9 +80,12 @@ object SportsFinder {
         RegexOption.IGNORE_CASE
     )
 
-    /** Games starting in the next [aheadHours] hours, or on now. Never throws. */
-    suspend fun find(db: IptvDatabase, aheadHours: Int = 18): List<Game> = try {
-        findInternal(db, aheadHours)
+    /**
+     * Games starting in the next [aheadHours] hours, or on now. Never throws. [preferredNetworks]
+     * is league to network ("NBA" to "ESPN"): that network's feed comes first for the league.
+     */
+    suspend fun find(db: IptvDatabase, aheadHours: Int = 18, preferredNetworks: Map<String, String> = emptyMap()): List<Game> = try {
+        findInternal(db, aheadHours, preferredNetworks)
     } catch (e: Exception) {
         android.util.Log.w("SportsFinder", "failed: ${e.message}")
         emptyList()
@@ -85,7 +100,33 @@ object SportsFinder {
         return if (isGame) league else null
     }
 
-    private suspend fun findInternal(db: IptvDatabase, aheadHours: Int): List<Game> {
+    /**
+     * A game's feeds, best first: the viewer's network for the league, then the copy that has
+     * played best (feed score; none counts as FeedScore.UNKNOWN), then favorites, then the main
+     * provider. Ties keep the order found.
+     */
+    fun rankFeeds(league: String, feeds: List<Channel>, preferredNetworks: Map<String, String>): List<Channel> {
+        val preferred = preferredNetworks[league]?.let { ChannelNameMatcher.normalize(it) }?.takeIf { it.isNotEmpty() }
+        return feeds.sortedWith(
+            compareByDescending<Channel> { preferred != null && ChannelNameMatcher.normalize(it.network) == preferred }
+                .thenByDescending { it.score ?: FeedScore.UNKNOWN }
+                .thenByDescending { it.isFavorite }
+                .thenByDescending { it.serverIndex == -1 }
+        )
+    }
+
+    /** Preferred networks are saved as "league<TAB>network" lines. Bad lines are skipped. */
+    fun decodePreferred(stored: String?): Map<String, String> =
+        stored.orEmpty().lineSequence().mapNotNull { line ->
+            val parts = line.split('\t')
+            if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) parts[0].trim() to parts[1].trim() else null
+        }.toMap()
+
+    fun encodePreferred(map: Map<String, String>): String =
+        map.entries.filter { it.key.isNotBlank() && it.value.isNotBlank() }
+            .joinToString("\n") { "${it.key.trim()}\t${it.value.trim()}" }
+
+    private suspend fun findInternal(db: IptvDatabase, aheadHours: Int, preferredNetworks: Map<String, String>): List<Game> {
         val nowMs = System.currentTimeMillis()
         val untilMs = nowMs + aheadHours * 3_600_000L
         data class Airing(val league: String, val title: String, val startMs: Long, var stopMs: Long, val channels: MutableList<Channel>)
@@ -111,16 +152,26 @@ object SportsFinder {
             }
         }
         val order = LEAGUES.map { it.first }
+        val scores = feedScores(db, channelCache.values.filterNotNull(), nowMs)
         return airings.values.map { a ->
-            val best = a.channels.sortedWith(
-                compareByDescending<Channel> { it.isFavorite }.thenByDescending { it.serverIndex == -1 }
-            ).first()
-            Game(a.league, a.title, a.startMs, a.stopMs, best, a.channels.size - 1)
+            val ranked = rankFeeds(a.league, a.channels.map { it.copy(score = scores[it.serverIndex to it.streamId]) }, preferredNetworks)
+            Game(a.league, a.title, a.startMs, a.stopMs, ranked.first(), a.channels.size - 1, ranked)
         }.sortedWith(
             compareBy<Game> { order.indexOf(it.league) }
                 .thenByDescending { it.isLive(nowMs) }
                 .thenBy { it.startMs }
         )
+    }
+
+    /** Feed scores for the channels carrying games, looked up a provider at a time. */
+    private suspend fun feedScores(db: IptvDatabase, channels: List<Channel>, nowMs: Long): Map<Pair<Int, Int>, Int> {
+        val out = HashMap<Pair<Int, Int>, Int>()
+        channels.groupBy { it.serverIndex }.forEach { (server, list) ->
+            list.map { it.streamId }.distinct().chunked(500).forEach { ids ->
+                db.feedStatsDao().getForServer(server, ids).forEach { out[server to it.streamId] = FeedScore.score(it, nowMs) }
+            }
+        }
+        return out
     }
 
     private suspend fun resolveChannel(db: IptvDatabase, serverIndex: Int, streamId: Int): Channel? =

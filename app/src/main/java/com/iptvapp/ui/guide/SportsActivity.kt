@@ -24,6 +24,7 @@ import com.iptvapp.util.SportsFinder
 import com.iptvapp.util.SportsMode
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,9 +68,13 @@ class SportsActivity : AppCompatActivity() {
             // Games start and end while this is open: look again every minute while it's on screen
             // (and on coming back to it), updating only when the list actually changed.
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                while (true) {
-                    show(withContext(Dispatchers.IO) { SportsFinder.find(db) }, accent.start)
-                    kotlinx.coroutines.delay(60_000L)
+                // A new preferred network reshuffles the feeds at once, not at the next minute.
+                kotlinx.coroutines.flow.merge(
+                    prefs.sportsPreferredNetworks,
+                    kotlinx.coroutines.flow.flow { while (true) { emit(""); kotlinx.coroutines.delay(60_000L) } },
+                ).collectLatest {
+                    val preferred = SportsFinder.decodePreferred(prefs.sportsPreferredNetworks.first())
+                    show(withContext(Dispatchers.IO) { SportsFinder.find(db, preferredNetworks = preferred) }, accent.start)
                 }
             }
         }
@@ -102,7 +107,7 @@ class SportsActivity : AppCompatActivity() {
         binding.rvSports.visibility = View.VISIBLE
         val existing = binding.rvSports.adapter as? SportsAdapter
         if (existing == null) {
-            binding.rvSports.adapter = SportsAdapter(items, accent) { pick(it) }
+            binding.rvSports.adapter = SportsAdapter(items, accent, onPick = { pick(current(it)) }, onHold = { gameView(current(it)) })
             binding.rvSports.post { binding.rvSports.getChildAt(1)?.requestFocus() }
             return
         }
@@ -195,8 +200,103 @@ class SportsActivity : AppCompatActivity() {
         pick(game)
     }
 
-    private fun pick(game: SportsFinder.Game) {
-        val ch = game.channel
+    /**
+     * Game View: every feed carrying the game, best first, each with its quality and rating, to
+     * play any of them; a preferred network for the game's league; and the live games in Mosaic.
+     */
+    private fun gameView(game: SportsFinder.Game) {
+        val now = System.currentTimeMillis()
+        val feeds = game.feeds
+        val lines = feeds.map { feedLine(it) }.toMutableList()
+        val preferAt = lines.size
+        lines += "Prefer a network for ${game.league}…"
+        // Only games on now: this one first when it is live, never an upcoming one.
+        val others = latestGames.filter { it.isLive(now) && !sameGame(it, game) }
+        val grid = ((if (game.isLive(now)) listOf(game) else emptyList()) + others).take(6)
+        val mosaicAt = if (grid.size >= 2) lines.size.also { lines += "Watch ${grid.size} live games in Mosaic" } else -1
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(game.title)
+            .setItems(lines.toTypedArray()) { _, which ->
+                when (which) {
+                    in feeds.indices -> pick(game, feeds[which])
+                    preferAt -> choosePreferredNetwork(game)
+                    mosaicAt -> openInMosaic(grid)
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    /** A row's game as of the latest refresh: a refresh that only changed its other feeds or
+     * their ratings leaves the row on screen holding the older copy. */
+    private fun current(held: SportsFinder.Game): SportsFinder.Game =
+        latestGames.firstOrNull { sameGame(it, held) } ?: held
+
+    /**
+     * The same game across refreshes, which build new Game objects: same title and start, and a
+     * feed in common (two regional games with one generic title air on different channels).
+     */
+    private fun sameGame(a: SportsFinder.Game, b: SportsFinder.Game): Boolean =
+        a.title == b.title && a.startMs == b.startMs &&
+            a.feeds.any { f -> b.feeds.any { it.serverIndex == f.serverIndex && it.streamId == f.streamId } }
+
+    /** "ESPN HD · T-Rex · FHD · Excellent" */
+    private fun feedLine(feed: SportsFinder.Channel): String {
+        val parts = mutableListOf(feed.name)
+        com.iptvapp.util.ProviderDashboard.qualityOf(feed.network)?.let { parts += it }
+        parts += com.iptvapp.util.ProviderDashboard.scoreLabel(feed.score ?: com.iptvapp.util.FeedScore.UNKNOWN, feed.score != null)
+        return parts.joinToString(" · ")
+    }
+
+    private fun choosePreferredNetwork(game: SportsFinder.Game) {
+        lifecycleScope.launch {
+            val saved = SportsFinder.decodePreferred(prefs.sportsPreferredNetworks.first())
+            // Networks by their own name, once each ("ESPN" whether it comes from one provider or three).
+            val networks = game.feeds.map { it.network }.distinctBy { com.iptvapp.util.ChannelNameMatcher.normalize(it) }
+            val current = saved[game.league]
+            val labels = networks.map { if (current != null && com.iptvapp.util.ChannelNameMatcher.matches(it, current)) "$it  ✓" else it } +
+                listOf(if (current == null) "No preference  ✓" else "No preference")
+            androidx.appcompat.app.AlertDialog.Builder(this@SportsActivity)
+                .setTitle("${game.league}: which network first?")
+                .setItems(labels.toTypedArray()) { _, which ->
+                    val next = if (which < networks.size) saved + (game.league to networks[which]) else saved - game.league
+                    lifecycleScope.launch {
+                        prefs.setSportsPreferredNetworks(SportsFinder.encodePreferred(next))
+                        Toast.makeText(
+                            this@SportsActivity,
+                            if (which < networks.size) "${game.league} games open on ${networks[which]} first" else "${game.league}: no preferred network",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    /**
+     * Live games in a Mosaic grid, the chosen one first when it is live, each on its best feed. Opens
+     * as a one-off grid: the viewer's saved layouts and their last layout are left as they were.
+     */
+    private fun openInMosaic(games: List<SportsFinder.Game>) {
+        val size = when {
+            games.size <= 2 -> 2
+            games.size <= 4 -> 4
+            else -> 6
+        }
+        val tiles = games.map { g ->
+            com.iptvapp.ui.mosaic.MosaicLayout.Tile(g.channel.serverIndex, g.channel.streamId, g.channel.network)
+        } + List(size - games.size) { null }
+        startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java).apply {
+            putExtra(
+                com.iptvapp.ui.mosaic.MosaicActivity.EXTRA_LAYOUT,
+                com.iptvapp.ui.mosaic.MosaicLayouts.encode(listOf(com.iptvapp.ui.mosaic.MosaicLayout("Live games", size, tiles)))
+            )
+        })
+    }
+
+    private fun pick(game: SportsFinder.Game, feed: SportsFinder.Channel = game.channel) {
+        val ch = feed
         setResult(RESULT_OK, Intent().apply {
             if (ch.serverIndex == -1) {
                 putExtra("stream_id", ch.streamId)
@@ -213,7 +313,9 @@ class SportsActivity : AppCompatActivity() {
     private class SportsAdapter(
         private var items: List<Any>,
         private val accent: Int,
-        private val onPick: (SportsFinder.Game) -> Unit
+        private val onPick: (SportsFinder.Game) -> Unit,
+        /** Hold OK (or long-press): Game View, every feed for the game. */
+        private val onHold: (SportsFinder.Game) -> Unit,
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
         private class Holder(view: View) : RecyclerView.ViewHolder(view)
@@ -322,8 +424,9 @@ class SportsActivity : AppCompatActivity() {
             v.findViewWithTag<TextView>("title").text = game.title
             // Live rows sit under "On now", so they name their league; upcoming ones are under it.
             v.findViewWithTag<TextView>("where").text = (if (game.isLive(now)) "${game.league} · " else "") +
-                game.channel.name + if (game.otherChannels > 0) "  (+${game.otherChannels} more)" else ""
+                game.channel.name + if (game.otherChannels > 0) "  (+${game.otherChannels} more, hold for all)" else ""
             v.setOnClickListener { onPick(game) }
+            v.setOnLongClickListener { onHold(game); true }
         }
     }
 }

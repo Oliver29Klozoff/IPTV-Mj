@@ -30,6 +30,11 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class MosaicActivity : AppCompatActivity() {
 
+    companion object {
+        /** A MosaicLayouts JSON list; its first layout opens as a one-off grid. */
+        const val EXTRA_LAYOUT = "mosaic_layout"
+    }
+
     private lateinit var binding: ActivityMosaicBinding
     private val viewModel: HomeViewModel by viewModels()
     @javax.inject.Inject lateinit var okHttpClient: okhttp3.OkHttpClient
@@ -75,8 +80,14 @@ class MosaicActivity : AppCompatActivity() {
         binding.btnMuteAll.setOnClickListener { toggleMuteAll() }
         binding.btnLayouts.setOnClickListener { showLayoutsMenu() }
 
-        // Opens on the layout used last, if it still exists. Otherwise the first favorites.
+        // Opens on a grid handed in (the Sports screen's live games), else the layout used last,
+        // if it still exists, else the first favorites. A handed-in grid is not saved anywhere.
+        val handedIn = MosaicLayouts.decode(intent.getStringExtra(EXTRA_LAYOUT)).firstOrNull()
         lifecycleScope.launch {
+            if (handedIn != null) {
+                applyLayout(handedIn)
+                return@launch
+            }
             val lastName = prefs.mosaicLastLayout.first()
             val last = MosaicLayouts.decode(prefs.mosaicLayouts.first())
                 .firstOrNull { it.name.equals(lastName, ignoreCase = true) }
