@@ -34,7 +34,9 @@ object GameAlerts {
     private const val STATE_PREFS = "game_alerts_state"
     private const val KEY_SENT = "sent"
     private const val WORK_PREFIX = "game_alert_"
-    const val AHEAD_HOURS = 24
+    // Everything the guide already holds, about a week: with guide refresh off (the default) a
+    // shorter window would leave later games unscheduled until something else ran a scan.
+    const val AHEAD_HOURS = 7 * 24
     /** A game already under way is still worth an alert this soon after its start. */
     const val LATE_MS = 15 * 60_000L
 
@@ -101,8 +103,10 @@ object GameAlerts {
         val teams = SportsMode.parseTeams(prefs.favoriteTeams.first())
         if (teams.none { SportsMode.titleHasTeam(game.title, it) }) return
         val now = System.currentTimeMillis()
-        if (now - game.startMs > LATE_MS || game.stopMs <= now) return
-        post(app, game)
+        // Android can run a background job late on an idle device. While the game is on, it is
+        // still worth telling; once it has ended, Watch would tune to something else.
+        if (game.stopMs <= now) return
+        post(app, game, now)
         markSent(app, key, now)
     }
 
@@ -116,7 +120,7 @@ object GameAlerts {
         return true
     }
 
-    private fun post(context: Context, game: SportsFinder.Game) {
+    private fun post(context: Context, game: SportsFinder.Game, nowMs: Long) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
         val feed = game.channel
@@ -132,7 +136,7 @@ object GameAlerts {
         val watchPi = PendingIntent.getActivity(
             context, requestCode, watch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val text = "Starting now on ${feed.name}"
+        val text = (if (nowMs - game.startMs > LATE_MS) "On now on " else "Starting now on ") + feed.name
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(game.title)

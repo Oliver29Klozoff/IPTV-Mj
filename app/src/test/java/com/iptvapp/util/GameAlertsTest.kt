@@ -29,10 +29,10 @@ class GameAlertsTest {
     }
 
     @Test
-    fun `nothing twice, nothing past tomorrow, nothing without teams`() {
+    fun `nothing twice, nothing past the guide week, nothing without teams`() {
         val g = game("NBA: Celtics vs Lakers", now + 60 * min)
         assertTrue(GameAlerts.plan(listOf(g), listOf("Lakers"), setOf(GameAlerts.keyOf(g)), now).isEmpty())
-        assertTrue(GameAlerts.plan(listOf(game("NBA: Celtics vs Lakers", now + 30 * 60 * min)), listOf("Lakers"), emptySet(), now).isEmpty())
+        assertTrue(GameAlerts.plan(listOf(game("NBA: Celtics vs Lakers", now + 8 * 24 * 60 * min)), listOf("Lakers"), emptySet(), now).isEmpty())
         assertTrue(GameAlerts.plan(listOf(g), emptyList(), emptySet(), now).isEmpty())
     }
 
