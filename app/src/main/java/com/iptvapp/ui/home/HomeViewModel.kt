@@ -2222,6 +2222,7 @@ class HomeViewModel @Inject constructor(
                 // Fresh listings from this refresh: check them against the show alerts too (the
                 // background EpgRefreshWorker does the same after its own refreshes).
                 launch(kotlinx.coroutines.Dispatchers.IO) { com.iptvapp.util.ShowAlerts.scan(appContext, db, prefs) }
+                launch(kotlinx.coroutines.Dispatchers.IO) { com.iptvapp.util.GameAlerts.schedule(appContext, db, prefs) }
                 // Reload from DB after network fetch and update rows
                 val fresh = if (ids.isEmpty()) emptyList() else repository.getEpgForStreams(ids).first()
                 val mergedFresh = if (serverPairs.isEmpty()) emptyList() else repository.getEpgForServerStreams(serverPairs).first()

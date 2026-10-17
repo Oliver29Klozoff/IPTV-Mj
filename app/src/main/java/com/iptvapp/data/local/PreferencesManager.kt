@@ -305,6 +305,8 @@ class PreferencesManager @Inject constructor(
         val COMBINE_DUPLICATES = booleanPreferencesKey("combine_duplicates")
         // League to network for the Sports screen ("NBA" -> "ESPN"); see SportsFinder.decodePreferred.
         val SPORTS_PREFERRED_NETWORKS = stringPreferencesKey("sports_preferred_networks")
+        // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
+        val GAME_ALERTS = booleanPreferencesKey("game_alerts")
         // Saved Mosaic layouts as JSON (see MosaicLayouts), and the name of the one last opened.
         val MOSAIC_LAYOUTS = stringPreferencesKey("mosaic_layouts")
         val MOSAIC_LAST_LAYOUT = stringPreferencesKey("mosaic_last_layout")
@@ -438,6 +440,10 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.SPORTS_PREFERRED_NETWORKS] ?: "" }
     suspend fun setSportsPreferredNetworks(v: String) = context.dataStore.edit { it[Keys.SPORTS_PREFERRED_NETWORKS] = v }
+    val gameAlerts: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.GAME_ALERTS] ?: true }
+    suspend fun setGameAlerts(v: Boolean) = context.dataStore.edit { it[Keys.GAME_ALERTS] = v }
     val mosaicLayouts: Flow<String> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.MOSAIC_LAYOUTS] ?: "" }

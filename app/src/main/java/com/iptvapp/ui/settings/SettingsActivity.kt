@@ -273,6 +273,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Match frame rate", 0, null, R.id.rowFrameRateMatch),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
+            SettingSearchEntry("Game alerts", 0, null, R.id.switchGameAlerts),
             SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
             SettingSearchEntry("Channel Change Speed", 0, null, R.id.rowChannelZapSpeed),
             SettingSearchEntry("Pre-warm Streams on Focus", 0, null, R.id.switchPreWarmOnFocus),
@@ -2921,6 +2922,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(prefs.frameRateMatch.first())
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
+                binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
                 binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
                 binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
@@ -4159,6 +4161,10 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setSportsScoreOverlay(enabled) }
         }
         binding.rowFavoriteTeams.setOnClickListener { showFavoriteTeamsDialog() }
+        binding.switchGameAlerts.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setGameAlerts(enabled) }
+        }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
         binding.rowChannelZapSpeed.setOnClickListener { showChannelZapSpeedDialog() }
         binding.rowHiddenChannels.setOnClickListener { showHiddenChannelsDialog() }
@@ -4540,6 +4546,7 @@ class SettingsActivity : AppCompatActivity() {
             put("autoBackupFeed", prefs.autoBackupFeed.first())
             put("combineDuplicates", prefs.combineDuplicates.first())
             put("sportsPreferredNetworks", prefs.sportsPreferredNetworks.first())
+            put("gameAlerts", prefs.gameAlerts.first())
             put("mosaicLayouts", prefs.mosaicLayouts.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
@@ -4767,6 +4774,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("autoBackupFeed")) prefs.setAutoBackupFeed(json.optBoolean("autoBackupFeed", true))
         if (json.has("combineDuplicates")) prefs.setCombineDuplicates(json.optBoolean("combineDuplicates", true))
         if (json.has("sportsPreferredNetworks")) prefs.setSportsPreferredNetworks(json.optString("sportsPreferredNetworks", ""))
+        if (json.has("gameAlerts")) prefs.setGameAlerts(json.optBoolean("gameAlerts", true))
         if (json.has("mosaicLayouts")) prefs.setMosaicLayouts(json.optString("mosaicLayouts", ""))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))
