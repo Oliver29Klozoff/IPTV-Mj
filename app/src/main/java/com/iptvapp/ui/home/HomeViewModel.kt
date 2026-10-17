@@ -1967,6 +1967,8 @@ class HomeViewModel @Inject constructor(
             }
             publishEpgDisplay(channels)
             if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("EpgLoad", "batch done: $fetched fetched")
+            // New listings may hold a favorite team's game: schedule its alert (guide refresh may be off).
+            if (fetched > 0) launch(kotlinx.coroutines.Dispatchers.IO) { com.iptvapp.util.GameAlerts.schedule(appContext, db, prefs) }
         }
     }
 
