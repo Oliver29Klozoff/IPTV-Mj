@@ -571,14 +571,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         castIndex = castChannels.indexOfFirst { it.url == streamUrl }.takeIf { it >= 0 } ?: 0
         if (castSessionCode.isNotEmpty()) attachCastSessionListener()
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
-        savedInstanceState?.getString("ext_sub_path")?.let { path ->
-            val file = File(path)
-            if (file.isFile) {
-                externalSubtitlePath = path
-                externalSubtitleMime = savedInstanceState.getString("ext_sub_mime") ?: MimeTypes.APPLICATION_SUBRIP
-                externalSubtitleLanguage = savedInstanceState.getString("ext_sub_lang") ?: "en"
-                externalSubtitle = subtitleConfiguration(file)
-                subtitleOfferShown = true
+        savedInstanceState?.let { state ->
+            subtitleGeneration = state.getInt("ext_sub_generation", 0)
+            subtitlePickGeneration = state.getInt("ext_sub_pick_gen", -1)
+            subtitlePickUrl = state.getString("ext_sub_pick_url")
+            state.getString("ext_sub_path")?.let { path ->
+                val file = File(path)
+                if (file.isFile) {
+                    externalSubtitlePath = path
+                    externalSubtitleMime = state.getString("ext_sub_mime") ?: MimeTypes.APPLICATION_SUBRIP
+                    externalSubtitleLanguage = state.getString("ext_sub_lang") ?: "en"
+                    externalSubtitle = subtitleConfiguration(file)
+                    subtitleOfferShown = true
+                }
             }
         }
         isPartyContentSubstituted = intent.getBooleanExtra("watch_party_content_substituted", false)
@@ -2317,9 +2322,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         }
 
-        if (externalSubtitleChoices() && textGroups.isEmpty()) {
-            labels.add("── Subtitles ──")
-            actions.add {}
+        if (externalSubtitleChoices() && (textGroups.isEmpty() || externalSubtitle != null)) {
+            if (textGroups.isEmpty()) {
+                labels.add("── Subtitles ──")
+                actions.add {}
+            }
             labels.add("    Search OpenSubtitles")
             actions.add { searchOpenSubtitles() }
             labels.add("    Open a subtitle file")
@@ -6249,6 +6256,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        outState.putInt("ext_sub_generation", subtitleGeneration)
+        outState.putInt("ext_sub_pick_gen", subtitlePickGeneration)
+        subtitlePickUrl?.let { outState.putString("ext_sub_pick_url", it) }
         externalSubtitlePath?.let {
             outState.putString("ext_sub_path", it)
             outState.putString("ext_sub_mime", externalSubtitleMime)
