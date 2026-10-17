@@ -1098,6 +1098,33 @@
                                 android:text="Off" />
                         </LinearLayout>
                         <LinearLayout
+                            android:id="@+id/rowFrameRateMatch"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Match frame rate" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Switches the TV to the video's own rate, like 24 Hz for films, for smoother motion. Some TVs go black for a moment while they switch." />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvFrameRateMatchValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Movies &amp; series" />
+                        </LinearLayout>
+                        <LinearLayout
                             style="@style/Rack.Row.Toggle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content">

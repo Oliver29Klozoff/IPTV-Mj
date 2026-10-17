@@ -2854,7 +2854,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                         val f = exoPlayer.videoFormat ?: return
                         Log.i("MKTV_QUALITY", "dataSaver=$dataSaver playing ${f.width}x${f.height} @ ${f.bitrate / 1000} kbps")
-                        applyFrameRateMatch(sportsActiveNow())
+                        applyFrameRateMatch()
                     }
                 })
                 applyResizeStep()
@@ -2924,7 +2924,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
                             setPictureInPictureParams(buildPipParams())
                         }
-                        applyFrameRateMatch(sportsActiveNow())
+                        applyFrameRateMatch()
                     }
 
                     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
@@ -3703,7 +3703,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onResume() {
         super.onResume()
-        if (sportsActiveNow()) applyFrameRateMatch(true)
+        applyFrameRateMatch()
         castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
         // If the session started while we were paused (cast picker caused onPause),
         // onSessionStarted already fired with no listener — catch it here
@@ -3768,14 +3768,14 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun syncSportsPlayback() {
         if (isFinishing || isVod || audioOnly || castSession != null || isCatchup || startedOverFromLive) {
-            if (!sportsActiveNow()) clearDisplayMode()
+            if (!frameMatchWanted()) clearDisplayMode()
             applySportsChrome()
             refreshSmartCatchUp()
             return
         }
         val want = sportsActiveNow()
         applySportsChrome()
-        applyFrameRateMatch(want)
+        applyFrameRateMatch()
         val saved = prefs.timeshiftMinutesNow()
         if (!want && saved == 0 && (timeshiftSession != null || timeshiftStarting || sportsLoadControlOn)) {
             sportsRebuildAfterReady = false
@@ -3940,8 +3940,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return modes.map { SportsMode.RefreshMode(it.modeId, it.refreshRate, it.physicalWidth, it.physicalHeight) }
     }
 
-    private fun applyFrameRateMatch(sportsOn: Boolean) {
-        if (!sportsOn) {
+    /** Settings > Match frame rate, with Sports Mode, for what is playing now. See FrameRateMatch. */
+    private fun frameMatchWanted(): Boolean = com.iptvapp.util.FrameRateMatch.wanted(
+        setting = prefs.frameRateMatchNow(),
+        sportsOn = sportsActiveNow(),
+        onDemand = isVod || isRecordingPlayback,
+        casting = castSession != null,
+        audioOnly = audioOnly,
+    )
+
+    private fun applyFrameRateMatch() {
+        if (!frameMatchWanted()) {
             setPreferredDisplayMode(0)
             return
         }
