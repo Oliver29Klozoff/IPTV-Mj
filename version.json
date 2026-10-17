@@ -2,6 +2,6 @@
   "versionCode": 588,
   "versionName": "7.50",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.50/MKTV.apk",
-  "apkSha256": "4dca05bb020271a53fcb158da3fbfd5f67573d4383e12906b31b4dd1a6d20811",
+  "apkSha256": "a9fba38d3957f7238186d8a10224e5a2c93a651d31896a74a4cf83126a10367e",
   "changelog": "Movies and episodes with no subtitles can use OpenSubtitles or a subtitle file on this device."
 }

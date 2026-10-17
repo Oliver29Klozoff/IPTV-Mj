@@ -178,6 +178,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // Captured when the file picker opens, so a programme change while it is open is rejected.
     private var subtitlePickGeneration: Int = -1
     private var subtitlePickUrl: String? = null
+    private var subtitlePickerPending: Boolean = false
+    private var resumePausedAfterPicker: Boolean = false
     private val pickSubtitleFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importSubtitleFile(uri)
     }
@@ -572,6 +574,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (castSessionCode.isNotEmpty()) attachCastSessionListener()
         partyLaunchCode = intent.getStringExtra("watch_party_code") ?: ""
         savedInstanceState?.let { state ->
+            if (state.containsKey("resume_position_ms")) {
+                resumePositionMs = state.getLong("resume_position_ms")
+                resumePausedAfterPicker = state.getBoolean("subtitle_picker_paused", false)
+                subtitlePickerPending = true
+            }
             subtitleGeneration = state.getInt("ext_sub_generation", 0)
             subtitlePickGeneration = state.getInt("ext_sub_pick_gen", -1)
             subtitlePickUrl = state.getString("ext_sub_pick_url")
@@ -2330,11 +2337,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             labels.add("    Search OpenSubtitles")
             actions.add { searchOpenSubtitles() }
             labels.add("    Open a subtitle file")
-            actions.add {
-                subtitlePickGeneration = subtitleGeneration
-                subtitlePickUrl = streamUrl
-                pickSubtitleFile.launch(arrayOf("*/*"))
-            }
+            actions.add { openSubtitleFile() }
         }
 
         if (labels.isEmpty()) {
@@ -3452,7 +3455,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 retryJob = lifecycleScope.launch {
                     delay(1000L)
                     player?.let {
-                        it.setMediaItem(MediaItem.fromUri(streamUrl), it.currentPosition.takeIf { pos -> pos > 0L } ?: 0L)
+                        it.setMediaItem(itemWithExternalSubtitle(streamUrl), it.currentPosition.takeIf { pos -> pos > 0L } ?: 0L)
                         it.prepare()
                         it.playWhenReady = true
                     }
@@ -4473,13 +4476,22 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setTitle("No subtitles in this file")
             .setMessage("Search OpenSubtitles, or open an .srt file on this device.")
             .setPositiveButton("Search") { _, _ -> searchOpenSubtitles() }
-            .setNeutralButton("Open a file") { _, _ ->
-                subtitlePickGeneration = subtitleGeneration
-                subtitlePickUrl = streamUrl
-                pickSubtitleFile.launch(arrayOf("*/*"))
-            }
+            .setNeutralButton("Open a file") { _, _ -> openSubtitleFile() }
             .setNegativeButton("Not now", null)
             .show()
+    }
+
+    private fun openSubtitleFile() {
+        val p = player
+        if (p != null && isVod && !isCatchup) {
+            val pos = p.currentPosition
+            if (pos > 0L) resumePositionMs = pos
+            resumePausedAfterPicker = !p.playWhenReady
+            subtitlePickerPending = true
+        }
+        subtitlePickGeneration = subtitleGeneration
+        subtitlePickUrl = streamUrl
+        pickSubtitleFile.launch(arrayOf("*/*"))
     }
 
     private fun searchOpenSubtitles() {
@@ -6273,6 +6285,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         outState.putInt("ext_sub_generation", subtitleGeneration)
         outState.putInt("ext_sub_pick_gen", subtitlePickGeneration)
         subtitlePickUrl?.let { outState.putString("ext_sub_pick_url", it) }
+        if (subtitlePickerPending) {
+            outState.putLong("resume_position_ms", resumePositionMs)
+            outState.putBoolean("subtitle_picker_paused", resumePausedAfterPicker)
+        }
         externalSubtitlePath?.let {
             outState.putString("ext_sub_path", it)
             outState.putString("ext_sub_mime", externalSubtitleMime)
@@ -6314,14 +6330,20 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // at load time lets ExoPlayer request the correct range from the very first
                 // request instead of re-requesting a new range after already starting at 0.
                 val startPos = resumePositionMs
+                val stayPaused = partyStartPaused || resumePausedAfterPicker
                 resumePositionMs = 0L
+                resumePausedAfterPicker = false
+                subtitlePickerPending = false
                 updatePictureProfile()
                 player?.setMediaItem(itemWithExternalSubtitle(streamUrl), startPos)
                 player?.prepare()
-                player?.playWhenReady = !partyStartPaused
+                player?.playWhenReady = !stayPaused
             } else {
                 loadStream(streamUrl)
                 if (partyStartPaused) requestTimeshiftPlayback(false)
+                else if (resumePausedAfterPicker) player?.playWhenReady = false
+                resumePausedAfterPicker = false
+                subtitlePickerPending = false
             }
             if (partyStartPaused) updatePlayPauseButton()
         }
