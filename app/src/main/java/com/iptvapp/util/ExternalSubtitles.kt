@@ -175,6 +175,12 @@ object ExternalSubtitles {
     }
 
     private fun decode(bytes: ByteArray): String {
+        if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) {
+            return String(bytes, Charset.forName("UTF-16LE"))
+        }
+        if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
+            return String(bytes, Charset.forName("UTF-16BE"))
+        }
         val slice = if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
             bytes.copyOfRange(3, bytes.size)
         } else bytes

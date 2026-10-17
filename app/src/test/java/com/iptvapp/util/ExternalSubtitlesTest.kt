@@ -134,6 +134,10 @@ class ExternalSubtitlesTest {
         assertEquals("That subtitle is too large.", dirTooBig?.message)
         val latin = "1\n00:00:01,000 --> 00:00:02,000\nCaf\u00e9\n".toByteArray(Charsets.ISO_8859_1)
         assertTrue(ExternalSubtitles.prepare(latin).text.contains("Café"))
+        val le = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + srt.toByteArray(Charsets.UTF_16LE)
+        val be = byteArrayOf(0xFE.toByte(), 0xFF.toByte()) + srt.toByteArray(Charsets.UTF_16BE)
+        assertTrue(ExternalSubtitles.prepare(le).text.contains("Hello"))
+        assertEquals("srt", ExternalSubtitles.prepare(be).extension)
     }
 
     @Test
