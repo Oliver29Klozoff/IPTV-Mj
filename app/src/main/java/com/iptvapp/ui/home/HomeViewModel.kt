@@ -455,7 +455,12 @@ class HomeViewModel @Inject constructor(
     val combinedLiveChannels: StateFlow<List<LiveChannelRow>> = _combinedLiveChannels
 
     /** "+N" counts and the exact list they were computed for. */
-    private class Counted<T>(val list: List<T>, val counts: Map<String, Int>)
+    /**
+     * "+N" counts, the list they were computed for, and the job loading that category. A search,
+     * favorites or another category cancels the job, and the counts stop applying, even when the
+     * new list happens to hold the same rows.
+     */
+    private class Counted<T>(val list: List<T>, val counts: Map<String, Int>, val owner: Job? = null)
     private val combinedCounts = MutableStateFlow<Counted<*>?>(null)
     private val primaryCounts = MutableStateFlow<Counted<*>?>(null)
     private val mergedCounts = MutableStateFlow<Counted<*>?>(null)
@@ -475,7 +480,11 @@ class HomeViewModel @Inject constructor(
 
     fun duplicateCountsFor(list: List<*>): Map<String, Int> =
         listOf(combinedCounts.value, primaryCounts.value, mergedCounts.value)
-            .firstOrNull { it != null && it.list.isNotEmpty() && it.list == list }?.counts.orEmpty()
+            .firstOrNull { it != null && it.owner?.isActive == true && it.list.isNotEmpty() && it.list == list }
+            ?.counts.orEmpty()
+
+    /** A category job ending (search, favorites, another category) tells adapters to re-read. */
+    private fun Job.retiresDuplicateCounts(): Job = also { it.invokeOnCompletion { _duplicateCountsChanged.value++ } }
 
     private fun copyId(serverIndex: Int, streamId: Int) = if (serverIndex == -1) "primary:$streamId" else "$serverIndex:$streamId"
 
@@ -520,6 +529,7 @@ class HomeViewModel @Inject constructor(
         // each individual channel needs to resolve/carry separately.
         val categoryName = row.category?.categoryName ?: row.mergedCategoryName
         combinedLiveChannelsJob = viewModelScope.launch {
+            val owner = coroutineContext[Job]
             val flow = if (row.category != null) {
                 repository.getChannelsByCategory(row.category.categoryId)
                     .map { list -> list.map { LiveChannelRow(channel = it, categoryName = categoryName) } }
@@ -532,12 +542,13 @@ class HomeViewModel @Inject constructor(
                 // Collapse, then sort: the copy kept may sort elsewhere than the group's first copy.
                 val collapsed = collapseDuplicates(rows, on, { it.serverIndex to it.streamId }, { it.name })
                 val shown = applySortToLiveRows(collapsed.list)
-                combinedCounts.value = Counted(shown, collapsed.counts)
+                combinedCounts.value = Counted(shown, collapsed.counts, owner)
                 _duplicateCountsChanged.value++
                 _combinedLiveChannels.value = shown
                 if (row.category != null) _channels.value = applySortToChannels(shown.mapNotNull { it.channel })
             }
         }
+        combinedLiveChannelsJob?.retiresDuplicateCounts()
     }
 
     // Search for the combined Live/Categories tabs — these two tabs render from
@@ -640,13 +651,15 @@ class HomeViewModel @Inject constructor(
         hasMergedCategorySelected = true
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
+            val owner = coroutineContext[Job]
             repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
                 val result = collapseDuplicates(list, on, { m -> m.serverIndex to m.streamId }, { m -> m.name })
-                mergedCounts.value = result
+                mergedCounts.value = Counted(result.list, result.counts, owner)
                 _duplicateCountsChanged.value++
                 _mergedChannels.value = result.list
             }
         }
+        mergedChannelsJob?.retiresDuplicateCounts()
     }
 
     // Searches across every configured server at once, ignoring whatever server/category is
@@ -1704,14 +1717,16 @@ class HomeViewModel @Inject constructor(
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
+            val owner = coroutineContext[Job]
             repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
                 val collapsed = collapseDuplicates(list, on, { c -> -1 to c.streamId }, { c -> c.name })
                 val shown = applySortToChannels(collapsed.list)
-                primaryCounts.value = Counted(shown, collapsed.counts)
+                primaryCounts.value = Counted(shown, collapsed.counts, owner)
                 _duplicateCountsChanged.value++
                 _channels.value = shown
             }
         }
+        channelJob?.retiresDuplicateCounts()
     }
 
     fun selectFavCategory(categoryId: String) {
