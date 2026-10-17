@@ -4942,18 +4942,33 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (duration <= 0) return
         // Episodes use episode.id.hashCode() as streamId, which isn't a real vod_streams row —
         // route episode progress into episode_watched instead, keyed by seriesId/season/episode.
-        if (episodeSeriesId != -1 && traktSeason >= 0 && traktEpisode >= 0) {
-            lifecycleScope.launch {
-                repository.saveEpisodeProgress(episodeSeriesId, traktSeason, traktEpisode, watched, duration)
-            }
-        } else if (serverIndex != -1 && mergedStreamId != -1) {
+        val seriesId = episodeSeriesId
+        val season = traktSeason
+        val episode = traktEpisode
+        val server = serverIndex
+        val merged = mergedStreamId
+        val vodId = streamId
+        val save: suspend () -> Unit = if (seriesId != -1 && season >= 0 && episode >= 0) {
+            { repository.saveEpisodeProgress(seriesId, season, episode, watched, duration) }
+        } else if (server != -1 && merged != -1) {
             // Merged-provider VOD plays with streamId = -1 (no primary vod_streams row) —
             // resolve progress by (serverIndex, mergedStreamId) instead, same composite-key
             // convention as every other merged-provider table.
-            lifecycleScope.launch { repository.saveMergedVodProgress(serverIndex, mergedStreamId, watched, duration) }
+            { repository.saveMergedVodProgress(server, merged, watched, duration) }
         } else {
-            if (streamId < 0) return
-            lifecycleScope.launch { repository.saveVodProgress(streamId, watched, duration) }
+            if (vodId < 0) return
+            { repository.saveVodProgress(vodId, watched, duration) }
+        }
+        val app = applicationContext
+        // Called from onStop. GlobalScope so the save outlives a closing player, and the TV home
+        // screen's Watch Next row follows it straight away: Home on the remote goes to the
+        // launcher without MKTV's own home screen ever coming back to publish it.
+        kotlinx.coroutines.GlobalScope.launch {
+            try {
+                save()
+                com.iptvapp.tv.WatchNextPublisher.refresh(app, db, prefs)
+            } catch (_: Exception) {
+            }
         }
     }
 

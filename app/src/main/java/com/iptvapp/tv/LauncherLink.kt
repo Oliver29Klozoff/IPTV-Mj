@@ -34,13 +34,48 @@ object LauncherLink {
 
     private val CURRENT = Regex("^mktv://play/v2/(-?\\d{1,10})/([0-9a-f]{32})$")
     private val LEGACY = Regex("^mktv://play/(-?\\d{1,10})$")
+    // Android TV Watch Next cards: a movie, or one episode of a series, to resume.
+    private val MOVIE = Regex("^mktv://play/v2/m/(-?\\d{1,10})/([0-9a-f]{32})$")
+    private val EPISODE = Regex("^mktv://play/v2/e/(-?\\d{1,10})/(\\d{1,4})/(\\d{1,5})/([0-9a-f]{32})$")
     private val TOKEN = Regex("^[0-9a-f]{32}$")
 
     sealed class Parsed {
         data class Current(val streamId: Int, val token: String) : Parsed()
         data class Legacy(val streamId: Int) : Parsed()
+        /** A movie on the main provider ([vodId] is its stream id), from Watch Next. */
+        data class Movie(val vodId: Int, val token: String) : Parsed()
+        /** One episode of a main-provider series, from Watch Next. */
+        data class Episode(val seriesId: Int, val season: Int, val episode: Int, val token: String) : Parsed()
         object Invalid : Parsed()
     }
+
+    /**
+     * Watch Next links. Like a channel card, the token binds the title to the provider account
+     * it was published for, and the link carries no server, login or stream URL.
+     */
+    fun buildMovie(vodId: Int, token: String): String {
+        require(TOKEN.matches(token)) { "malformed token" }
+        return "$SCHEME://$HOST/$VERSION/m/$vodId/$token"
+    }
+
+    fun buildEpisode(seriesId: Int, season: Int, episode: Int, token: String): String {
+        require(TOKEN.matches(token)) { "malformed token" }
+        require(season in 0..9999 && episode in 0..99999) { "episode out of range" }
+        return "$SCHEME://$HOST/$VERSION/e/$seriesId/$season/$episode/$token"
+    }
+
+    fun movieIdentity(serverUrl: String, username: String, vodId: Int): String =
+        "movie\n${normalizeServer(serverUrl)}\n$username\n$vodId"
+
+    fun episodeIdentity(serverUrl: String, username: String, seriesId: Int, season: Int, episode: Int): String =
+        "episode\n${normalizeServer(serverUrl)}\n$username\n$seriesId\n$season\n$episode"
+
+    /** True when [token] was made with this install's key for [identity]. */
+    fun verifyIdentity(key: ByteArray, identity: String, token: String): Boolean =
+        MessageDigest.isEqual(
+            token(key, identity).toByteArray(Charsets.US_ASCII),
+            token.toByteArray(Charsets.US_ASCII)
+        )
 
     // Any Int: M3U imports can produce negative ids (their id hash overflows), and those channels
     // can be favorites too.
@@ -57,6 +92,16 @@ object LauncherLink {
         CURRENT.matchEntire(data)?.let { m ->
             val id = m.groupValues[1].toIntOrNull() ?: return Parsed.Invalid
             return Parsed.Current(id, m.groupValues[2])
+        }
+        MOVIE.matchEntire(data)?.let { m ->
+            val id = m.groupValues[1].toIntOrNull() ?: return Parsed.Invalid
+            return Parsed.Movie(id, m.groupValues[2])
+        }
+        EPISODE.matchEntire(data)?.let { m ->
+            val id = m.groupValues[1].toIntOrNull() ?: return Parsed.Invalid
+            val season = m.groupValues[2].toIntOrNull() ?: return Parsed.Invalid
+            val episode = m.groupValues[3].toIntOrNull() ?: return Parsed.Invalid
+            return Parsed.Episode(id, season, episode, m.groupValues[4])
         }
         LEGACY.matchEntire(data)?.let { m ->
             val id = m.groupValues[1].toIntOrNull() ?: return Parsed.Invalid
