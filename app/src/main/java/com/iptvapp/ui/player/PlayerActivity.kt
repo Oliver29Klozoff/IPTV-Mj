@@ -2417,6 +2417,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.playerView.player = null
         player?.release()
         player = null
+        // The listen service opens the stream itself; prepared neighbors would hold connections.
+        releasePlayerPreload()
         // buildPlayer replaces the tracker on the way back, so count what it holds now.
         bandwidthTracker?.let { t ->
             t.stop()
@@ -4278,6 +4280,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val preloaded = if (live && mediaId != null) zapPreloader.source(mediaId, sportsLoadControlOn) else null
         // Other preloads hold connections. Free them before this stream asks the account for one;
         // scheduleZapPreload prepares the new neighbors once this channel is playing.
+        // A neighbor lookup still running belongs to the channel before this one.
+        zapPreloadJob?.cancel()
+        zapPreloadJob = null
         zapPreloader.keepOnly(if (preloaded != null) mediaId else null)
         if (preloaded != null) p.setMediaSource(preloaded) else p.setMediaItem(item)
         p.prepare()
@@ -4432,6 +4437,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Give the panel time to count the stream that just started, then ask it fresh. A cached or
             // early count can miss this stream, and a provider that evicts instead of refusing would
             // knock another viewer off the account.
+            val startedFor = currentLiveMediaId()
             delay(ZAP_PRELOAD_SETTLE_MS)
             val targets = if (serverIndex == -1) {
                 channels.map { ZapTarget(-1, it.streamId) }
@@ -4477,8 +4483,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     sportsLoadControlOn
                 )
             }
-            if (!isActive) return@launch
-            val sourceFactory = playbackDataSourceFactory ?: return@launch
+            if (!isActive || currentLiveMediaId() != startedFor) return@launch
+            playbackDataSourceFactory ?: return@launch
             zapPreloader.replace(serverIndex, currentLiveMediaId(), currentZapIndex(), neighbors)
         }
     }
