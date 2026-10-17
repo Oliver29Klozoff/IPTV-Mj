@@ -55,7 +55,9 @@ class DolbyVisionRenderer(
         requiresSecureDecoder: Boolean,
     ): List<MediaCodecInfo> {
         val base = baseLayerMime(format) ?: return super.getDecoderInfos(mediaCodecSelector, format, requiresSecureDecoder)
-        val decoders = mediaCodecSelector.getDecoderInfos(base, requiresSecureDecoder, false)
+        // Tunneled Playback needs a decoder that can tunnel, as the stock renderer asks for.
+        val tunneling = try { configuration.tunneling } catch (_: Exception) { false }
+        val decoders = mediaCodecSelector.getDecoderInfos(base, requiresSecureDecoder, tunneling)
         if (decoders.isEmpty()) return super.getDecoderInfos(mediaCodecSelector, format, requiresSecureDecoder)
         return MediaCodecUtil.getDecoderInfosSortedByFormatSupport(appContext, decoders, format)
     }
