@@ -44,6 +44,10 @@ class DuplicateChannelsTest {
         assertEquals(true, ChannelNameMatcher.matches("新闻1", "新闻1 HD"))
         assertEquals(true, ChannelNameMatcher.matches("Télé Québec", "TELE QUEBEC"))
         assertEquals(true, ChannelNameMatcher.matches("US| ESPN FHD", "ESPN"))
+        // A plus is part of the name: ESPN+ is its own service, "+1" is the hour-later channel.
+        assertEquals(false, ChannelNameMatcher.matches("ESPN+", "ESPN"))
+        assertEquals(false, ChannelNameMatcher.matches("Film4 +1", "Film4 1"))
+        assertEquals(true, ChannelNameMatcher.matches("Film4 +1 HD", "FILM4+1"))
         assertEquals(2, collapse(listOf(Ch(1, "新闻1"), Ch(2, "体育1"))).size)
     }
 

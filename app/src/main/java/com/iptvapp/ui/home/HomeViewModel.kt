@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -455,38 +455,49 @@ class HomeViewModel @Inject constructor(
     private val _combinedLiveChannels = MutableStateFlow<List<LiveChannelRow>>(emptyList())
     val combinedLiveChannels: StateFlow<List<LiveChannelRow>> = _combinedLiveChannels
 
-    private val _duplicateCopies = MutableStateFlow<Map<String, Int>>(emptyMap())
+    /** "+N" counts and the exact list they were computed for. */
+    private class Counted<T>(val list: List<T>, val counts: Map<String, Int>)
+    private val combinedCounts = MutableStateFlow<Counted<*>?>(null)
+    private val primaryCounts = MutableStateFlow<Counted<*>?>(null)
+    private val mergedCounts = MutableStateFlow<Counted<*>?>(null)
+
     /**
      * How many more copies a collapsed category row stands for, by the row id convention
-     * LiveChannelRow uses ("primary:12", "3:45"). Adapters show it as "+N".
+     * LiveChannelRow uses ("primary:12", "3:45"). Adapters show it as "+N". Counts only apply
+     * while their own list is the one showing: a search or favorites list that later lands in
+     * the same flow shows every copy, so it gets no badges.
      */
-    val duplicateCopies: StateFlow<Map<String, Int>> = _duplicateCopies
+    val duplicateCopies: StateFlow<Map<String, Int>> = combine(
+        combine(_combinedLiveChannels, combinedCounts, ::countsIfShowing),
+        combine(_channels, primaryCounts, ::countsIfShowing),
+        combine(_mergedChannels, mergedCounts, ::countsIfShowing),
+    ) { a, b, c -> a + b + c }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, emptyMap())
+
+    private fun countsIfShowing(list: List<*>, counted: Counted<*>?): Map<String, Int> =
+        if (counted != null && counted.list == list) counted.counts else emptyMap()
 
     private fun copyId(serverIndex: Int, streamId: Int) = if (serverIndex == -1) "primary:$streamId" else "$serverIndex:$streamId"
 
     /**
      * One row per channel for a category list (Settings > Combine duplicate channels): copies
      * with the same name collapse into the one that has played best. See DuplicateChannels.
+     * Returns the list to show and its "+N" counts.
      */
     private suspend fun <T> collapseDuplicates(
         items: List<T>,
         enabled: Boolean,
         keyOf: (T) -> Pair<Int, Int>,
         nameOf: (T) -> String,
-    ): List<T> {
-        val ids = items.map { keyOf(it).let { (s, id) -> copyId(s, id) } }.toSet()
-        if (!enabled || items.size < 2) {
-            _duplicateCopies.update { it - ids }
-            return items
-        }
+    ): Counted<T> {
+        if (!enabled || items.size < 2) return Counted(items, emptyMap())
         val scores = try { repository.feedQuality(items.map(keyOf)) } catch (_: Exception) { emptyMap() }
         val collapsed = withContext(Dispatchers.Default) {
             com.iptvapp.util.DuplicateChannels.collapse(items, nameOf) { scores[keyOf(it)]?.score }
         }
         val extra = collapsed.filter { it.extraCopies > 0 }
             .associate { c -> keyOf(c.item).let { (s, id) -> copyId(s, id) } to c.extraCopies }
-        _duplicateCopies.update { (it - ids) + extra }
-        return collapsed.map { it.item }
+        return Counted(collapsed.map { it.item }, extra)
     }
     private var combinedLiveChannelsJob: Job? = null
 
@@ -518,7 +529,9 @@ class HomeViewModel @Inject constructor(
             }
             // The setting is part of the list: switching it reshapes the category already open.
             flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }.collectLatest { (rows, on) ->
-                val shown = collapseDuplicates(applySortToLiveRows(rows), on, { it.serverIndex to it.streamId }, { it.name })
+                val result = collapseDuplicates(applySortToLiveRows(rows), on, { it.serverIndex to it.streamId }, { it.name })
+                val shown = result.list
+                combinedCounts.value = result
                 _combinedLiveChannels.value = shown
                 if (row.category != null) _channels.value = applySortToChannels(shown.mapNotNull { it.channel })
             }
@@ -626,7 +639,9 @@ class HomeViewModel @Inject constructor(
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
             repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
-                _mergedChannels.value = collapseDuplicates(list, on, { m -> m.serverIndex to m.streamId }, { m -> m.name })
+                val result = collapseDuplicates(list, on, { m -> m.serverIndex to m.streamId }, { m -> m.name })
+                mergedCounts.value = result
+                _mergedChannels.value = result.list
             }
         }
     }
@@ -1687,7 +1702,9 @@ class HomeViewModel @Inject constructor(
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
             repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
-                _channels.value = collapseDuplicates(applySortToChannels(list), on, { c -> -1 to c.streamId }, { c -> c.name })
+                val result = collapseDuplicates(applySortToChannels(list), on, { c -> -1 to c.streamId }, { c -> c.name })
+                primaryCounts.value = result
+                _channels.value = result.list
             }
         }
     }

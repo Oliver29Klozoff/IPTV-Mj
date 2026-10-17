@@ -31,6 +31,9 @@ object ChannelNameMatcher {
         n = LEADING_PREFIX.replace(n, "")
         n = QUALITY_TAG.replace(n, " ")
         n = n.lowercase()
+        // "+" means something: ESPN+ is not ESPN, and "Film4 +1" is the hour-later channel, not
+        // Film4 1. Spell it out before punctuation goes.
+        n = n.replace("+", " plus ")
         // "Télé" and "TELE" are one channel: drop the accents, keep the letters.
         n = COMBINING_MARKS.replace(java.text.Normalizer.normalize(n, java.text.Normalizer.Form.NFD), "")
         n = NON_ALNUM.replace(n, "")
