@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.50 - 2026-10-17
+- **New**: Subtitles for a movie or episode that has none. MKTV offers to search
+  OpenSubtitles or open a subtitle file on this device. Add a free OpenSubtitles key
+  in Settings, under Audio & subtitles. The key stays on this device.
+
 ## v7.49 - 2026-10-17
 - **New**: Catch-up on every provider. Replays, Start Over and "catch up from the start" now
   work on your other providers' channels too, wherever that provider keeps an archive, in the

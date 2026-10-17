@@ -1,7 +1,7 @@
 {
-  "versionCode": 587,
-  "versionName": "7.49",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.49/MKTV.apk",
-  "apkSha256": "0e584257ea221f3efa5e618f5b8f51090885087d77512413fd93dfc3300b91bc",
-  "changelog": "Catch-up, Start Over and replays now work on every provider with an archive."
+  "versionCode": 588,
+  "versionName": "7.50",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.50/MKTV.apk",
+  "apkSha256": "1bdf9124b226f7670d427c79210079213c78e74f4f27ed5e3906aee3c6daad8c",
+  "changelog": "Movies and episodes with no subtitles can use OpenSubtitles or a subtitle file on this device."
 }
