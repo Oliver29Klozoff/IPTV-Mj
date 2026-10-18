@@ -1042,7 +1042,7 @@ class PreferencesManager @Inject constructor(
         }
     }
 
-    suspend fun saveExtraServersWithNick(servers: List<List<String>>) {
+    suspend fun saveExtraServersWithNick(servers: List<List<String>>, removedIndex: Int? = null) {
         val arr = org.json.JSONArray()
         servers.forEach { s ->
             arr.put(org.json.JSONObject().apply {
@@ -1059,10 +1059,14 @@ class PreferencesManager @Inject constructor(
                 emptyList()
             }
             val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
-            val moved = com.iptvapp.util.ChannelAudioDelay.movedIndices(
-                old.map { extraAccountIdentity(it) },
-                servers.map { extraAccountIdentity(it) },
-            )
+            val moved = if (removedIndex != null && removedIndex >= 0) {
+                com.iptvapp.util.ChannelAudioDelay.shiftedAfterRemoval(removedIndex, old.size)
+            } else {
+                com.iptvapp.util.ChannelAudioDelay.movedIndices(
+                    old.map { extraAccountIdentity(it) },
+                    servers.map { extraAccountIdentity(it) },
+                )
+            }
             val reindexed = com.iptvapp.util.ChannelAudioDelay.reindex(stored, moved)
             if (reindexed != stored) prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = reindexed
             prefs[Keys.EXTRA_SERVERS] = arr.toString()

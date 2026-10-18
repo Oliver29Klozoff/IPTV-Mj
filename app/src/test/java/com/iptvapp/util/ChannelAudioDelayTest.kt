@@ -68,5 +68,10 @@ class ChannelAudioDelayTest {
         assertEquals(-100, ChannelAudioDelay.delayMs(primaryReplaced, "0:9"))
         assertEquals(mapOf(0 to 0), ChannelAudioDelay.movedIndices(listOf(""), listOf("")))
         assertEquals(emptyMap<Int, Int>(), ChannelAudioDelay.movedIndices(listOf(""), listOf("a")))
+        assertEquals(emptyMap<Int, Int>(), ChannelAudioDelay.movedIndices(listOf("", ""), listOf("")))
+        val pasted = ChannelAudioDelay.reindex(stored, ChannelAudioDelay.shiftedAfterRemoval(0, 3))
+        assertEquals(50, ChannelAudioDelay.delayMs(pasted, "0:9"))
+        assertEquals(150, ChannelAudioDelay.delayMs(pasted, "1:4"))
+        assertEquals(0, ChannelAudioDelay.delayMs(pasted, "2:4"))
     }
 }

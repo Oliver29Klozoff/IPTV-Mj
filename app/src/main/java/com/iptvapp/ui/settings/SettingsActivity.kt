@@ -3501,7 +3501,7 @@ class SettingsActivity : AppCompatActivity() {
                     setOnClickListener {
                         extraServers.removeAt(i)
                         lifecycleScope.launch {
-                            prefs.saveExtraServersWithNick(extraServers)
+                            prefs.saveExtraServersWithNick(extraServers, removedIndex = i)
                             // NonCancellable — lifecycleScope cancels on exactly the things a
                             // user does in the middle of tapping a button and moving on
                             // (navigating away, backgrounding, rotating). Letting this land

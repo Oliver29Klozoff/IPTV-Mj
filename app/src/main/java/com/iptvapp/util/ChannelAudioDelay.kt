@@ -68,13 +68,13 @@ object ChannelAudioDelay {
     fun movedIndices(oldIds: List<String>, newIds: List<String>): Map<Int, Int> {
         val used = mutableSetOf<Int>()
         val out = LinkedHashMap<Int, Int>()
+        // A pasted playlist has no address. Keep its delay only when every such slot is still
+        // sitting in the same place. A shorter list must use shiftedAfterRemoval instead.
+        val blanksStay = oldIds.size == newIds.size &&
+            oldIds.indices.all { oldIds[it].isEmpty() == newIds[it].isEmpty() }
         for ((oldIndex, id) in oldIds.withIndex()) {
             if (id.isEmpty()) {
-                // A slot with no account can only be the same slot. Two of them look identical.
-                if (oldIndex < newIds.size && newIds[oldIndex].isEmpty() && oldIndex !in used) {
-                    used += oldIndex
-                    out[oldIndex] = oldIndex
-                }
+                if (blanksStay && newIds[oldIndex].isEmpty()) out[oldIndex] = oldIndex
                 continue
             }
             val newIndex = newIds.withIndex().firstOrNull { (index, next) ->
@@ -82,6 +82,19 @@ object ChannelAudioDelay {
             }?.index ?: continue
             used += newIndex
             out[oldIndex] = newIndex
+        }
+        return out
+    }
+
+    /** Extra providers after one index is removed: later ones move down, that one is gone. */
+    fun shiftedAfterRemoval(removedIndex: Int, oldCount: Int): Map<Int, Int> {
+        val out = LinkedHashMap<Int, Int>()
+        if (removedIndex < 0) return out
+        for (index in 0 until oldCount) {
+            when {
+                index < removedIndex -> out[index] = index
+                index > removedIndex -> out[index] = index - 1
+            }
         }
         return out
     }
