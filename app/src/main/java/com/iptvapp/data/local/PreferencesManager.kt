@@ -117,6 +117,16 @@ class PreferencesManager @Inject constructor(
     fun tunneledPlaybackEnabledNow() = PrefsSnapshot.read(context, readTunneledPlaybackEnabled)
     fun dv7FallbackEnabledNow() = PrefsSnapshot.read(context, readDv7FallbackEnabled)
     fun audioPassthroughFallbackEnabledNow() = PrefsSnapshot.read(context, readAudioPassthroughFallbackEnabled)
+    fun channelAudioDelayNow(key: String): Int = com.iptvapp.util.ChannelAudioDelay.delayMs(
+        PrefsSnapshot.read(context) { it[Keys.CHANNEL_AUDIO_DELAY_MS] ?: "" },
+        key,
+    )
+    suspend fun setChannelAudioDelay(key: String, ms: Int) {
+        context.dataStore.edit { prefs ->
+            val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
+            prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = com.iptvapp.util.ChannelAudioDelay.write(stored, key, ms)
+        }
+    }
     fun dataSaverEnabledNow() = PrefsSnapshot.read(context, readDataSaverEnabled)
     fun pipEnabledNow() = PrefsSnapshot.read(context, readPipEnabled)
     fun silentSelfUpdateEnabledNow() = PrefsSnapshot.read(context, readSilentSelfUpdateEnabled)
@@ -297,6 +307,9 @@ class PreferencesManager @Inject constructor(
         val TUNNELED_PLAYBACK_ENABLED = booleanPreferencesKey("tunneled_playback_enabled")
         val DV7_FALLBACK_ENABLED = booleanPreferencesKey("dv7_fallback_enabled")
         val AUDIO_PASSTHROUGH_FALLBACK_ENABLED = booleanPreferencesKey("audio_passthrough_fallback_enabled")
+        // Per-channel sound timing, "serverIndex:streamId=ms". Left out of settings backup:
+        // the delay belongs to this TV, not to a shared backup.
+        val CHANNEL_AUDIO_DELAY_MS = stringPreferencesKey("channel_audio_delay_ms")
         val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
         val PREFER_RELIABLE_COPY = booleanPreferencesKey("prefer_reliable_copy")
         val SHOW_ALERT_KEYWORDS = stringPreferencesKey("show_alert_keywords")

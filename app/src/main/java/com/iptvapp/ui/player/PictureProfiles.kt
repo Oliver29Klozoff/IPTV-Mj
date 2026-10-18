@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import com.iptvapp.util.ChannelAudioDelayState
 
 /**
  * Applies a system picture profile to the video decoder on Android 16 and newer.
@@ -31,6 +32,7 @@ class PictureProfiles {
         selector: MediaCodecSelector,
         passthroughAudio: Boolean,
         dolbyVisionBaseLayer: Boolean = false,
+        audioDelay: ChannelAudioDelayState,
     ): DefaultRenderersFactory {
         val holder = this
         val factory = object : DefaultRenderersFactory(context) {
@@ -52,15 +54,24 @@ class PictureProfiles {
                     context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback,
                     eventHandler, eventListener, allowedVideoJoiningTimeMs, out
                 )
-                if (!dolbyVisionBaseLayer) return
                 val at = out.indexOfFirst { it is androidx.media3.exoplayer.video.MediaCodecVideoRenderer }
                 if (at < 0) return
-                // Built through the same Builder defaults as DefaultRenderersFactory's own (checked
-                // against Media3 1.11.1), so only the decoder choice for Dolby Vision differs.
-                out[at] = DolbyVisionRenderer(
-                    context, getCodecAdapterFactory(), mediaCodecSelector, allowedVideoJoiningTimeMs,
-                    enableDecoderFallback, eventHandler, eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY
-                )
+                // Same Builder defaults as DefaultRenderersFactory's own renderer (checked against
+                // Media3 1.11.1). Dolby Vision only changes the decoder; every channel gets the
+                // sound-timing offset.
+                out[at] = if (dolbyVisionBaseLayer) {
+                    DolbyVisionRenderer(
+                        context, getCodecAdapterFactory(), mediaCodecSelector, allowedVideoJoiningTimeMs,
+                        enableDecoderFallback, eventHandler, eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
+                        audioDelay,
+                    )
+                } else {
+                    AudioDelayVideoRenderer(
+                        context, getCodecAdapterFactory(), mediaCodecSelector, allowedVideoJoiningTimeMs,
+                        enableDecoderFallback, eventHandler, eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
+                        audioDelay,
+                    )
+                }
             }
 
             override fun buildAudioSink(

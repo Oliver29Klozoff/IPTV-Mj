@@ -9,8 +9,8 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
-import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
+import com.iptvapp.util.ChannelAudioDelayState
 import com.iptvapp.util.DolbyVisionFallback
 
 /**
@@ -32,7 +32,8 @@ class DolbyVisionRenderer(
     eventHandler: Handler?,
     eventListener: VideoRendererEventListener?,
     maxDroppedFramesToNotify: Int,
-) : MediaCodecVideoRenderer(
+    delay: ChannelAudioDelayState,
+) : AudioDelayVideoRenderer(
     context,
     codecAdapterFactory,
     selector,
@@ -41,6 +42,7 @@ class DolbyVisionRenderer(
     eventHandler,
     eventListener,
     maxDroppedFramesToNotify,
+    delay,
 ) {
     private val appContext = context.applicationContext
 

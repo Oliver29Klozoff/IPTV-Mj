@@ -19,6 +19,8 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
+import com.iptvapp.util.ChannelAudioDelay
+import com.iptvapp.util.ChannelAudioDelayState
 import com.iptvapp.util.ExternalSubtitles
 import com.iptvapp.util.OpenSubtitlesClient
 import com.iptvapp.util.PictureMode
@@ -167,6 +169,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // stream_title). This flag exists only to pick a different ExoPlayer data source in
     // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
     private var isRecordingPlayback: Boolean = false
+    // This channel's sound offset. The video renderer reads it on each frame.
+    private val channelAudioDelay = ChannelAudioDelayState()
+    private var appliedAudioDelayKey: String? = null
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
     private var externalSubtitlePath: String? = null
@@ -2274,12 +2279,51 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.btnSleep.text = "Sleep ${(totalMs + 59_999L) / 60_000}m"
     }
 
+    private fun channelAudioKey(): String? {
+        if (!ChannelAudioDelay.offersFor(isVod, isCatchup, isRecordingPlayback)) return null
+        return ChannelAudioDelay.key(serverIndex, liveCopyId())
+    }
+
+    /** Loads the saved offset when the channel changes. A nudge on this channel is left as it is. */
+    private fun applyChannelAudioDelay() {
+        val key = channelAudioKey()
+        if (key == appliedAudioDelayKey) return
+        appliedAudioDelayKey = key
+        channelAudioDelay.offsetMs = if (key == null) 0 else prefs.channelAudioDelayNow(key)
+    }
+
+    private fun showAudioDelayDialog() {
+        val key = channelAudioKey() ?: return
+        AlertDialog.Builder(this)
+            .setTitle(ChannelAudioDelay.label(channelAudioDelay.offsetMs))
+            .setMessage("This channel remembers it. Earlier, if you hear the words after the picture.")
+            .setItems(arrayOf("Earlier", "Later", "Reset")) { _, which ->
+                val next = when (which) {
+                    0 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1)
+                    1 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, 1)
+                    else -> 0
+                }
+                channelAudioDelay.offsetMs = next
+                lifecycleScope.launch { prefs.setChannelAudioDelay(key, next) }
+                showAudioDelayDialog()
+            }
+            .setNegativeButton("Done", null)
+            .show()
+    }
+
     private fun showTrackSelectorDialog() {
         val p = player ?: return
         val tracks = p.currentTracks
 
         val labels = mutableListOf<String>()
         val actions = mutableListOf<() -> Unit>()
+
+        if (channelAudioKey() != null) {
+            labels.add("── Sound timing ──")
+            actions.add {}
+            labels.add("    ${ChannelAudioDelay.label(channelAudioDelay.offsetMs)}")
+            actions.add { showAudioDelayDialog() }
+        }
 
         val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
         val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
@@ -2778,6 +2822,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // ─── Player ─────────────────────────────────────────────────────────────
 
     private fun buildPlayer(): ExoPlayer {
+        applyChannelAudioDelay()
         outcomeRecordedForThisPlayback = false
         // Global (applies to every server, not per-provider) — trades a slower initial
         // load/seek for fewer mid-playback stalls, since some IPTV providers are slow or
@@ -2895,6 +2940,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             codecSelector,
             passthroughAudio = audioPassthroughFallbackEnabled,
             dolbyVisionBaseLayer = dolbyVisionBaseLayer,
+            audioDelay = channelAudioDelay,
         )
 
         val subtitlesEnabled = prefs.subtitlesEnabledNow()
@@ -3526,6 +3572,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     // streamId is the primary provider's id only; an extra provider's is mergedStreamId.
                     streamId = if (matchServerIndex == -1) matchStreamId else -1
                     mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
+                    applyChannelAudioDelay()
                     // This path plays the new copy without loadStream. Score it as the new copy.
                     reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic = true))
                     rebuildZapListForCurrentCopy()
@@ -4150,6 +4197,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun loadStream(url: String) {
+        applyChannelAudioDelay()
         // Same URL is a reload (rotation, retry). A different one is a new programme.
         if (url != streamUrl) {
             subtitleGeneration += 1
