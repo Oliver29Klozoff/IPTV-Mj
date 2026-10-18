@@ -33,6 +33,8 @@ class MosaicActivity : AppCompatActivity() {
     companion object {
         /** A MosaicLayouts JSON list; its first layout opens as a one-off grid. */
         const val EXTRA_LAYOUT = "mosaic_layout"
+        /** Channel picker search: at most this many from the main provider, and as many from the others. */
+        private const val SEARCH_LIMIT = 100
     }
 
     private lateinit var binding: ActivityMosaicBinding
@@ -511,7 +513,7 @@ class MosaicActivity : AppCompatActivity() {
                 setPadding(32, 16, 32, 0)
             }
             val etSearch = android.widget.EditText(this@MosaicActivity).apply {
-                hint = "Search channels…"
+                hint = "Search all providers…"
                 setSingleLine()
             }
             layout.addView(etSearch)
@@ -533,13 +535,41 @@ class MosaicActivity : AppCompatActivity() {
                 is MosaicChannel.Primary -> ch.name
                 is MosaicChannel.Merged -> "${ch.name} (${ch.entity.serverNickname})"
             }
-            fun rebuildList() {
-                val q = etSearch.text.toString().trim()
-                filtered = if (q.isBlank()) channels else channels.filter { it.name.contains(q, ignoreCase = true) }
+            fun show(list: List<MosaicChannel>) {
+                filtered = list
                 listView.adapter = android.widget.ArrayAdapter(
-                    this@MosaicActivity, android.R.layout.simple_list_item_1, filtered.map { labelFor(it) }
+                    this@MosaicActivity, android.R.layout.simple_list_item_1, list.map { labelFor(it) }
                 )
             }
+            // Empty: your favorites. Typed: every channel on every provider that's on (the
+            // catalogs' own name search), favorites that match first, then the main provider,
+            // then the others. Each key press replaces the search still running.
+            var searchJob: kotlinx.coroutines.Job? = null
+            fun rebuildList() {
+                val q = etSearch.text.toString().trim()
+                searchJob?.cancel()
+                if (q.length < 2) {
+                    show(if (q.isBlank()) channels else channels.filter { it.name.contains(q, ignoreCase = true) })
+                    return
+                }
+                searchJob = lifecycleScope.launch {
+                    kotlinx.coroutines.delay(250)
+                    val found = try {
+                        val enabled = prefs.enabledExtraServerIndices.first()
+                        val primary = repository.searchChannels(q).first().filter { !it.isHidden }.take(SEARCH_LIMIT)
+                        val others = repository.searchMergedChannels(q).first()
+                            .filter { !it.isHidden && it.serverIndex in enabled }.take(SEARCH_LIMIT)
+                        primary.map { MosaicChannel.Primary(it) } + others.map { MosaicChannel.Merged(it) }
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        emptyList()
+                    }
+                    val favorites = channels.filter { it.name.contains(q, ignoreCase = true) }
+                    val favoriteKeys = favorites.map { keyOf(it) }.toSet()
+                    show(favorites + found.filter { keyOf(it) !in favoriteKeys })
+                }
+            }
+            dialog.setOnDismissListener { searchJob?.cancel() }
             listView.setOnItemClickListener { _, _, pos, _ ->
                 filtered.getOrNull(pos)?.let { loadChannel(cellIndex, it) }
                 dialog.dismiss()
