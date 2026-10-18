@@ -2,6 +2,6 @@
   "versionCode": 589,
   "versionName": "7.51",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.51/MKTV.apk",
-  "apkSha256": "385b3b31311263b8150dbd3921ce4a7e616061b04594afd7a27161f2b857c725",
+  "apkSha256": "e0e594882c5b7009fa7e5e64dc17d875af31f5645144cff3c6fb930b0b4ec32d",
   "changelog": "A live channel can keep its own sound timing, earlier or later than the picture."
 }

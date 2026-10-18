@@ -2294,9 +2294,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun showAudioDelayDialog() {
         val key = channelAudioKey() ?: return
+        // A message hides the item list, so the hint stays in the title.
         AlertDialog.Builder(this)
-            .setTitle(ChannelAudioDelay.label(channelAudioDelay.offsetMs))
-            .setMessage("This channel remembers it. Earlier, if you hear the words after the picture.")
+            .setTitle(
+                "${ChannelAudioDelay.label(channelAudioDelay.offsetMs)}\n" +
+                    "This channel remembers it. Earlier, if you hear the words after the picture."
+            )
             .setItems(arrayOf("Earlier", "Later", "Reset")) { _, which ->
                 val next = when (which) {
                     0 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1)
