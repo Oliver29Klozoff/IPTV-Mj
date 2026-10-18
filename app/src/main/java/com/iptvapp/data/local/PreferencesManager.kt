@@ -127,13 +127,6 @@ class PreferencesManager @Inject constructor(
             prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = com.iptvapp.util.ChannelAudioDelay.write(stored, key, ms)
         }
     }
-    suspend fun setChannelAudioDelaysAfterProviderRemoved(removedIndex: Int) {
-        context.dataStore.edit { prefs ->
-            val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
-            prefs[Keys.CHANNEL_AUDIO_DELAY_MS] =
-                com.iptvapp.util.ChannelAudioDelay.afterProviderRemoved(stored, removedIndex)
-        }
-    }
     fun dataSaverEnabledNow() = PrefsSnapshot.read(context, readDataSaverEnabled)
     fun pipEnabledNow() = PrefsSnapshot.read(context, readPipEnabled)
     fun silentSelfUpdateEnabledNow() = PrefsSnapshot.read(context, readSilentSelfUpdateEnabled)
@@ -692,6 +685,13 @@ class PreferencesManager @Inject constructor(
 
     suspend fun saveCredentials(serverUrl: String, username: String, password: String) {
         context.dataStore.edit { prefs ->
+            val oldAccount = accountIdentity(prefs[Keys.SERVER_URL] ?: "", prefs[Keys.USERNAME] ?: "")
+            val newAccount = accountIdentity(serverUrl, username)
+            if (oldAccount != newAccount) {
+                val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
+                val dropped = com.iptvapp.util.ChannelAudioDelay.dropServer(stored, -1)
+                if (dropped != stored) prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = dropped
+            }
             prefs[Keys.SERVER_URL] = serverUrl
             prefs[Keys.USERNAME] = username
             prefs[Keys.PASSWORD] = password
@@ -1052,7 +1052,51 @@ class PreferencesManager @Inject constructor(
                 put("type", s.getOrElse(6) { "xtream" }); put("m3uUrl", s.getOrElse(7) { "" })
             })
         }
-        context.dataStore.edit { it[Keys.EXTRA_SERVERS] = arr.toString() }
+        context.dataStore.edit { prefs ->
+            val old = try {
+                parseExtraServers(prefs[Keys.EXTRA_SERVERS] ?: "[]")
+            } catch (_: org.json.JSONException) {
+                emptyList()
+            }
+            val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
+            val moved = com.iptvapp.util.ChannelAudioDelay.movedIndices(
+                old.map { extraAccountIdentity(it) },
+                servers.map { extraAccountIdentity(it) },
+            )
+            val reindexed = com.iptvapp.util.ChannelAudioDelay.reindex(stored, moved)
+            if (reindexed != stored) prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = reindexed
+            prefs[Keys.EXTRA_SERVERS] = arr.toString()
+        }
+    }
+
+    /** Same account across a password or nickname edit. Empty when the slot is not an account. */
+    private fun accountIdentity(url: String, username: String): String {
+        val host = url.trim()
+        val user = username.trim()
+        return if (host.isEmpty() && user.isEmpty()) "" else "$host\n$user"
+    }
+
+    private fun extraAccountIdentity(server: List<String>): String {
+        val type = server.getOrElse(6) { "xtream" }
+        if (type == "m3u") {
+            val playlist = server.getOrElse(7) { "" }.trim()
+            return if (playlist.isEmpty()) "" else "m3u\n$playlist"
+        }
+        return accountIdentity(server.getOrElse(0) { "" }, server.getOrElse(1) { "" })
+    }
+
+    private fun parseExtraServers(json: String): List<List<String>> {
+        val arr = org.json.JSONArray(json)
+        return (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            listOf(
+                obj.optString("url", ""), obj.optString("user", ""), obj.optString("pass", ""),
+                obj.optString("nick", ""), obj.optString("epg", ""),
+                obj.optString("enabled", "true"),
+                obj.optString("type", "xtream"),
+                obj.optString("m3uUrl", ""),
+            )
+        }
     }
 
         val serverNickname: Flow<String> = context.dataStore.data

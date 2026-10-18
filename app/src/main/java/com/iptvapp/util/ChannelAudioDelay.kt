@@ -61,18 +61,52 @@ object ChannelAudioDelay {
     }
 
     /**
-     * An extra provider left the list. Drop its channels and move every later provider
-     * down one index. The primary provider is -1 and does not move.
+     * Where each previous extra provider landed in the new list. Matched by [oldIds] and
+     * [newIds], which are stable for one account and empty when the slot has no account.
+     * A provider that is gone, or that now occupies a slot with a different account, is absent.
      */
-    fun afterProviderRemoved(stored: String, removedIndex: Int): String {
-        if (removedIndex < 0) return stored
+    fun movedIndices(oldIds: List<String>, newIds: List<String>): Map<Int, Int> {
+        val used = mutableSetOf<Int>()
+        val out = LinkedHashMap<Int, Int>()
+        for ((oldIndex, id) in oldIds.withIndex()) {
+            if (id.isEmpty()) {
+                // A slot with no account can only be the same slot. Two of them look identical.
+                if (oldIndex < newIds.size && newIds[oldIndex].isEmpty() && oldIndex !in used) {
+                    used += oldIndex
+                    out[oldIndex] = oldIndex
+                }
+                continue
+            }
+            val newIndex = newIds.withIndex().firstOrNull { (index, next) ->
+                index !in used && next.isNotEmpty() && next == id
+            }?.index ?: continue
+            used += newIndex
+            out[oldIndex] = newIndex
+        }
+        return out
+    }
+
+    /**
+     * Move extra-provider delays onto [oldExtraToNew]. The primary (-1) stays.
+     * An extra provider with no entry is dropped, so a different account does not inherit it.
+     */
+    fun reindex(stored: String, oldExtraToNew: Map<Int, Int>): String {
         val next = LinkedHashMap<String, Int>()
         for ((rawKey, ms) in decode(stored)) {
             val server = parseServer(rawKey)
-            if (server == removedIndex) continue
-            val shifted = if (server > removedIndex) server - 1 else server
-            val shiftedKey = key(shifted, parseStream(rawKey)) ?: continue
-            next[shiftedKey] = ms
+            val target = if (server == -1) -1 else oldExtraToNew[server] ?: continue
+            val moved = key(target, parseStream(rawKey)) ?: continue
+            next[moved] = ms
+        }
+        return encode(next)
+    }
+
+    /** Forget one provider. Used when the primary account itself is replaced. */
+    fun dropServer(stored: String, serverIndex: Int): String {
+        val next = LinkedHashMap<String, Int>()
+        for ((rawKey, ms) in decode(stored)) {
+            if (parseServer(rawKey) == serverIndex) continue
+            next[rawKey] = ms
         }
         return encode(next)
     }

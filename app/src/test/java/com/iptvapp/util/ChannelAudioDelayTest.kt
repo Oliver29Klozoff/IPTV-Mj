@@ -52,14 +52,21 @@ class ChannelAudioDelayTest {
     }
 
     @Test
-    fun removingAProviderDropsItsDelaysAndMovesLaterOnesDown() {
+    fun aDelayFollowsItsProviderAndADifferentAccountDoesNotInheritIt() {
         val stored = listOf("-1:15" to 200, "0:9" to -100, "1:9" to 50, "2:4" to 150)
             .fold("") { acc, (key, ms) -> ChannelAudioDelay.write(acc, key, ms) }
-        val afterFirst = ChannelAudioDelay.afterProviderRemoved(stored, 0)
-        assertEquals(200, ChannelAudioDelay.delayMs(afterFirst, "-1:15"))
-        assertEquals(50, ChannelAudioDelay.delayMs(afterFirst, "0:9"))
-        assertEquals(150, ChannelAudioDelay.delayMs(afterFirst, "1:4"))
-        assertEquals(0, ChannelAudioDelay.delayMs(afterFirst, "2:4"))
-        assertEquals(stored, ChannelAudioDelay.afterProviderRemoved(stored, -1))
+        val removed = ChannelAudioDelay.reindex(stored, ChannelAudioDelay.movedIndices(listOf("a", "b", "c"), listOf("b", "c")))
+        assertEquals(200, ChannelAudioDelay.delayMs(removed, "-1:15"))
+        assertEquals(50, ChannelAudioDelay.delayMs(removed, "0:9"))
+        assertEquals(150, ChannelAudioDelay.delayMs(removed, "1:4"))
+        assertEquals(0, ChannelAudioDelay.delayMs(removed, "2:4"))
+        val replaced = ChannelAudioDelay.reindex(stored, ChannelAudioDelay.movedIndices(listOf("a", "b"), listOf("a", "z")))
+        assertEquals(-100, ChannelAudioDelay.delayMs(replaced, "0:9"))
+        assertEquals(0, ChannelAudioDelay.delayMs(replaced, "1:9"))
+        val primaryReplaced = ChannelAudioDelay.dropServer(stored, -1)
+        assertEquals(0, ChannelAudioDelay.delayMs(primaryReplaced, "-1:15"))
+        assertEquals(-100, ChannelAudioDelay.delayMs(primaryReplaced, "0:9"))
+        assertEquals(mapOf(0 to 0), ChannelAudioDelay.movedIndices(listOf(""), listOf("")))
+        assertEquals(emptyMap<Int, Int>(), ChannelAudioDelay.movedIndices(listOf(""), listOf("a")))
     }
 }
