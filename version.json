@@ -1,7 +1,7 @@
 {
-  "versionCode": 588,
-  "versionName": "7.50",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.50/MKTV.apk",
-  "apkSha256": "647f33b50aa64f793c610530806d86292e8a602c2dad67e47cbd22144e718488",
-  "changelog": "Movies and episodes with no subtitles can use OpenSubtitles or a subtitle file on this device."
+  "versionCode": 589,
+  "versionName": "7.51",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.51/MKTV.apk",
+  "apkSha256": "385b3b31311263b8150dbd3921ce4a7e616061b04594afd7a27161f2b857c725",
+  "changelog": "A live channel can keep its own sound timing, earlier or later than the picture."
 }

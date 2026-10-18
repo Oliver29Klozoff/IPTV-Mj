@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.51 - 2026-10-17
+- **New**: Sound timing for a live channel. While it is playing, open Audio · CC and
+  choose Sound timing, then Earlier, Later, or Reset. MKTV remembers it for that
+  channel, including a replay. Another provider's copy of the channel is separate.
+  Movies, episodes, and recordings stay as they are. Tunneled playback ignores it.
+
 ## v7.50 - 2026-10-17
 - **New**: Subtitles for a movie or episode that has none. MKTV offers to search
   OpenSubtitles or open a subtitle file on this device. Add a free OpenSubtitles key
