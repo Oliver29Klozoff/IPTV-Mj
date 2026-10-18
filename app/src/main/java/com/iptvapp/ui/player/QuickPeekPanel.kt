@@ -121,10 +121,12 @@ class QuickPeekPanel(
         handler.postDelayed(tick, TICK_MS)
         keepAlive()
         val generation = selection.generation
+        // Fresh guide each time it opens: the guide may have been refreshed (or a channel with
+        // nothing then has something now) since it was last open. It's one local read of a screenful.
+        guide.clear()
         listJob?.cancel()
         listJob = activity.lifecycleScope.launch {
             if (loadedGeneration != generation || sources.isEmpty()) {
-                guide.clear()
                 showLoading()
                 val category = try { playingCategory(playing) } catch (e: Exception) {
                     if (e is CancellationException) throw e
