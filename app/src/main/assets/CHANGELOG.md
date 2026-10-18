@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.52 - 2026-10-18
+- **Fixed**: A channel's sound timing stays with that channel when you add or remove a
+  provider, including a pasted playlist. It is cleared when a different account takes
+  over a provider's slot. The Sound timing choices now show in the Audio · CC menu.
+
 ## v7.51 - 2026-10-17
 - **New**: Sound timing for a live channel. While it is playing, open Audio · CC and
   choose Sound timing, then Earlier, Later, or Reset. MKTV remembers it for that
