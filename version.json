@@ -1,7 +1,7 @@
 {
-  "versionCode": 591,
-  "versionName": "7.53",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.53/MKTV.apk",
-  "apkSha256": "d017d932bb45e43bb827e4aa5612885bf6434e30bd41690bbd952d6d29069e10",
-  "changelog": "Quick Peek: press MENU while watching live TV for a mini guide over the picture."
+  "versionCode": 592,
+  "versionName": "7.54",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.54/MKTV.apk",
+  "apkSha256": "cc49e9d5050accc5d798ad6eeb01a229a2c799462db1952267dba1a51e39a8e9",
+  "changelog": "Mosaic's channel picker now searches every provider."
 }

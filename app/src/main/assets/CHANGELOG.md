@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.54 - 2026-10-18
+- **Improved**: Mosaic's channel picker searches every provider. It still opens on your
+  favorites; type two or more letters to search all channels on your main provider and
+  every provider that's switched on, with matching favorites listed first.
+
 ## v7.53 - 2026-10-18
 - **New**: Quick Peek, a mini guide over live TV. Press MENU on the remote (or the guide
   button in the player's controls) while a channel plays. It lists what's on now with time
