@@ -844,6 +844,17 @@ interface MergedChannelDao {
         LIMIT 200
     """)
     fun search(query: String): Flow<List<MergedChannelEntity>>
+    // The same search over just [servers] (the switched-on providers), limited after that filter, so
+    // a switched-off provider's matches can't fill the window (Mosaic's channel picker).
+    @Query("""
+        SELECT merged_channels.* FROM merged_channels
+        JOIN merged_channels_fts ON merged_channels.rowid = merged_channels_fts.docid
+        WHERE merged_channels_fts MATCH :query AND merged_channels.isHidden = 0
+            AND merged_channels.serverIndex IN (:servers)
+        ORDER BY merged_channels.serverIndex, merged_channels.num
+        LIMIT :limit
+    """)
+    suspend fun searchOn(query: String, servers: List<Int>, limit: Int): List<MergedChannelEntity>
 
     // Favorites/folders for merged channels, same shape as ChannelDao's — reuses the same
     // FavoriteFolderEntity rows (shared folder names) so "the way favorites work for the

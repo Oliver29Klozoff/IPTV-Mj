@@ -2614,6 +2614,10 @@ class XtreamRepository @Inject constructor(
     fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().search(ftsQuery(query))
 
+    /** [searchMergedChannels] over [servers] only, at most [limit]. Empty [servers] finds nothing. */
+    suspend fun searchMergedChannelsOn(query: String, servers: Collection<Int>, limit: Int): List<MergedChannelEntity> =
+        if (servers.isEmpty()) emptyList() else db.mergedChannelDao().searchOn(ftsQuery(query), servers.toList(), limit)
+
     fun getHiddenMergedChannels(): Flow<List<MergedChannelEntity>> = db.mergedChannelDao().getHidden()
     // Chunked for the same reason as bulkHideChannels.
     suspend fun bulkHideMergedChannels(serverIndex: Int, streamIds: List<Int>) {

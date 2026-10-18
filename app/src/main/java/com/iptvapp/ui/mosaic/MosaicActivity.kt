@@ -557,8 +557,7 @@ class MosaicActivity : AppCompatActivity() {
                     val found = try {
                         val enabled = prefs.enabledExtraServerIndices.first()
                         val primary = repository.searchChannels(q).first().filter { !it.isHidden }.take(SEARCH_LIMIT)
-                        val others = repository.searchMergedChannels(q).first()
-                            .filter { !it.isHidden && it.serverIndex in enabled }.take(SEARCH_LIMIT)
+                        val others = repository.searchMergedChannelsOn(q, enabled, SEARCH_LIMIT)
                         primary.map { MosaicChannel.Primary(it) } + others.map { MosaicChannel.Merged(it) }
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
