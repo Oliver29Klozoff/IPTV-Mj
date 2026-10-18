@@ -94,7 +94,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
     private val hideHandler = Handler(Looper.getMainLooper())
-    private lateinit var guideAdapter: QuickZapAdapter
+    private lateinit var quickPeek: QuickPeekPanel
+    // Opened the full guide from Quick Peek: on coming back, onStart holds the stream until the
+    // guide's answer arrives, so a pick doesn't open the old channel first (one connection).
+    private var fullGuidePending = false
+    private var heldStartForGuide = false
+    // The rest of a touch whose press closed Quick Peek, so it doesn't also act on the picture.
+    private var peekSwallowGesture = false
 
     // v6.93: the user's accent (play button, Sleep countdown, Quick Zap) — cyan until it loads.
     private var playerAccent = com.iptvapp.util.RackAccent.Accent(0xFF06B6D4.toInt(), null)
@@ -825,7 +831,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         lifecycleScope.launch {
             playerAccent = com.iptvapp.util.RackAccent.load(prefs)
             paintPlayButton()
-            if (::guideAdapter.isInitialized) guideAdapter.setAccent(playerAccent)
+            if (::quickPeek.isInitialized) quickPeek.setAccent(playerAccent)
             binding.seekBar.progressTintList = android.content.res.ColorStateList.valueOf(playerAccent.start)
         }
         binding.btnStats.setOnClickListener {
@@ -2523,6 +2529,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * the background with notification controls. */
     private fun enterAudioOnly() {
         if (isVod || audioOnly || castSession != null || streamUrl.isEmpty()) return
+        quickPeek.stop()
         audioOnly = true
         // The listen service opens the channel itself. Drop the timeshift connection first.
         clearDisplayMode()
@@ -2816,6 +2823,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (r.contains(ev.rawX.toInt(), ev.rawY.toInt())) return super.dispatchTouchEvent(ev)
             }
             if (ev.actionMasked == MotionEvent.ACTION_UP) flashUnlock()
+            return true
+        }
+        // A tap on the picture beside Quick Peek closes it, and goes no further.
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::quickPeek.isInitialized && quickPeek.touchOutside(ev.rawX, ev.rawY)) {
+            peekSwallowGesture = true
+            return true
+        }
+        if (peekSwallowGesture) {
+            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) peekSwallowGesture = false
             return true
         }
         gestureDetector.onTouchEvent(ev)
@@ -4201,6 +4217,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun loadStream(url: String) {
         applyChannelAudioDelay()
+        if (::quickPeek.isInitialized) quickPeek.syncPlaying()
         // Same URL is a reload (rotation, retry). A different one is a new programme.
         if (url != streamUrl) {
             subtitleGeneration += 1
@@ -5543,7 +5560,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.tvOsdLive.visibility = if (isVod) View.GONE else View.VISIBLE
         binding.epgOverlay.visibility = View.VISIBLE
         binding.btnBack.visibility = View.VISIBLE
-        binding.btnGuide.visibility = View.VISIBLE
+        binding.btnGuide.visibility = if (quickPeekAvailable()) View.VISIBLE else View.GONE
         binding.btnPlayPause.visibility = View.VISIBLE
         binding.bottomControls.visibility = View.VISIBLE
         // Mirrors hideRunnable's isVod branch — the seek bar auto-hides with the rest of the
@@ -5680,7 +5697,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (locked) {
             hideHandler.removeCallbacks(hideRunnable)
             hideRunnable.run()
-            binding.guideContainer.visibility = View.GONE
+            quickPeek.stop()
             flashUnlock()
         } else {
             binding.btnUnlock.visibility = View.GONE
@@ -6025,6 +6042,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Volume and play/pause fall through to the system, which sends them to the session.
             else -> super.onKeyDown(keyCode, event)
         }
+        // Quick Peek open: it takes the D-pad, OK, Back and GUIDE. The rest (CH +/-, volume, media,
+        // numbers) carry on below, so CH +/- still changes channel with it open.
+        if (::quickPeek.isInitialized && quickPeek.isOpen) {
+            if (quickPeek.onKeyDown(keyCode, event)) return true
+            // Left / Right / OK among its header buttons: ordinary focus moves and clicks, not seeking.
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+            ) return super.onKeyDown(keyCode, event)
+        }
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
                 val now = System.currentTimeMillis()
@@ -6121,7 +6147,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (!isOverlayVisible) { showOverlay(); true }
                 else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
-            KeyEvent.KEYCODE_GUIDE -> { if (!isOverlayVisible) showOverlay(); true }
+            // GUIDE on live TV opens Quick Peek; pressed again there, the full guide. Android TV keeps
+            // GUIDE for its own Live Channels app (a global key), so there, and on the Shield, MENU
+            // opens it too.
+            KeyEvent.KEYCODE_GUIDE -> {
+                if (quickPeekAvailable()) quickPeek.open()
+                else if (!isOverlayVisible) showOverlay()
+                true
+            }
+            KeyEvent.KEYCODE_MENU -> {
+                if (quickPeekAvailable()) { quickPeek.open(); true } else super.onKeyDown(keyCode, event)
+            }
             // Real remotes' dedicated LAST/RECALL button — see recallLastChannel's kdoc. The OSD
             // is shown from inside recallLastChannel itself (after its async swap actually
             // updates streamTitle/streamId), not here — calling showChannelOsd() synchronously
@@ -6266,7 +6302,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.osdTopBar.visibility = View.GONE
             binding.playerTopScrim.visibility = View.GONE
             binding.playerBottomScrim.visibility = View.GONE
-            binding.guideContainer.visibility = View.GONE
+            quickPeek.stop()
             binding.epgOverlay.visibility = View.GONE
             binding.btnBack.visibility = View.GONE
             binding.btnGuide.visibility = View.GONE
@@ -6293,48 +6329,127 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
     }
 
+    // ─── Quick Peek (the mini guide over live TV; see QuickPeekPanel) ───────
+
+    private fun quickPeekAvailable(): Boolean =
+        !isVod && !isCatchup && !audioOnly && !isRecordingPlayback && castSession == null && castChannels.isEmpty()
+
     private fun setupFavoritesGuide() {
-        guideAdapter = QuickZapAdapter(
-            onChannelClick = { channel ->
-                binding.guideContainer.visibility = View.GONE
-                playChannel(channel)
+        quickPeek = QuickPeekPanel(this, binding, repository, db, prefs, object : QuickPeekPanel.Host {
+            override fun playingKey(): com.iptvapp.util.QuickPeek.Key? {
+                if (!quickPeekAvailable()) return null
+                val id = liveCopyId()
+                return if (id == -1) null else com.iptvapp.util.QuickPeek.Key(serverIndex, id)
             }
-        )
-        binding.rvFavoritesGuide.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        binding.rvFavoritesGuide.adapter = guideAdapter
-        binding.btnGuide.setOnClickListener { toggleFavoritesGuide() }
-        binding.btnCloseGuide.setOnClickListener { binding.guideContainer.visibility = View.GONE }
+
+            override fun tune(primary: ChannelEntity?, merged: com.iptvapp.data.local.entities.MergedChannelEntity?, zapList: List<Any>) {
+                // CH +/- carries on through the list the channel was picked from, as on the home screens.
+                if (primary != null && serverIndex == -1) {
+                    channels = zapList.filterIsInstance<ChannelEntity>()
+                    currentIndex = channels.indexOfFirst { it.streamId == primary.streamId }
+                    playChannel(primary)
+                } else if (merged != null && merged.serverIndex == serverIndex) {
+                    mergedChannels = zapList.filterIsInstance<com.iptvapp.data.local.entities.MergedChannelEntity>()
+                    mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == merged.streamId }
+                    playMergedChannel(merged)
+                }
+            }
+
+            override fun openFullGuide() = openFullGuideFromPlayer()
+
+            override fun onOpening() {
+                hideHandler.removeCallbacks(hideRunnable)
+                hideRunnable.run()
+            }
+        })
+        quickPeek.setAccent(playerAccent)
+        binding.btnGuide.setOnClickListener { if (quickPeekAvailable()) quickPeek.toggle() }
     }
 
-    private fun toggleFavoritesGuide() {
-        if (binding.guideContainer.visibility == View.VISIBLE) {
-            binding.guideContainer.visibility = View.GONE
-            return
-        }
-        hideHandler.removeCallbacks(hideRunnable)
+    private val fullGuideLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        fullGuidePending = false
+        // Taken now, not after the lookups below, so onStart's fallback cannot also start the old channel.
+        val held = heldStartForGuide
+        heldStartForGuide = false
+        val data = result.data?.takeIf { result.resultCode == Activity.RESULT_OK }
+        if (data == null) { carryOn(held); return@registerForActivityResult }
+        val pickServer = data.getIntExtra("server_index", -1)
+        val pickId = if (pickServer == -1) data.getIntExtra("stream_id", -1) else data.getIntExtra("merged_stream_id", -1)
+        val replayUrl = data.getStringExtra("timeshift_url")
+        if (pickId == -1) { carryOn(held); return@registerForActivityResult }
         lifecycleScope.launch {
-            val favs = repository.getFavoriteChannels().first()
-            // The show on now per favorite (with its progress) for the Quick Zap cards.
-            val nowMs = System.currentTimeMillis()
-            fun ms(ts: Long) = if (ts < 100_000_000_000L) ts * 1000L else ts
-            val ids = favs.map { it.streamId }
-            val epg = if (ids.isEmpty()) emptyMap() else repository.getEpgForStreams(ids).first().groupBy { it.streamId }
-            val nowShowing = favs.mapNotNull { ch ->
-                val p = epg[ch.streamId].orEmpty().firstOrNull { ms(it.startTimestamp) <= nowMs && nowMs < ms(it.stopTimestamp) }
-                    ?: return@mapNotNull null
-                val start = ms(p.startTimestamp); val stop = ms(p.stopTimestamp)
-                val pct = if (stop > start) ((nowMs - start) * 100 / (stop - start)).toInt().coerceIn(0, 100) else 0
-                ch.streamId to QuickZapAdapter.NowShowing(p.title, pct)
-            }.toMap()
-            guideAdapter.submit(favs, nowShowing, streamId)
-            binding.guideContainer.visibility = View.VISIBLE
-            // Start on the playing channel, focused for the remote.
-            val pos = guideAdapter.positionOf(streamId).coerceAtLeast(0)
-            binding.rvFavoritesGuide.scrollToPosition(pos)
-            binding.rvFavoritesGuide.post {
-                binding.rvFavoritesGuide.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus()
+            if (replayUrl == null && pickServer == serverIndex && !isVod) {
+                // The same provider: an ordinary channel change, in place.
+                val tuned = if (pickServer == -1) {
+                    repository.getChannelById(pickId)?.also { ch ->
+                        if (channels.none { it.streamId == ch.streamId }) {
+                            channels = ch.categoryId?.let { repository.getChannelsByCategory(it).first() } ?: listOf(ch)
+                            currentIndex = channels.indexOfFirst { it.streamId == ch.streamId }
+                        }
+                        playChannel(ch)
+                    }
+                } else {
+                    repository.getMergedChannelByIndexAndId(pickServer, pickId)?.also { ch ->
+                        if (mergedChannels.none { it.streamId == ch.streamId }) {
+                            mergedChannels = repository.getMergedChannelsByCategory(pickServer, ch.categoryId).first()
+                            mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == ch.streamId }
+                        }
+                        playMergedChannel(ch)
+                    }
+                }
+                if (tuned == null) carryOn(held)
+                return@launch
             }
+            // A replay, or another provider's channel: a player of its own, as the home screens
+            // open them. Its answer goes back to whatever opened this one.
+            val url = replayUrl ?: try {
+                if (pickServer == -1) repository.getLiveStreamUrl(pickId) else repository.getMergedLiveStreamUrl(pickServer, pickId)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Toast.makeText(this@PlayerActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
+                carryOn(held)
+                return@launch
+            }
+            val title = data.getStringExtra("timeshift_title")
+                ?: if (pickServer == -1) repository.getChannelById(pickId)?.name.orEmpty()
+                else repository.getMergedChannelByIndexAndId(pickServer, pickId)?.let { "${it.name} · ${it.serverNickname}" }.orEmpty()
+            startActivity(Intent(this@PlayerActivity, PlayerActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT)
+                putExtra("stream_url", url)
+                putExtra("stream_title", title)
+                putExtra("stream_id", if (pickServer == -1) pickId else -1)
+                putExtra("server_index", pickServer)
+                putExtra("merged_stream_id", if (pickServer == -1) -1 else pickId)
+                if (replayUrl != null) {
+                    putExtra("catchup_start_sec", data.getLongExtra("catchup_start_sec", 0L))
+                    putExtra("catchup_duration_min", data.getIntExtra("catchup_duration_min", 0))
+                    putExtra("catchup_channel_name", data.getStringExtra("catchup_channel_name").orEmpty())
+                }
+            })
+            finish()
         }
+    }
+
+    /** Quick Peek's GUIDE: the full grid. The picture stops while it is open, as for any screen on top. */
+    private fun openFullGuideFromPlayer() {
+        fullGuidePending = true
+        try {
+            fullGuideLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+        } catch (e: Exception) {
+            fullGuidePending = false
+            Toast.makeText(this, "Couldn't open the guide", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Back from the full guide with nothing picked (or nothing playable): the channel carries on. */
+    private fun resumeHeldStart() {
+        val held = heldStartForGuide
+        heldStartForGuide = false
+        carryOn(held)
+    }
+
+    private fun carryOn(held: Boolean) {
+        if (held && player != null && streamUrl.isNotEmpty()) loadStream(streamUrl)
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -6400,6 +6515,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 player?.setMediaItem(itemWithExternalSubtitle(streamUrl), startPos)
                 player?.prepare()
                 player?.playWhenReady = !stayPaused
+            } else if (fullGuidePending && !isVod) {
+                // Back from Quick Peek's full guide: its answer is delivered next. A pick plays that
+                // channel; no answer, or one that can't play, carries on with this (resumeHeldStart).
+                heldStartForGuide = true
+                binding.root.post { if (!fullGuidePending) resumeHeldStart() }
             } else {
                 loadStream(streamUrl)
                 if (partyStartPaused) requestTimeshiftPlayback(false)
@@ -6428,6 +6548,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStop() {
         super.onStop()
+        if (::quickPeek.isInitialized) quickPeek.stop()
         // Out of sight is not watching. Playing resumes the count through onIsPlayingChanged.
         val stoppedAt = android.os.SystemClock.elapsedRealtime()
         feedTracker.onNotPlaying(stoppedAt)

@@ -7,7 +7,7 @@
        Stats, Sleep, Party, Notes, Lock, Quick Zap) that used to sit in the bottom row.
      - bottomControls: just back-30 / play-pause / LIVE, near the bottom (centred until v6.99).
      - vodSeekContainer: along the bottom.
-     - guideContainer: the favorites list as a Quick Zap strip along the bottom (was a side drawer).
+     - guideContainer: Quick Peek, the mini guide panel on the right (was the Quick Zap strip).
      Scrims, the top bar and the chips appear and hide with the rest of the overlay. Semantic colors
      (brightness yellow, live red, HDR badge, health dot, stats green) are unchanged. -->
 <androidx.constraintlayout.widget.ConstraintLayout
@@ -456,14 +456,14 @@
             style="@style/PlayerChip"
             android:text="Lock" />
 
-        <!-- Quick Zap: shows / hides the favorites strip along the bottom -->
+        <!-- Quick Peek: opens the mini guide -->
         <ImageButton
             android:id="@+id/btnGuide"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="6dp"
             android:background="@drawable/player_chip_bg"
-            android:contentDescription="Quick zap"
+            android:contentDescription="Mini guide"
             android:padding="9dp"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_player_zap"
@@ -732,7 +732,7 @@
         android:paddingHorizontal="16dp"
         android:paddingBottom="14dp"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/guideContainer"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
@@ -842,54 +842,199 @@
             android:progressTint="@color/oled_cyan_primary" />
     </LinearLayout>
 
-    <!-- Quick Zap: favorite channels as cards along the bottom (was a left-hand drawer) -->
+    <!-- Quick Peek: the mini guide over live TV (PlayerActivity's Quick Peek section). A panel on
+         the right with the video still playing beside it: the list's name with Left / Right to
+         change it, the channels with what's on, and the highlighted channel's show below.
+         Browsing never tunes; OK or a tap does. Replaces the v6.93 Quick Zap strip and keeps its
+         id, so the touch zones, Lock and PiP still treat it as the guide. -->
     <LinearLayout
         android:id="@+id/guideContainer"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/quick_peek_bg"
+        android:clickable="true"
+        android:focusable="false"
         android:orientation="vertical"
-        android:paddingBottom="6dp"
+        android:padding="10dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintWidth_max="560dp"
+        app:layout_constraintWidth_percent="0.46">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="28dp"
-            android:orientation="horizontal"
+            android:layout_height="40dp"
             android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="8dp">
+            android:orientation="horizontal">
 
             <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:id="@+id/btnPeekPrevList"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/player_chip_bg"
+                android:contentDescription="Previous list"
+                android:focusable="true"
                 android:fontFamily="@font/barlow_condensed_bold"
-                android:letterSpacing="0.14"
-                android:text="QUICK ZAP"
+                android:gravity="center"
+                android:text="‹"
                 android:textColor="@color/rack_text"
-                android:textSize="11sp" />
+                android:textSize="22sp" />
+
+            <TextView
+                android:id="@+id/tvPeekList"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginHorizontal="4dp"
+                android:layout_weight="1"
+                android:background="@drawable/player_chip_bg"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:gravity="center"
+                android:letterSpacing="0.08"
+                android:maxLines="1"
+                android:paddingHorizontal="8dp"
+                android:textAllCaps="true"
+                android:textColor="@color/rack_text"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/btnPeekNextList"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/player_chip_bg"
+                android:contentDescription="Next list"
+                android:focusable="true"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:gravity="center"
+                android:text="›"
+                android:textColor="@color/rack_text"
+                android:textSize="22sp" />
+
+            <TextView
+                android:id="@+id/btnPeekFullGuide"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/player_chip_bg"
+                android:contentDescription="Open the full guide"
+                android:focusable="true"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:gravity="center"
+                android:letterSpacing="0.08"
+                android:paddingHorizontal="10dp"
+                android:text="GUIDE"
+                android:textColor="@color/rack_text"
+                android:textSize="13sp" />
 
             <ImageButton
                 android:id="@+id/btnCloseGuide"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="6dp"
                 android:background="@drawable/player_chip_bg"
-                android:contentDescription="Close quick zap"
-                android:padding="6dp"
+                android:contentDescription="Close the mini guide"
+                android:padding="10dp"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 app:tint="@color/rack_text" />
 
         </LinearLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvFavoritesGuide"
+        <TextView
+            android:id="@+id/tvPeekHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:clipToPadding="false"
-            android:paddingHorizontal="16dp" />
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"
+            android:gravity="center"
+            android:importantForAccessibility="no"
+            android:maxLines="1"
+            android:text="◀ ▶ change list  ·  OK to watch  ·  MENU or BACK to close"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="11sp" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvQuickPeek"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:scrollbars="vertical" />
+
+            <TextView
+                android:id="@+id/tvPeekEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+        <!-- The highlighted channel's show: shown only when the guide has one. -->
+        <LinearLayout
+            android:id="@+id/peekDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@color/rack_surface"
+            android:orientation="vertical"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="8dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvPeekDetailTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="@font/barlow_semibold"
+                android:maxLines="1"
+                android:textColor="@color/rack_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvPeekDetailTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/barlow_condensed_semibold"
+                android:maxLines="1"
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvPeekDetailDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvPeekDetailNext"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="12sp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

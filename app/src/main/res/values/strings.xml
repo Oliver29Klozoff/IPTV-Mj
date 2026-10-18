@@ -2,4 +2,13 @@
 <resources>
     <string name="app_name">MKTV</string>
     <string name="download_notification_channel_name">Downloads</string>
+    <!-- Quick Peek, the player's mini guide -->
+    <string name="quick_peek_no_guide">No guide information</string>
+    <string name="quick_peek_next">Next %1$s · %2$s</string>
+    <string name="quick_peek_empty_favorites">No favorites yet. Press ▶ for the other lists.</string>
+    <string name="quick_peek_empty">No channels in this list</string>
+    <string name="quick_peek_list">%1$s · %2$d</string>
+    <string name="quick_peek_loading">Loading…</string>
+    <string name="quick_peek_pick_list">Lists</string>
+    <string name="quick_peek_list_description">%1$s, %2$d channels. Left and right change the list.</string>
 </resources>
