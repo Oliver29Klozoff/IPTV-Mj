@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.53 - 2026-10-18
+- **New**: Quick Peek, a mini guide over live TV. Press MENU on the remote (or the guide
+  button in the player's controls) while a channel plays. It lists what's on now with time
+  left, what's next, and the highlighted show's details, while the picture keeps playing.
+  Up and Down browse, Left and Right change list (Favorites, this channel's category, All
+  channels, the rest), OK watches, Back closes. GUIDE in the panel opens the full guide.
+  It replaces the Quick Zap strip.
+
 ## v7.52 - 2026-10-18
 - **Fixed**: A channel's sound timing stays with that channel when you add or remove a
   provider, including a pasted playlist. It is cleared when a different account takes

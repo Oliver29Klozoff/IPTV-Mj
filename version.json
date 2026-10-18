@@ -1,7 +1,7 @@
 {
-  "versionCode": 590,
-  "versionName": "7.52",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.52/MKTV.apk",
-  "apkSha256": "8d34ea61890217b949fb4a938aaccefe4e49875213f719070ecb444ecf1288d1",
-  "changelog": "A channel's sound timing stays put when providers are added or removed."
+  "versionCode": 591,
+  "versionName": "7.53",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.53/MKTV.apk",
+  "apkSha256": "d017d932bb45e43bb827e4aa5612885bf6434e30bd41690bbd952d6d29069e10",
+  "changelog": "Quick Peek: press MENU while watching live TV for a mini guide over the picture."
 }
