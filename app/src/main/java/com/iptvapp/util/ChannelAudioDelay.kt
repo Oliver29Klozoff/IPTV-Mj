@@ -68,13 +68,14 @@ object ChannelAudioDelay {
     fun movedIndices(oldIds: List<String>, newIds: List<String>): Map<Int, Int> {
         val used = mutableSetOf<Int>()
         val out = LinkedHashMap<Int, Int>()
-        // A pasted playlist has no address. Keep its delay only when every such slot is still
-        // sitting in the same place. A shorter list must use shiftedAfterRemoval instead.
-        val blanksStay = oldIds.size == newIds.size &&
-            oldIds.indices.all { oldIds[it].isEmpty() == newIds[it].isEmpty() }
         for ((oldIndex, id) in oldIds.withIndex()) {
             if (id.isEmpty()) {
-                if (blanksStay && newIds[oldIndex].isEmpty()) out[oldIndex] = oldIndex
+                // A pasted playlist has no address. Adding a provider leaves it in place.
+                // A shorter list can slide a different playlist into this slot, so that case
+                // uses shiftedAfterRemoval instead of guessing.
+                if (newIds.size >= oldIds.size && oldIndex < newIds.size && newIds[oldIndex].isEmpty()) {
+                    out[oldIndex] = oldIndex
+                }
                 continue
             }
             val newIndex = newIds.withIndex().firstOrNull { (index, next) ->
