@@ -127,6 +127,13 @@ class PreferencesManager @Inject constructor(
             prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = com.iptvapp.util.ChannelAudioDelay.write(stored, key, ms)
         }
     }
+    suspend fun setChannelAudioDelaysAfterProviderRemoved(removedIndex: Int) {
+        context.dataStore.edit { prefs ->
+            val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
+            prefs[Keys.CHANNEL_AUDIO_DELAY_MS] =
+                com.iptvapp.util.ChannelAudioDelay.afterProviderRemoved(stored, removedIndex)
+        }
+    }
     fun dataSaverEnabledNow() = PrefsSnapshot.read(context, readDataSaverEnabled)
     fun pipEnabledNow() = PrefsSnapshot.read(context, readPipEnabled)
     fun silentSelfUpdateEnabledNow() = PrefsSnapshot.read(context, readSilentSelfUpdateEnabled)

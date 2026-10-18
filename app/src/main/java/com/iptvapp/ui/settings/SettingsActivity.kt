@@ -3525,6 +3525,8 @@ class SettingsActivity : AppCompatActivity() {
                                 db.feedStatsDao().removeServer(i)
                                 // Saved Mosaic layouts point at providers by index the same way.
                                 prefs.setMosaicLayouts(com.iptvapp.ui.mosaic.MosaicLayouts.encode(com.iptvapp.ui.mosaic.MosaicLayouts.afterProviderRemoved(com.iptvapp.ui.mosaic.MosaicLayouts.decode(prefs.mosaicLayouts.first()), i)))
+                                // Sound timing uses the same provider index. Drop the removed one and shift the rest.
+                                prefs.setChannelAudioDelaysAfterProviderRemoved(i)
                                 // VOD/series are always Xtream-sourced (M3U import only ever carries
                                 // live channels — see M3uParser), so the old wipe-and-let-the-next-
                                 // refresh-repopulate approach doesn't lose anything permanently here,

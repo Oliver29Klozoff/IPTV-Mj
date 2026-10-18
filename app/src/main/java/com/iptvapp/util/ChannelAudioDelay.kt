@@ -60,6 +60,23 @@ object ChannelAudioDelay {
         return out
     }
 
+    /**
+     * An extra provider left the list. Drop its channels and move every later provider
+     * down one index. The primary provider is -1 and does not move.
+     */
+    fun afterProviderRemoved(stored: String, removedIndex: Int): String {
+        if (removedIndex < 0) return stored
+        val next = LinkedHashMap<String, Int>()
+        for ((rawKey, ms) in decode(stored)) {
+            val server = parseServer(rawKey)
+            if (server == removedIndex) continue
+            val shifted = if (server > removedIndex) server - 1 else server
+            val shiftedKey = key(shifted, parseStream(rawKey)) ?: continue
+            next[shiftedKey] = ms
+        }
+        return encode(next)
+    }
+
     fun encode(map: Map<String, Int>): String =
         map.entries
             .mapNotNull { (key, ms) ->
