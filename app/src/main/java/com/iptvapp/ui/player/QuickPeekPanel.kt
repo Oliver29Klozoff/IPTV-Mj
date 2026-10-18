@@ -265,7 +265,14 @@ class QuickPeekPanel(
                 val list = when (source.kind) {
                     QuickPeek.Kind.FAVORITES -> repository.getFavoriteChannels().first()
                     QuickPeek.Kind.CATEGORY -> repository.getChannelsByCategory(source.id ?: "").first()
-                    QuickPeek.Kind.ALL -> repository.getAllChannels().first()
+                    QuickPeek.Kind.ALL -> {
+                        val all = repository.getAllChannels().first()
+                        // USA Only: just the channels in the lists the category picker offers, as Home shows them.
+                        if (!prefs.usaOnlyChannels.first()) all else {
+                            val allowed = sources.filter { it.kind == QuickPeek.Kind.CATEGORY }.mapNotNull { it.id }.toSet()
+                            all.filter { it.categoryId in allowed }
+                        }
+                    }
                 }
                 list.map { primaryRow(it) } to list
             } else {

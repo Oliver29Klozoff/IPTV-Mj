@@ -101,6 +101,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var heldStartForGuide = false
     // The rest of a touch whose press closed Quick Peek, so it doesn't also act on the picture.
     private var peekSwallowGesture = false
+    // A touch that started on Quick Peek: its views get it, the player's swipe and double-tap don't.
+    private var peekOwnsGesture = false
 
     // v6.93: the user's accent (play button, Sleep countdown, Quick Zap) — cyan until it loads.
     private var playerAccent = com.iptvapp.util.RackAccent.Accent(0xFF06B6D4.toInt(), null)
@@ -2825,14 +2827,24 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             if (ev.actionMasked == MotionEvent.ACTION_UP) flashUnlock()
             return true
         }
-        // A tap on the picture beside Quick Peek closes it, and goes no further.
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::quickPeek.isInitialized && quickPeek.touchOutside(ev.rawX, ev.rawY)) {
-            peekSwallowGesture = true
+        // Quick Peek open: a tap on the picture beside it closes it, and goes no further; a touch
+        // that starts on it is the panel's alone (scrolling its list is not a volume swipe, and a
+        // double tap there is not LAST).
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::quickPeek.isInitialized && quickPeek.isOpen) {
+            if (quickPeek.touchOutside(ev.rawX, ev.rawY)) {
+                peekSwallowGesture = true
+                return true
+            }
+            peekOwnsGesture = true
+        }
+        val ended = ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL
+        if (peekSwallowGesture) {
+            if (ended) peekSwallowGesture = false
             return true
         }
-        if (peekSwallowGesture) {
-            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) peekSwallowGesture = false
-            return true
+        if (peekOwnsGesture) {
+            if (ended) peekOwnsGesture = false
+            return super.dispatchTouchEvent(ev)
         }
         gestureDetector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
