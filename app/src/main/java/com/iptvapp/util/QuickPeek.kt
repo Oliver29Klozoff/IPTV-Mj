@@ -121,6 +121,21 @@ object QuickPeek {
         return out
     }
 
+    /**
+     * Drops the entries around the screen whose show has ended, so the next read loads them again
+     * instead of showing an old show after a scroll back or a reopen. True when any were dropped.
+     */
+    fun dropStale(rows: List<Row>, first: Int, last: Int, pad: Int, cache: MutableMap<Key, NowNext>, nowMs: Long): Boolean {
+        if (rows.isEmpty() || first < 0 || last < first) return false
+        var dropped = false
+        for (i in (first - pad).coerceAtLeast(0)..(last + pad).coerceAtMost(rows.lastIndex)) {
+            val k = rows[i].key
+            val entry = cache[k] ?: continue
+            if (stale(entry, nowMs)) { cache.remove(k); dropped = true }
+        }
+        return dropped
+    }
+
     /** True when a loaded guide entry needs reading again: its show has ended, or the next one started. */
     fun stale(entry: NowNext, nowMs: Long): Boolean {
         val now = entry.now

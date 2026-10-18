@@ -433,6 +433,8 @@ class QuickPeekPanel(
         val first = layoutManager.findFirstVisibleItemPosition()
         val last = layoutManager.findLastVisibleItemPosition()
         if (rows.isEmpty() || first < 0) return
+        // The cache outlives a close and a scroll away: a show that has ended since is read again.
+        QuickPeek.dropStale(rows, first, last, READ_AHEAD, guide, System.currentTimeMillis())
         val want = QuickPeek.toLoad(rows, first, last, READ_AHEAD, guide.keys)
         if (want.isEmpty()) {
             adapter.updateGuide(HashMap(guide), first, last)
@@ -474,13 +476,7 @@ class QuickPeekPanel(
         val first = layoutManager.findFirstVisibleItemPosition()
         val last = layoutManager.findLastVisibleItemPosition()
         if (rows.isEmpty() || first < 0) return
-        val now = System.currentTimeMillis()
-        var dropped = false
-        for (i in first..last.coerceAtMost(rows.lastIndex)) {
-            val k = rows[i].key
-            val entry = guide[k] ?: continue
-            if (QuickPeek.stale(entry, now)) { guide.remove(k); dropped = true }
-        }
+        val dropped = QuickPeek.dropStale(rows, first, last, 0, guide, System.currentTimeMillis())
         if (dropped) loadVisibleGuide() else adapter.updateGuide(HashMap(guide), first, last)
         adapter.items.getOrNull(highlightIndex)?.let { showDetail(it) }
     }

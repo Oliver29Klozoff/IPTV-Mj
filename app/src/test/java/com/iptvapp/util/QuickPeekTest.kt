@@ -216,6 +216,24 @@ class QuickPeekTest {
     }
 
     @Test
+    fun endedShowsAroundTheScreenAreReadAgainAfterAScrollOrReopen() {
+        val rows = (1..10).map { row(QuickPeek.Key(-1, it)) }
+        val ended = QuickPeek.NowNext(airing("Old", 1.0, 2.0), null)
+        val onNow = QuickPeek.NowNext(airing("On", 1.0, 5.0), null)
+        val cache = HashMap<QuickPeek.Key, QuickPeek.NowNext>()
+        rows.forEachIndexed { i, r -> cache[r.key] = if (i % 2 == 0) ended else onNow }
+        val now = (3.0 * h).toLong()
+        // Rows 2..4 on screen, one row read ahead each side: 1..5.
+        assertTrue(QuickPeek.dropStale(rows, 2, 4, 1, cache, now))
+        assertEquals(listOf(2, 4), (1..5).filter { rows[it].key !in cache })
+        // Off-screen entries are left for when they come back into view.
+        assertTrue(rows[0].key in cache && rows[6].key in cache)
+        assertEquals(listOf(rows[2].key, rows[4].key), QuickPeek.toLoad(rows, 2, 4, 1, cache.keys))
+        assertFalse(QuickPeek.dropStale(rows, 2, 4, 1, cache, now))
+        assertFalse(QuickPeek.dropStale(emptyList(), 0, 0, 1, cache, now))
+    }
+
+    @Test
     fun aHugeListReadsOnlyTheRowsAroundTheScreen() {
         val rows = (1..30_000).map { row(QuickPeek.Key(-1, it)) }
         val want = QuickPeek.toLoad(rows, 15_000, 15_007, 12, emptySet())

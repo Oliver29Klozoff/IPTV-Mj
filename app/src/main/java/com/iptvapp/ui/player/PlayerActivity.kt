@@ -6302,7 +6302,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // guessed Back-button sequence. Skip auto-entering PiP entirely on TV/large-screen
         // devices; phone keeps it since the standard Android PiP exit gestures work fine there.
         val pipAllowed = prefs.pipEnabledNow()
-        if (!isVod && pipAllowed && !isLargeScreenDevice() && !audioOnly) enterPip()
+        if (!isVod && pipAllowed && !isLargeScreenDevice() && !audioOnly && !fullGuidePending && !isFinishing) enterPip()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
@@ -6426,7 +6426,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 ?: if (pickServer == -1) repository.getChannelById(pickId)?.name.orEmpty()
                 else repository.getMergedChannelByIndexAndId(pickServer, pickId)?.let { "${it.name} · ${it.serverNickname}" }.orEmpty()
             startActivity(Intent(this@PlayerActivity, PlayerActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT)
+                addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
                 putExtra("stream_url", url)
                 putExtra("stream_title", title)
                 putExtra("stream_id", if (pickServer == -1) pickId else -1)
@@ -6446,7 +6446,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun openFullGuideFromPlayer() {
         fullGuidePending = true
         try {
-            fullGuideLauncher.launch(Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java))
+            fullGuideLauncher.launch(
+                // Our own screen on top, not the user leaving: no automatic picture-in-picture.
+                Intent(this, com.iptvapp.ui.guide.EpgTimelineActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION)
+            )
         } catch (e: Exception) {
             fullGuidePending = false
             Toast.makeText(this, "Couldn't open the guide", Toast.LENGTH_SHORT).show()
