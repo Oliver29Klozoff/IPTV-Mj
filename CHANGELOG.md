@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.56 - 2026-10-19
+- **Fixed**: Seek preview pictures on phones. Provider movies are read in small bounded pieces,
+  so a picture arrives in about a second instead of timing out, and films saved on the device
+  always get pictures.
+- **New (experimental)**: Settings > Pictures on one-stream accounts. Provider movies get
+  pictures even when your account allows one stream, over a brief second connection. If the
+  movie errors or stalls soon after a picture, pictures stop for that video and a message says so.
+
 ## v7.55 - 2026-10-19
 - **New**: Seek preview. In a movie, episode or recording, Left and Right (or dragging the
   bar) choose where to jump, shown with its time over the bar, and a picture for recordings

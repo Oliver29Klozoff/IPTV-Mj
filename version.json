@@ -1,7 +1,7 @@
 {
-  "versionCode": 593,
-  "versionName": "7.55",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.55/MKTV.apk",
-  "apkSha256": "d847217608bc68a36fd294a907a2099b420ea6e11cd6fd96c6505dcde4275a99",
-  "changelog": "Seek preview: choose where to jump in a movie or recording before it jumps, with a picture for recordings and downloads."
+  "versionCode": 594,
+  "versionName": "7.56",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.56/MKTV.apk",
+  "apkSha256": "d6765b01b7ffb7351fba06bd5184f436b9cf4fabb29b4f4fdad87c4a9d6e8646",
+  "changelog": "Seek preview pictures fixed on phones, plus an experimental setting for pictures on one-stream accounts."
 }
