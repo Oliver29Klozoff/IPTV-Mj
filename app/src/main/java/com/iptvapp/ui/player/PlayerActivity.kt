@@ -5540,18 +5540,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val server = serverIndex
         thumbnailConnectionJob?.cancel()
         thumbnailConnectionJob = lifecycleScope.launch {
-            val spare = try {
-                if (castSession != null) false else {
-                    val limits = repository.accountLimits(server, forceRefresh = true)
-                    val max = limits?.maxConnections
-                    val active = limits?.activeConnections
-                    max != null && active != null && max >= 2 && active < max
-                }
+            val limits = try {
+                if (castSession != null) null else repository.accountLimits(server, forceRefresh = true)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                false
+                null
             }
             if (streamUrl != url || thumbnailManager !== manager) return@launch
+            val max = limits?.maxConnections
+            val active = limits?.activeConnections
+            // One stream per account: never a spare, so no more asking for this video.
+            if (max == 1) { manager.setSource(null); return@launch }
+            // Busy, unknown, or the panel didn't answer: the time alone this seek; the next one asks again.
+            val spare = max != null && active != null && max >= 2 && active < max
             manager.allowed = spare
             if (spare && seekSession.active) showSeekPreview(seekSession.targetMs)
         }
@@ -5660,8 +5661,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
             if (streamUrl == url && thumbnailSourceUrl == url) {
                 thumbnails.setSource(source)
+                if (thumbnails.needsConnectionCheck) recheckProviderConnection()
                 // Still choosing: the place on screen gets its picture now, without another press.
-                if (source != null && seekSession.active) showSeekPreview(seekSession.targetMs)
+                else if (source != null && seekSession.active) showSeekPreview(seekSession.targetMs)
             }
         }
     }
@@ -5689,13 +5691,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             return ThumbnailPreviewManager.Source.Downloaded(url, com.iptvapp.download.DownloadUtil.getDownloadCache(this), key)
         }
         if (PROGRESSIVE_EXTENSIONS.none { path.endsWith(it) }) return null
-        // The provider's own file needs a second connection. Only when the account has one to spare
-        // (most allow one stream, and a second would cut this film off); unknown counts as no.
-        if (castSession != null) return null
-        val limits = repository.accountLimits(serverIndex, forceRefresh = true) ?: return null
-        val max = limits.maxConnections ?: return null
-        val active = limits.activeConnections ?: return null
-        if (max < 2 || active >= max) return null
+        // The provider's own file needs a second connection: each seek checks for a spare one first
+        // (recheckProviderConnection), so this source starts without the go-ahead.
         return ThumbnailPreviewManager.Source.Remote(url, ThumbnailPreviewManager.playbackUserAgent(), key)
     }
 
