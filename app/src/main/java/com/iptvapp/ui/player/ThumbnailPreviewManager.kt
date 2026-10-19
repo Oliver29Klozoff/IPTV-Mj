@@ -167,8 +167,13 @@ class ThumbnailPreviewManager(private val context: Context) {
             }
             val grabbed = try {
                 val grabber = grabberFor(src, job.generation)
-                // Closed while the file was being opened: no decoding for it.
-                if (token.get()) null else grabber?.frame(job.bucketMs, WIDTH_PX, HEIGHT_PX)
+                try {
+                    // Closed while the file was being opened: no decoding for it.
+                    if (token.get()) null else grabber?.frame(job.bucketMs, WIDTH_PX, HEIGHT_PX)
+                } finally {
+                    // Decoded or not, no provider connection stays open after this request.
+                    grabber?.releaseConnection()
+                }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 null
@@ -227,12 +232,10 @@ class ThumbnailPreviewManager(private val context: Context) {
     /** One open retriever for one video. Not thread-safe: used from the single worker only. */
     private class Grabber(private val retriever: MediaMetadataRetriever, private val data: MediaDataSource?) {
 
-        fun frame(atMs: Long, width: Int, height: Int): Bitmap? = try {
-            grab(atMs, width, height)
-        } finally {
-            // The provider's file: no connection is held open between pictures.
-            (data as? RangeData)?.releaseConnection()
-        }
+        fun frame(atMs: Long, width: Int, height: Int): Bitmap? = grab(atMs, width, height)
+
+        /** The provider's file: no connection is held open between pictures. */
+        fun releaseConnection() { (data as? RangeData)?.releaseConnection() }
 
         private fun grab(atMs: Long, width: Int, height: Int): Bitmap? {
             val us = atMs * 1000L
