@@ -5725,8 +5725,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val uri = localUri
             val key = withContext(Dispatchers.IO) { ThumbnailPreviewManager.recordingKey(applicationContext, streamId, uri) } ?: return null
             // Any other film here has no id of its own: a salted hash of its address keeps two of the same size apart.
-            val local = if (isRecordingPlayback) key else "loc|" + com.iptvapp.util.SeekPreview.sha256(prefs.seekPreviewSalt() + "
-" + url).take(32) + "|" + key
+            val local = if (isRecordingPlayback) key else "loc|" + com.iptvapp.util.SeekPreview.sha256(prefs.seekPreviewSalt() + "\n" + url).take(32) + "|" + key
             return ThumbnailPreviewManager.Source.Local(uri, local)
         }
         val path = url.substringBefore('?').lowercase(java.util.Locale.US)
