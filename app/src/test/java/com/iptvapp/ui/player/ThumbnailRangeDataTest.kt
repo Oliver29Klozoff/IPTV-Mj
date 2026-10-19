@@ -87,6 +87,19 @@ class ThumbnailRangeDataTest {
     }
 
     @Test
+    fun noConnectionIsHeldOpenBetweenPictures() {
+        val data = ThumbnailPreviewManager.RangeData(url, "MKTV-test")
+        val buf = ByteArray(10)
+        data.readAt(1_000, buf, 0, 10)
+        data.releaseConnection()
+        // Carrying on from the same place still opens a fresh range: the old response is gone.
+        assertEquals(10, data.readAt(1_010, buf, 0, 10))
+        assertArrayEquals(file.copyOfRange(1_010, 1_020), buf)
+        assertEquals(listOf("bytes=1000-", "bytes=1010-"), requests.map { it.first })
+        data.close()
+    }
+
+    @Test
     fun aServerThatIgnoresRangesIsNotDownloadedFromTheStart() {
         honourRanges = false
         val data = ThumbnailPreviewManager.RangeData(url, "MKTV-test")

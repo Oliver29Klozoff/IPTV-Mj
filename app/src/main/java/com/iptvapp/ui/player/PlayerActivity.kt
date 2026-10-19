@@ -5496,6 +5496,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var thumbnailSourceUrl: String? = null
     private var thumbnailSourceJob: Job? = null
     private var seekPreviewOpenedBar = false
+    private var seekPreviewLayoutWatched = false
     private val seekCommitRunnable = Runnable { commitSeekPreview() }
     // Jump this long after the last press: the old one-press-one-jump feel, with time to look.
     private val SEEK_PREVIEW_IDLE_MS = 2_000L
@@ -5520,6 +5521,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun beginSeekPreview() {
         seekSession.begin(vodPositionMs(), vodDurationMs())
         seekBarDragging = true
+        // The provider's own file needs a spare connection now, not just when it was last checked:
+        // ask again (the time alone shows meanwhile), so a cast or another device that has taken
+        // it since is never cut off by a picture.
+        if (thumbnailManager?.usesProviderConnection == true) {
+            thumbnailSourceUrl = null
+            thumbnailManager?.setSource(null)
+        }
         ensureThumbnailSource()
     }
 
@@ -5537,6 +5545,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val way = if (targetMs >= seekSession.startMs) "forward" else "back"
         binding.seekPreview.contentDescription = "Preview at ${com.iptvapp.util.SeekPreview.spoken(targetMs)}, seeking $way. Press OK to play from here."
         binding.seekPreview.visibility = View.VISIBLE
+        // The card changes size when a picture comes or goes: keep it centred and on screen.
+        if (!seekPreviewLayoutWatched) {
+            seekPreviewLayoutWatched = true
+            binding.seekPreview.addOnLayoutChangeListener { _, l, _, r, _, ol, _, or, _ ->
+                if (seekSession.active && (r - l) != (or - ol)) binding.seekPreview.post { positionSeekPreview(seekSession.targetMs) }
+            }
+        }
         val image = binding.ivSeekPreview
         if (!thumbnails.supported) {
             image.visibility = View.GONE
@@ -5650,7 +5665,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (PROGRESSIVE_EXTENSIONS.none { path.endsWith(it) }) return null
         // The provider's own file needs a second connection. Only when the account has one to spare
         // (most allow one stream, and a second would cut this film off); unknown counts as no.
-        val limits = repository.accountLimits(serverIndex) ?: return null
+        if (castSession != null) return null
+        val limits = repository.accountLimits(serverIndex, forceRefresh = true) ?: return null
         val max = limits.maxConnections ?: return null
         val active = limits.activeConnections ?: return null
         if (max < 2 || active >= max) return null

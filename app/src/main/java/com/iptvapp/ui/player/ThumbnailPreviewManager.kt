@@ -89,6 +89,9 @@ class ThumbnailPreviewManager(private val context: Context) {
     /** True when this video can show pictures (the time always shows). */
     val supported get() = source != null && !off
 
+    /** The provider's own file: a second connection, so its go-ahead is checked again for each seek. */
+    val usesProviderConnection get() = source is Source.Remote
+
     /** The video changed (or went): earlier pictures and requests no longer apply. */
     fun setSource(next: Source?) {
         sourceGeneration++
@@ -190,7 +193,14 @@ class ThumbnailPreviewManager(private val context: Context) {
     /** One open retriever for one video. Not thread-safe: used from the single worker only. */
     private class Grabber(private val retriever: MediaMetadataRetriever, private val data: MediaDataSource?) {
 
-        fun frame(atMs: Long, width: Int, height: Int): Bitmap? {
+        fun frame(atMs: Long, width: Int, height: Int): Bitmap? = try {
+            grab(atMs, width, height)
+        } finally {
+            // The provider's file: no connection is held open between pictures.
+            (data as? RangeData)?.releaseConnection()
+        }
+
+        private fun grab(atMs: Long, width: Int, height: Int): Bitmap? {
             val us = atMs * 1000L
             val option = MediaMetadataRetriever.OPTION_CLOSEST_SYNC
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -303,6 +313,13 @@ class ThumbnailPreviewManager(private val context: Context) {
         override fun getSize(): Long {
             if (length < 0 && body == null) openAt(0)
             return length
+        }
+
+        /** Closes the open response; the next read opens a new range where it is needed. */
+        fun releaseConnection() {
+            try { body?.close() } catch (_: Exception) {}
+            body = null
+            bodyAt = -1L
         }
 
         override fun close() { try { body?.close() } catch (_: Exception) {} }
