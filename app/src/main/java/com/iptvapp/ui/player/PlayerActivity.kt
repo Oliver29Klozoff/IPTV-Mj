@@ -5598,7 +5598,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (since > ONE_STREAM_TRIP_MS + if (stalled) ONE_STREAM_STALL_MS else 0L) return
         oneStreamActive = false
         oneStreamTripped = streamUrl
-        thumbnailManager?.let { it.allowed = false; it.setSource(null) }
+        thumbnailManager?.let { it.allowed = false; it.cancelPending(); it.setSource(null) }
         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "one-stream experiment off for this video (${if (stalled) "stall" else "error"} ${since}ms after a picture)")
         android.widget.Toast.makeText(this, "Seek pictures paused for this video: the provider seemed to object", android.widget.Toast.LENGTH_LONG).show()
     }
