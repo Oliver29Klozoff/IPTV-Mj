@@ -5550,7 +5550,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val max = limits?.maxConnections
             val active = limits?.activeConnections
             // One stream per account: never a spare, so no more asking for this video.
-            if (max == 1) { manager.setSource(null); return@launch }
+            if (max == 1) {
+                if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "provider allows one stream: time only for this video")
+                manager.setSource(null)
+                return@launch
+            }
             // Busy, unknown, or the panel didn't answer: the time alone this seek; the next one asks again.
             val spare = max != null && active != null && max >= 2 && active < max
             manager.allowed = spare
@@ -5673,8 +5677,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private suspend fun thumbnailSourceFor(url: String): ThumbnailPreviewManager.Source? {
         if (!prefs.seekPreviewPicturesNow() || !seekPreviewApplies() || url.isBlank()) return null
-        if (isRecordingPlayback) {
-            val uri = android.net.Uri.parse(url)
+        // A recording, or any film already on this device (file or content address): its own file,
+        // read here, no provider involved. Keyed by its size and date, never its path.
+        val localUri = android.net.Uri.parse(url)
+        if (isRecordingPlayback || localUri.scheme == "file" || localUri.scheme == "content") {
+            val uri = localUri
             val key = withContext(Dispatchers.IO) { ThumbnailPreviewManager.recordingKey(applicationContext, streamId, uri) } ?: return null
             return ThumbnailPreviewManager.Source.Local(uri, key)
         }

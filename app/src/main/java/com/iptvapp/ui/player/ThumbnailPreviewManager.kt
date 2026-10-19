@@ -309,9 +309,14 @@ class ThumbnailPreviewManager(private val context: Context) {
     }
 
     /**
-     * The provider's file, read in ranges with a client of its own (no request logging), with a
-     * byte budget per video so a file that can't be read near the asked spot is given up on
-     * rather than downloaded.
+     * The provider's file, read in whole 256 KB pieces with a client of its own (no request
+     * logging). The retriever reads a file in many small, scattered pieces; asking the provider
+     * for each one opened a new connection every time and took seconds before a single frame.
+     * Here each piece is one bounded range request read to its end, so one kept-alive connection
+     * serves them all, and the last few pieces are kept so nearby reads cost nothing. The
+     * provider's redirect (Xtream sends films on to a streaming server) is remembered. A byte
+     * budget per video means a file that can't be read near the asked spot is given up on rather
+     * than downloaded, and no connection is kept between pictures (releaseConnection).
      */
     internal class RangeData(
         private val url: String,
@@ -319,59 +324,107 @@ class ThumbnailPreviewManager(private val context: Context) {
         private val budget: Long = BYTE_BUDGET,
         private val cancelled: () -> Boolean = { false },
     ) : MediaDataSource() {
-        private var body: InputStream? = null
-        private var bodyAt = -1L
+        private val pieces = object : LinkedHashMap<Long, ByteArray>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, ByteArray>?) = size > MAX_PIECES
+        }
         private var length = -1L
         private var read = 0L
+        // Where the provider sent the first request; tried first after that, the original if it stops working.
+        private var target = url
         /** Set from another thread to stop: the next read fails instead of carrying on. */
         @Volatile var abort = false
 
+        /** Requests made to the provider: for tests. */
+        var requests = 0
+            private set
+
         override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
-            if (abort || cancelled()) throw IOException("seek preview closed")
+            checkGoing()
             if (size == 0) return 0
-            if (length >= 0 && position >= length) return -1
-            if (position != bodyAt || body == null) openAt(position)
-            val n = body!!.read(buffer, offset, size)
-            if (n < 0) return -1
-            bodyAt += n
-            read += n
-            if (read > budget) throw IOException("seek preview budget used")
-            return n
+            val total = getSize()
+            if (total >= 0 && position >= total) return -1
+            var copied = 0
+            var at = position
+            while (copied < size && (total < 0 || at < total)) {
+                val index = at / PIECE_BYTES
+                val piece = pieces[index] ?: fetch(index)
+                val within = (at - index * PIECE_BYTES).toInt()
+                if (within >= piece.size) break
+                val n = minOf(size - copied, piece.size - within)
+                System.arraycopy(piece, within, buffer, offset + copied, n)
+                copied += n
+                at += n
+            }
+            return if (copied == 0) -1 else copied
         }
 
-        private fun openAt(position: Long) {
-            body?.close()
-            val response = client.newCall(
-                Request.Builder().url(url).header("User-Agent", userAgent).header("Range", "bytes=$position-").build()
-            ).execute()
-            // A server that ignores ranges would send the whole file from the start.
-            if (response.code != 206) {
-                response.close()
-                throw IOException("ranges not supported")
+        private fun checkGoing() {
+            if (abort || cancelled()) throw IOException("seek preview closed")
+        }
+
+        private fun fetch(index: Long): ByteArray {
+            checkGoing()
+            val start = index * PIECE_BYTES
+            val end = start + PIECE_BYTES - 1
+            val bytes = try {
+                rangeOf(target, start, end)
+            } catch (e: IOException) {
+                // A remembered redirect can expire: back to the address the player was given.
+                if (target == url || abort || cancelled()) throw e
+                target = url
+                rangeOf(url, start, end)
             }
-            if (length < 0) {
-                length = response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: -1L
+            read += bytes.size
+            if (read > budget) throw IOException("seek preview budget used")
+            pieces[index] = bytes
+            return bytes
+        }
+
+        private fun rangeOf(address: String, start: Long, end: Long): ByteArray {
+            requests++
+            client.newCall(
+                Request.Builder().url(address).header("User-Agent", userAgent).header("Range", "bytes=$start-$end").build()
+            ).execute().use { response ->
+                // A server that ignores ranges would send the whole file from the start.
+                if (response.code != 206) throw IOException("ranges not supported")
+                if (length < 0) {
+                    length = response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: -1L
+                }
+                target = response.request.url.toString()
+                val body = response.body ?: throw IOException("empty")
+                // Never more than the piece asked for, whatever the server sends.
+                val out = java.io.ByteArrayOutputStream(PIECE_BYTES)
+                val buf = ByteArray(16 * 1024)
+                val stream = body.byteStream()
+                while (out.size() < PIECE_BYTES) {
+                    checkGoing()
+                    val n = stream.read(buf, 0, minOf(buf.size, PIECE_BYTES - out.size()))
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                }
+                return out.toByteArray()
             }
-            body = response.body?.byteStream() ?: throw IOException("empty")
-            bodyAt = position
         }
 
         override fun getSize(): Long {
-            if (length < 0 && body == null) openAt(0)
+            if (length < 0 && pieces.isEmpty()) fetch(0)
             return length
         }
 
-        /** Closes the open response; the next read opens a new range where it is needed. */
+        /** No connection stays open between pictures: the idle one is closed (pieces already read stay). */
         fun releaseConnection() {
-            try { body?.close() } catch (_: Exception) {}
-            body = null
-            bodyAt = -1L
+            try { client.connectionPool.evictAll() } catch (_: Exception) {}
         }
 
-        override fun close() { try { body?.close() } catch (_: Exception) {} }
+        override fun close() {
+            pieces.clear()
+            releaseConnection()
+        }
 
         companion object {
             const val BYTE_BUDGET = 48L * 1024 * 1024
+            const val PIECE_BYTES = 256 * 1024
+            const val MAX_PIECES = 16
             val client: OkHttpClient by lazy {
                 OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build()
             }
