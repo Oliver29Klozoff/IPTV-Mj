@@ -111,6 +111,7 @@ class PreferencesManager @Inject constructor(
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)
+    fun seekPreviewPicturesNow() = PrefsSnapshot.read(context, readSeekPreviewPictures)
     fun pictureModeNow() = PrefsSnapshot.read(context, readPictureMode)
     fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
     fun favoriteTeamsNow() = PrefsSnapshot.read(context, readFavoriteTeams)
@@ -140,6 +141,7 @@ class PreferencesManager @Inject constructor(
     private val readCombineDuplicates = { p: Preferences -> p[Keys.COMBINE_DUPLICATES] ?: true }
     private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
     private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
+    private val readSeekPreviewPictures = { p: Preferences -> p[Keys.SEEK_PREVIEW_PICTURES] ?: true }
     private val readFrameRateMatch = { p: Preferences ->
         com.iptvapp.util.FrameRateMatch.normalize(p[Keys.FRAME_RATE_MATCH] ?: com.iptvapp.util.FrameRateMatch.DEFAULT)
     }
@@ -334,6 +336,10 @@ class PreferencesManager @Inject constructor(
         val SPORTS_MODE = intPreferencesKey("sports_mode")
         // When the player switches the TV's display mode to the video's frame rate. See FrameRateMatch.
         val FRAME_RATE_MATCH = intPreferencesKey("frame_rate_match")
+        // Seek preview pictures (ThumbnailPreviewManager): on means "when the video allows it".
+        val SEEK_PREVIEW_PICTURES = booleanPreferencesKey("seek_preview_pictures")
+        // Random, this device only: hashes a non-Xtream address into a thumbnail cache key.
+        val SEEK_PREVIEW_SALT = stringPreferencesKey("seek_preview_salt")
         // Picture profile: 0 auto, 1 sports, 2 movie, 3 standard. Auto follows the programme.
         val PICTURE_MODE = intPreferencesKey("picture_mode")
         // When a guide title already contains a score, Sports Mode can show it. Default on.
@@ -489,6 +495,19 @@ class PreferencesManager @Inject constructor(
         .map(readFrameRateMatch)
     suspend fun setFrameRateMatch(v: Int) = context.dataStore.edit {
         it[Keys.FRAME_RATE_MATCH] = com.iptvapp.util.FrameRateMatch.normalize(v)
+    }
+    val seekPreviewPictures: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSeekPreviewPictures)
+    suspend fun setSeekPreviewPictures(v: Boolean) = context.dataStore.edit { it[Keys.SEEK_PREVIEW_PICTURES] = v }
+
+    /** This device's thumbnail key salt, made the first time it is needed. */
+    suspend fun seekPreviewSalt(): String {
+        var salt = ""
+        context.dataStore.edit { p ->
+            salt = p[Keys.SEEK_PREVIEW_SALT] ?: java.util.UUID.randomUUID().toString().also { p[Keys.SEEK_PREVIEW_SALT] = it }
+        }
+        return salt
     }
     val sportsMode: Flow<Int> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }

@@ -2896,7 +2896,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // screen's "Play in App" action so they can scrobble to Trakt) aren't HTTP resources at
         // all — OkHttpDataSource can't read them, so this case needs the plain platform data
         // source instead of the IPTV-CDN-tuned OkHttp one used for every live/VOD stream.
-        val playbackUserAgent = "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1"
+        val playbackUserAgent = ThumbnailPreviewManager.playbackUserAgent()
         val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient).setUserAgent(playbackUserAgent)
         // DefaultDataSource sends file:// (the local timeshift playlist) to a file source and
         // http(s) to the same OkHttp stack live TV already used. Recording playback is unchanged.
@@ -4230,6 +4230,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun loadStream(url: String) {
         applyChannelAudioDelay()
         if (::quickPeek.isInitialized) quickPeek.syncPlaying()
+        // Another video (or a reload): a place being chosen in the old one no longer applies.
+        cancelSeekPreview()
+        if (url != thumbnailSourceUrl) {
+            thumbnailSourceUrl = null
+            thumbnailSourceJob?.cancel()
+            thumbnailManager?.setSource(null)
+        }
         // Same URL is a reload (rotation, retry). A different one is a new programme.
         if (url != streamUrl) {
             subtitleGeneration += 1
@@ -5475,6 +5482,177 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         updateSeekBar()
     }
 
+    // ─── Seek preview (util/SeekPreview, ThumbnailPreviewManager) ─────────
+    // Movies, episodes and recordings choose a place first and jump once: Left/Right (or a drag)
+    // move a target with the time, and a picture where the video allows one; OK, Play/Pause, a
+    // pause of two seconds, or letting go of the bar jumps there; Back stays put. The player is
+    // not moved until then. Catch-up keeps its own reopen-at-the-minute seeking.
+
+    private val seekSession = com.iptvapp.util.SeekPreview.Session()
+    private var thumbnailManager: ThumbnailPreviewManager? = null
+    private val thumbnails: ThumbnailPreviewManager
+        get() = thumbnailManager ?: ThumbnailPreviewManager(applicationContext).also { thumbnailManager = it }
+    // The stream the picture source was worked out for; another stream works it out again.
+    private var thumbnailSourceUrl: String? = null
+    private var thumbnailSourceJob: Job? = null
+    private var seekPreviewOpenedBar = false
+    private val seekCommitRunnable = Runnable { commitSeekPreview() }
+    // Jump this long after the last press: the old one-press-one-jump feel, with time to look.
+    private val SEEK_PREVIEW_IDLE_MS = 2_000L
+    // Plain files a retriever can read in ranges; HLS, DASH and MPEG-TS are left to the time alone.
+    private val PROGRESSIVE_EXTENSIONS = listOf(".mp4", ".m4v", ".mkv", ".mov", ".webm", ".avi")
+
+    private fun seekPreviewApplies(): Boolean {
+        if (!isVod || isCatchup || player == null) return false
+        val d = vodDurationMs()
+        return d != C.TIME_UNSET && d > 0
+    }
+
+    /** A Left or Right press (held keys repeat, and the step grows with them). */
+    private fun nudgeSeekPreview(forward: Boolean) {
+        if (!seekSession.active) beginSeekPreview()
+        val target = seekSession.nudge(forward)
+        showSeekPreview(target)
+        seekHandler.removeCallbacks(seekCommitRunnable)
+        seekHandler.postDelayed(seekCommitRunnable, SEEK_PREVIEW_IDLE_MS)
+    }
+
+    private fun beginSeekPreview() {
+        seekSession.begin(vodPositionMs(), vodDurationMs())
+        seekBarDragging = true
+        ensureThumbnailSource()
+    }
+
+    private fun showSeekPreview(targetMs: Long) {
+        val duration = seekSession.durationMs
+        if (binding.vodSeekContainer.visibility != View.VISIBLE) {
+            binding.vodSeekContainer.visibility = View.VISIBLE
+            seekPreviewOpenedBar = true
+        }
+        binding.seekBar.max = duration.toInt()
+        binding.seekBar.progress = targetMs.toInt()
+        binding.tvTimeElapsed.text = formatDuration(targetMs)
+        binding.tvTimeRemaining.text = "-" + formatDuration((duration - targetMs).coerceAtLeast(0L))
+        binding.tvSeekPreviewTime.text = com.iptvapp.util.SeekPreview.clock(targetMs)
+        val way = if (targetMs >= seekSession.startMs) "forward" else "back"
+        binding.seekPreview.contentDescription = "Preview at ${com.iptvapp.util.SeekPreview.spoken(targetMs)}, seeking $way. Press OK to play from here."
+        binding.seekPreview.visibility = View.VISIBLE
+        val image = binding.ivSeekPreview
+        if (!thumbnails.supported) {
+            image.visibility = View.GONE
+            image.setImageDrawable(null)
+        } else {
+            // The last picture stays, dimmed, until this one is ready: no spinner, never a wrong one at full strength.
+            image.alpha = 0.45f
+            val generation = seekSession.generation
+            thumbnails.request(targetMs, duration) { _, bitmap ->
+                if (!seekSession.active || seekSession.generation != generation) return@request
+                if (bitmap != null) {
+                    image.setImageBitmap(bitmap)
+                    image.alpha = 1f
+                    image.visibility = View.VISIBLE
+                } else if (!thumbnails.supported) {
+                    image.visibility = View.GONE
+                    image.setImageDrawable(null)
+                }
+            }
+        }
+        positionSeekPreview(targetMs)
+    }
+
+    /** Over the target on the bar, inside the screen at both ends. */
+    private fun positionSeekPreview(targetMs: Long) {
+        val preview = binding.seekPreview
+        if (preview.width == 0) {
+            preview.post { if (seekSession.active) positionSeekPreview(seekSession.targetMs) }
+            return
+        }
+        val bar = binding.seekBar
+        val barStart = binding.vodSeekContainer.left + bar.left + bar.paddingLeft
+        val barWidth = (bar.width - bar.paddingLeft - bar.paddingRight).coerceAtLeast(1)
+        val fraction = if (seekSession.durationMs > 0) targetMs.toFloat() / seekSession.durationMs else 0f
+        preview.translationX = com.iptvapp.util.SeekPreview.previewLeftPx(
+            fraction, barStart.toFloat(), barWidth.toFloat(), preview.width.toFloat(),
+            binding.root.width.toFloat(), 16 * resources.displayMetrics.density
+        )
+    }
+
+    /** Jumps to the chosen place, once. */
+    private fun commitSeekPreview() {
+        seekHandler.removeCallbacks(seekCommitRunnable)
+        val target = seekSession.commit() ?: return
+        endSeekPreviewUi()
+        vodSeekTo(target)
+        notifyPartyStateChange()
+        updateSeekBar()
+    }
+
+    /** Back, leaving, another video: nothing is sought. */
+    private fun cancelSeekPreview() {
+        seekHandler.removeCallbacks(seekCommitRunnable)
+        if (!seekSession.active) return
+        seekSession.cancel()
+        endSeekPreviewUi()
+        updateSeekBar()
+    }
+
+    private fun endSeekPreviewUi() {
+        seekBarDragging = false
+        binding.seekPreview.visibility = View.GONE
+        binding.ivSeekPreview.setImageDrawable(null)
+        binding.ivSeekPreview.visibility = View.GONE
+        if (seekPreviewOpenedBar && !isOverlayVisible) binding.vodSeekContainer.visibility = View.GONE
+        seekPreviewOpenedBar = false
+    }
+
+    /** Works out, once per stream, where pictures can come from (or that there are none). */
+    private fun ensureThumbnailSource() {
+        val url = streamUrl
+        if (url == thumbnailSourceUrl) return
+        thumbnailSourceUrl = url
+        thumbnails.setSource(null)
+        thumbnailSourceJob?.cancel()
+        thumbnailSourceJob = lifecycleScope.launch {
+            val source = try { thumbnailSourceFor(url) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                null
+            }
+            if (streamUrl == url && thumbnailSourceUrl == url) thumbnails.setSource(source)
+        }
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private suspend fun thumbnailSourceFor(url: String): ThumbnailPreviewManager.Source? {
+        if (!prefs.seekPreviewPicturesNow() || !seekPreviewApplies() || url.isBlank()) return null
+        if (isRecordingPlayback) {
+            val uri = android.net.Uri.parse(url)
+            val key = withContext(Dispatchers.IO) { ThumbnailPreviewManager.recordingKey(applicationContext, streamId, uri) } ?: return null
+            return ThumbnailPreviewManager.Source.Local(uri, key)
+        }
+        val path = url.substringBefore('?').lowercase(java.util.Locale.US)
+        // Live-style formats: a picture would mean fetching segments or a whole playlist.
+        if (path.endsWith(".m3u8") || path.endsWith(".mpd") || path.endsWith(".ts")) return null
+        val key = com.iptvapp.util.SeekPreview.keyForUrl(url, serverIndex, prefs.seekPreviewSalt())
+        // A finished download: read from the download cache, no network at all.
+        val downloaded = try {
+            db.downloadedContentDao().getAllCompleted().first().any { it.localFilePath == url }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            false
+        }
+        if (downloaded) {
+            return ThumbnailPreviewManager.Source.Downloaded(url, com.iptvapp.download.DownloadUtil.getDownloadCache(this), key)
+        }
+        if (PROGRESSIVE_EXTENSIONS.none { path.endsWith(it) }) return null
+        // The provider's own file needs a second connection. Only when the account has one to spare
+        // (most allow one stream, and a second would cut this film off); unknown counts as no.
+        val limits = repository.accountLimits(serverIndex) ?: return null
+        val max = limits.maxConnections ?: return null
+        val active = limits.activeConnections ?: return null
+        if (max < 2 || active >= max) return null
+        return ThumbnailPreviewManager.Source.Remote(url, ThumbnailPreviewManager.playbackUserAgent(), key)
+    }
+
     private fun updateSeekBar() {
         if (!isVod) return
         if (catchupReloadJob?.isActive == true) return
@@ -5537,6 +5715,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (isCatchup) {
                     binding.tvTimeElapsed.text = formatDuration(progress.toLong())
                     if (!sb.isPressed) vodSeekTo(progress.toLong())
+                } else if (seekSession.active) {
+                    // A drag: the preview follows the finger; the jump waits for letting go.
+                    showSeekPreview(seekSession.setTarget(progress.toLong()))
                 } else {
                     player?.seekTo(progress.toLong())
                     notifyPartyStateChange()
@@ -5545,13 +5726,43 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             override fun onStartTrackingTouch(sb: android.widget.SeekBar) {
                 seekBarDragging = true
                 hideHandler.removeCallbacks(hideRunnable)
+                if (seekPreviewApplies()) {
+                    seekHandler.removeCallbacks(seekCommitRunnable)
+                    beginSeekPreview()
+                    showSeekPreview(seekSession.setTarget(sb.progress.toLong()))
+                }
             }
             override fun onStopTrackingTouch(sb: android.widget.SeekBar) {
                 seekBarDragging = false
                 if (isCatchup) vodSeekTo(sb.progress.toLong())
+                else if (seekSession.active) {
+                    seekSession.setTarget(sb.progress.toLong())
+                    commitSeekPreview()
+                }
                 resetHideTimer()
             }
         })
+        // The bar under the remote: Left/Right choose a place with the preview (as with the
+        // controls hidden), OK jumps. Live timeshift and catch-up keep the bar's own keys.
+        binding.seekBar.setOnKeyListener { _, keyCode, event ->
+            if (!seekPreviewApplies()) return@setOnKeyListener false
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (event.action == KeyEvent.ACTION_DOWN) {
+                        resetHideTimer()
+                        nudgeSeekPreview(forward = keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
+                    }
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    if (!seekSession.active) false else {
+                        if (event.action == KeyEvent.ACTION_DOWN) commitSeekPreview()
+                        true
+                    }
+                }
+                else -> false
+            }
+        }
         seekRunnable = object : Runnable {
             override fun run() { updateSeekBar(); seekHandler.postDelayed(this, 1000) }
         }
@@ -6063,6 +6274,19 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
             ) return super.onKeyDown(keyCode, event)
         }
+        // Choosing a place to jump to: OK jumps, Back stays put, Left/Right keep choosing (below).
+        // Anything else (Play/Pause, Up/Down, CH +/-, ...) jumps first, then does what it always did.
+        if (seekSession.active) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    commitSeekPreview(); return true
+                }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { cancelSeekPreview(); return true }
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> Unit
+                else -> commitSeekPreview()
+            }
+        }
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
                 val now = System.currentTimeMillis()
@@ -6104,7 +6328,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // does that; a bare Left/Right with the overlay hidden is simply swallowed.
             KeyEvent.KEYCODE_DPAD_LEFT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() - nextVodSkipAmountMs()); notifyPartyStateChange(); true }
+                isVod -> {
+                    resetHideTimer()
+                    if (seekPreviewApplies()) nudgeSeekPreview(forward = false)
+                    else { vodSeekTo(vodPositionMs() - nextVodSkipAmountMs()); notifyPartyStateChange() }
+                    true
+                }
                 timeshiftControlsOpen() && (event?.repeatCount ?: 0) == 0 -> {
                     event?.startTracking()
                     liveSkipPendingMs = -TimeshiftNavigator.REPLAY_10_MS
@@ -6115,7 +6344,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> { resetHideTimer(); vodSeekTo(vodPositionMs() + nextVodSkipAmountMs()); notifyPartyStateChange(); true }
+                isVod -> {
+                    resetHideTimer()
+                    if (seekPreviewApplies()) nudgeSeekPreview(forward = true)
+                    else { vodSeekTo(vodPositionMs() + nextVodSkipAmountMs()); notifyPartyStateChange() }
+                    true
+                }
                 timeshiftControlsOpen() && (event?.repeatCount ?: 0) == 0 -> {
                     event?.startTracking()
                     liveSkipPendingMs = TimeshiftNavigator.REPLAY_10_MS
@@ -6309,6 +6543,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
             isOverlayVisible = false
+            cancelSeekPreview()
             binding.btnSkipBreak.visibility = View.GONE
             binding.liveProgramBar.visibility = View.GONE
             binding.osdTopBar.visibility = View.GONE
@@ -6564,6 +6799,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     override fun onStop() {
         super.onStop()
         if (::quickPeek.isInitialized) quickPeek.stop()
+        // Out of sight: no place is being chosen, and no picture is being made for a player that's gone.
+        cancelSeekPreview()
+        thumbnailSourceUrl = null
+        thumbnailSourceJob?.cancel()
+        thumbnailManager?.setSource(null)
         // Out of sight is not watching. Playing resumes the count through onIsPlayingChanged.
         val stoppedAt = android.os.SystemClock.elapsedRealtime()
         feedTracker.onNotPlaying(stoppedAt)
@@ -6629,6 +6869,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onDestroy() {
+        // Lets go of the seek preview's pictures and its worker (the disk cache stays, bounded).
+        thumbnailManager?.close()
+        thumbnailManager = null
         if (isChangingConfigurations) {
             // onStop keeps the session across a configuration change. Rotation is listed in
             // configChanges, so it never destroys this activity and the window stays. A change

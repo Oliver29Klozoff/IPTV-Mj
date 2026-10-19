@@ -272,6 +272,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Picture", 0, null, R.id.rowPictureMode),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
             SettingSearchEntry("Match frame rate", 0, null, R.id.rowFrameRateMatch),
+            SettingSearchEntry("Seek preview pictures", 0, null, R.id.switchSeekPreview),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Game alerts", 0, null, R.id.switchGameAlerts),
@@ -2991,6 +2992,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(prefs.pictureMode.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
                 binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(prefs.frameRateMatch.first())
+                binding.switchSeekPreview.isChecked = prefs.seekPreviewPictures.first()
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()
@@ -4232,6 +4234,9 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setSportsScoreOverlay(enabled) }
         }
         binding.rowFavoriteTeams.setOnClickListener { showFavoriteTeamsDialog() }
+        binding.switchSeekPreview.setOnCheckedChangeListener { _, enabled ->
+            lifecycleScope.launch { prefs.setSeekPreviewPictures(enabled) }
+        }
         binding.switchGameAlerts.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setGameAlerts(enabled) }

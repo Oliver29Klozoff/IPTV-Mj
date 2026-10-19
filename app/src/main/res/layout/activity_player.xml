@@ -766,6 +766,47 @@
             android:textSize="13sp" />
     </RelativeLayout>
 
+
+    <!-- Seek preview: the picture (when the video allows one) and the time being chosen, over the
+         seek bar's target and kept inside the screen (PlayerActivity.showSeekPreview). The time
+         alone when there's no picture. Doesn't take focus. -->
+    <LinearLayout
+        android:id="@+id/seekPreview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="2dp"
+        android:background="@drawable/seek_preview_bg"
+        android:focusable="false"
+        android:gravity="center_horizontal"
+        android:importantForAccessibility="yes"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/vodSeekContainer"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <ImageView
+            android:id="@+id/ivSeekPreview"
+            android:layout_width="192dp"
+            android:layout_height="108dp"
+            android:background="#000000"
+            android:importantForAccessibility="no"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvSeekPreviewTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:importantForAccessibility="no"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/rack_text"
+            android:textSize="16sp" />
+    </LinearLayout>
+
     <!-- Channel zones (click to switch) -->
     <View
         android:id="@+id/zonePrevious"
