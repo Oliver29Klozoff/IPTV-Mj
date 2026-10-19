@@ -179,6 +179,19 @@ class ThumbnailPreviewManagerTest {
     }
 
     @Test
+    fun closingThePreviewDropsItsRequestWithoutCountingAFailure() {
+        manager.setSource(recording("broken2", frames = false))
+        val dropped = ask(60_000)
+        manager.cancelPending()
+        runUntil { dropped.calls > 0 }
+        assertEquals(0, dropped.calls)
+        // Still on: a cancelled request is not one of the two failures that switch pictures off.
+        val next = ask(120_000)
+        runUntil { next.calls > 0 }
+        assertTrue(manager.supported)
+    }
+
+    @Test
     fun closingStopsWorkInFlight() {
         manager.setSource(recording("g", frames = true))
         val a = ask(60_000)

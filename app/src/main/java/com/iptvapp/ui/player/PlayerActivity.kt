@@ -5640,6 +5640,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun endSeekPreviewUi() {
         seekBarDragging = false
+        // Nobody is looking now: no more reading or decoding for this preview.
+        thumbnailManager?.cancelPending()
         binding.seekPreview.visibility = View.GONE
         binding.ivSeekPreview.setImageDrawable(null)
         binding.ivSeekPreview.visibility = View.GONE

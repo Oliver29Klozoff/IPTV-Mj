@@ -73,7 +73,7 @@ class ThumbnailPreviewManager(private val context: Context) {
     private var off = false
 
     // Worker-thread state: the open retriever for the current source.
-    private var openGrabber: Grabber? = null
+    @Volatile private var openGrabber: Grabber? = null
     private var openFor = -1
     // Worker-thread count of pictures written since the disk cache was last trimmed.
     private var writesSinceTrim = 0
@@ -128,6 +128,15 @@ class ThumbnailPreviewManager(private val context: Context) {
         requests.send(Job(sourceGeneration, src.key, bucket, onResult))
     }
 
+    /**
+     * The preview closed (a jump, or Back): the request waiting is dropped and a read of the
+     * provider's file in progress stops. Pictures already made stay cached.
+     */
+    fun cancelPending() {
+        wanted = null
+        openGrabber?.abortReads()
+    }
+
     /** Leaving the player: stops work and lets go of the pictures. */
     fun close() {
         setSource(null)
@@ -168,6 +177,9 @@ class ThumbnailPreviewManager(private val context: Context) {
         // Timing only: the kind of source and how long, never an address.
         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "${src.javaClass.simpleName} ${if (fromDisk) "disk" else "decode"} ${if (bitmap != null) "ok" else "none"} ${took}ms")
         if (job.generation != sourceGeneration) return
+        // Given up on because the preview closed, not because the source failed.
+        val cancelled = wanted != (job.generation to job.bucketMs)
+        if (bitmap == null && cancelled) return
         if (bitmap == null) {
             if (++failures >= MAX_FAILURES) off = true
         } else {
@@ -203,7 +215,11 @@ class ThumbnailPreviewManager(private val context: Context) {
     /** One open retriever for one video. Not thread-safe: used from the single worker only. */
     private class Grabber(private val retriever: MediaMetadataRetriever, private val data: MediaDataSource?) {
 
+        /** Any thread: the provider read in progress stops at its next chunk. */
+        fun abortReads() { (data as? RangeData)?.abort = true }
+
         fun frame(atMs: Long, width: Int, height: Int): Bitmap? = try {
+            (data as? RangeData)?.abort = false
             grab(atMs, width, height)
         } finally {
             // The provider's file: no connection is held open between pictures.
@@ -290,8 +306,11 @@ class ThumbnailPreviewManager(private val context: Context) {
         private var bodyAt = -1L
         private var length = -1L
         private var read = 0L
+        /** Set from another thread to stop: the next read fails instead of carrying on. */
+        @Volatile var abort = false
 
         override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+            if (abort) throw IOException("seek preview closed")
             if (size == 0) return 0
             if (length >= 0 && position >= length) return -1
             if (position != bodyAt || body == null) openAt(position)

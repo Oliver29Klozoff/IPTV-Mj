@@ -100,6 +100,19 @@ class ThumbnailRangeDataTest {
     }
 
     @Test
+    fun aReadInProgressStopsWhenThePreviewCloses() {
+        val data = ThumbnailPreviewManager.RangeData(url, "MKTV-test")
+        val buf = ByteArray(100)
+        assertEquals(100, data.readAt(0, buf, 0, 100))
+        data.abort = true
+        try {
+            data.readAt(100, buf, 0, 100)
+            fail("expected the read to stop")
+        } catch (_: IOException) {}
+        data.close()
+    }
+
+    @Test
     fun aServerThatIgnoresRangesIsNotDownloadedFromTheStart() {
         honourRanges = false
         val data = ThumbnailPreviewManager.RangeData(url, "MKTV-test")
