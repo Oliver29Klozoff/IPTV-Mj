@@ -214,8 +214,9 @@ class ThumbnailPreviewManager(private val context: Context) {
         openGrabber = try {
             Grabber.open(context, src) { activeToken?.get() == true }
         } catch (e: Exception) {
-            // Stopped part-way because the preview closed: open it again next time, not never.
-            if (activeToken?.get() == true) openFor = -1
+            // Not opened (stopped part-way, a timeout, a 503): tried again next time; two failed
+            // requests in a row switch pictures off for this video (MAX_FAILURES).
+            openFor = -1
             null
         }
         return openGrabber
