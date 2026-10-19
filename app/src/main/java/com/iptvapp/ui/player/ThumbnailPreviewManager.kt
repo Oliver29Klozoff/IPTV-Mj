@@ -139,6 +139,8 @@ class ThumbnailPreviewManager(private val context: Context) {
     private suspend fun run(job: Job) {
         // Superseded while it waited: another video, or the viewer has moved on.
         if (job.generation != sourceGeneration || wanted != (job.generation to job.bucketMs)) return
+        // Switched off, or the go-ahead taken away, while it waited: nothing is read.
+        if (off || !allowed) return
         val src = source ?: return
         val started = SystemClock.elapsedRealtime()
         var fromDisk = false
