@@ -134,11 +134,16 @@ class ThumbnailPreviewManager(private val context: Context) {
      */
     fun cancelPending() {
         wanted = null
-        openGrabber?.abortReads()
+        activeToken?.set(true)
     }
+
+    // The request being worked on: set to stop it, from any thread, whether the file is still
+    // being opened or a frame is being read. Every provider read checks it.
+    @Volatile private var activeToken: java.util.concurrent.atomic.AtomicBoolean? = null
 
     /** Leaving the player: stops work and lets go of the pictures. */
     fun close() {
+        cancelPending()
         setSource(null)
         requests.close()
         memory.clear()
@@ -153,13 +158,17 @@ class ThumbnailPreviewManager(private val context: Context) {
         val src = source ?: return
         val started = SystemClock.elapsedRealtime()
         var fromDisk = false
+        val token = java.util.concurrent.atomic.AtomicBoolean(false)
+        activeToken = token
         val bitmap = withContext(worker) {
             disk.get(job.key, job.bucketMs)?.let { bytes ->
                 fromDisk = true
                 return@withContext BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             }
             val grabbed = try {
-                grabberFor(src, job.generation)?.frame(job.bucketMs, WIDTH_PX, HEIGHT_PX)
+                val grabber = grabberFor(src, job.generation)
+                // Closed while the file was being opened: no decoding for it.
+                if (token.get()) null else grabber?.frame(job.bucketMs, WIDTH_PX, HEIGHT_PX)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 null
@@ -173,6 +182,7 @@ class ThumbnailPreviewManager(private val context: Context) {
             }
             grabbed
         }
+        if (activeToken === token) activeToken = null
         val took = SystemClock.elapsedRealtime() - started
         // Timing only: the kind of source and how long, never an address.
         if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "${src.javaClass.simpleName} ${if (fromDisk) "disk" else "decode"} ${if (bitmap != null) "ok" else "none"} ${took}ms")
@@ -197,8 +207,10 @@ class ThumbnailPreviewManager(private val context: Context) {
         closeGrabber()
         openFor = generation
         openGrabber = try {
-            Grabber.open(context, src)
+            Grabber.open(context, src) { activeToken?.get() == true }
         } catch (e: Exception) {
+            // Stopped part-way because the preview closed: open it again next time, not never.
+            if (activeToken?.get() == true) openFor = -1
             null
         }
         return openGrabber
@@ -215,11 +227,7 @@ class ThumbnailPreviewManager(private val context: Context) {
     /** One open retriever for one video. Not thread-safe: used from the single worker only. */
     private class Grabber(private val retriever: MediaMetadataRetriever, private val data: MediaDataSource?) {
 
-        /** Any thread: the provider read in progress stops at its next chunk. */
-        fun abortReads() { (data as? RangeData)?.abort = true }
-
         fun frame(atMs: Long, width: Int, height: Int): Bitmap? = try {
-            (data as? RangeData)?.abort = false
             grab(atMs, width, height)
         } finally {
             // The provider's file: no connection is held open between pictures.
@@ -246,14 +254,14 @@ class ThumbnailPreviewManager(private val context: Context) {
         }
 
         companion object {
-            fun open(context: Context, src: Source): Grabber {
+            fun open(context: Context, src: Source, cancelled: () -> Boolean = { false }): Grabber {
                 val r = MediaMetadataRetriever()
                 var data: MediaDataSource? = null
                 try {
                     when (src) {
                         is Source.Local -> r.setDataSource(context, src.uri)
                         is Source.Downloaded -> { data = CacheOnlyData(src.cache, src.url); r.setDataSource(data) }
-                        is Source.Remote -> { data = RangeData(src.url, src.userAgent); r.setDataSource(data) }
+                        is Source.Remote -> { data = RangeData(src.url, src.userAgent, cancelled = cancelled); r.setDataSource(data) }
                     }
                 } catch (e: Exception) {
                     try { r.release() } catch (_: Exception) {}
@@ -301,7 +309,12 @@ class ThumbnailPreviewManager(private val context: Context) {
      * byte budget per video so a file that can't be read near the asked spot is given up on
      * rather than downloaded.
      */
-    internal class RangeData(private val url: String, private val userAgent: String, private val budget: Long = BYTE_BUDGET) : MediaDataSource() {
+    internal class RangeData(
+        private val url: String,
+        private val userAgent: String,
+        private val budget: Long = BYTE_BUDGET,
+        private val cancelled: () -> Boolean = { false },
+    ) : MediaDataSource() {
         private var body: InputStream? = null
         private var bodyAt = -1L
         private var length = -1L
@@ -310,7 +323,7 @@ class ThumbnailPreviewManager(private val context: Context) {
         @Volatile var abort = false
 
         override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
-            if (abort) throw IOException("seek preview closed")
+            if (abort || cancelled()) throw IOException("seek preview closed")
             if (size == 0) return 0
             if (length >= 0 && position >= length) return -1
             if (position != bodyAt || body == null) openAt(position)
