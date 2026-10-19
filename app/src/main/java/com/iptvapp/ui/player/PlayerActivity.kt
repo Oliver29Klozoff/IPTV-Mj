@@ -5495,6 +5495,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // The stream the picture source was worked out for; another stream works it out again.
     private var thumbnailSourceUrl: String? = null
     private var thumbnailSourceJob: Job? = null
+    private var thumbnailConnectionJob: Job? = null
     private var seekPreviewOpenedBar = false
     private var seekPreviewLayoutWatched = false
     private val seekCommitRunnable = Runnable { commitSeekPreview() }
@@ -5521,14 +5522,39 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun beginSeekPreview() {
         seekSession.begin(vodPositionMs(), vodDurationMs())
         seekBarDragging = true
-        // The provider's own file needs a spare connection now, not just when it was last checked:
-        // ask again (the time alone shows meanwhile), so a cast or another device that has taken
-        // it since is never cut off by a picture.
-        if (thumbnailManager?.usesProviderConnection == true) {
-            thumbnailSourceUrl = null
-            thumbnailManager?.setSource(null)
-        }
         ensureThumbnailSource()
+        recheckProviderConnection()
+    }
+
+    /**
+     * The provider's own file needs a spare connection now, not just when it was last checked: ask
+     * again (the time alone shows meanwhile), so a cast or another device that has taken it since
+     * is never cut off by a picture. Only the permission changes; the video's failures and byte
+     * budget stay as they are.
+     */
+    private fun recheckProviderConnection() {
+        val manager = thumbnailManager ?: return
+        if (!manager.needsConnectionCheck) return
+        manager.allowed = false
+        val url = streamUrl
+        val server = serverIndex
+        thumbnailConnectionJob?.cancel()
+        thumbnailConnectionJob = lifecycleScope.launch {
+            val spare = try {
+                if (castSession != null) false else {
+                    val limits = repository.accountLimits(server, forceRefresh = true)
+                    val max = limits?.maxConnections
+                    val active = limits?.activeConnections
+                    max != null && active != null && max >= 2 && active < max
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                false
+            }
+            if (streamUrl != url || thumbnailManager !== manager) return@launch
+            manager.allowed = spare
+            if (spare && seekSession.active) showSeekPreview(seekSession.targetMs)
+        }
     }
 
     private fun showSeekPreview(targetMs: Long) {

@@ -161,6 +161,24 @@ class ThumbnailPreviewManagerTest {
     }
 
     @Test
+    fun withoutTheGoAheadOnlyTheTimeShowsAndFailuresStillCount() {
+        manager.setSource(recording("h", frames = false))
+        manager.allowed = false
+        assertFalse(manager.supported)
+        val waiting = ask(60_000)
+        runUntil { waiting.calls > 0 }
+        assertEquals(0, waiting.calls)
+        manager.allowed = true
+        repeat(2) { i -> val a = ask(120_000L + i * 60_000L); runUntil { a.calls > 0 } }
+        assertFalse(manager.supported)
+        // Taking the go-ahead away and giving it back doesn't forget the failures.
+        manager.allowed = false
+        manager.allowed = true
+        assertFalse(manager.supported)
+        assertFalse(manager.needsConnectionCheck)
+    }
+
+    @Test
     fun closingStopsWorkInFlight() {
         manager.setSource(recording("g", frames = true))
         val a = ask(60_000)

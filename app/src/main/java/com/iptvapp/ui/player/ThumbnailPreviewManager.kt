@@ -87,15 +87,23 @@ class ThumbnailPreviewManager(private val context: Context) {
     }
 
     /** True when this video can show pictures (the time always shows). */
-    val supported get() = source != null && !off
+    val supported get() = source != null && !off && allowed
 
-    /** The provider's own file: a second connection, so its go-ahead is checked again for each seek. */
-    val usesProviderConnection get() = source is Source.Remote
+    /**
+     * The provider's own file takes a second connection, so the player checks for a spare one at
+     * each seek and sets this; meanwhile, and when there is none, the time shows alone. The video's
+     * failures, its slow-source cut-off and its byte budget carry on regardless.
+     */
+    var allowed = true
+
+    /** A picture source that needs that check (and is still worth checking for). */
+    val needsConnectionCheck get() = source is Source.Remote && !off
 
     /** The video changed (or went): earlier pictures and requests no longer apply. */
     fun setSource(next: Source?) {
         sourceGeneration++
         source = next
+        allowed = true
         wanted = null
         failures = 0
         off = false
@@ -113,7 +121,7 @@ class ThumbnailPreviewManager(private val context: Context) {
      */
     fun request(positionMs: Long, durationMs: Long, onResult: (bucketMs: Long, Bitmap?) -> Unit) {
         val src = source
-        if (src == null || off || durationMs <= 0) return
+        if (src == null || off || !allowed || durationMs <= 0) return
         val bucket = SeekPreview.bucketMs(positionMs, durationMs)
         wanted = sourceGeneration to bucket
         memory.get(memKey(src.key, bucket))?.let { onResult(bucket, it); return }
