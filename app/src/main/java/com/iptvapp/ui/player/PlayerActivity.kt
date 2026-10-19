@@ -5785,6 +5785,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 resetHideTimer()
             }
         })
+        // Up/Down (or anything else) taking focus off the bar while choosing: jump there first, so the
+        // control focus lands on never runs before a late jump that would override it.
+        binding.seekBar.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus && seekSession.active && !binding.seekBar.isPressed) commitSeekPreview()
+        }
         // The bar under the remote: Left/Right choose a place with the preview (as with the
         // controls hidden), OK jumps. Live timeshift and catch-up keep the bar's own keys.
         binding.seekBar.setOnKeyListener { _, keyCode, event ->
