@@ -5617,7 +5617,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 null
             }
-            if (streamUrl == url && thumbnailSourceUrl == url) thumbnails.setSource(source)
+            if (streamUrl == url && thumbnailSourceUrl == url) {
+                thumbnails.setSource(source)
+                // Still choosing: the place on screen gets its picture now, without another press.
+                if (source != null && seekSession.active) showSeekPreview(seekSession.targetMs)
+            }
         }
     }
 

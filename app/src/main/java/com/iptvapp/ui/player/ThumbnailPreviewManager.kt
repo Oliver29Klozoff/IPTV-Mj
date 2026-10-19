@@ -75,6 +75,8 @@ class ThumbnailPreviewManager(private val context: Context) {
     // Worker-thread state: the open retriever for the current source.
     private var openGrabber: Grabber? = null
     private var openFor = -1
+    // Worker-thread count of pictures written since the disk cache was last trimmed.
+    private var writesSinceTrim = 0
 
     private class Job(val generation: Int, val key: String, val bucketMs: Long, val onResult: (Long, Bitmap?) -> Unit)
 
@@ -95,7 +97,11 @@ class ThumbnailPreviewManager(private val context: Context) {
         failures = 0
         off = false
         val gen = sourceGeneration
-        scope.launch(worker) { if (openFor != gen) closeGrabber() }
+        scope.launch(worker) {
+            if (openFor != gen) closeGrabber()
+            // Between videos: back under the disk limit.
+            if (writesSinceTrim > 0) { disk.trim(); writesSinceTrim = 0 }
+        }
     }
 
     /**
@@ -138,7 +144,10 @@ class ThumbnailPreviewManager(private val context: Context) {
             }
             if (grabbed != null) {
                 val out = ByteArrayOutputStream()
-                if (grabbed.compress(Bitmap.CompressFormat.JPEG, 80, out)) disk.put(job.key, job.bucketMs, out.toByteArray())
+                if (grabbed.compress(Bitmap.CompressFormat.JPEG, 80, out) && disk.put(job.key, job.bucketMs, out.toByteArray())) {
+                    // Kept under its limit while in use too, not only when a player opens.
+                    if (++writesSinceTrim >= TRIM_EVERY) { disk.trim(); writesSinceTrim = 0 }
+                }
             }
             grabbed
         }
@@ -315,24 +324,30 @@ class ThumbnailPreviewManager(private val context: Context) {
         const val MIN_FREE_BYTES = 64L * 1024 * 1024
         const val MAX_FAILURES = 2
         const val SLOW_MS = 4_000L
+        /** Trims the disk cache after this many new pictures (about 0.5 MB). */
+        const val TRIM_EVERY = 25
 
         /** The player's own User-Agent, so the provider sees the same client for a picture as for the film. */
         fun playbackUserAgent() =
             "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1"
 
         /** A recording's key: its id, and its file's size and date as the system reports them. */
-        fun recordingKey(context: Context, recordingId: Int, uri: Uri): String? = try {
-            if (uri.scheme == "file") {
-                val f = File(uri.path ?: return null)
-                if (!f.isFile) null else SeekPreview.keyForRecording(recordingId, f.length(), f.lastModified())
-            } else {
-                context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+        fun recordingKey(context: Context, recordingId: Int, uri: Uri): String? {
+            try {
+                if (uri.scheme == "file") {
+                    val f = File(uri.path ?: return null)
+                    if (!f.isFile) return null
+                    return SeekPreview.keyForRecording(recordingId, f.length(), f.lastModified())
+                }
+                return context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
                     if (!c.moveToFirst()) null else {
                         val size = c.getLong(0)
                         if (size <= 0) null else SeekPreview.keyForRecording(recordingId, size, 0L)
                     }
                 }
+            } catch (_: Exception) {
+                return null
             }
-        } catch (_: Exception) { null }
+        }
     }
 }
