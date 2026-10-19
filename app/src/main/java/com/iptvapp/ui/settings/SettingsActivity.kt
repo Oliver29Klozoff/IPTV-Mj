@@ -273,6 +273,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
             SettingSearchEntry("Match frame rate", 0, null, R.id.rowFrameRateMatch),
             SettingSearchEntry("Seek preview pictures", 0, null, R.id.switchSeekPreview),
+            SettingSearchEntry("Pictures on one-stream accounts", 0, null, R.id.switchSeekPreviewOneStream),
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Game alerts", 0, null, R.id.switchGameAlerts),
@@ -2993,6 +2994,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
                 binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(prefs.frameRateMatch.first())
                 binding.switchSeekPreview.isChecked = prefs.seekPreviewPictures.first()
+                binding.switchSeekPreviewOneStream.isChecked = prefs.seekPreviewOneStream.first()
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()
@@ -4236,6 +4238,10 @@ class SettingsActivity : AppCompatActivity() {
         binding.rowFavoriteTeams.setOnClickListener { showFavoriteTeamsDialog() }
         binding.switchSeekPreview.setOnCheckedChangeListener { _, enabled ->
             lifecycleScope.launch { prefs.setSeekPreviewPictures(enabled) }
+        }
+        binding.switchSeekPreviewOneStream.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setSeekPreviewOneStream(enabled) }
         }
         binding.switchGameAlerts.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener

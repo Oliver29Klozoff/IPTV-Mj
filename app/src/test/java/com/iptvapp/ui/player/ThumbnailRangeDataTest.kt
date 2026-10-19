@@ -174,6 +174,15 @@ class ThumbnailRangeDataTest {
     }
 
     @Test
+    fun eachRequestIsTimedForTheOneStreamExperiment() {
+        ThumbnailPreviewManager.RangeData.lastRequestAt = 0L
+        val data = ThumbnailPreviewManager.RangeData(url, "MKTV-test")
+        data.readAt(0, ByteArray(10), 0, 10)
+        assertTrue(ThumbnailPreviewManager.RangeData.lastRequestAt > 0L)
+        data.close()
+    }
+
+    @Test
     fun theProvidersRedirectIsFollowedOnceAndRemembered() {
         redirect = true
         val data = ThumbnailPreviewManager.RangeData(url, "MKTV-test")

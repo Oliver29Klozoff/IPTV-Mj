@@ -112,6 +112,7 @@ class PreferencesManager @Inject constructor(
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)
     fun seekPreviewPicturesNow() = PrefsSnapshot.read(context, readSeekPreviewPictures)
+    fun seekPreviewOneStreamNow() = PrefsSnapshot.read(context, readSeekPreviewOneStream)
     fun pictureModeNow() = PrefsSnapshot.read(context, readPictureMode)
     fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
     fun favoriteTeamsNow() = PrefsSnapshot.read(context, readFavoriteTeams)
@@ -142,6 +143,7 @@ class PreferencesManager @Inject constructor(
     private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
     private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
     private val readSeekPreviewPictures = { p: Preferences -> p[Keys.SEEK_PREVIEW_PICTURES] ?: true }
+    private val readSeekPreviewOneStream = { p: Preferences -> p[Keys.SEEK_PREVIEW_ONE_STREAM] ?: false }
     private val readFrameRateMatch = { p: Preferences ->
         com.iptvapp.util.FrameRateMatch.normalize(p[Keys.FRAME_RATE_MATCH] ?: com.iptvapp.util.FrameRateMatch.DEFAULT)
     }
@@ -338,6 +340,8 @@ class PreferencesManager @Inject constructor(
         val FRAME_RATE_MATCH = intPreferencesKey("frame_rate_match")
         // Seek preview pictures (ThumbnailPreviewManager): on means "when the video allows it".
         val SEEK_PREVIEW_PICTURES = booleanPreferencesKey("seek_preview_pictures")
+        // Experimental: pictures from a provider film even on a one-stream account (a brief second connection).
+        val SEEK_PREVIEW_ONE_STREAM = booleanPreferencesKey("seek_preview_one_stream")
         // Random, this device only: hashes a non-Xtream address into a thumbnail cache key.
         val SEEK_PREVIEW_SALT = stringPreferencesKey("seek_preview_salt")
         // Picture profile: 0 auto, 1 sports, 2 movie, 3 standard. Auto follows the programme.
@@ -500,6 +504,10 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readSeekPreviewPictures)
     suspend fun setSeekPreviewPictures(v: Boolean) = context.dataStore.edit { it[Keys.SEEK_PREVIEW_PICTURES] = v }
+    val seekPreviewOneStream: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSeekPreviewOneStream)
+    suspend fun setSeekPreviewOneStream(v: Boolean) = context.dataStore.edit { it[Keys.SEEK_PREVIEW_ONE_STREAM] = v }
 
     /** This device's thumbnail key salt, made the first time it is needed. */
     suspend fun seekPreviewSalt(): String {

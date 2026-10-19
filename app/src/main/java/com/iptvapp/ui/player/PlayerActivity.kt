@@ -88,6 +88,10 @@ import kotlin.math.abs
 import okhttp3.OkHttpClient
 import javax.inject.Inject
 
+// The one-stream experiment: trouble this soon after a picture counts against it; buffering this long is a stall.
+private const val ONE_STREAM_TRIP_MS = 15_000L
+private const val ONE_STREAM_STALL_MS = 8_000L
+
 @AndroidEntryPoint
 class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
 
@@ -3083,6 +3087,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     }
 
                     override fun onPlaybackStateChanged(state: Int) {
+                        if (state == Player.STATE_BUFFERING && oneStreamActive) {
+                            oneStreamStallJob?.cancel()
+                            oneStreamStallJob = lifecycleScope.launch {
+                                kotlinx.coroutines.delay(ONE_STREAM_STALL_MS)
+                                if (player?.playbackState == Player.STATE_BUFFERING) oneStreamTrouble(stalled = true)
+                            }
+                        } else if (state != Player.STATE_BUFFERING) oneStreamStallJob?.cancel()
                         when (state) {
                             Player.STATE_READY -> {
                                 retryCount = 0
@@ -3181,6 +3192,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         }
                     }
                     override fun onPlayerError(error: PlaybackException) {
+                        oneStreamTrouble(stalled = false)
                         // Releasing this player for Listen can itself report an error (a release
                         // timeout on a slow device) — not the channel's fault, and nothing to retry.
                         if (audioOnly) return
@@ -5496,6 +5508,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var thumbnailSourceUrl: String? = null
     private var thumbnailSourceJob: Job? = null
     private var thumbnailConnectionJob: Job? = null
+    // The one-stream experiment: pictures fetched although the account allows one stream.
+    // [oneStreamTripped] is the video it upset (an error or a stall right after a picture), never tried again.
+    private var oneStreamActive = false
+    private var oneStreamTripped: String? = null
+    private var oneStreamStallJob: Job? = null
     private var seekPreviewOpenedBar = false
     private var seekPreviewLayoutWatched = false
     private val seekCommitRunnable = Runnable { commitSeekPreview() }
@@ -5536,6 +5553,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val manager = thumbnailManager ?: return
         if (!manager.needsConnectionCheck) return
         manager.allowed = false
+        oneStreamActive = false
         val url = streamUrl
         val server = serverIndex
         thumbnailConnectionJob?.cancel()
@@ -5551,6 +5569,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val active = limits?.activeConnections
             // One stream per account: never a spare, so no more asking for this video.
             if (max == 1) {
+                if (castSession == null && oneStreamTripped != url && prefs.seekPreviewOneStreamNow()) {
+                    if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "provider allows one stream: trying pictures anyway (experiment)")
+                    oneStreamActive = true
+                    manager.allowed = true
+                    if (seekSession.active) showSeekPreview(seekSession.targetMs)
+                    return@launch
+                }
                 if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "provider allows one stream: time only for this video")
                 manager.setSource(null)
                 return@launch
@@ -5560,6 +5585,22 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             manager.allowed = spare
             if (spare && seekSession.active) showSeekPreview(seekSession.targetMs)
         }
+    }
+
+    /**
+     * The one-stream experiment backs off for this video when playback fails, or stays stuck
+     * buffering, soon after a picture was fetched: the provider may have dropped the movie for
+     * the second connection. Only the movie's own connection is judged; pictures stop, the time stays.
+     */
+    private fun oneStreamTrouble(stalled: Boolean) {
+        if (!oneStreamActive || thumbnailManager?.needsConnectionCheck != true) return
+        val since = android.os.SystemClock.elapsedRealtime() - ThumbnailPreviewManager.RangeData.lastRequestAt
+        if (since > ONE_STREAM_TRIP_MS + if (stalled) ONE_STREAM_STALL_MS else 0L) return
+        oneStreamActive = false
+        oneStreamTripped = streamUrl
+        thumbnailManager?.let { it.allowed = false; it.setSource(null) }
+        if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "one-stream experiment off for this video (${if (stalled) "stall" else "error"} ${since}ms after a picture)")
+        android.widget.Toast.makeText(this, "Seek pictures paused for this video: the provider seemed to object", android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun showSeekPreview(targetMs: Long) {

@@ -382,6 +382,7 @@ class ThumbnailPreviewManager(private val context: Context) {
 
         private fun rangeOf(address: String, start: Long, end: Long): ByteArray {
             requests++
+            lastRequestAt = android.os.SystemClock.elapsedRealtime()
             client.newCall(
                 Request.Builder().url(address).header("User-Agent", userAgent).header("Range", "bytes=$start-$end").build()
             ).execute().use { response ->
@@ -402,6 +403,7 @@ class ThumbnailPreviewManager(private val context: Context) {
                     if (n < 0) break
                     out.write(buf, 0, n)
                 }
+                lastRequestAt = android.os.SystemClock.elapsedRealtime()
                 return out.toByteArray()
             }
         }
@@ -425,6 +427,8 @@ class ThumbnailPreviewManager(private val context: Context) {
             const val BYTE_BUDGET = 48L * 1024 * 1024
             const val PIECE_BYTES = 256 * 1024
             const val MAX_PIECES = 16
+            /** When the provider was last asked for a piece (elapsedRealtime): the one-stream experiment watches it. */
+            @Volatile var lastRequestAt = 0L
             val client: OkHttpClient by lazy {
                 OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build()
             }

@@ -1241,6 +1241,31 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
+                                    android:text="Pictures on one-stream accounts (experimental)" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Provider movies get pictures over a brief second connection. Some providers drop the movie for it; pictures then stop for that video." />
+                            </LinearLayout>
+                            <Switch
+                                android:id="@+id/switchSeekPreviewOneStream"
+                                style="@style/Rack.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
                                     android:text="Score overlay" />
                                 <TextView
                                     style="@style/Rack.Helper"
