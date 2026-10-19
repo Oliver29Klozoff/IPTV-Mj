@@ -1,7 +1,7 @@
 {
-  "versionCode": 592,
-  "versionName": "7.54",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.54/MKTV.apk",
-  "apkSha256": "cc49e9d5050accc5d798ad6eeb01a229a2c799462db1952267dba1a51e39a8e9",
-  "changelog": "Mosaic's channel picker now searches every provider."
+  "versionCode": 593,
+  "versionName": "7.55",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.55/MKTV.apk",
+  "apkSha256": "d847217608bc68a36fd294a907a2099b420ea6e11cd6fd96c6505dcde4275a99",
+  "changelog": "Seek preview: choose where to jump in a movie or recording before it jumps, with a picture for recordings and downloads."
 }

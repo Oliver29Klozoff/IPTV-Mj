@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.55 - 2026-10-19
+- **New**: Seek preview. In a movie, episode or recording, Left and Right (or dragging the
+  bar) choose where to jump, shown with its time over the bar, and a picture for recordings
+  and downloaded films. OK, Play/Pause or a two-second pause jumps there; Back stays put.
+  Presses speed up the longer you keep going. Settings > Seek preview pictures turns the
+  pictures off.
+
 ## v7.54 - 2026-10-18
 - **Improved**: Mosaic's channel picker searches every provider. It still opens on your
   favorites; type two or more letters to search all channels on your main provider and
