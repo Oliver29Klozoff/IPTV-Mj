@@ -5515,9 +5515,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var oneStreamStallJob: Job? = null
     private var seekPreviewOpenedBar = false
     private var seekPreviewLayoutWatched = false
-    private val seekCommitRunnable = Runnable { commitSeekPreview() }
+    private val seekCommitRunnable = Runnable { idleCommitSeekPreview() }
+    // The picture for a target: when the last press was, and when its answer (a picture or none) came.
+    private var seekLastPressAt = 0L
+    private var seekPictureGeneration = -1
+    private var seekPictureAt = 0L
     // Jump this long after the last press: the old one-press-one-jump feel, with time to look.
     private val SEEK_PREVIEW_IDLE_MS = 2_000L
+    // A picture still on its way holds the jump this long after the last press at most (a slow
+    // provider), and one that has just come stays this long before the jump, so it is seen.
+    private val SEEK_PREVIEW_HOLD_MS = 6_000L
+    private val SEEK_PREVIEW_LOOK_MS = 1_500L
     // Plain files a retriever can read in ranges; HLS, DASH and MPEG-TS are left to the time alone.
     private val PROGRESSIVE_EXTENSIONS = listOf(".mp4", ".m4v", ".mkv", ".mov", ".webm", ".avi")
 
@@ -5530,6 +5538,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     /** A Left or Right press (held keys repeat, and the step grows with them). */
     private fun nudgeSeekPreview(forward: Boolean) {
         if (!seekSession.active) beginSeekPreview()
+        seekLastPressAt = android.os.SystemClock.uptimeMillis()
         val target = seekSession.nudge(forward)
         showSeekPreview(target)
         seekHandler.removeCallbacks(seekCommitRunnable)
@@ -5634,6 +5643,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val generation = seekSession.generation
             thumbnails.request(targetMs, duration) { _, bitmap ->
                 if (!seekSession.active || seekSession.generation != generation) return@request
+                seekPictureGeneration = generation
+                seekPictureAt = if (bitmap != null) android.os.SystemClock.uptimeMillis() else 0L
                 if (bitmap != null) {
                     image.setImageBitmap(bitmap)
                     image.alpha = 1f
@@ -5665,6 +5676,27 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     /** Jumps to the chosen place, once. */
+    /**
+     * The jump after a pause in pressing: held while this place's picture is still coming (the
+     * provider check or the picture itself), up to [SEEK_PREVIEW_HOLD_MS] after the last press,
+     * then a moment to see it. OK, Play/Pause and letting go of the bar jump at once as before.
+     */
+    private fun idleCommitSeekPreview() {
+        if (!seekSession.active) return
+        val now = android.os.SystemClock.uptimeMillis()
+        val manager = thumbnailManager
+        val answered = seekPictureGeneration == seekSession.generation
+        val coming = !answered && manager != null &&
+            (manager.supported || (manager.needsConnectionCheck && thumbnailConnectionJob?.isActive == true))
+        val hold = (coming && now - seekLastPressAt < SEEK_PREVIEW_HOLD_MS) ||
+            (answered && now - seekPictureAt < SEEK_PREVIEW_LOOK_MS)
+        if (hold) {
+            seekHandler.postDelayed(seekCommitRunnable, 250L)
+            return
+        }
+        commitSeekPreview()
+    }
+
     private fun commitSeekPreview() {
         seekHandler.removeCallbacks(seekCommitRunnable)
         val target = seekSession.commit() ?: return

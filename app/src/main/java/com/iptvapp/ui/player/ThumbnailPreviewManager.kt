@@ -201,7 +201,7 @@ class ThumbnailPreviewManager(private val context: Context) {
             failures = 0
             memory.put(memKey(job.key, job.bucketMs), bitmap)
             // Too slow on this device or this file: the time alone from here on.
-            if (took > SLOW_MS) off = true
+            if (took > if (src is Source.Remote) SLOW_REMOTE_MS else SLOW_MS) off = true
         }
         // Stale: the viewer has moved to another place since this was asked for.
         if (wanted == (job.generation to job.bucketMs)) job.onResult(job.bucketMs, bitmap)
@@ -444,6 +444,8 @@ class ThumbnailPreviewManager(private val context: Context) {
         const val MIN_FREE_BYTES = 64L * 1024 * 1024
         const val MAX_FAILURES = 2
         const val SLOW_MS = 4_000L
+        // A provider film is read over the network, often a slow one: more time before giving up on it.
+        const val SLOW_REMOTE_MS = 10_000L
         /** Trims the disk cache after this many new pictures (about 0.5 MB). */
         const val TRIM_EVERY = 25
 
