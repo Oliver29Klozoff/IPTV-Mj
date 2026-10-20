@@ -273,17 +273,19 @@ class EpgRepairRepository @Inject constructor(
                 } catch (e: Exception) {
                     0
                 }
-                // The provider's own short guide for these channels is their old mapping: it goes too.
-                saved.forEach { dao.deleteShortGuideRows(serverIndex, it) }
                 // Did it help? A channel counts only when its upcoming listings now come from the chosen
                 // guide channel (a failed download keeps the old, possibly wrong, ones).
                 val nowSec = System.currentTimeMillis() / 1000
                 val chosen = picks.associate { (ch, g) -> ch.streamId to g.xmltvId.lowercase(Locale.US) }
-                val fixed = saved.count { streamId ->
+                val fixedIds = saved.filter { streamId ->
                     val id = dao.xmltvRowIdFor(serverIndex, streamId)
                         ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelOfRow(it, streamId) }?.lowercase(Locale.US)
                     id != null && id == chosen[streamId] && dao.lastStopFor(serverIndex, streamId) > nowSec
                 }
+                val fixed = fixedIds.size
+                // Only where the chosen listings landed: the provider's own short guide (the old mapping)
+                // goes. Where the download failed, the channel keeps what it had.
+                fixedIds.forEach { dao.deleteShortGuideRows(serverIndex, it) }
                 val withListings = fixed
                 val message = when {
                     saved.size == 1 && fixed == 1 -> "Saved. The channel now shows listings from \"${picks.first().second.displayName}\"."
@@ -319,6 +321,9 @@ class EpgRepairRepository @Inject constructor(
                 dao.upsertOverride(old.copy(offsetMinutes = minutes, updatedAt = now))
             }
             repository.shiftEpgListings(channel.serverIndex, channel.streamId, delta)
+            // Moved XMLTV listings and the provider's unmoved short guide would disagree: with XMLTV listings to
+            // show, the corrected schedule is the only one (a channel without them keeps its short guide).
+            if (minutes != 0 && dao.xmltvRowIdFor(channel.serverIndex, channel.streamId) != null) dao.deleteShortGuideRows(channel.serverIndex, channel.streamId)
             if (minutes == 0) "Time offset removed." else "Listings moved ${EpgTimeOffset.label(minutes)}."
         }
     }

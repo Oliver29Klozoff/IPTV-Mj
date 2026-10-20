@@ -1337,11 +1337,18 @@ class XtreamRepository @Inject constructor(
         xmltvGuideWriter.begin(serverIndex)
     }
 
-    /** Whether the user chose this channel's guide channel (for the provider the slot holds now). */
+    /**
+     * Whether this channel's schedule is the corrected XMLTV one alone: the user chose its guide
+     * channel or moved its times (for the provider the slot holds now), and it has XMLTV listings.
+     * Then the provider's own short guide, its old mapping at its own times, is neither written
+     * next to them nor read for Now/Next. A channel with no XMLTV listings keeps its short guide.
+     */
     suspend fun hasEpgGuideCorrection(serverIndex: Int, streamId: Int): Boolean = try {
-        val o = db.epgRepairDao().getOverride(serverIndex, streamId)
-        o != null && o.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name &&
-            o.providerKey == epgProviderKeyFor(serverIndex, prefs.seekPreviewSalt())
+        val dao = db.epgRepairDao()
+        val o = dao.getOverride(serverIndex, streamId)
+        o != null && (o.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name || o.offsetMinutes != 0) &&
+            o.providerKey == epgProviderKeyFor(serverIndex, prefs.seekPreviewSalt()) &&
+            dao.xmltvRowIdFor(serverIndex, streamId) != null
     } catch (e: Exception) {
         if (e is kotlin.coroutines.cancellation.CancellationException) throw e
         false
@@ -2913,6 +2920,14 @@ class XtreamRepository @Inject constructor(
      * risk across servers). */
     suspend fun fetchMergedEpgNowNext(serverIndex: Int, streamId: Int): MergedEpgNowNext? {
         return try {
+            // A corrected channel (EPG Health): Now/Next from its corrected listings, not the provider's short guide.
+            if (hasEpgGuideCorrection(serverIndex, streamId)) {
+                val nowMs = System.currentTimeMillis()
+                val rows = db.epgDao().getProgramsBetween(listOf(streamId), serverIndex, nowMs, nowMs + 24 * 3_600_000L)
+                val now = rows.firstOrNull { it.startTimestamp * 1000L <= nowMs } ?: return null
+                val next = rows.firstOrNull { it.startTimestamp > now.startTimestamp }
+                return MergedEpgNowNext(now.title, now.startTimestamp * 1000L, now.stopTimestamp * 1000L, next?.title)
+            }
             val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return null
             val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
             val response = api.getShortEpg(b.apiUrl(), server.username, server.password, streamId = streamId)
@@ -2941,6 +2956,8 @@ class XtreamRepository @Inject constructor(
      * as the primary/deeper mechanism, with this as a fallback for channels XMLTV didn't cover. */
     suspend fun fetchMergedEpg(serverIndex: Int, streamId: Int): List<EpgEntity> {
         return try {
+            // Corrected (EPG Health): its old mapping isn't written next to the corrected listings.
+            if (hasEpgGuideCorrection(serverIndex, streamId)) return emptyList()
             val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return emptyList()
             val b = XtreamUrlBuilder(server.serverUrl, server.username, server.password)
             val response = api.getShortEpg(b.apiUrl(), server.username, server.password, streamId = streamId)
