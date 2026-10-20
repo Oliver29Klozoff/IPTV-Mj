@@ -228,7 +228,7 @@ class EpgRepairRepository @Inject constructor(
             applied, loaded,
             "Applied $applied safe ${if (applied == 1) "match" else "matches"}" +
                 (if (pending > 0) "; $pending will get listings at the next guide refresh" else "") +
-                ". ${report.totals.fixable - applied} suggestions still need review."
+                ". ${(report.totals.fixable - applied).let { left -> "$left ${if (left == 1) "suggestion still needs" else "suggestions still need"} review." }}"
         )
     }
 

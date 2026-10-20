@@ -32,7 +32,9 @@ internal object EpgUiText {
 
     /** "Now 8:00 PM The Walking Dead · 9:00 PM Talking Dead", or "No upcoming listings". */
     fun listings(context: Context, guide: EpgGuideChannel): String {
-        val next = EpgSamples.decode(guide.sample)
+        val nowSecond = System.currentTimeMillis() / 1000
+        // The sample was taken at the last refresh: listings that have ended since are not "next".
+        val next = EpgSamples.decode(guide.sample).filter { it.stopSec > nowSecond }
         if (next.isEmpty()) {
             return if (guide.programCount > 0 && guide.lastStop > System.currentTimeMillis() / 1000) "${guide.programCount} listings" else "No upcoming listings"
         }

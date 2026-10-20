@@ -139,7 +139,7 @@ class EpgHealthActivity : AppCompatActivity() {
         binding.tvCounts.text = buildString {
             append("${n.format(t.checked)} channels checked · ${n.format(t.withListings)} with listings · ${n.format(t.withoutListings)} without")
             append("\n${n.format(t.fixable)} with a suggested match (${n.format(t.safeSuggestions)} safe to apply) · ${n.format(t.unavailable)} with no listings available")
-            append("\n${n.format(t.stale)} stale · ${n.format(t.suspect)} possibly mismatched · ${n.format(t.corrections)} corrections saved")
+            append("\n${n.format(t.stale)} stale · ${n.format(t.suspect)} possibly mismatched · ${n.format(t.corrections)} ${if (t.corrections == 1) "correction" else "corrections"} saved")
             if (t.brokenCorrections > 0) append(" (${n.format(t.brokenCorrections)} need attention)")
             if (r.unusedCorrections.isNotEmpty()) append("\n${r.unusedCorrections.size} corrections belong to a provider that is no longer set up; they are kept but not used")
         }
@@ -205,13 +205,19 @@ class EpgHealthActivity : AppCompatActivity() {
             tab == Tab.FIXES -> "No channel without listings has a match in your guides."
             tab == Tab.MISSING -> "Every channel without listings has a suggested match, or none is missing."
             tab == Tab.CORRECTIONS -> "No corrections saved. Open a channel to choose its guide channel or move its times."
-            else -> "Nothing here."
+            tab == Tab.STALE -> "No channel's listings have run out or end early."
+            tab == Tab.SUSPECT -> "No channel's listings look like they belong to another feed or station."
+            tab == Tab.OFFSETS -> "No channel's times look off compared with the provider's own guide."
+            else -> "No channels."
         }
         returnTo?.let { (s, id) ->
             val pos = items.indexOfFirst { it.channel.serverIndex == s && it.channel.streamId == id }
             if (pos >= 0) {
                 binding.list.scrollToPosition(pos)
                 binding.list.post { binding.list.findViewHolderForAdapterPosition(pos)?.itemView?.requestFocus() }
+            } else {
+                // Fixed, so no longer in this list: focus stays on the list's category, not the top of the screen.
+                binding.tabs.post { binding.tabs.getChildAt(Tab.entries.indexOf(tab))?.requestFocus() }
             }
             returnTo = null
         }
@@ -241,7 +247,8 @@ class EpgHealthActivity : AppCompatActivity() {
 
     private fun updateButtons() {
         val scanning = repair.state.value is EpgRepairRepository.ScanState.Scanning
-        binding.btnScan.isEnabled = !busy && !scanning
+        // Stays enabled while scanning (a press restarts the scan), so a TV remote's focus isn't thrown off it.
+        binding.btnScan.isEnabled = !busy
         binding.btnApplySafe.isEnabled = !busy && !scanning && (report?.totals?.safeSuggestions ?: 0) > 0
         binding.btnResetAll.isEnabled = !busy
         binding.btnRefresh.isEnabled = !busy

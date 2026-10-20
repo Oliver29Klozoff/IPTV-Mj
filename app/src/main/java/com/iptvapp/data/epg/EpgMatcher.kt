@@ -136,7 +136,8 @@ object EpgMatcher {
                 )
             }
             val best = sorted.first()
-            val otherFeeds = index.byBase[name.baseKey].orEmpty()
+            // Other feeds compete only with a name that doesn't say its own feed or station ("HBO", not "HBO East").
+            val otherFeeds = if (name.feeds.isNotEmpty() || name.callSigns.isNotEmpty()) emptyList() else index.byBase[name.baseKey].orEmpty()
                 .filter { (g, n) -> n.key != name.key && name.country.compatible(n.country) && g.hasListingsAfter(nowSec) }
             val other = claimedBy(best.ref)?.takeIf { it != local.streamId }
             val state: MatchState

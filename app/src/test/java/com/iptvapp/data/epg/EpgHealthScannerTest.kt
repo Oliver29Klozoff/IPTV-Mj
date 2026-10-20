@@ -17,6 +17,10 @@ import java.time.ZoneId
 
 /** The health scan's classification, over plain data. */
 class EpgHealthScannerTest {
+    /** A source time moved by [minutes], as the device shows it in [zone] (its own daylight-saving rules). */
+    private fun displayed(startSec: Long, minutes: Int, zone: ZoneId) =
+        java.time.Instant.ofEpochSecond(startSec + EpgTimeOffset.seconds(minutes)).atZone(zone).toLocalDateTime()
+
     private val nowMs = 1_800_000_000_000L
     private val now = nowMs / 1000
     private val provider = "pkey"
@@ -194,13 +198,13 @@ class EpgHealthScannerTest {
         val beforeEnd = java.time.OffsetDateTime.parse("2026-11-01T01:30:00-04:00").toEpochSecond()
         val afterEnd = java.time.OffsetDateTime.parse("2026-11-01T01:30:00-05:00").toEpochSecond()
         assertEquals(3600L, afterEnd - beforeEnd)
-        assertEquals(LocalDateTime.parse("2026-11-01T01:30"), EpgTimeOffset.displayed(beforeEnd, 0, ny))
-        assertEquals(LocalDateTime.parse("2026-11-01T01:30"), EpgTimeOffset.displayed(afterEnd, 0, ny))
+        assertEquals(LocalDateTime.parse("2026-11-01T01:30"), displayed(beforeEnd, 0, ny))
+        assertEquals(LocalDateTime.parse("2026-11-01T01:30"), displayed(afterEnd, 0, ny))
         // An offset moves the instant; the zone's rules still decide the wall clock.
-        assertEquals(LocalDateTime.parse("2026-11-01T01:30"), EpgTimeOffset.displayed(beforeEnd, 60, ny))
+        assertEquals(LocalDateTime.parse("2026-11-01T01:30"), displayed(beforeEnd, 60, ny))
         // Spring forward: 02:30 doesn't exist; one hour after 01:30 EST is 03:30 EDT.
         val spring = java.time.OffsetDateTime.parse("2026-03-08T01:30:00-05:00").toEpochSecond()
-        assertEquals(LocalDateTime.parse("2026-03-08T03:30"), EpgTimeOffset.displayed(spring, 60, ny))
+        assertEquals(LocalDateTime.parse("2026-03-08T03:30"), displayed(spring, 60, ny))
     }
 
     @Test

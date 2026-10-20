@@ -106,12 +106,14 @@ class EpgFixChannelActivity : AppCompatActivity() {
         }
         val issue = repair.report?.issues?.firstOrNull { it.channel.serverIndex == channel.serverIndex && it.channel.streamId == channel.streamId }
         binding.tvStatusDetail.text = buildList {
-            if (o != null && o.mode == EpgOverrideMode.MAP.name) add("Correction saved: listings from \"${o.guideName ?: o.xmltvId}\" (${repair.sourceLabel(channel.serverIndex, o.sourceKey.orEmpty())}).")
+            if (o != null && o.mode == EpgOverrideMode.MAP.name) add("Correction saved: listings from \"${o.guideName ?: o.xmltvId}\" — ${repair.sourceLabel(channel.serverIndex, o.sourceKey.orEmpty())}.")
             if (o != null && o.offsetMinutes != 0) add("Times moved ${EpgTimeOffset.label(o.offsetMinutes)}.")
             if (o == null) add("Automatic matching.")
-            s.suspicion?.let { add(it + ".") }
-            if (issue?.kind == EpgIssueKind.OFFSET_HINT && issue.offsetHint != null) add("The provider's own guide suggests moving the times ${EpgTimeOffset.label(issue.offsetHint)}.")
-            if (issue != null && issue.kind != EpgIssueKind.OK && issue.kind != EpgIssueKind.CORRECTED) add(issue.detail + ".")
+            // A guide channel the user chose is not second-guessed.
+            if (o == null || o.mode != EpgOverrideMode.MAP.name) s.suspicion?.let { add(it + ".") }
+            // The last scan's finding no longer applies once a correction is saved (it may predate it).
+            if (o == null && issue?.kind == EpgIssueKind.OFFSET_HINT && issue.offsetHint != null) add("The provider's own guide suggests moving the times ${EpgTimeOffset.label(issue.offsetHint)}.")
+            if (o == null && issue != null && issue.kind != EpgIssueKind.OK && issue.kind != EpgIssueKind.CORRECTED) add(issue.detail + ".")
         }.distinct().joinToString(" ")
         binding.btnReset.visibility = if (o != null) View.VISIBLE else View.GONE
         binding.btnOffset.text = if (o != null && o.offsetMinutes != 0) "Time offset: ${EpgTimeOffset.label(o.offsetMinutes)}" else "Time offset"
@@ -141,7 +143,10 @@ class EpgFixChannelActivity : AppCompatActivity() {
         b.tvListings.text = EpgUiText.listings(this, guide)
         if (choosable) {
             b.root.setOnClickListener { confirmApply(guide) }
-            b.root.contentDescription = "${guide.displayName}, ${repair.sourceLabel(channel.serverIndex, guide.sourceKey)}. ${reason.orEmpty()}. Select to use it for ${channel.name}."
+            b.root.contentDescription = listOfNotNull(
+                "${guide.displayName}, ${repair.sourceLabel(channel.serverIndex, guide.sourceKey)}.", reason?.takeIf { it.isNotBlank() }?.let { "$it." },
+                "Select to use it for ${channel.name}."
+            ).joinToString(" ")
         } else {
             // Shown, not chosen: still focusable so a TV remote can scroll past it, but does nothing.
             b.root.isClickable = false
@@ -174,7 +179,7 @@ class EpgFixChannelActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val recordings = repair.futureRecordings(channel.serverIndex, channel.streamId)
             val message = buildString {
-                append("Listings for \"${channel.name}\" will come from \"${guide.displayName}\" (${repair.sourceLabel(channel.serverIndex, guide.sourceKey)}).")
+                append("Listings for \"${channel.name}\" will come from \"${guide.displayName}\" — ${repair.sourceLabel(channel.serverIndex, guide.sourceKey)}.")
                 append("\n\nNext on that guide channel:\n${EpgUiText.listings(this@EpgFixChannelActivity, guide)}")
                 append("\n\nThis shows in the TV guide, Quick Peek and the player, and stays through guide refreshes until you restore automatic matching.")
                 if (recordings > 0) append("\n\n$recordings scheduled ${if (recordings == 1) "recording keeps its" else "recordings keep their"} channel and times.")

@@ -40,7 +40,7 @@ data class EpgName(
     /** Why [other] is not this channel, in words, or null when nothing says so. */
     fun conflictWith(other: EpgName): String? = when {
         feeds != other.feeds -> "Different feed (${feeds.label()} vs ${other.feeds.label()})"
-        callSigns != other.callSigns -> "Different local station (${callSigns.label()} vs ${other.callSigns.label()})"
+        callSigns != other.callSigns -> "Different local station (${callSigns.upper()} vs ${other.callSigns.upper()})"
         country != null && other.country != null && country != other.country ->
             "Different country (${country.uppercase(Locale.US)} vs ${other.country.uppercase(Locale.US)})"
         numbers() != other.numbers() -> "Different channel number in the name"
@@ -48,6 +48,8 @@ data class EpgName(
     }
 
     private fun numbers() = tokens.flatMap { t -> DIGITS.findAll(t).map { it.value }.toList() }
+
+    private fun Set<String>.upper() = if (isEmpty()) "none" else joinToString("/") { it.uppercase(Locale.US) }
 
     private fun Set<String>.label() = if (isEmpty()) "none" else joinToString("/") { it.replaceFirstChar(Char::uppercaseChar) }
 

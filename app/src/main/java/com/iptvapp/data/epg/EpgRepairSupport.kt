@@ -1,8 +1,6 @@
 package com.iptvapp.data.epg
 
 import com.iptvapp.util.SeekPreview
-import java.time.Instant
-import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
 
@@ -91,10 +89,6 @@ object EpgTimeOffset {
             else -> "$m min"
         }
     }
-
-    /** A source time moved by [minutes], shown in [zone]: daylight saving comes from the zone's rules. */
-    fun displayed(startSec: Long, minutes: Int, zone: ZoneId) =
-        Instant.ofEpochSecond(startSec + seconds(minutes)).atZone(zone).toLocalDateTime()
 
     /**
      * An offset the evidence supports, or null: the provider's own short guide and the XMLTV

@@ -134,6 +134,15 @@ class EpgMatcherTest {
     }
 
     @Test
+    fun aNameThatSaysItsFeedIsNotUnsettledByOtherFeeds() {
+        val idx = index(guide("hbo.east", "HBO East"), guide("hbo.west", "HBO West"))
+        val r = EpgMatcher.suggest(local("HBO East"), idx, now)
+        assertEquals(MatchState.HIGH, r.state)
+        assertEquals("hbo.east", r.best!!.guide.xmltvId)
+        assertTrue(r.candidates.none { it.guide.xmltvId == "hbo.west" })
+    }
+
+    @Test
     fun aSameNameWithOtherFeedsListedIsOnlyPossible() {
         val idx = index(guide("hbo.us", "HBO"), guide("hbo.west", "HBO West"))
         val r = EpgMatcher.suggest(local("HBO"), idx, now)

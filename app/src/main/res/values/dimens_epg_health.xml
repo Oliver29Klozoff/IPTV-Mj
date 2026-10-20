@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- EPG Health's side margin. Settings' rack_inset is 0 on wide screens (its columns bring their
+     own), which left these full-width screens touching the edge on a TV. -->
+<resources>
+    <dimen name="epg_inset">16dp</dimen>
+</resources>
