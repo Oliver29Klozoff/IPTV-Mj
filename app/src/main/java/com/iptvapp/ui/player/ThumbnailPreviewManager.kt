@@ -305,14 +305,14 @@ class ThumbnailPreviewManager(private val context: Context) {
                 is Source.Remote -> {
                     val range = RangeData(src.url, src.userAgent, cancelled = cancelled)
                     try {
-                        // The opening, done here so it carries on past a jump: the start and the last
-                        // two pieces, where MP4s and MKVs keep their index. Media3 then finds them read.
+                        // The opening, done here so it carries on past a jump: the first and last
+                        // OPEN_PIECES pieces, where MP4s and MKVs keep their index (moov, cues).
+                        // Media3 then finds them already read.
                         val size = range.size
                         val one = ByteArray(1)
-                        if (size > 0) {
-                            range.readAt((size - 2L * RangeData.PIECE_BYTES).coerceAtLeast(0L), one, 0, 1)
-                            range.readAt(size - 1, one, 0, 1)
-                        }
+                        val piece = RangeData.PIECE_BYTES.toLong()
+                        for (i in 1 until OPEN_PIECES) if (i * piece < size) range.readAt(i * piece, one, 0, 1)
+                        for (i in OPEN_PIECES downTo 1) range.readAt((size - i * piece).coerceAtLeast(0L), one, 0, 1)
                     } catch (e: Exception) {
                         range.close()
                         throw e
@@ -387,6 +387,9 @@ class ThumbnailPreviewManager(private val context: Context) {
         private val cancelled: () -> Boolean,
     ) : Grabber(range) {
         private var extractor: FrameExtractor? = null
+        // This extractor's own stop: set for good when it is let go, so its loader, which Media3
+        // stops later, reads nothing more whatever happens to the request after it.
+        private var stop: java.util.concurrent.atomic.AtomicBoolean? = null
         private var failure: String? = null
 
         override val info: String? get() = "Media3" + (failure?.let { " · $it" } ?: "")
@@ -416,14 +419,19 @@ class ThumbnailPreviewManager(private val context: Context) {
             }
         }
 
-        private fun build(height: Int): FrameExtractor =
-            FrameExtractor.Builder(context, MediaItem.fromUri(url))
+        private fun build(height: Int): FrameExtractor {
+            val halt = java.util.concurrent.atomic.AtomicBoolean(false)
+            stop = halt
+            return FrameExtractor.Builder(context, MediaItem.fromUri(url))
                 .setSeekParameters(SeekParameters.CLOSEST_SYNC)
-                .setMediaSourceFactory(ProgressiveMediaSource.Factory(DataSource.Factory { RangeDataSource(range) }))
+                .setMediaSourceFactory(ProgressiveMediaSource.Factory(DataSource.Factory { RangeDataSource(range, halt) }))
                 .setEffects(listOf(Presentation.createForHeight(height)))
                 .build()
+        }
 
         private fun reset() {
+            stop?.set(true)
+            stop = null
             try { extractor?.close() } catch (_: Exception) {}
             extractor = null
         }
@@ -441,13 +449,17 @@ class ThumbnailPreviewManager(private val context: Context) {
     }
 
     /** [RangeData] as a Media3 data source: reads go to its bounded, cached pieces. */
-    private class RangeDataSource(private val range: RangeData) : BaseDataSource(true) {
+    private class RangeDataSource(
+        private val range: RangeData,
+        private val halt: java.util.concurrent.atomic.AtomicBoolean,
+    ) : BaseDataSource(true) {
         private var uri: Uri? = null
         private var position = 0L
         private var remaining = 0L
         private var opened = false
 
         override fun open(dataSpec: DataSpec): Long {
+            if (halt.get()) throw IOException("seek preview closed")
             uri = dataSpec.uri
             transferInitializing(dataSpec)
             val size = range.size
@@ -465,6 +477,7 @@ class ThumbnailPreviewManager(private val context: Context) {
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
             if (length == 0) return 0
+            if (halt.get()) throw IOException("seek preview closed")
             if (remaining == 0L) return C.RESULT_END_OF_INPUT
             val want = if (remaining == C.LENGTH_UNSET.toLong()) length else minOf(length.toLong(), remaining).toInt()
             val n = range.readAt(position, buffer, offset, want)
@@ -675,6 +688,8 @@ class ThumbnailPreviewManager(private val context: Context) {
         const val SLOW_REMOTE_MS = 10_000L
         // Opening a provider film (reading its index) is given up on after this, jump or no jump.
         const val OPEN_LIMIT_MS = 30_000L
+        // Pieces read from each end of a provider film when it is opened (1 MB each end).
+        const val OPEN_PIECES = 4
         /** The last provider picture attempt, for Settings: timings, sizes, the kind of file and failure; never an address. */
         @Volatile var lastReport: String? = null
 
