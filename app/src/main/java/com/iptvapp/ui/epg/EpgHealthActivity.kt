@@ -317,6 +317,8 @@ class EpgHealthActivity : AppCompatActivity() {
             .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to false))
             .build()
         wm.enqueueUniqueWork(EpgRefreshWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+        // The worker refreshes the main provider; the others' guides refresh alongside it.
+        val others = lifecycleScope.launch { repair.refreshOtherProviders() }
         binding.tvUpdated.text = "Refreshing the guide…"
         busy = true
         updateButtons()
@@ -325,7 +327,7 @@ class EpgHealthActivity : AppCompatActivity() {
             if (info.state.isFinished) {
                 busy = false
                 updateButtons()
-                if (info.state == WorkInfo.State.SUCCEEDED) repair.scan()
+                if (info.state == WorkInfo.State.SUCCEEDED) lifecycleScope.launch { others.join(); repair.scan() }
                 else binding.tvUpdated.text = "The guide refresh didn't finish. The guide you had is kept."
                 wm.getWorkInfosForUniqueWorkLiveData(EpgRefreshWorker.UNIQUE_WORK_NAME).removeObservers(this)
             } else {

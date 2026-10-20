@@ -27,6 +27,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -1357,6 +1358,21 @@ class XtreamRepository @Inject constructor(
     } catch (e: Exception) {
         if (e is kotlin.coroutines.cancellation.CancellationException) throw e
         false
+    }
+
+    /**
+     * A change to a slot's corrections that also moves stored rows (an offset): [block] runs in one
+     * transaction while no guide swap for the slot can, and every refresh that started before it
+     * finished is invalidated (it read the corrections as they were). Don't call [shiftEpgListings]
+     * inside it: the lock is not re-entrant; use the DAO.
+     */
+    suspend fun <T> changeEpgCorrections(serverIndex: Int, block: suspend () -> T): T = withContext(Dispatchers.IO) {
+        invalidateEpgRefresh(serverIndex)
+        xmltvGuideWriter.locked(serverIndex) {
+            val result = db.withTransaction { block() }
+            invalidateEpgRefresh(serverIndex)
+            result
+        }
     }
 
     /** A saved offset changed by [deltaMinutes]: this channel's XMLTV listings move now, not at the next refresh. */

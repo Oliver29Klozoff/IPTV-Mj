@@ -304,31 +304,36 @@ class EpgRepairRepository @Inject constructor(
 
     /**
      * A time offset for one channel ([minutes] added to its guide times; 0 = none). Its XMLTV
-     * listings move now by the difference, and every refresh applies it from then on.
+     * listings move now by the difference, and every refresh applies it from then on. Saving it
+     * and moving the rows happen together, while no guide swap for the slot can run.
      */
     suspend fun setOffset(channel: EpgLocalChannel, minutes: Int): String = changeLock.withLock {
         withContext(Dispatchers.IO) {
             require(EpgTimeOffset.isValid(minutes)) { "offset out of range" }
             val provider = currentProvider(channel.serverIndex) ?: return@withContext "That provider is no longer configured."
             val dao = db.epgRepairDao()
-            val old = dao.getOverride(channel.serverIndex, channel.streamId)?.takeIf { it.providerKey == provider.providerKey }
-            val delta = minutes - (old?.offsetMinutes ?: 0)
-            val now = System.currentTimeMillis()
-            if (old == null || old.mode == EpgOverrideMode.AUTO.name) {
-                if (minutes == 0) dao.deleteOverride(channel.serverIndex, channel.streamId)
-                else dao.upsertOverride(
-                    EpgOverrideEntity(
-                        channel.serverIndex, channel.streamId, provider.providerKey, EpgOverrideMode.AUTO.name,
-                        null, null, channel.name, null, minutes, old?.createdAt ?: now, now
+            repository.changeEpgCorrections(channel.serverIndex) {
+                val old = dao.getOverride(channel.serverIndex, channel.streamId)?.takeIf { it.providerKey == provider.providerKey }
+                val delta = minutes - (old?.offsetMinutes ?: 0)
+                val now = System.currentTimeMillis()
+                if (old == null || old.mode == EpgOverrideMode.AUTO.name) {
+                    if (minutes == 0) dao.deleteOverride(channel.serverIndex, channel.streamId)
+                    else dao.upsertOverride(
+                        EpgOverrideEntity(
+                            channel.serverIndex, channel.streamId, provider.providerKey, EpgOverrideMode.AUTO.name,
+                            null, null, channel.name, null, minutes, old?.createdAt ?: now, now
+                        )
                     )
-                )
-            } else {
-                dao.upsertOverride(old.copy(offsetMinutes = minutes, updatedAt = now))
+                } else {
+                    dao.upsertOverride(old.copy(offsetMinutes = minutes, updatedAt = now))
+                }
+                if (delta != 0) dao.shiftXmltvRows(channel.serverIndex, channel.streamId, delta * 60L)
+                // Moved XMLTV listings and the provider's unmoved short guide would disagree: with XMLTV listings to
+                // show, the corrected schedule is the only one (a channel without them keeps its short guide).
+                if (minutes != 0 && dao.xmltvRowIdFor(channel.serverIndex, channel.streamId) != null) {
+                    dao.deleteShortGuideRows(channel.serverIndex, channel.streamId)
+                }
             }
-            repository.shiftEpgListings(channel.serverIndex, channel.streamId, delta)
-            // Moved XMLTV listings and the provider's unmoved short guide would disagree: with XMLTV listings to
-            // show, the corrected schedule is the only one (a channel without them keeps its short guide).
-            if (minutes != 0 && dao.xmltvRowIdFor(channel.serverIndex, channel.streamId) != null) dao.deleteShortGuideRows(channel.serverIndex, channel.streamId)
             if (minutes == 0) "Time offset removed." else "Listings moved ${EpgTimeOffset.label(minutes)}."
         }
     }
@@ -343,9 +348,14 @@ class EpgRepairRepository @Inject constructor(
             val old = dao.getOverride(serverIndex, streamId) ?: return@withContext "Already using automatic matching."
             // Saved for the provider this slot holds now? One saved for an earlier provider was never applied here.
             val applies = currentProvider(serverIndex)?.providerKey == old.providerKey
-            dao.deleteOverride(serverIndex, streamId)
-            if (applies) repository.invalidateEpgRefresh(serverIndex)
-            if (applies && old.offsetMinutes != 0) repository.shiftEpgListings(serverIndex, streamId, -old.offsetMinutes)
+            if (applies) {
+                repository.changeEpgCorrections(serverIndex) {
+                    dao.deleteOverride(serverIndex, streamId)
+                    if (old.offsetMinutes != 0) dao.shiftXmltvRows(serverIndex, streamId, -old.offsetMinutes * 60L)
+                }
+            } else {
+                dao.deleteOverride(serverIndex, streamId)
+            }
             if (applies && old.mode == EpgOverrideMode.MAP.name) {
                 val wrote = try { repository.refreshEpgSlot(serverIndex) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { 0 }
                 if (wrote == 0) return@withContext "Automatic matching restored. The guide couldn't be refreshed right now; it will update at the next refresh."
@@ -361,12 +371,19 @@ class EpgRepairRepository @Inject constructor(
             val all = dao.getOverrides()
             if (all.isEmpty()) return@withContext "There are no corrections to remove."
             val current = repository.epgHealthProviders().also { providers = it }.associateBy { it.serverIndex }
-            for (o in all) {
-                dao.deleteOverride(o.serverIndex, o.streamId)
-                // Only an offset that was applied (to the provider the slot holds now) is undone.
-                val applies = current[o.serverIndex]?.providerKey == o.providerKey
-                if (applies) repository.invalidateEpgRefresh(o.serverIndex)
-                if (applies && o.offsetMinutes != 0) repository.shiftEpgListings(o.serverIndex, o.streamId, -o.offsetMinutes)
+            for ((slot, rows) in all.groupBy { it.serverIndex }) {
+                val key = current[slot]?.providerKey
+                // Only offsets that were applied (to the provider the slot holds now) are undone.
+                if (key != null && rows.any { it.providerKey == key }) {
+                    repository.changeEpgCorrections(slot) {
+                        for (o in rows) {
+                            dao.deleteOverride(o.serverIndex, o.streamId)
+                            if (o.providerKey == key && o.offsetMinutes != 0) dao.shiftXmltvRows(o.serverIndex, o.streamId, -o.offsetMinutes * 60L)
+                        }
+                    }
+                } else {
+                    rows.forEach { dao.deleteOverride(it.serverIndex, it.streamId) }
+                }
             }
             val slots = all.filter { it.mode == EpgOverrideMode.MAP.name && current[it.serverIndex]?.providerKey == it.providerKey }
                 .map { it.serverIndex }.distinct()
@@ -377,9 +394,21 @@ class EpgRepairRepository @Inject constructor(
         }
     }
 
+    /**
+     * The other providers' guides (the main provider's is the guide refresh worker's): for
+     * "Refresh guide now". One at a time; their own refreshes keep the previous guide on failure.
+     */
+    suspend fun refreshOtherProviders(): Int = withContext(Dispatchers.IO) {
+        var wrote = 0
+        for (p in repository.epgHealthProviders().also { providers = it }.filter { it.serverIndex >= 0 }) {
+            wrote += try { repository.refreshEpgSlot(p.serverIndex) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { 0 }
+        }
+        wrote
+    }
+
+    /** The provider a slot holds now, read fresh: a change never trusts the last scan's list. */
     private suspend fun currentProvider(serverIndex: Int): XtreamRepository.EpgHealthProvider? =
-        (providers.firstOrNull { it.serverIndex == serverIndex }
-            ?: repository.epgHealthProviders().also { providers = it }.firstOrNull { it.serverIndex == serverIndex })
+        repository.epgHealthProviders().also { providers = it }.firstOrNull { it.serverIndex == serverIndex }
 
     private fun EpgGuideChannelEntity.toModel() =
         EpgGuideChannel(serverIndex, sourceKey, xmltvId, displayName, programCount, lastStop, sample)
