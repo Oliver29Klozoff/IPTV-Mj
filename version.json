@@ -1,7 +1,7 @@
 {
-  "versionCode": 597,
-  "versionName": "7.59",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.59/MKTV.apk",
-  "apkSha256": "b751d01512e790d43b89a29529c46deb1702433374839dd9afb99868b21c5c7a",
-  "changelog": "Seek preview pictures now work for provider movies in MKV files."
+  "versionCode": 598,
+  "versionName": "7.60",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.60/MKTV.apk",
+  "apkSha256": "28be44aa9996979798f9108a399f13619b88af94e35551209ad91a236e46a821",
+  "changelog": "Seek preview pictures now match exactly where the movie starts."
 }

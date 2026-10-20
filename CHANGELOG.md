@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.60 - 2026-10-20
+- **Improved**: Seek preview pictures match where the movie starts. Pictures are now at most
+  10 seconds apart (60 before), and a jump with a picture showing lands exactly on that
+  picture's frame. Starting there is usually quicker, too.
+
 ## v7.59 - 2026-10-19
 - **Fixed**: Seek preview pictures for provider movies in MKV files. Android's built-in frame
   grabber can't jump around inside many provider MKVs, so pictures now come from the same
