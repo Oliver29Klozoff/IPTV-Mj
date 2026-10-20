@@ -5582,6 +5582,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("SeekPreview", "provider allows one stream: trying pictures anyway (experiment)")
                     oneStreamActive = true
                     manager.allowed = true
+                    manager.refused = false
                     if (seekSession.active) showSeekPreview(seekSession.targetMs)
                     return@launch
                 }
@@ -5592,6 +5593,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Busy, unknown, or the panel didn't answer: the time alone this seek; the next one asks again.
             val spare = max != null && active != null && max >= 2 && active < max
             manager.allowed = spare
+            manager.refused = !spare
             if (spare && seekSession.active) showSeekPreview(seekSession.targetMs)
         }
     }

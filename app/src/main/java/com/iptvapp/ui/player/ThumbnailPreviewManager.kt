@@ -99,6 +99,12 @@ class ThumbnailPreviewManager(private val context: Context) {
      */
     var allowed = true
 
+    /**
+     * The check's definite answer was no (the account full, or not verified): a film still being
+     * opened in the background stops. Not set while a check is in flight, only by its answer.
+     */
+    @Volatile var refused = false
+
     /** A picture source that needs that check (and is still worth checking for). */
     val needsConnectionCheck get() = source is Source.Remote && !off
 
@@ -108,6 +114,7 @@ class ThumbnailPreviewManager(private val context: Context) {
         source = next
         allowed = true
         wanted = null
+        refused = false
         failures = 0
         off = false
         val gen = sourceGeneration
@@ -239,7 +246,7 @@ class ThumbnailPreviewManager(private val context: Context) {
         val began = SystemClock.elapsedRealtime()
         openGrabber = try {
             Grabber.open(context, src) {
-                if (opening.get()) generation != sourceGeneration || SystemClock.elapsedRealtime() - began > OPEN_LIMIT_MS
+                if (opening.get()) generation != sourceGeneration || refused || SystemClock.elapsedRealtime() - began > OPEN_LIMIT_MS
                 else activeToken?.get() == true
             }.also { lastOpen = "opened in ${seconds(SystemClock.elapsedRealtime() - began)}" }
         } catch (e: Exception) {
