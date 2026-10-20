@@ -276,6 +276,10 @@ class EpgRepairRefreshTest {
         assertEquals(start + 3600, db.epgRepairDao().lastStopFor(-1, 9))
         assertEquals(start, db.epgRepairDao().upcoming(-1, 9, start - 10).single().startTimestamp)
         assertEquals(listOf(9), db.epgRepairDao().streamsWithShortGuide(-1, start))
+        // Only XMLTV rows count for a corrected schedule's coverage.
+        assertEquals(0L, db.epgRepairDao().xmltvLastStopFor(-1, 9))
+        primary()
+        assertEquals(start + 3 * 3600, db.epgRepairDao().xmltvLastStopFor(-1, 7))
     }
 
     // 29: corrections and offsets never touch scheduled recordings.

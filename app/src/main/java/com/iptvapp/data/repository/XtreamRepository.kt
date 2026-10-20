@@ -1354,7 +1354,8 @@ class XtreamRepository @Inject constructor(
         val o = dao.getOverride(serverIndex, streamId)
         o != null && (o.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name || o.offsetMinutes != 0) &&
             o.providerKey == epgProviderKeyFor(serverIndex, prefs.seekPreviewSalt()) &&
-            dao.xmltvRowIdFor(serverIndex, streamId) != null
+            // Upcoming XMLTV listings, not just old ones: once those run out the short guide is the fallback again.
+            dao.xmltvLastStopFor(serverIndex, streamId) > System.currentTimeMillis() / 1000
     } catch (e: Exception) {
         if (e is kotlin.coroutines.cancellation.CancellationException) throw e
         false

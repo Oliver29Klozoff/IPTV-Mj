@@ -104,6 +104,10 @@ interface EpgRepairDao {
     @Query("SELECT MAX(id) FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND id LIKE 'x\\_%' ESCAPE '\\'")
     suspend fun xmltvRowIdFor(serverIndex: Int, streamId: Int): String?
 
+    /** When one channel's last XMLTV listing ends (0 when it has none): its corrected schedule still covers what's ahead? */
+    @Query("SELECT COALESCE(MAX(stopTimestamp), 0) FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND id LIKE 'x!_%' ESCAPE '!'")
+    suspend fun xmltvLastStopFor(serverIndex: Int, streamId: Int): Long
+
     /** When one channel's last listing ends (0 when it has none). */
     @Query("SELECT COALESCE(MAX((CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp ELSE stopTimestamp / 1000 END)), 0) FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId")
     suspend fun lastStopFor(serverIndex: Int, streamId: Int): Long

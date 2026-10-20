@@ -242,8 +242,8 @@ class EpgRepairRepository @Inject constructor(
     private suspend fun applyCorrections(serverIndex: Int, picks: List<Pair<EpgLocalChannel, EpgGuideChannel>>): ApplyOutcome =
         changeLock.withLock {
             withContext(Dispatchers.IO) {
-                val provider = providers.firstOrNull { it.serverIndex == serverIndex }
-                    ?: repository.epgHealthProviders().also { providers = it }.firstOrNull { it.serverIndex == serverIndex }
+                // The provider and its guides as they are now, not as at the last scan.
+                val provider = currentProvider(serverIndex)
                     ?: return@withContext ApplyOutcome(0, 0, "That provider is no longer configured.")
                 val keys = provider.sources.map { it.sourceKey }.toSet()
                 val dao = db.epgRepairDao()
