@@ -1123,7 +1123,7 @@ class XtreamRepository @Inject constructor(
             stillCurrent = { primaryGuideIdentity() == identity },
             onBeforeCommit = { beforeSnapshot = snapshotFavoriteEpg(-1, favoriteIds) },
             onCommitted = { recordFavoriteEpgDiffs(-1, beforeSnapshot) },
-            rules = repair.rules,
+            rulesAfterTicket = { epgRules(-1, repair.salt) },
             onSource = repair.record
         )
         forgetUnusedEpgSources(-1, slot, repair.salt)
@@ -1197,26 +1197,8 @@ class XtreamRepository @Inject constructor(
      */
     private suspend fun epgRepairContext(serverIndex: Int, slot: List<EpgSlotSource>): EpgRepairContext {
         val salt = prefs.seekPreviewSalt()
-        val providerKey = epgProviderKeyFor(serverIndex, salt)
         val keyOf = { url: String -> com.iptvapp.data.epg.EpgSourceKeys.sourceKey(url, salt) }
-        val overrides = try {
-            db.epgRepairDao().getOverridesForServer(serverIndex).filter { it.providerKey == providerKey }
-        } catch (e: Exception) {
-            if (e is kotlin.coroutines.cancellation.CancellationException) throw e
-            emptyList()
-        }
-        val rules = EpgRefreshRules(
-            overrides.map {
-                EpgRefreshRules.Rule(
-                    streamId = it.streamId,
-                    mapped = it.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name,
-                    sourceKey = it.sourceKey,
-                    xmltvId = it.xmltvId,
-                    offsetMinutes = it.offsetMinutes,
-                )
-            },
-            keyOf
-        )
+        val rules = epgRules(serverIndex, salt)
         val nick = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }?.nickname
         val record: suspend (String, Pair<List<com.iptvapp.util.XmltvChannel>, List<com.iptvapp.util.XmltvProgram>>?) -> Unit = { url, parsed ->
             val src = slot.firstOrNull { it.url == url }
@@ -1230,6 +1212,29 @@ class XtreamRepository @Inject constructor(
             }
         }
         return EpgRepairContext(salt, rules, record)
+    }
+
+    /** The slot's saved corrections, as the refresh applies them: only those saved for the provider it holds now. */
+    private suspend fun epgRules(serverIndex: Int, salt: String): EpgRefreshRules {
+        val providerKey = epgProviderKeyFor(serverIndex, salt)
+        val overrides = try {
+            db.epgRepairDao().getOverridesForServer(serverIndex).filter { it.providerKey == providerKey }
+        } catch (e: Exception) {
+            if (e is kotlin.coroutines.cancellation.CancellationException) throw e
+            emptyList()
+        }
+        return EpgRefreshRules(
+            overrides.map {
+                EpgRefreshRules.Rule(
+                    streamId = it.streamId,
+                    mapped = it.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name,
+                    sourceKey = it.sourceKey,
+                    xmltvId = it.xmltvId,
+                    offsetMinutes = it.offsetMinutes,
+                )
+            },
+            { url -> com.iptvapp.data.epg.EpgSourceKeys.sourceKey(url, salt) }
+        )
     }
 
     /** A source's result, and its channel list when it had listings. A failed or empty download keeps the last list. */
@@ -3031,7 +3036,7 @@ class XtreamRepository @Inject constructor(
                 },
                 onBeforeCommit = { beforeSnapshot = snapshotFavoriteEpg(serverIndex, favoriteIds) },
                 onCommitted = { recordFavoriteEpgDiffs(serverIndex, beforeSnapshot) },
-                rules = repair.rules,
+                rulesAfterTicket = { epgRules(serverIndex, repair.salt) },
                 onSource = repair.record
             ).also { forgetUnusedEpgSources(serverIndex, slot, repair.salt) }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {

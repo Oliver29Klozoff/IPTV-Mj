@@ -153,9 +153,14 @@ class EpgRepairRepository @Inject constructor(
         val (index, _) = indexFor(channel.serverIndex) ?: (EpgMatchIndex(emptyList()) { 0 } to emptyMap())
         val currentId = dao.xmltvRowIdFor(channel.serverIndex, channel.streamId)
             ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelOfRow(it, channel.streamId) }
-        val currentLite = currentId?.let { id -> index.byId[id.lowercase(Locale.US)]?.minByOrNull { index.rank(it) } }
-        val current = currentLite?.let { dao.getGuideChannel(it.serverIndex, it.sourceKey, it.xmltvId)?.toModel() ?: it }
         val override = dao.getOverride(channel.serverIndex, channel.streamId)
+        // A chosen guide channel is looked up in the guide it was chosen from (two guides can share an id).
+        val currentLite = currentId?.let { id ->
+            override?.takeIf { it.mode == EpgOverrideMode.MAP.name && it.xmltvId.equals(id, ignoreCase = true) }?.sourceKey
+                ?.let { index.guide(GuideRef(it, id.lowercase(Locale.US))) }
+                ?: index.byId[id.lowercase(Locale.US)]?.minByOrNull { index.rank(it) }
+        }
+        val current = currentLite?.let { dao.getGuideChannel(it.serverIndex, it.sourceKey, it.xmltvId)?.toModel() ?: it }
         val match = withContext(Dispatchers.Default) {
             EpgMatcher.suggest(if (current != null) channel.copy(epgChannelId = null) else channel, index, nowSec)
         }

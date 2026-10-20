@@ -218,6 +218,32 @@ class EpgRepairRefreshTest {
         assertTrue(titles(7).isNotEmpty() && titles(7).all { it.startsWith("AMC West") })
     }
 
+    // A corrected channel whose chosen guide channel disappeared keeps its listings through a full refresh.
+    @Test
+    fun aCorrectedChannelWithNothingNewKeepsItsListings() = runBlocking {
+        val rule = rulesFor(mapTo(7, "kCustom", "amc.west"))
+        primary(rule, sources = listOf(provider, custom))
+        val before = titles(7)
+        assertTrue(before.isNotEmpty() && before.all { it.startsWith("AMC West") })
+        val eastOnly = feed(listOf("amc.east" to "AMC East"))
+        primary(rule, fetch = { url -> if (url == provider) providerFeed else eastOnly }, sources = listOf(provider, custom))
+        assertEquals(before, titles(7))
+        assertEquals(3, titles(8).size)
+    }
+
+    // Corrections are read once the refresh holds its ticket.
+    @Test
+    fun correctionsAreReadAfterTheTicketIsTaken() = runBlocking {
+        var readAt = -1
+        refresh.loadPrimary(
+            listOf(provider, custom), null, listOf(amc, news), fetch = { url -> if (url == provider) providerFeed else customFeed },
+            stillCurrent = { true },
+            rulesAfterTicket = { readAt = writer.current(-1); rulesFor(mapTo(7, "kCustom", "amc.west")) }
+        )
+        assertEquals(writer.current(-1), readAt)
+        assertTrue(titles(7).isNotEmpty() && titles(7).all { it.startsWith("AMC West") })
+    }
+
     // Offsets move existing rows now, with the "now playing" flag.
     @Test
     fun anOffsetMovesExistingListings() = runBlocking {

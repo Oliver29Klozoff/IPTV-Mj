@@ -63,12 +63,15 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
         onCommitted: suspend () -> Unit = {},
         rules: EpgRefreshRules = EpgRefreshRules.NONE,
         onSource: suspend (String, Pair<List<XmltvChannel>, List<XmltvProgram>>?) -> Unit = { _, _ -> },
+        // Corrections read after this refresh holds its ticket, so one saved meanwhile (which
+        // invalidates tickets) is either seen here or makes this refresh unable to commit.
+        rulesAfterTicket: (suspend () -> EpgRefreshRules)? = null,
     ): Int {
         // Nothing to match against, and nothing to store. Do not take a ticket: a no-op
         // refresh must not invalidate one that is already downloading.
         if (sources.isEmpty() || channels.isEmpty()) return 0
         val ticket = writer.begin(PRIMARY)
-        val live = rules.forChannels(channels.mapTo(HashSet()) { it.streamId })
+        val live = (rulesAfterTicket?.invoke() ?: rules).forChannels(channels.mapTo(HashSet()) { it.streamId })
         // Corrected channels are not matched automatically.
         val (byEpgId, byName) = primaryLookups(channels.filter { it.streamId !in live.mappedStreams })
         val sourceKeys = sources.mapTo(HashSet()) { live.sourceKeyOf(it) }
@@ -101,9 +104,11 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
             // and replaces the whole slot. One source failed: replace only the channels the
             // successful sources actually matched, and leave every other row alone.
             // (A correction waiting on another source keeps its rows either way.)
+            // So does a corrected channel this refresh found nothing for (its guide channel gone).
+            val keep = pending + (live.mappedStreams - matched.mapTo(HashSet()) { it.streamId })
             val streamIds = when {
                 !everySourceUsable -> matched.map { it.streamId }.distinct()
-                pending.isNotEmpty() -> channels.map { it.streamId }.filter { it !in pending }
+                keep.isNotEmpty() -> channels.map { it.streamId }.filter { it !in keep }
                 else -> null
             }
             wrote = commit(PRIMARY, ticket, matched, streamIds, stillCurrent, onBeforeCommit, onCommitted)
@@ -144,10 +149,11 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
         onCommitted: suspend () -> Unit = {},
         rules: EpgRefreshRules = EpgRefreshRules.NONE,
         onSource: suspend (String, Pair<List<XmltvChannel>, List<XmltvProgram>>?) -> Unit = { _, _ -> },
+        rulesAfterTicket: (suspend () -> EpgRefreshRules)? = null,
     ): Int {
         if (channels.isEmpty() || sources.isEmpty()) return 0
         val ticket = writer.begin(serverIndex)
-        val live = rules.forChannels(channels.mapTo(HashSet()) { it.streamId })
+        val live = (rulesAfterTicket?.invoke() ?: rules).forChannels(channels.mapTo(HashSet()) { it.streamId })
         val (byEpgId, byName) = mergedLookups(channels.filter { it.streamId !in live.mappedStreams })
         val read = HashSet<String>()
         var wrote = 0
@@ -169,10 +175,11 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
             val partial = backupIsPartial && url == backupUrl
             // The first source that matches is this provider's guide; a correction from another
             // source keeps its rows until it is fetched below.
-            val pending = pendingStreams(live, setOf(key))
+            // A corrected channel this source has nothing for keeps its rows too.
+            val keep = pendingStreams(live, setOf(key)) + (live.mappedStreams - rows.mapTo(HashSet()) { it.streamId })
             val streamIds = when {
                 partial -> rows.map { it.streamId }.distinct()
-                pending.isNotEmpty() -> channels.map { it.streamId }.filter { it !in pending }
+                keep.isNotEmpty() -> channels.map { it.streamId }.filter { it !in keep }
                 else -> null
             }
             wrote += commit(serverIndex, ticket, rows, streamIds, stillCurrent, onBeforeCommit, onCommitted)
