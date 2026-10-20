@@ -302,7 +302,23 @@ class ThumbnailPreviewManager(private val context: Context) {
                 // The provider's film: read the way the player reads it (Media3), so a film the
                 // player can seek in gives pictures too. Android's own retriever can't seek in
                 // many provider MKVs ("did not locate the video track for seeking").
-                is Source.Remote -> ExtractorGrabber(context, src.url, RangeData(src.url, src.userAgent, cancelled = cancelled), cancelled)
+                is Source.Remote -> {
+                    val range = RangeData(src.url, src.userAgent, cancelled = cancelled)
+                    try {
+                        // The opening, done here so it carries on past a jump: the start and the last
+                        // two pieces, where MP4s and MKVs keep their index. Media3 then finds them read.
+                        val size = range.size
+                        val one = ByteArray(1)
+                        if (size > 0) {
+                            range.readAt((size - 2L * RangeData.PIECE_BYTES).coerceAtLeast(0L), one, 0, 1)
+                            range.readAt(size - 1, one, 0, 1)
+                        }
+                    } catch (e: Exception) {
+                        range.close()
+                        throw e
+                    }
+                    ExtractorGrabber(context, src.url, range, cancelled)
+                }
                 else -> RetrieverGrabber.open(context, src)
             }
         }
