@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.58 - 2026-10-19
+- **Fixed**: Seek preview pictures from slow providers. Opening a provider movie for pictures
+  (reading its index) now carries on past a jump, so it happens once per movie rather than
+  starting over at every press.
+- **New**: Settings shows a "Last try" line under Pictures on one-stream accounts, saying how
+  the last provider picture went (timing, size, and why it failed), to help track down problems.
+
 ## v7.57 - 2026-10-19
 - **Fixed**: Seek preview pictures from slow providers. After the last Left/Right press, the
   jump now waits for a picture that is still loading (up to 6 seconds), shows it for a moment,
