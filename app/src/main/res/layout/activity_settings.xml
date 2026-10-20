@@ -1254,6 +1254,15 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
+                        <TextView
+                            android:id="@+id/tvSeekPreviewReport"
+                            style="@style/Rack.Helper"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="16dp"
+                            android:paddingEnd="16dp"
+                            android:paddingBottom="12dp"
+                            android:visibility="gone" />
                         <LinearLayout
                             style="@style/Rack.Row.Toggle"
                             android:layout_width="match_parent"

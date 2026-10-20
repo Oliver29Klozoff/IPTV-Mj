@@ -2995,6 +2995,11 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvFrameRateMatchValue.text = com.iptvapp.util.FrameRateMatch.label(prefs.frameRateMatch.first())
                 binding.switchSeekPreview.isChecked = prefs.seekPreviewPictures.first()
                 binding.switchSeekPreviewOneStream.isChecked = prefs.seekPreviewOneStream.first()
+                // How the last provider picture went (this session), so a failure can be described.
+                com.iptvapp.ui.player.ThumbnailPreviewManager.lastReport?.let {
+                    binding.tvSeekPreviewReport.text = "Last try: $it"
+                    binding.tvSeekPreviewReport.visibility = android.view.View.VISIBLE
+                }
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()

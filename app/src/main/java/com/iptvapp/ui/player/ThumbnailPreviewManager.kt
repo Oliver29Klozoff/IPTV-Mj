@@ -67,7 +67,8 @@ class ThumbnailPreviewManager(private val context: Context) {
 
     // Main-thread state.
     private var source: Source? = null
-    private var sourceGeneration = 0
+    // Read by the worker too, to stop opening a video that has been left.
+    @Volatile private var sourceGeneration = 0
     private var wanted: Pair<Int, Long>? = null
     private var failures = 0
     private var off = false
@@ -77,6 +78,8 @@ class ThumbnailPreviewManager(private val context: Context) {
     private var openFor = -1
     // Worker-thread count of pictures written since the disk cache was last trimmed.
     private var writesSinceTrim = 0
+    // Worker-thread: how this request's open went, when it opened the file (for the report).
+    private var lastOpen: String? = null
 
     private class Job(val generation: Int, val key: String, val bucketMs: Long, val onResult: (Long, Bitmap?) -> Unit)
 
@@ -165,8 +168,10 @@ class ThumbnailPreviewManager(private val context: Context) {
                 fromDisk = true
                 return@withContext BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             }
+            lastOpen = null
+            var grabber: Grabber? = null
             val grabbed = try {
-                val grabber = grabberFor(src, job.generation)
+                grabber = grabberFor(src, job.generation)
                 try {
                     // Closed while the file was being opened: no decoding for it.
                     if (token.get()) null else grabber?.frame(job.bucketMs, WIDTH_PX, HEIGHT_PX)
@@ -177,6 +182,21 @@ class ThumbnailPreviewManager(private val context: Context) {
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 null
+            }
+            // What happened, for Settings: no address, only timings, sizes and the kind of failure.
+            if (src is Source.Remote) {
+                val data = grabber?.data as? RangeData
+                lastReport = listOfNotNull(
+                    when {
+                        grabbed != null -> "picture"
+                        token.get() -> "stopped by the jump"
+                        else -> "no picture"
+                    } + " after " + seconds(SystemClock.elapsedRealtime() - started),
+                    lastOpen,
+                    grabber?.info,
+                    data?.let { "${"%.1f".format(java.util.Locale.US, it.read / 1_048_576.0)} MB in ${it.requests} requests" },
+                    data?.lastError?.let { "error: $it" },
+                ).joinToString(" · ")
             }
             if (grabbed != null) {
                 val out = ByteArrayOutputStream()
@@ -211,13 +231,25 @@ class ThumbnailPreviewManager(private val context: Context) {
         if (openFor == generation) return openGrabber
         closeGrabber()
         openFor = generation
+        // Opening reads the file's index, which from a slow provider can take longer than one
+        // seek lasts: it carries on past a jump, so the film is opened once rather than again at
+        // every press. Only leaving the video or OPEN_LIMIT_MS stops it; each picture after that
+        // stops with its own request.
+        val opening = java.util.concurrent.atomic.AtomicBoolean(true)
+        val began = SystemClock.elapsedRealtime()
         openGrabber = try {
-            Grabber.open(context, src) { activeToken?.get() == true }
+            Grabber.open(context, src) {
+                if (opening.get()) generation != sourceGeneration || SystemClock.elapsedRealtime() - began > OPEN_LIMIT_MS
+                else activeToken?.get() == true
+            }.also { lastOpen = "opened in ${seconds(SystemClock.elapsedRealtime() - began)}" }
         } catch (e: Exception) {
             // Not opened (stopped part-way, a timeout, a 503): tried again next time; two failed
             // requests in a row switch pictures off for this video (MAX_FAILURES).
+            lastOpen = "couldn't open after ${seconds(SystemClock.elapsedRealtime() - began)}: ${reason(e)}"
             openFor = -1
             null
+        } finally {
+            opening.set(false)
         }
         return openGrabber
     }
@@ -230,8 +262,20 @@ class ThumbnailPreviewManager(private val context: Context) {
 
     private fun memKey(key: String, bucketMs: Long) = "$key@$bucketMs"
 
+    private fun seconds(ms: Long) = "%.1f s".format(java.util.Locale.US, ms / 1000.0)
+
+    private fun reason(e: Exception) = failureOf(e)
+
     /** One open retriever for one video. Not thread-safe: used from the single worker only. */
-    private class Grabber(private val retriever: MediaMetadataRetriever, private val data: MediaDataSource?) {
+    private class Grabber(private val retriever: MediaMetadataRetriever, val data: MediaDataSource?) {
+
+        /** The file's kind and picture size, as the retriever read them: for the Settings report. */
+        val info: String? = try {
+            val mime = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+            val w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            listOfNotNull(mime, if (w != null && h != null) "${w}×$h" else null).joinToString(" ").ifBlank { null }
+        } catch (_: Exception) { null }
 
         fun frame(atMs: Long, width: Int, height: Int): Bitmap? = grab(atMs, width, height)
 
@@ -328,7 +372,12 @@ class ThumbnailPreviewManager(private val context: Context) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, ByteArray>?) = size > MAX_PIECES
         }
         private var length = -1L
-        private var read = 0L
+        /** Bytes read from the provider for this video so far. */
+        var read = 0L
+            private set
+        /** Why the last read failed, if one did (never an address). */
+        @Volatile var lastError: String? = null
+            private set
         // Where the provider sent the first request; tried first after that, the original if it stops working.
         private var target = url
         /** Set from another thread to stop: the next read fails instead of carrying on. */
@@ -362,7 +411,14 @@ class ThumbnailPreviewManager(private val context: Context) {
             if (abort || cancelled()) throw IOException("seek preview closed")
         }
 
-        private fun fetch(index: Long): ByteArray {
+        private fun fetch(index: Long): ByteArray = try {
+            fetchPiece(index)
+        } catch (e: IOException) {
+            lastError = failureOf(e)
+            throw e
+        }
+
+        private fun fetchPiece(index: Long): ByteArray {
             checkGoing()
             val start = index * PIECE_BYTES
             val end = start + PIECE_BYTES - 1
@@ -387,7 +443,7 @@ class ThumbnailPreviewManager(private val context: Context) {
                 Request.Builder().url(address).header("User-Agent", userAgent).header("Range", "bytes=$start-$end").build()
             ).execute().use { response ->
                 // A server that ignores ranges would send the whole file from the start.
-                if (response.code != 206) throw IOException("ranges not supported")
+                if (response.code != 206) throw IOException("ranges not supported (HTTP ${response.code})")
                 if (length < 0) {
                     length = response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: -1L
                 }
@@ -446,6 +502,14 @@ class ThumbnailPreviewManager(private val context: Context) {
         const val SLOW_MS = 4_000L
         // A provider film is read over the network, often a slow one: more time before giving up on it.
         const val SLOW_REMOTE_MS = 10_000L
+        // Opening a provider film (reading its index) is given up on after this, jump or no jump.
+        const val OPEN_LIMIT_MS = 30_000L
+        /** The last provider picture attempt, for Settings: timings, sizes, the kind of file and failure; never an address. */
+        @Volatile var lastReport: String? = null
+
+        /** The kind of failure only: messages of its own, else the exception's name (a message could carry an address). */
+        fun failureOf(e: Exception): String =
+            e.message?.takeIf { e is IOException && (it.startsWith("seek preview") || it.startsWith("ranges not supported")) } ?: e.javaClass.simpleName
         /** Trims the disk cache after this many new pictures (about 0.5 MB). */
         const val TRIM_EVERY = 25
 
