@@ -10,10 +10,17 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.OpenableColumns
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.datasource.BaseDataSource
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
+import androidx.media3.effect.Presentation
+import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.inspector.frame.FrameExtractor
 import com.iptvapp.util.SeekPreview
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -273,23 +280,43 @@ class ThumbnailPreviewManager(private val context: Context) {
 
     private fun reason(e: Exception) = failureOf(e)
 
-    /** One open retriever for one video. Not thread-safe: used from the single worker only. */
-    private class Grabber(private val retriever: MediaMetadataRetriever, val data: MediaDataSource?) {
+    /** One open picture source for one video. Used from the single worker only. */
+    private abstract class Grabber(val data: MediaDataSource?) {
 
-        /** The file's kind and picture size, as the retriever read them: for the Settings report. */
-        val info: String? = try {
+        /** The file's kind and picture size, or how it failed: for the Settings report. */
+        abstract val info: String?
+
+        abstract fun frame(atMs: Long, width: Int, height: Int): Bitmap?
+
+        /** The provider's file: no connection is held open between pictures. */
+        fun releaseConnection() { (data as? RangeData)?.releaseConnection() }
+
+        open fun close() {
+            try { data?.close() } catch (_: Exception) {}
+        }
+
+        companion object {
+            fun open(context: Context, src: Source, cancelled: () -> Boolean = { false }): Grabber = when (src) {
+                // The provider's film: read the way the player reads it (Media3), so a film the
+                // player can seek in gives pictures too. Android's own retriever can't seek in
+                // many provider MKVs ("did not locate the video track for seeking").
+                is Source.Remote -> ExtractorGrabber(context, src.url, RangeData(src.url, src.userAgent, cancelled = cancelled), cancelled)
+                else -> RetrieverGrabber.open(context, src)
+            }
+        }
+    }
+
+    /** Android's retriever: files on the device and finished downloads. */
+    private class RetrieverGrabber(private val retriever: MediaMetadataRetriever, data: MediaDataSource?) : Grabber(data) {
+
+        override val info: String? = try {
             val mime = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
             val w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
             val h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
             listOfNotNull(mime, if (w != null && h != null) "${w}×$h" else null).joinToString(" ").ifBlank { null }
         } catch (_: Exception) { null }
 
-        fun frame(atMs: Long, width: Int, height: Int): Bitmap? = grab(atMs, width, height)
-
-        /** The provider's file: no connection is held open between pictures. */
-        fun releaseConnection() { (data as? RangeData)?.releaseConnection() }
-
-        private fun grab(atMs: Long, width: Int, height: Int): Bitmap? {
+        override fun frame(atMs: Long, width: Int, height: Int): Bitmap? {
             val us = atMs * 1000L
             val option = MediaMetadataRetriever.OPTION_CLOSEST_SYNC
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -303,30 +330,144 @@ class ThumbnailPreviewManager(private val context: Context) {
             return small
         }
 
-        fun close() {
+        override fun close() {
             try { retriever.release() } catch (_: Exception) {}
-            try { data?.close() } catch (_: Exception) {}
+            super.close()
         }
 
         companion object {
-            fun open(context: Context, src: Source, cancelled: () -> Boolean = { false }): Grabber {
+            fun open(context: Context, src: Source): Grabber {
                 val r = MediaMetadataRetriever()
                 var data: MediaDataSource? = null
                 try {
                     when (src) {
                         is Source.Local -> r.setDataSource(context, src.uri)
                         is Source.Downloaded -> { data = CacheOnlyData(src.cache, src.url); r.setDataSource(data) }
-                        is Source.Remote -> { data = RangeData(src.url, src.userAgent, cancelled = cancelled); r.setDataSource(data) }
+                        is Source.Remote -> throw IllegalArgumentException("provider films use Media3")
                     }
                 } catch (e: Exception) {
                     try { r.release() } catch (_: Exception) {}
                     try { data?.close() } catch (_: Exception) {}
                     throw e
                 }
-                return Grabber(r, data)
+                return RetrieverGrabber(r, data)
             }
         }
     }
+
+    /**
+     * Media3's frame extractor over the provider's file: the same readers as the player (MKV
+     * cues included), at the nearest keyframe, scaled on the GPU. Every byte still comes through
+     * [RangeData] (bounded pieces, the byte budget, stopping on a jump), and the extractor's own
+     * buffering is small. One that failed or was stopped is rebuilt for the next picture; the
+     * pieces already read stay, so it doesn't start from nothing.
+     */
+    private class ExtractorGrabber(
+        private val context: Context,
+        private val url: String,
+        private val range: RangeData,
+        private val cancelled: () -> Boolean,
+    ) : Grabber(range) {
+        private var extractor: FrameExtractor? = null
+        private var failure: String? = null
+
+        override val info: String? get() = "Media3" + (failure?.let { " · $it" } ?: "")
+
+        override fun frame(atMs: Long, width: Int, height: Int): Bitmap? {
+            failure = null
+            val ex = extractor ?: build(height).also { extractor = it }
+            val future = ex.getFrame(atMs)
+            val began = SystemClock.elapsedRealtime()
+            while (true) {
+                try {
+                    return future.get(POLL_MS, TimeUnit.MILLISECONDS).bitmap
+                } catch (_: java.util.concurrent.TimeoutException) {
+                    if (cancelled() || SystemClock.elapsedRealtime() - began > FRAME_WAIT_MS) {
+                        if (!cancelled()) failure = "no frame in ${FRAME_WAIT_MS / 1000} s"
+                        future.cancel(true)
+                        reset()
+                        return null
+                    }
+                } catch (e: java.util.concurrent.ExecutionException) {
+                    var root: Throwable = e
+                    while (root.cause != null && root.cause !== root) root = root.cause!!
+                    failure = (root as? Exception)?.let { failureOf(it) } ?: root.javaClass.simpleName
+                    reset()
+                    return null
+                }
+            }
+        }
+
+        private fun build(height: Int): FrameExtractor =
+            FrameExtractor.Builder(context, MediaItem.fromUri(url))
+                .setSeekParameters(SeekParameters.CLOSEST_SYNC)
+                .setMediaSourceFactory(ProgressiveMediaSource.Factory(DataSource.Factory { RangeDataSource(range) }))
+                .setEffects(listOf(Presentation.createForHeight(height)))
+                .build()
+
+        private fun reset() {
+            try { extractor?.close() } catch (_: Exception) {}
+            extractor = null
+        }
+
+        override fun close() {
+            reset()
+            super.close()
+        }
+
+        companion object {
+            const val POLL_MS = 100L
+            // A picture from a slow provider is still worth keeping (cached for the next seek).
+            const val FRAME_WAIT_MS = 20_000L
+        }
+    }
+
+    /** [RangeData] as a Media3 data source: reads go to its bounded, cached pieces. */
+    private class RangeDataSource(private val range: RangeData) : BaseDataSource(true) {
+        private var uri: Uri? = null
+        private var position = 0L
+        private var remaining = 0L
+        private var opened = false
+
+        override fun open(dataSpec: DataSpec): Long {
+            uri = dataSpec.uri
+            transferInitializing(dataSpec)
+            val size = range.size
+            position = dataSpec.position
+            if (size >= 0 && position > size) throw IOException("seek preview read past the end")
+            remaining = when {
+                dataSpec.length != C.LENGTH_UNSET.toLong() -> dataSpec.length
+                size >= 0 -> size - position
+                else -> C.LENGTH_UNSET.toLong()
+            }
+            opened = true
+            transferStarted(dataSpec)
+            return remaining
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            if (length == 0) return 0
+            if (remaining == 0L) return C.RESULT_END_OF_INPUT
+            val want = if (remaining == C.LENGTH_UNSET.toLong()) length else minOf(length.toLong(), remaining).toInt()
+            val n = range.readAt(position, buffer, offset, want)
+            if (n <= 0) return C.RESULT_END_OF_INPUT
+            position += n
+            if (remaining != C.LENGTH_UNSET.toLong()) remaining -= n
+            bytesTransferred(n)
+            return n
+        }
+
+        override fun getUri(): Uri? = uri
+
+        override fun close() {
+            uri = null
+            if (opened) {
+                opened = false
+                transferEnded()
+            }
+        }
+    }
+
 
     /** A finished download's bytes, from the download cache only. A part that isn't there fails; nothing is fetched. */
     private class CacheOnlyData(private val cache: Cache, private val url: String) : MediaDataSource() {
@@ -394,6 +535,8 @@ class ThumbnailPreviewManager(private val context: Context) {
         var requests = 0
             private set
 
+        // Media3 reads on its own loading thread: one read at a time.
+        @Synchronized
         override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
             checkGoing()
             if (size == 0) return 0
@@ -471,6 +614,7 @@ class ThumbnailPreviewManager(private val context: Context) {
             }
         }
 
+        @Synchronized
         override fun getSize(): Long {
             if (length < 0 && pieces.isEmpty()) fetch(0)
             return length
@@ -482,14 +626,16 @@ class ThumbnailPreviewManager(private val context: Context) {
         }
 
         override fun close() {
-            pieces.clear()
+            // A read still going on another thread stops at its next check.
+            abort = true
+            synchronized(this) { pieces.clear() }
             releaseConnection()
         }
 
         companion object {
             const val BYTE_BUDGET = 48L * 1024 * 1024
             const val PIECE_BYTES = 256 * 1024
-            const val MAX_PIECES = 16
+            const val MAX_PIECES = 32
             /** When the provider was last asked for a piece (elapsedRealtime): the one-stream experiment watches it. */
             @Volatile var lastRequestAt = 0L
             val client: OkHttpClient by lazy {
