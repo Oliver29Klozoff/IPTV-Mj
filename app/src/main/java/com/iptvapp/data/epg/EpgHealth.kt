@@ -169,12 +169,15 @@ object EpgHealthScanner {
                 if (override != null) {
                     val mapped = override.mode == EpgOverrideMode.MAP.name
                     val chosen = if (mapped) override.xmltvId?.let { id -> override.sourceKey?.let { index.guide(GuideRef(it, id.lowercase(Locale.US))) } } else null
-                    val broken = mapped && (chosen == null || !chosen.hasListingsAfter(nowSec))
+                    // What the stored listings really come from: a failed download leaves the old ones in place.
+                    val landed = !mapped || currentId[ch.streamId]?.equals(override.xmltvId, ignoreCase = true) == true
+                    val broken = mapped && (chosen == null || !chosen.hasListingsAfter(nowSec) || (has && !landed))
                     val detail = when {
                         !mapped -> "Automatic matching, times moved ${EpgTimeOffset.label(override.offsetMinutes)}"
                         chosen == null -> "The chosen guide channel \"${override.guideName ?: override.xmltvId}\" is no longer in that guide"
                         !chosen.hasListingsAfter(nowSec) -> "The chosen guide channel \"${chosen.displayName}\" has no upcoming listings"
                         !has -> "Saved — listings load at the next guide refresh"
+                        !landed -> "Saved, but the channel still shows its previous listings: the chosen guide channel's haven't loaded yet (next guide refresh)"
                         else -> "Listings from \"${chosen.displayName}\"" + if (override.offsetMinutes != 0) ", moved ${EpgTimeOffset.label(override.offsetMinutes)}" else ""
                     }
                     issues += EpgIssue(

@@ -134,7 +134,7 @@ class EpgHealthScannerTest {
     fun savedCorrectionsAreListedAndBrokenOnesFlagged() {
         val ok = EpgOverrideEntity(-1, 1, provider, "MAP", "prov", "amc.us", "AMC", "AMC", 0, 0, 0)
         val gone = EpgOverrideEntity(-1, 2, provider, "MAP", "prov", "vanished.us", "Gone", "Gone", 0, 0, 0)
-        val r = scan(input(listOf(ch(1, "AMC HD"), ch(2, "Gone")), listOf(guide("amc.us", "AMC")), coverage = mapOf(1 to now + 3600 * 10), overrides = listOf(ok, gone)))
+        val r = scan(input(listOf(ch(1, "AMC HD"), ch(2, "Gone")), listOf(guide("amc.us", "AMC")), coverage = mapOf(1 to now + 3600 * 10), rowIds = mapOf(1 to "x_amc.us_1_${now}"), overrides = listOf(ok, gone)))
         assertEquals(EpgIssueKind.CORRECTED, r.issues.single { it.channel.streamId == 1 }.kind)
         assertEquals(EpgIssueKind.CORRECTION_BROKEN, r.issues.single { it.channel.streamId == 2 }.kind)
         assertEquals(1, r.totals.corrections)
@@ -154,6 +154,20 @@ class EpgHealthScannerTest {
         )
         assertEquals("station_7", r.issues.single().current!!.xmltvId)
         assertEquals(EpgIssueKind.SUSPECT, r.issues.single().kind)
+    }
+
+    @Test
+    fun aCorrectionWhoseListingsDidNotLoadIsNotReportedAsWorking() {
+        val ok = EpgOverrideEntity(-1, 1, provider, "MAP", "prov", "amc.west", "AMC West", "AMC", 0, 0, 0)
+        val r = scan(
+            input(
+                listOf(ch(1, "AMC HD")), listOf(guide("amc.east", "AMC East"), guide("amc.west", "AMC West")),
+                coverage = mapOf(1 to now + 86_400), rowIds = mapOf(1 to "x_amc.east_${now}"), overrides = listOf(ok),
+            )
+        )
+        val issue = r.issues.single()
+        assertEquals(EpgIssueKind.CORRECTION_BROKEN, issue.kind)
+        assertTrue(issue.detail.contains("still shows its previous listings"))
     }
 
     // 16. Provider deletion safety: a correction saved for another provider is kept, not used.
