@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.57 - 2026-10-19
+- **Fixed**: Seek preview pictures from slow providers. After the last Left/Right press, the
+  jump now waits for a picture that is still loading (up to 6 seconds), shows it for a moment,
+  then jumps. Before, the jump came at 2 seconds and cancelled the picture. Provider movies also
+  get more time before pictures are given up on.
+
 ## v7.56 - 2026-10-19
 - **Fixed**: Seek preview pictures on phones. Provider movies are read in small bounded pieces,
   so a picture arrives in about a second instead of timing out, and films saved on the device

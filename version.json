@@ -1,7 +1,7 @@
 {
-  "versionCode": 594,
-  "versionName": "7.56",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.56/MKTV.apk",
-  "apkSha256": "d6765b01b7ffb7351fba06bd5184f436b9cf4fabb29b4f4fdad87c4a9d6e8646",
-  "changelog": "Seek preview pictures fixed on phones, plus an experimental setting for pictures on one-stream accounts."
+  "versionCode": 595,
+  "versionName": "7.57",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.57/MKTV.apk",
+  "apkSha256": "d69120e4deb51e63bcb6fab647a6f5e245fb90bf734e45998f2d4ed090b8e580",
+  "changelog": "Seek preview waits for a picture from a slow provider before jumping."
 }
