@@ -312,7 +312,8 @@ class ThumbnailPreviewManager(private val context: Context) {
                         val one = ByteArray(1)
                         val piece = RangeData.PIECE_BYTES.toLong()
                         for (i in 1 until OPEN_PIECES) if (i * piece < size) range.readAt(i * piece, one, 0, 1)
-                        for (i in OPEN_PIECES downTo 1) range.readAt((size - i * piece).coerceAtLeast(0L), one, 0, 1)
+                        val last = (size - 1) / piece
+                        for (i in (last - OPEN_PIECES + 1).coerceAtLeast(0L)..last) range.readAt(i * piece, one, 0, 1)
                     } catch (e: Exception) {
                         range.close()
                         throw e
