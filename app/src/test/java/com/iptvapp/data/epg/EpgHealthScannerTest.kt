@@ -141,6 +141,21 @@ class EpgHealthScannerTest {
         assertEquals(1, r.totals.brokenCorrections)
     }
 
+    @Test
+    fun aGuideIdEndingInTheStreamIdIsResolvedFromTheGuide() {
+        // Guide channel "station_7" feeds main-provider stream 7 by name (plain row id): not "station".
+        val r = scan(
+            input(
+                listOf(ch(7, "Station West")),
+                listOf(guide("station_7", "Station East"), guide("station", "Station West")),
+                coverage = mapOf(7 to now + 86_400),
+                rowIds = mapOf(7 to "x_station_7_${now}"),
+            )
+        )
+        assertEquals("station_7", r.issues.single().current!!.xmltvId)
+        assertEquals(EpgIssueKind.SUSPECT, r.issues.single().kind)
+    }
+
     // 16. Provider deletion safety: a correction saved for another provider is kept, not used.
     @Test
     fun aCorrectionForAnotherProviderIsKeptButNotUsed() {

@@ -89,9 +89,11 @@ interface EpgRepairDao {
     suspend fun deleteOverride(serverIndex: Int, streamId: Int)
 
     // ── Guide rows, read for the scan ──────────────────────────────────
+    // Providers store seconds or milliseconds (the short guide passes theirs through): every
+    // time read here is normalised to seconds, under 100000000000 being seconds, as EpgDao does.
 
     /** Per channel: when its last listing ends. Uses the (serverIndex, streamId, start) index. */
-    @Query("SELECT streamId, MAX(stopTimestamp) AS lastStop, COUNT(*) AS rowCount FROM epg_entries WHERE serverIndex = :serverIndex GROUP BY streamId")
+    @Query("SELECT streamId, MAX((CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp ELSE stopTimestamp / 1000 END)) AS lastStop, COUNT(*) AS rowCount FROM epg_entries WHERE serverIndex = :serverIndex GROUP BY streamId")
     suspend fun guideCoverage(serverIndex: Int): List<EpgCoverageRow>
 
     /** Per channel: one XMLTV row id, which names the guide channel it came from ("x_<id>_…"). */
@@ -103,15 +105,15 @@ interface EpgRepairDao {
     suspend fun xmltvRowIdFor(serverIndex: Int, streamId: Int): String?
 
     /** When one channel's last listing ends (0 when it has none). */
-    @Query("SELECT COALESCE(MAX(stopTimestamp), 0) FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId")
+    @Query("SELECT COALESCE(MAX((CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp ELSE stopTimestamp / 1000 END)), 0) FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId")
     suspend fun lastStopFor(serverIndex: Int, streamId: Int): Long
 
     /** Upcoming listings of one channel, for comparing the provider's own short guide with XMLTV. */
-    @Query("SELECT id, title, startTimestamp, stopTimestamp FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND stopTimestamp > :afterSec ORDER BY startTimestamp LIMIT 200")
+    @Query("SELECT id, title, (CASE WHEN startTimestamp < 100000000000 THEN startTimestamp ELSE startTimestamp / 1000 END) AS startTimestamp, (CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp ELSE stopTimestamp / 1000 END) AS stopTimestamp FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND (CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp ELSE stopTimestamp / 1000 END) > :afterSec ORDER BY 3 LIMIT 200")
     suspend fun upcoming(serverIndex: Int, streamId: Int, afterSec: Long): List<EpgListingRow>
 
     /** Channels with both XMLTV rows and the provider's own short-guide rows (primary only). */
-    @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex AND id NOT LIKE 'x\\_%' ESCAPE '\\' AND stopTimestamp > :afterSec")
+    @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex AND id NOT LIKE 'x\\_%' ESCAPE '\\' AND (CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp ELSE stopTimestamp / 1000 END) > :afterSec")
     suspend fun streamsWithShortGuide(serverIndex: Int, afterSec: Long): List<Int>
 
     /** A saved time offset moved by [deltaSec]: this channel's XMLTV listings move with it. */

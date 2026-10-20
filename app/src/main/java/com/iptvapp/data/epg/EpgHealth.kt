@@ -140,18 +140,20 @@ object EpgHealthScanner {
             val allEmpty = records.isNotEmpty() && records.values.all { it.lastResult == EpgSourceResult.EMPTY.name }
 
             val coverage = input.coverage.associateBy { it.streamId }
-            val currentId = HashMap<Int, String>()
-            val claimed = HashMap<String, Int>()
-            for ((streamId, rowId) in input.xmltvRowIds) {
-                val id = XmltvEpgRefresh.guideChannelOfRow(rowId, streamId) ?: continue
-                currentId[streamId] = id
-                claimed.putIfAbsent(id.lowercase(Locale.US), streamId)
-            }
-            val claimedBy = { ref: GuideRef -> claimed[ref.xmltvIdLower] }
             val overrides = HashMap<Int, EpgOverrideEntity>()
             for (o in input.overrides) {
                 if (o.providerKey == input.providerKey) overrides[o.streamId] = o else unused += o
             }
+            val currentId = HashMap<Int, String>()
+            val claimed = HashMap<String, Int>()
+            for ((streamId, rowId) in input.xmltvRowIds) {
+                val ids = XmltvEpgRefresh.guideChannelsOfRow(rowId, streamId)
+                if (ids.isEmpty()) continue
+                val id = resolveRow(ids, input.serverIndex, overrides[streamId]) { index.byId.containsKey(it.lowercase(Locale.US)) }
+                currentId[streamId] = id
+                claimed.putIfAbsent(id.lowercase(Locale.US), streamId)
+            }
+            val claimedBy = { ref: GuideRef -> claimed[ref.xmltvIdLower] }
             // Channels that share a guide id: automatic matching gives it to one of them only.
             val sharedIds = input.channels.filter { !it.epgChannelId.isNullOrBlank() }
                 .groupBy { it.epgChannelId!!.trim().lowercase(Locale.US) }.filterValues { it.size > 1 }
@@ -243,6 +245,18 @@ object EpgHealthScanner {
             lastSuccessfulUpdate = lastSuccess,
         )
         return EpgHealthReport(nowMs, totals, issues, sources, unused)
+    }
+
+    /**
+     * Which reading of a row id (XmltvEpgRefresh.guideChannelsOfRow) is its guide channel: the
+     * chosen one of a correction; else, in the format this slot writes (other providers' rows
+     * always name the stream, the main provider's only for corrected channels), one a guide
+     * lists; else that format's reading.
+     */
+    fun resolveRow(readings: List<String>, serverIndex: Int, override: EpgOverrideEntity?, known: (String) -> Boolean): String {
+        readings.firstOrNull { r -> override?.mode == EpgOverrideMode.MAP.name && override.xmltvId.equals(r, ignoreCase = true) }?.let { return it }
+        val ordered = if (serverIndex >= 0) readings else readings.reversed()
+        return ordered.firstOrNull(known) ?: ordered.first()
     }
 
     private fun guideFor(index: EpgMatchIndex, id: String): EpgGuideChannel? =

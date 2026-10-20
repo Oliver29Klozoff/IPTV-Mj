@@ -322,18 +322,22 @@ class EpgHealthActivity : AppCompatActivity() {
         binding.tvUpdated.text = "Refreshing the guide…"
         busy = true
         updateButtons()
-        wm.getWorkInfosForUniqueWorkLiveData(EpgRefreshWorker.UNIQUE_WORK_NAME).observe(this) { infos ->
-            val info = infos?.firstOrNull() ?: return@observe
-            if (info.state.isFinished) {
-                busy = false
-                updateButtons()
-                if (info.state == WorkInfo.State.SUCCEEDED) lifecycleScope.launch { others.join(); repair.scan() }
-                else binding.tvUpdated.text = "The guide refresh didn't finish. The guide you had is kept."
-                wm.getWorkInfosForUniqueWorkLiveData(EpgRefreshWorker.UNIQUE_WORK_NAME).removeObservers(this)
-            } else {
-                info.progress.getString(EpgRefreshWorker.KEY_STATUS)?.let { binding.tvUpdated.text = it }
+        val work = wm.getWorkInfosForUniqueWorkLiveData(EpgRefreshWorker.UNIQUE_WORK_NAME)
+        work.observe(this, object : androidx.lifecycle.Observer<List<WorkInfo>> {
+            override fun onChanged(value: List<WorkInfo>) {
+                val info = value.firstOrNull() ?: return
+                if (info.state.isFinished) {
+                    busy = false
+                    updateButtons()
+                    if (info.state == WorkInfo.State.SUCCEEDED) lifecycleScope.launch { others.join(); repair.scan() }
+                    else binding.tvUpdated.text = "The guide refresh didn't finish. The guide you had is kept."
+                    // The same LiveData it was added to: another call returns a different one.
+                    work.removeObserver(this)
+                } else {
+                    info.progress.getString(EpgRefreshWorker.KEY_STATUS)?.let { binding.tvUpdated.text = it }
+                }
             }
-        }
+        })
     }
 
     private class IssueAdapter(private val onOpen: (EpgIssue) -> Unit) : RecyclerView.Adapter<IssueAdapter.Holder>() {

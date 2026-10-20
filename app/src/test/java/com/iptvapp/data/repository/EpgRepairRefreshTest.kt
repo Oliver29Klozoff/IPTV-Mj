@@ -268,6 +268,16 @@ class EpgRepairRefreshTest {
         assertTrue(titles(7).isNotEmpty() && titles(7).none { it == "Old feed" })
     }
 
+    // Some providers store milliseconds: coverage and listings are read in seconds either way.
+    @Test
+    fun millisecondListingsAreReadAsSeconds() = runBlocking {
+        db.epgDao().upsertEpg(listOf(EpgEntity(-1, "555", 9, "Ms show", "", start * 1000, (start + 3600) * 1000, 0, 0)))
+        assertEquals(start + 3600, db.epgRepairDao().guideCoverage(-1).single { it.streamId == 9 }.lastStop)
+        assertEquals(start + 3600, db.epgRepairDao().lastStopFor(-1, 9))
+        assertEquals(start, db.epgRepairDao().upcoming(-1, 9, start - 10).single().startTimestamp)
+        assertEquals(listOf(9), db.epgRepairDao().streamsWithShortGuide(-1, start))
+    }
+
     // 29: corrections and offsets never touch scheduled recordings.
     @Test
     fun recordingsAreNotChanged() = runBlocking {
@@ -299,9 +309,11 @@ class EpgRepairRefreshTest {
 
     @Test
     fun rowIdsNameTheirGuideChannel() {
-        assertEquals("amc.east", XmltvEpgRefresh.guideChannelOfRow("x_amc.east_1700000000", 7))
-        assertEquals("amc.west", XmltvEpgRefresh.guideChannelOfRow("x_amc.west_7_1700000000", 7))
-        assertEquals("ch_with_underscores", XmltvEpgRefresh.guideChannelOfRow("x_ch_with_underscores_1700000000", 7))
-        assertEquals(null, XmltvEpgRefresh.guideChannelOfRow("12345", 7))
+        assertEquals(listOf("amc.east"), XmltvEpgRefresh.guideChannelsOfRow("x_amc.east_1700000000", 7))
+        assertEquals(listOf("amc.west", "amc.west_7"), XmltvEpgRefresh.guideChannelsOfRow("x_amc.west_7_1700000000", 7))
+        assertEquals(listOf("ch_with_underscores"), XmltvEpgRefresh.guideChannelsOfRow("x_ch_with_underscores_1700000000", 7))
+        // A guide id that itself ends in the stream id: both readings, for the caller to resolve.
+        assertEquals(listOf("station", "station_7"), XmltvEpgRefresh.guideChannelsOfRow("x_station_7_1700000000", 7))
+        assertEquals(emptyList<String>(), XmltvEpgRefresh.guideChannelsOfRow("12345", 7))
     }
 }

@@ -444,15 +444,19 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
         }
 
         /**
-         * The guide channel id a row came from, or null for a row that is not from XMLTV (the
-         * provider's own short guide). Reverses [rows]' id format.
+         * The guide channel ids a row may have come from (empty for a row that is not from
+         * XMLTV: the provider's own short guide). Reverses [rows]' id format, which can't always
+         * be read one way: "x_station_7_<start>" on stream 7 is guide channel "station" in a
+         * stream-qualified row, or "station_7" in a plain one. Both readings are returned
+         * (qualified first) for the caller to resolve against the guide channels it knows.
          */
-        fun guideChannelOfRow(rowId: String, streamId: Int): String? {
-            if (!rowId.startsWith("x_")) return null
-            val withoutStart = rowId.substringBeforeLast('_', "").takeIf { it.length > 2 } ?: return null
+        fun guideChannelsOfRow(rowId: String, streamId: Int): List<String> {
+            if (!rowId.startsWith("x_")) return emptyList()
+            val withoutStart = rowId.substringBeforeLast('_', "").takeIf { it.length > 2 } ?: return emptyList()
             val body = withoutStart.substring(2)
             val suffix = "_$streamId"
-            return (if (body.endsWith(suffix) && body.length > suffix.length) body.dropLast(suffix.length) else body).ifEmpty { null }
+            return if (body.endsWith(suffix) && body.length > suffix.length) listOf(body.dropLast(suffix.length), body)
+            else listOf(body).filter { it.isNotEmpty() }
         }
     }
 }

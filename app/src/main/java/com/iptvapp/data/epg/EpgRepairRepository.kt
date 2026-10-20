@@ -151,9 +151,11 @@ class EpgRepairRepository @Inject constructor(
         val nowSec = System.currentTimeMillis() / 1000
         val lastStop = dao.lastStopFor(channel.serverIndex, channel.streamId)
         val (index, _) = indexFor(channel.serverIndex) ?: (EpgMatchIndex(emptyList()) { 0 } to emptyMap())
-        val currentId = dao.xmltvRowIdFor(channel.serverIndex, channel.streamId)
-            ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelOfRow(it, channel.streamId) }
         val override = dao.getOverride(channel.serverIndex, channel.streamId)
+        val readings = dao.xmltvRowIdFor(channel.serverIndex, channel.streamId)
+            ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelsOfRow(it, channel.streamId) }.orEmpty()
+        val currentId = readings.takeIf { it.isNotEmpty() }
+            ?.let { EpgHealthScanner.resolveRow(it, channel.serverIndex, override) { id -> index.byId.containsKey(id.lowercase(Locale.US)) } }
         // A chosen guide channel is looked up in the guide it was chosen from (two guides can share an id).
         val currentLite = currentId?.let { id ->
             override?.takeIf { it.mode == EpgOverrideMode.MAP.name && it.xmltvId.equals(id, ignoreCase = true) }?.sourceKey
@@ -283,9 +285,9 @@ class EpgRepairRepository @Inject constructor(
                 val nowSec = System.currentTimeMillis() / 1000
                 val chosen = picks.associate { (ch, g) -> ch.streamId to g.xmltvId.lowercase(Locale.US) }
                 val fixedIds = saved.filter { streamId ->
-                    val id = dao.xmltvRowIdFor(serverIndex, streamId)
-                        ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelOfRow(it, streamId) }?.lowercase(Locale.US)
-                    id != null && id == chosen[streamId] && dao.lastStopFor(serverIndex, streamId) > nowSec
+                    val readings = dao.xmltvRowIdFor(serverIndex, streamId)
+                        ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelsOfRow(it, streamId) }.orEmpty()
+                    readings.any { it.lowercase(Locale.US) == chosen[streamId] } && dao.lastStopFor(serverIndex, streamId) > nowSec
                 }
                 val fixed = fixedIds.size
                 // Only where the chosen listings landed: the provider's own short guide (the old mapping)
