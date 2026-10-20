@@ -253,8 +253,10 @@ class ThumbnailPreviewManager(private val context: Context) {
         val began = SystemClock.elapsedRealtime()
         openGrabber = try {
             Grabber.open(context, src) {
-                if (opening.get()) generation != sourceGeneration || refused || SystemClock.elapsedRealtime() - began > OPEN_LIMIT_MS
-                else activeToken?.get() == true
+                // Leaving the video, or a check answering no, stops it at any point (Media3 opens the
+                // file lazily, inside the first picture); a jump stops only pictures, not opening.
+                generation != sourceGeneration || refused ||
+                    if (opening.get()) SystemClock.elapsedRealtime() - began > OPEN_LIMIT_MS else activeToken?.get() == true
             }.also { lastOpen = "opened in ${seconds(SystemClock.elapsedRealtime() - began)}" }
         } catch (e: Exception) {
             // Not opened (stopped part-way, a timeout, a 503): tried again next time; two failed
