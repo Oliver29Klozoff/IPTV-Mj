@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.59 - 2026-10-19
+- **Fixed**: Seek preview pictures for provider movies in MKV files. Android's built-in frame
+  grabber can't jump around inside many provider MKVs, so pictures now come from the same
+  Media3 reader the player uses. Downloads are still read in bounded pieces with a per-movie
+  limit, and stop on a jump.
+
 ## v7.58 - 2026-10-19
 - **Fixed**: Seek preview pictures from slow providers. Opening a provider movie for pictures
   (reading its index) now carries on past a jump, so it happens once per movie rather than

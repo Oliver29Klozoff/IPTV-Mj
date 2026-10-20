@@ -1,7 +1,7 @@
 {
-  "versionCode": 596,
-  "versionName": "7.58",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.58/MKTV.apk",
-  "apkSha256": "25622fdb0358c08546d7b11d38d5a5426ef1ac219d1edc66657df5112640bc1f",
-  "changelog": "Seek preview: a slow provider movie is opened once for pictures, and Settings shows how the last try went."
+  "versionCode": 597,
+  "versionName": "7.59",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.59/MKTV.apk",
+  "apkSha256": "b751d01512e790d43b89a29529c46deb1702433374839dd9afb99868b21c5c7a",
+  "changelog": "Seek preview pictures now work for provider movies in MKV files."
 }
