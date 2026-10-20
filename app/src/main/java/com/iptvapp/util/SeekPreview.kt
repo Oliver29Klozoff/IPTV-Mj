@@ -17,12 +17,16 @@ import java.util.Locale
  */
 object SeekPreview {
 
-    /** Thumbnails are made for whole buckets of time, not every second: about 100 per video, 5 s to 60 s apart. */
+    /**
+     * Thumbnails are made for whole buckets of time, not every second: 5 s apart for short videos,
+     * 10 s for anything longer. Close enough that a picture is never more than 5 s from where it
+     * was asked for, and the jump lands on that picture (PlayerActivity), not somewhere else.
+     */
     fun intervalMs(durationMs: Long): Long {
         if (durationMs <= 0) return 10_000L
         val raw = durationMs / 100
         val five = ((raw + 4_999L) / 5_000L) * 5_000L
-        return five.coerceIn(5_000L, 60_000L)
+        return five.coerceIn(5_000L, 10_000L)
     }
 
     /** The bucket a position falls in: the nearest one, never past the last second. */

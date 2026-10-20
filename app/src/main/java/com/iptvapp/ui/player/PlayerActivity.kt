@@ -5701,11 +5701,27 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun commitSeekPreview() {
         seekHandler.removeCallbacks(seekCommitRunnable)
+        // A picture showing for this place: asked before commit() moves the generation on.
+        val pictured = seekPictureAt > 0L && seekPictureGeneration == seekSession.generation
+        val duration = seekSession.durationMs
         val target = seekSession.commit() ?: return
         endSeekPreviewUi()
-        vodSeekTo(target)
+        if (pictured && !isCatchup) seekToShownPicture(target, duration) else vodSeekTo(target)
         notifyPartyStateChange()
         updateSeekBar()
+    }
+
+    /**
+     * The jump lands where the picture was: its bucket, at the keyframe nearest it (the frame the
+     * picture is made from), not a few seconds away from it. Starting on a keyframe is also the
+     * quickest start. The player's usual seeking is back for every other seek.
+     */
+    private fun seekToShownPicture(targetMs: Long, durationMs: Long) {
+        val p = player ?: return vodSeekTo(targetMs)
+        val usual = p.seekParameters
+        p.setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
+        vodSeekTo(com.iptvapp.util.SeekPreview.bucketMs(targetMs, durationMs))
+        p.setSeekParameters(usual)
     }
 
     /** Back, leaving, another video: nothing is sought. */

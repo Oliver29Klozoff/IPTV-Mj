@@ -27,10 +27,10 @@ class SeekPreviewTest {
     // ── Time buckets ───────────────────────────────────────────────────
 
     @Test
-    fun aboutAHundredPicturesPerVideoFiveToSixtySecondsApart() {
-        assertEquals(20_000L, SeekPreview.intervalMs(30 * min))   // a 30-minute episode: 18 s → 20 s
-        assertEquals(60_000L, SeekPreview.intervalMs(2 * hour))   // a 2-hour film: 72 s → capped at 60
-        assertEquals(60_000L, SeekPreview.intervalMs(3 * hour))
+    fun picturesFiveOrTenSecondsApart() {
+        assertEquals(10_000L, SeekPreview.intervalMs(30 * min))   // a 30-minute episode: 18 s, capped at 10
+        assertEquals(10_000L, SeekPreview.intervalMs(2 * hour))   // a 2-hour film
+        assertEquals(10_000L, SeekPreview.intervalMs(3 * hour))
         assertEquals(5_000L, SeekPreview.intervalMs(2 * min))     // a short clip: at least 5 s
         assertEquals(10_000L, SeekPreview.intervalMs(0))
     }
@@ -38,12 +38,12 @@ class SeekPreviewTest {
     @Test
     fun aPositionMapsToItsNearestBucketAndNeverPastTheEnd() {
         val film = 2 * hour + 5 * min
-        assertEquals(76 * min, SeekPreview.bucketMs(76 * min + 29_000, film))
-        assertEquals(77 * min, SeekPreview.bucketMs(76 * min + 31_000, film))
+        assertEquals(76 * min, SeekPreview.bucketMs(76 * min + 4_000, film))
+        assertEquals(76 * min + 10_000, SeekPreview.bucketMs(76 * min + 6_000, film))
         assertEquals(0L, SeekPreview.bucketMs(-5_000, film))
-        assertEquals(124 * min, SeekPreview.bucketMs(film, film))
+        assertEquals(124 * min + 50_000, SeekPreview.bucketMs(film, film))
         // Two places in the same bucket share one picture.
-        assertEquals(SeekPreview.bucketMs(600_000, film), SeekPreview.bucketMs(615_000, film))
+        assertEquals(SeekPreview.bucketMs(600_000, film), SeekPreview.bucketMs(604_000, film))
     }
 
     @Test
