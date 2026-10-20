@@ -973,6 +973,9 @@ class XtreamRepository @Inject constructor(
 
     suspend fun fetchEpg(streamId: Int): Resource<List<EpgEntity>> {
         val b = urlBuilder(); val c = creds()
+        // The user chose this channel's guide channel (EPG Health): the provider's own short
+        // guide is its old mapping, so it isn't written next to the corrected listings.
+        if (hasEpgGuideCorrection(-1, streamId)) return Resource.Success(emptyList())
         return safeApiCall {
             val response = api.getShortEpg(b.apiUrl(), c.username, c.password, streamId = streamId)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
@@ -1241,6 +1244,9 @@ class XtreamRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val previous = dao.getSource(serverIndex, key)
         val usable = parsed?.second?.any { XmltvEpgRefresh.usable(it) } == true
+        // XmltvFetcher reports a failed download, an HTTP error and unreadable XML as an empty guide:
+        // nothing at all (no channels, no listings) is a failure, not a guide that lists nothing.
+        val failed = parsed == null || (parsed.first.isEmpty() && parsed.second.isEmpty())
         if (parsed != null && usable) {
             val (rows, stats) = com.iptvapp.data.epg.EpgCatalog.build(serverIndex, key, parsed.first, parsed.second, now / 1000)
             dao.replaceGuideChannels(serverIndex, key, rows)
@@ -1252,7 +1258,7 @@ class XtreamRepository @Inject constructor(
                 )
             )
         } else {
-            val result = if (parsed == null) com.iptvapp.data.epg.EpgSourceResult.FAILED else com.iptvapp.data.epg.EpgSourceResult.EMPTY
+            val result = if (failed) com.iptvapp.data.epg.EpgSourceResult.FAILED else com.iptvapp.data.epg.EpgSourceResult.EMPTY
             val base = previous ?: com.iptvapp.data.local.entities.EpgGuideSourceEntity(
                 serverIndex, key, src.kind.name, label, src.rank, now, 0, result.name, 0, 0, 0, 0, 0
             )
@@ -1329,6 +1335,16 @@ class XtreamRepository @Inject constructor(
      */
     fun invalidateEpgRefresh(serverIndex: Int) {
         xmltvGuideWriter.begin(serverIndex)
+    }
+
+    /** Whether the user chose this channel's guide channel (for the provider the slot holds now). */
+    suspend fun hasEpgGuideCorrection(serverIndex: Int, streamId: Int): Boolean = try {
+        val o = db.epgRepairDao().getOverride(serverIndex, streamId)
+        o != null && o.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name &&
+            o.providerKey == epgProviderKeyFor(serverIndex, prefs.seekPreviewSalt())
+    } catch (e: Exception) {
+        if (e is kotlin.coroutines.cancellation.CancellationException) throw e
+        false
     }
 
     /** A saved offset changed by [deltaMinutes]: this channel's XMLTV listings move now, not at the next refresh. */

@@ -118,6 +118,10 @@ interface EpgRepairDao {
     @Query("UPDATE epg_entries SET startTimestamp = startTimestamp + :deltaSec, stopTimestamp = stopTimestamp + :deltaSec, nowPlaying = CASE WHEN startTimestamp + :deltaSec <= :nowSec AND stopTimestamp + :deltaSec > :nowSec THEN 1 ELSE 0 END WHERE serverIndex = :serverIndex AND streamId = :streamId AND id LIKE 'x\\_%' ESCAPE '\\'")
     suspend fun shiftXmltvRows(serverIndex: Int, streamId: Int, deltaSec: Long, nowSec: Long = System.currentTimeMillis() / 1000): Int
 
+    /** The provider's own short-guide rows of one channel (not XMLTV): dropped when the user chose its guide channel. */
+    @Query("DELETE FROM epg_entries WHERE serverIndex = :serverIndex AND streamId = :streamId AND id NOT LIKE 'x\\_%' ESCAPE '\\'")
+    suspend fun deleteShortGuideRows(serverIndex: Int, streamId: Int): Int
+
     /** Recordings still to come on one channel, for warning before its listings move. */
     @Query("SELECT COUNT(*) FROM recordings WHERE serverIndex = :serverIndex AND streamId = :streamId AND status = 'SCHEDULED' AND scheduledStartMs > :afterMs")
     suspend fun futureRecordings(serverIndex: Int, streamId: Int, afterMs: Long): Int

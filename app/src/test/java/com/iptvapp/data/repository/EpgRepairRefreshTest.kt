@@ -233,6 +233,15 @@ class EpgRepairRefreshTest {
         assertEquals(start, db.epgDao().getEpgForStream(9, -1).first().single().startTimestamp)
     }
 
+    // A corrected channel loses the provider's own short-guide rows (its old mapping); its XMLTV rows stay.
+    @Test
+    fun aCorrectedChannelsShortGuideRowsGo() = runBlocking {
+        primary()
+        db.epgDao().upsertEpg(listOf(EpgEntity(-1, "98765", 7, "Old feed", "", start, start + 60, 0, 0)))
+        assertEquals(1, db.epgRepairDao().deleteShortGuideRows(-1, 7))
+        assertTrue(titles(7).isNotEmpty() && titles(7).none { it == "Old feed" })
+    }
+
     // 29: corrections and offsets never touch scheduled recordings.
     @Test
     fun recordingsAreNotChanged() = runBlocking {

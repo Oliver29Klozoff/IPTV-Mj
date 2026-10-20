@@ -273,15 +273,23 @@ class EpgRepairRepository @Inject constructor(
                 } catch (e: Exception) {
                     0
                 }
-                // Did it help? Count the corrected channels that now have upcoming listings.
+                // The provider's own short guide for these channels is their old mapping: it goes too.
+                saved.forEach { dao.deleteShortGuideRows(serverIndex, it) }
+                // Did it help? A channel counts only when its upcoming listings now come from the chosen
+                // guide channel (a failed download keeps the old, possibly wrong, ones).
                 val nowSec = System.currentTimeMillis() / 1000
-                val coverage = dao.guideCoverage(serverIndex).associateBy { it.streamId }
-                val withListings = saved.count { (coverage[it]?.lastStop ?: 0L) > nowSec }
+                val chosen = picks.associate { (ch, g) -> ch.streamId to g.xmltvId.lowercase(Locale.US) }
+                val fixed = saved.count { streamId ->
+                    val id = dao.xmltvRowIdFor(serverIndex, streamId)
+                        ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelOfRow(it, streamId) }?.lowercase(Locale.US)
+                    id != null && id == chosen[streamId] && dao.lastStopFor(serverIndex, streamId) > nowSec
+                }
+                val withListings = fixed
                 val message = when {
-                    saved.size == 1 && withListings == 1 -> "Saved. The channel now shows listings from \"${picks.first().second.displayName}\"."
+                    saved.size == 1 && fixed == 1 -> "Saved. The channel now shows listings from \"${picks.first().second.displayName}\"."
                     saved.size == 1 && wrote == 0 -> "Saved. Its listings couldn't be loaded right now; they'll load at the next guide refresh."
                     saved.size == 1 -> "Saved. That guide channel has no upcoming listings yet."
-                    else -> "Saved ${saved.size} corrections; $withListings now show listings."
+                    else -> "Saved ${saved.size} corrections; $fixed now show listings from their chosen guide channel."
                 }
                 ApplyOutcome(saved.size, withListings, message)
             }
