@@ -115,7 +115,7 @@ object EpgMatcher {
         // 1. The channel's own guide id.
         val id = local.epgChannelId?.trim()?.lowercase(Locale.US).orEmpty()
         if (id.isNotEmpty()) {
-            val byId = index.byId[id].orEmpty().sortedBy { index.rank(it) }
+            val byId = index.byId[id].orEmpty().sortedWith(compareBy({ !it.hasListingsAfter(nowSec) }, { index.rank(it) }))
             if (byId.isNotEmpty()) {
                 val region = byId.firstOrNull()?.let { index.nameOf(it).country }
                 val why = if (region != null && (name.country == null || name.country == region)) "Exact guide ID and region match" else "Exact guide ID"
@@ -128,7 +128,8 @@ object EpgMatcher {
         val same = index.byKey[name.key].orEmpty().filter { (_, n) -> name.compatibleWith(n) }
         if (same.isNotEmpty()) {
             val perSource = same.groupBy { it.first.sourceKey }
-            val sorted = same.map { it.first }.sortedBy { index.rank(it) }
+            // A guide with listings for it first, then the preferred guide.
+            val sorted = same.map { it.first }.sortedWith(compareBy({ !it.hasListingsAfter(nowSec) }, { index.rank(it) }))
             if (perSource.values.any { it.size > 1 }) {
                 return EpgMatchResult(
                     MatchState.AMBIGUOUS, sorted.map { EpgCandidate(it, "Same name, listed more than once in one guide") }.take(MAX_CANDIDATES),

@@ -166,6 +166,14 @@ class EpgMatcherTest {
     }
 
     @Test
+    fun aGuideWithListingsBeatsAPreferredEmptyOne() {
+        val idx = index(guide("amc.us", "AMC", source = "prov", stop = now - 60), guide("amc.us", "AMC", source = "public"))
+        val r = EpgMatcher.suggest(local("AMC HD", "amc.us"), idx, now)
+        assertEquals(MatchState.EXACT, r.state)
+        assertEquals("public", r.best!!.guide.sourceKey)
+    }
+
+    @Test
     fun aSourcesOrderDecidesBetweenEqualMatches() {
         val idx = index(guide("amc.pub", "AMC", source = "public"), guide("amc.prov", "AMC", source = "prov"))
         val r = EpgMatcher.suggest(local("AMC"), idx, now)

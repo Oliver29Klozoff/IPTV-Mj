@@ -324,8 +324,14 @@ class EpgHealthActivity : AppCompatActivity() {
         updateButtons()
         val work = wm.getWorkInfosForUniqueWorkLiveData(EpgRefreshWorker.UNIQUE_WORK_NAME)
         work.observe(this, object : androidx.lifecycle.Observer<List<WorkInfo>> {
+            // The run to wait for: one already running (KEEP kept it) or the one just enqueued, never an
+            // older finished run that the same unique name still lists.
+            var tracked: java.util.UUID? = null
             override fun onChanged(value: List<WorkInfo>) {
-                val info = value.firstOrNull() ?: return
+                if (tracked == null) {
+                    tracked = value.firstOrNull { !it.state.isFinished }?.id ?: value.firstOrNull { it.id == request.id }?.id ?: return
+                }
+                val info = value.firstOrNull { it.id == tracked } ?: return
                 if (info.state.isFinished) {
                     busy = false
                     updateButtons()
