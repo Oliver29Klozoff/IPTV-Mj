@@ -224,6 +224,10 @@ class XtreamRepository @Inject constructor(
         sql.execSQL("DELETE FROM vod_streams")
         sql.execSQL("DELETE FROM series")
         xmltvGuideWriter.clear(-1)
+        // The old login's guide sources and their channel lists. Its EPG corrections stay, keyed to
+        // that provider, and are not applied to a different one (EPG Health lists them as unused).
+        db.epgRepairDao().deleteGuideChannelsForServer(-1)
+        db.epgRepairDao().deleteSourcesForServer(-1)
         sql.execSQL("DELETE FROM channel_reliability")
         // Feed scores belong to the old login's stream ids, which the new one reuses for other channels.
         feedStatsLock.withLock { db.feedStatsDao().clearForServer(-1) }
@@ -245,6 +249,8 @@ class XtreamRepository @Inject constructor(
         mergedSeriesRefreshMutex.withLock { db.mergedSeriesDao().clearForServer(serverIndex) }
         feedStatsLock.withLock { db.feedStatsDao().clearForServer(serverIndex) }
         xmltvGuideWriter.clear(serverIndex)
+        db.epgRepairDao().deleteGuideChannelsForServer(serverIndex)
+        db.epgRepairDao().deleteSourcesForServer(serverIndex)
     }
 
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
@@ -1095,30 +1101,239 @@ class XtreamRepository @Inject constructor(
     // (relying entirely on a manual/default source) previously got zero program data despite
     // the source being "configured" in Settings.
     suspend fun fetchXmltvEpg(): Int = withContext(Dispatchers.IO) {
-        val c = creds()
-        val sources = mutableListOf<String>()
-        if (c.isLoggedIn && c.serverUrl.isNotEmpty()) {
-            sources.add(XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password))
-        }
-        sources.addAll(prefs.getEpgUrls().filter { it.isNotBlank() }.map(com.iptvapp.AppConstants::currentEpgUrl))
+        val slot = primaryEpgSources()
+        val sources = slot.filterNot { it.backupOnly }.map { it.url }
         val identity = primaryGuideIdentity()
         val channels = db.channelDao().getAllChannels().first().map {
             XmltvLocalChannel(it.streamId, it.name, it.epgChannelId)
         }
         val favoriteIds = db.channelDao().getFavoriteChannelIds()
         var beforeSnapshot = emptyMap<Int, List<EpgEntity>>()
+        val repair = epgRepairContext(-1, slot)
         // The public US feed is only a stand-in when every configured source fails. It covers
         // some channels, so the commit replaces just those and leaves the rest of the guide.
-        return@withContext xmltvEpgRefresh.loadPrimary(
+        val wrote = xmltvEpgRefresh.loadPrimary(
             sources = sources,
             backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL,
             channels = channels,
             fetch = { url -> XmltvFetcher.fetch(url) },
             stillCurrent = { primaryGuideIdentity() == identity },
             onBeforeCommit = { beforeSnapshot = snapshotFavoriteEpg(-1, favoriteIds) },
-            onCommitted = { recordFavoriteEpgDiffs(-1, beforeSnapshot) }
+            onCommitted = { recordFavoriteEpgDiffs(-1, beforeSnapshot) },
+            rules = repair.rules,
+            onSource = repair.record
+        )
+        forgetUnusedEpgSources(-1, slot, repair.salt)
+        return@withContext wrote
+    }
+
+    // ── EPG Health hooks ───────────────────────────────────────────────
+    // A provider slot's guide sources stay here, as addresses; EPG Health only ever sees their
+    // salted keys, kinds and labels (EpgSourceKeys), and asks for downloads through these.
+
+    /** One guide source of a provider slot, in the order the refresh reads them. [backupOnly]: the public stand-in. */
+    internal data class EpgSlotSource(val url: String, val kind: com.iptvapp.data.epg.EpgSourceKind, val rank: Int, val backupOnly: Boolean = false)
+
+    /** A provider slot as EPG Health sees it: no address, no username, no password. */
+    data class EpgHealthProvider(
+        val serverIndex: Int,
+        val name: String,
+        val providerKey: String,
+        val sources: List<EpgHealthSource>,
+    )
+
+    data class EpgHealthSource(val sourceKey: String, val kind: com.iptvapp.data.epg.EpgSourceKind, val label: String, val rank: Int)
+
+    private class EpgRepairContext(
+        val salt: String,
+        val rules: EpgRefreshRules,
+        val record: suspend (String, Pair<List<com.iptvapp.util.XmltvChannel>, List<com.iptvapp.util.XmltvProgram>>?) -> Unit,
+    )
+
+    /** The main provider's sources: its xmltv.php, the guides added in Settings, then the public stand-in. */
+    private suspend fun primaryEpgSources(): List<EpgSlotSource> {
+        val c = creds()
+        val out = ArrayList<EpgSlotSource>()
+        if (c.isLoggedIn && c.serverUrl.isNotEmpty()) {
+            out += EpgSlotSource(XmltvFetcher.buildUrl(c.serverUrl, c.username, c.password), com.iptvapp.data.epg.EpgSourceKind.PROVIDER, out.size)
+        }
+        prefs.getEpgUrls().filter { it.isNotBlank() }.map(com.iptvapp.AppConstants::currentEpgUrl).forEach { url ->
+            if (out.none { it.url == url }) {
+                val kind = if (url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL) com.iptvapp.data.epg.EpgSourceKind.PUBLIC else com.iptvapp.data.epg.EpgSourceKind.CUSTOM
+                out += EpgSlotSource(url, kind, out.size)
+            }
+        }
+        if (out.none { it.url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL }) {
+            out += EpgSlotSource(com.iptvapp.AppConstants.DEFAULT_US_EPG_URL, com.iptvapp.data.epg.EpgSourceKind.PUBLIC, out.size, backupOnly = true)
+        }
+        return out
+    }
+
+    private fun mergedEpgSources(server: ConfiguredServer): List<EpgSlotSource> {
+        val own = server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl)
+        val urls = listOfNotNull(own, XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password), com.iptvapp.AppConstants.DEFAULT_US_EPG_URL).distinct()
+        return urls.mapIndexed { i, url ->
+            val kind = when {
+                url == com.iptvapp.AppConstants.DEFAULT_US_EPG_URL -> com.iptvapp.data.epg.EpgSourceKind.PUBLIC
+                url == own -> com.iptvapp.data.epg.EpgSourceKind.CUSTOM
+                else -> com.iptvapp.data.epg.EpgSourceKind.PROVIDER
+            }
+            EpgSlotSource(url, kind, i)
+        }
+    }
+
+    private suspend fun epgProviderKeyFor(serverIndex: Int, salt: String): String? {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return null
+        if (server.serverUrl.isBlank()) return null
+        return com.iptvapp.data.epg.EpgSourceKeys.providerKey(server.serverUrl, server.username, salt)
+    }
+
+    /**
+     * The slot's saved corrections (only those saved for the provider it holds now) and a
+     * recorder for each download: catalog and result per source. Recording never fails a refresh.
+     */
+    private suspend fun epgRepairContext(serverIndex: Int, slot: List<EpgSlotSource>): EpgRepairContext {
+        val salt = prefs.seekPreviewSalt()
+        val providerKey = epgProviderKeyFor(serverIndex, salt)
+        val keyOf = { url: String -> com.iptvapp.data.epg.EpgSourceKeys.sourceKey(url, salt) }
+        val overrides = try {
+            db.epgRepairDao().getOverridesForServer(serverIndex).filter { it.providerKey == providerKey }
+        } catch (e: Exception) {
+            if (e is kotlin.coroutines.cancellation.CancellationException) throw e
+            emptyList()
+        }
+        val rules = EpgRefreshRules(
+            overrides.map {
+                EpgRefreshRules.Rule(
+                    streamId = it.streamId,
+                    mapped = it.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name,
+                    sourceKey = it.sourceKey,
+                    xmltvId = it.xmltvId,
+                    offsetMinutes = it.offsetMinutes,
+                )
+            },
+            keyOf
+        )
+        val nick = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }?.nickname
+        val record: suspend (String, Pair<List<com.iptvapp.util.XmltvChannel>, List<com.iptvapp.util.XmltvProgram>>?) -> Unit = { url, parsed ->
+            val src = slot.firstOrNull { it.url == url }
+            if (src != null) {
+                try {
+                    recordEpgSource(serverIndex, src, keyOf(url), com.iptvapp.data.epg.EpgSourceKeys.label(src.kind, url, nick), parsed)
+                } catch (e: Exception) {
+                    if (e is kotlin.coroutines.cancellation.CancellationException) throw e
+                    android.util.Log.w("EpgHealth", "serverIndex=$serverIndex: source record not saved (${e.javaClass.simpleName})")
+                }
+            }
+        }
+        return EpgRepairContext(salt, rules, record)
+    }
+
+    /** A source's result, and its channel list when it had listings. A failed or empty download keeps the last list. */
+    private suspend fun recordEpgSource(
+        serverIndex: Int,
+        src: EpgSlotSource,
+        key: String,
+        label: String,
+        parsed: Pair<List<com.iptvapp.util.XmltvChannel>, List<com.iptvapp.util.XmltvProgram>>?,
+    ) {
+        val dao = db.epgRepairDao()
+        val now = System.currentTimeMillis()
+        val previous = dao.getSource(serverIndex, key)
+        val usable = parsed?.second?.any { XmltvEpgRefresh.usable(it) } == true
+        if (parsed != null && usable) {
+            val (rows, stats) = com.iptvapp.data.epg.EpgCatalog.build(serverIndex, key, parsed.first, parsed.second, now / 1000)
+            dao.replaceGuideChannels(serverIndex, key, rows)
+            dao.upsertSource(
+                com.iptvapp.data.local.entities.EpgGuideSourceEntity(
+                    serverIndex, key, src.kind.name, label, src.rank, now, now,
+                    com.iptvapp.data.epg.EpgSourceResult.OK.name,
+                    stats.channelCount, stats.programCount, stats.invalidProgramCount, stats.zonelessProgramCount, stats.horizonEnd
+                )
+            )
+        } else {
+            val result = if (parsed == null) com.iptvapp.data.epg.EpgSourceResult.FAILED else com.iptvapp.data.epg.EpgSourceResult.EMPTY
+            val base = previous ?: com.iptvapp.data.local.entities.EpgGuideSourceEntity(
+                serverIndex, key, src.kind.name, label, src.rank, now, 0, result.name, 0, 0, 0, 0, 0
+            )
+            dao.upsertSource(base.copy(kind = src.kind.name, label = label, rank = src.rank, lastAttemptAt = now, lastResult = result.name))
+        }
+    }
+
+    /** Records and lists of sources the slot no longer uses (a removed custom guide) go. */
+    private suspend fun forgetUnusedEpgSources(serverIndex: Int, slot: List<EpgSlotSource>, salt: String) {
+        try {
+            val keep = slot.map { com.iptvapp.data.epg.EpgSourceKeys.sourceKey(it.url, salt) }
+            db.epgRepairDao().deleteSourcesExcept(serverIndex, keep)
+            db.epgRepairDao().deleteGuideChannelsExcept(serverIndex, keep)
+        } catch (e: Exception) {
+            if (e is kotlin.coroutines.cancellation.CancellationException) throw e
+        }
+    }
+
+    /** Every configured Xtream provider, as EPG Health may know it. */
+    suspend fun epgHealthProviders(): List<EpgHealthProvider> = withContext(Dispatchers.IO) {
+        val salt = prefs.seekPreviewSalt()
+        allConfiguredServers().filter { it.serverUrl.isNotBlank() && it.type == "xtream" }.map { s ->
+            val slot = if (s.serverIndex == -1) primaryEpgSources() else mergedEpgSources(s)
+            EpgHealthProvider(
+                serverIndex = s.serverIndex,
+                name = s.nickname,
+                providerKey = com.iptvapp.data.epg.EpgSourceKeys.providerKey(s.serverUrl, s.username, salt),
+                sources = slot.map {
+                    EpgHealthSource(
+                        com.iptvapp.data.epg.EpgSourceKeys.sourceKey(it.url, salt), it.kind,
+                        com.iptvapp.data.epg.EpgSourceKeys.label(it.kind, it.url, s.nickname), it.rank
+                    )
+                }
+            )
+        }
+    }
+
+    /** One provider's channels, for EPG Health. */
+    suspend fun epgHealthChannels(serverIndex: Int): List<com.iptvapp.data.epg.EpgLocalChannel> = withContext(Dispatchers.IO) {
+        if (serverIndex == -1) {
+            db.channelDao().getAllChannels().first().map { com.iptvapp.data.epg.EpgLocalChannel(-1, it.streamId, it.name, it.epgChannelId) }
+        } else {
+            db.mergedChannelDao().getAllForServer(serverIndex).map { com.iptvapp.data.epg.EpgLocalChannel(serverIndex, it.streamId, it.name, it.epgChannelId) }
+        }
+    }
+
+    /**
+     * Listings for one slot's corrected channels: only the sources those corrections use are
+     * downloaded, and only those channels are written. Returns the rows written.
+     */
+    suspend fun loadEpgCorrections(serverIndex: Int, streamIds: Set<Int>): Int = withContext(Dispatchers.IO) {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return@withContext 0
+        val slot = if (serverIndex == -1) primaryEpgSources() else mergedEpgSources(server)
+        val repair = epgRepairContext(serverIndex, slot)
+        val identity = "${server.serverUrl}\u0000${server.username}"
+        xmltvEpgRefresh.loadCorrections(
+            serverIndex = serverIndex,
+            ticket = null,
+            rules = repair.rules.forChannels(streamIds),
+            alreadyRead = emptySet(),
+            sources = slot.map { it.url },
+            fetch = { url -> XmltvFetcher.fetch(url) },
+            stillCurrent = {
+                val now = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
+                now != null && "${now.serverUrl}\u0000${now.username}" == identity
+            },
+            onSource = repair.record
         )
     }
+
+    /** A saved offset changed by [deltaMinutes]: this channel's XMLTV listings move now, not at the next refresh. */
+    suspend fun shiftEpgListings(serverIndex: Int, streamId: Int, deltaMinutes: Int): Int = withContext(Dispatchers.IO) {
+        if (deltaMinutes == 0) return@withContext 0
+        xmltvGuideWriter.locked(serverIndex) {
+            db.epgRepairDao().shiftXmltvRows(serverIndex, streamId, deltaMinutes * 60L)
+        }
+    }
+
+    /** The normal guide refresh of one slot, for "Restore automatic matching". */
+    suspend fun refreshEpgSlot(serverIndex: Int): Int =
+        if (serverIndex == -1) fetchXmltvEpg() else fetchXmltvEpgForMergedServer(serverIndex)
 
 
     fun getEpgForStream(streamId: Int): Flow<List<EpgEntity>> =
@@ -2745,11 +2960,8 @@ class XtreamRepository @Inject constructor(
             }
             val ownEpg = server.epgUrl.takeIf { it.isNotBlank() }?.let(com.iptvapp.AppConstants::currentEpgUrl)
             val backupUrl = com.iptvapp.AppConstants.DEFAULT_US_EPG_URL
-            val sources = listOfNotNull(
-                ownEpg,
-                XmltvFetcher.buildUrl(server.serverUrl, server.username, server.password),
-                backupUrl
-            ).distinct()
+            val slot = mergedEpgSources(server)
+            val sources = slot.map { it.url }
             val merged = db.mergedChannelDao().getAllForServer(serverIndex)
             if (merged.isEmpty()) {
                 android.util.Log.w(tag, "serverIndex=$serverIndex (${server.nickname}): no cached merged_channels rows for this server — channels haven't been refreshed yet")
@@ -2759,6 +2971,7 @@ class XtreamRepository @Inject constructor(
             val favoriteIds = merged.filter { it.isFavorite }.map { it.streamId }
             val identity = "${server.serverUrl}\u0000${server.username}"
             var beforeSnapshot = emptyMap<Int, List<EpgEntity>>()
+            val repair = epgRepairContext(serverIndex, slot)
             xmltvEpgRefresh.loadMerged(
                 serverIndex = serverIndex,
                 sources = sources,
@@ -2775,8 +2988,10 @@ class XtreamRepository @Inject constructor(
                     now != null && "${now.serverUrl}\u0000${now.username}" == identity
                 },
                 onBeforeCommit = { beforeSnapshot = snapshotFavoriteEpg(serverIndex, favoriteIds) },
-                onCommitted = { recordFavoriteEpgDiffs(serverIndex, beforeSnapshot) }
-            )
+                onCommitted = { recordFavoriteEpgDiffs(serverIndex, beforeSnapshot) },
+                rules = repair.rules,
+                onSource = repair.record
+            ).also { forgetUnusedEpgSources(serverIndex, slot, repair.salt) }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {

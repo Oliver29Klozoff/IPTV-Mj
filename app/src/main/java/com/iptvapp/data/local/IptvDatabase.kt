@@ -31,9 +31,12 @@ import com.iptvapp.data.local.entities.*
         BandwidthUsageEntity::class,
         ProviderHourlyStatsEntity::class,
         EpgDiffAlertEntity::class,
-        FeedStatsEntity::class
+        FeedStatsEntity::class,
+        EpgGuideSourceEntity::class,
+        EpgGuideChannelEntity::class,
+        EpgOverrideEntity::class
     ],
-    version = 46,
+    version = 47,
     exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -54,6 +57,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun providerHourlyStatsDao(): ProviderHourlyStatsDao
     abstract fun epgDiffAlertDao(): EpgDiffAlertDao
     abstract fun feedStatsDao(): FeedStatsDao
+    abstract fun epgRepairDao(): com.iptvapp.data.local.dao.EpgRepairDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -656,6 +660,17 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // EPG repair (Settings › EPG Health): guide-source results, each source's channel list, and
+        // the user's per-channel corrections. New tables only; the guide rows are untouched.
+        val MIGRATION_46_47 = object : Migration(46, 47) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `epg_guide_sources` (`serverIndex` INTEGER NOT NULL, `sourceKey` TEXT NOT NULL, `kind` TEXT NOT NULL, `label` TEXT NOT NULL, `rank` INTEGER NOT NULL, `lastAttemptAt` INTEGER NOT NULL, `lastSuccessAt` INTEGER NOT NULL, `lastResult` TEXT NOT NULL, `channelCount` INTEGER NOT NULL, `programCount` INTEGER NOT NULL, `invalidProgramCount` INTEGER NOT NULL, `zonelessProgramCount` INTEGER NOT NULL, `horizonEnd` INTEGER NOT NULL, PRIMARY KEY(`serverIndex`, `sourceKey`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `epg_guide_channels` (`serverIndex` INTEGER NOT NULL, `sourceKey` TEXT NOT NULL, `xmltvId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `programCount` INTEGER NOT NULL, `lastStop` INTEGER NOT NULL, `sample` TEXT NOT NULL, PRIMARY KEY(`serverIndex`, `sourceKey`, `xmltvId`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `epg_overrides` (`serverIndex` INTEGER NOT NULL, `streamId` INTEGER NOT NULL, `providerKey` TEXT NOT NULL, `mode` TEXT NOT NULL, `sourceKey` TEXT, `xmltvId` TEXT, `channelName` TEXT NOT NULL, `guideName` TEXT, `offsetMinutes` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`serverIndex`, `streamId`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_epg_overrides_serverIndex_sourceKey` ON `epg_overrides` (`serverIndex`, `sourceKey`)")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -665,7 +680,8 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32,
             MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
-            MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46
+            MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
+            MIGRATION_46_47
         )
     }
 }

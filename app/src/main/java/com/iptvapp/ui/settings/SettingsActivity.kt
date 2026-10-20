@@ -245,6 +245,7 @@ class SettingsActivity : AppCompatActivity() {
         listOf(
             SettingSearchEntry("EPG Refresh", 0, null, R.id.btnRefreshEpg),
             SettingSearchEntry("Refresh Only Missing Guide Data", 0, null, R.id.cbRefreshMissingOnly),
+            SettingSearchEntry("EPG Health / Fix TV Guide", 0, null, R.id.rowEpgHealth),
             SettingSearchEntry("Auto Refresh Schedule", 0, null, R.id.rgAutoEpgRefresh),
             SettingSearchEntry("Remind Me Lead Time", 0, null, R.id.rowReminderLeadTime),
             SettingSearchEntry("Show Alerts", 0, null, R.id.rowShowAlerts),
@@ -4241,6 +4242,7 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setSportsScoreOverlay(enabled) }
         }
         binding.rowFavoriteTeams.setOnClickListener { showFavoriteTeamsDialog() }
+        binding.rowEpgHealth.setOnClickListener { startActivity(com.iptvapp.ui.epg.EpgHealthActivity.intent(this)) }
         binding.switchSeekPreview.setOnCheckedChangeListener { _, enabled ->
             lifecycleScope.launch { prefs.setSeekPreviewPictures(enabled) }
         }

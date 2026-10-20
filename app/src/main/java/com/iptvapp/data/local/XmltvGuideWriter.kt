@@ -29,6 +29,12 @@ class XmltvGuideWriter(private val db: IptvDatabase) {
     /** A refresh calls this when it starts. A later [begin] or [clear] makes the ticket stale. */
     fun begin(serverIndex: Int): Int = gate(serverIndex).ticket.incrementAndGet()
 
+    /** The slot's current ticket, for a small correction commit that must not cancel a refresh in progress. */
+    fun current(serverIndex: Int): Int = gate(serverIndex).ticket.get()
+
+    /** Runs [block] while no guide swap for [serverIndex] can run (an offset moving that slot's rows). */
+    suspend fun <T> locked(serverIndex: Int, block: suspend () -> T): T = gate(serverIndex).mutex.withLock { block() }
+
     /**
      * The provider in this slot changed. Bump the ticket and delete that slot's guide
      * so a refresh that already started cannot write the old provider back afterwards.

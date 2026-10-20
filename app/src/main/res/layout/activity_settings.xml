@@ -353,6 +353,32 @@
                                 android:visibility="gone" />
                         </LinearLayout>
                         <LinearLayout
+                            android:id="@+id/rowEpgHealth"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="EPG Health — fix my guide" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Find channels with missing or wrong listings and choose their guide channel" />
+                            </LinearLayout>
+                            <TextView
+                                style="@style/Rack.Chevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:rotation="-90" />
+                        </LinearLayout>
+                        <LinearLayout
                             style="@style/Rack.Row.Toggle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content">

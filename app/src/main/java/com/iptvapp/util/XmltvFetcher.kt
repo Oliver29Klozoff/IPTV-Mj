@@ -17,7 +17,9 @@ data class XmltvProgram(
     val title: String,
     val description: String,
     val startSec: Long,
-    val stopSec: Long
+    val stopSec: Long,
+    // The start carried no time zone, so it was read as UTC (EPG Health reports it per source).
+    val zoneless: Boolean = false
 )
 
 object XmltvFetcher {
@@ -168,6 +170,7 @@ object XmltvFetcher {
         var progChannelId = ""
         var progStart     = 0L
         var progStop      = 0L
+        var progZoneless  = false
         var progTitle     = ""
         var progDesc      = ""
 
@@ -184,7 +187,9 @@ object XmltvFetcher {
                     "display-name" -> if (inChannel && !channelDone) inDisplayName = true
                     "programme" -> {
                         progChannelId = parser.getAttributeValue(null, "channel") ?: ""
-                        progStart     = parseTs(parser.getAttributeValue(null, "start") ?: "")
+                        val rawStart  = parser.getAttributeValue(null, "start") ?: ""
+                        progStart     = parseTs(rawStart)
+                        progZoneless  = rawStart.isNotBlank() && ' ' !in rawStart.trim()
                         progStop      = parseTs(parser.getAttributeValue(null, "stop")  ?: "")
                         progTitle     = ""
                         progDesc      = ""
@@ -225,7 +230,7 @@ object XmltvFetcher {
                             && progStart in minSec..maxSec
                             && progTitle.isNotBlank()
                         ) {
-                            programs.add(XmltvProgram(progChannelId, progTitle.trim(), progDesc.trim(), progStart, progStop))
+                            programs.add(XmltvProgram(progChannelId, progTitle.trim(), progDesc.trim(), progStart, progStop, progZoneless))
                         }
                     }
                 }

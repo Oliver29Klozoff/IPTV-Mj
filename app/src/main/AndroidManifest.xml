@@ -165,6 +165,18 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ui.epg.EpgHealthActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+
+        <activity
+            android:name=".ui.epg.EpgFixChannelActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+
+        <activity
             android:name=".ui.guide.EpgTimelineActivity"
             android:exported="false"
             android:screenOrientation="unspecified"
