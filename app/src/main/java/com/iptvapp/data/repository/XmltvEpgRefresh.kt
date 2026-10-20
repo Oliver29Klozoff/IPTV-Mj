@@ -93,7 +93,10 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
             matched += matchPrimary(parsed.first, parsed.second, byEpgId, byName, live, key)
         }
         var wrote = 0
-        if (matched.isNotEmpty()) {
+        // Listings only for corrected channels are not a guide for the provider: they are
+        // written for those channels alone, and the stand-in is still tried for the rest.
+        val automatic = matched.any { it.streamId !in live.mappedStreams }
+        if (automatic) {
             // Every configured source produced a usable guide: the union is the new guide
             // and replaces the whole slot. One source failed: replace only the channels the
             // successful sources actually matched, and leave every other row alone.
@@ -104,7 +107,10 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
                 else -> null
             }
             wrote = commit(PRIMARY, ticket, matched, streamIds, stillCurrent, onBeforeCommit, onCommitted)
-        } else if (!backupUrl.isNullOrBlank() && backupUrl !in sources) {
+        } else if (matched.isNotEmpty()) {
+            wrote = commit(PRIMARY, ticket, matched, matched.map { it.streamId }.distinct(), stillCurrent, onBeforeCommit, onCommitted)
+        }
+        if (!automatic && !backupUrl.isNullOrBlank() && backupUrl !in sources) {
             coroutineContext.ensureActive()
             val backup = fetchPrograms(backupUrl, fetch)
             onSource(backupUrl, backup)
@@ -114,7 +120,7 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
                 val backupRows = matchPrimary(backup.first, backup.second, byEpgId, byName, live, key)
                 if (backupRows.isNotEmpty()) {
                     android.util.Log.i("Xmltv", "primary: provider guide empty — backup guide matched ${backupRows.size} programs")
-                    wrote = commit(
+                    wrote += commit(
                         PRIMARY, ticket, backupRows,
                         streamIds = backupRows.map { it.streamId }.distinct(),
                         stillCurrent, onBeforeCommit, onCommitted
@@ -154,6 +160,12 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
             read += key
             val rows = matchMerged(serverIndex, parsed.first, parsed.second, byEpgId, byName, live, key)
             if (rows.isEmpty()) continue
+            // Only corrected channels matched: not this provider's guide. Their listings are
+            // written for them alone, and the next source is tried for everything else.
+            if (rows.all { it.streamId in live.mappedStreams }) {
+                wrote += commit(serverIndex, ticket, rows, rows.map { it.streamId }.distinct(), stillCurrent, onBeforeCommit, onCommitted)
+                continue
+            }
             val partial = backupIsPartial && url == backupUrl
             // The first source that matches is this provider's guide; a correction from another
             // source keeps its rows until it is fetched below.
@@ -163,7 +175,7 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
                 pending.isNotEmpty() -> channels.map { it.streamId }.filter { it !in pending }
                 else -> null
             }
-            wrote = commit(serverIndex, ticket, rows, streamIds, stillCurrent, onBeforeCommit, onCommitted)
+            wrote += commit(serverIndex, ticket, rows, streamIds, stillCurrent, onBeforeCommit, onCommitted)
             break
         }
         return wrote + loadCorrections(serverIndex, ticket, live, read, sources, fetch, stillCurrent, onBeforeCommit, onCommitted, onSource)

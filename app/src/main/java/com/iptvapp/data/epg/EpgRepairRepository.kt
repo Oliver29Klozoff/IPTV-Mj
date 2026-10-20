@@ -264,6 +264,8 @@ class EpgRepairRepository @Inject constructor(
                     saved += channel.streamId
                 }
                 if (saved.isEmpty()) return@withContext ApplyOutcome(0, 0, "Nothing was saved: that guide is no longer one of this provider's.")
+                // A refresh already downloading read the corrections as they were: it must not overwrite these.
+                repository.invalidateEpgRefresh(serverIndex)
                 val wrote = try {
                     repository.loadEpgCorrections(serverIndex, saved.toSet())
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -321,9 +323,12 @@ class EpgRepairRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             val dao = db.epgRepairDao()
             val old = dao.getOverride(serverIndex, streamId) ?: return@withContext "Already using automatic matching."
+            // Saved for the provider this slot holds now? One saved for an earlier provider was never applied here.
+            val applies = currentProvider(serverIndex)?.providerKey == old.providerKey
             dao.deleteOverride(serverIndex, streamId)
-            if (old.offsetMinutes != 0) repository.shiftEpgListings(serverIndex, streamId, -old.offsetMinutes)
-            if (old.mode == EpgOverrideMode.MAP.name && currentProvider(serverIndex)?.providerKey == old.providerKey) {
+            if (applies) repository.invalidateEpgRefresh(serverIndex)
+            if (applies && old.offsetMinutes != 0) repository.shiftEpgListings(serverIndex, streamId, -old.offsetMinutes)
+            if (applies && old.mode == EpgOverrideMode.MAP.name) {
                 val wrote = try { repository.refreshEpgSlot(serverIndex) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { 0 }
                 if (wrote == 0) return@withContext "Automatic matching restored. The guide couldn't be refreshed right now; it will update at the next refresh."
             }
@@ -340,7 +345,10 @@ class EpgRepairRepository @Inject constructor(
             val current = repository.epgHealthProviders().also { providers = it }.associateBy { it.serverIndex }
             for (o in all) {
                 dao.deleteOverride(o.serverIndex, o.streamId)
-                if (o.offsetMinutes != 0) repository.shiftEpgListings(o.serverIndex, o.streamId, -o.offsetMinutes)
+                // Only an offset that was applied (to the provider the slot holds now) is undone.
+                val applies = current[o.serverIndex]?.providerKey == o.providerKey
+                if (applies) repository.invalidateEpgRefresh(o.serverIndex)
+                if (applies && o.offsetMinutes != 0) repository.shiftEpgListings(o.serverIndex, o.streamId, -o.offsetMinutes)
             }
             val slots = all.filter { it.mode == EpgOverrideMode.MAP.name && current[it.serverIndex]?.providerKey == it.providerKey }
                 .map { it.serverIndex }.distinct()

@@ -1323,9 +1323,18 @@ class XtreamRepository @Inject constructor(
         )
     }
 
+    /**
+     * A slot's corrections changed: a refresh already downloading for it read the old ones, so it
+     * must not commit (the guide it would replace stays; the next refresh uses the new rules).
+     */
+    fun invalidateEpgRefresh(serverIndex: Int) {
+        xmltvGuideWriter.begin(serverIndex)
+    }
+
     /** A saved offset changed by [deltaMinutes]: this channel's XMLTV listings move now, not at the next refresh. */
     suspend fun shiftEpgListings(serverIndex: Int, streamId: Int, deltaMinutes: Int): Int = withContext(Dispatchers.IO) {
         if (deltaMinutes == 0) return@withContext 0
+        invalidateEpgRefresh(serverIndex)
         xmltvGuideWriter.locked(serverIndex) {
             db.epgRepairDao().shiftXmltvRows(serverIndex, streamId, deltaMinutes * 60L)
         }

@@ -172,6 +172,52 @@ class EpgRepairRefreshTest {
         assertEquals(3, titles(8).size)
     }
 
+    // A guide that matches only corrected channels is not the provider's guide.
+    @Test
+    fun aGuideMatchingOnlyACorrectedChannelReplacesNothingElse() = runBlocking {
+        primary(sources = listOf(provider))
+        assertEquals(3, titles(8).size)
+        val westOnly = feed(listOf("amc.west" to "AMC West"))
+        refresh.loadPrimary(
+            listOf(custom), backupUrl = null, channels = listOf(amc, news), fetch = { westOnly }, stillCurrent = { true },
+            rules = rulesFor(mapTo(7, "kCustom", "amc.west"))
+        )
+        assertTrue(titles(7).isNotEmpty() && titles(7).all { it.startsWith("AMC West") })
+        // News kept its listings: the correction-only guide did not replace the slot.
+        assertEquals(3, titles(8).size)
+    }
+
+    @Test
+    fun anotherProvidersCorrectionOnlySourceDoesNotStopItsRealGuide() = runBlocking {
+        val westOnly = feed(listOf("amc.west" to "AMC West"))
+        val wrote = refresh.loadMerged(
+            0, listOf(custom, provider), null, false, listOf(amc, news),
+            fetch = { url -> if (url == custom) westOnly else providerFeed }, stillCurrent = { true },
+            rules = rulesFor(mapTo(7, "kCustom", "amc.west"))
+        )
+        assertTrue(wrote > 0)
+        assertTrue(titles(7, server = 0).isNotEmpty() && titles(7, server = 0).all { it.startsWith("AMC West") })
+        // From the provider guide, tried after the correction-only one, which didn't stop the search.
+        assertEquals(3, titles(8, server = 0).size)
+    }
+
+    // A refresh that started with the old corrections must not overwrite a newer one.
+    @Test
+    fun aRefreshStartedBeforeACorrectionCannotOverwriteIt() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val old = async {
+            refresh.loadPrimary(listOf(provider), null, listOf(amc, news), fetch = { started.complete(Unit); gate.await(); providerFeed }, stillCurrent = { true })
+        }
+        started.await()
+        // Meanwhile the user saves a correction: the slot's refresh is invalidated, then the correction loads.
+        writer.begin(-1)
+        refresh.loadCorrections(-1, null, rulesFor(mapTo(7, "kCustom", "amc.west")), emptySet(), listOf(custom), fetch = { customFeed }, stillCurrent = { true })
+        gate.complete(Unit)
+        old.await()
+        assertTrue(titles(7).isNotEmpty() && titles(7).all { it.startsWith("AMC West") })
+    }
+
     // Offsets move existing rows now, with the "now playing" flag.
     @Test
     fun anOffsetMovesExistingListings() = runBlocking {
