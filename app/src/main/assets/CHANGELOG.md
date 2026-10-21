@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v7.63 - 2026-10-21
+- **New**: Audio & subtitle sync (player > Audio · CC > Audio & subtitle sync). Move the sound or
+  the subtitles up to 10 seconds either way, in 50, 100 or 500 ms steps, and see the change as it
+  plays. Subtitles can go earlier as well as later, whatever their format, captions included.
+- **New**: Sound timing now works for movies, episodes and recordings too, not just live channels.
+  It is unavailable only while the picture is really tunneled, and the panel says why.
+- **New**: Save for this channel / movie / episode / recording. Unsaved changes last until you close
+  the app; Use saved and Reset both undo them. Your existing channel Sound timing carries over.
+- **New**: The panel sits at the top so subtitles stay in view; Move down puts it at the bottom
+  for captions shown at the top. Remote: Up/Down picks, Left/Right adjusts, OK changes the step.
+
 ## v7.62 - 2026-10-21
 - **New**: EPG Health (Settings > Guide > EPG Health — fix my guide). Checks the guide already on
   the device and shows its coverage, channels without listings (and whether any guide has them),
