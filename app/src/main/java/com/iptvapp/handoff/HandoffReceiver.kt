@@ -176,11 +176,23 @@ class HandoffReceiver(
         }
     }
 
-    /** The player opened for [txId] is really playing. */
+    /** The player opened for [txId] is really playing (unless its deadline passed first). */
     @Synchronized
     fun onPlaying(txId: String) {
         val inc = recent[txId] ?: return
+        expire(inc, now())
         if (inc.state == InState.PREPARING) inc.state = InState.PLAYING
+    }
+
+    /**
+     * Applies deadlines without waiting for the sender (it may be gone): a prompt nobody answered
+     * goes away, a player that never started closes. True while something is still active.
+     */
+    @Synchronized
+    fun sweep(): Boolean {
+        val t = now()
+        for (inc in recent.values.toList()) if (inc.state.active) expire(inc, t)
+        return recent.values.any { it.state.active }
     }
 
     /** The player opened for [txId] couldn't play it. */

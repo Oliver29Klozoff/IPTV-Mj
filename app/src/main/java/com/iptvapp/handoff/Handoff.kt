@@ -186,8 +186,10 @@ object Handoff {
                 val d = HandoffProtocol.decode(m.optJSONObject("d") ?: throw HandoffRejected("descriptor"))
                 if (HandoffProtocol.txOf(m) != d.txId) throw HandoffRejected("tx")
                 // Catalog lookups (and maybe the provider's series list): bounded.
-                runBlocking { withTimeoutOrNull(12_000L) { rx.offer(peer, d) } }
+                val r = runBlocking { withTimeoutOrNull(12_000L) { rx.offer(peer, d) } }
                     ?: JSONObject().put("state", "failed").put("reason", "This device took too long to check its catalog")
+                startSweeper(c)
+                r
             }
             "status" -> rx.status(peer, HandoffProtocol.txOf(m), HandoffProtocol.decodeSourceState(m))
             "complete" -> rx.complete(peer, HandoffProtocol.txOf(m))
@@ -214,6 +216,23 @@ object Handoff {
         val token = store.getString("token", null) ?: return
         if (HandoffCrypto.constantTimeEquals(token, secret)) {
             store.edit().remove("token").remove("name").remove("host").remove("port").apply()
+        }
+    }
+
+    @Volatile private var sweeping = false
+
+    /** Deadlines run on this device's own clock while a request is active (see HandoffReceiver.sweep). */
+    private fun startSweeper(c: Context) {
+        synchronized(this) { if (sweeping) return; sweeping = true }
+        scope.launch {
+            try {
+                while (true) {
+                    kotlinx.coroutines.delay(2_000L)
+                    if (!receiver(c).sweep()) break
+                }
+            } finally {
+                synchronized(this@Handoff) { sweeping = false }
+            }
         }
     }
 

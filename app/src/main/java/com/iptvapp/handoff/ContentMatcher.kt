@@ -110,6 +110,9 @@ class ContentMatcher(private val catalog: HandoffCatalog) {
     }
 
     private suspend fun byTitle(d: Descriptor, server: Int): Resolution {
+        // A title with nothing left to compare never matches anything.
+        val probe = if (d.kind == ContentKind.LIVE) channelNorm(d.title) else norm(if (d.kind == ContentKind.EPISODE) d.seriesTitle.orEmpty() else d.title)
+        if (probe.isEmpty()) return Resolution.NotFound("This ${what(d)} has no name to look for on this device")
         when (d.kind) {
             ContentKind.MOVIE -> {
                 val want = norm(d.title)
@@ -167,12 +170,12 @@ class ContentMatcher(private val catalog: HandoffCatalog) {
     companion object {
         const val MAX_OPTIONS = 8
 
-        /** Titles compared without case, accents, punctuation or extra spaces. */
+        /** Titles compared without case, accents, punctuation or extra spaces; letters of every script kept. */
         fun norm(s: String): String =
             Normalizer.normalize(s, Normalizer.Form.NFKD)
                 .replace(Regex("\\p{M}+"), "")
                 .lowercase(Locale.ROOT)
-                .replace(Regex("[^a-z0-9]+"), " ")
+                .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
                 .trim()
 
         /**

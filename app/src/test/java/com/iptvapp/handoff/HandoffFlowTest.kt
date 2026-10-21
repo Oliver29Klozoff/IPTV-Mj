@@ -109,6 +109,31 @@ class HandoffFlowTest {
         assertEquals("x9", r.target.episode?.id)
     }
 
+    @Test fun titlesInOtherScriptsStayDistinct() {
+        assertEquals("кино один", ContentMatcher.norm("Кино Один"))
+        assertFalse(ContentMatcher.norm("Кино Один") == ContentMatcher.norm("Кино Два"))
+        assertFalse(ContentMatcher.norm("東京物語") == ContentMatcher.norm("七人の侍"))
+        assertFalse(ContentMatcher.norm("東京物語").isEmpty())
+    }
+
+    @Test fun deadlinesApplyWithoutTheSender() = runTest {
+        val clock = longArrayOf(1_000L)
+        val ui = FakeUi()
+        val rx = receiver(ui, clock = clock)
+        rx.offer(Fx.phonePeer(), Fx.movie())
+        assertTrue(rx.sweep())
+        clock[0] += HandoffProtocol.APPROVAL_TTL_MS + 1
+        // No poll arrives (the sender is gone); the sweep still closes the prompt.
+        assertFalse(rx.sweep())
+        assertEquals(listOf(Fx.movie().txId), ui.dismissed)
+        // A player that only starts after its deadline is not reported as playing.
+        rx.offer(Fx.phonePeer(), Fx.live())
+        rx.accept(Fx.live().txId)
+        clock[0] += HandoffProtocol.PREPARE_TTL_MS + 1
+        rx.onPlaying(Fx.live().txId)
+        assertEquals(InState.FAILED, rx.get(Fx.live().txId)!!.state)
+    }
+
     @Test fun channelNamesMatchAcrossProviderPrefixesButNotAcrossFeeds() {
         assertEquals(ContentMatcher.channelNorm("US| GSN HD"), ContentMatcher.channelNorm("US: GSN"))
         assertEquals(ContentMatcher.channelNorm("US| GSN HD"), ContentMatcher.channelNorm("GSN ᴿᴬᵂ"))
