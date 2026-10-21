@@ -1,7 +1,7 @@
 {
-  "versionCode": 599,
-  "versionName": "7.61",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.61/MKTV.apk",
-  "apkSha256": "c3c49ebf70b15db60783614f203b64e911234e5409366e052d20a672808c3b5d",
-  "changelog": "Sound timing for a live channel now goes to 10 seconds."
+  "versionCode": 600,
+  "versionName": "7.62",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.62/MKTV.apk",
+  "apkSha256": "d171484db9c0ff6d3c19f904e9bb9f2734455ed72254f20ce8e5a07c1807e580",
+  "changelog": "EPG Health: find and fix channels with missing or wrong guide listings."
 }

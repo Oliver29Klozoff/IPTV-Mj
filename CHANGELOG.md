@@ -1,5 +1,17 @@
 # IPTV App - Changelog
 
+## v7.62 - 2026-10-21
+- **New**: EPG Health (Settings > Guide > EPG Health — fix my guide). Checks the guide already on
+  the device and shows its coverage, channels without listings (and whether any guide has them),
+  stale listings, channels that seem to get another feed's listings (East/West, local stations,
+  ESPN vs ESPN2), and times that look off compared with the provider's own guide.
+- **New**: Fix a channel's guide: choose its guide channel from suggestions or a search of every
+  guide channel your guides list, with the next programs shown so feeds can be told apart, or move
+  its times. Corrections stay through refreshes and show in the TV guide, Quick Peek and the
+  player; "Restore automatic matching" undoes them.
+- **New**: Apply safe matches: only exact guide-ID or single same-name matches are applied for
+  you; possible and ambiguous ones wait for you to choose.
+
 ## v7.61 - 2026-10-20
 - **Improved**: Sound timing for a live channel now goes to 10 seconds (it stopped at 2).
   Half-second steps sit beside the 50 ms steps. A delay already saved for that channel stays.
