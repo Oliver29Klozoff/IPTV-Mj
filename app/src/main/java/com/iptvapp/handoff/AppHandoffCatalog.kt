@@ -40,32 +40,35 @@ class AppHandoffCatalog(
         if (serverIndex == -1) db.vodDao().getVodByStreamId(streamId)?.let { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
         else db.mergedVodDao().getByIndexAndId(serverIndex, streamId)?.let { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
 
-    override suspend fun moviesNamed(serverIndex: Int, title: String): List<MovieItem> {
-        val q = ftsQuery(title) ?: return emptyList()
-        return if (serverIndex == -1) db.vodDao().searchVod(q).first().map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
-        else db.mergedVodDao().search(q).first().filter { it.serverIndex == serverIndex }
-            .map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
-    }
+    override suspend fun moviesNamed(serverIndex: Int, title: String): List<MovieItem> =
+        ftsQueries(title).flatMap { q ->
+            if (serverIndex == -1) db.vodDao().searchVod(q).first().map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+            else db.mergedVodDao().search(q).first().filter { it.serverIndex == serverIndex }
+                .map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+        }.distinctBy { it.streamId }
 
     override suspend fun channel(serverIndex: Int, streamId: Int): ChannelItem? =
         if (serverIndex == -1) db.channelDao().getChannelById(streamId)?.let { ChannelItem(-1, it.streamId, it.name) }
         else db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)?.let { ChannelItem(serverIndex, it.streamId, it.name) }
 
     override suspend fun channelsNamed(serverIndex: Int, name: String): List<ChannelItem> {
-        val q = ftsQuery(ContentMatcher.channelNorm(name)) ?: return emptyList()
-        return if (serverIndex == -1) db.channelDao().searchChannels(q).first().map { ChannelItem(-1, it.streamId, it.name) }
-        else db.mergedChannelDao().searchOn(q, listOf(serverIndex), 200).map { ChannelItem(serverIndex, it.streamId, it.name) }
+        // Without the provider's prefix and quality marks (as channelNorm compares them), in both spellings.
+        val core = name.replace(Regex("^\\s*[A-Za-z]{2,3}\\s*[|:\\-]\\s*"), "")
+        return ftsQueries(core, dropQuality = true).flatMap { q ->
+            if (serverIndex == -1) db.channelDao().searchChannels(q).first().map { ChannelItem(-1, it.streamId, it.name) }
+            else db.mergedChannelDao().searchOn(q, listOf(serverIndex), 200).map { ChannelItem(serverIndex, it.streamId, it.name) }
+        }.distinctBy { it.streamId }
     }
 
     override suspend fun series(serverIndex: Int, seriesId: Int): SeriesItem? =
         if (serverIndex == -1) db.seriesDao().getSeriesById(seriesId)?.let { SeriesItem(-1, it.seriesId, it.name) }
         else db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)?.let { SeriesItem(serverIndex, it.seriesId, it.name) }
 
-    override suspend fun seriesNamed(serverIndex: Int, title: String): List<SeriesItem> {
-        val q = ftsQuery(title) ?: return emptyList()
-        return if (serverIndex == -1) db.seriesDao().searchSeries(q).first().map { SeriesItem(-1, it.seriesId, it.name) }
-        else db.mergedSeriesDao().search(q).first().filter { it.serverIndex == serverIndex }.map { SeriesItem(serverIndex, it.seriesId, it.name) }
-    }
+    override suspend fun seriesNamed(serverIndex: Int, title: String): List<SeriesItem> =
+        ftsQueries(title).flatMap { q ->
+            if (serverIndex == -1) db.seriesDao().searchSeries(q).first().map { SeriesItem(-1, it.seriesId, it.name) }
+            else db.mergedSeriesDao().search(q).first().filter { it.serverIndex == serverIndex }.map { SeriesItem(serverIndex, it.seriesId, it.name) }
+        }.distinctBy { it.seriesId }
 
     override suspend fun episodes(serverIndex: Int, seriesId: Int): List<EpisodeItem>? {
         val info = try {
@@ -89,13 +92,19 @@ class AppHandoffCatalog(
         fun yearOf(title: String): Int? = Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 1880..2200 }
 
         /**
-         * An FTS4 MATCH query of the title's words (letters and digits only, so nothing in a title
-         * can become FTS syntax), each as a prefix, all required. Null when there are none.
+         * FTS4 MATCH queries for a title: its words (letters and digits only, so nothing in a title
+         * can become FTS syntax), each a prefix, all required. Two spellings, since the catalog's
+         * simple tokenizer keeps accents and folds only ASCII case: as written ("amélie*"), and
+         * with accents folded ("amelie*"); the matcher then compares the normalized titles.
          */
-        fun ftsQuery(title: String): String? {
-            val words = ContentMatcher.norm(title).split(' ').filter { it.isNotBlank() }.take(6)
-            if (words.isEmpty()) return null
-            return words.joinToString(" ") { "$it*" }
+        fun ftsQueries(title: String, dropQuality: Boolean = false): List<String> {
+            fun words(list: List<String>) = list.filter { it.isNotBlank() }
+                .filterNot { dropQuality && it.lowercase() in QUALITY_WORDS }.take(6)
+            val asWritten = words(title.split(Regex("[^\\p{L}\\p{N}]+")).map { w -> w.map { c -> if (c in 'A'..'Z') c + 32 else c }.joinToString("") })
+            val folded = words(ContentMatcher.norm(title).split(' '))
+            return listOf(asWritten, folded).filter { it.isNotEmpty() }.map { ws -> ws.joinToString(" ") { "$it*" } }.distinct()
         }
+
+        private val QUALITY_WORDS = setOf("hd", "fhd", "uhd", "sd", "4k", "8k", "raw", "60fps", "50fps", "hevc", "h265")
     }
 }

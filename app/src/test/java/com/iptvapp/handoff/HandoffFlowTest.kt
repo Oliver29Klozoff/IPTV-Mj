@@ -109,6 +109,14 @@ class HandoffFlowTest {
         assertEquals("x9", r.target.episode?.id)
     }
 
+    @Test fun catalogSearchesUseBothSpellingsAndNoSearchSyntax() {
+        assertEquals(listOf("amélie*", "amelie*"), AppHandoffCatalog.ftsQueries("Amélie"))
+        assertEquals(listOf("gsn*"), AppHandoffCatalog.ftsQueries("GSN HD", dropQuality = true))
+        // Quotes, operators and wildcards in a title never reach the search as syntax.
+        for (q in AppHandoffCatalog.ftsQueries("Heat\" OR * -NEAR (1995)")) assertTrue(q.matches(Regex("""([\p{L}\p{N}]+\* ?)+""")))
+        assertTrue(AppHandoffCatalog.ftsQueries("!!!").isEmpty())
+    }
+
     @Test fun titlesInOtherScriptsStayDistinct() {
         assertEquals("кино один", ContentMatcher.norm("Кино Один"))
         assertFalse(ContentMatcher.norm("Кино Один") == ContentMatcher.norm("Кино Два"))
