@@ -109,7 +109,7 @@ object HandoffPhoneServer {
                                     if (path.startsWith("/handoff/")) Handoff.handleRequest(app, method, path, body, host)
                                     else "404 Not Found" to JSONObject().put("error", "Not found")
                                 }
-                            }
+                            }.onFailure { Log.w("MKTV_HANDOFF", "phone receiver request failed", it) }
                         }
                     } catch (_: java.util.concurrent.RejectedExecutionException) {
                         runCatching { client.close() }

@@ -289,6 +289,28 @@ class HandoffFlowTest {
         assertNull(rx.current())
     }
 
+    @Test fun aCancelDuringTheCatalogCheckIsKept() = runTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slow = object : HandoffCatalog by catalog() {
+            override suspend fun movie(serverIndex: Int, streamId: Int): MovieItem? {
+                gate.await()
+                return MovieItem(-1, 900, "Example Movie", 2020, "mkv")
+            }
+        }
+        val ui = FakeUi()
+        val rx = HandoffReceiver(ContentMatcher(slow), ui, { false })
+        val offer = async { rx.offer(Fx.phonePeer(), Fx.movie()) }
+        runCurrent()
+        // While the catalog is read: the sender sees "waiting", and another offer is busy.
+        assertEquals("awaiting", rx.status(Fx.phonePeer(), Fx.movie().txId, null).getString("state"))
+        assertEquals("busy", rx.offer(Fx.phonePeer(), Fx.live()).getString("state"))
+        assertEquals("cancelled", rx.cancel(Fx.phonePeer(), Fx.movie().txId).getString("state"))
+        gate.complete(Unit)
+        assertEquals("cancelled", offer.await().getString("state"))
+        assertTrue(ui.presented.isEmpty())
+        assertNull(rx.current())
+    }
+
     @Test fun anAmbiguousMatchNeedsAChoice() = runTest {
         val unknown = "http://c.example\ncarol"
         val tag = HandoffCrypto.providerTag(Fx.SECRET, unknown)

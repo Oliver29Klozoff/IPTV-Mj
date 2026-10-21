@@ -4,6 +4,8 @@ import org.json.JSONObject
 
 /** Where an incoming handoff stands, as the sender sees it ([wire]). */
 enum class InState(val wire: String, val active: Boolean) {
+    /** Registered, its catalog still being checked (the sender just waits). */
+    RESOLVING("awaiting", true),
     AWAITING_APPROVAL("awaiting", true),
     PREPARING("preparing", true),
     PLAYING("playing", false),
@@ -85,18 +87,27 @@ class HandoffReceiver(
             if (isSending()) return reply("busy", "This device is sending something itself")
             current()?.let { return reply("busy", "Another handoff is waiting on this device") }
         }
-        // Resolution reads the catalog (and maybe the provider) — outside the lock.
-        val resolution = matcher.resolve(d, peer.secret, peer.providerMap)
-        val incoming = Incoming(d.txId, peer.deviceId, peer.label, d, now(), resolution)
+        // Registered before the catalog is read, so a cancel during the lookup is not lost and a
+        // second offer meanwhile is busy.
+        val incoming = Incoming(d.txId, peer.deviceId, peer.label, d, now(), Resolution.Unavailable("Checking"))
         synchronized(this) {
             if (recent.containsKey(d.txId)) return replyFor(recent[d.txId]!!)
             if (current() != null) return reply("busy", "Another handoff is waiting on this device")
+            incoming.state = InState.RESOLVING
+            remember(incoming)
+        }
+        // Resolution reads the catalog (and maybe the provider) — outside the lock.
+        val resolution = matcher.resolve(d, peer.secret, peer.providerMap)
+        synchronized(this) {
+            // Cancelled (or expired) while the catalog was read: nothing is shown.
+            if (incoming.state != InState.RESOLVING) return replyFor(incoming)
+            incoming.resolution = resolution
+            incoming.state = InState.AWAITING_APPROVAL
             when (resolution) {
                 is Resolution.NotFound -> fail(incoming, resolution.message)
                 is Resolution.Unavailable -> fail(incoming, resolution.message)
                 else -> Unit
             }
-            remember(incoming)
             if (incoming.state == InState.AWAITING_APPROVAL && !ui.present(incoming)) {
                 fail(incoming, "Open MKTV on the $ownKind to accept")
             }
@@ -130,6 +141,7 @@ class HandoffReceiver(
     fun cancel(peer: Peer, txId: String): JSONObject {
         val inc = recent[txId]?.takeIf { it.peerId == peer.deviceId } ?: return reply("failed", "Unknown request")
         when (inc.state) {
+            InState.RESOLVING -> inc.state = InState.CANCELLED
             InState.AWAITING_APPROVAL -> { inc.state = InState.CANCELLED; ui.dismiss(txId) }
             InState.PREPARING -> { inc.state = InState.CANCELLED; ui.closePlayer(txId) }
             else -> Unit
@@ -214,6 +226,7 @@ class HandoffReceiver(
 
     private fun expire(inc: Incoming, nowMs: Long) {
         when (inc.state) {
+            InState.RESOLVING -> if (nowMs - inc.receivedAtMs > RESOLVE_TTL_MS) fail(inc, "This device took too long to check its catalog")
             InState.AWAITING_APPROVAL -> if (nowMs - inc.receivedAtMs > HandoffProtocol.APPROVAL_TTL_MS) {
                 inc.state = InState.TIMED_OUT
                 ui.dismiss(inc.txId)
@@ -254,5 +267,7 @@ class HandoffReceiver(
         }
 
         const val END_MARGIN_MS = 10_000L
+        /** A catalog check that never finishes doesn't hold the receiver. */
+        const val RESOLVE_TTL_MS = 30_000L
     }
 }
