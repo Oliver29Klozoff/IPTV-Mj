@@ -1,7 +1,7 @@
 {
-  "versionCode": 598,
-  "versionName": "7.60",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.60/MKTV.apk",
-  "apkSha256": "28be44aa9996979798f9108a399f13619b88af94e35551209ad91a236e46a821",
-  "changelog": "Seek preview pictures now match exactly where the movie starts."
+  "versionCode": 599,
+  "versionName": "7.61",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.61/MKTV.apk",
+  "apkSha256": "c3c49ebf70b15db60783614f203b64e911234e5409366e052d20a672808c3b5d",
+  "changelog": "Sound timing for a live channel now goes to 10 seconds."
 }

@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.61 - 2026-10-20
+- **Improved**: Sound timing for a live channel now goes to 10 seconds (it stopped at 2).
+  Half-second steps sit beside the 50 ms steps. A delay already saved for that channel stays.
+
 ## v7.60 - 2026-10-20
 - **Improved**: Seek preview pictures match where the movie starts. Pictures are now at most
   10 seconds apart (60 before), and a jump with a picture showing lands exactly on that
