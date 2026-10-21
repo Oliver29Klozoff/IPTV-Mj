@@ -96,6 +96,8 @@ class HandoffAcceptActivity : AppCompatActivity() {
     }
 
     private fun finishIfIdle() {
+        // After an answer the activity is finishing by itself (an accepted launch runs elsewhere).
+        if (answered) return
         if (incoming() == null) { answered = true; finish() }
     }
 
@@ -124,10 +126,11 @@ class HandoffAcceptActivity : AppCompatActivity() {
             finish()
             return
         }
-        lifecycleScope.launch {
-            HandoffLauncher.open(this@HandoffAcceptActivity, plan)
-            finish()
-        }
+        // In the process scope, not this screen's: closing the old player and fetching the
+        // address may take a moment, and this prompt goes away now.
+        val app = applicationContext
+        Handoff.runOnMain { HandoffLauncher.open(app, plan) }
+        finish()
     }
 
     private fun mapProvider(inc: Incoming, slot: Int) {
@@ -158,6 +161,8 @@ object HandoffLauncher {
             while (Handoff.playerActive && waited < 3_000) { delay(100); waited += 100 }
             delay(1_000)
         }
+        fun stillWanted() = rx.get(plan.txId)?.state == com.iptvapp.handoff.InState.PREPARING
+        if (!stillWanted()) return
         val repo = Handoff.deps(app).repository()
         val t = plan.target
         val d = plan.descriptor
@@ -223,6 +228,8 @@ object HandoffLauncher {
                 }
             }
         }
+        // The sender may have cancelled while the old player closed or the address was fetched.
+        if (!stillWanted()) return
         try {
             app.startActivity(intent)
         } catch (_: Exception) {

@@ -204,6 +204,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var handoffReported = false
     private var handoffPrepared = false
     private var handoffSeriesId: Int = -1
+    private var countedAsPlayer = false
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
     private var externalSubtitlePath: String? = null
@@ -610,6 +611,14 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         handoffSeriesId = intent.getIntExtra("handoff_series_id", episodeSeriesId)
         handoffTx = intent.getStringExtra(com.iptvapp.ui.handoff.HandoffAcceptActivity.EXTRA_TX)
             ?.takeIf { com.iptvapp.handoff.HandoffProtocol.isTxId(it) }
+        handoffTx?.let { tx ->
+            // Cancelled or timed out between the answer and this screen opening: don't play it.
+            if (com.iptvapp.handoff.Handoff.receiver(this).get(tx)?.state != com.iptvapp.handoff.InState.PREPARING) {
+                handoffReported = true
+                finish()
+                return
+            }
+        }
         castSessionCode = intent.getStringExtra("cast_session_code") ?: ""
         // The pack that lets a RECEIVER change channel without an account of its own.
         castChannels = com.iptvapp.sync.CastRelayManager.decodePack(intent.getStringExtra("cast_channels"))
@@ -863,6 +872,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.btnSend.setOnClickListener { com.iptvapp.ui.handoff.HandoffSendUi.show(this, handoffSource) }
         updateSendButton()
         com.iptvapp.handoff.Handoff.playerCreated()
+        countedAsPlayer = true
         // An accepted handoff takes over ("*"), or the sender cancelled this one before it started.
         lifecycleScope.launch {
             com.iptvapp.handoff.Handoff.closePlayers.collect { which ->
@@ -2491,7 +2501,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val p = player ?: return null
             val d = com.iptvapp.handoff.Handoff.deps(this@PlayerActivity)
             val providers = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences()).providers()
-            val provider = providers.firstOrNull { it.serverIndex == serverIndex } ?: return null
+            // An episode's provider comes with it as sync_server_index (series screens don't set server_index).
+            val slot = if (isVod && episodeSyncId != null) episodeSyncServer else serverIndex
+            val provider = providers.firstOrNull { it.serverIndex == slot } ?: return null
             val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, provider.identity)
             val safe = com.iptvapp.handoff.HandoffProtocol::safeText
             val tracks = p.currentTracks
@@ -7271,7 +7283,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     override fun onDestroy() {
         syncPanel?.dismiss()
         syncPanel = null
-        com.iptvapp.handoff.Handoff.playerDestroyed()
+        if (countedAsPlayer) com.iptvapp.handoff.Handoff.playerDestroyed()
         // Closed before it played: the sender keeps playing and is told why.
         handoffTx?.let { if (!handoffReported) com.iptvapp.handoff.Handoff.receiver(this).onPlayerFailed(it, "Playback was closed before it started") }
         // Lets go of the seek preview's pictures and its worker (the disk cache stays, bounded).

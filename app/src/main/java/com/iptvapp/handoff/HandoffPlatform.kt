@@ -54,21 +54,25 @@ class KeystoreSealer : SecretSealer {
         null
     }
 
-    override fun seal(plain: String): String? = try {
+    override fun seal(plain: String): String? {
         val k = key() ?: return null
-        val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, k) }
-        HandoffCrypto.bytesToHex(c.iv) + ":" + HandoffCrypto.bytesToHex(c.doFinal(plain.toByteArray(Charsets.UTF_8)))
-    } catch (_: Exception) {
-        null
+        return try {
+            val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, k) }
+            HandoffCrypto.bytesToHex(c.iv) + ":" + HandoffCrypto.bytesToHex(c.doFinal(plain.toByteArray(Charsets.UTF_8)))
+        } catch (_: Exception) {
+            null
+        }
     }
 
-    override fun open(sealed: String): String? = try {
+    override fun open(sealed: String): String? {
         val k = key() ?: return null
-        val iv = HandoffCrypto.hexToBytes(sealed.substringBefore(':'))
-        val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, k, GCMParameterSpec(128, iv)) }
-        String(c.doFinal(HandoffCrypto.hexToBytes(sealed.substringAfter(':'))), Charsets.UTF_8)
-    } catch (_: Exception) {
-        null
+        return try {
+            val iv = HandoffCrypto.hexToBytes(sealed.substringBefore(':'))
+            val c = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, k, GCMParameterSpec(128, iv)) }
+            String(c.doFinal(HandoffCrypto.hexToBytes(sealed.substringAfter(':'))), Charsets.UTF_8)
+        } catch (_: Exception) {
+            null
+        }
     }
 }
 

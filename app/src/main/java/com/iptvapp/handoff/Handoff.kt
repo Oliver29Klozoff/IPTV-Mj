@@ -108,7 +108,7 @@ object Handoff {
     /** Forget [peer] here, tell it to forget this device (best effort), and stop its remote token. */
     fun forget(context: Context, peer: Peer) {
         if (peer.deviceId.isNotEmpty()) registry(context).remove(peer.deviceId) else registry(context).removeBySecret(peer.secret)
-        if (isTv(context)) RemoteControlServer.removeToken(context, peer.secret)
+        dropLegacyPairing(context, peer.secret)
         scope.launch { runCatching { client(context).send(peer, "forget", JSONObject().put("t", "forget")) } }
     }
 
@@ -194,10 +194,26 @@ object Handoff {
             "cancel" -> rx.cancel(peer, HandoffProtocol.txOf(m))
             "forget" -> {
                 reg.remove(peer.deviceId)
-                if (isTv(c)) RemoteControlServer.removeToken(c, peer.secret)
+                dropLegacyPairing(c, peer.secret)
                 JSONObject().put("ok", true)
             }
             else -> throw HandoffRejected("type")
+        }
+    }
+
+    /**
+     * The older stores of the same pairing: on a TV its remote-control token; on a phone the phone
+     * remote's saved TV (otherwise migrateRemoteTv would bring a forgotten TV back on next start).
+     */
+    private fun dropLegacyPairing(c: Context, secret: String) {
+        if (isTv(c)) {
+            RemoteControlServer.removeToken(c, secret)
+            return
+        }
+        val store = c.getSharedPreferences("remote_phone", Context.MODE_PRIVATE)
+        val token = store.getString("token", null) ?: return
+        if (HandoffCrypto.constantTimeEquals(token, secret)) {
+            store.edit().remove("token").remove("name").remove("host").remove("port").apply()
         }
     }
 
@@ -246,7 +262,8 @@ object Handoff {
         private fun once(peer: Peer, host: String, port: Int, type: String, message: JSONObject): Triple<Int, JSONObject?, JSONObject?>? {
             val path = "/handoff/$type"
             val own = deviceId(c)
-            val at = System.currentTimeMillis() + (clockOffsets[peer.deviceId.ifEmpty { peer.secret.take(8) }] ?: 0L)
+            val offset = clockOffsets[peer.deviceId.ifEmpty { peer.secret.take(8) }] ?: 0L
+            val at = System.currentTimeMillis() + offset
             val envelope = HandoffEnvelope.seal(peer.secret, own, peer.deviceId, "POST", path, message, at)
             return try {
                 val h = if (host.contains(':') && !host.startsWith("[")) "[$host]" else host
@@ -277,7 +294,8 @@ object Handoff {
                     return Triple(code, text?.let { runCatching { JSONObject(it) }.getOrNull() }, null)
                 }
                 val opened = HandoffEnvelope.open(
-                    text, own, "POST", path, System.currentTimeMillis(), { listOf(peer.secret) }, null, envelope.getString("n"),
+                    // The reply is stamped with the peer's clock: judged by the same corrected time.
+                    text, own, "POST", path, System.currentTimeMillis() + offset, { listOf(peer.secret) }, null, envelope.getString("n"),
                 ) as? HandoffEnvelope.OpenResult.Ok ?: return null
                 // A known peer must answer as itself; a first hello learns the id from the answer.
                 if (peer.deviceId.isNotEmpty() && opened.opened.fromId != peer.deviceId) return null
@@ -399,6 +417,9 @@ object Handoff {
     }
 
     fun runAsync(block: suspend () -> Unit) { scope.launch { block() } }
+
+    /** Work that outlives the screen that started it, on the main thread. */
+    fun runOnMain(block: suspend () -> Unit) { scope.launch(Dispatchers.Main) { block() } }
 
     /** Opens the accept prompt for [txId] (the app is in front, or the person tapped the notification). */
     fun promptIntent(context: Context, txId: String): Intent =
