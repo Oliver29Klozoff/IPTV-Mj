@@ -328,7 +328,7 @@ class EpgRepairRepository @Inject constructor(
                 if (delta != 0) dao.shiftXmltvRows(channel.serverIndex, channel.streamId, delta * 60L)
                 // Moved XMLTV listings and the provider's unmoved short guide would disagree: with XMLTV listings to
                 // show, the corrected schedule is the only one (a channel without them keeps its short guide).
-                if (minutes != 0 && dao.xmltvRowIdFor(channel.serverIndex, channel.streamId) != null) {
+                if (minutes != 0 && dao.xmltvLastStopFor(channel.serverIndex, channel.streamId) > System.currentTimeMillis() / 1000) {
                     dao.deleteShortGuideRows(channel.serverIndex, channel.streamId)
                 }
             }
