@@ -94,14 +94,28 @@ object HandoffSendUi {
         })
         Handoff.outgoing = sender
         status.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { sender.cancel(); status.setMessage("Cancelling…") }
+        val app = activity.applicationContext
         activity.lifecycleScope.launch {
+            var activePeer: Peer? = null
+            var activeTx: String? = null
             val result = try {
                 // A peer still without an id learns it now; the descriptor's provider tag is keyed to this pairing.
                 val peer = (if (chosen.deviceId.isEmpty()) Handoff.hello(activity, chosen) else chosen)
                     ?: return@launch done(activity, status, OutState.FAILED, "Couldn't reach ${chosen.label}")
                 val d = source.descriptor(peer, HandoffCrypto.randomHex(16))
                     ?: return@launch done(activity, status, OutState.FAILED, "This can't be sent")
+                activePeer = peer
+                activeTx = d.txId
                 sender.run(peer, d)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // This player went away mid-transfer (closed, or Up Next replaced it): the other
+                // device must not go on to open something this one no longer plays.
+                val p = activePeer
+                val tx = activeTx
+                if (p != null && tx != null && sender.state != OutState.TRANSFERRED) {
+                    Handoff.runAsync { Handoff.client(app).send(p, "cancel", org.json.JSONObject().put("t", "cancel").put("tx", tx)) }
+                }
+                throw e
             } finally {
                 Handoff.outgoing = null
             }

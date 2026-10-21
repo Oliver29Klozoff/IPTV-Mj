@@ -166,6 +166,12 @@ class HandoffReceiver(
         synchronized(this) {
             if (inc.state != InState.AWAITING_APPROVAL) return null
             inc.resolution = r
+            // The chosen provider doesn't have it (or can't be checked): over, and the sender is told why.
+            when (r) {
+                is Resolution.NotFound -> fail(inc, r.message)
+                is Resolution.Unavailable -> fail(inc, r.message)
+                else -> Unit
+            }
             return r
         }
     }

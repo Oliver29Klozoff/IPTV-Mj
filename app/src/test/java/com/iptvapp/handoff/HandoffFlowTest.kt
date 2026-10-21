@@ -251,6 +251,19 @@ class HandoffFlowTest {
         assertEquals("awaiting", rx.status(Fx.phonePeer(), Fx.movie().txId, null).getString("state"))
     }
 
+    @Test fun mappingAProviderThatLacksTheContentFailsTheRequest() = runTest {
+        val unknown = "http://c.example\ncarol"
+        val tag = HandoffCrypto.providerTag(Fx.SECRET, unknown)
+        val rx = HandoffReceiver(ContentMatcher(catalog()), FakeUi(), { false })
+        val d = Fx.movie(providerIdentity = unknown, title = "Nowhere To Be Found")
+        rx.offer(Fx.phonePeer(), d)
+        assertTrue(rx.get(d.txId)!!.resolution is Resolution.ProviderMissing)
+        // The person maps it to slot 0, which doesn't have that film: the sender hears "failed", not silence.
+        assertTrue(rx.remap(Fx.phonePeer(map = mapOf(tag to 0)), d.txId) is Resolution.NotFound)
+        assertEquals("failed", rx.status(Fx.phonePeer(), d.txId, null).getString("state"))
+        assertNull(rx.current())
+    }
+
     @Test fun anAmbiguousMatchNeedsAChoice() = runTest {
         val unknown = "http://c.example\ncarol"
         val tag = HandoffCrypto.providerTag(Fx.SECRET, unknown)

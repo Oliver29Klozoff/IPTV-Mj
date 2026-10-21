@@ -138,8 +138,11 @@ class HandoffAcceptActivity : AppCompatActivity() {
         reg.update(inc.peerId) { it.copy(providerMap = it.providerMap + (inc.descriptor.providerTag to slot)) }
         val peer = reg.byId(inc.peerId) ?: return
         lifecycleScope.launch {
-            Handoff.receiver(this@HandoffAcceptActivity).remap(peer, txId)
-            show()
+            when (val r = Handoff.receiver(this@HandoffAcceptActivity).remap(peer, txId)) {
+                is Resolution.NotFound -> { Toast.makeText(this@HandoffAcceptActivity, r.message, Toast.LENGTH_LONG).show(); answered = true; finish() }
+                is Resolution.Unavailable -> { Toast.makeText(this@HandoffAcceptActivity, r.message, Toast.LENGTH_LONG).show(); answered = true; finish() }
+                else -> show()
+            }
         }
     }
 
