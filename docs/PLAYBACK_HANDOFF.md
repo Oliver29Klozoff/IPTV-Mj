@@ -62,6 +62,7 @@ The receiver deduplicates by transaction id and handles one incoming handoff at 
 **Approval.** Approval is always asked; there is no auto-accept.
 - **TV:** the prompt appears if MKTV is in front; otherwise the sender is told to open MKTV on the TV.
 - **Phone:** the prompt appears in the app if it is in front; otherwise a notification opens it (no background activity starts). If notifications are off, the sender is told to open MKTV on the phone.
+  - In practice a phone receives only while MKTV is open or was just put away. On current Android a cached (backgrounded) app gets no network traffic, so after a short while the TV sees the phone as "Not reachable (open MKTV on the phone)". Receiving in the background would need a foreground service (deferred).
 - **Already playing:** if something is already playing, the prompt says it will be replaced.
 
 **Position.** The receiver starts at the last reported position plus the time since that report (only if the source was playing, capped), clamped inside the receiver's own duration. Live always starts at the live edge.
@@ -73,3 +74,17 @@ The receiver deduplicates by transaction id and handles one incoming handoff at 
 - Handoff while MKTV is closed on the receiver. This would need a foreground service or a push channel.
 - Cloud handoff across networks.
 - Cross-device progress sync beyond the existing opt-in sync.
+
+## 4. Verification (2026-10-21)
+
+All tests ran on emulators: a TV (Android TV, API 25) and a phone (API 35). They were joined through host port redirects, and both used a fake Xtream panel. The physical Shield was not touched. The Pixel was not used for handoff.
+
+| Test | Result |
+|---|---|
+| Pairing (existing ECDH + 6-digit comparison), then hello on both sides | Both registries hold each other's id. Secrets are stored as Keystore ciphertext. |
+| A: movie, phone → TV | The TV prompt resolved the title in its own catalog. It started at the phone's live position (42:27 shown, 42:50 when the screenshot was taken). The phone paused about 2.9 s after acceptance. |
+| B: episode, TV → phone | The exact episode was resolved through the series' episode list. Both sides were within a few seconds (30:35 on the phone vs 30:3x on the TV). The TV paused about 5.7 s after acceptance. No second resume question. |
+| C: live channel, phone → TV | The same channel opened at the live edge. The phone paused about 2.7 s after acceptance. |
+| D: movie missing on the TV | The phone shows "This movie isn't in this device's catalog. Still playing here." No prompt appeared on the TV. |
+| E: unpaired / forgotten | A forged envelope gets `{"error":"refused"}`. Forget on the phone cleared both registries, the phone remote's TV, and the TV's remote token. |
+| Release build (R8) | Paired, sent a movie, TV played, phone paused. |
