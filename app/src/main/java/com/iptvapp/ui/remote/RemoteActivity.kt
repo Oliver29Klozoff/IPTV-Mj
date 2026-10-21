@@ -671,6 +671,8 @@ class RemoteActivity : AppCompatActivity() {
             val name = revealed.json?.optString("name")?.takeIf { it.isNotBlank() && tv.name == tv.host } ?: tv.name
             store.edit().putString("name", name).putString("host", tv.host).putInt("port", tv.port)
                 .putString("token", newToken).apply()
+            // The same pairing makes the TV a playback-handoff device (Send to TV / Continue on phone).
+            com.iptvapp.handoff.Handoff.onPhonePairedWithTv(this@RemoteActivity, name, tv.host, tv.port, newToken)
             Toast.makeText(this@RemoteActivity, "Paired with $name", Toast.LENGTH_SHORT).show()
             refreshStatus()
         }

@@ -2422,6 +2422,31 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">
                         <LinearLayout
+                            android:id="@+id/rowPairedDevices"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Paired MKTV devices" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="TVs and phones that can pass what's playing to each other (home network)" />
+                            </LinearLayout>
+                            <TextView
+                                style="@style/Rack.Chevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
                             style="@style/Rack.Row.Toggle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content">

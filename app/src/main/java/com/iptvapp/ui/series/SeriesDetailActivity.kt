@@ -325,6 +325,8 @@ class SeriesDetailActivity : AppCompatActivity() {
                 // Which provider this episode is from, for its saved audio/subtitle sync.
                 putExtra("sync_server_index", serverIndex ?: -1)
                 putExtra("sync_episode_id", episode.id)
+                // The series on its own provider (also an extra one), so the episode can be sent on (handoff).
+                putExtra("handoff_series_id", seriesIdField)
                 putStringArrayListExtra("ep_titles",   ArrayList(episodes.map { "S${it.season}E${it.episodeNum} ${it.title}" }))
                 putStringArrayListExtra("ep_exts",     ArrayList(episodes.map { it.containerExtension }))
             })

@@ -382,6 +382,14 @@
             style="@style/PlayerChip"
             android:text="Audio · CC" />
 
+        <!-- Playback handoff: continue this on a paired TV or phone (shown when one is paired). -->
+        <Button
+            android:id="@+id/btnSend"
+            style="@style/PlayerChip"
+            android:contentDescription="Send to another device"
+            android:text="Send"
+            android:visibility="gone" />
+
         <ImageButton
             android:id="@+id/btnResize"
             android:layout_width="40dp"

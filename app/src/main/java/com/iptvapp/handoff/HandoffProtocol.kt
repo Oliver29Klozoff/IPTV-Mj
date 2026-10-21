@@ -179,6 +179,15 @@ object HandoffProtocol {
 
     fun looksLikeLink(s: String): Boolean = LINKISH.containsMatchIn(s)
 
+    /** Display text made safe to send: no control characters, nothing link-like, at most [max] characters. */
+    fun safeText(s: String, max: Int): String {
+        var t = s.filterNot { it.isISOControl() }
+        var guard = 0
+        while (looksLikeLink(t) && guard++ < 8) t = LINKISH.replace(t, " ")
+        t = t.replace(Regex("""[/\\@]"""), " ").replace(Regex("""\s+"""), " ").trim().take(max)
+        return if (looksLikeLink(t)) "" else t
+    }
+
     private fun int(o: JSONObject, key: String): Int? {
         if (!o.has(key) || o.isNull(key)) return null
         val n = o.opt(key) as? Number ?: throw HandoffRejected(key)

@@ -157,7 +157,7 @@ object RemoteControlServer {
                     // A few at a time; more than that are closed at once, so a flood of
                     // connections can't use up the TV's threads.
                     try {
-                        workers.execute { runCatching { handle(app, client) } }
+                        workers.execute { runCatching { serve(client) { m, p, t, sig, b, host -> route(app, m, p, t, sig, b, host) } } }
                     } catch (_: java.util.concurrent.RejectedExecutionException) {
                         runCatching { client.close() }
                     }
@@ -184,6 +184,12 @@ object RemoteControlServer {
             serviceName = "MKTV on ${Build.MODEL}"
             serviceType = SERVICE_TYPE
             port = PORT
+            // Who this TV is, so a paired phone finds it again at a new address. Only an address
+            // hint: trust comes from the handoff envelope, never from this announcement.
+            runCatching {
+                setAttribute("id", com.iptvapp.handoff.Handoff.deviceId(context))
+                setAttribute("ho", com.iptvapp.handoff.HandoffProtocol.VERSION.toString())
+            }
         }
         val listener = object : NsdManager.RegistrationListener {
             // The name actually announced — Android adds " (2)" when another TV already has it.
@@ -204,7 +210,22 @@ object RemoteControlServer {
         prefs.edit().putStringSet(KEY_TOKENS, tokens(context) + token).apply()
     }
 
-    private fun handle(context: Context, socket: Socket) {
+    /** Every pairing secret this TV holds (handoff tries them for a phone that hasn't said who it is yet). */
+    fun pairedTokens(context: Context): Set<String> = tokens(context)
+
+    /** A device forgotten in Paired devices: its token stops working for remote commands too. */
+    @Synchronized
+    fun removeToken(context: Context, token: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putStringSet(KEY_TOKENS, tokens(context).filterNot { java.security.MessageDigest.isEqual(it.toByteArray(), token.toByteArray()) }.toSet()).apply()
+    }
+
+    /**
+     * Reads one request from [socket] (bounded: a deadline for the whole request, 64 headers of at
+     * most 8 KB, a 16 KB body) and writes [router]'s JSON answer. Shared with the phone's handoff
+     * receiver (HandoffPhoneServer), so both read requests the same careful way.
+     */
+    internal fun serve(socket: Socket, router: (method: String, path: String, signedAt: String, signature: String, body: String, remoteHost: String?) -> Pair<String, JSONObject>) {
         socket.use { s ->
             s.soTimeout = 10_000
             // Bytes, not characters: Content-Length counts bytes, and a channel name like "Univisión"
@@ -241,7 +262,7 @@ object RemoteControlServer {
                 }
                 String(buf, 0, read, Charsets.UTF_8)
             } else ""
-            val (status, json) = route(context, method, path, signedAt, signature, body)
+            val (status, json) = router(method, path, signedAt, signature, body, s.inetAddress?.hostAddress)
             val bytes = json.toString().toByteArray(Charsets.UTF_8)
             val out = s.getOutputStream()
             out.write(("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray())
@@ -338,7 +359,9 @@ object RemoteControlServer {
         return bytes.toString("UTF-8").trimEnd('\r')
     }
 
-    private fun route(context: Context, method: String, path: String, signedAt: String, signature: String, body: String): Pair<String, JSONObject> {
+    private fun route(context: Context, method: String, path: String, signedAt: String, signature: String, body: String, remoteHost: String?): Pair<String, JSONObject> {
+        // Playback handoff: its own sealed envelope (handoff/HandoffEnvelope), not the remote's signature.
+        if (path.startsWith("/handoff/")) return com.iptvapp.handoff.Handoff.handleRequest(context, method, path, body, remoteHost)
         when (path) {
             // Step 1: the phone's commitment to its key; the answer is the TV's key.
             "/pair/start" -> {

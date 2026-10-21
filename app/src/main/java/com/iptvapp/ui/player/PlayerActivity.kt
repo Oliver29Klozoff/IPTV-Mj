@@ -198,6 +198,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var episodeSyncId: String? = null
     private var episodeSyncName: String = ""
     private var syncPanel: SyncPanel? = null
+    // Playback handoff: the transaction this player was opened for (null when opened normally),
+    // whether its start was reported, and the series an episode belongs to (any provider).
+    private var handoffTx: String? = null
+    private var handoffReported = false
+    private var handoffPrepared = false
+    private var handoffSeriesId: Int = -1
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
     private var externalSubtitlePath: String? = null
@@ -601,6 +607,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         episodeSyncId = intent.getStringExtra("sync_episode_id")?.takeIf { it.isNotBlank() } ?: epIds.getOrNull(epIndex)
         episodeSyncName = if (traktSeason >= 0 && traktEpisode >= 0) "S${traktSeason}E${traktEpisode}" else streamTitle
         episodeSeriesId = intent.getIntExtra("series_id", -1)
+        handoffSeriesId = intent.getIntExtra("handoff_series_id", episodeSeriesId)
+        handoffTx = intent.getStringExtra(com.iptvapp.ui.handoff.HandoffAcceptActivity.EXTRA_TX)
+            ?.takeIf { com.iptvapp.handoff.HandoffProtocol.isTxId(it) }
         castSessionCode = intent.getStringExtra("cast_session_code") ?: ""
         // The pack that lets a RECEIVER change channel without an account of its own.
         castChannels = com.iptvapp.sync.CastRelayManager.decodePack(intent.getStringExtra("cast_channels"))
@@ -787,6 +796,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 putExtra("series_id", episodeSeriesId)
                 putExtra("ep_index", nextIndex)
                 putExtra("sync_episode_id", epIds[nextIndex])
+                putExtra("handoff_series_id", handoffSeriesId)
                 putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids",    ArrayList(epIds))
                 putExtra("sync_server_index", episodeSyncServer)
@@ -820,6 +830,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 putExtra("series_id", episodeSeriesId)
                 putExtra("ep_index", 0)
                 putExtra("sync_episode_id", first.id)
+                putExtra("handoff_series_id", handoffSeriesId)
                 putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids", ArrayList(nextSeasonEpisodes.map { it.id }))
                 putExtra("sync_server_index", episodeSyncServer)
@@ -849,6 +860,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun setupActionButtons() {
         binding.btnSleep.setOnClickListener { showSleepTimerDialog() }
         binding.btnTracks.setOnClickListener { showTrackSelectorDialog() }
+        binding.btnSend.setOnClickListener { com.iptvapp.ui.handoff.HandoffSendUi.show(this, handoffSource) }
+        updateSendButton()
+        com.iptvapp.handoff.Handoff.playerCreated()
+        // An accepted handoff takes over ("*"), or the sender cancelled this one before it started.
+        lifecycleScope.launch {
+            com.iptvapp.handoff.Handoff.closePlayers.collect { which ->
+                if (which == "*" || (which == handoffTx && !handoffReported)) finish()
+            }
+        }
         binding.btnLock.setOnClickListener { setLocked(true) }
         binding.btnUnlock.setOnClickListener { setLocked(false) }
         // Lock guards a touch screen; a remote-only device (the Shield) has nothing to lock.
@@ -2417,6 +2437,114 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
     }
 
+    // ─── Playback handoff (handoff/Handoff, docs/PLAYBACK_HANDOFF.md) ───────────────
+
+    /** Send is offered when a device of the other kind (TV ↔ phone) is paired and nothing is casting. */
+    private fun updateSendButton() {
+        val tv = com.iptvapp.handoff.Handoff.isTv(this)
+        val paired = com.iptvapp.handoff.Handoff.registry(this).all().any { it.isTv != tv }
+        binding.btnSend.visibility = if (paired && castSession == null) View.VISIBLE else View.GONE
+        binding.btnSend.text = if (tv) "Send to phone" else "Send to TV"
+    }
+
+    /** First READY of a player opened by a handoff: keep the start inside this copy, apply the speed. */
+    private fun onHandoffReady(p: ExoPlayer) {
+        if (handoffPrepared) return
+        handoffPrepared = true
+        if (isVod) {
+            val duration = p.duration
+            if (duration != C.TIME_UNSET && duration > 0) {
+                val clamped = com.iptvapp.handoff.HandoffReceiver.clampToDuration(p.currentPosition, duration)
+                if (clamped != p.currentPosition) p.seekTo(clamped)
+            }
+        }
+        val speed = intent.getFloatExtra("handoff_speed", 1f)
+        if (speed != 1f && speed in 0.5f..2f) p.setPlaybackSpeed(speed)
+    }
+
+    /** The player opened for a handoff really plays: only now is the sender told (and stops). */
+    private fun onHandoffPlaying() {
+        val tx = handoffTx ?: return
+        if (handoffReported) return
+        handoffReported = true
+        com.iptvapp.handoff.Handoff.receiver(this).onPlaying(tx)
+    }
+
+    private fun extensionOf(url: String): String? =
+        url.substringBefore('?').substringAfterLast('/').substringAfterLast('.', "").lowercase()
+            .takeIf { it.matches(Regex("[a-z0-9]{1,6}")) }
+
+    /** What this player offers to send, and its playback for the sender (main thread). */
+    private val handoffSource = object : com.iptvapp.ui.handoff.HandoffSource {
+        override fun unsupportedReason(): String? = when {
+            castSession != null -> "Stop casting first."
+            isFilePlayback() -> "Recordings and files stay on the device that has them."
+            isCatchup -> "Replays can't be sent yet. Send the live channel instead."
+            isVod && episodeSyncId != null && (handoffSeriesId < 0 || traktSeason < 0 || traktEpisode < 0) ->
+                "This episode can't be identified on another device."
+            liveCopyId() < 0 && episodeSyncId == null -> "This can't be identified on another device."
+            else -> null
+        }
+
+        override suspend fun descriptor(peer: com.iptvapp.handoff.Peer, txId: String): com.iptvapp.handoff.Descriptor? {
+            if (unsupportedReason() != null) return null
+            val p = player ?: return null
+            val d = com.iptvapp.handoff.Handoff.deps(this@PlayerActivity)
+            val providers = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences()).providers()
+            val provider = providers.firstOrNull { it.serverIndex == serverIndex } ?: return null
+            val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, provider.identity)
+            val safe = com.iptvapp.handoff.HandoffProtocol::safeText
+            val tracks = p.currentTracks
+            val audio = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
+                ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { g.getTrackFormat(it).language } }
+            val text = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
+                ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { g.getTrackFormat(it).language } }
+            val lang = Regex("[A-Za-z]{2,3}([-_][A-Za-z0-9]{1,8}){0,2}")
+            val speed = p.playbackParameters.speed.takeIf { it != 1f && it in 0.25f..4f }
+            val kind = when {
+                !isVod -> com.iptvapp.handoff.ContentKind.LIVE
+                episodeSyncId != null -> com.iptvapp.handoff.ContentKind.EPISODE
+                else -> com.iptvapp.handoff.ContentKind.MOVIE
+            }
+            val live = kind == com.iptvapp.handoff.ContentKind.LIVE
+            val episodeTitle = streamTitle.replace(Regex("^S\\d+E\\d+\\s*"), "")
+            val desc = com.iptvapp.handoff.Descriptor(
+                txId = txId,
+                kind = kind,
+                providerTag = tag,
+                providerLabel = safe(provider.label, 40),
+                streamId = if (kind == com.iptvapp.handoff.ContentKind.EPISODE) -1 else liveCopyId(),
+                title = safe(if (kind == com.iptvapp.handoff.ContentKind.EPISODE) episodeTitle.ifBlank { streamTitle } else streamTitle, 200)
+                    .ifBlank { if (live) "Live channel" else "Video" },
+                year = com.iptvapp.handoff.AppHandoffCatalog.yearOf(streamTitle),
+                containerExt = if (kind == com.iptvapp.handoff.ContentKind.EPISODE) epExts.getOrNull(epIndex)?.lowercase()?.takeIf { it.matches(Regex("[a-z0-9]{1,6}")) }
+                    else if (live) null else extensionOf(streamUrl),
+                seriesId = handoffSeriesId.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
+                seriesTitle = safe(traktSeriesName, 200).takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE && it.isNotBlank() },
+                season = traktSeason.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
+                episode = traktEpisode.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
+                episodeId = episodeSyncId?.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
+                positionMs = if (live) 0L else p.currentPosition.coerceAtLeast(0L),
+                durationMs = if (live) 0L else p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L,
+                playing = p.isPlaying,
+                speed = speed,
+                audioLang = audio?.takeIf { lang.matches(it) },
+                subtitleLang = text?.takeIf { lang.matches(it) },
+                subtitlesOn = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.isSelected },
+                sourceName = safe(com.iptvapp.handoff.Handoff.selfName(this@PlayerActivity), 60),
+            )
+            return try { com.iptvapp.handoff.HandoffProtocol.validate(desc); desc } catch (_: com.iptvapp.handoff.HandoffRejected) { null }
+        }
+
+        override fun positionMs(): Long = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
+        override fun isPlaying(): Boolean = player?.isPlaying == true
+        override fun pauseForHandoff() {
+            player?.pause()
+            updatePlayPauseButton()
+            notifyPartyStateChange()
+        }
+    }
+
     private fun showSyncPanel() {
         applyPlaybackSync()
         if (appliedSyncKey == null) {
@@ -3085,6 +3213,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
         val preferredSubtitleLanguage = prefs.preferredSubtitleLanguageNow()
         val dataSaver = prefs.dataSaverEnabledNow()
+        // A handoff brings the sender's language choices, for this playback only (never saved).
+        val handoffAudio = intent.getStringExtra("handoff_audio_lang").takeIf { handoffTx != null }
+        val handoffSub = intent.getStringExtra("handoff_sub_lang").takeIf { handoffTx != null }
+        val handoffSubsOn = if (handoffTx != null && intent.hasExtra("handoff_subs")) intent.getBooleanExtra("handoff_subs", subtitlesEnabled) else null
         // A factory, not one selector: the preload manager makes its own from the same settings.
         val trackSelectorFactory = androidx.media3.exoplayer.trackselection.TrackSelector.Factory { ctx ->
             androidx.media3.exoplayer.trackselection.DefaultTrackSelector(ctx).apply {
@@ -3098,6 +3230,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 .setSelectUndeterminedTextLanguage(subtitlesEnabled)
                 .apply { if (preferredAudioLanguage.isNotBlank()) setPreferredAudioLanguage(preferredAudioLanguage) }
                 .apply { if (subtitlesEnabled && preferredSubtitleLanguage.isNotBlank()) setPreferredTextLanguage(preferredSubtitleLanguage) }
+                .apply {
+                    handoffSubsOn?.let { on -> setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !on).setSelectUndeterminedTextLanguage(on) }
+                    handoffAudio?.let { setPreferredAudioLanguage(it) }
+                    handoffSub?.let { setPreferredTextLanguage(it) }
+                }
                 .build()
             }
         }
@@ -3107,6 +3244,14 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return zapPreloader.buildPlayer(mediaSourceFactory, renderersFactory, loadControl, trackSelectorFactory)
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
+                if (handoffTx != null) exoPlayer.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_READY) onHandoffReady(exoPlayer)
+                    }
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying) onHandoffPlaying()
+                    }
+                })
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                         maybeOfferExternalSubtitles(tracks)
@@ -3977,6 +4122,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onResume() {
         super.onResume()
+        updateSendButton()
         applyFrameRateMatch()
         castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
         // If the session started while we were paused (cast picker caused onPause),
@@ -7125,6 +7271,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     override fun onDestroy() {
         syncPanel?.dismiss()
         syncPanel = null
+        com.iptvapp.handoff.Handoff.playerDestroyed()
+        // Closed before it played: the sender keeps playing and is told why.
+        handoffTx?.let { if (!handoffReported) com.iptvapp.handoff.Handoff.receiver(this).onPlayerFailed(it, "Playback was closed before it started") }
         // Lets go of the seek preview's pictures and its worker (the disk cache stays, bounded).
         thumbnailManager?.close()
         thumbnailManager = null

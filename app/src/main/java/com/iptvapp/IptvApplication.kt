@@ -49,6 +49,8 @@ class IptvApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Playback handoff between paired devices; listens only once a TV is paired (phones).
+        com.iptvapp.handoff.Handoff.init(this)
         // The app's theme is DayNight, but every custom screen hardcodes a dark palette
         // regardless of system setting. Left on DayNight, only stock components (AlertDialog,
         // DatePickerDialog, etc.) would follow the system's light/dark setting — on a device

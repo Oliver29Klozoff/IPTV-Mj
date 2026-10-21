@@ -112,6 +112,15 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
 
+        <!-- Playback handoff: the prompt for a request from a paired device (opened by MKTV itself or its notification). -->
+        <activity
+            android:name=".ui.handoff.HandoffAcceptActivity"
+            android:theme="@style/Theme.IptvApp.Overlay"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode" />
+
         <activity
             android:name=".ui.player.PlayerActivity"
             android:theme="@style/Theme.IptvApp.Fullscreen"

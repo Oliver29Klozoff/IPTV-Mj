@@ -310,6 +310,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Monthly Data Cap", 3, null, R.id.btnBandwidthBudget),
             SettingSearchEntry("New Episode Notifications", 3, null, R.id.switchNewEpisodeNotifications),
             SettingSearchEntry("Cross-Device Sync", 4, null, R.id.switchSyncEnabled),
+            SettingSearchEntry("Paired MKTV Devices (Send to TV / phone)", 4, null, R.id.rowPairedDevices),
             SettingSearchEntry("Push to Cloud", 4, null, R.id.btnSyncUp),
             SettingSearchEntry("Pull from Cloud", 4, null, R.id.btnSyncDown),
             SettingSearchEntry("Pairing Code", 4, null, R.id.etGithubToken),
@@ -4243,6 +4244,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.rowFavoriteTeams.setOnClickListener { showFavoriteTeamsDialog() }
         binding.rowEpgHealth.setOnClickListener { startActivity(com.iptvapp.ui.epg.EpgHealthActivity.intent(this)) }
+        binding.rowPairedDevices.setOnClickListener { com.iptvapp.ui.handoff.PairedDevicesUi.show(this) }
         binding.switchSeekPreview.setOnCheckedChangeListener { _, enabled ->
             lifecycleScope.launch { prefs.setSeekPreviewPictures(enabled) }
         }
@@ -4531,6 +4533,7 @@ class SettingsActivity : AppCompatActivity() {
             intent.putExtra("episode_num", state.content.episodeNum)
             intent.putExtra("sync_episode_id", match.episodeId)
             intent.putExtra("sync_server_index", match.serverIndex)
+            intent.putExtra("handoff_series_id", match.seriesId)
             intent.putExtra("stream_url", url)
             startActivity(intent)
         }
