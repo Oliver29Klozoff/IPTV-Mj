@@ -33,6 +33,7 @@ class PictureProfiles {
         passthroughAudio: Boolean,
         dolbyVisionBaseLayer: Boolean = false,
         audioDelay: ChannelAudioDelayState,
+        subtitleDelay: SubtitleDelayState? = null,
     ): DefaultRenderersFactory {
         val holder = this
         val factory = object : DefaultRenderersFactory(context) {
@@ -71,6 +72,26 @@ class PictureProfiles {
                         enableDecoderFallback, eventHandler, eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
                         audioDelay,
                     )
+                }
+            }
+
+            override fun buildTextRenderers(
+                context: Context,
+                output: androidx.media3.exoplayer.text.TextOutput,
+                outputLooper: android.os.Looper,
+                extensionRendererMode: Int,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                // [out] already holds the video and audio renderers: only the ones added here are
+                // subtitles, and only they run on the subtitle offset's clock (SubtitleDelayRenderer).
+                val first = out.size
+                super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, out)
+                if (subtitleDelay != null) {
+                    for (i in first until out.size) {
+                        if (out[i].trackType == androidx.media3.common.C.TRACK_TYPE_TEXT) {
+                            out[i] = SubtitleDelayRenderer(out[i], subtitleDelay)
+                        }
+                    }
                 }
             }
 

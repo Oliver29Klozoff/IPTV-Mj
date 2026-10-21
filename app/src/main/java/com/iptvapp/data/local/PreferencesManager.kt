@@ -129,6 +129,19 @@ class PreferencesManager @Inject constructor(
             prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = com.iptvapp.util.ChannelAudioDelay.write(stored, key, ms)
         }
     }
+    /** Saved audio and subtitle offsets of one channel or video (PlaybackSync keys); zero when none. */
+    fun playbackSyncNow(key: String): com.iptvapp.util.PlaybackSync.Offsets = try {
+        com.iptvapp.util.PlaybackSync.read(PrefsSnapshot.read(context) { it[Keys.PLAYBACK_SYNC] ?: "" }, key)
+    } catch (_: Exception) {
+        // A damaged entry never stops playback: it reads as no offset.
+        com.iptvapp.util.PlaybackSync.Offsets()
+    }
+    suspend fun setPlaybackSync(key: String, offsets: com.iptvapp.util.PlaybackSync.Offsets) {
+        context.dataStore.edit { prefs ->
+            val stored = prefs[Keys.PLAYBACK_SYNC] ?: ""
+            prefs[Keys.PLAYBACK_SYNC] = com.iptvapp.util.PlaybackSync.write(stored, key, offsets)
+        }
+    }
     fun dataSaverEnabledNow() = PrefsSnapshot.read(context, readDataSaverEnabled)
     fun pipEnabledNow() = PrefsSnapshot.read(context, readPipEnabled)
     fun silentSelfUpdateEnabledNow() = PrefsSnapshot.read(context, readSilentSelfUpdateEnabled)
@@ -314,6 +327,8 @@ class PreferencesManager @Inject constructor(
         // Per-channel sound timing, "serverIndex:streamId=ms". Left out of settings backup:
         // the delay belongs to this TV, not to a shared backup.
         val CHANNEL_AUDIO_DELAY_MS = stringPreferencesKey("channel_audio_delay_ms")
+        // Audio & Subtitle Sync: saved offsets per channel (subtitles) and per video (both); see PlaybackSync.
+        val PLAYBACK_SYNC = stringPreferencesKey("playback_sync_offsets")
         val AUTOPLAY_NEXT_EPISODE_ENABLED = booleanPreferencesKey("autoplay_next_episode_enabled")
         val PREFER_RELIABLE_COPY = booleanPreferencesKey("prefer_reliable_copy")
         val SHOW_ALERT_KEYWORDS = stringPreferencesKey("show_alert_keywords")
@@ -718,6 +733,9 @@ class PreferencesManager @Inject constructor(
                 val stored = prefs[Keys.CHANNEL_AUDIO_DELAY_MS] ?: ""
                 val dropped = com.iptvapp.util.ChannelAudioDelay.dropServer(stored, -1)
                 if (dropped != stored) prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = dropped
+                val sync = prefs[Keys.PLAYBACK_SYNC] ?: ""
+                val syncDropped = com.iptvapp.util.PlaybackSync.dropServer(sync, -1)
+                if (syncDropped != sync) prefs[Keys.PLAYBACK_SYNC] = syncDropped
             }
             prefs[Keys.SERVER_URL] = serverUrl
             prefs[Keys.USERNAME] = username
@@ -1096,6 +1114,9 @@ class PreferencesManager @Inject constructor(
             }
             val reindexed = com.iptvapp.util.ChannelAudioDelay.reindex(stored, moved)
             if (reindexed != stored) prefs[Keys.CHANNEL_AUDIO_DELAY_MS] = reindexed
+            val sync = prefs[Keys.PLAYBACK_SYNC] ?: ""
+            val syncMoved = com.iptvapp.util.PlaybackSync.reindex(sync, moved)
+            if (syncMoved != sync) prefs[Keys.PLAYBACK_SYNC] = syncMoved
             prefs[Keys.EXTRA_SERVERS] = arr.toString()
         }
     }

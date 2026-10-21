@@ -23,6 +23,7 @@ import com.iptvapp.util.ChannelAudioDelay
 import com.iptvapp.util.ChannelAudioDelayState
 import com.iptvapp.util.ExternalSubtitles
 import com.iptvapp.util.OpenSubtitlesClient
+import com.iptvapp.util.PlaybackSync
 import com.iptvapp.util.PictureMode
 import com.iptvapp.util.SmartCatchUp
 import com.iptvapp.util.SportsMode
@@ -181,9 +182,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // stream_title). This flag exists only to pick a different ExoPlayer data source in
     // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
     private var isRecordingPlayback: Boolean = false
-    // This channel's sound offset. The video renderer reads it on each frame.
+    // This item's sound and subtitle offsets (Audio & Subtitle Sync). The video renderer reads
+    // the sound one on each frame, the subtitle renderer the other, both on the playback thread.
     private val channelAudioDelay = ChannelAudioDelayState()
-    private var appliedAudioDelayKey: String? = null
+    private val subtitleDelay = SubtitleDelayState()
+    private var appliedSyncKey: String? = null
+    private var savedSync = PlaybackSync.Offsets()
+    // Changes made since the app opened and not saved, by item. They win over the saved values.
+    private val sessionSync = HashMap<String, PlaybackSync.Offsets>()
+    private var tunnelingThisPlayer = false
+    private var syncPanel: SyncPanel? = null
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
     private var externalSubtitlePath: String? = null
@@ -2291,41 +2299,115 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.btnSleep.text = "Sleep ${(totalMs + 59_999L) / 60_000}m"
     }
 
-    private fun channelAudioKey(): String? {
-        if (!ChannelAudioDelay.offersFor(isVod, isCatchup, isRecordingPlayback)) return null
-        return ChannelAudioDelay.key(serverIndex, liveCopyId())
+    private fun isFilePlayback(): Boolean =
+        isRecordingPlayback || streamUrl.startsWith("file:") || streamUrl.startsWith("content:")
+
+    /** Where this item's offsets are saved: the channel for live TV and its replays, else the video. */
+    private fun syncKey(): String? = when {
+        isFilePlayback() -> PlaybackSync.fileKey(streamUrl, streamTitle)
+        ChannelAudioDelay.offersFor(isVod, isCatchup, isRecordingPlayback) -> PlaybackSync.channelKey(serverIndex, liveCopyId())
+        epIds.isNotEmpty() && epIndex in epIds.indices -> PlaybackSync.episodeKey(serverIndex, epIds[epIndex], streamTitle)
+        else -> PlaybackSync.movieKey(serverIndex, liveCopyId(), streamTitle)
     }
 
-    /** Loads the saved offset when the channel changes. A nudge on this channel is left as it is. */
-    private fun applyChannelAudioDelay() {
-        val key = channelAudioKey()
-        if (key == appliedAudioDelayKey) return
-        appliedAudioDelayKey = key
-        channelAudioDelay.offsetMs = if (key == null) 0 else prefs.channelAudioDelayNow(key)
+    /** A channel's sound offset stays where Sound timing always kept it; its subtitle offset is a PlaybackSync entry. */
+    private fun readSavedSync(key: String): PlaybackSync.Offsets {
+        val stored = prefs.playbackSyncNow(key)
+        if (!key.startsWith("c:")) return stored
+        return stored.copy(audioMs = prefs.channelAudioDelayNow(key.removePrefix("c:")))
     }
 
-    private fun showAudioDelayDialog() {
-        val key = channelAudioKey() ?: return
-        // A message hides the item list, so the hint stays in the title.
-        AlertDialog.Builder(this)
-            .setTitle(
-                "${ChannelAudioDelay.label(channelAudioDelay.offsetMs)}\n" +
-                    "This channel remembers it. Earlier, if you hear the words after the picture."
-            )
-            .setItems(arrayOf("Earlier 0.5 s", "Earlier", "Later", "Later 0.5 s", "Reset")) { _, which ->
-                val next = when (which) {
-                    0 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1, ChannelAudioDelay.COARSE_STEP_MS)
-                    1 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1)
-                    2 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, 1)
-                    3 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, 1, ChannelAudioDelay.COARSE_STEP_MS)
-                    else -> 0
-                }
-                channelAudioDelay.offsetMs = next
-                lifecycleScope.launch { prefs.setChannelAudioDelay(key, next) }
-                showAudioDelayDialog()
+    /** Loads the offsets when the item changes: this session's change if there is one, else the saved ones, else zero. */
+    private fun applyPlaybackSync() {
+        val key = syncKey()
+        if (key == appliedSyncKey) return
+        appliedSyncKey = key
+        savedSync = if (key == null) PlaybackSync.Offsets() else readSavedSync(key)
+        setActiveSync(if (key == null) PlaybackSync.Offsets() else sessionSync[key] ?: savedSync)
+        syncPanel?.refresh()
+    }
+
+    private fun activeSync() = PlaybackSync.Offsets(channelAudioDelay.offsetMs, subtitleDelay.offsetMs)
+
+    private fun setActiveSync(offsets: PlaybackSync.Offsets) {
+        channelAudioDelay.offsetMs = PlaybackSync.clampAudio(offsets.audioMs.toLong())
+        subtitleDelay.offsetMs = PlaybackSync.clampSubtitle(offsets.subtitleMs.toLong())
+    }
+
+    private fun syncAudioUnavailable(): String? {
+        val tracks = player?.currentTracks
+        // Before the tracks are known, assume a picture: most streams have one.
+        val hasVideo = tracks == null || tracks.isEmpty || tracks.containsType(C.TRACK_TYPE_VIDEO)
+        return PlaybackSync.audioUnavailableReason(tunnelingThisPlayer, castSession != null, audioOnly, hasVideo)
+    }
+
+    private val syncHost = object : SyncPanel.Host {
+        override fun syncItem(): SyncPanel.Item? {
+            val key = appliedSyncKey ?: return null
+            val (kind, scope) = when (key[0]) {
+                'c' -> "Channel" to "this channel"
+                'e' -> "Episode" to "this episode"
+                'f' -> if (isRecordingPlayback) "Recording" to "this recording" else "File" to "this file"
+                else -> "Movie" to "this movie"
             }
-            .setNegativeButton("Done", null)
-            .show()
+            val tracks = player?.currentTracks
+            val subtitleShowing = tracks != null && tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
+            return SyncPanel.Item(
+                title = if (streamTitle.isBlank()) kind else "$kind · $streamTitle",
+                scope = scope,
+                active = activeSync(),
+                saved = savedSync,
+                audioUnavailable = syncAudioUnavailable(),
+                subtitleNote = if (subtitleShowing) null else "No subtitles showing now: turn them on in Audio & Subtitles. The delay waits for them.",
+            )
+        }
+
+        override fun setSyncOffsets(offsets: PlaybackSync.Offsets) {
+            val key = appliedSyncKey ?: return
+            if (offsets == savedSync) sessionSync.remove(key) else sessionSync[key] = offsets
+            setActiveSync(offsets)
+        }
+
+        override fun saveSyncOffsets() {
+            val key = appliedSyncKey ?: return
+            val offsets = activeSync()
+            lifecycleScope.launch {
+                try {
+                    if (key.startsWith("c:")) {
+                        prefs.setChannelAudioDelay(key.removePrefix("c:"), offsets.audioMs)
+                        prefs.setPlaybackSync(key, offsets.copy(audioMs = 0))
+                    } else {
+                        prefs.setPlaybackSync(key, offsets)
+                    }
+                } catch (e: Exception) {
+                    Log.w("MKTV_SYNC", "save failed: ${e.javaClass.simpleName}")
+                    Toast.makeText(this@PlayerActivity, "Couldn't save the sync. It still applies until you leave.", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                // The item may have changed while saving; then the saved value is no longer this one's.
+                if (appliedSyncKey == key) {
+                    savedSync = offsets
+                    sessionSync.remove(key)
+                }
+                syncPanel?.refresh()
+            }
+        }
+
+        override fun useSavedSyncOffsets() {
+            val key = appliedSyncKey ?: return
+            sessionSync.remove(key)
+            setActiveSync(savedSync)
+        }
+    }
+
+    private fun showSyncPanel() {
+        applyPlaybackSync()
+        if (appliedSyncKey == null) {
+            Toast.makeText(this, "Sync isn't available for this stream", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val panel = syncPanel ?: SyncPanel(this, syncHost).also { syncPanel = it }
+        panel.show()
     }
 
     private fun showTrackSelectorDialog() {
@@ -2335,11 +2417,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val labels = mutableListOf<String>()
         val actions = mutableListOf<() -> Unit>()
 
-        if (channelAudioKey() != null) {
-            labels.add("── Sound timing ──")
+        if (appliedSyncKey != null) {
+            val now = activeSync()
+            labels.add("── Sync ──")
             actions.add {}
-            labels.add("    ${ChannelAudioDelay.label(channelAudioDelay.offsetMs)}")
-            actions.add { showAudioDelayDialog() }
+            labels.add("    Audio & subtitle sync  (sound ${PlaybackSync.label(now.audioMs)}, subtitles ${PlaybackSync.label(now.subtitleMs)})")
+            actions.add { showSyncPanel() }
         }
 
         val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
@@ -2859,7 +2942,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // ─── Player ─────────────────────────────────────────────────────────────
 
     private fun buildPlayer(): ExoPlayer {
-        applyChannelAudioDelay()
+        applyPlaybackSync()
         outcomeRecordedForThisPlayback = false
         // Global (applies to every server, not per-provider) — trades a slower initial
         // load/seek for fewer mid-playback stalls, since some IPTV providers are slow or
@@ -2978,7 +3061,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             passthroughAudio = audioPassthroughFallbackEnabled,
             dolbyVisionBaseLayer = dolbyVisionBaseLayer,
             audioDelay = channelAudioDelay,
+            subtitleDelay = subtitleDelay,
         )
+        tunnelingThisPlayer = tunnelingEnabled
 
         val subtitlesEnabled = prefs.subtitlesEnabledNow()
         val preferredAudioLanguage = prefs.preferredAudioLanguageNow()
@@ -3009,6 +3094,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                         maybeOfferExternalSubtitles(tracks)
+                        syncPanel?.refresh()
                         val f = exoPlayer.videoFormat ?: return
                         Log.i("MKTV_QUALITY", "dataSaver=$dataSaver playing ${f.width}x${f.height} @ ${f.bitrate / 1000} kbps")
                         applyFrameRateMatch()
@@ -3617,7 +3703,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     // streamId is the primary provider's id only; an extra provider's is mergedStreamId.
                     streamId = if (matchServerIndex == -1) matchStreamId else -1
                     mergedStreamId = if (matchServerIndex == -1) -1 else matchStreamId
-                    applyChannelAudioDelay()
+                    applyPlaybackSync()
                     // This path plays the new copy without loadStream. Score it as the new copy.
                     reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic = true))
                     rebuildZapListForCurrentCopy()
@@ -4242,7 +4328,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun loadStream(url: String) {
-        applyChannelAudioDelay()
+        applyPlaybackSync()
         if (::quickPeek.isInitialized) quickPeek.syncPlaying()
         // Another video (or a reload): a place being chosen in the old one no longer applies.
         cancelSeekPreview()
@@ -7021,6 +7107,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onDestroy() {
+        syncPanel?.dismiss()
+        syncPanel = null
         // Lets go of the seek preview's pictures and its worker (the disk cache stays, bounded).
         thumbnailManager?.close()
         thumbnailManager = null
