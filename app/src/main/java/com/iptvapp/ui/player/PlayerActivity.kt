@@ -205,6 +205,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var handoffPrepared = false
     private var handoffSeriesId: Int = -1
     private var countedAsPlayer = false
+    // Paused because this playback moved to another device: stays paused through player restarts
+    // (backgrounding releases the player) until the person presses play here.
+    private var pausedByHandoff = false
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
     private var externalSubtitlePath: String? = null
@@ -708,7 +711,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         }
 
-        if (isVod && resumePositionMs > 0L) showResumeDialog()
+        // An accepted handoff already chose where to start: no second "Resume from…?" question.
+        if (isVod && resumePositionMs > 0L && handoffTx == null) showResumeDialog()
     }
 
     // Data for whichever advance action is actually available right now (next episode in the
@@ -2559,6 +2563,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         override fun isPlaying(): Boolean = player?.isPlaying == true
         override fun pauseForHandoff() {
+            pausedByHandoff = true
             player?.pause()
             updatePlayPauseButton()
             notifyPartyStateChange()
@@ -3264,6 +3269,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return zapPreloader.buildPlayer(mediaSourceFactory, renderersFactory, loadControl, trackSelectorFactory)
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
+                // Playing again here (the person pressed play) ends a handoff's pause.
+                exoPlayer.addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) pausedByHandoff = false }
+                })
                 if (handoffTx != null) exoPlayer.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         // ENDED before READY: the sender's position lay past the end of this copy.
@@ -7171,7 +7180,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // open URL only knows its own start, so reopen the programme where it was.
                 val at = catchupResumeMs
                 catchupResumeMs = 0L
-                lifecycleScope.launch { loadCatchupAt(at); player?.playWhenReady = true }
+                lifecycleScope.launch { loadCatchupAt(at); player?.playWhenReady = !pausedByHandoff }
             } else if (isVod && resumePositionMs > 0L) {
                 // Applying this as a seekTo() *after* the player had already buffered and
                 // become ready at position 0 forced a mid-stream HTTP range renegotiation for
@@ -7182,7 +7191,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // at load time lets ExoPlayer request the correct range from the very first
                 // request instead of re-requesting a new range after already starting at 0.
                 val startPos = resumePositionMs
-                val stayPaused = partyStartPaused || resumePausedAfterPicker
+                val stayPaused = partyStartPaused || resumePausedAfterPicker || pausedByHandoff
                 resumePositionMs = 0L
                 resumePausedAfterPicker = false
                 subtitlePickerPending = false
@@ -7198,7 +7207,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             } else {
                 loadStream(streamUrl)
                 if (partyStartPaused) requestTimeshiftPlayback(false)
-                else if (resumePausedAfterPicker) player?.playWhenReady = false
+                else if (resumePausedAfterPicker || pausedByHandoff) player?.playWhenReady = false
                 resumePausedAfterPicker = false
                 subtitlePickerPending = false
             }
