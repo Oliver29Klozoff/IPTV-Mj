@@ -193,6 +193,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // The provider an episode came from, for its sync key only (an extra provider's series
     // opens episodes without server_index, which drives the rest of playback).
     private var episodeSyncServer: Int = -1
+    // The episode itself (its provider id) and a launcher-independent name for its sync key:
+    // every way of opening an episode passes the id, so they all find the same saved offsets.
+    private var episodeSyncId: String? = null
+    private var episodeSyncName: String = ""
     private var syncPanel: SyncPanel? = null
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
@@ -594,6 +598,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         traktSeriesName = intent.getStringExtra("series_name") ?: ""
         traktSeason  = intent.getIntExtra("season_num", -1)
         traktEpisode = intent.getIntExtra("episode_num", -1)
+        episodeSyncId = intent.getStringExtra("sync_episode_id")?.takeIf { it.isNotBlank() } ?: epIds.getOrNull(epIndex)
+        episodeSyncName = if (traktSeason >= 0 && traktEpisode >= 0) "S${traktSeason}E${traktEpisode}" else streamTitle
         episodeSeriesId = intent.getIntExtra("series_id", -1)
         castSessionCode = intent.getStringExtra("cast_session_code") ?: ""
         // The pack that lets a RECEIVER change channel without an account of its own.
@@ -780,6 +786,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 putExtra("is_vod", true)
                 putExtra("series_id", episodeSeriesId)
                 putExtra("ep_index", nextIndex)
+                putExtra("sync_episode_id", epIds[nextIndex])
                 putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids",    ArrayList(epIds))
                 putExtra("sync_server_index", episodeSyncServer)
@@ -812,6 +819,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 putExtra("is_vod", true)
                 putExtra("series_id", episodeSeriesId)
                 putExtra("ep_index", 0)
+                putExtra("sync_episode_id", first.id)
                 putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids", ArrayList(nextSeasonEpisodes.map { it.id }))
                 putExtra("sync_server_index", episodeSyncServer)
@@ -2311,7 +2319,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun syncKey(): String? = when {
         isFilePlayback() -> PlaybackSync.fileKey(streamUrl, streamTitle)
         ChannelAudioDelay.offersFor(isVod, isCatchup, isRecordingPlayback) -> PlaybackSync.channelKey(serverIndex, liveCopyId())
-        epIds.isNotEmpty() && epIndex in epIds.indices -> PlaybackSync.episodeKey(episodeSyncServer, epIds[epIndex], streamTitle)
+        episodeSyncId != null -> PlaybackSync.episodeKey(episodeSyncServer, episodeSyncId!!, episodeSyncName)
         else -> PlaybackSync.movieKey(serverIndex, liveCopyId(), streamTitle)
     }
 

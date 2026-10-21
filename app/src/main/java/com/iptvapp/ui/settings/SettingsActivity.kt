@@ -4399,6 +4399,7 @@ class SettingsActivity : AppCompatActivity() {
                 intent.putExtra("series_id", content.seriesId)
                 intent.putExtra("season_num", content.seasonNum)
                 intent.putExtra("episode_num", content.episodeNum)
+                intent.putExtra("sync_episode_id", content.episodeId)
             }
             else -> { // VOD
                 val url = try {
@@ -4528,6 +4529,8 @@ class SettingsActivity : AppCompatActivity() {
             intent.putExtra("series_id", match.seriesId)
             intent.putExtra("season_num", state.content.seasonNum)
             intent.putExtra("episode_num", state.content.episodeNum)
+            intent.putExtra("sync_episode_id", match.episodeId)
+            intent.putExtra("sync_server_index", match.serverIndex)
             intent.putExtra("stream_url", url)
             startActivity(intent)
         }

@@ -4733,6 +4733,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                 putExtra("series_name", entry.series.name)
                                 putExtra("season_num", entry.nextSeason)
                                 putExtra("episode_num", entry.nextEpisode)
+                                putExtra("sync_episode_id", entry.episodeId)
                                 putExtra("resume_ms", entry.resumeMs)
                             })
                         }
