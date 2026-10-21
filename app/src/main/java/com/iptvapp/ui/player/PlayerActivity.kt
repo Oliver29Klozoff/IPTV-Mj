@@ -2397,10 +2397,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     Toast.makeText(this@PlayerActivity, "Couldn't save the sync. It still applies until you leave.", Toast.LENGTH_LONG).show()
                     return@launch
                 }
-                // The item may have changed while saving; then the saved value is no longer this one's.
-                if (appliedSyncKey == key) savedSync = offsets
-                // A change made while saving is newer than what was saved: it stays.
-                if (sessionSync[key] == offsets) sessionSync.remove(key)
+                if (appliedSyncKey == key) {
+                    // Whatever is playing now wins: a change made while saving (even one back to
+                    // the old saved value) stays as this session's, unless it is what was saved.
+                    savedSync = offsets
+                    val active = activeSync()
+                    if (active == offsets) sessionSync.remove(key) else sessionSync[key] = active
+                } else if (sessionSync[key] == offsets) {
+                    sessionSync.remove(key)
+                }
                 syncPanel?.refresh()
             }
         }
