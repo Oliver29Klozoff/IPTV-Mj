@@ -7206,8 +7206,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.root.post { if (!fullGuidePending) resumeHeldStart() }
             } else {
                 loadStream(streamUrl)
-                if (partyStartPaused) requestTimeshiftPlayback(false)
-                else if (resumePausedAfterPicker || pausedByHandoff) player?.playWhenReady = false
+                // Through requestTimeshiftPlayback, so a timeshift buffer that starts later stays paused too.
+                if (partyStartPaused || pausedByHandoff) requestTimeshiftPlayback(false)
+                else if (resumePausedAfterPicker) player?.playWhenReady = false
                 resumePausedAfterPicker = false
                 subtitlePickerPending = false
             }
@@ -7307,7 +7308,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         syncPanel = null
         if (countedAsPlayer) com.iptvapp.handoff.Handoff.playerDestroyed()
         // Closed before it played: the sender keeps playing and is told why.
-        handoffTx?.let { if (!handoffReported) com.iptvapp.handoff.Handoff.receiver(this).onPlayerFailed(it, "Playback was closed before it started") }
+        handoffTx?.let {
+            val rx = com.iptvapp.handoff.Handoff.receiver(this)
+            if (!handoffReported) rx.onPlayerFailed(it, "Playback was closed before it started") else rx.onPlayerClosed(it)
+        }
         // Lets go of the seek preview's pictures and its worker (the disk cache stays, bounded).
         thumbnailManager?.close()
         thumbnailManager = null

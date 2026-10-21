@@ -263,6 +263,23 @@ class HandoffFlowTest {
         assertEquals(listOf(Fx.live().txId), ui.closed)
     }
 
+    @Test fun aPlayerThatClosesBeforeTheSenderConfirmsFailsTheTransfer() = runTest {
+        val rx = receiver()
+        rx.offer(Fx.phonePeer(), Fx.movie())
+        rx.accept(Fx.movie().txId)
+        assertTrue(rx.onPlaying(Fx.movie().txId))
+        rx.onPlayerClosed(Fx.movie().txId)
+        // The sender's next poll hears "failed", not "playing": it keeps playing.
+        assertEquals("failed", rx.status(Fx.phonePeer(), Fx.movie().txId, null).getString("state"))
+        // After the sender confirmed, closing the player is ordinary viewing.
+        rx.offer(Fx.phonePeer(), Fx.live())
+        rx.accept(Fx.live().txId)
+        rx.onPlaying(Fx.live().txId)
+        rx.complete(Fx.phonePeer(), Fx.live().txId)
+        rx.onPlayerClosed(Fx.live().txId)
+        assertEquals("completed", rx.status(Fx.phonePeer(), Fx.live().txId, null).getString("state"))
+    }
+
     @Test fun aCancelBeforeStartClosesThePlayer() = runTest {
         val ui = FakeUi()
         val rx = receiver(ui)

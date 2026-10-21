@@ -212,6 +212,16 @@ class HandoffReceiver(
         return recent.values.any { it.state.active }
     }
 
+    /**
+     * The player opened for [txId] closed. Before the sender confirmed (PLAYING, not COMPLETED) the
+     * transfer didn't happen after all: the sender must not pause for a player that's gone.
+     */
+    @Synchronized
+    fun onPlayerClosed(txId: String) {
+        val inc = recent[txId] ?: return
+        if (inc.state == InState.PLAYING || inc.state == InState.PREPARING) fail(inc, "Playback was closed on the other device")
+    }
+
     /** The player opened for [txId] couldn't play it. */
     @Synchronized
     fun onPlayerFailed(txId: String, why: String) {
