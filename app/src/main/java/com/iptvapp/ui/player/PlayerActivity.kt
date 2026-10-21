@@ -2312,10 +2312,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 "${ChannelAudioDelay.label(channelAudioDelay.offsetMs)}\n" +
                     "This channel remembers it. Earlier, if you hear the words after the picture."
             )
-            .setItems(arrayOf("Earlier", "Later", "Reset")) { _, which ->
+            .setItems(arrayOf("Earlier 0.5 s", "Earlier", "Later", "Later 0.5 s", "Reset")) { _, which ->
                 val next = when (which) {
-                    0 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1)
-                    1 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, 1)
+                    0 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1, ChannelAudioDelay.COARSE_STEP_MS)
+                    1 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, -1)
+                    2 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, 1)
+                    3 -> ChannelAudioDelay.nudge(channelAudioDelay.offsetMs, 1, ChannelAudioDelay.COARSE_STEP_MS)
                     else -> 0
                 }
                 channelAudioDelay.offsetMs = next

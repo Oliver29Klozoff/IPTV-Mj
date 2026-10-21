@@ -7,7 +7,8 @@ package com.iptvapp.util
  */
 object ChannelAudioDelay {
     const val STEP_MS = 50
-    const val LIMIT_MS = 2_000
+    const val COARSE_STEP_MS = 500
+    const val LIMIT_MS = 10_000
 
     /** Live TV and a replay of that channel. A movie, episode, or recording has no channel delay. */
     fun offersFor(isVod: Boolean, isCatchup: Boolean, isRecording: Boolean): Boolean =
@@ -18,9 +19,11 @@ object ChannelAudioDelay {
 
     fun clamp(ms: Int): Int = ms.coerceIn(-LIMIT_MS, LIMIT_MS)
 
-    /** [direction] -1 is earlier, +1 is later. */
-    fun nudge(currentMs: Int, direction: Int): Int =
-        clamp(currentMs + direction.coerceIn(-1, 1) * STEP_MS)
+    /** [direction] -1 is earlier, +1 is later. [stepMs] is [STEP_MS] or [COARSE_STEP_MS]. */
+    fun nudge(currentMs: Int, direction: Int, stepMs: Int = STEP_MS): Int {
+        val step = if (stepMs == COARSE_STEP_MS) COARSE_STEP_MS else STEP_MS
+        return clamp(currentMs + direction.coerceIn(-1, 1) * step)
+    }
 
     fun label(ms: Int): String = when {
         ms > 0 -> "Sound $ms ms late"

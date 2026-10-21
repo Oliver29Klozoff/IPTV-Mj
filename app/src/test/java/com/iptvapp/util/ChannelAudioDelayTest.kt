@@ -16,12 +16,15 @@ class ChannelAudioDelayTest {
     }
 
     @Test
-    fun aNudgeStepsByFiftyAndStopsAtTwoSeconds() {
+    fun aNudgeStepsByFiftyAndStopsAtTenSeconds() {
         assertEquals(50, ChannelAudioDelay.nudge(0, 1))
         assertEquals(-50, ChannelAudioDelay.nudge(0, -1))
-        assertEquals(2_000, ChannelAudioDelay.nudge(2_000, 1))
-        assertEquals(-2_000, ChannelAudioDelay.nudge(-1_950, -1))
+        assertEquals(10_000, ChannelAudioDelay.nudge(10_000, 1))
+        assertEquals(-10_000, ChannelAudioDelay.nudge(-9_950, -1))
         assertEquals(0, ChannelAudioDelay.nudge(50, -1))
+        assertEquals(500, ChannelAudioDelay.nudge(0, 1, ChannelAudioDelay.COARSE_STEP_MS))
+        assertEquals(10_000, ChannelAudioDelay.nudge(9_600, 1, ChannelAudioDelay.COARSE_STEP_MS))
+        assertEquals(-10_000, ChannelAudioDelay.nudge(-9_600, -1, ChannelAudioDelay.COARSE_STEP_MS))
     }
 
     @Test
