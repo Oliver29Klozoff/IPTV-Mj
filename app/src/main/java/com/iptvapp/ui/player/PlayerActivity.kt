@@ -2536,7 +2536,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 season = traktSeason.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
                 episode = traktEpisode.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
                 episodeId = episodeSyncId?.takeIf { kind == com.iptvapp.handoff.ContentKind.EPISODE },
-                positionMs = if (live) 0L else p.currentPosition.coerceAtLeast(0L),
+                positionMs = if (live) 0L else positionMs(),
                 durationMs = if (live) 0L else p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L,
                 playing = p.isPlaying,
                 speed = speed,
@@ -2548,7 +2548,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             return try { com.iptvapp.handoff.HandoffProtocol.validate(desc); desc } catch (_: com.iptvapp.handoff.HandoffRejected) { null }
         }
 
-        override fun positionMs(): Long = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
+        /** The last position seen while a player existed: it is released when the screen stops. */
+        private var lastPositionMs = 0L
+        override fun positionMs(): Long {
+            player?.let { lastPositionMs = it.currentPosition.coerceAtLeast(0L) }
+            return lastPositionMs
+        }
         override fun isPlaying(): Boolean = player?.isPlaying == true
         override fun pauseForHandoff() {
             player?.pause()
@@ -3258,7 +3263,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.playerView.player = exoPlayer
                 if (handoffTx != null) exoPlayer.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY) onHandoffReady(exoPlayer)
+                        // ENDED before READY: the sender's position lay past the end of this copy.
+                        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) onHandoffReady(exoPlayer)
+                    }
+                    override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                        // As soon as this copy's length is known, before it can run off the end.
+                        if (exoPlayer.duration != C.TIME_UNSET) onHandoffReady(exoPlayer)
                     }
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         if (isPlaying) onHandoffPlaying()

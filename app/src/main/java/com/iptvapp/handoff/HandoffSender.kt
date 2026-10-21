@@ -63,7 +63,8 @@ class HandoffSender(
             if (reply != null) break
             delay(500L * (attempt + 1))
         }
-        if (reply == null) return set(OutState.FAILED, "Couldn't reach ${peer.label}")
+        // No answer doesn't mean the offer never arrived: tell the receiver to drop it all the same.
+        if (reply == null) return finish(peer, d, OutState.FAILED, "Couldn't reach ${peer.label}")
         apply(reply)?.let { return finishFromReply(peer, d, it) }
 
         val deadline = now() + HandoffProtocol.APPROVAL_TTL_MS + HandoffProtocol.PREPARE_TTL_MS + 15_000L
