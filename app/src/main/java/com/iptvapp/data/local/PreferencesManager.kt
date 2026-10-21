@@ -736,6 +736,7 @@ class PreferencesManager @Inject constructor(
                 val sync = prefs[Keys.PLAYBACK_SYNC] ?: ""
                 val syncDropped = com.iptvapp.util.PlaybackSync.dropServer(sync, -1)
                 if (syncDropped != sync) prefs[Keys.PLAYBACK_SYNC] = syncDropped
+                com.iptvapp.util.PlaybackSync.session.clear()
             }
             prefs[Keys.SERVER_URL] = serverUrl
             prefs[Keys.USERNAME] = username
@@ -1117,6 +1118,7 @@ class PreferencesManager @Inject constructor(
             val sync = prefs[Keys.PLAYBACK_SYNC] ?: ""
             val syncMoved = com.iptvapp.util.PlaybackSync.reindex(sync, moved)
             if (syncMoved != sync) prefs[Keys.PLAYBACK_SYNC] = syncMoved
+            com.iptvapp.util.PlaybackSync.session.clear()
             prefs[Keys.EXTRA_SERVERS] = arr.toString()
         }
     }

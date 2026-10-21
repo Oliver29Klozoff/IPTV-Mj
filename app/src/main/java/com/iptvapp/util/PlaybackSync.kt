@@ -35,6 +35,13 @@ object PlaybackSync {
     /** Saved items kept at most; the least recently saved go first. */
     const val MAX_SAVED = 1_000
 
+    /**
+     * Changes made and not saved, by key, while the app runs: leaving the player and coming
+     * back to the same channel or video keeps them. Cleared when providers change, since keys
+     * carry a provider slot.
+     */
+    val session: MutableMap<String, Offsets> = java.util.concurrent.ConcurrentHashMap()
+
     data class Offsets(val audioMs: Int = 0, val subtitleMs: Int = 0) {
         val isZero get() = audioMs == 0 && subtitleMs == 0
     }

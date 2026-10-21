@@ -189,7 +189,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var appliedSyncKey: String? = null
     private var savedSync = PlaybackSync.Offsets()
     // Changes made since the app opened and not saved, by item. They win over the saved values.
-    private val sessionSync = HashMap<String, PlaybackSync.Offsets>()
+    private val sessionSync get() = PlaybackSync.session
     // The provider an episode came from, for its sync key only (an extra provider's series
     // opens episodes without server_index, which drives the rest of playback).
     private var episodeSyncServer: Int = -1
