@@ -190,7 +190,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var savedSync = PlaybackSync.Offsets()
     // Changes made since the app opened and not saved, by item. They win over the saved values.
     private val sessionSync = HashMap<String, PlaybackSync.Offsets>()
-    private var tunnelingThisPlayer = false
+    // The provider an episode came from, for its sync key only (an extra provider's series
+    // opens episodes without server_index, which drives the rest of playback).
+    private var episodeSyncServer: Int = -1
     private var syncPanel: SyncPanel? = null
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
@@ -588,6 +590,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         epTitles = intent.getStringArrayListExtra("ep_titles") ?: emptyList()
         epExts   = intent.getStringArrayListExtra("ep_exts")   ?: emptyList()
         epIndex  = intent.getIntExtra("ep_index", -1)
+        episodeSyncServer = intent.getIntExtra("sync_server_index", serverIndex)
         traktSeriesName = intent.getStringExtra("series_name") ?: ""
         traktSeason  = intent.getIntExtra("season_num", -1)
         traktEpisode = intent.getIntExtra("episode_num", -1)
@@ -779,6 +782,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 putExtra("ep_index", nextIndex)
                 putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids",    ArrayList(epIds))
+                putExtra("sync_server_index", episodeSyncServer)
                 putStringArrayListExtra("ep_titles", ArrayList(epTitles))
                 putStringArrayListExtra("ep_exts",   ArrayList(epExts))
                 putExtra("series_name", traktSeriesName)
@@ -810,6 +814,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 putExtra("ep_index", 0)
                 putExtra("resume_ms", resumeMs)
                 putStringArrayListExtra("ep_ids", ArrayList(nextSeasonEpisodes.map { it.id }))
+                putExtra("sync_server_index", episodeSyncServer)
                 putStringArrayListExtra("ep_titles", ArrayList(nextSeasonEpisodes.map { "S${it.season}E${it.episodeNum} ${it.title}" }))
                 putStringArrayListExtra("ep_exts", ArrayList(nextSeasonEpisodes.map { it.containerExtension }))
                 putExtra("series_name", traktSeriesName)
@@ -2306,7 +2311,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun syncKey(): String? = when {
         isFilePlayback() -> PlaybackSync.fileKey(streamUrl, streamTitle)
         ChannelAudioDelay.offersFor(isVod, isCatchup, isRecordingPlayback) -> PlaybackSync.channelKey(serverIndex, liveCopyId())
-        epIds.isNotEmpty() && epIndex in epIds.indices -> PlaybackSync.episodeKey(serverIndex, epIds[epIndex], streamTitle)
+        epIds.isNotEmpty() && epIndex in epIds.indices -> PlaybackSync.episodeKey(episodeSyncServer, epIds[epIndex], streamTitle)
         else -> PlaybackSync.movieKey(serverIndex, liveCopyId(), streamTitle)
     }
 
@@ -2338,7 +2343,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val tracks = player?.currentTracks
         // Before the tracks are known, assume a picture: most streams have one.
         val hasVideo = tracks == null || tracks.isEmpty || tracks.containsType(C.TRACK_TYPE_VIDEO)
-        return PlaybackSync.audioUnavailableReason(tunnelingThisPlayer, castSession != null, audioOnly, hasVideo)
+        return PlaybackSync.audioUnavailableReason(channelAudioDelay.tunneling, castSession != null, audioOnly, hasVideo)
     }
 
     private val syncHost = object : SyncPanel.Host {
@@ -2385,10 +2390,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     return@launch
                 }
                 // The item may have changed while saving; then the saved value is no longer this one's.
-                if (appliedSyncKey == key) {
-                    savedSync = offsets
-                    sessionSync.remove(key)
-                }
+                if (appliedSyncKey == key) savedSync = offsets
+                // A change made while saving is newer than what was saved: it stays.
+                if (sessionSync[key] == offsets) sessionSync.remove(key)
                 syncPanel?.refresh()
             }
         }
@@ -3063,7 +3067,6 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             audioDelay = channelAudioDelay,
             subtitleDelay = subtitleDelay,
         )
-        tunnelingThisPlayer = tunnelingEnabled
 
         val subtitlesEnabled = prefs.subtitlesEnabledNow()
         val preferredAudioLanguage = prefs.preferredAudioLanguageNow()

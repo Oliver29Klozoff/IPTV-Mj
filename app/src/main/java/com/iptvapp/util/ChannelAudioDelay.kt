@@ -150,4 +150,6 @@ object ChannelAudioDelay {
 /** Read on the video thread, written when the viewer nudges the sound or changes channel. */
 class ChannelAudioDelayState {
     @Volatile var offsetMs: Int = 0
+    /** True while the video renderer runs tunneled (the decoder shows frames itself, so no offset). */
+    @Volatile var tunneling: Boolean = false
 }

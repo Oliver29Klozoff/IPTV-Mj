@@ -15,7 +15,7 @@ import java.nio.ByteBuffer
 /**
  * The stock video renderer, with this channel's sound offset applied by shifting when
  * the picture is shown. Tunneled playback releases frames in the decoder, so the offset
- * does not apply while that setting is on.
+ * does not apply while the playback is actually tunneled ([ChannelAudioDelayState.tunneling]).
  */
 @UnstableApi
 open class AudioDelayVideoRenderer(
@@ -38,6 +38,17 @@ open class AudioDelayVideoRenderer(
     eventListener,
     maxDroppedFramesToNotify,
 ) {
+    override fun onEnabled(joining: Boolean, mayRenderStartOfStream: Boolean) {
+        super.onEnabled(joining, mayRenderStartOfStream)
+        // Whether this playback really tunnels: the setting asks for it, the device decides.
+        delay.tunneling = configuration.tunneling
+    }
+
+    override fun onDisabled() {
+        delay.tunneling = false
+        super.onDisabled()
+    }
+
     override fun processOutputBuffer(
         positionUs: Long,
         elapsedRealtimeUs: Long,

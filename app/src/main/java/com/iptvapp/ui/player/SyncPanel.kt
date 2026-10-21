@@ -21,7 +21,8 @@ import com.iptvapp.util.PlaybackSync
  * above it, so every change is seen and heard at once. Changes are for now (this item, until
  * the app closes) until Save keeps them for the channel or video.
  *
- * It sits at the top of the screen, so the subtitles (at the bottom) stay in view.
+ * It sits at the top of the screen, so the subtitles (at the bottom) stay in view; Move puts
+ * it at the bottom instead, for captions shown at the top (live TV's often are).
  *
  * Remote: Up/Down moves between the two values and the action buttons; Left/Right on a value
  * moves it by its step (50 ms to start; held, it speeds up to 100 ms, then 500 ms); OK on a
@@ -71,7 +72,7 @@ class SyncPanel(private val activity: Activity, private val host: Host) {
         d.setContentView(b.root)
         d.window?.apply {
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setGravity(Gravity.TOP)
+            setGravity(if (atBottom) Gravity.BOTTOM else Gravity.TOP)
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             // The picture stays bright: the point is to watch it while adjusting.
             clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
@@ -94,6 +95,11 @@ class SyncPanel(private val activity: Activity, private val host: Host) {
         b.btnSave.setOnClickListener { host.saveSyncOffsets(); refresh() }
         b.btnUseSaved.setOnClickListener { host.useSavedSyncOffsets(); refresh() }
         b.btnResetBoth.setOnClickListener { host.setSyncOffsets(PlaybackSync.Offsets()); refresh() }
+        b.btnMove.setOnClickListener {
+            atBottom = !atBottom
+            d.window?.setGravity(if (atBottom) Gravity.BOTTOM else Gravity.TOP)
+            refresh()
+        }
         b.btnClose.setOnClickListener { d.dismiss() }
 
         render(item)
@@ -152,7 +158,7 @@ class SyncPanel(private val activity: Activity, private val host: Host) {
         b.rowAudio.nextFocusDownId = b.rowSubtitle.id
         b.rowSubtitle.nextFocusUpId = b.rowAudio.id
         b.rowSubtitle.nextFocusDownId = b.btnSave.id
-        for (btn in listOf(b.btnSave, b.btnUseSaved, b.btnResetBoth, b.btnClose)) btn.nextFocusUpId = b.rowSubtitle.id
+        for (btn in listOf(b.btnSave, b.btnUseSaved, b.btnResetBoth, b.btnMove, b.btnClose)) btn.nextFocusUpId = b.rowSubtitle.id
     }
 
     private fun buildSteps(container: LinearLayout, audio: Boolean) {
@@ -210,6 +216,8 @@ class SyncPanel(private val activity: Activity, private val host: Host) {
         val b = binding ?: return
         b.tvItem.text = item.title
         b.btnSave.text = "Save for ${item.scope}"
+        b.btnMove.text = if (atBottom) "Move up" else "Move down"
+        b.btnMove.contentDescription = if (atBottom) "Move this panel to the top of the screen" else "Move this panel to the bottom of the screen"
 
         val audioOn = item.audioUnavailable == null
         b.tvAudioValue.text = PlaybackSync.label(item.active.audioMs)
@@ -250,5 +258,10 @@ class SyncPanel(private val activity: Activity, private val host: Host) {
         active == saved -> "Saved for $scope"
         saved == 0 -> "Not saved (nothing saved for $scope)"
         else -> "Not saved · saved for $scope: ${PlaybackSync.label(saved)}"
+    }
+
+    private companion object {
+        /** Where the panel sits, kept while the app runs: top unless moved. */
+        var atBottom = false
     }
 }

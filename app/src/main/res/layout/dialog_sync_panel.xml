@@ -205,6 +205,14 @@
                     android:text="Reset both" />
 
                 <Button
+                    android:id="@+id/btnMove"
+                    style="@style/Rack.Button.Neutral"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Move down" />
+
+                <Button
                     android:id="@+id/btnClose"
                     style="@style/Rack.Button.Neutral"
                     android:layout_width="wrap_content"
