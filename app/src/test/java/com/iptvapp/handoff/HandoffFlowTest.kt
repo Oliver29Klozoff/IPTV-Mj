@@ -130,7 +130,7 @@ class HandoffFlowTest {
         rx.offer(Fx.phonePeer(), Fx.live())
         rx.accept(Fx.live().txId)
         clock[0] += HandoffProtocol.PREPARE_TTL_MS + 1
-        rx.onPlaying(Fx.live().txId)
+        assertFalse(rx.onPlaying(Fx.live().txId))
         assertEquals(InState.FAILED, rx.get(Fx.live().txId)!!.state)
     }
 

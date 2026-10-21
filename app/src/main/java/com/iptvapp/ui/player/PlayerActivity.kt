@@ -611,6 +611,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         handoffSeriesId = intent.getIntExtra("handoff_series_id", episodeSeriesId)
         handoffTx = intent.getStringExtra(com.iptvapp.ui.handoff.HandoffAcceptActivity.EXTRA_TX)
             ?.takeIf { com.iptvapp.handoff.HandoffProtocol.isTxId(it) }
+        // Restored by the system (the handoff, if any, already happened): an ordinary player now.
+        if (savedInstanceState != null) handoffTx = null
         handoffTx?.let { tx ->
             // Cancelled or timed out between the answer and this screen opening: don't play it.
             if (com.iptvapp.handoff.Handoff.receiver(this).get(tx)?.state != com.iptvapp.handoff.InState.PREPARING) {
@@ -2477,7 +2479,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val tx = handoffTx ?: return
         if (handoffReported) return
         handoffReported = true
-        com.iptvapp.handoff.Handoff.receiver(this).onPlaying(tx)
+        // Too late (its deadline passed, or the sender cancelled): the sender keeps playing, so this closes.
+        if (!com.iptvapp.handoff.Handoff.receiver(this).onPlaying(tx)) finish()
     }
 
     private fun extensionOf(url: String): String? =

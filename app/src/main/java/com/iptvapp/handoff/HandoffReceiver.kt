@@ -176,12 +176,17 @@ class HandoffReceiver(
         }
     }
 
-    /** The player opened for [txId] is really playing (unless its deadline passed first). */
+    /**
+     * The player opened for [txId] is really playing. False when it's too late (deadline passed,
+     * cancelled): that player should close, since the sender carries on.
+     */
     @Synchronized
-    fun onPlaying(txId: String) {
-        val inc = recent[txId] ?: return
+    fun onPlaying(txId: String): Boolean {
+        val inc = recent[txId] ?: return false
         expire(inc, now())
-        if (inc.state == InState.PREPARING) inc.state = InState.PLAYING
+        if (inc.state != InState.PREPARING) return false
+        inc.state = InState.PLAYING
+        return true
     }
 
     /**
