@@ -994,7 +994,11 @@ class XtreamRepository @Inject constructor(
                 )
             }
             val beforeSnapshot = snapshotFavoriteEpg(-1, listOf(streamId))
-            db.epgDao().upsertEpg(entities)
+            // Rechecked under the slot's lock: a correction applied while this was downloading wins.
+            val written = xmltvGuideWriter.locked(-1) {
+                if (hasEpgGuideCorrection(-1, streamId)) false else { db.epgDao().upsertEpg(entities); true }
+            }
+            if (!written) return@safeApiCall emptyList()
             recordFavoriteEpgDiffs(-1, beforeSnapshot)
             entities
         }
@@ -1313,10 +1317,11 @@ class XtreamRepository @Inject constructor(
 
     /**
      * Listings for one slot's corrected channels: only the sources those corrections use are
-     * downloaded, and only those channels are written. Returns the rows written.
+     * downloaded, and only those channels are written. Returns the channels whose listings were written.
      */
-    suspend fun loadEpgCorrections(serverIndex: Int, streamIds: Set<Int>): Int = withContext(Dispatchers.IO) {
-        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return@withContext 0
+    suspend fun loadEpgCorrections(serverIndex: Int, streamIds: Set<Int>): Set<Int> = withContext(Dispatchers.IO) {
+        val server = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex } ?: return@withContext emptySet()
+        val written = HashSet<Int>()
         val slot = if (serverIndex == -1) primaryEpgSources() else mergedEpgSources(server)
         val repair = epgRepairContext(serverIndex, slot)
         val identity = "${server.serverUrl}\u0000${server.username}"
@@ -1331,8 +1336,10 @@ class XtreamRepository @Inject constructor(
                 val now = allConfiguredServers().firstOrNull { it.serverIndex == serverIndex }
                 now != null && "${now.serverUrl}\u0000${now.username}" == identity
             },
-            onSource = repair.record
+            onSource = repair.record,
+            onWritten = { written += it }
         )
+        written
     }
 
     /**
@@ -1355,7 +1362,11 @@ class XtreamRepository @Inject constructor(
         o != null && (o.mode == com.iptvapp.data.epg.EpgOverrideMode.MAP.name || o.offsetMinutes != 0) &&
             o.providerKey == epgProviderKeyFor(serverIndex, prefs.seekPreviewSalt()) &&
             // Upcoming XMLTV listings, not just old ones: once those run out the short guide is the fallback again.
-            dao.xmltvLastStopFor(serverIndex, streamId) > System.currentTimeMillis() / 1000
+            dao.xmltvLastStopFor(serverIndex, streamId) > System.currentTimeMillis() / 1000 &&
+            // And, for a chosen guide channel, listings that are really its: a failed download keeps the old mapping's.
+            (o.mode != com.iptvapp.data.epg.EpgOverrideMode.MAP.name ||
+                dao.xmltvRowIdFor(serverIndex, streamId)?.let { XmltvEpgRefresh.guideChannelsOfRow(it, streamId) }.orEmpty()
+                    .any { it.equals(o.xmltvId, ignoreCase = true) })
     } catch (e: Exception) {
         if (e is kotlin.coroutines.cancellation.CancellationException) throw e
         false
@@ -2999,7 +3010,11 @@ class XtreamRepository @Inject constructor(
                 )
             }
             val beforeSnapshot = snapshotFavoriteEpg(serverIndex, listOf(streamId))
-            db.epgDao().upsertEpg(entities)
+            // Rechecked under the slot's lock: a correction applied while this was downloading wins.
+            val written = xmltvGuideWriter.locked(serverIndex) {
+                if (hasEpgGuideCorrection(serverIndex, streamId)) false else { db.epgDao().upsertEpg(entities); true }
+            }
+            if (!written) return emptyList()
             recordFavoriteEpgDiffs(serverIndex, beforeSnapshot)
             entities
         } catch (_: Exception) {

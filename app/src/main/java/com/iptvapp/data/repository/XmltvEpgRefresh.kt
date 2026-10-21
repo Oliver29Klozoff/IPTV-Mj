@@ -204,6 +204,8 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
         onBeforeCommit: suspend () -> Unit = {},
         onCommitted: suspend () -> Unit = {},
         onSource: suspend (String, Pair<List<XmltvChannel>, List<XmltvProgram>>?) -> Unit = { _, _ -> },
+        // The channels whose corrected listings were committed (for confirming a correction worked).
+        onWritten: (Set<Int>) -> Unit = {},
     ): Int {
         val waiting = rules.overrides.filter { it.mapped && it.sourceKey != null && it.sourceKey !in alreadyRead && !it.xmltvId.isNullOrBlank() }
         if (waiting.isEmpty()) return 0
@@ -221,7 +223,9 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
             val map = correctionMap(parsed.second, rules.mapsFrom(key))
             val rows = rows(serverIndex, parsed.second, map, includeStreamInId = true, qualified = rules.mappedStreams, offsets = rules.offsets)
             if (rows.isEmpty()) continue
-            wrote += commit(serverIndex, slotTicket, rows, rows.map { it.streamId }.distinct(), stillCurrent, onBeforeCommit, onCommitted)
+            val n = commit(serverIndex, slotTicket, rows, rows.map { it.streamId }.distinct(), stillCurrent, onBeforeCommit, onCommitted)
+            if (n > 0) onWritten(rows.mapTo(HashSet()) { it.streamId })
+            wrote += n
         }
         return wrote
     }

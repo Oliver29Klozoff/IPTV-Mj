@@ -273,26 +273,22 @@ class EpgRepairRepository @Inject constructor(
                 if (saved.isEmpty()) return@withContext ApplyOutcome(0, 0, "Nothing was saved: that guide is no longer one of this provider's.")
                 // A refresh already downloading read the corrections as they were: it must not overwrite these.
                 repository.invalidateEpgRefresh(serverIndex)
-                val wrote = try {
+                val written = try {
                     repository.loadEpgCorrections(serverIndex, saved.toSet())
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    0
+                    emptySet()
                 }
-                // Did it help? A channel counts only when its upcoming listings now come from the chosen
-                // guide channel (a failed download keeps the old, possibly wrong, ones).
+                val wrote = written.size
+                // Did it help? A channel counts only when its chosen guide channel's listings were just
+                // committed and reach ahead (a failed download keeps the old, possibly wrong, ones).
                 val nowSec = System.currentTimeMillis() / 1000
-                val chosen = picks.associate { (ch, g) -> ch.streamId to g.xmltvId.lowercase(Locale.US) }
-                val fixedIds = saved.filter { streamId ->
-                    val readings = dao.xmltvRowIdFor(serverIndex, streamId)
-                        ?.let { com.iptvapp.data.repository.XmltvEpgRefresh.guideChannelsOfRow(it, streamId) }.orEmpty()
-                    readings.any { it.lowercase(Locale.US) == chosen[streamId] } && dao.lastStopFor(serverIndex, streamId) > nowSec
-                }
+                val fixedIds = saved.filter { it in written && dao.lastStopFor(serverIndex, it) > nowSec }
                 val fixed = fixedIds.size
                 // Only where the chosen listings landed: the provider's own short guide (the old mapping)
-                // goes. Where the download failed, the channel keeps what it had.
-                fixedIds.forEach { dao.deleteShortGuideRows(serverIndex, it) }
+                // goes, under the slot's lock so a short-guide download in flight can't put it back.
+                if (fixedIds.isNotEmpty()) repository.changeEpgCorrections(serverIndex) { fixedIds.forEach { dao.deleteShortGuideRows(serverIndex, it) } }
                 val withListings = fixed
                 val message = when {
                     saved.size == 1 && fixed == 1 -> "Saved. The channel now shows listings from \"${picks.first().second.displayName}\"."

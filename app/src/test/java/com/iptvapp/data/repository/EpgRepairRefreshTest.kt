@@ -244,6 +244,18 @@ class EpgRepairRefreshTest {
         assertTrue(titles(7).isNotEmpty() && titles(7).all { it.startsWith("AMC West") })
     }
 
+    // A correction load says which channels it wrote: a failed source writes none.
+    @Test
+    fun correctionLoadsReportWhatTheyWrote() = runBlocking {
+        val rules = rulesFor(mapTo(7, "kCustom", "amc.west"))
+        var written = emptySet<Int>()
+        refresh.loadCorrections(-1, null, rules, emptySet(), listOf(custom), fetch = { customFeed }, stillCurrent = { true }, onWritten = { written = written + it })
+        assertEquals(setOf(7), written)
+        written = emptySet()
+        refresh.loadCorrections(-1, null, rules, emptySet(), listOf(custom), fetch = { throw IOException("down") }, stillCurrent = { true }, onWritten = { written = written + it })
+        assertEquals(emptySet<Int>(), written)
+    }
+
     // Offsets move existing rows now, with the "now playing" flag.
     @Test
     fun anOffsetMovesExistingListings() = runBlocking {
