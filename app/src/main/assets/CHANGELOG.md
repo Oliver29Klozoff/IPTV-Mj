@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.65 - 2026-10-21
+- **Fixed**: Send to TV / phone after pairing a phone with the same TV again.
+- **Fixed**: The device you sent from no longer starts playing again by itself (live channels with
+  timeshift, Up Next, coming back to the app, the screen being recreated).
+- **Fixed**: Cancelling just as the other device starts now ends with one device playing, not two; a
+  player you put away before the transfer finished no longer leaves the sender paused.
+- **Fixed**: Titles with accents, channels from another provider, and the main provider's movies opened
+  from All Providers are found and can be sent. A chosen provider stays chosen if you reorder providers.
+
 ## v7.64 - 2026-10-21
 - **New**: Send to TV / Send to phone (player). Carry on watching a movie, episode or live channel on
   your other MKTV device on the home network. The other device plays it with its own provider, from
