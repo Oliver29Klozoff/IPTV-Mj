@@ -82,6 +82,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -208,6 +209,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // Paused because this playback moved to another device: stays paused through player restarts
     // (backgrounding releases the player) until the person presses play here.
     private var pausedByHandoff = false
+    // This screen was recreated by the system (not opened fresh).
+    private var restoredFromState = false
     // A subtitle added for this movie or episode, when the file itself had none.
     private var externalSubtitle: MediaItem.SubtitleConfiguration? = null
     private var externalSubtitlePath: String? = null
@@ -617,6 +620,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Restored by the system (the handoff, if any, already happened): an ordinary player now.
         if (savedInstanceState != null) handoffTx = null
         // Restored after this playback moved to another device: it stays paused here.
+        restoredFromState = savedInstanceState != null
         pausedByHandoff = savedInstanceState?.getBoolean("paused_by_handoff") == true ||
             // The transfer finished while the old screen was being replaced (its own state couldn't record it).
             (savedInstanceState != null && com.iptvapp.handoff.Handoff.wasHandedOff(com.iptvapp.handoff.Handoff.playerKey(streamUrl, streamTitle)))
@@ -885,15 +889,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         updateSendButton()
         com.iptvapp.handoff.Handoff.playerCreated()
         countedAsPlayer = true
-        // A transfer that completed while this screen replaced its predecessor: pause now.
+        // A transfer that completed while this screen replaced its predecessor: pause now. Rechecked
+        // once listening, so a result landing between onCreate's check and here isn't missed (a
+        // recreated screen only: a fresh one starts as the person asked).
         lifecycleScope.launch {
-            com.iptvapp.handoff.Handoff.handedOffEvents.collect { key ->
-                if (handoffTx == null && key == handoffSource.handoffKey() && !pausedByHandoff) {
-                    pausedByHandoff = true
-                    requestTimeshiftPlayback(false)
-                    updatePlayPauseButton()
+            com.iptvapp.handoff.Handoff.handedOffEvents
+                .onSubscription {
+                    val key = handoffSource.handoffKey()
+                    if (restoredFromState && com.iptvapp.handoff.Handoff.wasHandedOff(key)) emit(key)
                 }
-            }
+                .collect { key ->
+                    if (handoffTx == null && key == handoffSource.handoffKey() && !pausedByHandoff) applyHandoffPause()
+                }
         }
         // An accepted handoff takes over ("*"), or the sender cancelled this one before it started.
         lifecycleScope.launch {
@@ -2595,8 +2602,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         override fun isPlaying(): Boolean = player?.isPlaying == true
         override fun pauseForHandoff() {
-            pausedByHandoff = true
+            applyHandoffPause()
             com.iptvapp.handoff.Handoff.markHandedOff(handoffKey())
+        }
+    }
+
+    /** Playback moved to another device: pause here, through timeshift, and stop any Up Next countdown. */
+    private fun applyHandoffPause() {
+        run {
+            pausedByHandoff = true
             // An Up Next countdown already running would start the next episode here: stopped too.
             upNextJob?.cancel()
             upNextJob = null
