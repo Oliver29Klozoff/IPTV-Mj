@@ -36,51 +36,53 @@ class AppHandoffCatalog(
         return out
     }
 
+    // The main provider (slot -1) also has rows in the merged tables (the All Providers screens
+    // refresh them on their own), so its lookups fall back to those.
     override suspend fun movie(serverIndex: Int, streamId: Int): MovieItem? =
-        if (serverIndex == -1) db.vodDao().getVodByStreamId(streamId)?.let { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
-        else db.mergedVodDao().getByIndexAndId(serverIndex, streamId)?.let { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+        (if (serverIndex == -1) db.vodDao().getVodByStreamId(streamId)?.let { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) } else null)
+            ?: db.mergedVodDao().getByIndexAndId(serverIndex, streamId)?.let { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
 
     override suspend fun moviesNamed(serverIndex: Int, title: String): List<MovieItem> {
         val found = ftsQueries(title).flatMap { q ->
-            if (serverIndex == -1) db.vodDao().searchVod(q).first().map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
-            else db.mergedVodDao().search(q).first().filter { it.serverIndex == serverIndex }
-                .map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+            (if (serverIndex == -1) db.vodDao().searchVod(q).first().map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) } else emptyList()) +
+                db.mergedVodDao().search(q).first().filter { it.serverIndex == serverIndex }
+                    .map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
         }.distinctBy { it.streamId }
         val like = likePattern(title) ?: return found
-        val more = if (serverIndex == -1) db.vodDao().findByNameLike(like).map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
-        else db.mergedVodDao().findByNameLike(serverIndex, like).map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+        val more = (if (serverIndex == -1) db.vodDao().findByNameLike(like).map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) } else emptyList()) +
+            db.mergedVodDao().findByNameLike(serverIndex, like).map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
         return (found + more).distinctBy { it.streamId }
     }
 
     override suspend fun channel(serverIndex: Int, streamId: Int): ChannelItem? =
-        if (serverIndex == -1) db.channelDao().getChannelById(streamId)?.let { ChannelItem(-1, it.streamId, it.name) }
-        else db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)?.let { ChannelItem(serverIndex, it.streamId, it.name) }
+        (if (serverIndex == -1) db.channelDao().getChannelById(streamId)?.let { ChannelItem(-1, it.streamId, it.name) } else null)
+            ?: db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)?.let { ChannelItem(serverIndex, it.streamId, it.name) }
 
     override suspend fun channelsNamed(serverIndex: Int, name: String): List<ChannelItem> {
         // Without the provider's prefix and quality marks (as channelNorm compares them), in both spellings.
         val core = name.replace(Regex("^\\s*[A-Za-z]{2,3}\\s*[|:\\-]\\s*"), "")
         val found = ftsQueries(core, dropQuality = true).flatMap { q ->
-            if (serverIndex == -1) db.channelDao().searchChannels(q).first().map { ChannelItem(-1, it.streamId, it.name) }
-            else db.mergedChannelDao().searchOn(q, listOf(serverIndex), 200).map { ChannelItem(serverIndex, it.streamId, it.name) }
+            (if (serverIndex == -1) db.channelDao().searchChannels(q).first().map { ChannelItem(-1, it.streamId, it.name) } else emptyList()) +
+                db.mergedChannelDao().searchOn(q, listOf(serverIndex), 200).map { ChannelItem(serverIndex, it.streamId, it.name) }
         }.distinctBy { it.streamId }
         val like = likePattern(core) ?: return found
-        val more = if (serverIndex == -1) db.channelDao().findByNameLike(like).map { ChannelItem(-1, it.streamId, it.name) }
-        else db.mergedChannelDao().findByNameLike(serverIndex, like).map { ChannelItem(serverIndex, it.streamId, it.name) }
+        val more = (if (serverIndex == -1) db.channelDao().findByNameLike(like).map { ChannelItem(-1, it.streamId, it.name) } else emptyList()) +
+            db.mergedChannelDao().findByNameLike(serverIndex, like).map { ChannelItem(serverIndex, it.streamId, it.name) }
         return (found + more).distinctBy { it.streamId }
     }
 
     override suspend fun series(serverIndex: Int, seriesId: Int): SeriesItem? =
-        if (serverIndex == -1) db.seriesDao().getSeriesById(seriesId)?.let { SeriesItem(-1, it.seriesId, it.name) }
-        else db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)?.let { SeriesItem(serverIndex, it.seriesId, it.name) }
+        (if (serverIndex == -1) db.seriesDao().getSeriesById(seriesId)?.let { SeriesItem(-1, it.seriesId, it.name) } else null)
+            ?: db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)?.let { SeriesItem(serverIndex, it.seriesId, it.name) }
 
     override suspend fun seriesNamed(serverIndex: Int, title: String): List<SeriesItem> {
         val found = ftsQueries(title).flatMap { q ->
-            if (serverIndex == -1) db.seriesDao().searchSeries(q).first().map { SeriesItem(-1, it.seriesId, it.name) }
-            else db.mergedSeriesDao().search(q).first().filter { it.serverIndex == serverIndex }.map { SeriesItem(serverIndex, it.seriesId, it.name) }
+            (if (serverIndex == -1) db.seriesDao().searchSeries(q).first().map { SeriesItem(-1, it.seriesId, it.name) } else emptyList()) +
+                db.mergedSeriesDao().search(q).first().filter { it.serverIndex == serverIndex }.map { SeriesItem(serverIndex, it.seriesId, it.name) }
         }.distinctBy { it.seriesId }
         val like = likePattern(title) ?: return found
-        val more = if (serverIndex == -1) db.seriesDao().findByNameLike(like).map { SeriesItem(-1, it.seriesId, it.name) }
-        else db.mergedSeriesDao().findByNameLike(serverIndex, like).map { SeriesItem(serverIndex, it.seriesId, it.name) }
+        val more = (if (serverIndex == -1) db.seriesDao().findByNameLike(like).map { SeriesItem(-1, it.seriesId, it.name) } else emptyList()) +
+            db.mergedSeriesDao().findByNameLike(serverIndex, like).map { SeriesItem(serverIndex, it.seriesId, it.name) }
         return (found + more).distinctBy { it.seriesId }
     }
 

@@ -2467,6 +2467,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.btnSend.text = if (tv) "Send to phone" else "Send to TV"
     }
 
+    /**
+     * This movie or channel's id on its provider. The main provider's titles opened from the All
+     * Providers screens carry it as merged_stream_id (stream_id -1), so that is the fallback.
+     */
+    private fun handoffContentId(): Int =
+        liveCopyId().takeIf { it >= 0 } ?: mergedStreamId.takeIf { serverIndex == -1 && it >= 0 } ?: -1
+
     /** First READY of a player opened by a handoff: keep the start inside this copy, apply the speed. */
     private fun onHandoffReady(p: ExoPlayer) {
         if (handoffPrepared) return
@@ -2503,7 +2510,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             isCatchup -> "Replays can't be sent yet. Send the live channel instead."
             isVod && episodeSyncId != null && (handoffSeriesId < 0 || traktSeason < 0 || traktEpisode < 0) ->
                 "This episode can't be identified on another device."
-            liveCopyId() < 0 && episodeSyncId == null -> "This can't be identified on another device."
+            handoffContentId() < 0 && episodeSyncId == null -> "This can't be identified on another device."
             else -> null
         }
 
@@ -2533,8 +2540,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val live = kind == com.iptvapp.handoff.ContentKind.LIVE
             // The catalog's own name, not the player's title (which may carry " · provider nickname").
             val catalogName = when (kind) {
-                com.iptvapp.handoff.ContentKind.LIVE -> catalog.channel(slot, liveCopyId())?.name
-                com.iptvapp.handoff.ContentKind.MOVIE -> catalog.movie(slot, liveCopyId())?.title
+                com.iptvapp.handoff.ContentKind.LIVE -> catalog.channel(slot, handoffContentId())?.name
+                com.iptvapp.handoff.ContentKind.MOVIE -> catalog.movie(slot, handoffContentId())?.title
                 else -> null
             }
             val episodeTitle = streamTitle.replace(Regex("^S\\d+E\\d+\\s*"), "")
@@ -2543,7 +2550,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 kind = kind,
                 providerTag = tag,
                 providerLabel = safe(provider.label, 40),
-                streamId = if (kind == com.iptvapp.handoff.ContentKind.EPISODE) -1 else liveCopyId(),
+                streamId = if (kind == com.iptvapp.handoff.ContentKind.EPISODE) -1 else handoffContentId(),
                 title = safe(if (kind == com.iptvapp.handoff.ContentKind.EPISODE) episodeTitle.ifBlank { streamTitle } else catalogName ?: streamTitle, 200)
                     .ifBlank { if (live) "Live channel" else "Video" },
                 year = com.iptvapp.handoff.AppHandoffCatalog.yearOf(streamTitle),
