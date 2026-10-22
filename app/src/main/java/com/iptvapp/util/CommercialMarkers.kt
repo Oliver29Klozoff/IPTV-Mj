@@ -184,31 +184,66 @@ object CommercialMarkers {
                 kept.none { sameFile(it, stamp) && sameBreak(it, suggestion) }
             }
         return (kept + fresh)
-            .distinctBy { "${it.key()}-${it.review.name}-${it.fileSize}-${it.fileModifiedMs}" }
+            .distinctBy { markerId(it) }
             .sortedBy { it.startMs }
     }
 
     private fun sameFile(segment: Segment, stamp: FileStamp): Boolean =
         segment.fileSize == stamp.size && segment.fileModifiedMs == stamp.modifiedMs
 
+    /** Range, review, and file. Two copies of a recording do not share a marker identity. */
+    private fun markerId(segment: Segment): String =
+        "${segment.key()}|${segment.review.name}|${segment.fileSize}|${segment.fileModifiedMs}"
+
     /**
      * Applies one editor change to the rows stored now. [before] and [after] are the dialog's
      * lists. Rows that appeared after the dialog opened, such as a finished analysis, stay.
+     * A decision stored for an older copy of the file is a different marker from the same
+     * range on the file open now.
      */
     fun applyEdit(current: List<Segment>, before: List<Segment>, after: List<Segment>): List<Segment> {
-        fun id(segment: Segment) = segment.key() to segment.review
-        val beforeById = before.associateBy { id(it) }
-        val afterById = after.associateBy { id(it) }
+        val beforeById = before.associateBy { markerId(it) }
+        val afterById = after.associateBy { markerId(it) }
         val removed = beforeById.keys - afterById.keys
         // Confirming an existing marker can change its file stamp without changing its range or review.
         val changed = afterById.filter { (key, segment) ->
             val previous = beforeById[key]
             previous != null && previous != segment
         }
-        val added = after.filter { id(it) !in beforeById }
-        return (current.filter { id(it) !in removed && id(it) !in changed } + changed.values + added)
-            .distinctBy { it.key() + it.review.name }
+        val added = after.filter { markerId(it) !in beforeById }
+        return (current.filter { markerId(it) !in removed && markerId(it) !in changed } + changed.values + added)
+            .distinctBy { markerId(it) }
             .sortedBy { it.startMs }
+    }
+
+    /**
+     * Remove Padding cuts [preRollMs] off the file named by [source]. Only that file's
+     * markers move onto [trimmed]. Automatic suggestions are dropped. A marker from an
+     * older copy stays stored, with its own stamp, and is not treated as confirmed
+     * on the trimmed file.
+     */
+    fun shiftForTrim(
+        segments: List<Segment>,
+        source: FileStamp,
+        trimmed: FileStamp,
+        preRollMs: Long,
+        trimmedDurationMs: Long,
+        nowMs: Long
+    ): List<Segment> = segments.mapNotNull { seg ->
+        if (seg.origin == Origin.AUTOMATIC && seg.review == Review.SUGGESTED) return@mapNotNull null
+        if (!source.known() || !sameFile(seg, source)) return@mapNotNull seg
+        val span = checked(
+            (seg.startMs - preRollMs).coerceAtLeast(0L),
+            seg.endMs - preRollMs,
+            trimmedDurationMs
+        ) ?: return@mapNotNull null
+        seg.copy(
+            startMs = span.first,
+            endMs = span.second,
+            fileSize = trimmed.size,
+            fileModifiedMs = trimmed.modifiedMs,
+            updatedAtMs = nowMs
+        )
     }
 
     /**

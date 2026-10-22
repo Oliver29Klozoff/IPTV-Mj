@@ -65,35 +65,29 @@ object RecordingTrimmer {
         // entirely by the trimmed one, same "delete the superseded file" behavior
         // tryCompressRecording already uses when it replaces a raw capture with its compressed
         // version.
+        // Read the file being cut before it is deleted. Markers from an older copy do not move.
+        val sourceStamp = CommercialStore.stamp(context, rec.outputPath)
         RecordingFileUtils.deleteFile(context, rec.outputPath)
         db.recordingDao().updatePathDurationAndStatus(rec.id, finalTarget, trimmedDurationMs, "DONE")
-        // The trim moved every moment 20 s earlier. Suggestions for the old file are dropped.
-        // Confirmed and rejected markers shift with the cut and keep the user's decision.
+        // The trim moved every moment 20 s earlier. Suggestions are dropped. Confirmed and
+        // rejected markers for this file shift with the cut. An older file's decisions stay put.
         val stamp = CommercialStore.stamp(context, finalTarget)
         val now = System.currentTimeMillis()
-        val shifted = CommercialStore.load(context, rec.id).mapNotNull { seg ->
-            if (seg.origin == CommercialMarkers.Origin.AUTOMATIC && seg.review == CommercialMarkers.Review.SUGGESTED) {
-                null
-            } else {
-                val span = CommercialMarkers.checked(
-                    (seg.startMs - PRE_ROLL_MS).coerceAtLeast(0L),
-                    seg.endMs - PRE_ROLL_MS,
-                    trimmedDurationMs
-                )
-                if (span == null) null
-                else seg.copy(
-                    startMs = span.first,
-                    endMs = span.second,
-                    fileSize = stamp.size,
-                    fileModifiedMs = stamp.modifiedMs,
-                    updatedAtMs = now
-                )
-            }
-        }
+        val shifted = CommercialMarkers.shiftForTrim(
+            CommercialStore.load(context, rec.id),
+            sourceStamp,
+            stamp,
+            PRE_ROLL_MS,
+            trimmedDurationMs,
+            now
+        )
         CommercialStore.save(context, rec.id, shifted)
         // The new file has not been analyzed. A matching size here would make the worker skip it.
         val previousNote = CommercialStore.note(context, rec.id)
-        val pending = if (shifted.any { it.review == CommercialMarkers.Review.CONFIRMED }) {
+        val pending = if (stamp.known() && shifted.any {
+                it.review == CommercialMarkers.Review.CONFIRMED &&
+                    it.fileSize == stamp.size && it.fileModifiedMs == stamp.modifiedMs
+            }) {
             CommercialStore.FOUND
         } else {
             ""

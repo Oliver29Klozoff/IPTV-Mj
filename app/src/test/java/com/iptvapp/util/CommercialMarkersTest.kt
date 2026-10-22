@@ -318,6 +318,47 @@ class CommercialMarkersTest {
     }
 
     @Test
+    fun confirmingASuggestionKeepsAnOlderFilesConfirmationBesideIt() {
+        val older = manual(10_000L, 80_000L, otherFile)
+        val shown = suggested(10_000L, 80_000L)
+        val confirmed = shown.copy(
+            review = CommercialMarkers.Review.CONFIRMED,
+            fileSize = stamp.size,
+            fileModifiedMs = stamp.modifiedMs
+        )
+        val merged = CommercialMarkers.applyEdit(listOf(older, shown), listOf(shown), listOf(confirmed))
+        assertTrue(merged.contains(older))
+        assertTrue(merged.contains(confirmed))
+        assertEquals(listOf(confirmed), CommercialMarkers.forFile(merged, stamp))
+    }
+
+    @Test
+    fun aTrimMovesOnlyTheFileThatWasCut() {
+        val current = manual(30_000L, 80_000L, stamp)
+        val older = manual(30_000L, 80_000L, otherFile)
+        val inThePadding = manual(1_000L, 10_000L, stamp)
+        val suggestion = suggested(200_000L, 280_000L, stamp)
+        val trimmed = CommercialMarkers.FileStamp(3_000L, 90L)
+        val shifted = CommercialMarkers.shiftForTrim(
+            listOf(current, older, inThePadding, suggestion),
+            stamp,
+            trimmed,
+            20_000L,
+            hour,
+            9L
+        )
+        assertTrue(shifted.none { it.origin == CommercialMarkers.Origin.AUTOMATIC && it.review == CommercialMarkers.Review.SUGGESTED })
+        assertTrue(shifted.none { it.startMs == 1_000L })
+        val moved = shifted.single { it.fileSize == trimmed.size }
+        assertEquals(10_000L, moved.startMs)
+        assertEquals(60_000L, moved.endMs)
+        assertEquals(CommercialMarkers.Review.CONFIRMED, moved.review)
+        assertEquals(older, shifted.single { it.fileSize == otherFile.size })
+        val unknown = CommercialMarkers.shiftForTrim(listOf(current), CommercialMarkers.FileStamp(0L, 0L), trimmed, 20_000L, hour, 9L)
+        assertEquals(listOf(current), unknown)
+    }
+
+    @Test
     fun anEditorSaveKeepsSuggestionsThatArrivedWhileItWasOpen() {
         val shown = listOf(suggested(10_000L, 80_000L))
         val confirmed = shown[0].copy(review = CommercialMarkers.Review.CONFIRMED)
