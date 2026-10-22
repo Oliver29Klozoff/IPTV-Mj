@@ -616,6 +616,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             ?.takeIf { com.iptvapp.handoff.HandoffProtocol.isTxId(it) }
         // Restored by the system (the handoff, if any, already happened): an ordinary player now.
         if (savedInstanceState != null) handoffTx = null
+        // Restored after this playback moved to another device: it stays paused here.
+        pausedByHandoff = savedInstanceState?.getBoolean("paused_by_handoff") == true
         handoffTx?.let { tx ->
             // Cancelled or timed out between the answer and this screen opening: don't play it.
             if (com.iptvapp.handoff.Handoff.receiver(this).get(tx)?.state != com.iptvapp.handoff.InState.PREPARING) {
@@ -2564,7 +2566,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         override fun isPlaying(): Boolean = player?.isPlaying == true
         override fun pauseForHandoff() {
             pausedByHandoff = true
-            player?.pause()
+            // Through the timeshift helper, so a live buffer still starting stays paused too.
+            requestTimeshiftPlayback(false)
             updatePlayPauseButton()
             notifyPartyStateChange()
         }
@@ -7143,6 +7146,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        outState.putBoolean("paused_by_handoff", pausedByHandoff)
         outState.putInt("ext_sub_generation", subtitleGeneration)
         outState.putInt("ext_sub_pick_gen", subtitlePickGeneration)
         subtitlePickUrl?.let { outState.putString("ext_sub_pick_url", it) }
