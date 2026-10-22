@@ -359,7 +359,16 @@ object CommercialMarkers {
         segment.copy(review = Review.REJECTED, updatedAtMs = nowMs)
 
     fun without(segments: List<Segment>, segment: Segment): List<Segment> =
-        segments.filterNot { it.key() == segment.key() && it.review == segment.review }
+        segments.filterNot { markerId(it) == markerId(segment) }
+
+    /** A hand-marked break replaces an overlapping decision on the same file only. */
+    fun addedManual(segments: List<Segment>, made: Segment): List<Segment> =
+        (segments.filterNot {
+            sameBreak(it, made) &&
+                it.review != Review.REJECTED &&
+                it.fileSize == made.fileSize &&
+                it.fileModifiedMs == made.fileModifiedMs
+        } + made).sortedBy { it.startMs }
 
     /** Automatic suggestions only. Confirmed, rejected, and manual rows stay. */
     fun dropSuggestions(segments: List<Segment>): List<Segment> =

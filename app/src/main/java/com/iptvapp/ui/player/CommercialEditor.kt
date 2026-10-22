@@ -41,8 +41,7 @@ object CommercialEditor {
                 val made = if (start < 0L) null else CommercialMarkers.manual(start, positionMs(), durationMs(), stamp, System.currentTimeMillis())
                 if (start >= 0L) pendingStart = -1L
                 if (made != null) {
-                    val next = (segments.filterNot { CommercialMarkers.sameBreak(it, made) && it.review != CommercialMarkers.Review.REJECTED } + made)
-                        .sortedBy { it.startMs }
+                    val next = CommercialMarkers.addedManual(segments, made)
                     onChanged(segments, next)
                     show(context, recordingId, next, stamp, positionMs, durationMs, onSeek, onChanged)
                 }

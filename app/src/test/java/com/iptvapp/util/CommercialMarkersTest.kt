@@ -318,6 +318,17 @@ class CommercialMarkersTest {
     }
 
     @Test
+    fun removingAMarkerLeavesTheSameRangeOnAnotherFile() {
+        val older = manual(10_000L, 80_000L, otherFile)
+        val current = manual(10_000L, 80_000L, stamp)
+        assertEquals(listOf(older), CommercialMarkers.without(listOf(older, current), current))
+        val made = manual(10_000L, 80_000L, stamp)
+        val added = CommercialMarkers.addedManual(listOf(older, current), made)
+        assertTrue(added.contains(older))
+        assertTrue(added.contains(made))
+    }
+
+    @Test
     fun confirmingASuggestionKeepsAnOlderFilesConfirmationBesideIt() {
         val older = manual(10_000L, 80_000L, otherFile)
         val shown = suggested(10_000L, 80_000L)
