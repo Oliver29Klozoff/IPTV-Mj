@@ -617,7 +617,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Restored by the system (the handoff, if any, already happened): an ordinary player now.
         if (savedInstanceState != null) handoffTx = null
         // Restored after this playback moved to another device: it stays paused here.
-        pausedByHandoff = savedInstanceState?.getBoolean("paused_by_handoff") == true
+        pausedByHandoff = savedInstanceState?.getBoolean("paused_by_handoff") == true ||
+            // The transfer finished while the old screen was being replaced (its own state couldn't record it).
+            (savedInstanceState != null && com.iptvapp.handoff.Handoff.wasHandedOff(com.iptvapp.handoff.Handoff.playerKey(streamUrl, streamTitle)))
         handoffTx?.let { tx ->
             // Cancelled or timed out between the answer and this screen opening: don't play it.
             if (com.iptvapp.handoff.Handoff.receiver(this).get(tx)?.state != com.iptvapp.handoff.InState.PREPARING) {
@@ -2575,6 +2577,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
         /** The last position seen while a player existed: it is released when the screen stops. */
         private var lastPositionMs = 0L
+        override fun handoffKey(): String = com.iptvapp.handoff.Handoff.playerKey(streamUrl, streamTitle)
+
         override fun positionMs(): Long {
             player?.let { lastPositionMs = it.currentPosition.coerceAtLeast(0L) }
             return lastPositionMs
@@ -2582,6 +2586,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         override fun isPlaying(): Boolean = player?.isPlaying == true
         override fun pauseForHandoff() {
             pausedByHandoff = true
+            com.iptvapp.handoff.Handoff.markHandedOff(handoffKey())
             // An Up Next countdown already running would start the next episode here: stopped too.
             upNextJob?.cancel()
             upNextJob = null

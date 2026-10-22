@@ -445,6 +445,24 @@ object Handoff {
 
     fun runAsync(block: suspend () -> Unit) { scope.launch { block() } }
 
+    /**
+     * What was handed to another device while its screen was going away, by player key (a hash,
+     * not the address): a screen recreated for it starts paused. Kept for the app's life, 6 h at most.
+     */
+    private val handedOff = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun markHandedOff(key: String) { handedOff[key] = System.currentTimeMillis() }
+
+    fun wasHandedOff(key: String): Boolean {
+        val at = handedOff[key] ?: return false
+        if (System.currentTimeMillis() - at > 6 * 3_600_000L) { handedOff.remove(key); return false }
+        return true
+    }
+
+    /** A player key from what it plays: a hash, so no address or account is kept in it. */
+    fun playerKey(streamUrl: String, title: String): String =
+        HandoffCrypto.bytesToHex(java.security.MessageDigest.getInstance("SHA-256").digest("$streamUrl\n$title".toByteArray(Charsets.UTF_8))).take(32)
+
     /** Work that outlives the screen that started it, on the main thread. */
     fun runOnMain(block: suspend () -> Unit) { scope.launch(Dispatchers.Main) { block() } }
 
