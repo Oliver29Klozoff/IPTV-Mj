@@ -899,7 +899,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (restoredFromState && com.iptvapp.handoff.Handoff.wasHandedOff(key)) emit(key)
                 }
                 .collect { key ->
-                    if (handoffTx == null && key == handoffSource.handoffKey() && !pausedByHandoff) applyHandoffPause()
+                    // Only a screen the system recreated: one the person just opened plays as asked.
+                    if (restoredFromState && handoffTx == null && key == handoffSource.handoffKey() && !pausedByHandoff) applyHandoffPause()
                 }
         }
         // An accepted handoff takes over ("*"), or the sender cancelled this one before it started.
