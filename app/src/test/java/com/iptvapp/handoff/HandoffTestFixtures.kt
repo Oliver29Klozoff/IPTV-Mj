@@ -12,7 +12,7 @@ object Fx {
     const val PROVIDER_A = "http://a.example:8080\nalice"
     const val PROVIDER_B = "http://b.example\nbob"
 
-    fun phonePeer(secret: String = SECRET, map: Map<String, Int> = emptyMap()) =
+    fun phonePeer(secret: String = SECRET, map: Map<String, String> = emptyMap()) =
         Peer(PHONE_ID, "Pixel Phone", "phone", secret, handoff = true, providerMap = map)
 
     fun tvPeer(secret: String = SECRET) = Peer(TV_ID, "Living Room Shield", "tv", secret, handoff = true)

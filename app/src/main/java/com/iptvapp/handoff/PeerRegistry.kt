@@ -14,8 +14,11 @@ data class Peer(
     val lastSeenMs: Long = 0L,
     /** The receiver understands handoff (it has said hello with this protocol). */
     val handoff: Boolean = false,
-    /** The sender's provider tag → local provider slot, chosen on this device. */
-    val providerMap: Map<String, Int> = emptyMap(),
+    /**
+     * The sender's provider tag → the local provider chosen for it on this device, by fingerprint
+     * (ContentMatcher.fingerprint), not slot: slots shift when providers are removed or reordered.
+     */
+    val providerMap: Map<String, String> = emptyMap(),
 ) {
     val isTv get() = type == "tv"
     val label get() = name.ifBlank { if (isTv) "MKTV TV" else "MKTV phone" }
@@ -94,8 +97,9 @@ class PeerRegistry(private val store: KeyValueStore, private val sealer: SecretS
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
                     val secret = sealer.open(o.optString("s")) ?: continue
-                    val map = mutableMapOf<String, Int>()
-                    o.optJSONObject("pm")?.let { pm -> pm.keys().forEach { k -> map[k] = pm.optInt(k) } }
+                    val map = mutableMapOf<String, String>()
+                    // Only fingerprints count (v7.64 stored slots for a few hours; those are asked again).
+                    o.optJSONObject("pm")?.let { pm -> pm.keys().forEach { k -> (pm.opt(k) as? String)?.let { map[k] = it } } }
                     list.add(
                         Peer(
                             deviceId = o.optString("id"),

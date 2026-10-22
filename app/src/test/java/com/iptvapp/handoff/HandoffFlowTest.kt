@@ -76,13 +76,13 @@ class HandoffFlowTest {
             movies += MovieItem(0, 41, "Example Movie", 2020, "mkv")
             movies += MovieItem(0, 42, "Example Movie", 2020, "mp4")
         }
-        val r = ContentMatcher(c).resolve(Fx.movie(providerIdentity = unknown), Fx.SECRET, mapOf(tag to 0))
+        val r = ContentMatcher(c).resolve(Fx.movie(providerIdentity = unknown), Fx.SECRET, mapOf(tag to ContentMatcher.fingerprint(Fx.PROVIDER_B)))
         assertTrue(r is Resolution.Choose)
         assertEquals(2, (r as Resolution.Choose).options.size)
         // One match plays; the mapped provider's same id with another title is not trusted.
         val one = catalog()
         one.movies += MovieItem(0, 41, "Example Movie", 2020, "mkv")
-        val single = ContentMatcher(one).resolve(Fx.movie(providerIdentity = unknown), Fx.SECRET, mapOf(tag to 0))
+        val single = ContentMatcher(one).resolve(Fx.movie(providerIdentity = unknown), Fx.SECRET, mapOf(tag to ContentMatcher.fingerprint(Fx.PROVIDER_B)))
         assertEquals(41, ((single as Resolution.Playable).target).streamId)
     }
 
@@ -105,7 +105,7 @@ class HandoffFlowTest {
             seriesList += SeriesItem(0, 300, "Example Show")
             episodesBySeries[0 to 300] = listOf(EpisodeItem("x9", 3, 7, "The Seventh", "mkv"))
         }
-        val r = ContentMatcher(c).resolve(Fx.episode(providerIdentity = unknown), Fx.SECRET, mapOf(tag to 0)) as Resolution.Playable
+        val r = ContentMatcher(c).resolve(Fx.episode(providerIdentity = unknown), Fx.SECRET, mapOf(tag to ContentMatcher.fingerprint(Fx.PROVIDER_B))) as Resolution.Playable
         assertEquals("x9", r.target.episode?.id)
     }
 
@@ -115,6 +115,17 @@ class HandoffFlowTest {
         // Quotes, operators and wildcards in a title never reach the search as syntax.
         for (q in AppHandoffCatalog.ftsQueries("Heat\" OR * -NEAR (1995)")) assertTrue(q.matches(Regex("""([\p{L}\p{N}]+\* ?)+""")))
         assertTrue(AppHandoffCatalog.ftsQueries("!!!").isEmpty())
+    }
+
+    @Test fun aMappingFollowsTheProviderNotItsSlot() = runTest {
+        val unknown = "http://c.example\ncarol"
+        val tag = HandoffCrypto.providerTag(Fx.SECRET, unknown)
+        val c = catalog().apply { movies += MovieItem(0, 41, "Example Movie", 2020, "mkv") }
+        val map = mapOf(tag to ContentMatcher.fingerprint(Fx.PROVIDER_B))
+        assertEquals(41, (ContentMatcher(c).resolve(Fx.movie(providerIdentity = unknown), Fx.SECRET, map) as Resolution.Playable).target.streamId)
+        // Provider B removed; another account now sits in slot 0: the mapping doesn't follow the slot.
+        c.providerList[1] = LocalProvider(0, "Other", "http://d.example\ndave")
+        assertTrue(ContentMatcher(c).resolve(Fx.movie(providerIdentity = unknown), Fx.SECRET, map) is Resolution.ProviderMissing)
     }
 
     @Test fun anAccentTolerantFallbackFindsTheAccentedTitle() {
@@ -323,7 +334,7 @@ class HandoffFlowTest {
         rx.offer(Fx.phonePeer(), d)
         assertTrue(rx.get(d.txId)!!.resolution is Resolution.ProviderMissing)
         // The person maps it to slot 0, which doesn't have that film: the sender hears "failed", not silence.
-        assertTrue(rx.remap(Fx.phonePeer(map = mapOf(tag to 0)), d.txId) is Resolution.NotFound)
+        assertTrue(rx.remap(Fx.phonePeer(map = mapOf(tag to ContentMatcher.fingerprint(Fx.PROVIDER_B))), d.txId) is Resolution.NotFound)
         assertEquals("failed", rx.status(Fx.phonePeer(), d.txId, null).getString("state"))
         assertNull(rx.current())
     }
@@ -359,7 +370,7 @@ class HandoffFlowTest {
         }
         val rx = HandoffReceiver(ContentMatcher(c), FakeUi(), { false })
         val d = Fx.movie(providerIdentity = unknown)
-        rx.offer(Fx.phonePeer(map = mapOf(tag to 0)), d)
+        rx.offer(Fx.phonePeer(map = mapOf(tag to ContentMatcher.fingerprint(Fx.PROVIDER_B))), d)
         assertNull(rx.accept(d.txId))
         val options = (rx.get(d.txId)!!.resolution as Resolution.Choose).options
         assertEquals(42, rx.accept(d.txId, options[1])!!.target.streamId)

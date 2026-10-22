@@ -67,7 +67,7 @@ sealed class Resolution {
  */
 class ContentMatcher(private val catalog: HandoffCatalog) {
 
-    suspend fun resolve(d: Descriptor, peerSecret: String, providerMap: Map<String, Int>): Resolution {
+    suspend fun resolve(d: Descriptor, peerSecret: String, providerMap: Map<String, String>): Resolution {
         val providers = catalog.providers()
         if (providers.isEmpty()) return Resolution.NotFound("No provider is set up on this device")
         val exact = providers
@@ -75,7 +75,8 @@ class ContentMatcher(private val catalog: HandoffCatalog) {
             .sortedBy { if (it.serverIndex == -1) Int.MIN_VALUE else it.serverIndex }
             .firstOrNull()
         if (exact != null) return byId(d, exact.serverIndex)
-        val mapped = providerMap[d.providerTag]?.let { slot -> providers.firstOrNull { it.serverIndex == slot } }
+        // The provider the person chose, wherever it sits now; gone (removed, replaced) means ask again.
+        val mapped = providerMap[d.providerTag]?.let { fp -> providers.firstOrNull { fingerprint(it.identity) == fp } }
             ?: return Resolution.ProviderMissing(d.providerLabel, providers)
         return byTitle(d, mapped.serverIndex)
     }
@@ -169,6 +170,10 @@ class ContentMatcher(private val catalog: HandoffCatalog) {
 
     companion object {
         const val MAX_OPTIONS = 8
+
+        /** A local provider's lasting name for mappings: a hash of its address and account, kept only on this device. */
+        fun fingerprint(identity: String): String =
+            HandoffCrypto.bytesToHex(java.security.MessageDigest.getInstance("SHA-256").digest(("local\n" + identity).toByteArray(Charsets.UTF_8))).take(32)
 
         /** Titles compared without case, accents, punctuation or extra spaces; letters of every script kept. */
         fun norm(s: String): String =

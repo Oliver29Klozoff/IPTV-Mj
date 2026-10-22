@@ -83,7 +83,7 @@ class HandoffAcceptActivity : AppCompatActivity() {
                 // the same service (remembered for that device); nothing is assumed.
                 val names = r.local.map { it.label }.toTypedArray()
                 b.setTitle("${inc.peerName} uses \"${r.senderLabel.ifBlank { "another provider" }}\". Which provider here is the same?")
-                    .setItems(names) { _, i -> mapProvider(inc, r.local[i].serverIndex) }
+                    .setItems(names) { _, i -> mapProvider(inc, r.local[i]) }
                     .setNegativeButton("Decline") { _, _ -> decline() }
             }
             is Resolution.NotFound, is Resolution.Unavailable -> {
@@ -133,9 +133,10 @@ class HandoffAcceptActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun mapProvider(inc: Incoming, slot: Int) {
+    private fun mapProvider(inc: Incoming, provider: com.iptvapp.handoff.LocalProvider) {
+        val fp = com.iptvapp.handoff.ContentMatcher.fingerprint(provider.identity)
         val reg = Handoff.registry(this)
-        reg.update(inc.peerId) { it.copy(providerMap = it.providerMap + (inc.descriptor.providerTag to slot)) }
+        reg.update(inc.peerId) { it.copy(providerMap = it.providerMap + (inc.descriptor.providerTag to fp)) }
         val peer = reg.byId(inc.peerId) ?: return
         lifecycleScope.launch {
             when (val r = Handoff.receiver(this@HandoffAcceptActivity).remap(peer, txId)) {
