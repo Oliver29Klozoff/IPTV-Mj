@@ -3299,7 +3299,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 binding.playerView.player = exoPlayer
                 // Playing again here (the person pressed play) ends a handoff's pause.
                 exoPlayer.addListener(object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) pausedByHandoff = false }
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying && pausedByHandoff) {
+                            pausedByHandoff = false
+                            com.iptvapp.handoff.Handoff.clearHandedOff(handoffSource.handoffKey())
+                        }
+                    }
                 })
                 if (handoffTx != null) exoPlayer.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {

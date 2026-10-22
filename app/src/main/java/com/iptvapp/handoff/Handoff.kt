@@ -453,6 +453,9 @@ object Handoff {
 
     fun markHandedOff(key: String) { handedOff[key] = System.currentTimeMillis() }
 
+    /** Playing here again (the person pressed play): no longer handed off. */
+    fun clearHandedOff(key: String) { handedOff.remove(key) }
+
     fun wasHandedOff(key: String): Boolean {
         val at = handedOff[key] ?: return false
         if (System.currentTimeMillis() - at > 6 * 3_600_000L) { handedOff.remove(key); return false }
