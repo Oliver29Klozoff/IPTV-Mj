@@ -21,6 +21,8 @@ import android.os.Handler
 import android.os.Looper
 import com.iptvapp.util.ChannelAudioDelay
 import com.iptvapp.util.ChannelAudioDelayState
+import com.iptvapp.util.CommercialMarkers
+import com.iptvapp.util.CommercialStore
 import com.iptvapp.util.ExternalSubtitles
 import com.iptvapp.util.OpenSubtitlesClient
 import com.iptvapp.util.PlaybackSync
@@ -183,6 +185,17 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // stream_title). This flag exists only to pick a different ExoPlayer data source in
     // buildPlayer(), since a local file:// / content:// path isn't an HTTP resource.
     private var isRecordingPlayback: Boolean = false
+    /** The recording file analysis stamps. Not the FileProvider URI used for playback. */
+    private var recordingSource: String = ""
+    private var commercialSegments: List<CommercialMarkers.Segment> = emptyList()
+    private var commercialStamp = CommercialMarkers.FileStamp(0L, 0L)
+    private var commercialNoteKey: String? = null
+    private var commercialLoading = false
+    private var commercialSession = CommercialMarkers.Session()
+    /** Where a marker review asked to start. -1 means there is no pending review. */
+    private var commercialReviewAt = -1L
+    private var commercialUndoRunnable: Runnable? = null
+    private var commercialUpdating = false
     // This item's sound and subtitle offsets (Audio & Subtitle Sync). The video renderer reads
     // the sound one on each frame, the subtitle renderer the other, both on the playback thread.
     private val channelAudioDelay = ChannelAudioDelayState()
@@ -587,6 +600,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         mergedStreamId = intent.getIntExtra("merged_stream_id", -1)
         isVod = intent.getBooleanExtra("is_vod", false)
         isRecordingPlayback = intent.getBooleanExtra("is_recording", false)
+        recordingSource = intent.getStringExtra("recording_path") ?: ""
+        commercialReviewAt = intent.getLongExtra("commercial_review", -1L)
         catchupDurationMin = intent.getIntExtra("catchup_duration_min", 0)
         // A replay on any provider: the main one by streamId, another by serverIndex + mergedStreamId.
         if (catchupDurationMin > 0 && liveCopyId() != -1) {
@@ -877,7 +892,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setTitle("Resume Playback")
             .setMessage("Resume from ${minutes}:${seconds.toString().padStart(2, '0')}?")
             .setPositiveButton("Resume") { _, _ -> }
-            .setNegativeButton("Start Over") { _, _ -> resumePositionMs = 0L }
+            .setNegativeButton("Start Over") { _, _ ->
+                resumePositionMs = 0L
+                commercialReviewAt = -1L
+            }
             .setCancelable(false)
             .show()
     }
@@ -2916,12 +2934,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.btnStartOver.setOnClickListener { resetHideTimer(); startOverCurrentShow() }
         if (isRecordingPlayback) {
             binding.btnMarks.visibility = View.VISIBLE
-            // Commercial breaks (Skip break): an older recording is analyzed the first time it's played.
-            if (streamId >= 0 && !com.iptvapp.util.AdBreakDetector.isAnalyzed(this, streamId)) {
-                com.iptvapp.worker.AdBreakWorker.enqueue(this, streamId, streamUrl)
-            }
-            binding.btnSkipBreak.setOnClickListener { skipCurrentBreak() }
+            binding.btnCommercials.visibility = View.VISIBLE
+            binding.btnSkipBreak.setOnClickListener { skipCurrentCommercial() }
+            binding.btnUndoSkip.setOnClickListener { undoCommercialSkip() }
+            binding.btnCommercials.setOnClickListener { resetHideTimer(); showCommercialEditor() }
             binding.btnMarks.setOnClickListener { resetHideTimer(); showMarksDialog() }
+            loadCommercialMarkers()
         }
     }
 
@@ -6143,50 +6161,276 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun updateSeekBar() {
         if (!isVod) return
+        if (isRecordingPlayback) refreshCommercialMarkersIfNeeded()
         if (catchupReloadJob?.isActive == true) return
         if (seekBarDragging) return
         val duration = vodDurationMs()
-        if (duration == C.TIME_UNSET || duration <= 0) return
+        if (duration == C.TIME_UNSET || duration <= 0) {
+            if (isRecordingPlayback) updateCommercialPlayback(0L)
+            return
+        }
         val position = vodPositionMs().coerceAtMost(duration)
         binding.seekBar.max = duration.toInt()
         binding.seekBar.progress = position.toInt()
         binding.tvTimeElapsed.text = formatDuration(position)
         binding.tvTimeRemaining.text = "-" + formatDuration((duration - position).coerceAtLeast(0L))
-        updateSkipBreak(position)
+        updateCommercialPlayback(position)
     }
 
-    // Ad skip: the recording's commercial breaks (AdBreakDetector), re-read now and then until the
-    // background analysis has stored some.
-    private var adBreaks: List<LongRange> = emptyList()
-    private var adBreaksCheckedAt = 0L
+    private fun commercialSource(): String = recordingSource.ifBlank { streamUrl }
 
-    private fun updateSkipBreak(positionMs: Long) {
+    private suspend fun readCommercialState(): Triple<CommercialMarkers.FileStamp, List<CommercialMarkers.Segment>, String> =
+        withContext(Dispatchers.IO) {
+            val stamp = CommercialStore.stamp(this@PlayerActivity, commercialSource())
+            var fallbackRows = emptyList<CommercialMarkers.Segment>()
+            var fallbackKey = ""
+            repeat(3) {
+                val before = CommercialStore.note(this@PlayerActivity, streamId)?.cacheKey() ?: ""
+                var rows = CommercialStore.load(this@PlayerActivity, streamId)
+                var after = CommercialStore.note(this@PlayerActivity, streamId)?.cacheKey() ?: ""
+                if (CommercialMarkers.cacheKeyIfUnchanged(before, after) == null) {
+                    // Legacy import writes a note inside load(), and analysis can finish mid-read.
+                    // The second read counts only when the note stays still across it.
+                    rows = CommercialStore.load(this@PlayerActivity, streamId)
+                    val confirm = CommercialStore.note(this@PlayerActivity, streamId)?.cacheKey() ?: ""
+                    if (CommercialMarkers.cacheKeyIfUnchanged(after, confirm) == null) {
+                        fallbackRows = rows
+                        fallbackKey = before
+                        return@repeat
+                    }
+                    after = confirm
+                }
+                if (stamp.known() && rows.any { it.fileSize == 0L }) {
+                    // Stamp whatever is stored now. Saving the list from this read would wipe a scan
+                    // that finished after the read.
+                    CommercialStore.stampStoredRows(this@PlayerActivity, streamId, stamp)
+                    fallbackRows = rows
+                    fallbackKey = before
+                    return@repeat
+                }
+                return@withContext Triple(stamp, rows, after)
+            }
+            // A newer key belongs to rows this read missed. Keep the older key so the next tick loads again.
+            Triple(stamp, fallbackRows, fallbackKey)
+        }
+
+    private fun applyCommercialLoad(stamp: CommercialMarkers.FileStamp, rows: List<CommercialMarkers.Segment>, noteKey: String) {
+        commercialStamp = stamp
+        commercialSegments = rows
+        commercialNoteKey = noteKey
+    }
+
+    private fun loadCommercialMarkers() {
+        if (!isRecordingPlayback || streamId < 0 || commercialLoading) return
+        commercialLoading = true
+        lifecycleScope.launch {
+            try {
+                val (stamp, rows, key) = readCommercialState()
+                if (!isFinishing) {
+                    applyCommercialLoad(stamp, rows, key)
+                    updateSeekBar()
+                }
+            } finally {
+                commercialLoading = false
+            }
+        }
+    }
+
+    /** Analysis can finish while this recording is open. A changed note reloads its markers. */
+    private fun refreshCommercialMarkersIfNeeded() {
+        if (!isRecordingPlayback || streamId < 0 || commercialLoading) return
+        val note = CommercialStore.note(this, streamId)
+        val key = note?.cacheKey() ?: ""
+        if (key == commercialNoteKey) return
+        loadCommercialMarkers()
+    }
+
+    private fun showCommercialEditor() {
         if (!isRecordingPlayback || streamId < 0) return
-        // No room for it over a picture-in-picture window.
+        lifecycleScope.launch {
+            val (stamp, rows, key) = readCommercialState()
+            if (isFinishing) return@launch
+            applyCommercialLoad(stamp, rows, key)
+            CommercialEditor.show(
+            this@PlayerActivity,
+            streamId,
+            commercialSegments,
+            commercialStamp,
+            positionMs = { vodPositionMs() },
+            durationMs = {
+                val duration = vodDurationMs()
+                if (duration == C.TIME_UNSET || duration < 0L) 0L else duration
+            },
+            onSeek = { target ->
+                holdCommercialReview(target)
+                vodSeekTo(target)
+                updateSeekBar()
+            },
+            onChanged = { before, next ->
+                commercialSegments = next
+                commercialSession = CommercialMarkers.Session()
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        CommercialStore.saveEdit(this@PlayerActivity, streamId, before, next, commercialStamp)
+                    }
+                    if (!isFinishing) {
+                        val (stamp, rows, key) = readCommercialState()
+                        applyCommercialLoad(stamp, rows, key)
+                        updateSeekBar()
+                    }
+                }
+            }
+            )
+        }
+    }
+
+    private fun visibleCommercials(): List<CommercialMarkers.Segment> =
+        CommercialMarkers.forFile(commercialSegments, commercialStamp)
+
+    /**
+     * A jump to a marker is a request to watch it. Automatic skip stays off until playback leaves.
+     */
+    private fun holdCommercialReview(positionMs: Long) {
+        val segment = visibleCommercials().firstOrNull {
+            it.review == CommercialMarkers.Review.CONFIRMED &&
+                positionMs >= it.startMs && positionMs < it.endMs
+        } ?: return
+        commercialSession = commercialSession.copy(
+            handled = commercialSession.handled + segment.key(),
+            undoHold = segment.key(),
+            undoHoldSeen = false
+        )
+    }
+
+    /** Library "Jump to start" arrives as playback, not as a seek inside an open player. */
+    private fun consumePendingReview(positionMs: Long) {
+        val pending = commercialReviewAt
+        if (pending < 0L) return
+        if (kotlin.math.abs(positionMs - pending) > 2_000L) return
+        if (commercialLoading && commercialSegments.isEmpty()) return
+        commercialReviewAt = -1L
+        holdCommercialReview(pending)
+    }
+
+    private fun updateCommercialPlayback(positionMs: Long) {
+        if (!isRecordingPlayback || streamId < 0 || commercialUpdating) return
+        commercialUpdating = true
+        try {
+        val rawDuration = vodDurationMs()
+        val duration = if (rawDuration == C.TIME_UNSET || rawDuration <= 0L) 0L else rawDuration
+        val visible = visibleCommercials()
+        binding.commercialMarkers.durationMs = duration
+        binding.commercialMarkers.segments = visible
+        binding.commercialMarkers.visibility = if (visible.isEmpty() || duration <= 0L) View.GONE else View.VISIBLE
+        val pip = isInPictureInPictureMode
+        consumePendingReview(positionMs)
+        val playerNow = player
+        val playing = playerNow?.isPlaying == true
+        val seekable = playerNow?.isCurrentMediaItemSeekable == true && duration > 0L
+        val scrubbing = seekBarDragging || seekSession.active
+        val mode = CommercialMarkers.effectiveSkip(
+            CommercialStore.skipMode(this),
+            CommercialStore.note(this, streamId)?.skipOverride
+        )
+        val (action, next) = CommercialMarkers.tick(
+            positionMs, duration, visible, mode, playing, scrubbing, seekable, commercialSession
+        )
+        commercialSession = next
+        when (action) {
+            is CommercialMarkers.Action.AutoSkip -> {
+                seekCommercial(action.toMs)
+                binding.btnSkipBreak.visibility = View.GONE
+                showCommercialUndo()
+            }
+            is CommercialMarkers.Action.ShowSkip -> {
+                if (pip) {
+                    binding.btnSkipBreak.visibility = View.GONE
+                    binding.btnUndoSkip.visibility = View.GONE
+                } else {
+                    binding.btnSkipBreak.text = "Skip Commercial — ${CommercialMarkers.remainingLabel(action.remainingMs)}"
+                    val wasShown = binding.btnSkipBreak.visibility == View.VISIBLE
+                    binding.btnSkipBreak.visibility = View.VISIBLE
+                    if (!wasShown && !isOverlayVisible && binding.btnUndoSkip.visibility != View.VISIBLE) {
+                        binding.btnSkipBreak.requestFocus()
+                    }
+                    showCommercialUndoIfPending()
+                }
+            }
+            else -> {
+                binding.btnSkipBreak.visibility = View.GONE
+                if (pip) binding.btnUndoSkip.visibility = View.GONE else showCommercialUndoIfPending()
+            }
+        }
+        } finally {
+            commercialUpdating = false
+        }
+    }
+
+    private fun skipCurrentCommercial() {
+        val playerNow = player ?: return
+        if (!isRecordingPlayback || playerNow.playbackState == Player.STATE_IDLE) return
+        val duration = vodDurationMs().let { if (it == C.TIME_UNSET || it < 0L) 0L else it }
+        val position = vodPositionMs()
+        val segment = CommercialMarkers.buttonTarget(position, visibleCommercials()) ?: return
+        val pending = commercialSession.undo
+        if (pending != null && pending.key == segment.key() && kotlin.math.abs(position - pending.fromMs) < 500L) return
+        val target = CommercialMarkers.skipTarget(segment, duration)
+        val keepPlaying = playerNow.playWhenReady
+        commercialSession = commercialSession.copy(
+            handled = commercialSession.handled + segment.key(),
+            undo = CommercialMarkers.Undo(segment.key(), position, target),
+            undoHold = null,
+            undoHoldSeen = false
+        )
+        seekCommercial(target, keepPlaying)
+        binding.btnSkipBreak.visibility = View.GONE
+        showCommercialUndo()
+    }
+
+    private fun undoCommercialSkip() {
+        val undone = CommercialMarkers.undo(commercialSession) ?: return
+        val playerNow = player
+        val keepPlaying = playerNow?.playWhenReady == true
+        commercialSession = undone.second
+        hideCommercialUndo()
+        seekCommercial(undone.first, keepPlaying)
+    }
+
+    private fun seekCommercial(targetMs: Long, keepPlaying: Boolean = player?.playWhenReady == true) {
+        val playerNow = player ?: return
+        if (!isRecordingPlayback || playerNow.playbackState == Player.STATE_IDLE) return
+        vodSeekTo(targetMs)
+        playerNow.playWhenReady = keepPlaying
+        notifyPartyStateChange()
+        updateSeekBar()
+    }
+
+    private fun showCommercialUndo() {
+        commercialUndoRunnable?.let { seekHandler.removeCallbacks(it) }
+        val hide = Runnable {
+            commercialSession = CommercialMarkers.dismissUndo(commercialSession)
+            if (binding.btnUndoSkip.hasFocus()) binding.playerView.requestFocus()
+            binding.btnUndoSkip.visibility = View.GONE
+            commercialUndoRunnable = null
+        }
+        commercialUndoRunnable = hide
+        seekHandler.postDelayed(hide, 8_000L)
         if (isInPictureInPictureMode) {
-            binding.btnSkipBreak.visibility = View.GONE
+            binding.btnUndoSkip.visibility = View.GONE
             return
         }
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (adBreaks.isEmpty() && now - adBreaksCheckedAt > 15_000L) {
-            adBreaksCheckedAt = now
-            adBreaks = com.iptvapp.util.AdBreakDetector.breaksFor(this, streamId)
-        }
-        // Not in the last few seconds of a break — it would be gone before you could tap it.
-        val inBreak = adBreaks.any { positionMs >= it.first && positionMs < it.last - 3_000L }
-        val shown = binding.btnSkipBreak.visibility == View.VISIBLE
-        if (inBreak != shown) {
-            binding.btnSkipBreak.visibility = if (inBreak) View.VISIBLE else View.GONE
-            if (inBreak && !isOverlayVisible) binding.btnSkipBreak.requestFocus()
-        }
+        binding.btnUndoSkip.visibility = View.VISIBLE
+        if (!isOverlayVisible) binding.btnUndoSkip.requestFocus()
     }
 
-    private fun skipCurrentBreak() {
-        val pos = player?.currentPosition ?: return
-        val brk = adBreaks.firstOrNull { pos >= it.first && pos <= it.last } ?: return
-        player?.seekTo(brk.last + 1)
-        binding.btnSkipBreak.visibility = View.GONE
-        updateSeekBar()
+    private fun showCommercialUndoIfPending() {
+        binding.btnUndoSkip.visibility = if (commercialSession.undo != null && !isInPictureInPictureMode) View.VISIBLE else View.GONE
+    }
+
+    private fun hideCommercialUndo() {
+        commercialUndoRunnable?.let { seekHandler.removeCallbacks(it) }
+        commercialUndoRunnable = null
+        binding.btnUndoSkip.visibility = View.GONE
     }
 
     private fun startSeekBarUpdater() {
@@ -6210,6 +6454,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     player?.seekTo(progress.toLong())
                     notifyPartyStateChange()
                 }
+                if (isRecordingPlayback) updateCommercialPlayback(progress.toLong())
             }
             override fun onStartTrackingTouch(sb: android.widget.SeekBar) {
                 seekBarDragging = true
@@ -6882,7 +7127,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
                 // Skip break showing over a recording: OK skips it, without opening the controls first.
-                if (!isOverlayVisible && binding.btnSkipBreak.visibility == View.VISIBLE) { skipCurrentBreak(); return true }
+                if (!isOverlayVisible && binding.btnUndoSkip.visibility == View.VISIBLE && binding.btnUndoSkip.hasFocus()) {
+                    undoCommercialSkip(); return true
+                }
+                if (!isOverlayVisible && binding.btnSkipBreak.visibility == View.VISIBLE && binding.btnSkipBreak.hasFocus()) {
+                    skipCurrentCommercial(); return true
+                }
                 if (!isOverlayVisible) { showOverlay(); true }
                 else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
@@ -7038,6 +7288,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             isOverlayVisible = false
             cancelSeekPreview()
             binding.btnSkipBreak.visibility = View.GONE
+            binding.btnUndoSkip.visibility = View.GONE
             binding.liveProgramBar.visibility = View.GONE
             binding.osdTopBar.visibility = View.GONE
             binding.playerTopScrim.visibility = View.GONE
@@ -7377,6 +7628,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onDestroy() {
+        hideCommercialUndo()
+        CommercialEditor.clearPending()
         syncPanel?.dismiss()
         syncPanel = null
         if (countedAsPlayer) com.iptvapp.handoff.Handoff.playerDestroyed()

@@ -77,8 +77,23 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         onRename = { rec -> showRenameDialog(rec) },
         onRetry = { rec -> retryRecording(rec) },
         onTrimPadding = { rec -> showTrimPaddingDialog(rec) },
-        onTraktCollect = { rec -> addRecordingToTraktCollection(rec) }
+        onTraktCollect = { rec -> addRecordingToTraktCollection(rec) },
+        onCommercials = { rec -> showCommercials(rec) }
     )
+
+    private fun showCommercials(rec: RecordingEntity) {
+        CommercialUi.showRecording(this, rec) { recordingAdapter.notifyDataSetChanged() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::binding.isInitialized) recordingAdapter.notifyDataSetChanged()
+    }
+
+    private suspend fun deleteRecordingRow(rec: RecordingEntity) {
+        database.recordingDao().delete(rec)
+        com.iptvapp.util.CommercialStore.onRecordingDeleted(this, rec.id)
+    }
 
     // Manual, one-off action (unlike scrobbling, which fires constantly during playback) — a
     // toast on failure is appropriate here, unlike scrobble errors which are tracked in a
@@ -132,7 +147,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     Toast.makeText(this@RecordingSchedulerActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                database.recordingDao().delete(rec)
+                deleteRecordingRow(rec)
                 scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
             } else {
                 val channel = repository.getMergedChannelByIndexAndId(rec.serverIndex, rec.streamId)
@@ -140,7 +155,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     Toast.makeText(this@RecordingSchedulerActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                database.recordingDao().delete(rec)
+                deleteRecordingRow(rec)
                 scheduleMergedRecording(channel, System.currentTimeMillis(), rec.durationMs)
             }
         }
@@ -160,20 +175,20 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             cancelRecordingAlarm(rec.id)
                             RecordingFileUtils.deleteFile(this@RecordingSchedulerActivity, rec.outputPath)
-                            database.recordingDao().delete(rec)
+                            deleteRecordingRow(rec)
                         }
                     }
                     builder.setNeutralButton("Remove from List Only") { _, _ ->
                         lifecycleScope.launch {
                             cancelRecordingAlarm(rec.id)
-                            database.recordingDao().delete(rec)
+                            deleteRecordingRow(rec)
                         }
                     }
                 } else {
                     builder.setPositiveButton("Delete") { _, _ ->
                         lifecycleScope.launch {
                             cancelRecordingAlarm(rec.id)
-                            database.recordingDao().delete(rec)
+                            deleteRecordingRow(rec)
                         }
                     }
                 }
@@ -316,12 +331,14 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.rvRecordings.layoutManager = LinearLayoutManager(this)
         binding.rvRecordings.adapter = recordingAdapter
+        CommercialUi.watchLibrary(this) { recordingAdapter.notifyDataSetChanged() }
         binding.fabAdd.setOnClickListener { showAddRecordingChooser() }
 
         binding.dayScheduleView.onBlockClick = { rec -> onScheduleBlockClick(rec) }
         binding.dayScheduleView.onBlockLongClick = { rec -> showRenameDialog(rec) }
         binding.btnToggleScheduleView.setOnClickListener { toggleScheduleView() }
         binding.btnRecordingStorageSettings.setOnClickListener { showRecordingStorageSettingsDialog() }
+        binding.btnCommercialDetection.setOnClickListener { CommercialUi.showSettings(this) }
         binding.btnDayPrev.setOnClickListener { dayOffset -= 1; refreshScheduleView() }
         binding.btnDayNext.setOnClickListener { dayOffset += 1; refreshScheduleView() }
 
@@ -885,7 +902,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         private val onRename: (RecordingEntity) -> Unit = {},
         private val onRetry: (RecordingEntity) -> Unit = {},
         private val onTrimPadding: (RecordingEntity) -> Unit = {},
-        private val onTraktCollect: (RecordingEntity) -> Unit = {}
+        private val onTraktCollect: (RecordingEntity) -> Unit = {},
+        private val onCommercials: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -923,7 +941,9 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 // commonly confusing when it was actually a single-connection-plan conflict with
                 // another recording/live session. See RecordingService.classifyFailureReason.
                 val reasonSuffix = if (rec.status == "FAILED" && !rec.failureReason.isNullOrBlank()) "\n${rec.failureReason}" else ""
-                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))} - ${durMin}min$sizeSuffix$reasonSuffix"
+                val commercial = com.iptvapp.util.CommercialStore.noteStatus(b.root.context, rec.id, rec.status == "DONE")
+                val commercialSuffix = if (commercial.isNotEmpty()) "\n$commercial" else ""
+                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))} - ${durMin}min$sizeSuffix$reasonSuffix$commercialSuffix"
                 b.tvRecStatus.text = rec.status
 
                 val (bg, fg) = when (rec.status) {
@@ -942,6 +962,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                 if (rec.status == "DONE") {
                     b.btnPlay.visibility = View.VISIBLE
                     b.btnPlay.setOnClickListener { playFile(rec) }
+                    b.btnCommercials.visibility = View.VISIBLE
+                    b.btnCommercials.setOnClickListener { onCommercials(rec) }
                     b.btnShare.visibility = View.VISIBLE
                     b.btnShare.setOnClickListener { shareFile(rec.outputPath) }
                     b.btnTrimPadding.visibility = View.VISIBLE
@@ -950,6 +972,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
                     b.btnTraktCollect.setOnClickListener { onTraktCollect(rec) }
                 } else {
                     b.btnPlay.visibility = View.GONE
+                    b.btnCommercials.visibility = View.GONE
                     b.btnShare.visibility = View.GONE
                     b.btnTrimPadding.visibility = View.GONE
                     b.btnTraktCollect.visibility = View.GONE

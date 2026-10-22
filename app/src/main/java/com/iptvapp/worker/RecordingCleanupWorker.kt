@@ -34,6 +34,7 @@ class RecordingCleanupWorker @AssistedInject constructor(
             stale.forEach { rec ->
                 RecordingFileUtils.deleteFile(appContext, rec.outputPath)
                 db.recordingDao().delete(rec)
+                com.iptvapp.util.CommercialStore.onRecordingDeleted(appContext, rec.id)
             }
             Result.success()
         } catch (e: Exception) {

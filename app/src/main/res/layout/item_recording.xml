@@ -103,6 +103,17 @@
         android:visibility="gone" />
 
     <ImageButton
+        android:id="@+id/btnCommercials"
+        android:contentDescription="Commercials"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_agenda"
+        android:tint="#AAAAAA"
+        android:visibility="gone" />
+
+    <ImageButton
         android:id="@+id/btnDelete"
         android:contentDescription="Delete recording"
         android:layout_width="32dp"

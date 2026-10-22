@@ -432,6 +432,12 @@
             android:text="Marks"
             android:visibility="gone" />
 
+        <Button
+            android:id="@+id/btnCommercials"
+            style="@style/PlayerChip"
+            android:text="Commercials"
+            android:visibility="gone" />
+
         <!-- Sports Mode for this viewing: fast buffer, and the existing replay / Go Live controls. -->
         <Button
             android:id="@+id/btnSportsMode"
@@ -744,10 +750,20 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
+        <com.iptvapp.ui.player.CommercialMarkerBar
+            android:id="@+id/commercialMarkers"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginBottom="2dp"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_below="@id/commercialMarkers"
             android:progressTint="@color/oled_cyan_primary"
             android:thumbTint="@color/rack_text" />
 
@@ -1285,7 +1301,27 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Ad skip (v7.15): shown while a recording plays through a detected commercial break -->
+    <Button
+        android:id="@+id/btnUndoSkip"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_marginBottom="100dp"
+        android:layout_marginEnd="24dp"
+        app:backgroundTint="@null"
+        android:background="@drawable/player_chip_bg"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:letterSpacing="0.04"
+        android:paddingHorizontal="16dp"
+        android:text="Commercial skipped — Undo"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Shown while a recording plays through a confirmed commercial. -->
     <Button
         android:id="@+id/btnSkipBreak"
         android:layout_width="wrap_content"
@@ -1300,7 +1336,7 @@
         android:insetBottom="0dp"
         android:letterSpacing="0.1"
         android:paddingHorizontal="16dp"
-        android:text="Skip break  ⏭"
+        android:text="Skip Commercial"
         android:textColor="@color/rack_text"
         android:textSize="14sp"
         android:visibility="gone"

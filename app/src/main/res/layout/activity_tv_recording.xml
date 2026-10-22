@@ -33,6 +33,21 @@
 
             <Button
                 app:backgroundTint="@null"
+                android:id="@+id/btnCommercialDetection"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="COMMERCIALS"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:background="@drawable/home_tab_bg"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:paddingHorizontal="20dp"
+                android:layout_marginEnd="12dp" />
+
+            <Button
+                app:backgroundTint="@null"
                 android:id="@+id/btnRecordingStorageSettings"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"

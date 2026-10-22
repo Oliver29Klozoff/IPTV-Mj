@@ -34,9 +34,10 @@ import com.iptvapp.data.local.entities.*
         FeedStatsEntity::class,
         EpgGuideSourceEntity::class,
         EpgGuideChannelEntity::class,
-        EpgOverrideEntity::class
+        EpgOverrideEntity::class,
+        CommercialSegmentEntity::class
     ],
-    version = 47,
+    version = 48,
     exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -58,6 +59,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun epgDiffAlertDao(): EpgDiffAlertDao
     abstract fun feedStatsDao(): FeedStatsDao
     abstract fun epgRepairDao(): com.iptvapp.data.local.dao.EpgRepairDao
+    abstract fun commercialDao(): com.iptvapp.data.local.dao.CommercialDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -671,6 +673,16 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Commercial markers. New table only. Existing recording rows are not rewritten.
+        val MIGRATION_47_48 = object : Migration(47, 48) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `commercial_segments` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `recordingId` INTEGER NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `origin` TEXT NOT NULL, `review` TEXT NOT NULL, `evidence` TEXT NOT NULL, `analysisVersion` INTEGER NOT NULL, `fileSize` INTEGER NOT NULL, `fileModifiedMs` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_commercial_segments_recordingId` ON `commercial_segments` (`recordingId`)")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -681,7 +693,8 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
             MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-            MIGRATION_46_47
+            MIGRATION_46_47,
+            MIGRATION_47_48
         )
     }
 }
