@@ -1,7 +1,7 @@
 {
-  "versionCode": 604,
-  "versionName": "7.66",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.66/MKTV.apk",
-  "apkSha256": "002bbfcf19d8fbb1e31faec1f6ce7c489faf885f0ba65dbfd0bfc8fdb0c5d012",
-  "changelog": "Send to TV / phone: the device you sent from reliably stays paused."
+  "versionCode": 605,
+  "versionName": "7.67",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.67/MKTV.apk",
+  "apkSha256": "0d88a6dd1517d01d266919cbba6ee649dfd01a84d03896251f4e5e7fbb521d2a",
+  "changelog": "Finished recordings can show commercials, skip a confirmed break, and let you mark or correct them."
 }

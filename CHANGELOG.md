@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.67 - 2026-10-22
+- **New**: Commercials on a finished recording. The seek bar shades them, Skip Commercial jumps to the end of a confirmed break, and Undo puts you back.
+- **New**: Recordings > Commercials can look for breaks, or you can mark, edit, confirm, or reject them yourself. A suggestion is not skipped until you confirm it. Automatic skip stays off until you turn it on, and it only uses confirmed markers.
+- **Note**: The recording file is left as it is. Detection can miss or mislabel a break.
+
 ## v7.66 - 2026-10-22
 - **Fixed**: Send to TV / phone: the device you sent from stays paused even if Android rebuilds its player
   at that moment (and an Up Next countdown there is stopped), so the two devices never both play.
