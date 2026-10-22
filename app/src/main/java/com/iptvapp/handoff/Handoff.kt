@@ -451,7 +451,14 @@ object Handoff {
      */
     private val handedOff = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
-    fun markHandedOff(key: String) { handedOff[key] = System.currentTimeMillis() }
+    private val _handedOffEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /** A player key just handed off: a player for it that is open now (recreated meanwhile) pauses. */
+    val handedOffEvents: SharedFlow<String> = _handedOffEvents
+
+    fun markHandedOff(key: String) {
+        handedOff[key] = System.currentTimeMillis()
+        _handedOffEvents.tryEmit(key)
+    }
 
     /** Playing here again (the person pressed play): no longer handed off. */
     fun clearHandedOff(key: String) { handedOff.remove(key) }

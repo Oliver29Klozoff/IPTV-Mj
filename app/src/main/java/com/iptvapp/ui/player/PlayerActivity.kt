@@ -885,6 +885,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         updateSendButton()
         com.iptvapp.handoff.Handoff.playerCreated()
         countedAsPlayer = true
+        // A transfer that completed while this screen replaced its predecessor: pause now.
+        lifecycleScope.launch {
+            com.iptvapp.handoff.Handoff.handedOffEvents.collect { key ->
+                if (handoffTx == null && key == handoffSource.handoffKey() && !pausedByHandoff) {
+                    pausedByHandoff = true
+                    requestTimeshiftPlayback(false)
+                    updatePlayPauseButton()
+                }
+            }
+        }
         // An accepted handoff takes over ("*"), or the sender cancelled this one before it started.
         lifecycleScope.launch {
             com.iptvapp.handoff.Handoff.closePlayers.collect { which ->
@@ -3300,7 +3310,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 // Playing again here (the person pressed play) ends a handoff's pause.
                 exoPlayer.addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (isPlaying && pausedByHandoff) {
+                        // Playing here (pressed play, or a fresh start): no longer handed off.
+                        if (isPlaying) {
                             pausedByHandoff = false
                             com.iptvapp.handoff.Handoff.clearHandedOff(handoffSource.handoffKey())
                         }
