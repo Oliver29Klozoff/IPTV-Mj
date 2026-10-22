@@ -1,7 +1,7 @@
 {
-  "versionCode": 601,
-  "versionName": "7.63",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.63/MKTV.apk",
-  "apkSha256": "28c1a82fe8417c5a87c522dd6522ed2a8c9cb5a486f7fc6cf83ad30f51f77bc3",
-  "changelog": "Audio & subtitle sync: move the sound or subtitles up to 10 seconds either way, and save it per channel or video."
+  "versionCode": 602,
+  "versionName": "7.64",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.64/MKTV.apk",
+  "apkSha256": "bef41e40c2d72717117c0d48cd1a47fce0581cf45acde98bb2e59d50d4977a53",
+  "changelog": "Send to TV / Send to phone: carry on watching on your other MKTV device at home."
 }

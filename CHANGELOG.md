@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.64 - 2026-10-21
+- **New**: Send to TV / Send to phone (player). Carry on watching a movie, episode or live channel on
+  your other MKTV device on the home network. The other device plays it with its own provider, from
+  about the same spot (live channels start at the live picture), after you accept there. This device
+  keeps playing until the other one really plays, then pauses; if anything fails it just carries on.
+- **New**: Settings > Sync > Paired MKTV devices: see which TVs and phones are paired and which answer
+  now, and forget one (it also stops working as the remote). Pair from the phone: Remote > pick your TV.
+- **Note**: The phone receives while MKTV is open on it. Recordings and replays stay on their device.
+
 ## v7.63 - 2026-10-21
 - **New**: Audio & subtitle sync (player > Audio · CC > Audio & subtitle sync). Move the sound or
   the subtitles up to 10 seconds either way, in 50, 100 or 500 ms steps, and see the change as it
