@@ -57,7 +57,12 @@ object RecordingFileUtils {
     // at record time, see RecordingEntity.programTitle) instead of only ever opening in whatever
     // external video player the user has installed. Replaces playFile() as the default tap
     // action; external "Open with..." is still reachable via Share.
-    fun playInApp(context: Context, rec: com.iptvapp.data.local.entities.RecordingEntity) {
+    fun playInApp(
+        context: Context,
+        rec: com.iptvapp.data.local.entities.RecordingEntity,
+        startMs: Long = 0L,
+        reviewMarker: Boolean = false
+    ) {
         val path = rec.outputPath
         val uri = resolveUri(context, path) ?: return
         if (!path.startsWith("content://")) {
@@ -73,6 +78,11 @@ object RecordingFileUtils {
             putExtra("stream_id", rec.id)
             putExtra("is_vod", true)
             putExtra("is_recording", true)
+            // The player stamps markers from this path. stream_url is a FileProvider URI, and that
+            // provider does not report the file's modified time.
+            putExtra("recording_path", path)
+            if (startMs > 0L) putExtra("resume_ms", startMs)
+            if (reviewMarker) putExtra("commercial_review", startMs)
             if (context !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { context.startActivity(intent) }

@@ -185,6 +185,9 @@ class TvRecordingActivity : AppCompatActivity() {
         lifecycleScope.launch { cleanupStaleRecordings() }
 
         lifecycleScope.launch {
+            CommercialUi.watchLibrary(this@TvRecordingActivity) {
+                (binding.rvRecordings.adapter as? RecordingListAdapter)?.notifyDataSetChanged()
+            }
             database.recordingDao().getAll().collect { list ->
                 allRecordings = list
                 (binding.rvRecordings.adapter as? RecordingListAdapter)?.submitList(list)
@@ -360,7 +363,12 @@ class TvRecordingActivity : AppCompatActivity() {
             },
             onRetry = { rec -> retryRecording(rec) },
             onTrimPadding = { rec -> showTrimPaddingDialog(rec) },
-            onTraktCollect = { rec -> addRecordingToTraktCollection(rec) }
+            onTraktCollect = { rec -> addRecordingToTraktCollection(rec) },
+            onCommercials = { rec ->
+                CommercialUi.showRecording(this, rec) {
+                    (binding.rvRecordings.adapter as? RecordingListAdapter)?.notifyDataSetChanged()
+                }
+            }
         )
         val adapter = binding.rvRecordings.adapter as RecordingListAdapter
         lifecycleScope.launch {
@@ -403,6 +411,18 @@ class TvRecordingActivity : AppCompatActivity() {
 
     private fun playFile(rec: RecordingEntity) = com.iptvapp.util.RecordingFileUtils.playInApp(this, rec)
 
+    private suspend fun deleteRecordingRow(rec: RecordingEntity) {
+        database.recordingDao().delete(rec)
+        com.iptvapp.util.CommercialStore.onRecordingDeleted(this, rec.id)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::binding.isInitialized) {
+            (binding.rvRecordings.adapter as? RecordingListAdapter)?.notifyDataSetChanged()
+        }
+    }
+
     private fun shareFile(path: String) = com.iptvapp.util.RecordingFileUtils.shareFile(this, path)
 
     // "Remove from list" and "delete the actual file from device storage" are two different
@@ -419,20 +439,20 @@ class TvRecordingActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             cancelAlarm(rec.id)
                             com.iptvapp.util.RecordingFileUtils.deleteFile(this@TvRecordingActivity, rec.outputPath)
-                            database.recordingDao().delete(rec)
+                            deleteRecordingRow(rec)
                         }
                     }
                     builder.setNeutralButton("Remove from List Only") { _, _ ->
                         lifecycleScope.launch {
                             cancelAlarm(rec.id)
-                            database.recordingDao().delete(rec)
+                            deleteRecordingRow(rec)
                         }
                     }
                 } else {
                     builder.setPositiveButton("Delete") { _, _ ->
                         lifecycleScope.launch {
                             cancelAlarm(rec.id)
-                            database.recordingDao().delete(rec)
+                            deleteRecordingRow(rec)
                         }
                     }
                 }
@@ -453,7 +473,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     Toast.makeText(this@TvRecordingActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                database.recordingDao().delete(rec)
+                deleteRecordingRow(rec)
                 scheduleRecording(channel, System.currentTimeMillis(), rec.durationMs)
             } else {
                 val channel = repository.getMergedChannelByIndexAndId(rec.serverIndex, rec.streamId)
@@ -461,7 +481,7 @@ class TvRecordingActivity : AppCompatActivity() {
                     Toast.makeText(this@TvRecordingActivity, "Channel no longer available", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                database.recordingDao().delete(rec)
+                deleteRecordingRow(rec)
                 scheduleMergedRecording(channel, System.currentTimeMillis(), rec.durationMs)
             }
         }
@@ -473,6 +493,7 @@ class TvRecordingActivity : AppCompatActivity() {
         binding.btnChanBack.setOnClickListener { showStep(Step.CATEGORY) }
         binding.btnToggleScheduleView.setOnClickListener { toggleScheduleView() }
         binding.btnRecordingStorageSettings.setOnClickListener { showRecordingStorageSettingsDialog() }
+        binding.btnCommercialDetection.setOnClickListener { CommercialUi.showSettings(this) }
         binding.btnDayPrev.setOnClickListener { dayOffset -= 1; refreshScheduleView() }
         binding.btnDayNext.setOnClickListener { dayOffset += 1; refreshScheduleView() }
         binding.dayScheduleView.onBlockClick = { rec -> onScheduleBlockClick(rec) }
@@ -863,7 +884,8 @@ class TvRecordingActivity : AppCompatActivity() {
         private val onRename: (RecordingEntity) -> Unit = {},
         private val onRetry: (RecordingEntity) -> Unit = {},
         private val onTrimPadding: (RecordingEntity) -> Unit = {},
-        private val onTraktCollect: (RecordingEntity) -> Unit = {}
+        private val onTraktCollect: (RecordingEntity) -> Unit = {},
+        private val onCommercials: (RecordingEntity) -> Unit = {}
     ) : RecyclerView.Adapter<RecordingListAdapter.VH>() {
 
         private var items: List<RecordingEntity> = emptyList()
@@ -904,6 +926,7 @@ class TvRecordingActivity : AppCompatActivity() {
                 b.btnTvRecTrimPadding.setOnClickListener { onTrimPadding(items[bindingAdapterPosition]) }
                 b.btnTvRecTraktCollect.setOnClickListener { onTraktCollect(items[bindingAdapterPosition]) }
                 b.btnTvRecDelete.setOnClickListener { onDelete(items[bindingAdapterPosition]) }
+                b.btnTvRecCommercials.setOnClickListener { onCommercials(items[bindingAdapterPosition]) }
             }
 
             fun bind(rec: RecordingEntity) {
@@ -912,7 +935,10 @@ class TvRecordingActivity : AppCompatActivity() {
                 val sizeLabel = RecordingFileUtils.sizeLabel(b.root.context, rec.outputPath)
                 val sizeSuffix = if (sizeLabel.isNotEmpty()) "  •  $sizeLabel" else ""
                 val reasonSuffix = if (rec.status == "FAILED" && !rec.failureReason.isNullOrBlank()) "\n${rec.failureReason}" else ""
-                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))}  •  ${durMin} min$sizeSuffix$reasonSuffix"
+                val isDone = rec.status == "DONE"
+                val commercial = com.iptvapp.util.CommercialStore.noteStatus(b.root.context, rec.id, isDone)
+                val commercialSuffix = if (commercial.isNotEmpty()) "\n$commercial" else ""
+                b.tvRecDetails.text = "${dateFmt.format(Date(rec.scheduledStartMs))}  •  ${durMin} min$sizeSuffix$reasonSuffix$commercialSuffix"
                 b.tvRecStatus.text = rec.status
                 val (bg, fg) = when (rec.status) {
                     "RECORDING"   -> 0x33FF4444.toInt() to 0xFFFF4444.toInt()
@@ -924,8 +950,8 @@ class TvRecordingActivity : AppCompatActivity() {
                 b.tvRecStatus.setBackgroundColor(bg)
                 b.tvRecStatus.setTextColor(fg)
 
-                val isDone = rec.status == "DONE"
                 b.btnTvRecShare.visibility = if (isDone) View.VISIBLE else View.GONE
+                b.btnTvRecCommercials.visibility = if (isDone) View.VISIBLE else View.GONE
                 b.btnTvRecTrimPadding.visibility = if (isDone) View.VISIBLE else View.GONE
                 b.btnTvRecTraktCollect.visibility = if (isDone && traktConnected) View.VISIBLE else View.GONE
                 b.btnTvRecRetry.visibility = if (rec.status == "FAILED") View.VISIBLE else View.GONE

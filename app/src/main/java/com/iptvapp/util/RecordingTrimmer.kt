@@ -67,11 +67,46 @@ object RecordingTrimmer {
         // version.
         RecordingFileUtils.deleteFile(context, rec.outputPath)
         db.recordingDao().updatePathDurationAndStatus(rec.id, finalTarget, trimmedDurationMs, "DONE")
-        // The trim moved every moment 20 s earlier: old break times would be wrong. Re-analyze the
-        // new file (replacing any analysis of the old one still running).
-        com.iptvapp.util.AdBreakDetector.forget(context, rec.id)
+        // The trim moved every moment 20 s earlier. Suggestions for the old file are dropped.
+        // Confirmed and rejected markers shift with the cut and keep the user's decision.
+        val stamp = CommercialStore.stamp(context, finalTarget)
+        val now = System.currentTimeMillis()
+        val shifted = CommercialStore.load(context, rec.id).mapNotNull { seg ->
+            if (seg.origin == CommercialMarkers.Origin.AUTOMATIC && seg.review == CommercialMarkers.Review.SUGGESTED) {
+                null
+            } else {
+                val span = CommercialMarkers.checked(
+                    (seg.startMs - PRE_ROLL_MS).coerceAtLeast(0L),
+                    seg.endMs - PRE_ROLL_MS,
+                    trimmedDurationMs
+                )
+                if (span == null) null
+                else seg.copy(
+                    startMs = span.first,
+                    endMs = span.second,
+                    fileSize = stamp.size,
+                    fileModifiedMs = stamp.modifiedMs,
+                    updatedAtMs = now
+                )
+            }
+        }
+        CommercialStore.save(context, rec.id, shifted)
+        // The new file has not been analyzed. A matching size here would make the worker skip it.
+        val previousNote = CommercialStore.note(context, rec.id)
+        val pending = if (shifted.any { it.review == CommercialMarkers.Review.CONFIRMED }) {
+            CommercialStore.FOUND
+        } else {
+            ""
+        }
+        CommercialStore.putNote(
+            context,
+            rec.id,
+            CommercialStore.AnalysisNote(pending, 0L, 0L, previousNote?.skipOverride, 0L, false, System.currentTimeMillis())
+        )
+        // Not an Analyze request. On-demand stays idle. Automatic mode waits until the device is charging.
         com.iptvapp.worker.AdBreakWorker.enqueue(
-            context, rec.id, com.iptvapp.worker.AdBreakWorker.uriForPath(finalTarget), replace = true
+            context, rec.id, com.iptvapp.worker.AdBreakWorker.uriForPath(finalTarget),
+            replace = true, force = false
         )
         return true
     }

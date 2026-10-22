@@ -7,29 +7,18 @@ import android.media.MediaFormat
 import android.net.Uri
 import kotlin.coroutines.cancellation.CancellationException
 import java.nio.ByteOrder
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
- * Ad skip (v7.15): finds commercial breaks in a finished recording from its sound alone.
- *
- * Broadcasters drop to a moment of silence between commercials, and commercials run 15, 30, 45 or
- * 60 seconds (sometimes 10 or 20, or 90 / 120 for promos). So the method — the same idea the
- * well-known comskip tool uses — is: decode the audio, find the short silences, and call a break
- * any run of 3+ silences spaced at those lengths (a minute or more in all). Shows have silences
- * too, but not on that rhythm. It guesses: some channels don't leave clean silences, and then
- * nothing is found (which just means no Skip button).
- *
- * Breaks are kept per recording id in SharedPreferences "recording_breaks" as "start-end,…" ms.
+ * Reads a finished recording's audio and reports silence-rhythm breaks.
+ * The decision of which silences form a break lives in [CommercialMarkers].
+ * Results are suggestions. This object still reads the older preference once,
+ * so a recording analyzed before markers moved to the database is not lost.
  */
 object AdBreakDetector {
 
     private const val PREFS = "recording_breaks"
     private const val WINDOW_MS = 100L
-    // Spacings (seconds) between silences inside a break, with this much slack either way.
-    private val AD_LENGTHS = listOf(10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0)
-    private const val SLACK_S = 1.6
-    private const val MIN_BREAK_MS = 60_000L
 
     fun breaksFor(context: Context, recordingId: Int): List<LongRange> =
         (context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(recordingId.toString(), "") ?: "")
@@ -59,8 +48,8 @@ object AdBreakDetector {
     fun detect(context: Context, uri: Uri, isStopped: () -> Boolean = { false }): List<LongRange>? {
         val levels = audioLevels(context, uri, isStopped) ?: return null
         if (levels.size < 600) return emptyList()   // under a minute of audio
-        val silences = silenceTimes(levels)
-        return breaksFrom(silences)
+        return CommercialMarkers.breaksFromSilences(CommercialMarkers.silenceMarks(levels, WINDOW_MS))
+            .map { (start, end) -> start until end }
     }
 
     /** RMS level (0..32768) of each 100 ms of the playback timeline, all channels mixed. Windows
@@ -163,50 +152,4 @@ object AdBreakDetector {
         }
     }
 
-    /** Middle of each silence (ms): 200 ms or more well below the recording's normal level. */
-    private fun silenceTimes(levels: FloatArray): List<Long> {
-        val sorted = levels.filter { !it.isNaN() }.sorted()
-        if (sorted.isEmpty()) return emptyList()
-        val median = sorted[sorted.size / 2]
-        // Digital silence between ads sits far below programme audio; cap it so a quiet show
-        // doesn't turn its whole soundtrack into "silence".
-        val threshold = minOf(400f, maxOf(30f, median * 0.06f))
-        val out = mutableListOf<Long>()
-        var runStart = -1
-        for (i in levels.indices) {
-            // A gap in the recording (NaN) is not a silence.
-            val quiet = !levels[i].isNaN() && abs(levels[i]) < threshold
-            if (quiet && runStart < 0) runStart = i
-            if ((!quiet || i == levels.lastIndex) && runStart >= 0) {
-                val runEnd = if (quiet) i else i - 1
-                if (runEnd - runStart + 1 >= 2) out += ((runStart + runEnd) / 2L) * WINDOW_MS + WINDOW_MS / 2
-                runStart = -1
-            }
-        }
-        return out
-    }
-
-    private fun isAdSpacing(ms: Long): Boolean {
-        val s = ms / 1000.0
-        return AD_LENGTHS.any { abs(s - it) <= SLACK_S }
-    }
-
-    /** Runs of silences on the ad rhythm, a minute or longer; nearby runs merged. */
-    private fun breaksFrom(silences: List<Long>): List<LongRange> {
-        val runs = mutableListOf<LongRange>()
-        var i = 0
-        while (i < silences.size) {
-            var j = i
-            while (j + 1 < silences.size && isAdSpacing(silences[j + 1] - silences[j])) j++
-            if (j - i >= 2 && silences[j] - silences[i] >= MIN_BREAK_MS) runs += silences[i] until silences[j]
-            i = if (j > i) j else i + 1
-        }
-        val merged = mutableListOf<LongRange>()
-        for (r in runs) {
-            val last = merged.lastOrNull()
-            if (last != null && r.first - last.last <= 20_000L) merged[merged.lastIndex] = last.first until r.last + 1
-            else merged += r
-        }
-        return merged
-    }
 }
