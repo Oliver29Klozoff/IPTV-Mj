@@ -1,7 +1,7 @@
 {
-  "versionCode": 603,
-  "versionName": "7.65",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.65/MKTV.apk",
-  "apkSha256": "bfeb98b9bb60abbe28a52e5b2bccb215c3a4dbd7f7eabfa73d3946e53d848394",
-  "changelog": "Send to TV / phone fixes: pairing again, the sender staying paused, accented titles."
+  "versionCode": 604,
+  "versionName": "7.66",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.66/MKTV.apk",
+  "apkSha256": "002bbfcf19d8fbb1e31faec1f6ce7c489faf885f0ba65dbfd0bfc8fdb0c5d012",
+  "changelog": "Send to TV / phone: the device you sent from reliably stays paused."
 }

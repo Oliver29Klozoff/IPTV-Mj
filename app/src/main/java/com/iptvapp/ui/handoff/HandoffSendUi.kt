@@ -25,6 +25,8 @@ interface HandoffSource : SourcePlayback {
     fun unsupportedReason(): String?
     /** The descriptor for [peer] (its provider tag is keyed to that pairing); null if it can't be made. */
     suspend fun descriptor(peer: Peer, txId: String): Descriptor?
+    /** What this player plays, as a key that outlives the screen (Handoff.markHandedOff). */
+    fun handoffKey(): String
 }
 
 /**
@@ -113,7 +115,20 @@ object HandoffSendUi {
                 val p = activePeer
                 val tx = activeTx
                 if (p != null && tx != null && sender.state != OutState.TRANSFERRED) {
-                    Handoff.runAsync { Handoff.client(app).send(p, "cancel", org.json.JSONObject().put("t", "cancel").put("tx", tx)) }
+                    val key = source.handoffKey()
+                    Handoff.runAsync {
+                        val client = Handoff.client(app)
+                        val reply = client.send(p, "cancel", org.json.JSONObject().put("t", "cancel").put("tx", tx))
+                        // Too late: the other device already plays it. Then it moved: the screen
+                        // that replaces this one (recreated) must start paused, and the receiver
+                        // hears the transfer is complete.
+                        when (reply?.optString("state")) {
+                            "playing", "completed" -> {
+                                Handoff.markHandedOff(key)
+                                client.send(p, "complete", org.json.JSONObject().put("t", "complete").put("tx", tx))
+                            }
+                        }
+                    }
                 }
                 throw e
             } finally {
