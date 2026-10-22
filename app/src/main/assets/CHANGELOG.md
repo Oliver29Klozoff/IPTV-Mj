@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.66 - 2026-10-22
+- **Fixed**: Send to TV / phone: the device you sent from stays paused even if Android rebuilds its player
+  at that moment (and an Up Next countdown there is stopped), so the two devices never both play.
+
 ## v7.65 - 2026-10-21
 - **Fixed**: Send to TV / phone after pairing a phone with the same TV again.
 - **Fixed**: The device you sent from no longer starts playing again by itself (live channels with
