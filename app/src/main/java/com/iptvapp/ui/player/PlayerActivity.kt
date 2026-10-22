@@ -2509,7 +2509,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             if (unsupportedReason() != null) return null
             val p = player ?: return null
             val d = com.iptvapp.handoff.Handoff.deps(this@PlayerActivity)
-            val providers = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences()).providers()
+            val catalog = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences())
+            val providers = catalog.providers()
             // An episode's provider comes with it as sync_server_index (series screens don't set server_index).
             val slot = if (isVod && episodeSyncId != null) episodeSyncServer else serverIndex
             val provider = providers.firstOrNull { it.serverIndex == slot } ?: return null
@@ -2528,6 +2529,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 else -> com.iptvapp.handoff.ContentKind.MOVIE
             }
             val live = kind == com.iptvapp.handoff.ContentKind.LIVE
+            // The catalog's own name, not the player's title (which may carry " · provider nickname").
+            val catalogName = when (kind) {
+                com.iptvapp.handoff.ContentKind.LIVE -> catalog.channel(slot, liveCopyId())?.name
+                com.iptvapp.handoff.ContentKind.MOVIE -> catalog.movie(slot, liveCopyId())?.title
+                else -> null
+            }
             val episodeTitle = streamTitle.replace(Regex("^S\\d+E\\d+\\s*"), "")
             val desc = com.iptvapp.handoff.Descriptor(
                 txId = txId,
@@ -2535,7 +2542,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 providerTag = tag,
                 providerLabel = safe(provider.label, 40),
                 streamId = if (kind == com.iptvapp.handoff.ContentKind.EPISODE) -1 else liveCopyId(),
-                title = safe(if (kind == com.iptvapp.handoff.ContentKind.EPISODE) episodeTitle.ifBlank { streamTitle } else streamTitle, 200)
+                title = safe(if (kind == com.iptvapp.handoff.ContentKind.EPISODE) episodeTitle.ifBlank { streamTitle } else catalogName ?: streamTitle, 200)
                     .ifBlank { if (live) "Live channel" else "Video" },
                 year = com.iptvapp.handoff.AppHandoffCatalog.yearOf(streamTitle),
                 containerExt = if (kind == com.iptvapp.handoff.ContentKind.EPISODE) epExts.getOrNull(epIndex)?.lowercase()?.takeIf { it.matches(Regex("[a-z0-9]{1,6}")) }
