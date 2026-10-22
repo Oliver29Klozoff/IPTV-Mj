@@ -79,6 +79,9 @@ interface ChannelDao {
     fun searchChannels(query: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE streamId = :streamId")
     suspend fun getChannelById(streamId: Int): ChannelEntity?
+    // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
+    @Query("SELECT * FROM channels WHERE name LIKE :pattern AND isHidden = 0 LIMIT 200")
+    suspend fun findByNameLike(pattern: String): List<ChannelEntity>
     @Query("SELECT * FROM channels WHERE streamId IN (:ids)")
     suspend fun getChannelsByIds(ids: List<Int>): List<ChannelEntity>
     @Upsert
@@ -212,6 +215,9 @@ interface VodDao {
     // current isFavorite state to render/toggle correctly, not a live-updating Flow.
     @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getVodByStreamId(streamId: Int): VodEntity?
+    // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
+    @Query("SELECT * FROM vod_streams WHERE name LIKE :pattern LIMIT 200")
+    suspend fun findByNameLike(pattern: String): List<VodEntity>
     // See ChannelDao.searchChannels kdoc for the FTS4-vs-LIKE rationale and the prefix-vs-
     // substring matching tradeoff (caller appends '*' for prefix-as-you-type).
     @Query("""
@@ -323,6 +329,9 @@ interface SeriesDao {
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
     @Query("SELECT * FROM series WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getSeriesById(seriesId: Int): SeriesEntity?
+    // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
+    @Query("SELECT * FROM series WHERE name LIKE :pattern AND isHidden = 0 LIMIT 200")
+    suspend fun findByNameLike(pattern: String): List<SeriesEntity>
     // See ChannelDao.searchChannels kdoc for the FTS4-vs-LIKE rationale and the prefix-vs-
     // substring matching tradeoff (caller appends '*' for prefix-as-you-type).
     @Query("""
@@ -826,6 +835,9 @@ interface MergedChannelDao {
     // channel's current URL/name without pulling the whole table.
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedChannelEntity?
+    // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND name LIKE :pattern AND isHidden = 0 LIMIT 200")
+    suspend fun findByNameLike(serverIndex: Int, pattern: String): List<MergedChannelEntity>
 
     // A reminder only stored the numeric id. The same id can exist on more than one provider,
     // so callers still prefer a known serverIndex when they have one.
@@ -925,6 +937,9 @@ interface MergedVodDao {
 
     @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND streamId = :streamId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity?
+    // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
+    @Query("SELECT * FROM merged_vod WHERE serverIndex = :serverIndex AND name LIKE :pattern AND isHidden = 0 LIMIT 200")
+    suspend fun findByNameLike(serverIndex: Int, pattern: String): List<MergedVodEntity>
 
     @Query("""
         SELECT merged_vod.* FROM merged_vod
@@ -1014,6 +1029,9 @@ interface MergedSeriesDao {
 
     @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND seriesId = :seriesId LIMIT 1")
     suspend fun getByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity?
+    // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
+    @Query("SELECT * FROM merged_series WHERE serverIndex = :serverIndex AND name LIKE :pattern AND isHidden = 0 LIMIT 200")
+    suspend fun findByNameLike(serverIndex: Int, pattern: String): List<MergedSeriesEntity>
 
     @Query("""
         SELECT merged_series.* FROM merged_series

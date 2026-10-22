@@ -40,12 +40,17 @@ class AppHandoffCatalog(
         if (serverIndex == -1) db.vodDao().getVodByStreamId(streamId)?.let { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
         else db.mergedVodDao().getByIndexAndId(serverIndex, streamId)?.let { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
 
-    override suspend fun moviesNamed(serverIndex: Int, title: String): List<MovieItem> =
-        ftsQueries(title).flatMap { q ->
+    override suspend fun moviesNamed(serverIndex: Int, title: String): List<MovieItem> {
+        val found = ftsQueries(title).flatMap { q ->
             if (serverIndex == -1) db.vodDao().searchVod(q).first().map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
             else db.mergedVodDao().search(q).first().filter { it.serverIndex == serverIndex }
                 .map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
         }.distinctBy { it.streamId }
+        if (found.isNotEmpty()) return found
+        val like = likePattern(title) ?: return emptyList()
+        return if (serverIndex == -1) db.vodDao().findByNameLike(like).map { MovieItem(-1, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+        else db.mergedVodDao().findByNameLike(serverIndex, like).map { MovieItem(serverIndex, it.streamId, it.name, yearOf(it.name), it.containerExtension) }
+    }
 
     override suspend fun channel(serverIndex: Int, streamId: Int): ChannelItem? =
         if (serverIndex == -1) db.channelDao().getChannelById(streamId)?.let { ChannelItem(-1, it.streamId, it.name) }
@@ -54,21 +59,30 @@ class AppHandoffCatalog(
     override suspend fun channelsNamed(serverIndex: Int, name: String): List<ChannelItem> {
         // Without the provider's prefix and quality marks (as channelNorm compares them), in both spellings.
         val core = name.replace(Regex("^\\s*[A-Za-z]{2,3}\\s*[|:\\-]\\s*"), "")
-        return ftsQueries(core, dropQuality = true).flatMap { q ->
+        val found = ftsQueries(core, dropQuality = true).flatMap { q ->
             if (serverIndex == -1) db.channelDao().searchChannels(q).first().map { ChannelItem(-1, it.streamId, it.name) }
             else db.mergedChannelDao().searchOn(q, listOf(serverIndex), 200).map { ChannelItem(serverIndex, it.streamId, it.name) }
         }.distinctBy { it.streamId }
+        if (found.isNotEmpty()) return found
+        val like = likePattern(core) ?: return emptyList()
+        return if (serverIndex == -1) db.channelDao().findByNameLike(like).map { ChannelItem(-1, it.streamId, it.name) }
+        else db.mergedChannelDao().findByNameLike(serverIndex, like).map { ChannelItem(serverIndex, it.streamId, it.name) }
     }
 
     override suspend fun series(serverIndex: Int, seriesId: Int): SeriesItem? =
         if (serverIndex == -1) db.seriesDao().getSeriesById(seriesId)?.let { SeriesItem(-1, it.seriesId, it.name) }
         else db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)?.let { SeriesItem(serverIndex, it.seriesId, it.name) }
 
-    override suspend fun seriesNamed(serverIndex: Int, title: String): List<SeriesItem> =
-        ftsQueries(title).flatMap { q ->
+    override suspend fun seriesNamed(serverIndex: Int, title: String): List<SeriesItem> {
+        val found = ftsQueries(title).flatMap { q ->
             if (serverIndex == -1) db.seriesDao().searchSeries(q).first().map { SeriesItem(-1, it.seriesId, it.name) }
             else db.mergedSeriesDao().search(q).first().filter { it.serverIndex == serverIndex }.map { SeriesItem(serverIndex, it.seriesId, it.name) }
         }.distinctBy { it.seriesId }
+        if (found.isNotEmpty()) return found
+        val like = likePattern(title) ?: return emptyList()
+        return if (serverIndex == -1) db.seriesDao().findByNameLike(like).map { SeriesItem(-1, it.seriesId, it.name) }
+        else db.mergedSeriesDao().findByNameLike(serverIndex, like).map { SeriesItem(serverIndex, it.seriesId, it.name) }
+    }
 
     override suspend fun episodes(serverIndex: Int, seriesId: Int): List<EpisodeItem>? {
         val info = try {
@@ -104,6 +118,20 @@ class AppHandoffCatalog(
             val folded = words(ContentMatcher.norm(title).split(' '))
             return listOf(asWritten, folded).filter { it.isNotEmpty() }.map { ws -> ws.joinToString(" ") { "$it*" } }.distinct()
         }
+
+        /**
+         * A LIKE pattern for the title's longest folded word in which every letter that could carry
+         * an accent is a one-character wildcard: "Amelie" → "%am_l__%", which finds "Amélie" (the FTS
+         * index keeps accents). Only letters and digits reach it, so no LIKE syntax comes from a title.
+         * The matcher still compares normalized titles. Null when no word has 3+ characters.
+         */
+        fun likePattern(title: String): String? {
+            val word = ContentMatcher.norm(title).split(' ').filter { it.length >= 3 && it.all { c -> c in 'a'..'z' || c in '0'..'9' } }
+                .maxByOrNull { it.length } ?: return null
+            return "%" + word.map { c -> if (c in ACCENTABLE) '_' else c }.joinToString("") + "%"
+        }
+
+        private const val ACCENTABLE = "aceinouyszg"
 
         private val QUALITY_WORDS = setOf("hd", "fhd", "uhd", "sd", "4k", "8k", "raw", "60fps", "50fps", "hevc", "h265")
     }

@@ -98,11 +98,13 @@ object Handoff {
     /** Secrets a message naming [fromId] may be sealed with: that peer's, or (an unknown id) every unclaimed one. */
     private fun secretsFor(context: Context, fromId: String): List<String> {
         val reg = registry(context)
-        reg.byId(fromId)?.let { return listOf(it.secret) }
         val claimed = reg.all().filter { it.deviceId.isNotEmpty() }.map { it.secret }.toSet()
         val unclaimed = reg.all().filter { it.deviceId.isEmpty() }.map { it.secret }.toMutableSet()
         if (isTv(context)) unclaimed += RemoteControlServer.pairedTokens(context)
-        return unclaimed.filterNot { it in claimed }
+        // A known device first; then secrets no device has claimed yet, which is how a device that
+        // paired again (a new secret, same id) reaches its hello. Only a hello may use such a secret
+        // for a known id (answer() checks), and it then replaces the old one.
+        return listOfNotNull(reg.byId(fromId)?.secret) + unclaimed.filterNot { it in claimed }
     }
 
     /** Forget [peer] here, tell it to forget this device (best effort), and stop its remote token. */
@@ -164,6 +166,8 @@ object Handoff {
             val h = HandoffProtocol.decodeHello(m)
             if (h.deviceId != opened.fromId) throw HandoffRejected("id")
             val old = reg.byId(h.deviceId) ?: reg.bySecret(opened.secret)
+            // Paired again: the previous pairing's secret is retired everywhere.
+            if (old != null && !HandoffCrypto.constantTimeEquals(old.secret, opened.secret)) dropLegacyPairing(c, old.secret)
             reg.upsert(
                 Peer(
                     deviceId = h.deviceId, name = h.name, type = h.type, secret = opened.secret,

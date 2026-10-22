@@ -117,6 +117,20 @@ class HandoffFlowTest {
         assertTrue(AppHandoffCatalog.ftsQueries("!!!").isEmpty())
     }
 
+    @Test fun anAccentTolerantFallbackFindsTheAccentedTitle() {
+        val like = AppHandoffCatalog.likePattern("Amelie")!!
+        assertEquals("%_m_l__%", like)
+        // As SQLite LIKE matches it: "_" is any one character (é included), "%" any run.
+        val asRegex = Regex(like.replace("%", ".*").replace("_", "."), RegexOption.IGNORE_CASE)
+        assertTrue(asRegex.matches("Amélie (2001)"))
+        assertTrue(ContentMatcher.norm("Amélie") == ContentMatcher.norm("Amelie"))
+        // Nothing but letters and digits ever reaches the pattern.
+        assertEquals("%h__t%", AppHandoffCatalog.likePattern("Heat%_x"))
+        assertNull(AppHandoffCatalog.likePattern("he%_at"))
+        assertEquals("%l_k_%", AppHandoffCatalog.likePattern("x% _'like'"))
+        assertNull(AppHandoffCatalog.likePattern("!!"))
+    }
+
     @Test fun titlesInOtherScriptsStayDistinct() {
         assertEquals("кино один", ContentMatcher.norm("Кино Один"))
         assertFalse(ContentMatcher.norm("Кино Один") == ContentMatcher.norm("Кино Два"))
