@@ -96,6 +96,27 @@ class CommercialMarkersTest {
     }
 
     @Test
+    fun aDecisionFromThePreviousFileDoesNotHideANewSuggestion() {
+        val previous = manual(100_000L, 200_000L, otherFile)
+        val rejected = CommercialMarkers.reject(suggested(400_000L, 480_000L, otherFile), 2L)
+        val retimed = suggested(300_000L, 380_000L, otherFile).copy(origin = CommercialMarkers.Origin.MANUAL)
+        val again = suggested(100_000L, 200_000L)
+        val rejectedAgain = suggested(400_000L, 480_000L)
+        val sameRetimedRange = suggested(300_000L, 380_000L)
+        val merged = CommercialMarkers.applyAnalysis(
+            listOf(previous, rejected, retimed),
+            listOf(again, rejectedAgain, sameRetimedRange),
+            stamp
+        )
+        assertTrue(merged.contains(previous))
+        assertTrue(merged.contains(rejected))
+        assertTrue(merged.contains(retimed))
+        assertTrue(merged.any { it.fileSize == stamp.size && it.startMs == 100_000L && it.review == CommercialMarkers.Review.SUGGESTED })
+        assertTrue(merged.any { it.fileSize == stamp.size && it.startMs == 400_000L && it.review == CommercialMarkers.Review.SUGGESTED })
+        assertTrue(merged.any { it.fileSize == stamp.size && it.startMs == 300_000L && it.origin == CommercialMarkers.Origin.AUTOMATIC })
+    }
+
+    @Test
     fun aRetimedSuggestionSurvivesTheNextAnalysis() {
         val edited = suggested(12_000L, 90_000L).copy(origin = CommercialMarkers.Origin.MANUAL)
         val again = suggested(10_000L, 80_000L)

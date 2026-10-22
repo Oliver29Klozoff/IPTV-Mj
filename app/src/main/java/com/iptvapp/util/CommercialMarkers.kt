@@ -168,7 +168,10 @@ object CommercialMarkers {
     /**
      * New suggestions replace only untouched automatic suggestions. Confirmed, rejected,
      * and manual rows stay, including a suggestion whose boundary the viewer moved.
-     * A new suggestion that repeats one of those breaks is dropped.
+     * A new suggestion that repeats one of those breaks is dropped only when that
+     * decision names this same file. A marker from an older copy stays stored, and
+     * playback already hides it, but it must not hide a break found in the file
+     * being analyzed.
      */
     fun applyAnalysis(existing: List<Segment>, suggestions: List<Segment>, stamp: FileStamp): List<Segment> {
         val kept = existing.filter { it.review != Review.SUGGESTED || it.origin == Origin.MANUAL }
@@ -178,10 +181,15 @@ object CommercialMarkers {
                 it.copy(fileSize = stamp.size, fileModifiedMs = stamp.modifiedMs, analysisVersion = ANALYSIS_VERSION)
             }
             .filter { suggestion ->
-                kept.none { sameBreak(it, suggestion) && (it.origin == Origin.MANUAL || it.review != Review.SUGGESTED) }
+                kept.none { sameFile(it, stamp) && sameBreak(it, suggestion) }
             }
-        return (kept + fresh).distinctBy { it.key() + it.review.name }.sortedBy { it.startMs }
+        return (kept + fresh)
+            .distinctBy { "${it.key()}-${it.review.name}-${it.fileSize}-${it.fileModifiedMs}" }
+            .sortedBy { it.startMs }
     }
+
+    private fun sameFile(segment: Segment, stamp: FileStamp): Boolean =
+        segment.fileSize == stamp.size && segment.fileModifiedMs == stamp.modifiedMs
 
     /**
      * Applies one editor change to the rows stored now. [before] and [after] are the dialog's
