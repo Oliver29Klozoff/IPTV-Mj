@@ -772,6 +772,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun showUpNextCard(nextTitle: String, onAdvance: () -> Unit) {
+        // Playback moved to another device: no countdown starts the next episode here.
+        if (pausedByHandoff) return
         binding.tvUpNextTitle.text = nextTitle
         binding.upNextCard.visibility = View.VISIBLE
 
@@ -2573,6 +2575,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         override fun isPlaying(): Boolean = player?.isPlaying == true
         override fun pauseForHandoff() {
             pausedByHandoff = true
+            // An Up Next countdown already running would start the next episode here: stopped too.
+            upNextJob?.cancel()
+            upNextJob = null
+            binding.upNextCard.visibility = View.GONE
             // Through the timeshift helper, so a live buffer still starting stays paused too.
             requestTimeshiftPlayback(false)
             updatePlayPauseButton()
