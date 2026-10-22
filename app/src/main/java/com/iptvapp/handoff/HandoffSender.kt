@@ -118,7 +118,12 @@ class HandoffSender(
 
     private suspend fun finish(peer: Peer, d: Descriptor, end: OutState, message: String): OutState {
         // Tell the receiver, so a prompt or a player still starting goes away. Best effort.
-        transport.send(peer, "cancel", JSONObject().put("t", "cancel").put("tx", d.txId))
+        val reply = transport.send(peer, "cancel", JSONObject().put("t", "cancel").put("tx", d.txId))
+        // Too late to cancel: the other device already plays it. Then it moved, and this side pauses,
+        // rather than both playing on.
+        when (reply?.optString("state")) {
+            "playing", "completed" -> return finishFromReply(peer, d, OutState.TRANSFERRED to "Playback transferred")
+        }
         return set(end, message)
     }
 

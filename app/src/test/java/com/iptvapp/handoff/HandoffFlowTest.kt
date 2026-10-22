@@ -391,7 +391,9 @@ class HandoffFlowTest {
         val sent = mutableListOf<JSONObject>()
         override suspend fun send(peer: Peer, type: String, message: JSONObject): JSONObject? {
             sent += message
-            if (type == "complete" || type == "cancel") return JSONObject().put("state", "completed")
+            // As a real receiver answers: a cancel before anything plays is "cancelled".
+            if (type == "complete") return JSONObject().put("state", "completed")
+            if (type == "cancel") return JSONObject().put("state", "cancelled")
             val next = if (queue.isEmpty()) null else queue.removeFirst()
             return next?.let { JSONObject().put("state", it).put("reason", "") }
         }
@@ -463,6 +465,21 @@ class HandoffFlowTest {
         assertEquals(OutState.CANCELLED, result.await())
         assertEquals(0, playback.pauses)
         assertEquals("cancel", transport.sent.last().getString("t"))
+    }
+
+    @Test fun aCancelThatArrivesAfterTheReceiverPlaysEndsTransferred() = runTest {
+        val rx = HandoffReceiver(ContentMatcher(catalog()), FakeUi(), { false })
+        val playback = FakePlayback()
+        val sender = HandoffSender(LoopbackTransport(rx, Fx.phonePeer()), playback, { _, _ -> }, now = { testScheduler.currentTime })
+        val result = async { sender.run(Fx.tvPeer(), Fx.movie()) }
+        runCurrent()
+        rx.accept(Fx.movie().txId)
+        // The receiver starts playing, and the person presses Cancel before the next poll.
+        rx.onPlaying(Fx.movie().txId)
+        sender.cancel()
+        assertEquals(OutState.TRANSFERRED, result.await())
+        assertEquals(1, playback.pauses)
+        assertEquals(InState.COMPLETED, rx.get(Fx.movie().txId)!!.state)
     }
 
     @Test fun liveSendsNoPosition() = runTest {
