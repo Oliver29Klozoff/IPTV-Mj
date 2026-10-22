@@ -7176,6 +7176,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStart() {
         super.onStart()
+        // Back to a handoff player whose transfer ended meanwhile (put away before it was confirmed,
+        // cancelled, timed out): the sender kept playing, so this one closes instead of restarting.
+        handoffTx?.let { tx ->
+            val state = com.iptvapp.handoff.Handoff.receiver(this).get(tx)?.state
+            if (state != com.iptvapp.handoff.InState.PREPARING && state != com.iptvapp.handoff.InState.PLAYING && state != com.iptvapp.handoff.InState.COMPLETED) {
+                handoffReported = true
+                finish()
+                return
+            }
+        }
         if (player == null) {
             if (audioOnly) {
                 // Still playing in the background: stay on the audio panel. If it was stopped from
