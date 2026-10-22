@@ -7244,6 +7244,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStop() {
         super.onStop()
+        // A handoff player put away before its sender confirmed: the player is released here, so
+        // the sender must hear it isn't playing (it keeps playing itself).
+        handoffTx?.let { com.iptvapp.handoff.Handoff.receiver(this).onPlayerClosed(it) }
         if (::quickPeek.isInitialized) quickPeek.stop()
         // Out of sight: no place is being chosen, and no picture is being made for a player that's gone.
         cancelSeekPreview()

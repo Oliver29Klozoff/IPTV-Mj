@@ -222,6 +222,13 @@ class HandoffReceiver(
         if (inc.state == InState.PLAYING || inc.state == InState.PREPARING) fail(inc, "Playback was closed on the other device")
     }
 
+    /** The catalog check for [txId] was given up (took too long): over, so the next offer isn't busy. */
+    @Synchronized
+    fun abandonResolving(txId: String, why: String) {
+        val inc = recent[txId] ?: return
+        if (inc.state == InState.RESOLVING) fail(inc, why)
+    }
+
     /** The player opened for [txId] couldn't play it. */
     @Synchronized
     fun onPlayerFailed(txId: String, why: String) {

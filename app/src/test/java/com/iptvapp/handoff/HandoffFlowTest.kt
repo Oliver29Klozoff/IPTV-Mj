@@ -2,6 +2,7 @@ package com.iptvapp.handoff
 
 import android.app.Application
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -359,6 +360,21 @@ class HandoffFlowTest {
         assertEquals("cancelled", offer.await().getString("state"))
         assertTrue(ui.presented.isEmpty())
         assertNull(rx.current())
+    }
+
+    @Test fun anAbandonedCatalogCheckFreesTheReceiver() = runTest {
+        val never = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slow = object : HandoffCatalog by catalog() {
+            override suspend fun movie(serverIndex: Int, streamId: Int): MovieItem? { never.await(); return null }
+        }
+        val rx = HandoffReceiver(ContentMatcher(slow), FakeUi(), { false })
+        val offer = launch { rx.offer(Fx.phonePeer(), Fx.movie()) }
+        runCurrent()
+        rx.abandonResolving(Fx.movie().txId, "too slow")
+        offer.cancel()
+        assertEquals("failed", rx.status(Fx.phonePeer(), Fx.movie().txId, null).getString("state"))
+        assertNull(rx.current())
+        assertEquals("awaiting", rx.offer(Fx.phonePeer(), Fx.live()).getString("state"))
     }
 
     @Test fun anAmbiguousMatchNeedsAChoice() = runTest {

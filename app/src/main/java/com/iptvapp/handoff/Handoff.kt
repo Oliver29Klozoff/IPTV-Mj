@@ -191,7 +191,11 @@ object Handoff {
                 if (HandoffProtocol.txOf(m) != d.txId) throw HandoffRejected("tx")
                 // Catalog lookups (and maybe the provider's series list): bounded.
                 val r = runBlocking { withTimeoutOrNull(12_000L) { rx.offer(peer, d) } }
-                    ?: JSONObject().put("state", "failed").put("reason", "This device took too long to check its catalog")
+                    ?: run {
+                        val why = "This device took too long to check its catalog"
+                        rx.abandonResolving(d.txId, why)
+                        JSONObject().put("state", "failed").put("reason", why)
+                    }
                 startSweeper(c)
                 r
             }
