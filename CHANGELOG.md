@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.70 - 2026-10-23
+- **New**: Multi-View opens in a standard 1×2 layout, with two equal side-by-side channels. Four tiles remain available on capable devices.
+- **New**: Choose a primary-provider channel in one tile and a secondary-provider channel in another. Saved layouts retain provider/channel pairs, tile arrangement, selection, and mute state.
+- **Improved**: Independent tile recovery with bounded retries, approved Smart Channel backups, cancellation of stale requests, and exclusive audio.
+- **Improved**: Provider connection checks, conservative decoder/memory limits, and lifecycle cleanup. Swap or enlarge tiles using touch or remote controls.
+- **Validation**: 719 unit tests and debug/release builds passed for the core implementation; the 1×2 follow-up passed a debug build. Physical-device playback and resource measurements remain pending. The automated Codex reviewer was unavailable because its configured model was rejected by CLI authentication.
+
 ## v7.69 - 2026-10-23
 - **New**: Turbo Tune in Settings: Off, Automatic (recommended), and Performance.
 - **Improved**: Immediate channel feedback and safer rapid channel surfing, with late channel and Recall requests cancelled before they can reopen an old stream.

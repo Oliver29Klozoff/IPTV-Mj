@@ -1,7 +1,7 @@
 {
-  "versionCode": 607,
-  "versionName": "7.69",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.69/MKTV.apk",
-  "apkSha256": "34d08e229c311eeb353bbbcc21b8e3a29f7cb2873eff53b648c9d80dd2c42eca",
-  "changelog": "Turbo Tune: faster startup settings, responsive channel surfing, and guarded neighbor preparation. Device speed improvements remain unmeasured."
+  "versionCode": 608,
+  "versionName": "7.70",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.70/MKTV.apk",
+  "apkSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "changelog": "Multi-View: standard 1×2 layout, independent primary/secondary provider channels, saved layouts, exclusive audio, and bounded tile recovery. Device performance measurements remain pending."
 }
