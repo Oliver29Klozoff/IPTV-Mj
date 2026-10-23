@@ -2,6 +2,6 @@
   "versionCode": 608,
   "versionName": "7.70",
   "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.70/MKTV.apk",
-  "apkSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "apkSha256": "dc16869950efda12cd2fddd3ee285e2326c4c705330bf1c19d907b6f74e6643a",
   "changelog": "Multi-View: standard 1×2 layout, independent primary/secondary provider channels, saved layouts, exclusive audio, and bounded tile recovery. Device performance measurements remain pending."
 }
