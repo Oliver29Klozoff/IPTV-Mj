@@ -38,6 +38,7 @@ class MultiViewActivity : AppCompatActivity() {
 
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
+    @Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
 
     private var leftPlayer: ExoPlayer? = null
     private var rightPlayer: ExoPlayer? = null
@@ -50,10 +51,16 @@ class MultiViewActivity : AppCompatActivity() {
     private var activeSide = 0   // 0 = left, 1 = right
     private var audioSide = 0    // 0 = left has audio, 1 = right
 
-    private var allChannels = listOf<ChannelEntity>()
-    private var filteredChannels = listOf<ChannelEntity>()
+    private data class Choice(val server: Int, val streamId: Int, val name: String, val provider: String = "Primary") {
+        val label get() = "$name · $provider"
+    }
+    private val selections = arrayOfNulls<Choice>(2)
+    private val connections by lazy { com.iptvapp.ui.mosaic.MultiViewConnections(repository) }
+    private var allChannels = listOf<Choice>()
+    private var filteredChannels = listOf<Choice>()
     private lateinit var pickerAdapter: PickerAdapter
     private var channelPickerVisible = false
+    private var searchJob: kotlinx.coroutines.Job? = null
 
     private val controlsHandler = Handler(Looper.getMainLooper())
     private val hideControls = Runnable { binding.controlsBar.visibility = View.GONE }
@@ -70,6 +77,11 @@ class MultiViewActivity : AppCompatActivity() {
         binding = ActivityMultiViewBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        if (com.iptvapp.ui.mosaic.MultiViewPolicy.deviceLimit(this) < 2) {
+            startActivity(android.content.Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
+            finish()
+            return
+        }
         setupPlayers()
         setupChannelPicker()
         setupButtons()
@@ -87,11 +99,12 @@ class MultiViewActivity : AppCompatActivity() {
         // white" on every tap-triggered channel switch.
         binding.playerLeft.setShutterBackgroundColor(Color.BLACK)
         binding.playerRight.setShutterBackgroundColor(Color.BLACK)
-        leftPlayer = ExoPlayer.Builder(this).build().also { binding.playerLeft.player = it }
-        rightPlayer = ExoPlayer.Builder(this).build().also {
+        leftPlayer = newPlayer().also { binding.playerLeft.player = it }
+        rightPlayer = newPlayer().also {
             binding.playerRight.player = it
             it.volume = 0f
         }
+        leftPlayer?.volume = 1f
         leftPlayer?.addListener(bufferListener(binding.progressLeft))
         rightPlayer?.addListener(bufferListener(binding.progressRight))
         leftHealer = leftPlayer?.let { healerFor(it, "left") { s -> showSideStatus(0, s) } }
@@ -100,6 +113,17 @@ class MultiViewActivity : AppCompatActivity() {
         binding.root.post { updateActiveSideUI() } // wait for a layout pass so parent width/height are known
     }
 
+    private fun newPlayer(): ExoPlayer {
+        val selector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+            setParameters(buildUponParameters().setMaxVideoSize(1920, 1080)
+                .setMaxVideoBitrate(8_000_000).setExceedVideoConstraintsIfNecessary(false))
+        }
+        return ExoPlayer.Builder(this).setTrackSelector(selector)
+            .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                .setBufferDurationsMs(3_000, 10_000, 750, 2_000)
+                .setTargetBufferBytes(8 * 1024 * 1024).setPrioritizeTimeOverSizeThresholds(false).build())
+            .build().apply { volume = 0f }
+    }
     // ─── Fullscreen-primary + draggable PiP tile ────────────────────────────────
 
     private var tileX = -1f // -1 = not yet positioned (defaults to bottom-right on first layout)
@@ -223,8 +247,14 @@ class MultiViewActivity : AppCompatActivity() {
         tag = "MULTIVIEW $side",
         log = { com.iptvapp.IptvApplication.logPlaybackEvent(applicationContext, it) },
         onStatus = onStatus,
-        onSwitched = { source -> if (side == "left") leftLabel = source.label else rightLabel = source.label },
-        backupAllowed = { prefs.autoBackupFeedNow() },
+        onSwitched = { source ->
+            if (side == "left") leftLabel = source.label else rightLabel = source.label
+            val key = source.key as? Pair<*, *>
+            if (key?.first is Int && key.second is Int) {
+                selections[if (side == "left") 0 else 1] = Choice(key.first as Int, key.second as Int, source.label)
+            }
+        },
+        backupAllowed = { prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON },
     )
 
     private fun showSideStatus(side: Int, status: String?) {
@@ -233,60 +263,46 @@ class MultiViewActivity : AppCompatActivity() {
         if (side == 0) binding.tvLeftChannel.text = text else binding.tvRightChannel.text = text
     }
 
-    private fun sourceFor(serverIndex: Int, streamId: Int, label: String) = TileHealer.Source(
+    private fun sourceFor(side: Int, serverIndex: Int, streamId: Int, label: String) = TileHealer.Source(
         key = serverIndex to streamId,
         label = label,
         freshUrl = {
-            if (serverIndex == -1) repository.getLiveStreamUrl(streamId)
+            if (serverIndex != -1 && serverIndex !in prefs.enabledExtraServerIndices.first()) throw TileHealer.AdmissionDenied("Provider disabled")
+            else if (!connections.acquire(side, serverIndex)) throw TileHealer.AdmissionDenied("Provider connection limit — choose another provider")
+            else if (serverIndex == -1) repository.getLiveStreamUrl(streamId)
             else repository.getMergedLiveStreamUrl(serverIndex, streamId)
         },
     )
 
-    /** The best-scoring other copy of [name], the same pick as the full-screen backup feed. */
-    private suspend fun backupFor(name: String, current: Pair<Int, Int>, tried: Set<Any>): TileHealer.Source? {
-        val skip = tried.filterIsInstance<Pair<Int, Int>>().toSet()
-        val best = repository.findBackupFeed(name, current.first, current.second, skip) ?: return null
-        val label = if (best.serverIndex == -1 || best.providerName.isBlank()) best.name else "${best.name} · ${best.providerName}"
-        return sourceFor(best.serverIndex, best.streamId, label)
-    }
-
-    private fun playChannel(channel: ChannelEntity) {
-        // The side is the one active when the channel was picked, even if it changes while loading.
+    private fun playChannel(channel: Choice) {
         val side = activeSide
-        if (side == 0) leftLabel = channel.name else rightLabel = channel.name
+        selections[side] = channel
+        if (side == 0) leftLabel = channel.label else rightLabel = channel.label
         val healer = if (side == 0) leftHealer else rightHealer
-        var current = -1 to channel.streamId
-        healer?.watch(sourceFor(-1, channel.streamId, channel.name)) { tried ->
-            backupFor(channel.name, current, tried)?.also { current = it.key as Pair<Int, Int> }
+        val session = com.iptvapp.util.SmartChannels.Session().apply {
+            userTuned(com.iptvapp.util.SmartChannels.Key(channel.server, channel.streamId))
         }
-        lifecycleScope.launch {
-            val url = repository.getLiveStreamUrl(channel.streamId)
-            val epgText = repository.getEpgForStream(channel.streamId).first()
-                .firstOrNull()?.title ?: ""
-
-            val player = if (side == 0) leftPlayer else rightPlayer
-            player?.setMediaItem(MediaItem.fromUri(url))
-            player?.prepare()
-            player?.playWhenReady = true
-
-            if (side == 0) {
-                binding.tvLeftChannel.text = channel.name
-                binding.tvLeftEpg.text = epgText
-            } else {
-                binding.tvRightChannel.text = channel.name
-                binding.tvRightEpg.text = epgText
-            }
-            hideChannelPicker()
-            // The controls bar (holding the only way to reopen the picker on touch — see
-            // setupButtons' btnMvChannels) auto-hides on its own 4s timer from whenever it was
-            // last shown, which could easily have already elapsed by the time a channel is
-            // picked. With no other way to reveal it (the fullscreen area's only touch listener
-            // is drag/swap, not tap-to-reveal), the second stream became unreachable — picking
-            // channel 1 left no way to ever reach the picker again for channel 2.
-            showControls()
+        healer?.open(sourceFor(side, channel.server, channel.streamId, channel.label)) { tried ->
+            val choice = smartChannels.choose(session, true, true,
+                prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED, System.currentTimeMillis())
+            if (choice is com.iptvapp.util.SmartChannels.BackupChoice.Switch && (choice.serverIndex to choice.streamId) !in tried) {
+                session.noteSwitch(com.iptvapp.util.SmartChannels.Key(choice.serverIndex, choice.streamId), System.currentTimeMillis())
+                sourceFor(side, choice.serverIndex, choice.streamId, choice.displayName)
+            } else null
         }
+        showSideStatus(side, "Connecting…")
+        hideChannelPicker()
+        showControls()
     }
 
+    private fun openLayouts() {
+        val layout = com.iptvapp.ui.mosaic.MosaicLayout("Current", 2, selections.map { ch ->
+            ch?.let { com.iptvapp.ui.mosaic.MosaicLayout.Tile(it.server, it.streamId, it.name) }
+        }, activeSide)
+        startActivity(android.content.Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java)
+            .putExtra(com.iptvapp.ui.mosaic.MosaicActivity.EXTRA_LAYOUT,
+                com.iptvapp.ui.mosaic.MosaicLayouts.encode(listOf(layout))))
+    }
     // ─── Channel picker ──────────────────────────────────────────────────────
 
     private fun setupChannelPicker() {
@@ -302,6 +318,16 @@ class MultiViewActivity : AppCompatActivity() {
                 filteredChannels = if (q.isEmpty()) allChannels
                     else allChannels.filter { it.name.contains(q, ignoreCase = true) }
                 pickerAdapter.submitList(filteredChannels)
+                searchJob?.cancel()
+                if (q.length >= 2) searchJob = lifecycleScope.launch {
+                    kotlinx.coroutines.delay(250)
+                    val enabled = prefs.enabledExtraServerIndices.first()
+                    val primary = repository.searchChannels(q).first().filter { !it.isHidden }.take(100)
+                        .map { Choice(-1, it.streamId, it.name) }
+                    val merged = repository.searchMergedChannelsOn(q, enabled, 100)
+                        .map { Choice(it.serverIndex, it.streamId, it.name, it.serverNickname) }
+                    pickerAdapter.submitList(primary + merged)
+                }
             }
         })
     }
@@ -314,10 +340,14 @@ class MultiViewActivity : AppCompatActivity() {
             val usaOnly = prefs.usaOnlyChannels.first()
             allChannels = if (usaOnly) {
                 val categoryNames = repository.getLiveCategories().first().associate { it.categoryId to it.categoryName }
-                channels.filter { com.iptvapp.util.CategoryFilters.isUsCategory(categoryNames[it.categoryId]) }
+                channels.filter { com.iptvapp.util.CategoryFilters.isUsCategory(categoryNames[it.categoryId]) }.map { Choice(-1, it.streamId, it.name) }
             } else {
-                channels
+                channels.map { Choice(-1, it.streamId, it.name) }
             }
+            val primary = allChannels
+            val enabled = prefs.enabledExtraServerIndices.first()
+            val merged = repository.searchMergedChannelsOn("", enabled, 100)
+            allChannels = primary + merged.map { Choice(it.serverIndex, it.streamId, it.name, it.serverNickname) }
             filteredChannels = allChannels
             pickerAdapter.submitList(filteredChannels)
         }
@@ -333,6 +363,7 @@ class MultiViewActivity : AppCompatActivity() {
     }
 
     private fun hideChannelPicker() {
+        searchJob?.cancel()
         channelPickerVisible = false
         binding.channelPickerOverlay.visibility = View.GONE
     }
@@ -344,6 +375,7 @@ class MultiViewActivity : AppCompatActivity() {
         // Tapping/swapping a tile is how you'd naturally expect to "switch to watching/listening
         // to that stream" — audio always follows whichever side is now fullscreen.
         audioSide = side
+        leftPlayer?.volume = 0f; rightPlayer?.volume = 0f
         leftPlayer?.volume = if (audioSide == 0) 1f else 0f
         rightPlayer?.volume = if (audioSide == 1) 1f else 0f
         binding.btnMvAudio.text = "Audio: ${if (audioSide == 0) "Left" else "Right"}"
@@ -352,6 +384,7 @@ class MultiViewActivity : AppCompatActivity() {
 
     private fun toggleAudio() {
         audioSide = 1 - audioSide
+        leftPlayer?.volume = 0f; rightPlayer?.volume = 0f
         leftPlayer?.volume = if (audioSide == 0) 1f else 0f
         rightPlayer?.volume = if (audioSide == 1) 1f else 0f
         binding.btnMvAudio.text = "Audio: ${if (audioSide == 0) "Left" else "Right"}"
@@ -366,6 +399,9 @@ class MultiViewActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        binding.btnMvChannels.setOnLongClickListener { openLayouts(); true }
+        binding.btnMvLayouts.setOnClickListener { openLayouts() }
+        binding.btnMvChannels.contentDescription = "Choose channel; hold for saved layouts and four tiles"
         binding.btnMvBack.setOnClickListener { finish() }
         binding.btnMvAudio.setOnClickListener { toggleAudio() }
         // Only touch entry point into showChannelPicker() — the D-pad KEYCODE_DPAD_CENTER/ENTER
@@ -387,6 +423,7 @@ class MultiViewActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
+                KeyEvent.KEYCODE_MENU -> { openLayouts(); return true }
                 // No spatial left/right tiles to navigate between anymore (one is fullscreen,
                 // the other a floating PiP tile) — D-pad left/right now swaps which side is
                 // fullscreen, mirroring the tap-the-tile gesture used on touch.
@@ -410,9 +447,19 @@ class MultiViewActivity : AppCompatActivity() {
 
     // ─── Lifecycle ───────────────────────────────────────────────────────────
 
+    override fun onPause() {
+        leftHealer?.pause(); rightHealer?.pause()
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        leftHealer?.resume(); rightHealer?.resume()
+    }
+
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) {
+        run {
             leftHealer?.pause(); rightHealer?.pause()
             leftPlayer?.pause(); rightPlayer?.pause()
         }
@@ -425,6 +472,7 @@ class MultiViewActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        controlsHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
         leftHealer?.release(); leftHealer = null
         rightHealer?.release(); rightHealer = null
@@ -434,12 +482,12 @@ class MultiViewActivity : AppCompatActivity() {
 
     // ─── Channel picker adapter ───────────────────────────────────────────────
 
-    inner class PickerAdapter(
-        private val onClick: (ChannelEntity) -> Unit
+    private inner class PickerAdapter(
+        private val onClick: (Choice) -> Unit
     ) : RecyclerView.Adapter<PickerAdapter.VH>() {
 
-        private var items = listOf<ChannelEntity>()
-        fun submitList(list: List<ChannelEntity>) { items = list; notifyDataSetChanged() }
+        private var items = listOf<Choice>()
+        fun submitList(list: List<Choice>) { items = list; notifyDataSetChanged() }
         override fun getItemCount() = items.size
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(
@@ -459,7 +507,7 @@ class MultiViewActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val ch = items[position]
-            (holder.itemView as TextView).text = ch.name
+            (holder.itemView as TextView).text = ch.label
             holder.itemView.setOnClickListener { onClick(ch) }
         }
 

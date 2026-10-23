@@ -1,6 +1,5 @@
 package com.iptvapp.ui.mosaic
 
-import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.util.TypedValue
@@ -14,7 +13,6 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -22,10 +20,11 @@ import androidx.media3.ui.PlayerView
 import com.iptvapp.data.local.entities.ChannelEntity
 import com.iptvapp.databinding.ActivityMosaicBinding
 import com.iptvapp.ui.home.HomeViewModel
-import com.iptvapp.ui.player.PlayerActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.ensureActive
 
 @AndroidEntryPoint
 class MosaicActivity : AppCompatActivity() {
@@ -33,6 +32,7 @@ class MosaicActivity : AppCompatActivity() {
     companion object {
         /** A MosaicLayouts JSON list; its first layout opens as a one-off grid. */
         const val EXTRA_LAYOUT = "mosaic_layout"
+        const val EXTRA_STANDARD_LAYOUT = "standard_multiview_layout"
         /** Channel picker search: at most this many from the main provider, and as many from the others. */
         private const val SEARCH_LIMIT = 100
     }
@@ -47,7 +47,16 @@ class MosaicActivity : AppCompatActivity() {
     // One per tile: reloads that tile alone when it errors, sticks buffering, or freezes.
     private val healers = mutableListOf<com.iptvapp.ui.player.TileHealer>()
     private val cells = mutableListOf<MosaicCell>()
-    private var gridSize = 4 // 2, 4, or 6
+    @javax.inject.Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
+    private val connections by lazy { MultiViewConnections(repository) }
+    private var gridSize = 2
+    private var tileLimit = 2
+    private var screenActive = false
+    private var screenResumed = false
+    private var layoutJob: kotlinx.coroutines.Job? = null
+    private var resumeLayout: MosaicLayout? = null
+    private var enlargedTile = -1
+    private var pickerDialog: AlertDialog? = null
     private var allMuted = false
     private var focusedCell = -1 // -1 = none focused
     /** Bumped by every grid rebuild, so a layout or favorites load still running can tell it is stale. */
@@ -69,7 +78,9 @@ class MosaicActivity : AppCompatActivity() {
         val tvName: TextView,
         val progress: ProgressBar,
         val focusRing: View,
-        var channel: MosaicChannel? = null
+        val logo: android.widget.ImageView,
+        var channel: MosaicChannel? = null,
+        val session: com.iptvapp.util.SmartChannels.Session = com.iptvapp.util.SmartChannels.Session()
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,38 +93,32 @@ class MosaicActivity : AppCompatActivity() {
         binding.btnMuteAll.setOnClickListener { toggleMuteAll() }
         binding.btnLayouts.setOnClickListener { showLayoutsMenu() }
 
-        // Opens on a grid handed in (the Sports screen's live games), else the layout used last,
-        // if it still exists, else the first favorites. A handed-in grid is not saved anywhere.
-        val handedIn = MosaicLayouts.decode(intent.getStringExtra(EXTRA_LAYOUT)).firstOrNull()
-        lifecycleScope.launch {
-            if (handedIn != null) {
-                applyLayout(handedIn)
-                return@launch
-            }
-            val lastName = prefs.mosaicLastLayout.first()
-            val last = MosaicLayouts.decode(prefs.mosaicLayouts.first())
-                .firstOrNull { it.name.equals(lastName, ignoreCase = true) }
-            if (last != null) applyLayout(last) else {
-                setupGrid(gridSize)
-                loadFavorites()
-            }
-        }
+        tileLimit = MultiViewPolicy.deviceLimit(this)
+        resumeLayout = MosaicLayouts.decode(savedInstanceState?.getString("grid_state") ?: intent.getStringExtra(EXTRA_LAYOUT)).firstOrNull()
+        binding.btnMosaicBack.setOnClickListener { if (enlargedTile >= 0) restoreGrid() else finish() }
+        binding.btnTileMenu.setOnClickListener { showTileMenu(focusedCell.coerceAtLeast(0)) }
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { if (enlargedTile >= 0) restoreGrid() else finish() }
+        })
     }
-
     private fun loadFavorites() {
-        viewModel.showFavoriteChannels()
         val grid = gridGeneration
         lifecycleScope.launch {
-            val favs = viewModel.channels.first { it.isNotEmpty() }
-            // A layout opened while favorites loaded owns the grid now.
-            if (grid != gridGeneration) return@launch
-            favs.take(gridSize).forEachIndexed { i, ch ->
-                if (i < cells.size) loadChannel(i, MosaicChannel.Primary(ch))
-            }
+            val enabled = prefs.enabledExtraServerIndices.first()
+            val favs = repository.getFavoriteChannels().first().map { MosaicChannel.Primary(it) } +
+                viewModel.getMergedFavoriteChannelsSnapshot().filter { it.serverIndex in enabled }.map { MosaicChannel.Merged(it) }
+            if (!isActive || grid != gridGeneration || !screenActive) return@launch
+            favs.take(gridSize).forEachIndexed { i, ch -> if (cells[i].channel == null) loadChannel(i, ch) }
+            cells.filter { it.channel == null }.forEach { it.tvName.text = "Select channel"; it.progress.visibility = View.GONE }
         }
     }
-
-    private fun setupGrid(size: Int) {
+    private fun setupGrid(requestedSize: Int) {
+        val size = minOf(requestedSize, tileLimit)
+        gridSize = size
+        binding.btnGridSize.text = gridLabel(size)
+        enlargedTile = -1
+        pickerDialog?.dismiss()
+        connections.clear()
         gridGeneration++
         binding.mosaicGrid.removeAllViews()
         healers.forEach { it.release() }
@@ -123,9 +128,10 @@ class MosaicActivity : AppCompatActivity() {
         players.clear()
         cells.clear()
         focusedCell = -1
+        tileOrder.clear(); tileOrder.addAll(0 until size)
 
-        val cols = if (size <= 4) 2 else 3
-        val rows = if (size == 2) 1 else 2
+        val cols = if (size == 1) 1 else 2
+        val rows = (size + cols - 1) / cols
         binding.mosaicGrid.columnCount = cols
         binding.mosaicGrid.rowCount = rows
 
@@ -136,23 +142,35 @@ class MosaicActivity : AppCompatActivity() {
         val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
             .setDataSourceFactory(upstreamDataSourceFactory)
         repeat(size) { index ->
-            val player = ExoPlayer.Builder(this).setMediaSourceFactory(mediaSourceFactory).build()
+            val selector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+                setParameters(buildUponParameters().setMaxVideoSize(1920, 1080)
+                    .setMaxVideoBitrate(8_000_000).setExceedVideoConstraintsIfNecessary(false))
+            }
+            val player = ExoPlayer.Builder(this).setTrackSelector(selector).setMediaSourceFactory(mediaSourceFactory)
+                .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(3_000, 10_000, 750, 2_000)
+                    .setTargetBufferBytes(8 * 1024 * 1024).setPrioritizeTimeOverSizeThresholds(false).build())
+                .build().apply {
+                    volume = 0f
+                }
             players.add(player)
             val cell = buildCell(index, player, cols)
             cells.add(cell)
             binding.mosaicGrid.addView(cell.root)
             // Added once per player. loadChannel used to add these on every channel change,
             // so a tile changed a few times reported each error once per old channel.
+            val playerGeneration = gridGeneration
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     cell.progress.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    if (error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED) cell.root.post { if (gridGeneration == playerGeneration) reduceCapacity() }
                     com.iptvapp.IptvApplication.logPlaybackEvent(
                         applicationContext,
                         "MOSAIC PLAYER ERROR: cell=$index streamId=${cell.channel?.streamId} " +
                             "errorCode=${error.errorCodeName} cause=${error.cause?.javaClass?.simpleName} " +
-                            "message=${error.message}"
+                            "detail=redacted"
                     )
                 }
             })
@@ -165,13 +183,15 @@ class MosaicActivity : AppCompatActivity() {
                     onStatus = { status ->
                         val label = cell.channel?.let { labelOf(it) } ?: ""
                         cell.tvName.text = if (status == null) label else "$label  ·  $status"
+                        cell.progress.visibility = if (status?.startsWith("Connecting") == true || status?.startsWith("Reconnecting") == true) View.VISIBLE else View.GONE
                     },
                     onSwitched = { source ->
                         (source.payload as? MosaicChannel)?.let { cell.channel = it }
                     },
-                    backupAllowed = { prefs.autoBackupFeedNow() },
+                    backupAllowed = { prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON },
                 )
             )
+            if (!screenResumed) healers.last().pause()
         }
 
         // Default to the first tile focused, not none — loadChannel() only mutes a cell when
@@ -257,44 +277,19 @@ class MosaicActivity : AppCompatActivity() {
         root.addView(tvName)
         root.addView(progress)
 
-        val cell = MosaicCell(root, playerView, tvName, progress, focusRing)
+        val logo = android.widget.ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp2px(48f), dp2px(32f), Gravity.TOP or Gravity.START)
+            contentDescription = "Channel logo"
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+        }
+        root.addView(logo)
+        val cell = MosaicCell(root, playerView, tvName, progress, focusRing, logo)
 
         root.setOnClickListener {
-            val ch = cell.channel ?: return@setOnClickListener
-            if (focusedCell == index) {
-                // Second tap → fullscreen
-                lifecycleScope.launch {
-                    when (ch) {
-                        is MosaicChannel.Primary -> {
-                            val url = viewModel.getLiveStreamUrl(ch.streamId)
-                            startActivity(Intent(this@MosaicActivity, PlayerActivity::class.java).apply {
-                                putExtra("stream_url", url)
-                                putExtra("stream_title", ch.name)
-                                putExtra("stream_id", ch.streamId)
-                            })
-                        }
-                        is MosaicChannel.Merged -> {
-                            val url = viewModel.getMergedLiveStreamUrl(ch.entity.serverIndex, ch.entity.streamId)
-                            startActivity(Intent(this@MosaicActivity, PlayerActivity::class.java).apply {
-                                putExtra("stream_url", url)
-                                putExtra("stream_title", "${ch.name} · ${ch.entity.serverNickname}")
-                                putExtra("stream_id", -1)
-                                putExtra("server_index", ch.entity.serverIndex)
-                                putExtra("merged_stream_id", ch.entity.streamId)
-                            })
-                        }
-                    }
-                }
-            } else {
-                setFocus(index)
-            }
+            if (cell.channel == null) showChannelPicker(index)
+            else if (focusedCell == index) enlarge(index) else setFocus(index)
         }
-
-        root.setOnLongClickListener {
-            this@MosaicActivity.showChannelPicker(index)
-            true
-        }
-
+        root.setOnLongClickListener { showTileMenu(index); true }
         // D-pad moves View focus between cells automatically (GridLayout + isFocusable),
         // but until now nothing reacted to that — only a tap/click called setFocus(), so the
         // highlight ring never followed the D-pad cursor, making it "hard to tell where the
@@ -308,38 +303,27 @@ class MosaicActivity : AppCompatActivity() {
     }
 
     private fun setFocus(index: Int) {
-        cells.forEachIndexed { i, cell ->
-            val focused = i == index
-            cell.focusRing.visibility = if (focused) View.VISIBLE else View.GONE
-            // Mute non-focused cells, unmute focused
-            if (!allMuted) {
-                players.getOrNull(i)?.volume = if (focused) 1f else 0f
-            }
-        }
+        // Mute all first: moving from a later tile to an earlier tile never overlaps audio.
+        MultiViewAudio.select(players, index, allMuted)
         focusedCell = index
+        cells.forEachIndexed { i, cell -> cell.focusRing.visibility = if (i == index) View.VISIBLE else View.GONE }
     }
 
     private fun loadChannel(index: Int, channel: MosaicChannel) {
         val cell = cells.getOrNull(index) ?: return
-        val player = players.getOrNull(index) ?: return
+        if (!screenActive) return
         cell.channel = channel
+        val key = keyOf(channel)
+        cell.session.userTuned(com.iptvapp.util.SmartChannels.Key(key.first, key.second))
         cell.tvName.text = labelOf(channel)
         cell.progress.visibility = View.VISIBLE
-        healers.getOrNull(index)?.watch(sourceOf(channel)) { tried -> backupFor(cell, tried) }
-
-        lifecycleScope.launch {
-            val url = urlOf(channel)
-            // The user may have picked another channel for this tile while the URL was built.
-            if (cell.channel !== channel) return@launch
-            player.stop()
-            player.clearMediaItems()
-            player.setMediaItem(MediaItem.fromUri(url))
-            player.prepare()
-            player.playWhenReady = true
-            player.volume = if (allMuted || (focusedCell != -1 && focusedCell != index)) 0f else 1f
+        val icon = when (channel) {
+            is MosaicChannel.Primary -> channel.entity.streamIcon
+            is MosaicChannel.Merged -> channel.entity.streamIcon
         }
+        com.bumptech.glide.Glide.with(this).load(icon).into(cell.logo)
+        healers.getOrNull(index)?.open(sourceOf(channel, index)) { tried -> backupFor(cell, index, tried) }
     }
-
     private fun labelOf(ch: MosaicChannel) = when (ch) {
         is MosaicChannel.Primary -> ch.name
         is MosaicChannel.Merged -> "${ch.name} · ${ch.entity.serverNickname}"
@@ -355,23 +339,29 @@ class MosaicActivity : AppCompatActivity() {
         is MosaicChannel.Merged -> viewModel.getMergedLiveStreamUrl(ch.entity.serverIndex, ch.entity.streamId)
     }
 
-    private fun sourceOf(ch: MosaicChannel) = com.iptvapp.ui.player.TileHealer.Source(
+    private fun sourceOf(ch: MosaicChannel, index: Int) = com.iptvapp.ui.player.TileHealer.Source(
         key = keyOf(ch),
         label = labelOf(ch),
         payload = ch,
-        freshUrl = { urlOf(ch) },
+        freshUrl = {
+            val server = keyOf(ch).first
+            if (server != -1 && server !in prefs.enabledExtraServerIndices.first()) throw com.iptvapp.ui.player.TileHealer.AdmissionDenied("Provider disabled — choose another channel")
+            else if (!connections.acquire(index, server)) throw com.iptvapp.ui.player.TileHealer.AdmissionDenied("Provider connection limit — choose another provider or retry later")
+            else urlOf(ch)
+        },
     )
 
-    /** Same pick as the full-screen backup feed: the best-scoring other copy, on any provider. */
-    private suspend fun backupFor(cell: MosaicCell, tried: Set<Any>): com.iptvapp.ui.player.TileHealer.Source? {
-        val now = cell.channel ?: return null
-        val (server, id) = keyOf(now)
-        val skip = tried.filterIsInstance<Pair<Int, Int>>().toSet()
-        val best = repository.findBackupFeed(now.name, server, id, skip) ?: return null
-        val next = resolveChannel(best.serverIndex, best.streamId) ?: return null
-        return sourceOf(next)
+    /** Only verified/manual Smart Channel members may replace a tile automatically. */
+    private suspend fun backupFor(cell: MosaicCell, index: Int, tried: Set<Any>): com.iptvapp.ui.player.TileHealer.Source? {
+        if (cell.channel == null) return null
+        val choice = smartChannels.choose(cell.session, true, true,
+            prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED, System.currentTimeMillis())
+        if (choice !is com.iptvapp.util.SmartChannels.BackupChoice.Switch || (choice.serverIndex to choice.streamId) in tried) return null
+        val next = resolveChannel(choice.serverIndex, choice.streamId) ?: return null
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        cell.session.noteSwitch(com.iptvapp.util.SmartChannels.Key(choice.serverIndex, choice.streamId), System.currentTimeMillis())
+        return sourceOf(next, index)
     }
-
     private suspend fun resolveChannel(serverIndex: Int, streamId: Int): MosaicChannel? =
         if (serverIndex == -1) repository.getChannelById(streamId)?.let { MosaicChannel.Primary(it) }
         else repository.getMergedChannelByIndexAndId(serverIndex, streamId)?.let { MosaicChannel.Merged(it) }
@@ -379,6 +369,7 @@ class MosaicActivity : AppCompatActivity() {
     // ─── Saved layouts ───────────────────────────────────────────────────────
 
     private fun gridLabel(size: Int) = when (size) {
+        1 -> "1 tile"
         2 -> "1×2"
         4 -> "2×2"
         else -> "2×3"
@@ -394,10 +385,13 @@ class MosaicActivity : AppCompatActivity() {
                 .setItems(items.toTypedArray()) { _, which ->
                     when {
                         which == 0 -> promptSaveLayout(saved)
-                        which <= saved.size -> lifecycleScope.launch {
+                        which <= saved.size -> {
                             val layout = saved[which - 1]
-                            prefs.setMosaicLastLayout(layout.name)
-                            applyLayout(layout)
+                            layoutJob?.cancel()
+                            layoutJob = lifecycleScope.launch {
+                                prefs.setMosaicLastLayout(layout.name)
+                                if (screenActive) applyLayout(layout)
+                            }
                         }
                         else -> showDeleteLayout(saved)
                     }
@@ -424,15 +418,10 @@ class MosaicActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isEmpty()) return@setPositiveButton
-                val tiles = cells.map { c ->
-                    c.channel?.let { ch ->
-                        val (server, id) = keyOf(ch)
-                        MosaicLayout.Tile(server, id, ch.name)
-                    }
-                }
+                val layout = snapshot(name)
                 val replacing = saved.any { it.name.equals(name, ignoreCase = true) }
                 lifecycleScope.launch {
-                    prefs.setMosaicLayouts(MosaicLayouts.encode(MosaicLayouts.upsert(saved, MosaicLayout(name, gridSize, tiles))))
+                    prefs.setMosaicLayouts(MosaicLayouts.encode(MosaicLayouts.upsert(saved, layout)))
                     prefs.setMosaicLastLayout(name)
                     android.widget.Toast.makeText(
                         this@MosaicActivity,
@@ -464,31 +453,35 @@ class MosaicActivity : AppCompatActivity() {
     /**
      * Rebuilds the grid at the layout's size and loads each saved tile. A saved copy whose name
      * no longer matches (the provider's login changed and the id now means another channel), or
-     * that is gone, is replaced by the best copy of the saved channel name on any provider.
+     * that is gone, stays empty for the user to choose a replacement.
      */
     private suspend fun applyLayout(layout: MosaicLayout) {
+        allMuted = layout.muted
         gridSize = layout.gridSize
         binding.btnGridSize.text = gridLabel(gridSize)
         setupGrid(gridSize)
+        setFocus(layout.selectedTile.coerceIn(0, cells.lastIndex))
+        cells[focusedCell].root.requestFocus()
         val grid = gridGeneration
         layout.tiles.forEachIndexed { i, tile ->
             if (tile == null || i >= cells.size) return@forEachIndexed
             val exact = try { resolveChannel(tile.serverIndex, tile.streamId) } catch (_: Exception) { null }
+            val enabled = prefs.enabledExtraServerIndices.first()
             val ch = exact?.takeIf {
-                tile.channelName.isBlank() || com.iptvapp.util.ChannelNameMatcher.matches(it.name, tile.channelName)
-            } ?: try {
-                // -2 excludes no provider: every copy of the name is a candidate.
-                repository.findFailoverChannel(tile.channelName, excludeServerIndex = -2)
-                    ?.let { (server, id, _) -> resolveChannel(server, id) }
-            } catch (_: Exception) { null }
+                (tile.serverIndex == -1 || tile.serverIndex in enabled) &&
+                    (tile.channelName.isBlank() || com.iptvapp.util.ChannelNameMatcher.matches(it.name, tile.channelName))
+            }
             // The grid was rebuilt (another layout, or a new size) while this looked: stop here.
-            if (grid != gridGeneration) return
+            if (!kotlinx.coroutines.currentCoroutineContext().isActive || grid != gridGeneration || !screenActive) return
             // The rebuilt grid starts empty. A tile with a channel already was picked by hand
             // while this looked, and that pick wins.
             if (cells[i].channel != null) return@forEachIndexed
             if (ch != null) loadChannel(i, ch)
             else cells[i].tvName.text = "${tile.channelName.ifBlank { "Channel" }} is no longer available"
         }
+        allMuted = layout.muted
+        setFocus(layout.selectedTile.coerceIn(0, cells.lastIndex))
+        cells[focusedCell].root.requestFocus()
         cells.forEach { if (it.channel == null) it.progress.visibility = View.GONE }
     }
 
@@ -499,11 +492,11 @@ class MosaicActivity : AppCompatActivity() {
     // primary — previously a favorite from a secondary provider couldn't be put in a tile at all.
     private fun showChannelPicker(cellIndex: Int) {
         lifecycleScope.launch {
-            val primaryChannels = viewModel.channels.value.ifEmpty {
-                viewModel.showFavoriteChannels()
-                viewModel.channels.first { it.isNotEmpty() }
-            }
-            val mergedChannels = viewModel.getMergedFavoriteChannelsSnapshot()
+            val grid = gridGeneration
+            val primaryChannels = repository.getFavoriteChannels().first()
+            val enabled = prefs.enabledExtraServerIndices.first()
+            val mergedChannels = viewModel.getMergedFavoriteChannelsSnapshot().filter { it.serverIndex in enabled }
+            if (!isActive || !screenActive || grid != gridGeneration) return@launch
             val channels: List<MosaicChannel> =
                 primaryChannels.map { MosaicChannel.Primary(it) } + mergedChannels.map { MosaicChannel.Merged(it) }
             var filtered = channels
@@ -532,7 +525,7 @@ class MosaicActivity : AppCompatActivity() {
                 .create()
 
             fun labelFor(ch: MosaicChannel) = when (ch) {
-                is MosaicChannel.Primary -> ch.name
+                is MosaicChannel.Primary -> "${ch.name} (Primary)"
                 is MosaicChannel.Merged -> "${ch.name} (${ch.entity.serverNickname})"
             }
             fun show(list: List<MosaicChannel>) {
@@ -570,7 +563,7 @@ class MosaicActivity : AppCompatActivity() {
             }
             dialog.setOnDismissListener { searchJob?.cancel() }
             listView.setOnItemClickListener { _, _, pos, _ ->
-                filtered.getOrNull(pos)?.let { loadChannel(cellIndex, it) }
+                if (screenActive && grid == gridGeneration) filtered.getOrNull(pos)?.let { loadChannel(cellIndex, it) }
                 dialog.dismiss()
             }
             etSearch.addTextChangedListener(object : android.text.TextWatcher {
@@ -579,54 +572,175 @@ class MosaicActivity : AppCompatActivity() {
                 override fun afterTextChanged(s: android.text.Editable?) { rebuildList() }
             })
             rebuildList()
+            pickerDialog?.dismiss()
+            pickerDialog = dialog
             dialog.show()
         }
     }
 
-    private fun cycleGridSize() {
-        gridSize = when (gridSize) {
-            2 -> 4
-            4 -> 6
-            else -> 2
+    private val tileOrder = mutableListOf<Int>()
+
+    private fun snapshot(name: String = "Current"): MosaicLayout = MosaicLayout(
+        name, gridSize, tileOrder.map { index -> cells.getOrNull(index)?.channel?.let { ch ->
+            val (server, id) = keyOf(ch)
+            MosaicLayout.Tile(server, id, ch.name)
+        } }, tileOrder.indexOf(focusedCell).coerceAtLeast(0), allMuted
+    )
+
+    private fun arrange() {
+        val cols = if (gridSize == 1) 1 else 2
+        // Remove/re-add only the views. Their players, streams and admission reservations survive.
+        binding.mosaicGrid.removeAllViews()
+        binding.mosaicGrid.columnCount = if (enlargedTile >= 0) 1 else cols
+        binding.mosaicGrid.rowCount = if (enlargedTile >= 0) 1 else (gridSize + cols - 1) / cols
+        val visible = if (enlargedTile >= 0) listOf(enlargedTile) else tileOrder
+        for ((position, index) in visible.withIndex()) {
+            val cell = cells[index]
+            cell.root.layoutParams = GridLayout.LayoutParams().apply {
+                columnSpec = GridLayout.spec(if (enlargedTile >= 0) 0 else position % cols, 1, GridLayout.FILL, 1f)
+                rowSpec = GridLayout.spec(if (enlargedTile >= 0) 0 else position / cols, 1, GridLayout.FILL, 1f)
+                width = 0; height = 0; setMargins(2, 2, 2, 2)
+            }
+            binding.mosaicGrid.addView(cell.root)
         }
-        binding.btnGridSize.text = gridLabel(gridSize)
-        // A new grid is no longer the saved layout. Next time opens on favorites again.
-        lifecycleScope.launch { prefs.setMosaicLastLayout("") }
-        setupGrid(gridSize)
-        loadFavorites()
+        cells.getOrNull(focusedCell)?.root?.requestFocus()
+    }
+
+    private fun enlarge(index: Int) {
+        if (enlargedTile == index) { restoreGrid(); return }
+        setFocus(index)
+        enlargedTile = index
+        healers.forEachIndexed { i, healer -> if (i == index) healer.resume() else healer.pause() }
+        arrange()
+    }
+
+    private fun restoreGrid() { enlargedTile = -1; healers.forEach { it.resume() }; arrange() }
+
+    private fun showTileMenu(index: Int) {
+        if (index !in cells.indices) return
+        setFocus(index)
+        AlertDialog.Builder(this).setTitle("Tile ${tileOrder.indexOf(index) + 1}")
+            .setItems(arrayOf("Choose channel / provider", "Listen to this tile", "Enlarge / restore", "Swap with another tile", "Save / open layouts", "Retry this tile")) { _, action ->
+                if (!screenActive || index !in cells.indices) return@setItems
+                when (action) {
+                    0 -> showChannelPicker(index)
+                    1 -> { allMuted = false; setFocus(index) }
+                    2 -> enlarge(index)
+                    3 -> {
+                        val others = tileOrder.filter { it != index }
+                        AlertDialog.Builder(this).setTitle("Swap tile positions")
+                            .setItems(others.map { "Tile ${tileOrder.indexOf(it) + 1}" }.toTypedArray()) { _, picked ->
+                                val from = tileOrder.indexOf(index)
+                                val to = tileOrder.indexOf(others[picked])
+                                if (from >= 0 && to >= 0 && screenActive) {
+                                    java.util.Collections.swap(tileOrder, from, to)
+                                    restoreGrid()
+                                }
+                            }.show()
+                    }
+                    4 -> showLayoutsMenu()
+                    5 -> cells[index].channel?.let { loadChannel(index, it) }
+                }
+            }.setNegativeButton("Close", null).show()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU) { showTileMenu(focusedCell.coerceAtLeast(0)); return true }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun cycleGridSize() {
+        val next = if (gridSize < minOf(4, tileLimit)) minOf(4, tileLimit) else minOf(2, tileLimit)
+        val current = snapshot().copy(gridSize = next)
+        layoutJob?.cancel()
+        layoutJob = lifecycleScope.launch { prefs.setMosaicLastLayout(""); applyLayout(current) }
     }
 
     private fun toggleMuteAll() {
         allMuted = !allMuted
-        binding.btnMuteAll.text = if (allMuted) "🔊" else "🔇"
-        players.forEachIndexed { i, player ->
-            player.volume = when {
-                allMuted -> 0f
-                focusedCell == -1 -> 0f  // no focus = all muted by default
-                i == focusedCell -> 1f
-                else -> 0f
-            }
+        binding.btnMuteAll.text = if (allMuted) "Unmute" else "Mute"
+        setFocus(focusedCell)
+    }
+
+    private fun releaseGrid() {
+        gridGeneration++
+        pickerDialog?.dismiss()
+        healers.forEach { it.release() }
+        cells.forEach { it.playerView.player = null }
+        players.forEach { it.release() }
+        healers.clear(); players.clear(); cells.clear(); tileOrder.clear()
+        binding.mosaicGrid.removeAllViews()
+        connections.clear()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        screenActive = true
+        layoutJob = lifecycleScope.launch {
+            val restore = resumeLayout
+            resumeLayout = null
+            val last = restore ?: if (intent.getBooleanExtra(EXTRA_STANDARD_LAYOUT, false)) null
+                else MosaicLayouts.decode(prefs.mosaicLayouts.first())
+                    .firstOrNull { it.name.equals(prefs.mosaicLastLayout.first(), ignoreCase = true) }
+            if (!isActive || !screenActive) return@launch
+            if (last != null) applyLayout(last) else { setupGrid(gridSize); loadFavorites() }
         }
     }
 
     override fun onPause() {
-        super.onPause()
+        screenResumed = false
         healers.forEach { it.pause() }
-        players.forEach { it.pause() }
+        super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        players.forEach { it.play() }
-        healers.forEach { it.resume() }
+        screenResumed = true
+        healers.forEachIndexed { index, healer -> if (enlargedTile < 0 || enlargedTile == index) healer.resume() }
+    }
+
+    override fun onStop() {
+        screenActive = false
+        if (cells.isNotEmpty()) resumeLayout = snapshot()
+        layoutJob?.cancel()
+        releaseGrid()
+        super.onStop()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        val state = if (cells.isNotEmpty()) snapshot() else resumeLayout
+        state?.let { outState.putString("grid_state", MosaicLayouts.encode(listOf(it))) }
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) reduceCapacity()
+    }
+
+    private fun reduceCapacity() {
+        if (!screenActive || players.size <= 1) return
+        tileLimit = if (players.size > 2) 2 else 1
+        restoreGrid()
+        while (players.size > tileLimit) {
+            val last = players.lastIndex
+            healers.removeAt(last).release()
+            cells.removeAt(last).let { it.playerView.player = null; binding.mosaicGrid.removeView(it.root) }
+            players.removeAt(last).release()
+            connections.release(last)
+        }
+        tileOrder.removeAll { it >= tileLimit }
+        gridSize = tileLimit
+        setFocus(focusedCell.coerceAtMost(tileLimit - 1))
+        arrange()
+        binding.btnGridSize.text = gridLabel(gridSize)
+        android.widget.Toast.makeText(this, "Multi-View limited to $tileLimit tiles on this device", android.widget.Toast.LENGTH_LONG).show()
     }
 
     override fun onDestroy() {
-        healers.forEach { it.release() }
-        healers.clear()
-        cells.forEach { it.playerView.player = null }
-        players.forEach { it.release() }
-        players.clear()
+        layoutJob?.cancel()
+        releaseGrid()
         super.onDestroy()
     }
 }

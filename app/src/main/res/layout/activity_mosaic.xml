@@ -27,12 +27,20 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:text="SPLIT VIEW"
+            android:text="MULTI-VIEW" android:maxLines="1" android:ellipsize="end"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <Button
+        <Button android:minWidth="0dp" android:paddingHorizontal="8dp"
+            android:id="@+id/btnTileMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="Tile"
+            android:textAllCaps="false"
+            android:contentDescription="Selected tile options" />
+
+        <Button android:minWidth="0dp" android:paddingHorizontal="8dp"
             android:id="@+id/btnLayouts"
             android:layout_width="wrap_content"
             android:layout_height="35dp"
@@ -43,16 +51,16 @@
             android:textColor="#008CFF"
             android:textSize="13sp" />
 
-        <Button
+        <Button android:minWidth="0dp" android:paddingHorizontal="8dp"
             android:id="@+id/btnGridSize"
             android:layout_width="wrap_content"
             android:layout_height="35dp"
             android:background="@android:color/transparent"
-            android:text="2×2"
+            android:text="1×2"
             android:textColor="#008CFF"
             android:textSize="13sp" />
 
-        <Button
+        <Button android:minWidth="0dp" android:paddingHorizontal="8dp"
             android:id="@+id/btnMuteAll"
             android:layout_width="wrap_content"
             android:layout_height="35dp"
@@ -70,6 +78,6 @@
         android:layout_weight="1"
         android:background="#000000"
         android:columnCount="2"
-        android:rowCount="2" />
+        android:rowCount="1" />
 
 </LinearLayout>

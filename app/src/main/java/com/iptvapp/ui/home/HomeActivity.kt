@@ -2822,7 +2822,8 @@ class HomeActivity : AppCompatActivity() {
             settingsLauncher.launch(Intent(this, SettingsActivity::class.java))
         }
         binding.btnMultiView?.setOnClickListener {
-            startActivity(Intent(this, MultiViewActivity::class.java))
+            startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java)
+                .putExtra(com.iptvapp.ui.mosaic.MosaicActivity.EXTRA_STANDARD_LAYOUT, true))
         }
         binding.btnPhoneRemote?.setOnClickListener {
             startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))

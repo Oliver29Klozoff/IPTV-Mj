@@ -23,12 +23,13 @@ object TileHealPolicy {
     const val FROZEN_MS = 8_000L
     const val HEALTHY_AFTER_MS = 30_000L
     const val BACKUP_FROM_ATTEMPT = 3
+    const val MAX_ATTEMPTS = 6
     private val DELAYS_MS = longArrayOf(1_000L, 3_000L, 6_000L, 12_000L, 20_000L, 30_000L)
 
-    /** Wait before repair number [attempt], counted from 1. Capped, never gives up. */
+    /** Wait before repair number [attempt], counted from 1. Capped; recovery stops after MAX_ATTEMPTS. */
     fun delayMs(attempt: Int): Long = DELAYS_MS[(attempt - 1).coerceIn(0, DELAYS_MS.size - 1)]
 
-    fun tryBackup(attempt: Int): Boolean = attempt >= BACKUP_FROM_ATTEMPT
+    fun tryBackup(attempt: Int): Boolean = attempt in BACKUP_FROM_ATTEMPT..MAX_ATTEMPTS
 
     /**
      * Watches for a frozen picture from periodic samples. [renderedFrames] is null for a tile
@@ -76,7 +77,7 @@ object TileHealPolicy {
 
 /**
  * Keeps one Multi-View or Mosaic tile alive on its own, without touching the other tiles.
- * The screen tells it which channel the tile shows ([watch]); it reports what it is doing
+ * The screen tells it which channel the tile shows ([open]); it reports what it is doing
  * through [onStatus] (null when healthy) so the tile can say "Reconnecting".
  *
  * [freshUrl] builds the URL again for each reload, since a provider's tokenised link can expire.
@@ -84,200 +85,189 @@ object TileHealPolicy {
  * already given up on so it never offers one back.
  */
 class TileHealer(
-    private val player: ExoPlayer,
+    private val player: Player,
     private val scope: CoroutineScope,
     private val tag: String,
     private val log: (String) -> Unit,
     private val onStatus: (String?) -> Unit,
-    /** The tile moved to a backup copy for good. The screen updates its label and its saved channel. */
     private val onSwitched: (Source) -> Unit = {},
-    /** Settings > Network > Automatic backup feed. Off still reconnects, just never to another copy. */
     private val backupAllowed: () -> Boolean = { true },
+    private val clock: () -> Long = { android.os.SystemClock.elapsedRealtime() },
 ) {
-    /** [payload] is the screen's own channel object, handed back through onSwitched. */
     class Source(val key: Any, val label: String, val payload: Any? = null, val freshUrl: suspend () -> String?)
+    /** A known admission refusal needs a new user choice, not six provider requests. */
+    class AdmissionDenied(val status: String) : Exception()
 
     private var source: Source? = null
     private var backup: (suspend (Set<Any>) -> Source?)? = null
     private val givenUp = mutableSetOf<Any>()
     private var attempt = 0
+    private var generation = 0L
     private var healJob: Job? = null
-    private var stuckJob: Job? = null
     private var watchdog: Job? = null
-    private var healthySince = 0L
+    private var healthySince: Long? = null
+    private var bufferingSince: Long? = null
     private val freeze = TileHealPolicy.FreezeDetector()
     private var released = false
     private var paused = false
-    /** A repair that was due while the screen was away, carried out when it returns. */
-    private var deferredReason: String? = null
+    private var exhausted = false
+    private var changing = false
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
+            if (released || paused || changing) return
             when (state) {
-                Player.STATE_BUFFERING -> {
-                    healthySince = 0L
-                    armStuck()
-                }
-                Player.STATE_READY -> {
-                    stuckJob?.cancel()
-                    if (healJob?.isActive != true) onStatus(null)
-                }
-                // A live stream that ends has dropped, not finished.
+                Player.STATE_BUFFERING -> { healthySince = null; bufferingSince = clock() }
+                Player.STATE_READY -> { bufferingSince = null; if (!exhausted) onStatus(null) }
                 Player.STATE_ENDED -> heal("ended")
-                else -> stuckJob?.cancel()
+                else -> bufferingSince = null
             }
         }
-
         override fun onPlayerError(error: PlaybackException) {
-            heal("error ${error.errorCodeName}")
+            if (!changing) heal("error ${error.errorCodeName}")
         }
     }
 
-    init {
-        player.addListener(listener)
-    }
+    init { player.addListener(listener) }
 
-    /** The tile now shows [next]. Forget earlier trouble; the new channel starts clean. */
-    fun watch(next: Source, backupFinder: (suspend (Set<Any>) -> Source?)?) {
+    /** Initial opening and repairs share one cancellable operation per tile. */
+    fun open(next: Source, backupFinder: (suspend (Set<Any>) -> Source?)? = null) {
+        if (released) return
+        generation++
+        healJob?.cancel()
         source = next
         backup = backupFinder
         givenUp.clear()
         attempt = 0
-        deferredReason = null
-        healthySince = 0L
-        healJob?.cancel()
-        stuckJob?.cancel()
+        exhausted = false
+        healthySince = null
+        bufferingSince = null
         freeze.reset()
-        onStatus(null)
-        startWatchdog()
+        stopFeed()
+        onStatus("Connecting…")
+        if (!paused) { startWatchdog(); openSource("selection", initial = true) }
     }
 
-    /**
-     * Paused with the screen: nothing is judged or reloaded until it returns, since a reload
-     * starts playback and would play behind the user's back. A repair that was waiting is kept.
-     */
     fun pause() {
+        if (released || paused) return
         paused = true
-        healthySince = 0L
-        if (healJob?.isActive == true) {
-            healJob?.cancel()
-            deferredReason = deferredReason ?: "repair postponed"
-            attempt = (attempt - 1).coerceAtLeast(0) // it never ran
-        }
-        stuckJob?.cancel()
+        generation++
+        healJob?.cancel()
+        healJob = null
         watchdog?.cancel()
+        healthySince = null
+        bufferingSince = null
         freeze.reset()
+        stopFeed()
     }
 
     fun resume() {
+        if (released || !paused) return
         paused = false
-        if (source == null || released) return
+        if (source == null || exhausted) return
         startWatchdog()
-        val due = deferredReason
-        deferredReason = null
-        when {
-            due != null -> heal(due)
-            // play() does not change a state that is already BUFFERING, so no new callback comes.
-            player.playbackState == Player.STATE_BUFFERING -> armStuck()
-        }
+        openSource("resume", initial = true)
     }
 
     fun release() {
+        if (released) return
         released = true
+        generation++
         healJob?.cancel()
-        stuckJob?.cancel()
         watchdog?.cancel()
         player.removeListener(listener)
+        source = null
+        backup = null
     }
 
-    private fun armStuck() {
-        stuckJob?.cancel()
-        stuckJob = scope.launch {
-            delay(TileHealPolicy.STUCK_BUFFERING_MS)
-            if (player.playbackState == Player.STATE_BUFFERING) heal(STUCK)
-        }
+    private fun stopFeed() {
+        changing = true
+        try { player.stop(); player.clearMediaItems() } finally { changing = false }
     }
 
     private fun startWatchdog() {
         watchdog?.cancel()
-        freeze.reset()
         watchdog = scope.launch {
-            while (isActive) {
+            while (isActive && !released && !paused && !exhausted) {
                 delay(2_000L)
-                val now = android.os.SystemClock.elapsedRealtime()
-                // Only unbroken playing counts as healthy: buffering, a pause or a repair starts it over.
-                if (!player.isPlaying || healJob?.isActive == true) healthySince = 0L
-                else if (healthySince == 0L) healthySince = now
-                if (healthySince > 0L && attempt > 0 && now - healthySince >= TileHealPolicy.HEALTHY_AFTER_MS) {
-                    attempt = 0
-                }
-                val counters = player.videoDecoderCounters
+                val now = clock()
+                val counters = (player as? ExoPlayer)?.videoDecoderCounters
                 counters?.ensureUpdated()
-                val frames = counters?.renderedOutputBufferCount
-                if (healJob?.isActive != true &&
-                    freeze.sample(now, player.isPlaying, player.currentPosition, frames)
-                ) heal("frozen picture")
+                val frozen = freeze.sample(now, player.isPlaying, player.currentPosition, counters?.renderedOutputBufferCount)
+                if (!player.isPlaying || healJob?.isActive == true || frozen) healthySince = null
+                else if (healthySince == null) healthySince = now
+                if (healthySince?.let { now - it >= TileHealPolicy.HEALTHY_AFTER_MS } == true) attempt = 0
+                if (frozen) heal("frozen picture")
+                if (player.playbackState == Player.STATE_BUFFERING &&
+                    bufferingSince?.let { now - it >= TileHealPolicy.STUCK_BUFFERING_MS } == true) heal("stuck buffering")
             }
         }
-    }
-
-    private companion object {
-        const val STUCK = "stuck buffering"
     }
 
     private fun heal(reason: String) {
-        if (released || source == null || healJob?.isActive == true) return
-        if (paused) {
-            deferredReason = deferredReason ?: reason
+        if (released || paused || exhausted || source == null || healJob?.isActive == true) return
+        if (attempt >= TileHealPolicy.MAX_ATTEMPTS) {
+            exhausted = true
+            stopFeed()
+            onStatus("Stopped after ${TileHealPolicy.MAX_ATTEMPTS} retries — select channel to retry")
+            log("$tag recovery exhausted")
             return
         }
-        stuckJob?.cancel()
-        healthySince = 0L
         attempt++
-        val n = attempt
-        healJob = scope.launch {
-            onStatus("Reconnecting…")
-            delay(TileHealPolicy.delayMs(n))
-            // Stuck buffering often clears by itself during the wait. Playing again: nothing to repair.
-            // A frozen picture is still frozen while the player says READY, so that repair goes ahead.
-            if (reason == STUCK && player.playbackState == Player.STATE_READY && player.isPlaying) {
-                attempt = (attempt - 1).coerceAtLeast(0)
-                onStatus(null)
-                return@launch
+        healthySince = null
+        bufferingSince = null
+        openSource(reason, initial = false)
+    }
+
+    private fun openSource(reason: String, initial: Boolean) {
+        val ticket = generation
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            val began = clock()
+            if (!initial) {
+                onStatus("Reconnecting ($attempt/${TileHealPolicy.MAX_ATTEMPTS})…")
+                delay(TileHealPolicy.delayMs(attempt))
             }
             var target = source ?: return@launch
-            if (TileHealPolicy.tryBackup(n) && backupAllowed()) {
-                val alt = try {
-                    backup?.invoke(givenUp + target.key)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (_: Exception) { null }
-                if (alt != null) {
-                    givenUp += target.key
-                    source = alt
-                    target = alt
-                    onSwitched(alt)
-                    onStatus("Backup feed: ${alt.label}")
-                }
+            if (!initial && TileHealPolicy.tryBackup(attempt) && backupAllowed()) {
+                val alt = try { backup?.invoke(givenUp + target.key) }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (_: Exception) { null }
+                if (!isActive || ticket != generation || released || paused) return@launch
+                if (alt != null) target = alt
             }
-            val url = try {
-                target.freshUrl()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (_: Exception) { null }
-            log("$tag HEAL #$n: $reason -> reload ${target.label}${if (url == null) " (no url)" else ""}")
-            if (url == null) {
-                // Nothing to load right now. Try again on the next, longer delay.
-                healJob = null
-                heal("no url")
+            // Stop only this tile before opening/replacing its provider connection.
+            stopFeed()
+            val url = try { kotlinx.coroutines.withTimeoutOrNull(15_000L) { target.freshUrl() } }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: AdmissionDenied) {
+                if (isActive && ticket == generation && !released && !paused) {
+                    exhausted = true
+                    healJob = null
+                    onStatus(e.status)
+                }
                 return@launch
             }
+            catch (_: Exception) { null }
+            if (!isActive || ticket != generation || released || paused) return@launch
+            if (url.isNullOrBlank()) {
+                healJob = null
+                heal("source unavailable")
+                return@launch
+            }
+            if (source?.key != target.key) {
+                source?.let { givenUp += it.key }
+                source = target
+                onSwitched(target)
+            }
             freeze.reset()
-            player.stop()
-            player.clearMediaItems()
+            // Clear the job guard before prepare: synchronous error callbacks must be recoverable.
+            healJob = null
             player.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
             player.prepare()
             player.playWhenReady = true
+            log("$tag open attempt=$attempt reason=$reason resolveMs=${clock() - began}")
         }
+        healJob = job
+        job.start()
     }
 }

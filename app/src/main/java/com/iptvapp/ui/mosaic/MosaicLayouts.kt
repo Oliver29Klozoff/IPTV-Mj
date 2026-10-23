@@ -8,13 +8,13 @@ import org.json.JSONObject
  * A tile is a provider and that provider's own stream id, the same pair feed scores use, so a
  * layout can mix providers. Null is an empty tile. Stored as one JSON string in preferences.
  */
-data class MosaicLayout(val name: String, val gridSize: Int, val tiles: List<Tile?>) {
+data class MosaicLayout(val name: String, val gridSize: Int, val tiles: List<Tile?>, val selectedTile: Int = 0, val muted: Boolean = false) {
     /** [channelName] is checked on load: a provider whose login changed reuses ids for other channels. */
     data class Tile(val serverIndex: Int, val streamId: Int, val channelName: String)
 }
 
 object MosaicLayouts {
-    val GRID_SIZES = listOf(2, 4, 6)
+    val GRID_SIZES = listOf(1, 2, 4, 6)
     const val MAX_NAME = 40
 
     fun decode(json: String?): List<MosaicLayout> {
@@ -31,7 +31,7 @@ object MosaicLayouts {
                     if (!tile.has("server") || !tile.has("stream")) null
                     else MosaicLayout.Tile(tile.getInt("server"), tile.getInt("stream"), tile.optString("channel"))
                 }
-                MosaicLayout(name, size, tiles)
+                MosaicLayout(name, size, tiles, o.optInt("selected", 0).coerceIn(0, size - 1), o.optBoolean("muted", false))
             }
         } catch (_: Exception) {
             emptyList()
@@ -43,6 +43,8 @@ object MosaicLayouts {
             put(JSONObject().apply {
                 put("name", l.name)
                 put("grid", l.gridSize)
+                put("selected", l.selectedTile)
+                put("muted", l.muted)
                 put("tiles", JSONArray().apply {
                     l.tiles.forEach { t ->
                         put(if (t == null) JSONObject.NULL else JSONObject().put("server", t.serverIndex).put("stream", t.streamId).put("channel", t.channelName))

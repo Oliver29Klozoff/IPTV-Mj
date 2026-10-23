@@ -204,6 +204,14 @@
             android:textSize="15sp" />
 
         <Button
+            android:id="@+id/btnMvLayouts"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:minWidth="0dp"
+            android:text="Layouts"
+            android:contentDescription="Open two or four tile saved layouts" />
+
+        <Button
             android:id="@+id/btnMvAudio"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
