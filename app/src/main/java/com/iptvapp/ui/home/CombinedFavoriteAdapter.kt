@@ -174,10 +174,17 @@ class CombinedFavoriteAdapter(
         }
     }
 
+    /**
+     * [id] is a row id or a source key (playback reports the source; a group row's id is "group:…"),
+     * so a row plays when either matches.
+     */
     fun setCurrentlyPlayingId(id: String?) {
         val old = currentlyPlayingId
         currentlyPlayingId = id
-        notifyChangedRows { it == old || it == id }
+        currentList.forEachIndexed { index, item ->
+            val hit = { k: String? -> k != null && (item.id == k || item.sourceKey == k) }
+            if (item.id != pressedId && (hit(old) || hit(id))) notifyItemChanged(index)
+        }
     }
 
     fun submitEpgText(epgMap: Map<String, String>) {
@@ -276,7 +283,8 @@ class CombinedFavoriteAdapter(
                 else android.graphics.Color.parseColor("#444444")
             )
 
-            binding.root.isSelected = item.id == currentlyPlayingId
+            binding.root.isSelected = currentlyPlayingId != null &&
+                (item.id == currentlyPlayingId || item.sourceKey == currentlyPlayingId)
             if (showDragHandles) {
                 // Reorder mode's own checkbox selection (reorderSelectedIds) — checking several
                 // rows marks them to drag together as one block (see moveItem/moveGroupTo).

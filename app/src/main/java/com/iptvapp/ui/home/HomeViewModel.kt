@@ -73,6 +73,12 @@ class HomeViewModel @Inject constructor(
 
     private val bandwidthBudgetManager by lazy { BandwidthBudgetManager(db, prefs) }
 
+    /**
+     * Anything that reshapes Smart Channel rows: a saved group change, or the preferred-source
+     * setting (it picks which copy a group row plays), so lists already open follow both.
+     */
+    private val smartShapeChanges = kotlinx.coroutines.flow.combine(smartChannels.changes, prefs.smartPreferHealthy) { rev, prefer -> rev to prefer }
+
     /** Feature A gating: true only when the "Auto-preview movies on focus" Settings toggle is on
      * AND BandwidthBudgetManager says this provider isn't near/over its monthly cap. VOD grid
      * adapters call the url-provider lambda that wraps this (see HomeActivity/TvHomeActivity's
@@ -265,7 +271,7 @@ class HomeViewModel @Inject constructor(
             combine(primaryFlow, mergedFlow) { primary, merged -> primary to merged }
                 .combine(_liveCategories) { pair, cats -> Triple(pair.first, pair.second, cats) }
                 .combine(prefs.smartChannelDisplay) { triple, smart -> triple to smart }
-                .combine(smartChannels.changes) { state, _ -> state }
+                .combine(smartShapeChanges) { state, _ -> state }
                 .collectLatest { (state, smart) ->
                     val (primary, merged, cats) = state
                     val namesById = cats.associate { it.categoryId to it.categoryName }
@@ -617,7 +623,7 @@ class HomeViewModel @Inject constructor(
             // The setting is part of the list: switching it reshapes the category already open.
             flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }
                 .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
-                .combine(smartChannels.changes) { state, _ -> state }
+                .combine(smartShapeChanges) { state, _ -> state }
                 .collectLatest { (rows, on, smart) ->
                 // Collapse, then sort: the copy kept may sort elsewhere than the group's first copy.
                 val collapsed = shapeCategory(
@@ -746,7 +752,7 @@ class HomeViewModel @Inject constructor(
             val owner = coroutineContext[Job]
             repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }
                 .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
-                .combine(smartChannels.changes) { state, _ -> state }
+                .combine(smartShapeChanges) { state, _ -> state }
                 .collectLatest { (list, on, smart) ->
                 val presented = HashMap<String, String>()
                 val result = shapeCategory(
@@ -1844,7 +1850,7 @@ class HomeViewModel @Inject constructor(
             val owner = coroutineContext[Job]
             repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }
                 .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
-                .combine(smartChannels.changes) { state, _ -> state }
+                .combine(smartShapeChanges) { state, _ -> state }
                 .collectLatest { (list, on, smart) ->
                 val presented = HashMap<String, String>()
                 val collapsed = shapeCategory(
@@ -2347,7 +2353,7 @@ class HomeViewModel @Inject constructor(
                 mergedFavoriteFlowForSelection(),
                 _liveCategories,
                 prefs.smartChannelDisplay,
-                smartChannels.changes,
+                smartShapeChanges,
             ) { primary, merged, cats, smart, _ ->
                 val namesById = cats.associate { it.categoryId to it.categoryName }
                 val q = query
