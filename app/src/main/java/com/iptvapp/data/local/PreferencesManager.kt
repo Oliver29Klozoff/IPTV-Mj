@@ -452,6 +452,10 @@ class PreferencesManager @Inject constructor(
     // non-zero value waits that many ms after the LAST press before actually resolving/loading
     // the new stream, so rapid-fire channel-up/down mashing settles on one final channel switch
     // instead of potentially firing several real network resolves/player reloads in a row.
+    fun turboTuneNow(): String = PrefsSnapshot.read(context) { it[stringPreferencesKey("turbo_tune")] ?: "automatic" }
+    val turboTune: Flow<String> = context.dataStore.data.map { it[stringPreferencesKey("turbo_tune")] ?: "automatic" }
+    suspend fun setTurboTune(mode: String) = context.dataStore.edit { it[stringPreferencesKey("turbo_tune")] = mode }
+
     val channelZapDebounceMs: Flow<Int> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.CHANNEL_ZAP_DEBOUNCE_MS] ?: 0 }

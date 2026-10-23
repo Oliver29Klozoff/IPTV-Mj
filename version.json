@@ -1,7 +1,7 @@
 {
-  "versionCode": 606,
-  "versionName": "7.68",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.68/MKTV.apk",
+  "versionCode": 607,
+  "versionName": "7.69",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.69/MKTV.apk",
   "apkSha256": "9d37b3fcefa35d72f743546d905fefede0642e5931d0c453d17e435e5c3fcae2",
-  "changelog": "Smart Channels: one entry for the same channel across providers, with automatic backup."
+  "changelog": "Turbo Tune: faster startup settings, responsive channel surfing, and guarded neighbor preparation. Device speed improvements remain unmeasured."
 }

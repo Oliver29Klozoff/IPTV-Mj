@@ -1502,6 +1502,33 @@
                         <!-- Channel change speed + pre-warm: TV-remote settings that only the old
                              Shield Settings screen had, until the Shield moved onto this one (v6.87). -->
                         <LinearLayout
+                            android:id="@+id/rowTurboTune"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Turbo Tune" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Automatic is recommended. Performance may use a spare provider connection." />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvTurboTuneValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Automatic" />
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowChannelZapSpeed"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"

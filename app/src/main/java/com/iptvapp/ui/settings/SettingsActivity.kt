@@ -283,6 +283,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Game alerts", 0, null, R.id.switchGameAlerts),
             SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
+            SettingSearchEntry("Turbo Tune", 0, null, R.id.rowTurboTune),
             SettingSearchEntry("Channel Change Speed", 0, null, R.id.rowChannelZapSpeed),
             SettingSearchEntry("Pre-warm Streams on Focus", 0, null, R.id.switchPreWarmOnFocus),
             SettingSearchEntry("Data Saver", 0, null, R.id.switchDataSaver),
@@ -3035,6 +3036,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
+                binding.tvTurboTuneValue.text = prefs.turboTune.first().replaceFirstChar { it.uppercase() }
                 binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
                 binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
                 refreshShowAlertsValue()
@@ -4307,6 +4309,22 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setGameAlerts(enabled) }
         }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
+        binding.rowTurboTune.setOnClickListener {
+            lifecycleScope.launch {
+                val values = arrayOf("off", "automatic", "performance")
+                val labels = arrayOf("Off", "Automatic (recommended)", "Performance")
+                AlertDialog.Builder(this@SettingsActivity)
+                    .setTitle("Turbo Tune")
+                    .setSingleChoiceItems(labels, values.indexOf(prefs.turboTune.first()).coerceAtLeast(0)) { dialog, which ->
+                        lifecycleScope.launch {
+                            prefs.setTurboTune(values[which])
+                            binding.tvTurboTuneValue.text = labels[which]
+                        }
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Cancel", null).show()
+            }
+        }
         binding.rowChannelZapSpeed.setOnClickListener { showChannelZapSpeedDialog() }
         binding.rowHiddenChannels.setOnClickListener { showHiddenChannelsDialog() }
         refreshHiddenChannelsCount()

@@ -875,6 +875,13 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <ImageView
+            android:id="@+id/ivTuneLogo"
+            android:layout_width="48dp"
+            android:layout_height="32dp"
+            android:contentDescription="Channel logo"
+            android:scaleType="fitCenter" />
+
         <TextView
             android:id="@+id/tvOsdChannelName"
             android:layout_width="match_parent"

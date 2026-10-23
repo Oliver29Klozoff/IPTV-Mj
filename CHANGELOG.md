@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.69 - 2026-10-23
+- **New**: Turbo Tune in Settings: Off, Automatic (recommended), and Performance.
+- **Improved**: Immediate channel feedback and safer rapid channel surfing, with late channel and Recall requests cancelled before they can reopen an old stream.
+- **Improved**: Reduced initial buffering for ordinary direct Live TV. Extra Buffering, Sports Mode, Timeshift, and rebuffer recovery retain their existing buffer profiles.
+- **New**: Performance mode can prepare one nearby HLS/TS channel when memory and known provider connection capacity allow it. Automatic opens no speculative feeds.
+- **Validation**: Debug and release builds and 709 unit tests passed before version packaging. Live device speed and resource improvements have not been measured; automated review was unavailable.
+
 ## v7.68 - 2026-10-23
 - **New**: Smart Channels (Settings > Stream & EPG). The same channel from several providers can show as
   one entry when their guide ids prove it is the same feed. Copies that only share a name (HD/FHD, East,
