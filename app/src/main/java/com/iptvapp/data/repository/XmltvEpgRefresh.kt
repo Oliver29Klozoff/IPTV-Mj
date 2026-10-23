@@ -439,7 +439,10 @@ internal class XmltvEpgRefresh(private val writer: XmltvGuideWriter) {
                             startTimestamp = start,
                             stopTimestamp = stop,
                             nowPlaying = if (start <= nowSec && stop > nowSec) 1 else 0,
-                            hasArchive = 0
+                            hasArchive = 0,
+                            seriesKey = prog.seriesKey, episodeKey = prog.episodeKey,
+                            seasonNumber = prog.seasonNumber, episodeNumber = prog.episodeNumber,
+                            isNewEpisode = prog.isNewEpisode
                         )
                     )
                 }

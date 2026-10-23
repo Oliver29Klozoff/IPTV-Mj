@@ -326,6 +326,7 @@ class RecordingSchedulerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityRecordingSchedulerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.btnSeriesRecording.setOnClickListener { startActivity(Intent(this, SeriesRecordingActivity::class.java)) }
         if (savedInstanceState == null) startFromNotification(intent)
 
         binding.btnBack.setOnClickListener { finish() }
@@ -826,30 +827,8 @@ class RecordingSchedulerActivity : AppCompatActivity() {
     private suspend fun createOutputTarget(channel: ChannelEntity, startMs: Long): String =
         createOutputTarget(channel.name, startMs)
 
-    private suspend fun createOutputTarget(channelName: String, startMs: Long): String {
-        val safeName = channelName.replace(Regex("[^a-zA-Z0-9 _-]"), "_")
-        val fileName = "${safeName}_${startMs}.ts"
-        val folderName = prefs.recordingFolderName.first()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
-                put(MediaStore.Video.Media.MIME_TYPE, "video/mp2t")
-                put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/$folderName")
-                put(MediaStore.Video.Media.IS_PENDING, 1)
-            }
-
-            val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-            if (uri != null) return uri.toString()
-        }
-
-        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
-            .let { File(it, folderName) }
-        dir.mkdirs()
-
-        return File(dir, fileName).absolutePath
-    }
-
+    private suspend fun createOutputTarget(channelName: String, startMs: Long): String =
+        com.iptvapp.service.RecordingTargets.create(this, prefs, channelName, startMs)
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         startFromNotification(intent)

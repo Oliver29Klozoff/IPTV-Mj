@@ -15,6 +15,8 @@ import com.iptvapp.data.local.entities.*
         SeriesEntity::class,
         EpgEntity::class,
         RecordingEntity::class,
+        SeriesRecordingRule::class,
+        SeriesRecordingEpisode::class,
         ChannelReliabilityEntity::class,
         EpisodeWatchedEntity::class,
         MergedChannelEntity::class,
@@ -40,7 +42,7 @@ import com.iptvapp.data.local.entities.*
         SmartChannelMemberEntity::class,
         SmartChannelRejectionEntity::class
     ],
-    version = 49,
+    version = 50,
     exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -50,6 +52,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun seriesDao(): SeriesDao
     abstract fun epgDao(): EpgDao
     abstract fun recordingDao(): RecordingDao
+    abstract fun seriesRecordingDao(): SeriesRecordingDao
     abstract fun reliabilityDao(): ReliabilityDao
     abstract fun episodeWatchedDao(): EpisodeWatchedDao
     abstract fun mergedChannelDao(): MergedChannelDao
@@ -697,6 +700,21 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_49_50 = object : Migration(49, 50) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE epg_entries ADD COLUMN seriesKey TEXT")
+                db.execSQL("ALTER TABLE epg_entries ADD COLUMN episodeKey TEXT")
+                db.execSQL("ALTER TABLE epg_entries ADD COLUMN seasonNumber INTEGER")
+                db.execSQL("ALTER TABLE epg_entries ADD COLUMN episodeNumber INTEGER")
+                db.execSQL("ALTER TABLE epg_entries ADD COLUMN isNewEpisode INTEGER")
+                db.execSQL("ALTER TABLE recordings ADD COLUMN isProtected INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE TABLE IF NOT EXISTS series_recording_rules (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, title TEXT NOT NULL, seriesKey TEXT, providerKey TEXT NOT NULL, serverIndex INTEGER NOT NULL, streamId INTEGER NOT NULL, channelName TEXT NOT NULL, mode TEXT NOT NULL, startPaddingMinutes INTEGER NOT NULL, endPaddingMinutes INTEGER NOT NULL, keepCount INTEGER NOT NULL, stopLowStorage INTEGER NOT NULL, priority INTEGER NOT NULL, paused INTEGER NOT NULL, cancelled INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS series_recording_episodes (identity TEXT NOT NULL PRIMARY KEY, ruleId INTEGER NOT NULL, epgId TEXT NOT NULL, title TEXT NOT NULL, startMs INTEGER NOT NULL, endMs INTEGER NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL, recordingId INTEGER, confirmed INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_series_recording_episodes_ruleId ON series_recording_episodes(ruleId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_series_recording_episodes_recordingId ON series_recording_episodes(recordingId)")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -709,7 +727,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
             MIGRATION_46_47,
             MIGRATION_47_48,
-            MIGRATION_48_49
+            MIGRATION_48_49, MIGRATION_49_50
         )
     }
 }

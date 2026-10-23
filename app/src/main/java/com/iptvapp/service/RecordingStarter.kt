@@ -28,6 +28,7 @@ import java.io.File
 interface RecordingDeps {
     fun database(): IptvDatabase
     fun repository(): XtreamRepository
+    fun seriesRecordingEngine(): SeriesRecordingEngine
 }
 
 /**
@@ -37,7 +38,9 @@ interface RecordingDeps {
  */
 object RecordingStarter {
 
-    enum class Outcome { STARTED, RESCHEDULED, IGNORED, MISSED, CHANNEL_GONE, NOT_ALLOWED }
+    /** HELD: a series recording needs the user's review (conflict, storage, provider); its
+     * reservation is kept and nothing was claimed. */
+    enum class Outcome { STARTED, RESCHEDULED, IGNORED, MISSED, CHANNEL_GONE, NOT_ALLOWED, HELD }
 
     private val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
@@ -58,7 +61,17 @@ object RecordingStarter {
         repository: XtreamRepository,
         recordingId: Int,
         resume: Boolean = false
-    ): Outcome = start(
+    ): Outcome {
+        val rec = db.recordingDao().getById(recordingId)
+        if (rec != null && rec.status == "SCHEDULED" && rec.scheduledStartMs <= System.currentTimeMillis()) {
+            val engine = dagger.hilt.android.EntryPointAccessors.fromApplication(context.applicationContext, RecordingDeps::class.java).seriesRecordingEngine()
+            // Do not claim, fail or cancel the reservation when admission needs user attention.
+            engine.startRefusal(rec)?.let { reason ->
+                RecordingNotifications.postNeedsReview(context, rec, reason)
+                return Outcome.HELD
+            }
+        }
+        return start(
         context, db, recordingId, resume, System.currentTimeMillis(),
         resolveUrl = { rec ->
             // The stream it was scheduled for; schedules from older builds build it from the login.
@@ -67,7 +80,8 @@ object RecordingStarter {
                 else repository.getMergedLiveStreamUrlForRecording(rec.serverIndex, rec.streamId)
         },
         launch = { intent -> ContextCompat.startForegroundService(context, intent) }
-    )
+        )
+    }
 
     internal suspend fun start(
         context: Context,
@@ -239,6 +253,30 @@ object RecordingNotifications {
         notify(context, recordingId, notification)
     }
 
+
+    /** A series recording reached its start but needs a decision first (see Outcome.HELD). Opens
+     * Recording Conflicts. */
+    fun postNeedsReview(context: Context, rec: RecordingEntity, reason: String) {
+        ensureChannels(context)
+        val open = PendingIntent.getActivity(
+            context, rec.id,
+            Intent(context, com.iptvapp.ui.recordings.SeriesRecordingActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("conflicts", true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val text = "$reason. The recording is kept; open Recording Conflicts to choose what records."
+        val notification = NotificationCompat.Builder(context, RecordingService.FAILURE_CHANNEL_ID)
+            .setSmallIcon(com.iptvapp.R.drawable.ic_notification)
+            .setContentTitle("Recording on hold: ${rec.programTitle ?: rec.channelName}")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        notify(context, rec.id, notification)
+    }
 
     fun postMissed(context: Context, rec: RecordingEntity) {
         ensureChannels(context)

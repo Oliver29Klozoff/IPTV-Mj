@@ -47,6 +47,14 @@
             android:contentDescription="Commercial detection"
             android:tint="#FFFFFF" />
 
+        <Button
+            android:id="@+id/btnSeriesRecording"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:minWidth="0dp"
+            android:text="Series"
+            android:contentDescription="Series recordings and recording conflicts" />
+
         <ImageButton
             android:id="@+id/btnRecordingStorageSettings"
             android:layout_width="40dp"

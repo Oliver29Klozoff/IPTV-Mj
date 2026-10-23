@@ -93,6 +93,11 @@ class IptvApplication : Application(), Configuration.Provider {
             // Periodic work (guide refresh, clean-ups) matched to the saved settings, once per
             // process start — re-arms anything an update or force-stop cleared. Idempotent.
             runCatching { com.iptvapp.worker.BackgroundWork.syncAll(app, prefs) }
+            db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer("epg_entries") {
+                override fun onInvalidated(tables: Set<String>) {
+                    com.iptvapp.worker.SeriesRecordingWorker.refresh(app)
+                }
+            })
             runCatching { com.iptvapp.service.RecordingRecovery.run(app, db) }
             runCatching { com.iptvapp.ui.guide.ChannelTimerScheduler.recover(app) }
             // A killed player cannot delete its own timeshift files. The next start sweeps them.

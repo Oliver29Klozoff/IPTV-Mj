@@ -24,6 +24,7 @@ object BackgroundWork {
 
     /** App start: bring every job in line with the saved settings (re-arms anything an update cleared). */
     suspend fun syncAll(context: Context, prefs: PreferencesManager) {
+        SeriesRecordingWorker.register(context)
         applyAutoEpgRefresh(context, prefs.epgAutoRefreshHours.first())
         applyRecordingCleanup(context, prefs.autoDeleteRecordingsDays.first())
         applyContinueWatchingCleanup(context, prefs.autoClearContinueWatchingDays.first())

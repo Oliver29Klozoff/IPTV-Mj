@@ -144,6 +144,7 @@ class EpgRefreshWorker @AssistedInject constructor(
             )
 
             updateProgress(notificationManager, 100, "EPG refresh complete")
+            SeriesRecordingWorker.refresh(appContext)
             // Fresh listings: check them against the user's show alerts.
             com.iptvapp.util.ShowAlerts.scan(appContext, db, prefs)
             com.iptvapp.util.GameAlerts.schedule(appContext, db, prefs)

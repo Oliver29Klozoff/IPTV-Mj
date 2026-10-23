@@ -675,20 +675,15 @@ class EpgTimelineActivity : AppCompatActivity() {
                         adapter.refresh()
                         renderDetail()
                     }
-                    secondary.text = "Record"
-                    secondary.setOnClickListener {
-                        startActivity(
-                            Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
-                                .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, ch.streamId)
-                                .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, s)
-                                .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, (e - s).coerceAtLeast(60_000L))
-                        )
-                    }
+                    secondary.text = "Record Options"
+                    secondary.setOnClickListener { openRecordOptions(row, p) }
                 } else {
-                    // Reminders / recordings are primary-provider only (see showTimerDialog).
+                    // Recording options are provider-aware; reminders keep their original behavior.
                     primary.text = "Watch channel"
                     primary.setOnClickListener { playChannel(row) }
-                    secondary.visibility = View.GONE
+                    secondary.visibility = View.VISIBLE
+                    secondary.text = "Record Options"
+                    secondary.setOnClickListener { openRecordOptions(row, p) }
                 }
             }
             else -> {
@@ -711,10 +706,19 @@ class EpgTimelineActivity : AppCompatActivity() {
     // ChannelTimerScheduler have no serverIndex support) — a merged row only ever gets the
     // plain "OK" dialog with no actionable buttons, same spirit as the Guide list view gating
     // onReplayClick off row.supportsReplay for merged rows.
+    private fun openRecordOptions(row: GuideRow, program: EpgEntity) {
+        startActivity(Intent(this, com.iptvapp.ui.recordings.SeriesRecordingActivity::class.java)
+            .putExtra("epg_id", program.id).putExtra("server_index", row.serverIndex)
+            .putExtra("stream_id", row.streamId))
+    }
+
     private fun showTimerDialog(row: GuideRow, program: EpgEntity) {
         val startSec = if (program.startTimestamp < 100_000_000_000L) program.startTimestamp else program.startTimestamp / 1000L
         val startMs = startSec * 1000L
-        if (startMs <= nowMs) return
+        if (startMs <= nowMs) {
+            if (epgMs(program.stopTimestamp) > nowMs) openRecordOptions(row, program)
+            return
+        }
         val stopMs = if (program.stopTimestamp < 100_000_000_000L) program.stopTimestamp * 1000L else program.stopTimestamp
         val durationMs = (stopMs - startMs).coerceAtLeast(60_000L)
         val timeStr = SimpleDateFormat("h:mm a", Locale.US).format(Date(startMs))
@@ -724,14 +728,6 @@ class EpgTimelineActivity : AppCompatActivity() {
             .setMessage("${row.name} · $timeStr")
             .setNegativeButton("Cancel", null)
         if (ch != null) {
-            builder.setPositiveButton("Record") { _, _ ->
-                startActivity(
-                    Intent(this, com.iptvapp.ui.recordings.RecordingSchedulerActivity::class.java)
-                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_STREAM_ID, ch.streamId)
-                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_START_MS, startMs)
-                        .putExtra(com.iptvapp.ui.recordings.RecordingSchedulerActivity.EXTRA_PREFILL_DURATION_MS, durationMs)
-                )
-            }
             builder.setNeutralButton("Remind Me") { _, _ ->
                 ChannelTimerScheduler.schedule(this, ch.streamId, ch.name, program.title, startMs)
                 android.widget.Toast.makeText(this, "Reminder set for $timeStr", android.widget.Toast.LENGTH_SHORT).show()
@@ -739,6 +735,7 @@ class EpgTimelineActivity : AppCompatActivity() {
                 renderDetail()
             }
         }
+        builder.setPositiveButton("Record Options") { _, _ -> openRecordOptions(row, program) }
         builder.show()
     }
 

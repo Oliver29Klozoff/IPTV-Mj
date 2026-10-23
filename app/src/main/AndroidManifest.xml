@@ -35,6 +35,7 @@
         android:theme="@style/Theme.IptvApp"
         android:usesCleartextTraffic="true">
 
+        <activity android:name=".ui.recordings.SeriesRecordingActivity" android:exported="false" />
         <activity
             android:name=".ui.SplashActivity"
             android:theme="@style/AppTheme.Splash"

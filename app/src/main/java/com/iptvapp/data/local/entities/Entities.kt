@@ -141,7 +141,12 @@ data class EpgEntity(
     val startTimestamp: Long,
     val stopTimestamp: Long,
     val nowPlaying: Int,
-    val hasArchive: Int
+    val hasArchive: Int,
+    val seriesKey: String? = null,
+    val episodeKey: String? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
+    val isNewEpisode: Boolean? = null
 )
 
 @Entity(tableName = "recordings")
@@ -168,7 +173,8 @@ data class RecordingEntity(
     // program-identity signal recordings have; channelName alone (e.g. "ESPN HD") is a channel,
     // not a program, and can't be scrobbled to Trakt correctly. See PlayerActivity's Trakt
     // scrobble gating, which now uses this when a recording is played back.
-    val programTitle: String? = null
+    val programTitle: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "0") val isProtected: Boolean = false
 )
 
 // Per-episode watched state, keyed by (seriesId, season, episode) — deliberately independent

@@ -28,6 +28,7 @@ class RecordingRecoveryReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 runCatching { RecordingRecovery.run(app, db) }
+                runCatching { com.iptvapp.worker.SeriesRecordingWorker.refresh(app) }
                 runCatching { ChannelTimerScheduler.recover(app) }
             } finally {
                 pending.finish()

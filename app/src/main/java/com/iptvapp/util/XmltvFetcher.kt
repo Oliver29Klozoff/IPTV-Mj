@@ -19,7 +19,12 @@ data class XmltvProgram(
     val startSec: Long,
     val stopSec: Long,
     // The start carried no time zone, so it was read as UTC (EPG Health reports it per source).
-    val zoneless: Boolean = false
+    val zoneless: Boolean = false,
+    val seriesKey: String? = null,
+    val episodeKey: String? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
+    val isNewEpisode: Boolean? = null
 )
 
 object XmltvFetcher {
@@ -174,6 +179,14 @@ object XmltvFetcher {
         var progTitle     = ""
         var progDesc      = ""
 
+        var numberSystem: String? = null
+        var numberText = ""
+        var seriesKey: String? = null
+        var episodeKey: String? = null
+        var seasonNumber: Int? = null
+        var episodeNumber: Int? = null
+        var isNewEpisode: Boolean? = null
+        var rerun = false
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
@@ -191,9 +204,13 @@ object XmltvFetcher {
                         progStart     = parseTs(rawStart)
                         progZoneless  = rawStart.isNotBlank() && ' ' !in rawStart.trim()
                         progStop      = parseTs(parser.getAttributeValue(null, "stop")  ?: "")
+                        seriesKey = null; episodeKey = null; seasonNumber = null; episodeNumber = null; isNewEpisode = null; rerun = false; numberSystem = null
                         progTitle     = ""
                         progDesc      = ""
                     }
+                    "episode-num" -> { numberSystem = parser.getAttributeValue(null, "system"); numberText = "" }
+                    "previously-shown" -> { rerun = true; isNewEpisode = false }
+                    "new" -> if (!rerun) isNewEpisode = true
                     "title" -> inTitle = true
                     "desc"  -> inDesc  = true
                 }
@@ -206,6 +223,7 @@ object XmltvFetcher {
                     // names/titles/descriptions are only ever shown as short one-line UI text, so
                     // capping well above any legitimate value is free insurance against that.
                     when {
+                        numberSystem != null -> if (numberText.length < 256) numberText += t
                         inDisplayName -> if (displayName.length < MAX_FIELD_LEN) displayName += t
                         inTitle       -> if (progTitle.length < MAX_FIELD_LEN) progTitle += t
                         inDesc        -> if (progDesc.length < MAX_FIELD_LEN) progDesc += t
@@ -223,6 +241,12 @@ object XmltvFetcher {
                         inDisplayName = false
                         channelDone   = true
                     }
+                    "episode-num" -> {
+                        val n = com.iptvapp.service.SeriesRecordingPolicy.xmlNumbers(numberSystem.orEmpty(), numberText)
+                        seriesKey = n.series ?: seriesKey; episodeKey = n.episode ?: episodeKey
+                        seasonNumber = n.season ?: seasonNumber; episodeNumber = n.number ?: episodeNumber
+                        numberSystem = null
+                    }
                     "title" -> inTitle = false
                     "desc"  -> inDesc  = false
                     "programme" -> {
@@ -230,7 +254,8 @@ object XmltvFetcher {
                             && progStart in minSec..maxSec
                             && progTitle.isNotBlank()
                         ) {
-                            programs.add(XmltvProgram(progChannelId, progTitle.trim(), progDesc.trim(), progStart, progStop, progZoneless))
+                            val series = seriesKey ?: com.iptvapp.service.SeriesRecordingPolicy.numberedSeries(progTitle, seasonNumber, episodeNumber)
+                            programs.add(XmltvProgram(progChannelId, progTitle.trim(), progDesc.trim(), progStart, progStop, progZoneless, series, episodeKey, seasonNumber, episodeNumber, isNewEpisode))
                         }
                     }
                 }

@@ -132,11 +132,13 @@ class RecordingService : Service() {
 
     /** Counts what reaches the file, so a capture that fails part-way knows whether it has
      * anything worth keeping. */
-    private class CountingOutputStream(private val out: OutputStream) : OutputStream() {
+    private class CountingOutputStream(private val out: OutputStream, private val spaceCheck: () -> Unit = {}) : OutputStream() {
+        private var checkedAt = -4L * 1024 * 1024
+        private fun checkSpace() { if (count - checkedAt >= 4L * 1024 * 1024) { spaceCheck(); checkedAt = count } }
         @Volatile var count = 0L
             private set
-        override fun write(b: Int) { out.write(b); count++ }
-        override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len); count += len }
+        override fun write(b: Int) { checkSpace(); out.write(b); count++ }
+        override fun write(b: ByteArray, off: Int, len: Int) { checkSpace(); out.write(b, off, len); count += len }
         override fun flush() = out.flush()
         override fun close() = out.close()
     }
@@ -267,9 +269,15 @@ class RecordingService : Service() {
             // process can die between the claim and the first write).
             val before = if (resume) existingSize(target) else 0L
             var written = 0L
+            val seriesEpisode = database.seriesRecordingDao().forRecording(recordingId)
+            val stopLowStorage = seriesEpisode?.let { database.seriesRecordingDao().rule(it.ruleId)?.stopLowStorage } == true
             val result = runCatching {
                 openRecordingOutput(target, append = resume).use { raw ->
-                    val out = CountingOutputStream(raw)
+                    val out = CountingOutputStream(raw) {
+                        if (stopLowStorage && (android.os.Environment.getExternalStorageState() != android.os.Environment.MEDIA_MOUNTED ||
+                            android.os.StatFs(android.os.Environment.getExternalStorageDirectory().absolutePath).availableBytes < 256L * 1024 * 1024))
+                            throw IOException("No space left on device: recording reserve reached")
+                    }
                     try {
                         val bytes = recordStream(url, out, recordMs, capture)
                         if (before + bytes < 1024) throw IOException("Recording wrote only ${before + bytes} bytes")
@@ -398,6 +406,7 @@ class RecordingService : Service() {
         val httpCodeMatch = Regex("""HTTP (\d{3})""").find(message)
         val httpCode = httpCodeMatch?.groupValues?.get(1)?.toIntOrNull()
         return when {
+            message.contains("No space left", ignoreCase = true) -> "Storage is low or unavailable; recording stopped to protect existing files"
             httpCode == 403 || httpCode == 429 ->
                 "Provider rejected the connection — likely another stream (live viewing or another recording) was already using your account's connection limit"
             httpCode != null -> "Provider returned an error (HTTP $httpCode)"

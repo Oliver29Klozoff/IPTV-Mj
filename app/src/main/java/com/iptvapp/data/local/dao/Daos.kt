@@ -1,4 +1,4 @@
-﻿package com.iptvapp.data.local.dao
+package com.iptvapp.data.local.dao
 
 import androidx.room.*
 import com.iptvapp.data.local.entities.*
@@ -452,6 +452,8 @@ data class InProgressSeriesRow(
 
 @Dao
 interface EpgDao {
+    @Query("SELECT * FROM epg_entries WHERE seriesKey = :key ORDER BY startTimestamp LIMIT 500")
+    suspend fun seriesSources(key: String): List<EpgEntity>
     // How far ahead this provider's guide runs, for Provider Health. Seconds or milliseconds,
     // as the panel sent them; the caller normalises.
     @Query("SELECT MAX(stopTimestamp) FROM epg_entries WHERE serverIndex = :serverIndex")
@@ -555,6 +557,12 @@ interface EpgDao {
 
 @Dao
 interface RecordingDao {
+    @Query("UPDATE recordings SET isProtected = :protected WHERE id = :id AND status = 'DONE'")
+    suspend fun protect(id: Int, protected: Boolean)
+    @Query("UPDATE recordings SET scheduledStartMs = :start, durationMs = :duration WHERE id = :id AND status = 'SCHEDULED'")
+    suspend fun moveScheduled(id: Int, start: Long, duration: Long): Int
+    @Query("UPDATE recordings SET status = 'CANCELLED' WHERE id = :id AND status = 'SCHEDULED'")
+    suspend fun cancelScheduled(id: Int): Int
     @Query("SELECT * FROM recordings ORDER BY scheduledStartMs ASC")
     fun getAll(): Flow<List<RecordingEntity>>
     @Query("""
@@ -630,7 +638,7 @@ interface RecordingDao {
     // touched since they're not finished yet). Anchored on scheduledStartMs + durationMs (the
     // recording's actual end time) rather than scheduledStartMs alone, so a long recording
     // doesn't get deleted before it even finishes airing.
-    @Query("SELECT * FROM recordings WHERE status IN ('DONE', 'FAILED') AND (scheduledStartMs + durationMs) < :cutoffMs")
+    @Query("SELECT * FROM recordings WHERE status IN ('DONE', 'FAILED') AND isProtected = 0 AND (scheduledStartMs + durationMs) < :cutoffMs")
     suspend fun getOlderThan(cutoffMs: Long): List<RecordingEntity>
 }
 
