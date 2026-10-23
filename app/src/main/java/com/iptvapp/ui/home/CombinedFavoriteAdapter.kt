@@ -167,6 +167,13 @@ class CombinedFavoriteAdapter(
         }
     }
 
+    /** Guide and health maps stay keyed by the source, even when the row's DiffUtil id is a group. */
+    private inline fun notifySourceRows(changed: (sourceKey: String) -> Boolean) {
+        currentList.forEachIndexed { index, item ->
+            if (item.id != pressedId && changed(item.sourceKey)) notifyItemChanged(index)
+        }
+    }
+
     fun setCurrentlyPlayingId(id: String?) {
         val old = currentlyPlayingId
         currentlyPlayingId = id
@@ -176,19 +183,19 @@ class CombinedFavoriteAdapter(
     fun submitEpgText(epgMap: Map<String, String>) {
         val old = epgTextById
         epgTextById = epgMap
-        notifyChangedRows { old[it] != epgMap[it] }
+        notifySourceRows { old[it] != epgMap[it] }
     }
 
     fun submitEpgNextText(nextMap: Map<String, String>) {
         val old = epgNextTextById
         epgNextTextById = nextMap
-        notifyChangedRows { old[it] != nextMap[it] }
+        notifySourceRows { old[it] != nextMap[it] }
     }
 
     fun submitHealth(healthMap: Map<String, Boolean?>) {
         val old = healthById
         healthById = healthMap
-        notifyChangedRows { old[it] != healthMap[it] }
+        notifySourceRows { old[it] != healthMap[it] }
     }
 
     inner class ViewHolder(val binding: ItemChannelBinding) :
@@ -207,9 +214,9 @@ class CombinedFavoriteAdapter(
                 visibility = if (quality != null) View.VISIBLE else View.GONE
                 text = quality ?: ""
             }
-            binding.tvEpgNow.text = epgTextById[item.id] ?: "Guide loading..."
+            binding.tvEpgNow.text = epgTextById[item.sourceKey] ?: "Guide loading..."
 
-            val nextText = epgNextTextById[item.id]
+            val nextText = epgNextTextById[item.sourceKey]
             if (isTvMode && nextText != null) {
                 binding.tvEpgNext?.text = "Next: $nextText"
             } else {
@@ -372,8 +379,8 @@ class CombinedFavoriteAdapter(
                 onFavoriteClick(item)
             }
 
-            val health = healthById[item.id]
-            if (health != null || healthById.containsKey(item.id)) {
+            val health = healthById[item.sourceKey]
+            if (health != null || healthById.containsKey(item.sourceKey)) {
                 binding.viewHealthDot?.visibility = View.VISIBLE
                 val dotColor = when (health) {
                     true  -> android.graphics.Color.parseColor("#00CC66")

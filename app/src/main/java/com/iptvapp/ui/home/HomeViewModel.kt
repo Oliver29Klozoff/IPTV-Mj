@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -66,6 +67,7 @@ class HomeViewModel @Inject constructor(
     private val repository: XtreamRepository,
     private val prefs: PreferencesManager,
     private val db: IptvDatabase,
+    private val smartChannels: com.iptvapp.data.smart.SmartChannelStore,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context
 ) : ViewModel() {
 
@@ -246,6 +248,7 @@ class HomeViewModel @Inject constructor(
     fun selectFavoriteFolderView(folderId: Int?) {
         inFavoritesMode = true
         selectedFavoriteFolder = folderId
+        replacePresentedGroups(emptyMap())
         searchJob?.cancel()
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
@@ -259,16 +262,26 @@ class HomeViewModel @Inject constructor(
                 -1 -> repository.getMergedUnfiledFavorites()
                 else -> repository.getMergedFavoritesInFolder(folderId)
             }
-            combine(primaryFlow, mergedFlow, _liveCategories) { primary, merged, cats ->
-                val namesById = cats.associate { it.categoryId to it.categoryName }
-                _channels.value = primary
-                val liveNicknames = repository.getMergedServerNicknames()
-                val primaryNickname = primaryNicknameLabel()
-                mergeByFavOrder(
-                    primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
-                    merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
-                )
-            }.collectLatest { _combinedFavorites.value = it }
+            combine(primaryFlow, mergedFlow) { primary, merged -> primary to merged }
+                .combine(_liveCategories) { pair, cats -> Triple(pair.first, pair.second, cats) }
+                .combine(prefs.smartChannelDisplay) { triple, smart -> triple to smart }
+                .combine(smartChannels.changes) { state, _ -> state }
+                .collectLatest { (state, smart) ->
+                    val (primary, merged, cats) = state
+                    val namesById = cats.associate { it.categoryId to it.categoryName }
+                    _channels.value = primary
+                    val liveNicknames = repository.getMergedServerNicknames()
+                    val primaryNickname = primaryNicknameLabel()
+                    val rows = mergeByFavOrder(
+                        primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
+                        merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) },
+                    )
+                    _combinedFavorites.value = if (smart == com.iptvapp.util.SmartChannels.DISPLAY_GROUP && folderId == null) {
+                        rows + groupFavoriteEntries(namesById, primaryNickname, liveNicknames)
+                    } else {
+                        rows
+                    }
+                }
         }
     }
 
@@ -376,6 +389,7 @@ class HomeViewModel @Inject constructor(
                 // already found for every OTHER server it didn't just re-check.
                 if (targetServerIndex == null) _providersDownCount.value = errors.size
                 prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+                rebuildSmartGroupsAfterCatalog()
             } finally {
                 _syncProgress.value = null
                 _loading.value = false
@@ -508,6 +522,69 @@ class HomeViewModel @Inject constructor(
             .associate { c -> keyOf(c.item).let { (s, id) -> copyId(s, id) } to c.extraCopies }
         return Counted(collapsed.map { it.item }, extra)
     }
+
+    /**
+     * Group Verified shows one row per saved verified or manual group and leaves every other
+     * channel as itself. Combine duplicate channels is unchanged while Smart Channels is off.
+     */
+    private suspend fun <T> shapeCategory(
+        items: List<T>,
+        combineOn: Boolean,
+        smartOn: Boolean,
+        keyOf: (T) -> Pair<Int, Int>,
+        nameOf: (T) -> String,
+        epgOf: (T) -> String = { "" },
+        decorate: (T, String?, Boolean) -> T,
+    ): Counted<T> {
+        if (!smartOn) return collapseDuplicates(items, combineOn, keyOf, nameOf)
+        val groups = try {
+            smartChannels.playbackGroups()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptyList()
+        }
+        if (groups.none { it.reviewState == com.iptvapp.util.SmartChannels.VERIFIED || it.reviewState == com.iptvapp.util.SmartChannels.MANUAL }) {
+            return Counted(items, emptyMap())
+        }
+        val scores = try {
+            repository.feedQuality(items.map(keyOf))
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptyMap()
+        }
+        val preferSelected = prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED
+        val shown = withContext(Dispatchers.Default) {
+            com.iptvapp.util.SmartChannels.present(
+                items,
+                groups,
+                { pair -> com.iptvapp.util.SmartChannels.Key(keyOf(pair).first, keyOf(pair).second) },
+                { scores[keyOf(it)]?.score },
+                preferSelected,
+            ) { item ->
+                val (server, stream) = keyOf(item)
+                com.iptvapp.util.SmartChannels.Source(server, stream, nameOf(item), epgOf(item))
+            }
+        }
+        val extra = shown.filter { it.extraSources > 0 }.associate { row ->
+            keyOf(row.item).let { (server, id) -> copyId(server, id) } to row.extraSources
+        }
+        return Counted(shown.map { decorate(it.item, it.groupId, it.groupFavorite) }, extra)
+    }
+
+    private val presentedGroupByKey = HashMap<String, String>()
+
+    private fun replacePresentedGroups(entries: Map<String, String>) {
+        presentedGroupByKey.clear()
+        presentedGroupByKey.putAll(entries)
+    }
+
+    /** Only the row currently shown as a Smart Channel. A source favorite keeps its own star. */
+    private suspend fun togglePresentedGroup(serverIndex: Int, streamId: Int): Boolean {
+        if (prefs.smartChannelDisplayNow() != com.iptvapp.util.SmartChannels.DISPLAY_GROUP) return false
+        val groupId = presentedGroupByKey["$serverIndex:$streamId"] ?: return false
+        smartChannels.toggleGroupFavorite(groupId)
+        return true
+    }
     private var combinedLiveChannelsJob: Job? = null
 
     fun hasSelectedCombinedCategory(): Boolean = selectedCombinedCategory != null
@@ -538,10 +615,25 @@ class HomeViewModel @Inject constructor(
                     .map { list -> list.map { LiveChannelRow(mergedChannel = it, categoryName = categoryName) } }
             }
             // The setting is part of the list: switching it reshapes the category already open.
-            flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }.collectLatest { (rows, on) ->
+            flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }
+                .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
+                .combine(smartChannels.changes) { state, _ -> state }
+                .collectLatest { (rows, on, smart) ->
                 // Collapse, then sort: the copy kept may sort elsewhere than the group's first copy.
-                val collapsed = collapseDuplicates(rows, on, { it.serverIndex to it.streamId }, { it.name })
+                val collapsed = shapeCategory(
+                    rows,
+                    on,
+                    smart == com.iptvapp.util.SmartChannels.DISPLAY_GROUP,
+                    { it.serverIndex to it.streamId },
+                    { it.name },
+                    { it.epgChannelId },
+                ) { row, groupId, favorite ->
+                    if (groupId == null) row else row.copy(smartGroupId = groupId, groupFavorite = favorite)
+                }
                 val shown = applySortToLiveRows(collapsed.list)
+                replacePresentedGroups(
+                    shown.mapNotNull { row -> row.smartGroupId?.let { "${row.serverIndex}:${row.streamId}" to it } }.toMap(),
+                )
                 combinedCounts.value = Counted(shown, collapsed.counts, owner)
                 _duplicateCountsChanged.value++
                 _combinedLiveChannels.value = shown
@@ -652,8 +744,23 @@ class HomeViewModel @Inject constructor(
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
             val owner = coroutineContext[Job]
-            repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
-                val result = collapseDuplicates(list, on, { m -> m.serverIndex to m.streamId }, { m -> m.name })
+            repository.getMergedChannelsByCategory(serverIndex, categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }
+                .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
+                .combine(smartChannels.changes) { state, _ -> state }
+                .collectLatest { (list, on, smart) ->
+                val presented = HashMap<String, String>()
+                val result = shapeCategory(
+                    list,
+                    on,
+                    smart == com.iptvapp.util.SmartChannels.DISPLAY_GROUP,
+                    { m -> m.serverIndex to m.streamId },
+                    { m -> m.name },
+                    { m -> m.epgChannelId.orEmpty() },
+                ) { row, groupId, favorite ->
+                    if (groupId != null) presented["${row.serverIndex}:${row.streamId}"] = groupId
+                    if (groupId == null) row else row.copy(isFavorite = favorite)
+                }
+                replacePresentedGroups(presented)
                 mergedCounts.value = Counted(result.list, result.counts, owner)
                 _duplicateCountsChanged.value++
                 _mergedChannels.value = result.list
@@ -666,6 +773,7 @@ class HomeViewModel @Inject constructor(
     // currently drilled into — matches how search already works on every other tab. Also
     // respects "USA Only" so a search doesn't resurface channels the filter is meant to hide.
     fun searchMergedChannels(query: String) {
+        replacePresentedGroups(emptyMap())
         mergedChannelsJob?.cancel()
         mergedChannelsJob = viewModelScope.launch {
             repository.searchMergedChannels(query)
@@ -942,7 +1050,10 @@ class HomeViewModel @Inject constructor(
     }
 
     fun setMergedChannelFavorite(channel: com.iptvapp.data.local.entities.MergedChannelEntity, favorite: Boolean) {
-        viewModelScope.launch { repository.setMergedChannelFavorite(channel.serverIndex, channel.streamId, favorite) }
+        viewModelScope.launch {
+            if (togglePresentedGroup(channel.serverIndex, channel.streamId)) return@launch
+            repository.setMergedChannelFavorite(channel.serverIndex, channel.streamId, favorite)
+        }
     }
 
     fun setMergedChannelFolder(channel: com.iptvapp.data.local.entities.MergedChannelEntity, folderId: Int?) {
@@ -1373,7 +1484,9 @@ class HomeViewModel @Inject constructor(
                         primary.map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
                         merged.map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
                     )
-                }.collectLatest { _combinedFavorites.value = it }
+                }.collectLatest { rows ->
+                    if (!inFavoritesMode) _combinedFavorites.value = rows
+                }
             }
             launch {
                 // "USA Channels Only" is a live-TV concept (categories tagged "US|..." by the
@@ -1455,6 +1568,7 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchVodCategories() }
                     launch { repository.fetchSeriesCategories() }
                 }
+                rebuildSmartGroupsAfterCatalog()
                 // Run sequentially, after the smaller fetches above finish and their memory
                 // is freed — parsing a 100k+ item catalog concurrently with everything else
                 // spikes peak memory and can OOM-crash the whole app.
@@ -1500,6 +1614,7 @@ class HomeViewModel @Inject constructor(
                     launch { repository.fetchLiveCategories() }
                     launch { reportChannelLoadError(repository.fetchLiveStreams()) }
                 }
+                rebuildSmartGroupsAfterCatalog()
             } finally {
                 _loading.value = false
             }
@@ -1581,6 +1696,15 @@ class HomeViewModel @Inject constructor(
             if (!prefs.favoriteNumbersBackfilled.first()) {
                 repository.backfillFavoriteChannelNumbers()
                 prefs.setFavoriteNumbersBackfilled(true)
+            }
+        }
+        viewModelScope.launch {
+            combine(prefs.smartChannelDisplay, prefs.smartAutoBackup) { display, backup ->
+                display == com.iptvapp.util.SmartChannels.DISPLAY_GROUP ||
+                    backup == com.iptvapp.util.SmartChannels.BACKUP_ON
+            }.distinctUntilChanged().collectLatest { needed ->
+                if (needed) smartChannels.scheduleRebuild(viewModelScope)
+                else smartChannels.cancelRebuild()
             }
         }
     }
@@ -1718,8 +1842,23 @@ class HomeViewModel @Inject constructor(
         channelJob?.cancel()
         channelJob = viewModelScope.launch {
             val owner = coroutineContext[Job]
-            repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }.collectLatest { (list, on) ->
-                val collapsed = collapseDuplicates(list, on, { c -> -1 to c.streamId }, { c -> c.name })
+            repository.getChannelsByCategory(categoryId).combine(prefs.combineDuplicates) { list, on -> list to on }
+                .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
+                .combine(smartChannels.changes) { state, _ -> state }
+                .collectLatest { (list, on, smart) ->
+                val presented = HashMap<String, String>()
+                val collapsed = shapeCategory(
+                    list,
+                    on,
+                    smart == com.iptvapp.util.SmartChannels.DISPLAY_GROUP,
+                    { c -> -1 to c.streamId },
+                    { c -> c.name },
+                    { c -> c.epgChannelId.orEmpty() },
+                ) { row, groupId, favorite ->
+                    if (groupId != null) presented["-1:${row.streamId}"] = groupId
+                    if (groupId == null) row else row.copy(isFavorite = favorite)
+                }
+                replacePresentedGroups(presented)
                 val shown = applySortToChannels(collapsed.list)
                 primaryCounts.value = Counted(shown, collapsed.counts, owner)
                 _duplicateCountsChanged.value++
@@ -2043,6 +2182,14 @@ class HomeViewModel @Inject constructor(
     /** Un-favoriting from the combined list needs to route to whichever underlying table the
      * item actually came from — primary channels vs. a specific server's merged_channels row. */
     fun toggleCombinedFavorite(item: CombinedFavorite) {
+        val groupId = when (item) {
+            is CombinedFavorite.Primary -> item.smartGroupId
+            is CombinedFavorite.Merged -> item.smartGroupId
+        }
+        if (groupId != null) {
+            viewModelScope.launch { smartChannels.toggleGroupFavorite(groupId) }
+            return
+        }
         when (item) {
             is CombinedFavorite.Primary -> toggleChannelFavorite(item.channel.streamId)
             is CombinedFavorite.Merged -> setMergedChannelFavorite(item.channel, !item.channel.isFavorite)
@@ -2050,10 +2197,22 @@ class HomeViewModel @Inject constructor(
     }
 
     fun toggleLiveRowFavorite(row: LiveChannelRow) {
-        val ch = row.channel
-        val merged = row.mergedChannel
-        if (ch != null) toggleChannelFavorite(ch.streamId)
-        else if (merged != null) setMergedChannelFavorite(merged, !merged.isFavorite)
+        viewModelScope.launch {
+            val groupId = row.smartGroupId
+            if (groupId != null && prefs.smartChannelDisplayNow() == com.iptvapp.util.SmartChannels.DISPLAY_GROUP) {
+                smartChannels.toggleGroupFavorite(groupId)
+                return@launch
+            }
+            val ch = row.channel
+            val merged = row.mergedChannel
+            if (ch != null) {
+                val wasAlreadyFavorite = repository.isChannelFavorite(ch.streamId)
+                repository.toggleChannelFavorite(ch.streamId)
+                if (!wasAlreadyFavorite) repository.fetchEpg(ch.streamId)
+            } else if (merged != null) {
+                repository.setMergedChannelFavorite(merged.serverIndex, merged.streamId, !merged.isFavorite)
+            }
+        }
     }
 
     /** Same one-shot-read reasoning as [getFavoriteChannelsSnapshot] but for a specific live
@@ -2080,6 +2239,84 @@ class HomeViewModel @Inject constructor(
     suspend fun getMergedFavoriteChannelsSnapshot(): List<com.iptvapp.data.local.entities.MergedChannelEntity> =
         repository.getMergedAllFavorites().first()
 
+    private suspend fun groupFavoriteEntries(
+        categoryNames: Map<String, String>,
+        primaryNickname: String,
+        liveNicknames: Map<Int, String>,
+    ): List<CombinedFavorite> {
+        val groups = try {
+            smartChannels.playbackGroups()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptyList()
+        }
+        val out = ArrayList<CombinedFavorite>()
+        for (group in groups) {
+            if (!group.groupFavorite) continue
+            if (group.reviewState != com.iptvapp.util.SmartChannels.VERIFIED &&
+                group.reviewState != com.iptvapp.util.SmartChannels.MANUAL
+            ) continue
+            val member = rankedFavoriteMember(group) ?: continue
+            if (member.key.serverIndex == -1) {
+                val channel = repository.getChannelById(member.key.streamId) ?: continue
+                out += CombinedFavorite.Primary(
+                    channel.copy(isFavorite = true),
+                    categoryNames[channel.categoryId],
+                    primaryNickname,
+                    group.id,
+                )
+            } else {
+                val channel = repository.getMergedChannelByIndexAndId(member.key.serverIndex, member.key.streamId) ?: continue
+                out += CombinedFavorite.Merged(
+                    channel.copy(isFavorite = true),
+                    liveNicknames[member.key.serverIndex],
+                    group.id,
+                )
+            }
+        }
+        return out
+    }
+
+    /** Same order as a category row: the pin only wins when the user asked to keep their source. */
+    private suspend fun rankedFavoriteMember(group: com.iptvapp.util.SmartChannels.PlaybackGroup): com.iptvapp.util.SmartChannels.Member? {
+        val eligible = group.members.filter { it.eligible }
+        if (eligible.isEmpty()) return null
+        val scores = try {
+            repository.feedQuality(eligible.map { it.key.serverIndex to it.key.streamId })
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptyMap()
+        }
+        val preferSelected = prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED
+        val ranked = com.iptvapp.util.SmartChannels.rank(
+            eligible.map {
+                com.iptvapp.util.SmartChannels.Scored(
+                    it.key,
+                    it.displayName,
+                    scores[it.key.serverIndex to it.key.streamId]?.score,
+                    it.userPriority,
+                    true,
+                )
+            },
+            preferSelected,
+            if (group.hasPreferred) group.preferred else null,
+            session = null,
+        )
+        for (scored in ranked) {
+            val member = eligible.firstOrNull { it.key == scored.key } ?: continue
+            val live = if (member.key.serverIndex == -1) {
+                val channel = repository.getChannelById(member.key.streamId) ?: continue
+                com.iptvapp.util.SmartChannels.Source(-1, channel.streamId, channel.name, channel.epgChannelId.orEmpty())
+            } else {
+                val channel = repository.getMergedChannelByIndexAndId(member.key.serverIndex, member.key.streamId) ?: continue
+                com.iptvapp.util.SmartChannels.Source(channel.serverIndex, channel.streamId, channel.name, channel.epgChannelId.orEmpty())
+            }
+            if (com.iptvapp.util.SmartChannels.isStale(member.epgChannelId, member.nameFingerprint, live)) continue
+            return member
+        }
+        return null
+    }
+
     private fun favoriteFlowForSelection() = when (selectedFavoriteFolder) {
         null -> repository.getFavoriteChannels()
         -1 -> repository.getUnfiledFavorites()
@@ -2105,7 +2342,13 @@ class HomeViewModel @Inject constructor(
             return
         }
         searchJob = viewModelScope.launch {
-            combine(favoriteFlowForSelection(), mergedFavoriteFlowForSelection(), _liveCategories) { primary, merged, cats ->
+            combine(
+                favoriteFlowForSelection(),
+                mergedFavoriteFlowForSelection(),
+                _liveCategories,
+                prefs.smartChannelDisplay,
+                smartChannels.changes,
+            ) { primary, merged, cats, smart, _ ->
                 val namesById = cats.associate { it.categoryId to it.categoryName }
                 val q = query
                 _channels.value = primary.filter {
@@ -2113,12 +2356,19 @@ class HomeViewModel @Inject constructor(
                 }
                 val liveNicknames = repository.getMergedServerNicknames()
                 val primaryNickname = primaryNicknameLabel()
-                mergeByFavOrder(
+                val rows = mergeByFavOrder(
                     primary.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
                         .map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
                     merged.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
                         .map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
                 )
+                val grouped = if (selectedFavoriteFolder == null && smart == com.iptvapp.util.SmartChannels.DISPLAY_GROUP) {
+                    groupFavoriteEntries(namesById, primaryNickname, liveNicknames)
+                        .filter { it.name.contains(q, ignoreCase = true) }
+                } else {
+                    emptyList()
+                }
+                rows + grouped
             }.collectLatest { _combinedFavorites.value = it }
         }
     }
@@ -2243,6 +2493,7 @@ class HomeViewModel @Inject constructor(
             if (query.isBlank()) {
                 selectedLiveCategoryId?.let { selectLiveCategory(it) }
             } else {
+                replacePresentedGroups(emptyMap())
                 repository.searchChannels(query).collectLatest { _channels.value = it }
             }
         }
@@ -2307,11 +2558,26 @@ class HomeViewModel @Inject constructor(
 
     fun toggleChannelFavorite(streamId: Int) {
         viewModelScope.launch {
+            if (togglePresentedGroup(-1, streamId)) return@launch
             val wasAlreadyFavorite = repository.isChannelFavorite(streamId)
             repository.toggleChannelFavorite(streamId)
             if (!wasAlreadyFavorite) {
                 repository.fetchEpg(streamId)
             }
+        }
+    }
+
+    /** Grouping reads the saved catalog. It does not start a provider refresh. */
+    fun refreshSmartGroups() {
+        smartChannels.scheduleRebuild(viewModelScope)
+    }
+
+    /** A catalog fetch can reuse a stream id. Rebuild saved groups from the rows now on disk. */
+    private fun rebuildSmartGroupsAfterCatalog() {
+        viewModelScope.launch {
+            val showGroups = prefs.smartChannelDisplayNow() == com.iptvapp.util.SmartChannels.DISPLAY_GROUP
+            val backupOn = prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON
+            if (showGroups || backupOn) smartChannels.scheduleRebuild(viewModelScope)
         }
     }
 
@@ -2668,6 +2934,10 @@ class HomeViewModel @Inject constructor(
 
     fun bulkRemoveMergedFavorites(keys: Set<String>) {
         viewModelScope.launch { repository.bulkSetMergedChannelFavorite(keys, false) }
+    }
+
+    fun clearGroupFavorites(groupIds: List<String>) {
+        viewModelScope.launch { smartChannels.clearGroupFavorites(groupIds) }
     }
 
     fun bulkHideChannels(streamIds: List<Int>) {

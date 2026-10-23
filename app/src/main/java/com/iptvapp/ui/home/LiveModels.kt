@@ -45,13 +45,17 @@ data class LiveChannelRow(
     // Every row in a given list belongs to the same one category being browsed, so this is set
     // once by selectCombinedCategory from the LiveCategoryRow that was tapped, not resolved
     // per-channel — ChannelEntity only carries categoryId, not the display name.
-    val categoryName: String? = null
+    val categoryName: String? = null,
+    /** Set when this row stands for a Smart Channel group. The star is then the group star. */
+    val groupFavorite: Boolean = false,
+    val smartGroupId: String? = null,
 ) {
     val serverIndex: Int get() = mergedChannel?.serverIndex ?: -1
     val streamId: Int get() = channel?.streamId ?: mergedChannel!!.streamId
     val name: String get() = channel?.name ?: mergedChannel!!.name
     val streamIcon: String? get() = channel?.streamIcon ?: mergedChannel?.streamIcon
-    val isFavorite: Boolean get() = channel?.isFavorite ?: mergedChannel!!.isFavorite
+    val epgChannelId: String get() = channel?.epgChannelId ?: mergedChannel?.epgChannelId ?: ""
+    val isFavorite: Boolean get() = if (smartGroupId != null) groupFavorite else (channel?.isFavorite ?: mergedChannel!!.isFavorite)
     /** Matches ChannelAdapter/MergedChannelAdapter/CombinedFavorite's existing id conventions
      * ("primary:$streamId" vs "$serverIndex:$streamId") — reusing the same string lets EPG/
      * health/currently-playing maps built for those other lists key identically here. */

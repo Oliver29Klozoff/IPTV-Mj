@@ -1566,7 +1566,9 @@ class XtreamRepository @Inject constructor(
      * actually belongs to so a primary and a merged channel can share one flat favOrder sequence
      * (see MergedChannelEntity.favOrder kdoc) instead of two separately-ordered blocks. */
     suspend fun saveCombinedFavOrder(orderedIds: List<String>) {
-        orderedIds.forEachIndexed { index, id ->
+        // Group favorites stay at the end of the list. They are not source rows, and a "group:"
+        // id must not be parsed as a provider index.
+        orderedIds.filterNot { it.startsWith("group:") }.forEachIndexed { index, id ->
             if (id.startsWith("primary:")) {
                 val streamId = id.substringAfter("primary:").toIntOrNull() ?: return@forEachIndexed
                 db.channelDao().updateFavOrder(streamId, index)
@@ -3361,6 +3363,49 @@ class XtreamRepository @Inject constructor(
         }
         rankFeeds(candidates).firstOrNull()?.takeIf { it.score >= MIN_BACKUP_SCORE }
     }
+
+    /**
+     * Channel names and guide ids for Smart Channel grouping. Stream addresses are not copied
+     * into the result. This reads the catalog already stored on the device.
+     */
+    suspend fun smartChannelSources(): List<com.iptvapp.util.SmartChannels.Source> = withContext(Dispatchers.IO) {
+        val out = ArrayList<com.iptvapp.util.SmartChannels.Source>()
+        for (server in allConfiguredServers()) {
+            if (server.serverIndex == -1) {
+                db.channelDao().getAllChannels().first().forEach { row ->
+                    if (row.isHidden) return@forEach
+                    out += com.iptvapp.util.SmartChannels.Source(
+                        -1, row.streamId, row.name, row.epgChannelId.orEmpty(), "",
+                    )
+                }
+            } else {
+                db.mergedChannelDao().getAllForServer(server.serverIndex).forEach { row ->
+                    if (row.isHidden) return@forEach
+                    out += com.iptvapp.util.SmartChannels.Source(
+                        row.serverIndex, row.streamId, row.name, row.epgChannelId.orEmpty(), row.categoryName.orEmpty(),
+                    )
+                }
+            }
+        }
+        out
+    }
+
+    /** One catalog row for a membership check. Null when that stream id is gone. No stream address. */
+    suspend fun smartSource(serverIndex: Int, streamId: Int): com.iptvapp.util.SmartChannels.Source? =
+        withContext(Dispatchers.IO) {
+            if (streamId < 0) return@withContext null
+            if (serverIndex == -1) {
+                val row = db.channelDao().getChannelById(streamId) ?: return@withContext null
+                if (row.isHidden) return@withContext null
+                com.iptvapp.util.SmartChannels.Source(-1, row.streamId, row.name, row.epgChannelId.orEmpty(), "")
+            } else {
+                val row = db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) ?: return@withContext null
+                if (row.isHidden) return@withContext null
+                com.iptvapp.util.SmartChannels.Source(
+                    row.serverIndex, row.streamId, row.name, row.epgChannelId.orEmpty(), row.categoryName.orEmpty(),
+                )
+            }
+        }
 
     /** Every copy of [name] on every provider, best first, for the All Sources list. */
     suspend fun channelSources(name: String): List<RankedFeed> = withContext(Dispatchers.IO) {

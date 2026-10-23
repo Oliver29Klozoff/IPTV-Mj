@@ -269,6 +269,10 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
             SettingSearchEntry("Automatic Backup Feed", 0, null, R.id.switchAutoBackupFeed),
             SettingSearchEntry("Combine Duplicate Channels", 0, null, R.id.switchCombineDuplicates),
+            SettingSearchEntry("Smart Channels", 0, null, R.id.rowSmartChannels),
+            SettingSearchEntry("Automatic Backup", 0, null, R.id.rowSmartBackup),
+            SettingSearchEntry("Preferred Source", 0, null, R.id.rowSmartPreferred),
+            SettingSearchEntry("Manage Smart Channels", 0, null, R.id.rowManageSmartChannels),
             SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
             SettingSearchEntry("Picture", 0, null, R.id.rowPictureMode),
             SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
@@ -428,6 +432,7 @@ class SettingsActivity : AppCompatActivity() {
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
+    @Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     @Inject lateinit var syncManager: com.iptvapp.sync.SyncManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
     @Inject lateinit var castRelay: com.iptvapp.sync.CastRelayManager
@@ -629,6 +634,11 @@ class SettingsActivity : AppCompatActivity() {
                 kotlinx.coroutines.GlobalScope.launch {
                     val primaryOk = repository.fetchLiveStreams() is com.iptvapp.util.Resource.Success
                     val mergedErrors = repository.refreshMergedChannels()
+                    if (prefs.smartChannelDisplayNow() == com.iptvapp.util.SmartChannels.DISPLAY_GROUP ||
+                        prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON
+                    ) {
+                        smartChannels.scheduleRebuild(this)
+                    }
                     if (mergedErrors.isEmpty()) prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
                     // A list that didn't reload keeps its old "downloaded with" mark, so the next start
                     // retries it on its own.
@@ -742,6 +752,12 @@ class SettingsActivity : AppCompatActivity() {
                 var result = repository.fetchLiveStreams()
                 if (result !is com.iptvapp.util.Resource.Success) result = repository.fetchLiveStreams()
                 repository.fetchLiveCategories()
+                if (result is com.iptvapp.util.Resource.Success &&
+                    (prefs.smartChannelDisplayNow() == com.iptvapp.util.SmartChannels.DISPLAY_GROUP ||
+                        prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON)
+                ) {
+                    smartChannels.scheduleRebuild(lifecycleScope)
+                }
                 binding.btnRefreshChannels.isEnabled = true
                 binding.btnRefreshChannels.text = "Refresh"
                 val msg = if (result is com.iptvapp.util.Resource.Success)
@@ -2684,6 +2700,16 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun showSmartChoice(title: String, labels: List<String>, onPick: (Int) -> Unit) {
+        val anchor = currentFocus
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(labels.toTypedArray()) { _, which -> onPick(which) }
+            .setNegativeButton("Close", null)
+            .setOnDismissListener { com.iptvapp.ui.smart.DialogFocus.restore(anchor) }
+            .show()
+    }
+
     private fun showTimeshiftDialog() {
         lifecycleScope.launch {
             val current = prefs.timeshiftMinutes.first()
@@ -2991,6 +3017,9 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
                 binding.switchAutoBackupFeed.isChecked = prefs.autoBackupFeed.first()
                 binding.switchCombineDuplicates.isChecked = prefs.combineDuplicates.first()
+                binding.tvSmartChannelsValue.text = com.iptvapp.util.SmartChannels.displayLabel(prefs.smartChannelDisplay.first())
+                binding.tvSmartBackupValue.text = com.iptvapp.util.SmartChannels.backupLabel(prefs.smartAutoBackup.first())
+                binding.tvSmartPreferredValue.text = com.iptvapp.util.SmartChannels.preferLabel(prefs.smartPreferHealthy.first())
                 binding.tvTimeshiftValue.text = timeshiftMinutesLabel(prefs.timeshiftMinutes.first())
                 binding.tvPictureModeValue.text = com.iptvapp.util.PictureMode.label(prefs.pictureMode.first())
                 binding.tvSportsModeValue.text = com.iptvapp.util.SportsMode.settingLabel(prefs.sportsMode.first())
@@ -4234,6 +4263,27 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setCombineDuplicates(enabled) }
         }
+        binding.rowSmartChannels.setOnClickListener { showSmartChoice("Smart Channels", listOf("Off", "Group verified duplicates")) { which ->
+            lifecycleScope.launch {
+                prefs.setSmartChannelDisplay(if (which == 1) com.iptvapp.util.SmartChannels.DISPLAY_GROUP else com.iptvapp.util.SmartChannels.DISPLAY_OFF)
+                binding.tvSmartChannelsValue.text = com.iptvapp.util.SmartChannels.displayLabel(prefs.smartChannelDisplay.first())
+            }
+        } }
+        binding.rowSmartBackup.setOnClickListener { showSmartChoice("Automatic backup", listOf("Off", "On for verified groups")) { which ->
+            lifecycleScope.launch {
+                prefs.setSmartAutoBackup(if (which == 1) com.iptvapp.util.SmartChannels.BACKUP_ON else com.iptvapp.util.SmartChannels.BACKUP_OFF)
+                binding.tvSmartBackupValue.text = com.iptvapp.util.SmartChannels.backupLabel(prefs.smartAutoBackup.first())
+            }
+        } }
+        binding.rowSmartPreferred.setOnClickListener { showSmartChoice("Preferred source", listOf("Prefer my selected source", "Automatically choose a healthy source")) { which ->
+            lifecycleScope.launch {
+                prefs.setSmartPreferHealthy(if (which == 1) com.iptvapp.util.SmartChannels.PREFER_HEALTHY else com.iptvapp.util.SmartChannels.PREFER_SELECTED)
+                binding.tvSmartPreferredValue.text = com.iptvapp.util.SmartChannels.preferLabel(prefs.smartPreferHealthy.first())
+            }
+        } }
+        binding.rowManageSmartChannels.setOnClickListener {
+            startActivity(com.iptvapp.ui.smart.SmartChannelManageActivity.intent(this))
+        }
         binding.rowTimeshift.setOnClickListener { showTimeshiftDialog() }
         binding.rowPictureMode.setOnClickListener { showPictureModeDialog() }
         binding.rowSportsMode.setOnClickListener { showSportsModeDialog() }
@@ -4640,6 +4690,9 @@ class SettingsActivity : AppCompatActivity() {
             put("extraBufferingEnabled", prefs.extraBufferingEnabled.first())
             put("autoBackupFeed", prefs.autoBackupFeed.first())
             put("combineDuplicates", prefs.combineDuplicates.first())
+            put("smartChannelDisplay", prefs.smartChannelDisplay.first())
+            put("smartAutoBackup", prefs.smartAutoBackup.first())
+            put("smartPreferHealthy", prefs.smartPreferHealthy.first())
             put("sportsPreferredNetworks", prefs.sportsPreferredNetworks.first())
             put("gameAlerts", prefs.gameAlerts.first())
             put("mosaicLayouts", prefs.mosaicLayouts.first())
@@ -4868,6 +4921,9 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("extraBufferingEnabled")) prefs.setExtraBufferingEnabled(json.optBoolean("extraBufferingEnabled", true))
         if (json.has("autoBackupFeed")) prefs.setAutoBackupFeed(json.optBoolean("autoBackupFeed", true))
         if (json.has("combineDuplicates")) prefs.setCombineDuplicates(json.optBoolean("combineDuplicates", true))
+        if (json.has("smartChannelDisplay")) prefs.setSmartChannelDisplay(json.optInt("smartChannelDisplay", com.iptvapp.util.SmartChannels.DISPLAY_OFF))
+        if (json.has("smartAutoBackup")) prefs.setSmartAutoBackup(json.optInt("smartAutoBackup", com.iptvapp.util.SmartChannels.BACKUP_OFF))
+        if (json.has("smartPreferHealthy")) prefs.setSmartPreferHealthy(json.optInt("smartPreferHealthy", com.iptvapp.util.SmartChannels.PREFER_SELECTED))
         if (json.has("sportsPreferredNetworks")) prefs.setSportsPreferredNetworks(json.optString("sportsPreferredNetworks", ""))
         if (json.has("gameAlerts")) prefs.setGameAlerts(json.optBoolean("gameAlerts", true))
         if (json.has("mosaicLayouts")) prefs.setMosaicLayouts(json.optString("mosaicLayouts", ""))

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/rack_bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <Button
+            android:id="@+id/btnBack"
+            style="@style/Rack.Button.Neutral"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Back"
+            android:text="Back" />
+
+        <TextView
+            style="@style/Rack.Title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:text="SMART CHANNELS" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/search"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:hint="Search groups and channels"
+        android:imeOptions="actionSearch"
+        android:inputType="text"
+        android:importantForAutofill="no" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnUpdate"
+                style="@style/Rack.Button.Neutral"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Update groups" />
+
+            <Button
+                android:id="@+id/btnAcceptVerified"
+                style="@style/Rack.Button.Neutral"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Keep verified" />
+
+            <Button
+                android:id="@+id/btnGroupSearch"
+                style="@style/Rack.Button.Neutral"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Group search results" />
+
+            <Button
+                android:id="@+id/btnRestore"
+                style="@style/Rack.Button.Neutral"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Restore defaults" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="24dp" />
+</LinearLayout>

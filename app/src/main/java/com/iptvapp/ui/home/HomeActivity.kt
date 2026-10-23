@@ -647,8 +647,14 @@ class HomeActivity : AppCompatActivity() {
         val primaryIds = bulkSelectedFavoriteIds
             .filter { it.startsWith("primary:") }
             .mapNotNull { it.substringAfter("primary:").toIntOrNull() }
-        val mergedKeys = bulkSelectedFavoriteIds.filterNot { it.startsWith("primary:") }.toSet()
+        val groupIds = bulkSelectedFavoriteIds
+            .filter { it.startsWith("group:") }
+            .map { it.removePrefix("group:") }
+        val mergedKeys = bulkSelectedFavoriteIds
+            .filterNot { it.startsWith("primary:") || it.startsWith("group:") }
+            .toSet()
         if (primaryIds.isNotEmpty()) viewModel.bulkRemoveFavorites(primaryIds)
+        if (groupIds.isNotEmpty()) viewModel.clearGroupFavorites(groupIds)
         if (mergedKeys.isNotEmpty()) viewModel.bulkRemoveMergedFavorites(mergedKeys)
         Toast.makeText(this, "Removed ${bulkSelectedFavoriteIds.size} from favorites", Toast.LENGTH_SHORT).show()
         clearBulkSelectionFavorites()
@@ -1252,6 +1258,7 @@ class HomeActivity : AppCompatActivity() {
     @Inject lateinit var okHttpClient: okhttp3.OkHttpClient
     @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     @Inject lateinit var castRelay: CastRelayManager
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var channelAdapter: ChannelAdapter
@@ -5654,7 +5661,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
-                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, row.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, row.name, smartChannels, currentFocus, row.serverIndex, row.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Add to Favorites", "Remove from Favorites" -> {
                         viewModel.toggleLiveRowFavorite(row)
                         Toast.makeText(this, if (row.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
@@ -5791,7 +5798,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
-                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Set Reminder" -> showReminderDialog(channel)
                     "Select (bulk add to favorites)" -> {
                         bulkSelectMode = true
@@ -5902,7 +5909,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle("${channel.name} · ${channel.serverNickname}")
             .setItems(options.toTypedArray()) { _, which ->
                 when (options[which]) {
-                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                    ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name, smartChannels, currentFocus, channel.serverIndex, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Play Fullscreen" -> lifecycleScope.launch {
                         try {
                             val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)

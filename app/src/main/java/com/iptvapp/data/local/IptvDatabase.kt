@@ -35,9 +35,12 @@ import com.iptvapp.data.local.entities.*
         EpgGuideSourceEntity::class,
         EpgGuideChannelEntity::class,
         EpgOverrideEntity::class,
-        CommercialSegmentEntity::class
+        CommercialSegmentEntity::class,
+        SmartChannelGroupEntity::class,
+        SmartChannelMemberEntity::class,
+        SmartChannelRejectionEntity::class
     ],
-    version = 48,
+    version = 49,
     exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -60,6 +63,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun feedStatsDao(): FeedStatsDao
     abstract fun epgRepairDao(): com.iptvapp.data.local.dao.EpgRepairDao
     abstract fun commercialDao(): com.iptvapp.data.local.dao.CommercialDao
+    abstract fun smartChannelDao(): SmartChannelDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -683,6 +687,16 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        // Smart Channel groups. New tables only. Channels, favorites, and recordings are not rewritten.
+        val MIGRATION_48_49 = object : Migration(48, 49) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `smart_channel_groups` (`groupId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `preferredServerIndex` INTEGER NOT NULL, `preferredStreamId` INTEGER NOT NULL, `hasPreferred` INTEGER NOT NULL, `failoverEnabled` INTEGER NOT NULL, `origin` TEXT NOT NULL, `reviewState` TEXT NOT NULL, `reason` TEXT NOT NULL, `groupFavorite` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`groupId`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `smart_channel_members` (`groupId` TEXT NOT NULL, `serverIndex` INTEGER NOT NULL, `streamId` INTEGER NOT NULL, `epgChannelId` TEXT NOT NULL, `nameFingerprint` TEXT NOT NULL, `displayName` TEXT NOT NULL, `eligible` INTEGER NOT NULL, `userPriority` INTEGER NOT NULL, PRIMARY KEY(`groupId`, `serverIndex`, `streamId`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_smart_channel_members_serverIndex_streamId` ON `smart_channel_members` (`serverIndex`, `streamId`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `smart_channel_rejections` (`leftKey` TEXT NOT NULL, `rightKey` TEXT NOT NULL, `leftName` TEXT NOT NULL, `rightName` TEXT NOT NULL, `reason` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`leftKey`, `rightKey`))")
+            }
+        }
+
         val ALL_MIGRATIONS = arrayOf(
             MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
@@ -694,7 +708,8 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
             MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
             MIGRATION_46_47,
-            MIGRATION_47_48
+            MIGRATION_47_48,
+            MIGRATION_48_49
         )
     }
 }

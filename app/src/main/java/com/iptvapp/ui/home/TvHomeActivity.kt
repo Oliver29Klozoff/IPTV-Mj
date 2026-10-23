@@ -1391,7 +1391,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .setItems(options.toTypedArray()) { _, which ->
                         when (options[which]) {
                             HomeActivity.ALL_SOURCES ->
-                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name, smartChannels, currentFocus, channel.serverIndex, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                             "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
@@ -1916,6 +1916,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     @javax.inject.Inject lateinit var smartHome: com.iptvapp.data.home.SmartHome
     @javax.inject.Inject lateinit var homeRepository: com.iptvapp.data.repository.XtreamRepository
+    @javax.inject.Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     private var homeShowing = false
     private var homeRefreshJob: kotlinx.coroutines.Job? = null
     private lateinit var homeAdapter: SmartHomeAdapter
@@ -2552,7 +2553,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     .setItems(options.toTypedArray()) { _, which ->
                         when (options[which]) {
                             HomeActivity.ALL_SOURCES ->
-                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                                com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name, smartChannels, currentFocus, channel.serverIndex, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                             "Play Fullscreen" -> lifecycleScope.launch {
                                 try {
                                     val url = viewModel.getMergedLiveStreamUrl(channel.serverIndex, channel.streamId)
@@ -4471,7 +4472,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             .setItems(options.toTypedArray()) { _, i ->
                 when {
                     options[i] == HomeActivity.ALL_SOURCES ->
-                        com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                        com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     options[i] == "Set Reminder" -> showTvReminderDialog(channel)
                     options[i].startsWith("Set Channel Number") || options[i].startsWith("Change Channel Number") ->
                         showTvSetChannelNumberDialog(channel)

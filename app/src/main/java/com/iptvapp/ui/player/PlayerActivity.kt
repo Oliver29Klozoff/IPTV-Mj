@@ -352,6 +352,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private val feedTracker = FeedTracker()
     /** Copies already left behind on this channel, so a backup never bounces back to them. */
     private val backupFeedsTried = mutableSetOf<Pair<Int, Int>>()
+    private val smartBackup = com.iptvapp.util.SmartChannels.Session()
+    private var smartTimeshiftTold = false
     /** True while loadStream runs for a backup switch, so the tracker keeps its switch budget. */
     private var backupSwitchOpening = false
     private var backupSwitchJob: kotlinx.coroutines.Job? = null
@@ -383,6 +385,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var resizeModeIndex = 0
 
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     @Inject lateinit var okHttpClient: OkHttpClient
     @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
     @Inject lateinit var watchPartyManager: com.iptvapp.sync.WatchPartyManager
@@ -3952,6 +3955,119 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (!isVod && retryCount >= maxRetries) {
             retryJob?.cancel()
             retryJob = lifecycleScope.launch {
+                if (prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON && wasBehindLive) {
+                    if (!smartTimeshiftTold) {
+                        smartTimeshiftTold = true
+                        Toast.makeText(this@PlayerActivity, com.iptvapp.util.SmartChannels.TIMESHIFT_HOLD, Toast.LENGTH_LONG).show()
+                    }
+                    binding.tvRetryStatus.text = givenUpText
+                    binding.tvRetryStatus.visibility = View.VISIBLE
+                    return@launch
+                }
+                if (prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON) {
+                    val from = currentFeedKey()
+                    val generation = smartBackup.generation
+                    val choice = if (from == null) null else try {
+                        smartChannels.choose(
+                            smartBackup,
+                            qualified = true,
+                            smartOn = true,
+                            preferSelected = prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED,
+                            nowMs = System.currentTimeMillis(),
+                        )
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        null
+                    }
+                    if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return@launch
+                    suspend fun playSmartSwitch(choice: com.iptvapp.util.SmartChannels.BackupChoice.Switch): Boolean {
+                        if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return false
+                        val url = try {
+                            if (choice.serverIndex == -1) repository.getLiveStreamUrl(choice.streamId)
+                            else repository.getMergedLiveStreamUrl(choice.serverIndex, choice.streamId)
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            null
+                        } ?: return false
+                        if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return false
+                        val nick = backupProviderLabel(choice.serverIndex)
+                        smartBackup.noteSwitch(
+                            com.iptvapp.util.SmartChannels.Key(choice.serverIndex, choice.streamId),
+                            System.currentTimeMillis(),
+                        )
+                        bandwidthTracker?.updateServerIndex(choice.serverIndex)
+                        serverIndex = choice.serverIndex
+                        streamId = if (choice.serverIndex == -1) choice.streamId else -1
+                        mergedStreamId = if (choice.serverIndex == -1) -1 else choice.streamId
+                        streamTitle = if (choice.serverIndex == -1 || nick.isBlank()) choice.displayName else "${choice.displayName} · $nick"
+                        applyPlaybackSync()
+                        reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic = true))
+                        rebuildZapListForCurrentCopy()
+                        streamUrl = url
+                        retryCount = 0
+                        binding.tvRetryStatus.visibility = View.GONE
+                        Toast.makeText(
+                            this@PlayerActivity,
+                            com.iptvapp.util.SmartChannels.switchMessage(nick.ifBlank { "another copy" }),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        player?.let {
+                            it.setMediaItem(MediaItem.fromUri(streamUrl))
+                            it.prepare()
+                            it.playWhenReady = true
+                        }
+                        return true
+                    }
+                    var pending = choice
+                    var waitedForCooldown = false
+                    while (true) {
+                        when (val step = pending) {
+                            is com.iptvapp.util.SmartChannels.BackupChoice.Switch -> {
+                                if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return@launch
+                                if (!playSmartSwitch(step)) {
+                                    if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return@launch
+                                    binding.tvRetryStatus.text = givenUpText
+                                    binding.tvRetryStatus.visibility = View.VISIBLE
+                                }
+                                return@launch
+                            }
+                            is com.iptvapp.util.SmartChannels.BackupChoice.Hold -> {
+                                val waitMs = com.iptvapp.util.SmartChannels.cooldownWaitMs(
+                                    smartBackup.lastSwitchAt(),
+                                    System.currentTimeMillis(),
+                                )
+                                if (waitMs == null || waitedForCooldown) {
+                                    binding.tvRetryStatus.text = givenUpText
+                                    binding.tvRetryStatus.visibility = View.VISIBLE
+                                    return@launch
+                                }
+                                waitedForCooldown = true
+                                binding.tvRetryStatus.text = "Waiting to try another source"
+                                binding.tvRetryStatus.visibility = View.VISIBLE
+                                delay(waitMs)
+                                if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return@launch
+                                pending = try {
+                                    smartChannels.choose(
+                                        smartBackup,
+                                        qualified = true,
+                                        smartOn = true,
+                                        preferSelected = prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED,
+                                        nowMs = System.currentTimeMillis(),
+                                    )
+                                } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    null
+                                }
+                            }
+                            is com.iptvapp.util.SmartChannels.BackupChoice.Exhausted -> {
+                                binding.tvRetryStatus.text = givenUpText
+                                binding.tvRetryStatus.visibility = View.VISIBLE
+                                return@launch
+                            }
+                            is com.iptvapp.util.SmartChannels.BackupChoice.Legacy, null -> break
+                        }
+                    }
+                }
                 val match = try {
                     // The catalog name: an extra provider's title also carries " · nickname".
                     val ownId = if (serverIndex == -1) streamId else mergedStreamId
@@ -4663,6 +4779,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (!automatic) {
             backupSwitchJob?.cancel()
             backupFeedsTried.clear()
+            smartTimeshiftTold = false
+            currentFeedKey()?.let {
+                smartBackup.userTuned(com.iptvapp.util.SmartChannels.Key(it.serverIndex, it.streamId))
+            }
         }
         reportFeed(feedTracker.open(currentFeedKey(), android.os.SystemClock.elapsedRealtime(), automatic))
         feedFlushJob?.cancel()
@@ -4728,7 +4848,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      */
     /** Checked before the lookup and again just before switching: either can change while it runs. */
     private fun backupSwitchAllowed(): Boolean {
-        if (!prefs.autoBackupFeedNow() || castSession != null || isPartyMember || isPartyHost || audioOnly) return false
+        val backupEnabled = prefs.autoBackupFeedNow() ||
+            prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON
+        if (!backupEnabled || castSession != null || isPartyMember || isPartyHost || audioOnly) return false
         if (timeshiftFrozen || player?.playWhenReady != true) return false
         // Behind live in either window, the local one or the provider's own DVR. A new copy
         // opens at live and would skip what the viewer has not watched yet.
@@ -4740,12 +4862,98 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return true
     }
 
+    /** Smart backup refuses to drop a rewind buffer. The older backup stays quiet in that case. */
+    private fun smartTimeshiftBlocked(): Boolean {
+        if (prefs.smartAutoBackupNow() != com.iptvapp.util.SmartChannels.BACKUP_ON) return false
+        if (timeshiftState != TimeshiftPlaybackState.LIVE) return true
+        if (timeshiftMode == TimeshiftSource.LOCAL) {
+            val atLive = timeshiftReading()?.let { TimeshiftNavigator.atLiveEdge(it) } ?: true
+            if (!atLive) return true
+        }
+        return false
+    }
+
+    private suspend fun backupProviderLabel(serverIndex: Int): String {
+        if (serverIndex == -1) return "Main provider"
+        return try {
+            repository.getMergedServerNicknames()[serverIndex] ?: "Provider ${serverIndex + 1}"
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            "Provider ${serverIndex + 1}"
+        }
+    }
+
+    private suspend fun applySmartBackup(choice: com.iptvapp.util.SmartChannels.BackupChoice.Switch, from: FeedTracker.Key) {
+        val url = try {
+            if (choice.serverIndex == -1) repository.getLiveStreamUrl(choice.streamId)
+            else repository.getMergedLiveStreamUrl(choice.serverIndex, choice.streamId)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            return
+        }
+        if (currentFeedKey() != from || !backupSwitchAllowed()) return
+        val nick = backupProviderLabel(choice.serverIndex)
+        smartBackup.noteSwitch(com.iptvapp.util.SmartChannels.Key(choice.serverIndex, choice.streamId), System.currentTimeMillis())
+        backupFeedsTried += from.serverIndex to from.streamId
+        bandwidthTracker?.updateServerIndex(choice.serverIndex)
+        serverIndex = choice.serverIndex
+        streamId = if (choice.serverIndex == -1) choice.streamId else -1
+        mergedStreamId = if (choice.serverIndex == -1) -1 else choice.streamId
+        streamTitle = if (choice.serverIndex == -1 || nick.isBlank()) choice.displayName else "${choice.displayName} · $nick"
+        Toast.makeText(
+            this,
+            com.iptvapp.util.SmartChannels.switchMessage(nick.ifBlank { "another copy" }),
+            Toast.LENGTH_LONG,
+        ).show()
+        backupSwitchOpening = true
+        try {
+            loadStream(url)
+        } finally {
+            backupSwitchOpening = false
+        }
+        rebuildZapListForCurrentCopy()
+    }
+
     private fun maybeSwitchToBackupFeed() {
+        if (smartTimeshiftBlocked()) {
+            if (!smartTimeshiftTold) {
+                smartTimeshiftTold = true
+                Toast.makeText(this, com.iptvapp.util.SmartChannels.TIMESHIFT_HOLD, Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         val from = currentFeedKey() ?: return
         if (!backupSwitchAllowed()) return
         if (backupSwitchJob?.isActive == true) return
         val title = streamTitle
+        val generation = smartBackup.generation
         backupSwitchJob = lifecycleScope.launch {
+            if (prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON) {
+                val choice = try {
+                    smartChannels.choose(
+                        smartBackup,
+                        qualified = true,
+                        smartOn = true,
+                        preferSelected = prefs.smartPreferHealthyNow() == com.iptvapp.util.SmartChannels.PREFER_SELECTED,
+                        nowMs = System.currentTimeMillis(),
+                    )
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    null
+                }
+                if (currentFeedKey() != from || streamTitle != title || smartBackup.generation != generation) return@launch
+                when (choice) {
+                    is com.iptvapp.util.SmartChannels.BackupChoice.Switch -> {
+                        applySmartBackup(choice, from)
+                        return@launch
+                    }
+                    is com.iptvapp.util.SmartChannels.BackupChoice.Exhausted,
+                    is com.iptvapp.util.SmartChannels.BackupChoice.Hold -> return@launch
+                    is com.iptvapp.util.SmartChannels.BackupChoice.Legacy, null -> {
+                        if (!prefs.autoBackupFeedNow()) return@launch
+                    }
+                }
+            }
             // The catalog name: an extra provider's title also carries " · nickname".
             val name = try { repository.feedCatalogName(from.serverIndex, from.streamId) } catch (_: Exception) { null }
                 ?: title.substringBeforeLast(" · ")

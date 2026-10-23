@@ -1123,6 +1123,112 @@
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
                         <LinearLayout
+                            android:id="@+id/rowSmartChannels"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="true">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Smart Channels" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Group copies that share a guide identity. Off leaves the channel list as it is." />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvSmartChannelsValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Off" />
+                        </LinearLayout>
+                        <LinearLayout
+                            android:id="@+id/rowSmartBackup"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="true">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Automatic backup" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="For verified groups only. A pinned source stays put until you allow a backup." />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvSmartBackupValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Off" />
+                        </LinearLayout>
+                        <LinearLayout
+                            android:id="@+id/rowSmartPreferred"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="true">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Preferred source" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Your pick stays ahead of a source that only advertises a higher resolution." />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvSmartPreferredValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Prefer my selected source" />
+                        </LinearLayout>
+                        <LinearLayout
+                            android:id="@+id/rowManageSmartChannels"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:focusable="true">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Manage Smart Channels" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Review matches, set a preferred source, or ungroup. This does not refresh providers." />
+                            </LinearLayout>
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowTimeshift"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"

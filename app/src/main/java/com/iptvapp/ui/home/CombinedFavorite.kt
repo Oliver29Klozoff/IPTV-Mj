@@ -15,7 +15,9 @@ sealed class CombinedFavorite {
     abstract val streamIcon: String?
     abstract val categoryName: String?
     abstract val serverNickname: String?  // null = tag hidden entirely
-    abstract val id: String               // stable string key for DiffUtil / EPG+health maps
+    abstract val id: String               // DiffUtil identity. A group favorite uses its own id.
+    /** Catalog key for guide text and health. A group row still looks up its selected source. */
+    abstract val sourceKey: String
     // Shared flat ordering across primary AND merged favorites — see
     // MergedChannelEntity.favOrder kdoc for why this needed to exist on both underlying tables.
     abstract val favOrder: Int
@@ -29,11 +31,13 @@ sealed class CombinedFavorite {
     data class Primary(
         val channel: ChannelEntity,
         override val categoryName: String?,
-        override val serverNickname: String? = null
+        override val serverNickname: String? = null,
+        val smartGroupId: String? = null,
     ) : CombinedFavorite() {
         override val name get() = channel.name
         override val streamIcon get() = channel.streamIcon
-        override val id get() = "primary:${channel.streamId}"
+        override val id get() = if (smartGroupId != null) "group:$smartGroupId" else "primary:${channel.streamId}"
+        override val sourceKey get() = "primary:${channel.streamId}"
         override val favOrder get() = channel.favOrder
         override val manualGenre get() = channel.manualGenre
         override val favoriteFolderId get() = channel.favoriteFolderId
@@ -46,12 +50,17 @@ sealed class CombinedFavorite {
     // reassigned between primary/secondary (a synced-back favorite keeps the OLD nickname
     // forever otherwise, even though its star color — computed live from serverIndex — is
     // already correct).
-    data class Merged(val channel: MergedChannelEntity, private val nicknameOverride: String? = null) : CombinedFavorite() {
+    data class Merged(
+        val channel: MergedChannelEntity,
+        private val nicknameOverride: String? = null,
+        val smartGroupId: String? = null,
+    ) : CombinedFavorite() {
         override val name get() = channel.name
         override val streamIcon get() = channel.streamIcon
         override val categoryName get() = channel.categoryName
         override val serverNickname get() = nicknameOverride ?: channel.serverNickname
-        override val id get() = "${channel.serverIndex}:${channel.streamId}"
+        override val id get() = if (smartGroupId != null) "group:$smartGroupId" else "${channel.serverIndex}:${channel.streamId}"
+        override val sourceKey get() = "${channel.serverIndex}:${channel.streamId}"
         override val favOrder get() = channel.favOrder
         override val manualGenre get() = channel.manualGenre
         override val favoriteFolderId get() = channel.favoriteFolderId

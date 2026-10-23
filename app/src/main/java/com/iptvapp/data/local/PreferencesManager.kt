@@ -108,6 +108,9 @@ class PreferencesManager @Inject constructor(
     fun preferredSubtitleLanguageNow() = PrefsSnapshot.read(context, readPreferredSubtitleLanguage)
     fun extraBufferingEnabledNow() = PrefsSnapshot.read(context, readExtraBufferingEnabled)
     fun autoBackupFeedNow() = PrefsSnapshot.read(context, readAutoBackupFeed)
+    fun smartChannelDisplayNow() = PrefsSnapshot.read(context, readSmartChannelDisplay)
+    fun smartAutoBackupNow() = PrefsSnapshot.read(context, readSmartAutoBackup)
+    fun smartPreferHealthyNow() = PrefsSnapshot.read(context, readSmartPreferHealthy)
     fun timeshiftMinutesNow() = PrefsSnapshot.read(context, readTimeshiftMinutes)
     fun sportsModeNow() = PrefsSnapshot.read(context, readSportsMode)
     fun frameRateMatchNow() = PrefsSnapshot.read(context, readFrameRateMatch)
@@ -153,6 +156,9 @@ class PreferencesManager @Inject constructor(
     private val readExtraBufferingEnabled = { p: Preferences -> p[Keys.EXTRA_BUFFERING_ENABLED] ?: true }
     private val readAutoBackupFeed = { p: Preferences -> p[Keys.AUTO_BACKUP_FEED] ?: true }
     private val readCombineDuplicates = { p: Preferences -> p[Keys.COMBINE_DUPLICATES] ?: true }
+    private val readSmartChannelDisplay = { p: Preferences -> p[Keys.SMART_CHANNEL_DISPLAY] ?: com.iptvapp.util.SmartChannels.DISPLAY_OFF }
+    private val readSmartAutoBackup = { p: Preferences -> p[Keys.SMART_AUTO_BACKUP] ?: com.iptvapp.util.SmartChannels.BACKUP_OFF }
+    private val readSmartPreferHealthy = { p: Preferences -> p[Keys.SMART_PREFER_HEALTHY] ?: com.iptvapp.util.SmartChannels.PREFER_SELECTED }
     private val readTimeshiftMinutes = { p: Preferences -> normalizeTimeshiftMinutes(p[Keys.TIMESHIFT_MINUTES] ?: 30) }
     private val readSportsMode = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeSetting(p[Keys.SPORTS_MODE] ?: 0) }
     private val readSeekPreviewPictures = { p: Preferences -> p[Keys.SEEK_PREVIEW_PICTURES] ?: true }
@@ -340,6 +346,10 @@ class PreferencesManager @Inject constructor(
         val AUTO_BACKUP_FEED = booleanPreferencesKey("auto_backup_feed")
         // One row per channel in category lists; see DuplicateChannels. On by default.
         val COMBINE_DUPLICATES = booleanPreferencesKey("combine_duplicates")
+        // Smart Channels. Off until the viewer turns grouping on. Separate from combine_duplicates.
+        val SMART_CHANNEL_DISPLAY = intPreferencesKey("smart_channel_display")
+        val SMART_AUTO_BACKUP = intPreferencesKey("smart_auto_backup")
+        val SMART_PREFER_HEALTHY = intPreferencesKey("smart_prefer_healthy")
         // League to network for the Sports screen ("NBA" -> "ESPN"); see SportsFinder.decodePreferred.
         val SPORTS_PREFERRED_NETWORKS = stringPreferencesKey("sports_preferred_networks")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
@@ -479,6 +489,19 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readCombineDuplicates)
     suspend fun setCombineDuplicates(v: Boolean) = context.dataStore.edit { it[Keys.COMBINE_DUPLICATES] = v }
+    val smartChannelDisplay: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSmartChannelDisplay)
+        .distinctUntilChanged()
+    suspend fun setSmartChannelDisplay(v: Int) = context.dataStore.edit { it[Keys.SMART_CHANNEL_DISPLAY] = v }
+    val smartAutoBackup: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSmartAutoBackup)
+    suspend fun setSmartAutoBackup(v: Int) = context.dataStore.edit { it[Keys.SMART_AUTO_BACKUP] = v }
+    val smartPreferHealthy: Flow<Int> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSmartPreferHealthy)
+    suspend fun setSmartPreferHealthy(v: Int) = context.dataStore.edit { it[Keys.SMART_PREFER_HEALTHY] = v }
     val sportsPreferredNetworks: Flow<String> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.SPORTS_PREFERRED_NETWORKS] ?: "" }
