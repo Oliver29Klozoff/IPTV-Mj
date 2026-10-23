@@ -138,7 +138,7 @@ class SeriesRecordingActivity : AppCompatActivity() {
             }
         } else {
             label("Protect recordings from automatic cleanup")
-            for (rec in recordings.filter { it.status == "DONE" }) button("${if (rec.isProtected) "Protected" else "Unprotected"}: ${rec.programTitle ?: rec.channelName}") {
+            for (rec in recordings.filter { it.status == "DONE" }) button("${if (rec.isProtected) "Protected" else "Unprotected"}: ${rec.programTitle ?: rec.channelName} · ${time(rec.scheduledStartMs)}") {
                 work { db.recordingDao().protect(rec.id, !rec.isProtected) }
             }
         }
