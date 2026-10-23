@@ -154,4 +154,31 @@ class FeedScoreTest {
         val w = t.flush(3_721_000L).single() as FeedTracker.Report.Watched
         assertEquals(2f, w.minutes, 0.001f)
     }
+
+    @Test
+    fun aCopyThatPlaysThenFailsCountsAsARecentFailure() {
+        val tracker = FeedTracker()
+        val key = FeedTracker.Key(-1, 101)
+        tracker.open(key, 0L)
+        tracker.onReady(1_500L)
+        val reports = tracker.onLost(60_000L)
+        assertTrue(reports.last() is FeedTracker.Report.Lost)
+        assertEquals(key, reports.last().key)
+
+        val now = 10_000_000L
+        val good = FeedStatsEntity(-1, 101, outcomes = "1111", tuneMs = 1_500L, updatedAt = now)
+        val lost = FeedScore.afterLost(good, now)
+        assertEquals(now, lost.lastFailureAt)
+        // Its start history stays; the recent failure lowers the score.
+        assertEquals("1111", lost.outcomes)
+        assertTrue(FeedScore.score(lost, now + 1_000L) < FeedScore.score(good, now + 1_000L))
+    }
+
+    @Test
+    fun aCopyLostBeforeItEverPlayedIsAFailedStart() {
+        val tracker = FeedTracker()
+        tracker.open(FeedTracker.Key(0, 7), 0L)
+        val r = tracker.onLost(5_000L).single()
+        assertTrue(r is FeedTracker.Report.Started && !r.played)
+    }
 }

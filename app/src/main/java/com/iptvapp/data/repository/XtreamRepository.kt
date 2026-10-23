@@ -3325,6 +3325,17 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    /** One provider's copy played and then failed for good. */
+    suspend fun recordFeedLost(serverIndex: Int, streamId: Int) = withContext(Dispatchers.IO) {
+        if (streamId < 0) return@withContext
+        feedStatsLock.withLock {
+            val now = System.currentTimeMillis()
+            val row = db.feedStatsDao().get(serverIndex, streamId)
+                ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
+            db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterLost(row, now))
+        }
+    }
+
     /** [minutes] watched on one provider's copy, with [stalls] rebuffers in them. */
     suspend fun recordFeedWatching(serverIndex: Int, streamId: Int, minutes: Float, stalls: Int) = withContext(Dispatchers.IO) {
         if (streamId < 0 || minutes <= 0f) return@withContext

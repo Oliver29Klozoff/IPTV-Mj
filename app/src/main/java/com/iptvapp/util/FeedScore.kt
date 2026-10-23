@@ -66,6 +66,13 @@ object FeedScore {
         )
     }
 
+    /**
+     * A copy that played and then failed for good (recovery gave up and playback moved to a
+     * backup). Counted as a recent failure; its start history is left as it was.
+     */
+    fun afterLost(stats: FeedStatsEntity, nowMs: Long): FeedStatsEntity =
+        stats.copy(lastFailureAt = nowMs, updatedAt = nowMs)
+
     /** [minutes] of watching that had [stalls] rebuffers in it. */
     fun afterWatching(stats: FeedStatsEntity, minutes: Float, stalls: Int, nowMs: Long): FeedStatsEntity {
         if (minutes <= 0f) return stats

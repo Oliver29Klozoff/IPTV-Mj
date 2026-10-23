@@ -3991,6 +3991,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         } ?: return false
                         if (from != null && (currentFeedKey() != from || smartBackup.generation != generation)) return false
                         val nick = backupProviderLabel(choice.serverIndex)
+                        // The copy being left failed past recovery: a real failure for its score.
+                        reportFeed(feedTracker.onLost(android.os.SystemClock.elapsedRealtime()))
                         smartBackup.noteSwitch(
                             com.iptvapp.util.SmartChannels.Key(choice.serverIndex, choice.streamId),
                             System.currentTimeMillis(),
@@ -4808,6 +4810,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                             repository.recordFeedStart(r.key.serverIndex, r.key.streamId, r.played, r.tuneMs)
                         is FeedTracker.Report.Watched ->
                             repository.recordFeedWatching(r.key.serverIndex, r.key.streamId, r.minutes, r.stalls)
+                        is FeedTracker.Report.Lost ->
+                            repository.recordFeedLost(r.key.serverIndex, r.key.streamId)
                     }
                 } catch (_: Exception) {
                 }

@@ -19,6 +19,8 @@ class FeedTracker(private val monitor: StallMonitor = StallMonitor()) {
         abstract val key: Key
         data class Started(override val key: Key, val played: Boolean, val tuneMs: Long) : Report()
         data class Watched(override val key: Key, val minutes: Float, val stalls: Int) : Report()
+        /** This copy played, then failed for good (see FeedScore.afterLost). */
+        data class Lost(override val key: Key) : Report()
     }
 
     var key: Key? = null
@@ -72,6 +74,13 @@ class FeedTracker(private val monitor: StallMonitor = StallMonitor()) {
         if (started) return emptyList()
         started = true
         return listOf(Report.Started(k, played = false, tuneMs = nowMs - openedAt))
+    }
+
+    /** This copy played and then failed past recovery: its watching so far, then the failure. */
+    fun onLost(nowMs: Long): List<Report> {
+        val k = key ?: return emptyList()
+        if (!started) return onFailed(nowMs)
+        return flush(nowMs) + Report.Lost(k)
     }
 
     /** Watching so far, for a periodic save or leaving the channel. */
