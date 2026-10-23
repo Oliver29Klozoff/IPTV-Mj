@@ -1,7 +1,7 @@
 {
-  "versionCode": 605,
-  "versionName": "7.67",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.67/MKTV.apk",
-  "apkSha256": "0d88a6dd1517d01d266919cbba6ee649dfd01a84d03896251f4e5e7fbb521d2a",
-  "changelog": "Finished recordings can show commercials, skip a confirmed break, and let you mark or correct them."
+  "versionCode": 606,
+  "versionName": "7.68",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.68/MKTV.apk",
+  "apkSha256": "9d37b3fcefa35d72f743546d905fefede0642e5931d0c453d17e435e5c3fcae2",
+  "changelog": "Smart Channels: one entry for the same channel across providers, with automatic backup."
 }

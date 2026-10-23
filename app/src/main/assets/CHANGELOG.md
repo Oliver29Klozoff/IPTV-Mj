@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.68 - 2026-10-23
+- **New**: Smart Channels (Settings > Stream & EPG). The same channel from several providers can show as
+  one entry when their guide ids prove it is the same feed. Copies that only share a name (HD/FHD, East,
+  local stations) are only suggested; you approve them in Manage Smart Channels. Ungroup any time;
+  your channels, favorites, guide and recordings stay as they are.
+- **New**: Automatic backup for grouped channels: when a source fails past the usual reconnects, MKTV
+  switches to another approved source and says so. No loops, and not while you are rewound in Timeshift.
+- **New**: Preferred source per channel, and All Sources shows each source's real health and start time.
+
 ## v7.67 - 2026-10-22
 - **New**: Commercials on a finished recording. The seek bar shades them, Skip Commercial jumps to the end of a confirmed break, and Undo puts you back.
 - **New**: Recordings > Commercials can look for breaks, or you can mark, edit, confirm, or reject them yourself. A suggestion is not skipped until you confirm it. Automatic skip stays off until you turn it on, and it only uses confirmed markers.
