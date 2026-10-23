@@ -1,7 +1,7 @@
 {
-  "versionCode": 608,
-  "versionName": "7.70",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.70/MKTV.apk",
-  "apkSha256": "dc16869950efda12cd2fddd3ee285e2326c4c705330bf1c19d907b6f74e6643a",
-  "changelog": "Multi-View: standard 1×2 layout, independent primary/secondary provider channels, saved layouts, exclusive audio, and bounded tile recovery. Device performance measurements remain pending."
+  "versionCode": 609,
+  "versionName": "7.71",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.71/MKTV.apk",
+  "apkSha256": "36b7a92143a300fcd1eca7bf7d7ee9977c1482bb20ccc542dcbca12bb1710e9e",
+  "changelog": "Series Recording: record all or new episodes automatically, with conflicts, retention and protection."
 }

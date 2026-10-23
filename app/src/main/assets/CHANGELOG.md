@@ -1,5 +1,18 @@
 # IPTV App - Changelog
 
+## v7.71 - 2026-10-23
+- **New**: Series Recording. In the TV Guide, Record Options can record this episode, all episodes, or new
+  episodes only, with start/end padding, keep-last-3/5/10, a priority, and a stop-when-storage-is-low option.
+  Episodes are scheduled automatically as the guide updates, without duplicates after a refresh or restart.
+- **New**: Series Recording Manager (Recordings > Series): series, upcoming, completed and failed episodes,
+  free space, pause/resume/edit/cancel. Cancelling a series keeps the recordings you already have.
+- **New**: Recording Conflicts: overlaps beyond your provider's connection count are shown for you to decide;
+  existing recordings are never dropped automatically. A recording that needs a decision at start time is
+  held with a notification.
+- **New**: Protect any recording from automatic cleanup.
+- **Note**: Episodes the guide cannot identify (no episode numbers) or whose new/rerun status is unknown
+  ask for confirmation instead of being guessed.
+
 ## v7.70 - 2026-10-23
 - **New**: Multi-View opens in a standard 1×2 layout, with two equal side-by-side channels. Four tiles remain available on capable devices.
 - **New**: Choose a primary-provider channel in one tile and a secondary-provider channel in another. Saved layouts retain provider/channel pairs, tile arrangement, selection, and mute state.
