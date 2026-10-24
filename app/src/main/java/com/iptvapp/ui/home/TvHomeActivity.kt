@@ -869,7 +869,20 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     return false
                 }
                 kotlin.coroutines.coroutineContext.ensureActive()
-                homeHitUi.open(hit)
+                homeHitUi.open(hit, link)
+                return true
+            }
+            is LauncherLink.Parsed.Recording -> {
+                val recording = db.recordingDao().getById(parsed.id)
+                val key = com.iptvapp.tv.LauncherLinkKey.get(this)
+                if (recording == null || !LauncherLink.verifyIdentity(key, LauncherLink.recordingIdentity(recording.id, recording.outputPath, recording.scheduledStartMs), parsed.token) ||
+                    !com.iptvapp.tv.TvHomeIntegration.available(this, recording)) {
+                    Toast.makeText(this, "That recording is no longer available.", Toast.LENGTH_LONG).show()
+                    com.iptvapp.tv.TvHomeIntegration.request()
+                    return false
+                }
+                if (generation != reminderTuneGen) return false
+                com.iptvapp.util.RecordingFileUtils.playInApp(this, recording)
                 return true
             }
             LauncherLink.Parsed.Invalid -> return false
@@ -885,12 +898,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             is LauncherLink.Parsed.Movie -> {
                 val identity = LauncherLink.movieIdentity(creds.serverUrl, creds.username, parsed.vodId)
                 if (!LauncherLink.verifyIdentity(key, identity, parsed.token)) return null
+                if (parsed.vodId in prefs.launcherUnavailable(creds, "movie")) return null
                 val vod = db.vodDao().getVodByStreamId(parsed.vodId) ?: return null
                 com.iptvapp.data.search.SearchHit.Movie(vod, null, label)
             }
             is LauncherLink.Parsed.Episode -> {
                 val identity = LauncherLink.episodeIdentity(creds.serverUrl, creds.username, parsed.seriesId, parsed.season, parsed.episode)
                 if (!LauncherLink.verifyIdentity(key, identity, parsed.token)) return null
+                if (parsed.seriesId in prefs.launcherUnavailable(creds, "series")) return null
                 val series = db.seriesDao().getSeriesById(parsed.seriesId) ?: return null
                 val hit = com.iptvapp.data.search.SearchHit.Series(series, null, label)
                 com.iptvapp.data.search.SearchHit.Episode(hit, parsed.season, parsed.episode, "")
@@ -904,7 +919,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val app = applicationContext
         lifecycleScope.launch {
             try {
-                com.iptvapp.tv.WatchNextPublisher.refresh(app, db, prefs)
+                com.iptvapp.tv.TvHomeIntegration.request()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -4171,7 +4186,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 .filterNotNull()
                 .distinctUntilChanged()
                 .collect { (entries, _) ->
-                    TvHomeChannelPublisher.publishFavorites(applicationContext, entries)
+                    com.iptvapp.tv.TvHomeIntegration.request()
                 }
         }
     }

@@ -17,6 +17,7 @@ import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.util.Resource
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 /** Long-press a movie tile to get here — mirrors SeriesDetailActivity's plot/cast/rating
@@ -63,6 +64,13 @@ class VodDetailActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnPlay.setOnClickListener { launchPlayer() }
+        if (savedInstanceState == null && intent.hasExtra("launcher_link")) lifecycleScope.launch {
+            val link = com.iptvapp.tv.LauncherLink.parse(Intent.ACTION_VIEW, intent.getStringExtra("launcher_link"))
+            val credentials = prefs.credentials.first()
+            if (link is com.iptvapp.tv.LauncherLink.Parsed.Movie && link.vodId == streamId &&
+                com.iptvapp.tv.LauncherLink.verifyIdentity(com.iptvapp.tv.LauncherLinkKey.get(this@VodDetailActivity),
+                    com.iptvapp.tv.LauncherLink.movieIdentity(credentials.serverUrl, credentials.username, streamId), link.token)) launchPlayer()
+        }
         // Without this, initial D-pad focus could land anywhere/nowhere on this screen (nothing
         // requests it by default) — Play is the natural first stop, matching where the button
         // chain (nextFocusDown/Up) starts from.

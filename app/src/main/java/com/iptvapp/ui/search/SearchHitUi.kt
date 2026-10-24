@@ -46,7 +46,7 @@ class SearchHitUi(
         val durationMin: Int,
     )
 
-    fun open(hit: SearchHit) {
+    fun open(hit: SearchHit, launcherLink: String? = null) {
         when (hit) {
             is SearchHit.Channel -> playChannel(hit.channel, hit.merged)
             is SearchHit.Program -> when (hit.kind) {
@@ -54,9 +54,9 @@ class SearchHitUi(
                 SearchHit.Kind.CATCH_UP -> openReplay(hit)
                 else -> offerUpcoming(hit)
             }
-            is SearchHit.Movie -> openMovie(hit)
+            is SearchHit.Movie -> openMovie(hit, launcherLink)
             is SearchHit.Series -> openSeries(hit, null)
-            is SearchHit.Episode -> openSeries(hit.series, hit)
+            is SearchHit.Episode -> openSeries(hit.series, hit, launcherLink)
             is SearchHit.Recording -> openRecording(hit)
         }
     }
@@ -109,12 +109,13 @@ class SearchHitUi(
         builder.show()
     }
 
-    private fun openMovie(hit: SearchHit.Movie) {
+    private fun openMovie(hit: SearchHit.Movie, launcherLink: String? = null) {
         val vod = hit.vod
         val merged = hit.merged
         if (vod != null) {
             activity.startActivity(Intent(activity, com.iptvapp.ui.vod.VodDetailActivity::class.java).apply {
                 putExtra("vod_stream_id", vod.streamId)
+                putExtra("launcher_link", launcherLink)
                 putExtra("vod_name", vod.name)
                 putExtra("vod_container_extension", vod.containerExtension)
                 putExtra("vod_cover", vod.streamIcon)
@@ -134,11 +135,12 @@ class SearchHitUi(
         }
     }
 
-    private fun openSeries(hit: SearchHit.Series, episode: SearchHit.Episode?) {
+    private fun openSeries(hit: SearchHit.Series, episode: SearchHit.Episode?, launcherLink: String? = null) {
         val series = hit.series
         val merged = hit.merged
         activity.startActivity(Intent(activity, com.iptvapp.ui.series.SeriesDetailActivity::class.java).apply {
             putExtra("series_id", series?.seriesId ?: merged?.seriesId ?: return)
+            putExtra("launcher_link", launcherLink)
             putExtra("series_name", series?.name ?: merged?.name)
             putExtra("series_cover", series?.cover ?: merged?.cover)
             putExtra("series_genre", series?.genre ?: merged?.genre)

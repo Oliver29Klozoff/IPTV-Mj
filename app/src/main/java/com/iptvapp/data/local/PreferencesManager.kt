@@ -100,6 +100,23 @@ class PreferencesManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     init { PrefsSnapshot.start(context) }
+    private fun launcherMissingKey(credentials: ServerCredentials, kind: String) = kind + com.iptvapp.tv.LauncherLink.token(
+        com.iptvapp.tv.LauncherLinkKey.get(context), com.iptvapp.tv.LauncherLink.movieIdentity(credentials.serverUrl, credentials.username, 0))
+    fun launcherUnavailable(credentials: ServerCredentials, kind: String): Set<Int> =
+        context.getSharedPreferences("launcher_missing", 0).getStringSet(launcherMissingKey(credentials, kind), emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
+    fun updateLauncherAvailability(credentials: ServerCredentials, kind: String, available: Sequence<Int>, candidates: List<Int>) {
+        val missing = (launcherUnavailable(credentials, kind) + candidates).toMutableSet()
+        available.forEach { missing.remove(it) } // Reuses normal refresh results; no launcher catalog request.
+        context.getSharedPreferences("launcher_missing", 0).edit().putStringSet(launcherMissingKey(credentials, kind), missing.take(1000).map { it.toString() }.toSet()).apply()
+        com.iptvapp.tv.TvHomeIntegration.request()
+    }
+    fun rememberLauncherEpisode(credentials: ServerCredentials, id: Int, season: Int, episode: Int) {
+        com.iptvapp.tv.LauncherEpisodeCache.remember(context, credentials, id, season, episode)
+    }
+    fun cacheLauncherEpisodes(credentials: ServerCredentials, id: Int, info: com.iptvapp.data.api.SeriesInfo) {
+        com.iptvapp.tv.LauncherEpisodeCache.save(context, credentials, id, info)
+    }
+
 
     // Synchronous reads for code that can't suspend (player builders). Same defaults as the flows
     // below — each flow and its *Now() share one reader function.

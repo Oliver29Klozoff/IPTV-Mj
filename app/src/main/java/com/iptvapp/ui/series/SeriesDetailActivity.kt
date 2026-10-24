@@ -29,6 +29,7 @@ import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.util.Resource
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -238,6 +239,15 @@ class SeriesDetailActivity : AppCompatActivity() {
                     if (focusSeasonIndex >= 0) {
                         binding.tabSeasons.getTabAt(focusSeasonIndex)?.select()
                         showSeason(seasons[focusSeasonIndex], focusEpisode)
+                        val launcherLink = intent.getStringExtra("launcher_link")
+                        intent.removeExtra("launcher_link") // Consume once, including configuration recreation.
+                        val parsed = com.iptvapp.tv.LauncherLink.parse(Intent.ACTION_VIEW, launcherLink)
+                        if (parsed is com.iptvapp.tv.LauncherLink.Parsed.Episode) {
+                            val credentials = prefs.credentials.first()
+                            val valid = com.iptvapp.tv.LauncherLink.verifyIdentity(com.iptvapp.tv.LauncherLinkKey.get(this@SeriesDetailActivity),
+                                com.iptvapp.tv.LauncherLink.episodeIdentity(credentials.serverUrl, credentials.username, seriesId, focusSeason, focusEpisode), parsed.token)
+                            if (valid) currentSeasonEpisodes.firstOrNull { it.episodeNum == focusEpisode }?.let { launchEpisode(it) }
+                        }
                     } else {
                         showSeason(seasons.first())
                     }

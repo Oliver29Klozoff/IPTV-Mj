@@ -23,6 +23,9 @@ data class WatchHistoryEntry(
 
 @Dao
 interface ChannelDao {
+    @Query("SELECT * FROM channels WHERE isFavorite = 1 AND isHidden = 0 ORDER BY favOrder, name LIMIT 20")
+    suspend fun launcherFavorites(): List<ChannelEntity>
+
     @Query("SELECT * FROM channels WHERE isHidden = 0 ORDER BY COALESCE(customNum, num) ASC")
     fun getAllChannelsRaw(): Flow<List<ChannelEntity>>
     fun getAllChannels(): Flow<List<ChannelEntity>> = getAllChannelsRaw().retryOnTornRead()
@@ -319,6 +322,9 @@ data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs
 
 @Dao
 interface SeriesDao {
+    @Query("SELECT s.* FROM series s INNER JOIN (SELECT seriesId, MAX(rowid) AS recent FROM episode_watched GROUP BY seriesId) w ON s.seriesId = w.seriesId WHERE s.isHidden = 0 AND s.dismissedFromContinueWatching = 0 ORDER BY s.lastWatchedAt DESC, w.recent DESC LIMIT 20")
+    suspend fun launcherRecent(): List<SeriesEntity>
+
     @Query("SELECT * FROM series WHERE isHidden = 0 ORDER BY name ASC")
     fun getAllSeriesRaw(): Flow<List<SeriesEntity>>
     fun getAllSeries(): Flow<List<SeriesEntity>> = getAllSeriesRaw().retryOnTornRead()
@@ -557,6 +563,9 @@ interface EpgDao {
 
 @Dao
 interface RecordingDao {
+    @Query("SELECT * FROM recordings WHERE status = 'DONE' ORDER BY scheduledStartMs DESC LIMIT 20")
+    suspend fun launcherRecordings(): List<RecordingEntity>
+
     @Query("UPDATE recordings SET isProtected = :protected WHERE id = :id AND status = 'DONE'")
     suspend fun protect(id: Int, protected: Boolean)
     @Query("UPDATE recordings SET scheduledStartMs = :start, durationMs = :duration WHERE id = :id AND status = 'SCHEDULED'")
@@ -686,6 +695,12 @@ interface ProviderHourlyStatsDao {
 
 @Dao
 interface EpisodeWatchedDao {
+    @Query("SELECT * FROM episode_watched WHERE seriesId = :id ORDER BY rowid DESC LIMIT 1")
+    suspend fun launcherLatest(id: Int): EpisodeWatchedEntity?
+
+    @Query("SELECT * FROM episode_watched WHERE rowid IN (SELECT MAX(rowid) FROM episode_watched GROUP BY seriesId) AND durationMs > 0 AND CAST(watchedMs AS REAL)/durationMs >= 0.95 ORDER BY rowid DESC LIMIT 10")
+    suspend fun launcherCompleted(): List<EpisodeWatchedEntity>
+
     @Upsert
     suspend fun upsert(entity: EpisodeWatchedEntity)
     @Query("SELECT * FROM episode_watched WHERE seriesId = :seriesId")

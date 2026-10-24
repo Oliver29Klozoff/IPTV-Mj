@@ -40,6 +40,7 @@ object LauncherLink {
     private val TOKEN = Regex("^[0-9a-f]{32}$")
 
     sealed class Parsed {
+        data class Recording(val id: Int, val token: String) : Parsed()
         data class Current(val streamId: Int, val token: String) : Parsed()
         data class Legacy(val streamId: Int) : Parsed()
         /** A movie on the main provider ([vodId] is its stream id), from Watch Next. */
@@ -67,6 +68,12 @@ object LauncherLink {
     fun movieIdentity(serverUrl: String, username: String, vodId: Int): String =
         "movie\n${normalizeServer(serverUrl)}\n$username\n$vodId"
 
+    fun recordingIdentity(id: Int, path: String, started: Long): String = "recording\n$id\n$path\n$started"
+    fun buildRecording(id: Int, token: String): String {
+        require(id > 0 && TOKEN.matches(token))
+        return "$SCHEME://$HOST/$VERSION/r/$id/$token"
+    }
+
     fun episodeIdentity(serverUrl: String, username: String, seriesId: Int, season: Int, episode: Int): String =
         "episode\n${normalizeServer(serverUrl)}\n$username\n$seriesId\n$season\n$episode"
 
@@ -89,6 +96,9 @@ object LauncherLink {
     fun parse(action: String?, data: String?): Parsed {
         if (action != ACTION_VIEW) return Parsed.Invalid
         if (data == null || data.length > MAX_LENGTH) return Parsed.Invalid
+        Regex("^mktv://play/v2/r/([1-9][0-9]{0,9})/([0-9a-f]{32})$").matchEntire(data)?.let {
+            return Parsed.Recording(it.groupValues[1].toIntOrNull() ?: return Parsed.Invalid, it.groupValues[2])
+        }
         CURRENT.matchEntire(data)?.let { m ->
             val id = m.groupValues[1].toIntOrNull() ?: return Parsed.Invalid
             return Parsed.Current(id, m.groupValues[2])
