@@ -337,6 +337,7 @@ class SettingsActivity : AppCompatActivity() {
             // These four had panel 1 here before, but they live in Updates (panel 5).
             SettingSearchEntry("Quick Actions", 5, null, R.id.btnSettingsSort),
             SettingSearchEntry("Sort Channels", 5, null, R.id.btnSettingsSort),
+            SettingSearchEntry("Android TV Home Integration", 5, null, R.id.btnTvHomeIntegration),
             SettingSearchEntry("Multi-view / Mosaic", 5, null, R.id.btnSettingsMosaic),
             SettingSearchEntry("Feature Tour", 5, null, R.id.btnFeatureTour)
         )
@@ -529,6 +530,18 @@ class SettingsActivity : AppCompatActivity() {
         workManager = WorkManager.getInstance(this)
 
 
+        binding.btnTvHomeIntegration.setOnClickListener {
+            val supported = com.iptvapp.tv.TvHomeIntegration.supported(this)
+            val on = com.iptvapp.tv.TvHomeIntegration.enabled(this)
+            AlertDialog.Builder(this).setTitle("Android TV Home Integration")
+                .setMessage(if (!supported) "This device does not provide Android TV home rows. MKTV's internal home remains available."
+                    else "${if (on) "Enabled" else "Disabled"}. Continue Watching, next episodes, Favorites, recently watched channels and completed recordings. Google TV visibility requires Google approval; availability depends on your launcher.")
+                .setPositiveButton(if (!supported) "OK" else if (on) "Disable" else "Enable") { _, _ ->
+                    if (supported) com.iptvapp.tv.TvHomeIntegration.setEnabled(this, !on)
+                }
+                .setNeutralButton("Show launcher rows") { _, _ -> if (supported && on) com.iptvapp.tv.TvHomeChannelPublisher.requestApproval(this) }
+                .setNegativeButton("Cancel", null).show()
+        }
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSettingsHelp.setOnClickListener { showSettingsHelp() }
         binding.btnSettingsSearch.setOnClickListener { showSettingsSearchDialog() }

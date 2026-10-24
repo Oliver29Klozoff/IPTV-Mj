@@ -201,6 +201,9 @@ class XtreamRepository @Inject constructor(
     /** Primary favorites and the login they belong to, read as one pair. A provider switch clears
      * the primary channels and saves the new login under this same lock (clearPrimaryProviderData),
      * so the two always match — a TV home-screen card is never signed for the wrong account. */
+    suspend fun <T> withLauncherCatalog(block: suspend (com.iptvapp.data.local.ServerCredentials) -> T): T =
+        primaryChannelsMutex.withLock { block(creds()) }
+
     suspend fun primaryFavoritesWithLogin(): Pair<List<ChannelEntity>, com.iptvapp.data.local.ServerCredentials> =
         primaryChannelsMutex.withLock { getFavoriteChannels().first() to creds() }
 
@@ -667,6 +670,7 @@ class XtreamRepository @Inject constructor(
                     throw CatalogRefreshSuperseded()
                 }
                 applyPendingPrimaryVodFavorites()
+                prefs.updateLauncherAvailability(c, "movie", list.asSequence().map { it.streamId }, db.vodDao().getInProgressVodRecent(20).map { it.streamId })
                 logCatalogTiming("vod", list.size, startMs, fetchedMs)
                 list
             } }
@@ -927,6 +931,7 @@ class XtreamRepository @Inject constructor(
                     throw CatalogRefreshSuperseded()
                 }
                 applyPendingPrimarySeriesFavorites()
+                prefs.updateLauncherAvailability(c, "series", list.asSequence().map { it.seriesId }, db.seriesDao().launcherRecent().map { it.seriesId })
                 logCatalogTiming("series", list.size, startMs, fetchedMs)
                 list
             } }
@@ -1426,6 +1431,7 @@ class XtreamRepository @Inject constructor(
 
     suspend fun saveEpisodeProgress(seriesId: Int, season: Int, episode: Int, watchedMs: Long, durationMs: Long) {
         db.episodeWatchedDao().saveProgress(seriesId, season, episode, watchedMs, durationMs)
+        runCatching { prefs.rememberLauncherEpisode(creds(), seriesId, season, episode) }
         // getInProgressSeries() is actually driven by episode_watched rows (see its own kdoc),
         // not series.watchedMs/durationMs — but series.lastWatchedAt is what
         // ContinueWatchingCleanupWorker checks for staleness, so it needs to be touched here too.
@@ -1495,7 +1501,7 @@ class XtreamRepository @Inject constructor(
         return safeApiCall {
             val response = api.getSeriesInfo(b.apiUrl(), c.username, c.password, seriesId = seriesId)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
-            response.body() ?: throw Exception("Empty response")
+            (response.body() ?: throw Exception("Empty response")).also { runCatching { prefs.cacheLauncherEpisodes(c, seriesId, it) } }
         }
     }
 

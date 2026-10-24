@@ -42,6 +42,8 @@ class IptvApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var db: IptvDatabase
 
+    @Inject lateinit var launcherRepository: com.iptvapp.data.repository.XtreamRepository
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -57,6 +59,7 @@ class IptvApplication : Application(), Configuration.Provider {
         // in light mode that meant dialogs with a light background and our hardcoded white
         // text became invisible. Force dark everywhere so stock dialogs always match.
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        com.iptvapp.tv.TvHomeIntegration.start(this, db, prefs, launcherRepository)
         setupCrashHandler()
         applyCrashReportingPreference()
         createNotificationChannels()

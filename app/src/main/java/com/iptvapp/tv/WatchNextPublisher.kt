@@ -41,6 +41,7 @@ object WatchNextPublisher {
         val positionMs: Long,
         val durationMs: Long,
         val engagedAtMs: Long,
+        val next: Boolean = false,
     )
 
     private val lock = Mutex()
@@ -54,23 +55,35 @@ object WatchNextPublisher {
         val creds = prefs.credentials.first()
         if (creds.serverUrl.isBlank()) return@withContext emptyList()
         val key = LauncherLinkKey.get(context)
-        val movies = db.vodDao().getInProgressVodRecent(MAX_ITEMS).mapNotNull { vod ->
+        val missingMovies = prefs.launcherUnavailable(creds, "movie")
+        val missingSeries = prefs.launcherUnavailable(creds, "series")
+        val movies = db.vodDao().getInProgressVodRecent(MAX_ITEMS).filter { it.streamId !in missingMovies }.mapNotNull { vod ->
             val token = LauncherLink.token(key, LauncherLink.movieIdentity(creds.serverUrl, creds.username, vod.streamId))
             val link = runCatching { LauncherLink.buildMovie(vod.streamId, token) }.getOrNull() ?: return@mapNotNull null
-            Item("movie:${vod.streamId}", vod.name, null, null, null, vod.streamIcon, link,
+            Item("movie:$token", vod.name, null, null, null, vod.streamIcon, link,
                 vod.watchedMs, vod.durationMs, vod.lastWatchedAt)
         }
-        val episodes = db.seriesDao().getInProgressSeries().first().mapNotNull { row ->
-            val s = row.series
-            val token = LauncherLink.token(
-                key, LauncherLink.episodeIdentity(creds.serverUrl, creds.username, s.seriesId, row.lastSeason, row.lastEpisode)
-            )
-            val link = runCatching { LauncherLink.buildEpisode(s.seriesId, row.lastSeason, row.lastEpisode, token) }.getOrNull()
-                ?: return@mapNotNull null
-            Item("episode:${s.seriesId}", s.name, "S${row.lastSeason}E${row.lastEpisode}", row.lastSeason, row.lastEpisode,
-                s.cover, link, row.lastEpisodeWatchedMs, row.lastEpisodeDurationMs, s.lastWatchedAt)
+        val episodes = db.seriesDao().launcherRecent().filter { it.seriesId !in missingSeries }.mapNotNull { series ->
+            val remembered = LauncherEpisodeCache.last(context, creds, series.seriesId)
+            val fallback = if (remembered == null) db.episodeWatchedDao().launcherLatest(series.seriesId) else null
+            val season = remembered?.first ?: fallback?.season ?: return@mapNotNull null
+            val episode = remembered?.second ?: fallback?.episode ?: return@mapNotNull null
+            val watched = db.episodeWatchedDao().getWatchedMs(series.seriesId, season, episode) ?: 0
+            val duration = db.episodeWatchedDao().getDurationMs(series.seriesId, season, episode) ?: 0
+            if (watched <= 0 || duration <= 0) return@mapNotNull null
+            val completed = watched.toDouble() / duration >= 0.95
+            val next = if (completed) LauncherEpisodeCache.next(LauncherEpisodeCache.read(context, creds, series.seriesId), season, episode)
+                ?: return@mapNotNull null else null
+            if (next != null && (db.episodeWatchedDao().getWatchedMs(series.seriesId, next.season, next.episode) ?: 0) > 0) return@mapNotNull null
+            val targetSeason = next?.season ?: season
+            val targetEpisode = next?.episode ?: episode
+            val token = LauncherLink.token(key, LauncherLink.episodeIdentity(creds.serverUrl, creds.username, series.seriesId, targetSeason, targetEpisode))
+            Item("series:" + LauncherLink.token(key, LauncherLink.movieIdentity(creds.serverUrl, creds.username, series.seriesId)),
+                series.name, next?.title ?: "S${season}E${episode}", targetSeason, targetEpisode, series.cover,
+                LauncherLink.buildEpisode(series.seriesId, targetSeason, targetEpisode, token), if (completed) 0 else watched,
+                if (completed) 0 else duration, series.lastWatchedAt, next = completed)
         }
-        (movies + episodes).filter { it.positionMs > 0 && it.durationMs > 0 }
+        (movies + episodes).filter { it.next || it.positionMs > 0 && it.durationMs > 0 }
             .sortedByDescending { it.engagedAtMs }
             .take(MAX_ITEMS)
     }
@@ -85,10 +98,11 @@ object WatchNextPublisher {
         lock.withLock {
             withContext(Dispatchers.IO) {
                 try {
-                    sync(context, items(context, db, prefs))
+                    sync(context, if (TvHomeIntegration.enabled(context)) items(context, db, prefs) else emptyList())
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e
                 } catch (e: Exception) {
                     // The home screen is a nicety: never let it break MKTV.
-                    Log.w(TAG, "Watch Next publish failed: ${e.message}")
+                    Log.w(TAG, "Watch Next publish failed: ${e.javaClass.simpleName}")
                 }
             }
         }
@@ -101,8 +115,9 @@ object WatchNextPublisher {
             withContext(Dispatchers.IO) {
                 try {
                     context.contentResolver.delete(TvContractCompat.WatchNextPrograms.CONTENT_URI, null, null)
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "Watch Next clear failed: ${e.message}")
+                    Log.w(TAG, "Watch Next clear failed: ${e.javaClass.simpleName}")
                 }
             }
         }
@@ -126,23 +141,28 @@ object WatchNextPublisher {
         )?.use { c ->
             while (c.moveToNext()) {
                 val providerId = c.getString(1) ?: continue
-                existing[providerId] = Existing(c.getLong(0), c.getInt(2) != 0, c.getLong(3))
+                if (existing.containsKey(providerId)) resolver.delete(TvContractCompat.buildWatchNextProgramUri(c.getLong(0)), null, null)
+                else existing[providerId] = Existing(c.getLong(0), c.getInt(2) != 0, c.getLong(3))
             }
         }
+        val hidden = context.getSharedPreferences("launcher_hidden_titles", Context.MODE_PRIVATE)
+        val hiddenEdit = hidden.edit()
+        existing.filterValues { !it.browsable }.forEach { (id, row) -> hiddenEdit.putLong(id, row.engagedAtMs) }
+        hiddenEdit.apply()
         val wanted = items.associateBy { it.key }
-        // Finished, dismissed or out of the top: off the row. A card the viewer removed is kept,
-        // hidden: it is the only record of that removal, and dropping it would let the title come
-        // back on its own once newer titles finish and it ranks in the top again.
+        // Remove stale provider rows; private tombstones preserve user dismissal across cleanup.
         for ((providerId, row) in existing) {
-            if (providerId !in wanted && row.browsable) {
+            if (providerId !in wanted) {
                 resolver.delete(TvContractCompat.buildWatchNextProgramUri(row.id), null, null)
             }
         }
         for (item in items) {
             val old = existing[item.key]
+            if (hidden.contains(item.key) && item.engagedAtMs <= hidden.getLong(item.key, 0)) continue
+            hidden.edit().remove(item.key).apply()
             // Removed from the row by the viewer: stays removed until the title is played again.
             if (old != null && !old.browsable && item.engagedAtMs <= old.engagedAtMs) continue
-            val values = program(item).toContentValues()
+            val values = program(context, item).toContentValues()
             when {
                 old == null -> resolver.insert(TvContractCompat.WatchNextPrograms.CONTENT_URI, values)
                 // Removed by the viewer, played again since. An update cannot make it visible again:
@@ -156,9 +176,9 @@ object WatchNextPublisher {
         }
     }
 
-    private fun program(item: Item): WatchNextProgram {
+    private fun program(context: Context, item: Item): WatchNextProgram {
         val builder = WatchNextProgram.Builder()
-            .setWatchNextType(TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE)
+            .setWatchNextType(if (item.next) TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_NEXT else TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE)
             .setType(
                 if (item.season != null) TvContractCompat.PreviewPrograms.TYPE_TV_EPISODE
                 else TvContractCompat.PreviewPrograms.TYPE_MOVIE
@@ -173,7 +193,7 @@ object WatchNextPublisher {
         item.episodeTitle?.let { builder.setEpisodeTitle(it) }
         item.season?.let { builder.setSeasonNumber(it) }
         item.episode?.let { builder.setEpisodeNumber(it) }
-        item.image?.takeIf { it.startsWith("http") }?.let { builder.setPosterArtUri(Uri.parse(it)) }
+        builder.setPosterArtUri(Uri.parse(LauncherMetadata.artwork(item.image) ?: "android.resource://${context.packageName}/${context.applicationInfo.icon}"))
         return builder.build()
     }
 }

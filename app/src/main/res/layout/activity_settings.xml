@@ -2301,6 +2301,12 @@
                             android:text="Sort channels: Default"
                             app:icon="@drawable/ic_settings_sort" />
                         <Button
+                            android:id="@+id/btnTvHomeIntegration"
+                            style="@style/Rack.Button.Link.Leading"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Android TV Home Integration" />
+                        <Button
                             android:id="@+id/btnSettingsMosaic"
                             style="@style/Rack.Button.Link.Leading"
                             android:layout_width="match_parent"
