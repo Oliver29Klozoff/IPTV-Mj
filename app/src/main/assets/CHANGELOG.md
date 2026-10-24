@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.72 - 2026-10-24
+- **New**: Android TV Home Integration (Settings): unfinished movies and episodes, the next episode of a
+  series you are watching, favorite channels and recent recordings can appear on the Android TV home screen and
+  open straight to the right spot. Google TV may not show Watch Next cards for apps it has not approved.
+
 ## v7.71 - 2026-10-23
 - **New**: Series Recording. In the TV Guide, Record Options can record this episode, all episodes, or new
   episodes only, with start/end padding, keep-last-3/5/10, a priority, and a stop-when-storage-is-low option.

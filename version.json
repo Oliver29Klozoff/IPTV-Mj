@@ -1,7 +1,7 @@
 {
-  "versionCode": 609,
-  "versionName": "7.71",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.71/MKTV.apk",
-  "apkSha256": "36b7a92143a300fcd1eca7bf7d7ee9977c1482bb20ccc542dcbca12bb1710e9e",
-  "changelog": "Series Recording: record all or new episodes automatically, with conflicts, retention and protection."
+  "versionCode": 610,
+  "versionName": "7.72",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.72/MKTV.apk",
+  "apkSha256": "2f58bac75a4b54c24d9239f34d50fbb5b479c539f59568af7a9fca77d0824a87",
+  "changelog": "Android TV home screen: Continue Watching, next episodes, favorites and recent recordings."
 }
