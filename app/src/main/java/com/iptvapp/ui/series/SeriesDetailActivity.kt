@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 @AndroidEntryPoint
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class SeriesDetailActivity : AppCompatActivity() {
 
     companion object {

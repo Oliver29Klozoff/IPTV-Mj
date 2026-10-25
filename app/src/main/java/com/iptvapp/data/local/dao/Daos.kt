@@ -87,6 +87,9 @@ interface ChannelDao {
     suspend fun findByNameLike(pattern: String): List<ChannelEntity>
     @Query("SELECT * FROM channels WHERE streamId IN (:ids)")
     suspend fun getChannelsByIds(ids: List<Int>): List<ChannelEntity>
+    // Home rows (HomeLayout): one category, bounded, in channel-list order.
+    @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY COALESCE(customNum, num) ASC LIMIT :limit")
+    suspend fun getChannelsByCategoryLimited(categoryId: String, limit: Int): List<ChannelEntity>
     @Upsert
     suspend fun upsertChannels(channels: List<ChannelEntity>)
     @Query("UPDATE channels SET isFavorite = :isFavorite WHERE streamId = :streamId")
@@ -214,6 +217,13 @@ interface VodDao {
     fun getRecentlyAddedVod(): Flow<List<VodEntity>>
     @Query("SELECT * FROM vod_streams WHERE isFavorite = 1 ORDER BY name ASC")
     fun getFavoriteVod(): Flow<List<VodEntity>>
+    // Home rows (HomeLayout): bounded reads, never the whole catalog.
+    @Query("SELECT * FROM vod_streams WHERE isFavorite = 1 ORDER BY name ASC LIMIT :limit")
+    suspend fun getFavoriteVodLimited(limit: Int): List<VodEntity>
+    @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY added DESC, name ASC LIMIT :limit")
+    suspend fun getVodByCategoryLimited(categoryId: String, limit: Int): List<VodEntity>
+    @Query("SELECT * FROM vod_streams WHERE streamId IN (:ids)")
+    suspend fun getVodByIds(ids: List<Int>): List<VodEntity>
     // Single-row lookup for VodDetailActivity's favorite button — needs just this one movie's
     // current isFavorite state to render/toggle correctly, not a live-updating Flow.
     @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
@@ -333,6 +343,13 @@ interface SeriesDao {
     fun getSeriesByCategory(categoryId: String): Flow<List<SeriesEntity>> = getSeriesByCategoryRaw(categoryId).retryOnTornRead()
     @Query("SELECT * FROM series WHERE isFavorite = 1 AND isHidden = 0 ORDER BY name ASC")
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
+    // Home rows (HomeLayout): bounded reads, never the whole catalog.
+    @Query("SELECT * FROM series WHERE isFavorite = 1 AND isHidden = 0 ORDER BY name ASC LIMIT :limit")
+    suspend fun getFavoriteSeriesLimited(limit: Int): List<SeriesEntity>
+    @Query("SELECT * FROM series WHERE categoryId = :categoryId AND isHidden = 0 ORDER BY name ASC LIMIT :limit")
+    suspend fun getSeriesByCategoryLimited(categoryId: String, limit: Int): List<SeriesEntity>
+    @Query("SELECT * FROM series WHERE seriesId IN (:ids)")
+    suspend fun getSeriesByIds(ids: List<Int>): List<SeriesEntity>
     @Query("SELECT * FROM series WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getSeriesById(seriesId: Int): SeriesEntity?
     // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.
@@ -868,6 +885,9 @@ interface MergedChannelDao {
     suspend fun getByStreamId(streamId: Int): List<MergedChannelEntity>
     @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND streamId IN (:ids)")
     suspend fun getByServerAndIds(serverIndex: Int, ids: List<Int>): List<MergedChannelEntity>
+    // Home rows (HomeLayout): one category on one provider, bounded.
+    @Query("SELECT * FROM merged_channels WHERE serverIndex = :serverIndex AND (categoryId = :categoryId OR (categoryId IS NULL AND :categoryId IS NULL)) AND isHidden = 0 ORDER BY num LIMIT :limit")
+    suspend fun getByServerAndCategoryLimited(serverIndex: Int, categoryId: String?, limit: Int): List<MergedChannelEntity>
 
     // Searches across every configured server at once (not scoped to a selected server/
     // category) — matches how search already works on every other tab in this app.

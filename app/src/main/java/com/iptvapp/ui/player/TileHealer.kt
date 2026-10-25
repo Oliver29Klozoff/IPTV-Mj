@@ -84,6 +84,7 @@ object TileHealPolicy {
  * [backup] returns another copy of the channel and its label, or null; it is passed the copies
  * already given up on so it never offers one back.
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class TileHealer(
     private val player: Player,
     private val scope: CoroutineScope,

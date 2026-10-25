@@ -536,8 +536,22 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         observeEpgGuide()
         observeSidebarVisibility()
         setupHome()
-        // Opens on Home: the live channel (resumed below) with the rows under it.
+        // Opens on Home: the live channel (resumed below) with the rows under it. Customize Home
+        // can name another section to open on instead (a fresh start only, not a recreation).
         showHome()
+        if (savedInstanceState == null && intent?.action == Intent.ACTION_MAIN) lifecycleScope.launch {
+            val start = try { smartHome.layout(tv = true).start } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                com.iptvapp.data.home.HomeLayout.StartScreen.HOME
+            }
+            when (start) {
+                com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> binding.btnTvFavorites.performClick()
+                com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> binding.btnTvLive.performClick()
+                com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> binding.btnTvMovies.performClick()
+                com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> binding.btnTvSeries.performClick()
+                else -> Unit
+            }
+        }
         viewModel.loadAll()
         // Same cold-start auto-refresh as the phone: the merged "All Providers" cache used to
         // sit empty until the user manually hit Refresh, even on a device with providers
@@ -1969,7 +1983,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun setupHome() {
-        homeAdapter = SmartHomeAdapter { card -> homeHitUi.open(card.hit) }
+        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = { HomeCustomizeActivity.open(this, tv = true) })
         binding.tvRvHome.adapter = homeAdapter
         binding.tvRvHome.itemAnimator = null
         binding.btnTvHome.setOnClickListener { showHome() }
@@ -2011,31 +2025,37 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                 }
-                val rows = try { smartHome.rows() } catch (e: Exception) {
+                val layout = try { smartHome.layout(tv = true) } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    com.iptvapp.data.home.HomeLayout.default()
+                }
+                val rows = try { smartHome.rows(layout = layout) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
                 homeAdapter.submitList(rows)
                 // New Episodes asks providers: it joins the rows when it has an answer.
-                val fresh = try { smartHome.newEpisodes() } catch (e: Exception) {
+                val fresh = try { smartHome.newEpisodes(layout = layout) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     null
                 }
-                if (fresh != null) homeAdapter.submitList(withNewEpisodes(rows, fresh))
+                if (fresh != null) homeAdapter.submitList(smartHome.withRow(rows, fresh))
                 delay(60_000L)
             }
         }
     }
 
-    /** [rows] with [newEpisodes] placed after Starting Soon (or wherever its turn comes). */
-    private fun withNewEpisodes(rows: List<com.iptvapp.data.home.HomeRow>, newEpisodes: com.iptvapp.data.home.HomeRow) =
-        (rows + newEpisodes).sortedBy { it.kind.ordinal }
-
-    /** The first card of the first row, from the sidebar. False when there are no rows. */
+    /**
+     * The first card of the first row, from the sidebar; or, for a row kept while empty, its hint;
+     * or Customize Home when every row is hidden. False when there is nothing yet.
+     */
     private fun focusHomeRows(): Boolean {
         val firstRow = binding.tvRvHome.getChildAt(0) ?: return false
-        val cards = firstRow.findViewById<androidx.recyclerview.widget.RecyclerView>(com.iptvapp.R.id.rvHomeRowCards) ?: return false
-        return cards.getChildAt(0)?.requestFocus() == true
+        val cards = firstRow.findViewById<androidx.recyclerview.widget.RecyclerView>(com.iptvapp.R.id.rvHomeRowCards)
+        if (cards != null && cards.visibility == View.VISIBLE && cards.getChildAt(0)?.requestFocus() == true) return true
+        firstRow.findViewById<View>(com.iptvapp.R.id.tvHomeRowEmpty)?.takeIf { it.visibility == View.VISIBLE }
+            ?.let { if (it.requestFocus()) return true }
+        return firstRow.findViewById<View>(com.iptvapp.R.id.btnHomeCustomize)?.requestFocus() == true
     }
 
     /**
@@ -2055,7 +2075,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     KeyEvent.KEYCODE_DPAD_LEFT -> {
                         val focused = currentFocus
                         val cards = focused?.parent as? androidx.recyclerview.widget.RecyclerView
-                        if (cards != null && cards.getChildAdapterPosition(focused) == 0) {
+                        // The first card, an empty row's hint, or Customize Home: back to the sidebar.
+                        val edge = focused?.id == com.iptvapp.R.id.tvHomeRowEmpty || focused?.id == com.iptvapp.R.id.btnHomeCustomize
+                        if (edge || (cards != null && cards.getChildAdapterPosition(focused) == 0)) {
                             binding.btnTvHome.requestFocus()
                             return true
                         }

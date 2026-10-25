@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="72dp"
@@ -50,7 +51,7 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_media_play"
-        android:tint="#00CC66"
+        app:tint="#00CC66"
         android:visibility="gone" />
 
     <ImageButton
@@ -61,7 +62,7 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_share"
-        android:tint="#008CFF"
+        app:tint="#008CFF"
         android:visibility="gone" />
 
     <ImageButton
@@ -72,7 +73,7 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_popup_sync"
-        android:tint="#FF8800"
+        app:tint="#FF8800"
         android:visibility="gone" />
 
     <!-- Trims the fixed ~20s pre-roll/post-roll padding off the file — see RecordingTrimmer
@@ -84,7 +85,7 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_crop"
-        android:tint="#AAAAAA"
+        app:tint="#AAAAAA"
         android:contentDescription="Remove padding"
         android:visibility="gone" />
 
@@ -98,7 +99,7 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_add"
-        android:tint="#ED1C24"
+        app:tint="#ED1C24"
         android:contentDescription="Add to Trakt collection"
         android:visibility="gone" />
 
@@ -110,7 +111,7 @@
         android:layout_marginEnd="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_agenda"
-        android:tint="#AAAAAA"
+        app:tint="#AAAAAA"
         android:visibility="gone" />
 
     <ImageButton
@@ -120,5 +121,5 @@
         android:layout_height="32dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_delete"
-        android:tint="#666666" />
+        app:tint="#666666" />
 </LinearLayout>

@@ -36,6 +36,7 @@ import javax.inject.Inject
  * to play video again (the player's SHOW PICTURE, the home screens) calls [stop] first.
  */
 @AndroidEntryPoint
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class AudioOnlyService : MediaSessionService() {
 
     @Inject lateinit var okHttpClient: OkHttpClient

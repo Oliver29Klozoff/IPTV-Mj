@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class MultiViewActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMultiViewBinding

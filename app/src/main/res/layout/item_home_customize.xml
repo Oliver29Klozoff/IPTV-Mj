@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The last row of Home: opens Customize Home (SmartHomeAdapter, HomeCustomizeActivity). Always
+     there, so Home can be put back even with every row hidden. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="20dp">
+
+    <TextView
+        android:id="@+id/btnHomeCustomize"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rack_row_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="@font/barlow_condensed_bold"
+        android:letterSpacing="0.1"
+        android:minHeight="48dp"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="18dp"
+        android:paddingVertical="10dp"
+        android:text="✎  CUSTOMIZE HOME"
+        android:textColor="@color/rack_text"
+        android:textSize="14sp" />
+</FrameLayout>

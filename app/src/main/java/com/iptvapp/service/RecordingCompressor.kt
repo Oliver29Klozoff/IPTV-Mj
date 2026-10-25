@@ -20,6 +20,7 @@ import kotlin.coroutines.resume
 /** Re-encodes a finished recording at a "medium" bitrate tier to shrink it, run once the raw
  * capture has already completed successfully (never live — transcoding during capture risks
  * the one thing that can't be redone: the recording itself). */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 object RecordingCompressor {
 
     // Medium tier: noticeably smaller than a typical live-TV source bitrate while staying

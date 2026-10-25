@@ -71,6 +71,7 @@ import java.util.Date
 import java.util.Locale
 
 @AndroidEntryPoint
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class HomeActivity : AppCompatActivity() {
 
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
@@ -1481,9 +1482,29 @@ class HomeActivity : AppCompatActivity() {
                     currentMiniServerIndex = lastServerIndex
                     currentMiniMergedStreamId = lastStreamId
                 }
-                // HOME is tab 0, which TabLayout selects on inflation without a callback.
-                binding.tabLayout.getTabAt(TAB_HOME)?.select()
-                showHome()
+                // Where Customize Home says to open (Home unless changed there), on an ordinary launch
+                // only: a link or a notification that opened MKTV keeps its own place.
+                val startTab = if (intent?.action != Intent.ACTION_MAIN) TAB_HOME else try {
+                    when (smartHome.layout(tv = false).start) {
+                        com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> TAB_FAVORITES
+                        com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> TAB_LIVE
+                        com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> TAB_MOVIES
+                        com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> TAB_SERIES
+                        com.iptvapp.data.home.HomeLayout.StartScreen.GUIDE -> TAB_GUIDE
+                        com.iptvapp.data.home.HomeLayout.StartScreen.HOME -> TAB_HOME
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    TAB_HOME
+                }
+                if (startTab == TAB_HOME) {
+                    // HOME is tab 0, which TabLayout selects on inflation without a callback.
+                    binding.tabLayout.getTabAt(TAB_HOME)?.select()
+                    showHome()
+                } else {
+                    // Any other tab fires onTabSelected, which shows it.
+                    binding.tabLayout.getTabAt(startTab)?.select()
+                }
             }
         } else {
             val startTab = viewModel.lastTabPosition
@@ -5033,7 +5054,9 @@ class HomeActivity : AppCompatActivity() {
 
     @Inject lateinit var smartHome: com.iptvapp.data.home.SmartHome
     private var homeRefreshJob: kotlinx.coroutines.Job? = null
-    private val homeAdapter by lazy { SmartHomeAdapter { card -> homeHitUi.open(card.hit) } }
+    private val homeAdapter by lazy {
+        SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = { HomeCustomizeActivity.open(this, tv = false) })
+    }
     private val homeHitUi by lazy {
         com.iptvapp.ui.search.SearchHitUi(this, repository,
             playChannel = { channel, merged ->
@@ -5089,19 +5112,23 @@ class HomeActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                 }
-                val rows = try { smartHome.rows() } catch (e: Exception) {
+                val layout = try { smartHome.layout(tv = false) } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    com.iptvapp.data.home.HomeLayout.default()
+                }
+                val rows = try { smartHome.rows(layout = layout) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
                 if (binding.tabLayout.selectedTabPosition != TAB_HOME) break
                 homeAdapter.submitList(rows)
                 // New Episodes asks providers: it joins the rows when it has an answer.
-                val fresh = try { smartHome.newEpisodes() } catch (e: Exception) {
+                val fresh = try { smartHome.newEpisodes(layout = layout) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     null
                 }
                 if (binding.tabLayout.selectedTabPosition != TAB_HOME) break
-                if (fresh != null) homeAdapter.submitList((rows + fresh).sortedBy { it.kind.ordinal })
+                if (fresh != null) homeAdapter.submitList(smartHome.withRow(rows, fresh))
                 kotlinx.coroutines.delay(60_000L)
             }
         }

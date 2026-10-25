@@ -35,7 +35,7 @@
             android:layout_height="40dp"
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_sort_by_size"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <!-- Opens SearchActivity: one search across every provider and content type (channels,
              the guide, movies, series, episodes, recordings) — distinct from the per-tab etSearch
@@ -48,7 +48,7 @@
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_search"
             android:contentDescription="Search all providers"
-            android:tint="#888888" />
+            app:tint="#888888" />
 
         <ImageButton
             android:id="@+id/btnRefresh"
@@ -58,7 +58,7 @@
             android:layout_marginStart="15dp"
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_popup_sync"
-            android:tint="#888888" />
+            app:tint="#888888" />
 
         <!-- Opens MultiViewActivity (two channels at once — see its own dual-stream PiP
              layout). Existed as a working screen with zero way to reach it — btnMultiView's
@@ -72,7 +72,7 @@
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_gallery"
             android:contentDescription="Multi-View"
-            android:tint="#888888" />
+            app:tint="#888888" />
 
         <!-- Phone remote (v7.18): drive MKTV on the TV from this phone (ui/remote/RemoteActivity). -->
         <ImageButton
@@ -85,7 +85,7 @@
             android:scaleType="fitCenter"
             android:src="@drawable/ic_phone_remote"
             android:contentDescription="Phone remote"
-            android:tint="#888888" />
+            app:tint="#888888" />
 
         <!-- Gap before the search box, which takes the rest of the bar (v7.18: a fixed 180dp
              box clipped its own buttons on narrower phones once the remote button was added). -->
@@ -152,7 +152,7 @@
                 android:layout_marginEnd="2dp"
                 android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
-                android:tint="#888888"
+                app:tint="#888888"
                 android:contentDescription="Clear search"
                 android:visibility="gone" />
 
@@ -164,7 +164,7 @@
                 android:layout_marginEnd="2dp"
                 android:background="@drawable/home_tab_bg"
                 android:src="@drawable/ic_mic"
-                android:tint="#AAAAAA"
+                app:tint="#AAAAAA"
                 android:contentDescription="Voice tune: say a channel or a show"
                 android:padding="5dp"
                 android:scaleType="fitCenter" />
@@ -189,6 +189,7 @@
         <LinearLayout
             style="@style/HomeRack.Readout"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/HomeRack.Eyebrow"
@@ -218,6 +219,7 @@
         <LinearLayout
             style="@style/HomeRack.Readout"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/HomeRack.Eyebrow"
@@ -234,6 +236,7 @@
         <LinearLayout
             style="@style/HomeRack.Readout"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/HomeRack.Eyebrow"
@@ -627,7 +630,7 @@
             android:layout_marginEnd="4dp"
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_menu_sort_alphabetically"
-            android:tint="#888888"
+            app:tint="#888888"
             android:contentDescription="Sort movies"
             android:visibility="gone" />
 
@@ -637,7 +640,7 @@
             android:layout_height="32dp"
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/stat_notify_sync"
-            android:tint="#4FC3F7"
+            app:tint="#4FC3F7"
             android:contentDescription="Refresh providers" />
 
         <!-- Shown only while a bulk-select is active for whichever of Live/Movies/Series is
@@ -730,7 +733,7 @@
             android:layout_height="32dp"
             android:background="@drawable/home_tab_bg"
             android:src="@android:drawable/ic_popup_sync"
-            android:tint="#888888"
+            app:tint="#888888"
             android:contentDescription="Refresh guide" />
 
     </LinearLayout>

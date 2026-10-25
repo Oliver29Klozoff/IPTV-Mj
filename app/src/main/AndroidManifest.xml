@@ -173,6 +173,18 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
 
+        <!-- Customize Home: the rows of Home and the items of a row someone made (HomeLayout). -->
+        <activity
+            android:name=".ui.home.HomeCustomizeActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".ui.home.HomeCollectionActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".ui.remote.RemoteActivity"
             android:exported="false"

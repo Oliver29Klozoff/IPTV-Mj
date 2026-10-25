@@ -25,6 +25,7 @@ import androidx.media3.ui.PlayerView
  * ExoPlayer design) — only one preview is ever active at a time regardless of which adapter
  * triggered it.
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 object LiveChannelPreviewBubble {
     private const val WIDTH_DP = 260
     private const val HEIGHT_DP = 146

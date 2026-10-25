@@ -26,6 +26,7 @@ import androidx.media3.extractor.ts.TimeshiftTsExtractor
  * those cues and rejects raw DVB samples. Provider HLS does not use this factory.
  */
 @UnstableApi
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.ExperimentalApi::class])
 class TimeshiftHlsExtractorFactory : HlsExtractorFactory {
     private var subtitleParserFactory: SubtitleParser.Factory = DefaultSubtitleParserFactory()
     private var parseSubtitlesDuringExtraction = true

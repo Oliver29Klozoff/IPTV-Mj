@@ -97,6 +97,7 @@ private const val ONE_STREAM_TRIP_MS = 15_000L
 private const val ONE_STREAM_STALL_MS = 8_000L
 
 @AndroidEntryPoint
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
 
     private lateinit var binding: ActivityPlayerBinding
@@ -7491,6 +7492,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return Rational(width, height)
     }
 
+    @androidx.annotation.RequiresApi(26)
     private fun buildPipParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder().setAspectRatio(pipAspectRatio())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

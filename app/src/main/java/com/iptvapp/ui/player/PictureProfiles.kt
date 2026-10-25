@@ -14,6 +14,7 @@ import com.iptvapp.util.ChannelAudioDelayState
  * Older devices, and TVs without that profile, keep the picture they already use.
  * The platform has no public codec key for a sound profile, so sound is left to the TV.
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class PictureProfiles {
     private var profile: Any? = null
     private var videoAdapter: MediaCodecAdapter? = null
@@ -145,6 +146,7 @@ class PictureProfiles {
     }
 
     /** Loaded only on Android 16. The picture-profile classes are not on older devices. */
+    @androidx.annotation.RequiresApi(36)
     private object Api36 {
         fun lookup(context: Context, name: String): android.media.quality.PictureProfile? {
             return try {

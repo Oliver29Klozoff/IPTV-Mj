@@ -24,7 +24,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_sort_by_size"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <TextView
             android:id="@+id/tvTitle"
@@ -68,7 +68,7 @@
             android:layout_marginStart="4dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="#888888"
+            app:tint="#888888"
             android:visibility="gone" />
     </LinearLayout>
 
@@ -175,7 +175,7 @@
                     android:layout_margin="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@android:drawable/ic_menu_zoom"
-                    android:tint="#FFFFFF" />
+                    app:tint="#FFFFFF" />
 
                 <ProgressBar
                     android:id="@+id/miniPlayerProgress"

@@ -31,6 +31,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 @HiltAndroidApp
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class IptvApplication : Application(), Configuration.Provider {
 
     @Inject

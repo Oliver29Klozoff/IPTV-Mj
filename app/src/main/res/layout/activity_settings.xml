@@ -81,6 +81,7 @@
         <LinearLayout
             style="@style/Rack.Readout"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/Rack.Eyebrow"
@@ -97,6 +98,7 @@
         <LinearLayout
             style="@style/Rack.Readout"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/Rack.Eyebrow"
@@ -127,6 +129,7 @@
         <LinearLayout
             style="@style/Rack.Readout.WideOnly"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/Rack.Eyebrow"
@@ -143,6 +146,7 @@
         <LinearLayout
             style="@style/Rack.Readout.WideOnly"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/Rack.Eyebrow"
@@ -159,6 +163,7 @@
         <LinearLayout
             style="@style/Rack.Readout"
             android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content">
             <TextView
                 style="@style/Rack.Eyebrow"
@@ -293,6 +298,7 @@
                                 <LinearLayout
                                     style="@style/Rack.RowText"
                                     android:layout_width="0dp"
+                                    android:layout_weight="1"
                                     android:layout_height="wrap_content">
                                     <TextView
                                         style="@style/Rack.Label"
@@ -360,6 +366,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -401,6 +408,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -453,6 +461,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -480,6 +489,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -508,6 +518,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -593,6 +604,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -682,6 +694,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -707,6 +720,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -732,6 +746,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -757,6 +772,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -782,6 +798,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -809,6 +826,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -928,6 +946,7 @@
                                 <LinearLayout
                                     style="@style/Rack.RowText"
                                     android:layout_width="0dp"
+                                    android:layout_weight="1"
                                     android:layout_height="wrap_content">
                                     <TextView
                                         style="@style/Rack.Label"
@@ -1054,6 +1073,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1079,6 +1099,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1104,6 +1125,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1131,6 +1153,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1159,6 +1182,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1187,6 +1211,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1215,6 +1240,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1236,6 +1262,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1263,6 +1290,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1290,6 +1318,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1317,6 +1346,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1343,6 +1373,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1368,6 +1399,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1402,6 +1434,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1428,6 +1461,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1454,6 +1488,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1480,6 +1515,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1509,6 +1545,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1536,6 +1573,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1562,6 +1600,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1587,6 +1626,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1612,6 +1652,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1673,6 +1714,7 @@
                                 <LinearLayout
                                     style="@style/Rack.RowText"
                                     android:layout_width="0dp"
+                                    android:layout_weight="1"
                                     android:layout_height="wrap_content">
                                     <TextView
                                         style="@style/Rack.Label"
@@ -1727,6 +1769,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1752,6 +1795,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1824,6 +1868,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -1901,6 +1946,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2006,6 +2052,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2032,6 +2079,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2097,6 +2145,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2122,6 +2171,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2164,6 +2214,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2223,6 +2274,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2257,6 +2309,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2402,6 +2455,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2474,6 +2528,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2568,6 +2623,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2592,6 +2648,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2730,6 +2787,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2755,6 +2813,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2780,6 +2839,7 @@
                             <LinearLayout
                                 style="@style/Rack.RowText"
                                 android:layout_width="0dp"
+                                android:layout_weight="1"
                                 android:layout_height="wrap_content">
                                 <TextView
                                     style="@style/Rack.Label"
@@ -2860,6 +2920,7 @@
                                 <LinearLayout
                                     style="@style/Rack.RowText"
                                     android:layout_width="0dp"
+                                    android:layout_weight="1"
                                     android:layout_height="wrap_content">
                                     <TextView
                                         style="@style/Rack.Label"

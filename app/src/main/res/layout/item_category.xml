@@ -3,6 +3,7 @@
     android:focusable="true"
     android:focusableInTouchMode="false"
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="56dp"
     android:orientation="horizontal"
@@ -41,6 +42,6 @@
         android:layout_height="18dp"
         android:layout_marginStart="6dp"
         android:src="@android:drawable/btn_star_big_on"
-        android:tint="#008CFF"
+        app:tint="#008CFF"
         android:visibility="gone" />
 </LinearLayout>

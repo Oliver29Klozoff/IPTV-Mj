@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong
  * — only isNetwork transfers count. One instance per PlayerActivity/player build; call
  * attachTo(factory) on the final DataSource.Factory feeding the player, and flush()/stop() from
  * onStop/onDestroy. */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class BandwidthTracker(
     private val dao: BandwidthUsageDao,
     @Volatile private var serverIndex: Int,

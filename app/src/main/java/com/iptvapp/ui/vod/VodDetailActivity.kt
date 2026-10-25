@@ -24,6 +24,7 @@ import javax.inject.Inject
  * treatment (which movies never had, despite series getting one), while keeping the existing
  * single-tap-to-play behavior on the grid untouched for anyone used to it. */
 @AndroidEntryPoint
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class VodDetailActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityVodDetailBinding

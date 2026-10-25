@@ -369,6 +369,9 @@ class PreferencesManager @Inject constructor(
         val SMART_PREFER_HEALTHY = intPreferencesKey("smart_prefer_healthy")
         // League to network for the Sports screen ("NBA" -> "ESPN"); see SportsFinder.decodePreferred.
         val SPORTS_PREFERRED_NETWORKS = stringPreferencesKey("sports_preferred_networks")
+        // Customized Home (HomeLayout JSON), one per form factor. Arrangement only, no credentials.
+        val HOME_LAYOUT_TV = stringPreferencesKey("home_layout_tv")
+        val HOME_LAYOUT_PHONE = stringPreferencesKey("home_layout_phone")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
         // Saved Mosaic layouts as JSON (see MosaicLayouts), and the name of the one last opened.
@@ -527,6 +530,14 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.SPORTS_PREFERRED_NETWORKS] ?: "" }
     suspend fun setSportsPreferredNetworks(v: String) = context.dataStore.edit { it[Keys.SPORTS_PREFERRED_NETWORKS] = v }
+    /** The saved Home layout for TV ([tv]) or phone, or null before it has been customized. */
+    fun homeLayoutJson(tv: Boolean): Flow<String?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE] }
+    suspend fun setHomeLayoutJson(tv: Boolean, json: String?) = context.dataStore.edit {
+        val key = if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE
+        if (json == null) it.remove(key) else it[key] = json
+    }
     val gameAlerts: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.GAME_ALERTS] ?: true }
@@ -781,6 +792,12 @@ class PreferencesManager @Inject constructor(
                 val syncDropped = com.iptvapp.util.PlaybackSync.dropServer(sync, -1)
                 if (syncDropped != sync) prefs[Keys.PLAYBACK_SYNC] = syncDropped
                 com.iptvapp.util.PlaybackSync.session.clear()
+                // Home rows someone made: the old account's channels and categories are not this one's.
+                for (key in listOf(Keys.HOME_LAYOUT_TV, Keys.HOME_LAYOUT_PHONE)) {
+                    val layout = prefs[key]
+                    val next = com.iptvapp.data.home.HomeLayout.reindexJson(layout, null, primaryChanged = true)
+                    if (next != null && next != layout) prefs[key] = next
+                }
             }
             prefs[Keys.SERVER_URL] = serverUrl
             prefs[Keys.USERNAME] = username
@@ -1163,6 +1180,12 @@ class PreferencesManager @Inject constructor(
             val syncMoved = com.iptvapp.util.PlaybackSync.reindex(sync, moved)
             if (syncMoved != sync) prefs[Keys.PLAYBACK_SYNC] = syncMoved
             com.iptvapp.util.PlaybackSync.session.clear()
+            // Home rows someone made point at providers by index too: they follow theirs, or drop it.
+            for (key in listOf(Keys.HOME_LAYOUT_TV, Keys.HOME_LAYOUT_PHONE)) {
+                val layout = prefs[key]
+                val next = com.iptvapp.data.home.HomeLayout.reindexJson(layout, moved, primaryChanged = false)
+                if (next != null && next != layout) prefs[key] = next
+            }
             prefs[Keys.EXTRA_SERVERS] = arr.toString()
         }
     }

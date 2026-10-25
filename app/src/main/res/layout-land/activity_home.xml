@@ -88,7 +88,7 @@
                 android:padding="6dp"
                 android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/stat_notify_sync"
-                android:tint="#4FC3F7"
+                app:tint="#4FC3F7"
                 android:contentDescription="Refresh providers" />
 
         </FrameLayout>
@@ -192,7 +192,7 @@
                 android:layout_gravity="center_vertical|end"
                 android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
-                android:tint="#888888"
+                app:tint="#888888"
                 android:contentDescription="Clear search"
                 android:visibility="gone" />
 
@@ -203,7 +203,7 @@
                 android:layout_gravity="center_vertical|end"
                 android:background="@drawable/home_tab_bg"
                 android:src="@drawable/ic_mic"
-                android:tint="#AAAAAA"
+                app:tint="#AAAAAA"
                 android:contentDescription="Voice tune: say a channel or a show"
                 android:padding="5dp"
                 android:scaleType="fitCenter" />
@@ -224,7 +224,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/home_chip_bg"
                 android:src="@android:drawable/ic_menu_preferences"
-                android:tint="#AAAAAA"
+                app:tint="#AAAAAA"
                 android:scaleType="center"
                 android:contentDescription="Settings" />
             <Button
@@ -246,7 +246,7 @@
                 android:layout_marginStart="4dp"
                 android:background="@drawable/home_chip_bg"
                 android:src="@android:drawable/ic_menu_gallery"
-                android:tint="#AAAAAA"
+                app:tint="#AAAAAA"
                 android:scaleType="center"
                 android:contentDescription="Multi-View" />
             <ImageButton
@@ -258,7 +258,7 @@
                 android:padding="8dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_phone_remote"
-                android:tint="#AAAAAA"
+                app:tint="#AAAAAA"
                 android:contentDescription="Phone remote" />
         </LinearLayout>
 
@@ -422,7 +422,7 @@
                     android:layout_height="28dp"
                     android:background="@drawable/home_tab_bg"
                     android:src="@android:drawable/ic_popup_sync"
-                    android:tint="#888888"
+                    app:tint="#888888"
                     android:contentDescription="Refresh guide" />
 
             </LinearLayout>
@@ -523,6 +523,7 @@
                 <LinearLayout
                     style="@style/HomeRack.Readout"
                     android:layout_width="0dp"
+                    android:layout_weight="1"
                     android:layout_height="wrap_content">
                     <TextView
                         style="@style/HomeRack.Eyebrow"
@@ -552,6 +553,7 @@
                 <LinearLayout
                     style="@style/HomeRack.Readout"
                     android:layout_width="0dp"
+                    android:layout_weight="1"
                     android:layout_height="wrap_content">
                     <TextView
                         style="@style/HomeRack.Eyebrow"
@@ -568,6 +570,7 @@
                 <LinearLayout
                     style="@style/HomeRack.Readout"
                     android:layout_width="0dp"
+                    android:layout_weight="1"
                     android:layout_height="wrap_content">
                     <TextView
                         style="@style/HomeRack.Eyebrow"
@@ -834,7 +837,7 @@
                 android:layout_height="32dp"
                 android:background="@drawable/home_tab_bg"
                 android:src="@android:drawable/ic_media_previous"
-                android:tint="#888888"
+                app:tint="#888888"
                 android:padding="6dp"
                 android:contentDescription="Collapse genre filters" />
 

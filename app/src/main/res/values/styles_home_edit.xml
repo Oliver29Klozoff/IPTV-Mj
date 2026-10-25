@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Customize Home (HomeCustomizeActivity, HomeCollectionActivity): the Rack look, with chips the
+     remote can reach one by one. 48dp tall so a finger can hit them too. -->
+<resources>
+    <style name="HomeEditChip">
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:background">@drawable/player_chip_bg</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:gravity">center</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/rack_text</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="HomeEditHeaderChip" parent="HomeEditChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+    </style>
+</resources>

@@ -24,4 +24,19 @@
         android:layout_height="wrap_content"
         android:clipToPadding="false"
         android:paddingHorizontal="10dp" />
+
+    <!-- A row kept while empty (HomeLayout showWhenEmpty): what will appear here, instead of cards. -->
+    <TextView
+        android:id="@+id/tvHomeRowEmpty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="6dp"
+        android:focusable="true"
+        android:background="@drawable/rack_row_bg"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:textColor="@color/rack_text_muted"
+        android:textSize="13sp"
+        android:visibility="gone" />
 </LinearLayout>

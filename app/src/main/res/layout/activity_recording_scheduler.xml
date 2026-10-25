@@ -26,7 +26,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <TextView
             android:layout_width="0dp"
@@ -45,7 +45,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_agenda"
             android:contentDescription="Commercial detection"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <Button
             android:id="@+id/btnSeriesRecording"
@@ -62,7 +62,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_manage"
             android:contentDescription="Storage settings"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <ImageButton
             android:id="@+id/btnToggleScheduleView"
@@ -71,7 +71,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_month"
             android:contentDescription="Schedule view"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <LinearLayout
@@ -94,7 +94,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_previous"
             android:contentDescription="Previous day"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
 
         <TextView
             android:id="@+id/tvDayLabel"
@@ -113,7 +113,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_next"
             android:contentDescription="Next day"
-            android:tint="#FFFFFF" />
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <ScrollView

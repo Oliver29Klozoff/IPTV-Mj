@@ -29,6 +29,10 @@ import java.util.concurrent.Executors
  * and a TV's on-screen QR is often too small/far to decode without zooming in. CameraX exposes a
  * real zoom ratio the pinch gesture below drives directly; ML Kit does the actual decoding.
  */
+@androidx.annotation.OptIn(markerClass = [
+    androidx.media3.common.util.UnstableApi::class,
+    androidx.camera.core.ExperimentalGetImage::class,
+])
 class CastQrScanActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
