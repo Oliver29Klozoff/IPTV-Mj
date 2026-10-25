@@ -107,6 +107,10 @@ object TvHomeChannelPublisher {
     suspend fun publishFavorites(context: Context, entries: List<Entry>) =
         publish(context, "favorites", "MKTV Favorites", entries)
 
+    // tvprovider 1.0.0 declares these public builders' setters and the PreviewPrograms/WatchNextPrograms
+    // constants on @RestrictTo base types (BaseProgram.Builder, PreviewProgramColumns); the public
+    // subclasses are the documented launcher API, so lint's RestrictedApi here is a false positive.
+    @android.annotation.SuppressLint("RestrictedApi")
     suspend fun publish(context: Context, row: String, title: String, entries: List<Entry>, recording: Boolean = false) {
         if (!hasTvHome(context)) return
         publishLock.withLock {

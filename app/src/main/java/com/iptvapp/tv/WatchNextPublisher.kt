@@ -125,6 +125,10 @@ object WatchNextPublisher {
 
     private data class Existing(val id: Long, val browsable: Boolean, val engagedAtMs: Long)
 
+    // tvprovider 1.0.0 declares these public builders' setters and the PreviewPrograms/WatchNextPrograms
+    // constants on @RestrictTo base types (BaseProgram.Builder, PreviewProgramColumns); the public
+    // subclasses are the documented launcher API, so lint's RestrictedApi here is a false positive.
+    @android.annotation.SuppressLint("RestrictedApi")
     private fun sync(context: Context, items: List<Item>) {
         val resolver = context.contentResolver
         val existing = HashMap<String, Existing>()
@@ -176,6 +180,10 @@ object WatchNextPublisher {
         }
     }
 
+    // tvprovider 1.0.0 declares these public builders' setters and the PreviewPrograms/WatchNextPrograms
+    // constants on @RestrictTo base types (BaseProgram.Builder, PreviewProgramColumns); the public
+    // subclasses are the documented launcher API, so lint's RestrictedApi here is a false positive.
+    @android.annotation.SuppressLint("RestrictedApi")
     private fun program(context: Context, item: Item): WatchNextProgram {
         val builder = WatchNextProgram.Builder()
             .setWatchNextType(if (item.next) TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_NEXT else TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE)
