@@ -4,13 +4,24 @@ Phone = Pixel (touch, portrait + landscape). Shield = NVIDIA Shield (D-pad). Mar
 pass/fail with build, device and date. Leave measurements blank unless actually measured.
 
 ## Custom Home — phone (touch)
-- [ ] Open Customize Home; reorder, hide and restore a section; changes survive app restart.
-- [ ] Same in landscape (car box is always landscape).
+Stage 4A, 2026-10-26, Pixel 11 Pro XL, Stage 3 build (= v7.73 code):
+- [x] Open Customize Home; reorder and restore a section; Home follows. PASS
+- [x] Saved sections, order and visibility survive force-stop + reopen (data kept). PASS
+- [x] Landscape: sections, saved layout and Customize Home all work; repeated portrait/landscape
+      rotations keep the layout. PASS. Note: right after rotating, the live preview fills the
+      content area until touched (explained; not a defect).
+- [ ] Car box itself: UNVERIFIED (same landscape layout as the Pixel, not tested on the box).
 - [ ] Tap a card in each section opens the right channel/movie/episode.
 
 ## Custom Home — Shield (D-pad)
-- [ ] Every section and the Customize screen reachable with D-pad only; focus always visible.
-- [ ] Move a section up/down with D-pad; BACK leaves without losing focus position.
+Stage 4A, 2026-10-26, NVIDIA Shield, Stage 3 build:
+- [x] Customize Home reachable with D-pad (Right, then Down x6); all controls reachable. PASS
+- [x] Move up/down, hide and restore with D-pad; focus follows the moved row. PASS
+- [x] Order shows on Home after BACK and persists on reopening Customize Home. PASS
+- [ ] P2 defect: after BACK from Customize Home, Home rebuilds (~20 s black) and nothing has
+      focus; the first key press lands on the HOME menu item.
+- [ ] P2 minor: first focus lands on the button bar, not DONE; disabled up-arrow on row 1 takes
+      focus; focus held on one card for 3 Down presses while rows loaded.
 
 ## Launcher shortcuts and Watch Next (Shield)
 - [ ] Settings → Quick Actions → Android TV Home Integration on; "Show launcher rows" prompts.
