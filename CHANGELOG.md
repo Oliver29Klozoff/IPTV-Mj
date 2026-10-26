@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.73 - 2026-10-26
+- **New**: Customize Home (button at the bottom of Home). Reorder, hide or show sections, add your own rows,
+  and choose which screen MKTV opens on. Phone/tablet and TV keep separate layouts. Works with touch and the remote.
+- **Fixed**: Build checks for the Android TV home-screen rows.
+
 ## v7.72 - 2026-10-24
 - **New**: Android TV Home Integration (Settings): unfinished movies and episodes, the next episode of a
   series you are watching, favorite channels and recent recordings can appear on the Android TV home screen and
