@@ -15,13 +15,17 @@ import java.security.MessageDigest
  * Poster art for launcher cards. Public artwork hosts are passed through (LauncherMetadata);
  * provider artwork, whose URL can carry the account, is fetched here and handed to the launcher
  * as content://<app>.launcherart/<sha256>, so the provider URL never leaves the app.
- * Called from the publishers' IO work only.
+ * Publishing only reads the cache (it runs under the catalog lock); a poster not cached yet is
+ * noted and fetched by [fetchPending] after the lock is released, for the next publish.
  */
 object LauncherArtwork {
     private const val DIR = "launcher-art"
     private const val MAX_BYTES = 3L * 1024 * 1024
     private const val KEEP_MS = 7L * 24 * 3600 * 1000
     private val NAME = Regex("[0-9a-f]{64}")
+    private const val MAX_PENDING = 50
+    private const val FETCH_BUDGET_MS = 30_000L
+    private val pending = LinkedHashSet<String>()
 
     fun authority(context: Context) = "${context.packageName}.launcherart"
 
@@ -30,20 +34,38 @@ object LauncherArtwork {
     fun fallback(context: Context): Uri =
         Uri.parse("android.resource://${context.packageName}/${context.applicationInfo.icon}")
 
-    /** The poster for [url]: public as-is, provider art from the local cache, else the app icon. */
+    /**
+     * The poster for [url]: public as-is, provider art already cached, else the app icon (and the
+     * art is queued for [fetchPending]). Never touches the network.
+     */
     fun poster(context: Context, url: String?): Uri {
         LauncherMetadata.artwork(url)?.let { return Uri.parse(it) }
-        val cached = runCatching { cache(context, url) }.getOrNull() ?: return fallback(context)
-        return Uri.Builder().scheme("content").authority(authority(context)).appendPath(cached.name).build()
+        if (url.isNullOrBlank()) return fallback(context)
+        val scheme = Uri.parse(url).scheme
+        if (scheme != "http" && scheme != "https") return fallback(context)
+        val file = File(dir(context), sha256(url))
+        if (file.length() > 0 && System.currentTimeMillis() - file.lastModified() < KEEP_MS) {
+            return Uri.Builder().scheme("content").authority(authority(context)).appendPath(file.name).build()
+        }
+        synchronized(pending) { if (pending.size < MAX_PENDING) pending.add(url) }
+        return fallback(context)
     }
 
-    private fun cache(context: Context, url: String?): File? {
-        if (url.isNullOrBlank()) return null
-        val scheme = Uri.parse(url).scheme
-        if (scheme != "http" && scheme != "https") return null
+    /** Fetches queued posters, outside any catalog lock, within a total time budget. True when any arrived. */
+    fun fetchPending(context: Context): Boolean {
+        val urls = synchronized(pending) { pending.toList().also { pending.clear() } }
+        val deadline = System.currentTimeMillis() + FETCH_BUDGET_MS
+        var got = false
+        for (url in urls) {
+            if (System.currentTimeMillis() > deadline) break
+            if (runCatching { download(context, url) }.getOrNull() != null) got = true
+        }
+        return got
+    }
+
+    private fun download(context: Context, url: String): File? {
         val dir = dir(context).apply { mkdirs() }
         val file = File(dir, sha256(url))
-        if (file.length() > 0 && System.currentTimeMillis() - file.lastModified() < KEEP_MS) return file
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 5_000; readTimeout = 5_000; instanceFollowRedirects = true
         }

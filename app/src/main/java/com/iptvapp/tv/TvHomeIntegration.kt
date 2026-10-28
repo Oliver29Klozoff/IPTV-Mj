@@ -67,6 +67,8 @@ object TvHomeIntegration {
             } else emptyList()
             TvHomeChannelPublisher.publish(context, "recordings", "MKTV Recent Recordings", recordings, recording = true)
         }
+        // Posters not cached yet are fetched here, after the catalog lock; the next sync shows them.
+        if (enabled(context) && LauncherArtwork.fetchPending(context)) request()
     }
 
     fun available(context: Context, recording: RecordingEntity): Boolean {

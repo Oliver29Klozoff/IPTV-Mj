@@ -23,6 +23,8 @@ class LauncherArtworkTest {
         assertEquals(tmdb, LauncherArtwork.poster(context, tmdb).toString())
         assertEquals(LauncherArtwork.fallback(context), LauncherArtwork.poster(context, null))
         assertEquals(LauncherArtwork.fallback(context), LauncherArtwork.poster(context, "file:///data/secret.png"))
+        // Provider art never downloads while publishing: icon now, queued for fetchPending.
+        assertEquals(LauncherArtwork.fallback(context), LauncherArtwork.poster(context, "http://127.0.0.1:9/u/p/logo.png"))
     }
 
     @Test fun `provider serves only hash-named cached posters read-only`() {

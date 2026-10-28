@@ -2042,7 +2042,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     null
                 }
-                if (fresh != null) homeAdapter.submitList(smartHome.withRow(rows, fresh))
+                // A later list supersedes the first one's commit callback, so it restores focus too.
+                if (fresh != null) homeAdapter.submitList(smartHome.withRow(rows, fresh)) { if (refocusCustomize) restoreCustomizeFocus() }
                 delay(60_000L)
             }
         }
