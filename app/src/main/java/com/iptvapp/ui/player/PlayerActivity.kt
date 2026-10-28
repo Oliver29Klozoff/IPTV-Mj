@@ -161,6 +161,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private lateinit var gestureDetector: GestureDetector
     private var streamUrl: String = ""
     private var streamTitle: String = ""
+    /** Live scores corner and close-game heads-up (Settings > Live scores). */
+    private var scoreBug: ScoreBug? = null
     private var streamId: Int = -1
     // See onCreate's intent-extra reads for the full explanation of these two fields.
     private var serverIndex: Int = -1
@@ -589,6 +591,16 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
+        scoreBug = ScoreBug(this, binding.root, db, prefs).also { bug ->
+            bug.start {
+                when {
+                    isVod -> null
+                    streamId != -1 -> ScoreBug.Channel(-1, streamId, streamTitle)
+                    serverIndex != -1 -> ScoreBug.Channel(serverIndex, mergedStreamId, streamTitle)
+                    else -> null
+                }
+            }
+        }
         setupFavoritesGuide()
         setupResizeButton()
         setupActionButtons()
@@ -6932,6 +6944,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun showChannelOsd() {
         osdEpgJob?.cancel()
+        scoreBug?.channelChanged()
         binding.tvOsdChannelName.text = streamTitle
         binding.tvOsdEpg.text = ""
         binding.osdEpgProgress.progress = 0
@@ -6975,6 +6988,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         com.bumptech.glide.Glide.with(this).load(icon).onlyRetrieveFromCache(true).into(binding.ivTuneLogo)
         tuneTrace.select(prefs.turboTuneNow())
         osdEpgJob?.cancel()
+        scoreBug?.channelChanged()
         retryJob?.cancel()
         backupSwitchJob?.cancel()
         zapPreloadJob?.cancel()

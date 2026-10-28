@@ -40,9 +40,10 @@ import com.iptvapp.data.local.entities.*
         CommercialSegmentEntity::class,
         SmartChannelGroupEntity::class,
         SmartChannelMemberEntity::class,
-        SmartChannelRejectionEntity::class
+        SmartChannelRejectionEntity::class,
+        WatchLogEntity::class
     ],
-    version = 50,
+    version = 51,
     exportSchema = true
 )
 abstract class IptvDatabase : RoomDatabase() {
@@ -67,6 +68,7 @@ abstract class IptvDatabase : RoomDatabase() {
     abstract fun epgRepairDao(): com.iptvapp.data.local.dao.EpgRepairDao
     abstract fun commercialDao(): com.iptvapp.data.local.dao.CommercialDao
     abstract fun smartChannelDao(): SmartChannelDao
+    abstract fun watchLogDao(): WatchLogDao
 
     companion object {
         const val DATABASE_NAME = "iptv_db"
@@ -700,6 +702,12 @@ abstract class IptvDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_50_51 = object : Migration(50, 51) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `watch_log` (`day` TEXT NOT NULL, `serverIndex` INTEGER NOT NULL, `streamId` INTEGER NOT NULL, `name` TEXT NOT NULL, `minutes` REAL NOT NULL, `stalls` INTEGER NOT NULL, `starts` INTEGER NOT NULL, `failures` INTEGER NOT NULL, PRIMARY KEY(`day`, `serverIndex`, `streamId`))")
+            }
+        }
+
         val MIGRATION_49_50 = object : Migration(49, 50) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE epg_entries ADD COLUMN seriesKey TEXT")
@@ -727,7 +735,7 @@ abstract class IptvDatabase : RoomDatabase() {
             MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
             MIGRATION_46_47,
             MIGRATION_47_48,
-            MIGRATION_48_49, MIGRATION_49_50
+            MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51
         )
     }
 }

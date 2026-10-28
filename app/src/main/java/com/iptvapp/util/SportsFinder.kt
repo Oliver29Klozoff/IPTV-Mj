@@ -43,21 +43,28 @@ object SportsFinder {
 
     // Order here is the order of the sections on screen.
     private val LEAGUES: List<Pair<String, Regex>> = listOf(
-        "NFL" to Regex("""\bNFL\b"""),
-        "College football" to Regex("""\b(college|NCAA[A-Z]?)\b.*\bfootball\b|\bCFB\b""", RegexOption.IGNORE_CASE),
+        // The prime-time windows are titled by night, without "NFL"; Saturday night is college.
+        "NFL" to Regex("""\bNFL\b|\b(Sunday|Monday|Thursday) Night Football\b|\bRedZone\b"""),
+        "College football" to Regex("""\b(college|NCAA[A-Z]?)\b.*\bfootball\b|\bCFB\b|\bSaturday Night Football\b""", RegexOption.IGNORE_CASE),
         "NBA" to Regex("""\bNBA\b"""),
         "WNBA" to Regex("""\bWNBA\b"""),
         "College basketball" to Regex("""\b(college|NCAA[A-Z]?)\b.*\bbasketball\b""", RegexOption.IGNORE_CASE),
-        "MLB" to Regex("""\bMLB\b|\bbaseball\b""", RegexOption.IGNORE_CASE),
-        "NHL" to Regex("""\bNHL\b|\bhockey\b""", RegexOption.IGNORE_CASE),
+        // College and Little League baseball, college hockey: their own sections, not MLB / NHL.
+        "MLB" to Regex(
+            """\bMLB\b|(?<!college |little league |NCAA )\bbaseball\b|(?<!little league )\bWorld Series\b(?! of)|\b(ALCS|NLCS|ALDS|NLDS)\b""",
+            RegexOption.IGNORE_CASE
+        ),
+        "NHL" to Regex("""\bNHL\b|(?<!college |NCAA )\bhockey\b|\bStanley Cup\b""", RegexOption.IGNORE_CASE),
         "Soccer" to Regex(
-            """\b(MLS|Premier League|EPL|La ?Liga|Serie A|Bundesliga|Ligue 1|Liga MX|Champions League|Europa League|UEFA|FIFA|World Cup|soccer|f[uú]tbol)\b""",
+            """\b(MLS|Premier League|EPL|La ?Liga|Serie A|Bundesliga|Ligue 1|Liga MX|Champions League|Europa League|Conference League|UEFA|FIFA|World Cup|Concacaf|Copa|soccer|f[uú]tbol)\b""",
             RegexOption.IGNORE_CASE
         ),
         "Fighting" to Regex("""\b(UFC|boxing|Bellator|PFL)\b""", RegexOption.IGNORE_CASE),
         "Racing" to Regex("""\b(NASCAR|Formula 1|Formula One|F1|IndyCar|MotoGP)\b""", RegexOption.IGNORE_CASE),
-        "Golf" to Regex("""\b(PGA|LPGA|golf)\b""", RegexOption.IGNORE_CASE),
-        "Tennis" to Regex("""\b(tennis|ATP|WTA|Wimbledon|US Open|French Open|Australian Open)\b""", RegexOption.IGNORE_CASE)
+        "Golf" to Regex("""\b(PGA|LPGA|LIV|golf)\b""", RegexOption.IGNORE_CASE),
+        "Tennis" to Regex("""\b(tennis|ATP|WTA|Wimbledon|US Open|French Open|Australian Open)\b""", RegexOption.IGNORE_CASE),
+        "College baseball" to Regex("""\b(college|NCAA|Little League)\b.*\bbaseball\b""", RegexOption.IGNORE_CASE),
+        "College hockey" to Regex("""\b(college|NCAA)\b.*\bhockey\b""", RegexOption.IGNORE_CASE),
     )
 
     // Teams or fighters named: "A vs B", "A vs. B", "A v B", "A at B", "A @ B".
@@ -66,19 +73,21 @@ object SportsFinder {
     // The broadcast form of a game with no teams in the title: "MLB Baseball", "NFL Football",
     // "College Basketball", "Premier League Soccer"…
     private val BROADCAST = Regex(
-        """\b(baseball|football|basketball|hockey|soccer|f[uú]tbol)\b\s*(:|$|\()""",
+        """\b(baseball|football|basketball|hockey|soccer|f[uú]tbol|tennis|golf)\b\s*(:|$|\()""",
         RegexOption.IGNORE_CASE
     )
 
     // Events that are games without either form.
     private val EVENT = Regex(
-        """\b(UFC \d+|UFC Fight Night|Grand Prix|Cup Series|Xfinity Series|PGA Tour|Round \d|Final|Semifinal|Quarterfinal)\b""",
+        """\b(UFC \d+|UFC Fight Night|Grand Prix|(Cup|Xfinity|Truck|IndyCar) Series|(Indianapolis|Daytona) 500|L?PGA Tour|LIV Golf|Round \d|Final|Semifinal|Quarterfinal|""" +
+            """(Sunday|Monday|Thursday|Saturday) Night (Football|Baseball)|RedZone|World Series|ALCS|NLCS|ALDS|NLDS|Wild Card|Stanley Cup|Playoffs?|Postseason|""" +
+            """Champions League|Europa League|Conference League|Liga MX|Copa \p{L}+|F[uú]tbol \p{L}+|boxing)\b""",
         RegexOption.IGNORE_CASE
     )
 
     // Studio and magazine shows that name a league but aren't a game.
     private val NOT_A_GAME = Regex(
-        """\b(pre-?game|post-?game|pregame|postgame|highlights|countdown|tonight|now|live:? .*show|insider|report|recap|center|centre|classics?|replay|preview|review|draft|talk|show|magazine|news|inside the|the best of|encore|rewind|films)\b""",
+        """\b(pre-?game|post-?game|pregame|postgame|highlights|countdown|tonight|now|live:? .*show|insider|report|recap|center|centre|classics?|replay|preview|review|draft|talk|show|magazine|news|inside the|the best of|encore|rewind|films|poker|picante|central|school|academy|lessons?)\b""",
         RegexOption.IGNORE_CASE
     )
 
@@ -86,8 +95,14 @@ object SportsFinder {
      * Games starting in the next [aheadHours] hours, or on now. Never throws. [preferredNetworks]
      * is league to network ("NBA" to "ESPN"): that network's feed comes first for the league.
      */
-    suspend fun find(db: IptvDatabase, aheadHours: Int = 18, preferredNetworks: Map<String, String> = emptyMap()): List<Game> = try {
-        findInternal(db, aheadHours, preferredNetworks)
+    suspend fun find(
+        db: IptvDatabase,
+        aheadHours: Int = 18,
+        preferredNetworks: Map<String, String> = emptyMap(),
+        /** League to today's team names (LiveScores.teams), for titles that only name the teams. */
+        teams: Map<String, Set<String>> = emptyMap(),
+    ): List<Game> = try {
+        findInternal(db, aheadHours, preferredNetworks, teams)
     } catch (e: Exception) {
         android.util.Log.w("SportsFinder", "failed: ${e.message}")
         emptyList()
@@ -95,11 +110,23 @@ object SportsFinder {
 
     private fun toMs(t: Long) = if (t < 100_000_000_000L) t * 1000L else t
 
-    fun leagueOf(title: String): String? {
+    fun leagueOf(title: String, teams: Map<String, Set<String>> = emptyMap()): String? {
         if (NOT_A_GAME.containsMatchIn(title)) return null
-        val league = LEAGUES.firstOrNull { it.second.containsMatchIn(title) }?.first ?: return null
+        val league = LEAGUES.firstOrNull { it.second.containsMatchIn(title) }?.first ?: return teamLeague(title, teams)
         val isGame = MATCHUP.containsMatchIn(title) || BROADCAST.containsMatchIn(title) || EVENT.containsMatchIn(title)
         return if (isGame) league else null
+    }
+
+    /** "Cowboys vs. Giants": a team of one league on each side of the matchup. */
+    private fun teamLeague(title: String, teams: Map<String, Set<String>>): String? {
+        if (teams.isEmpty()) return null
+        val m = MATCHUP.find(title) ?: return null
+        fun words(s: String) = " " + s.lowercase(java.util.Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim() + " "
+        val left = words(title.substring(0, m.range.first + 1))
+        val right = words(title.substring(m.range.last))
+        return teams.entries.firstOrNull { (_, names) ->
+            names.any { left.contains(words(it)) } && names.any { right.contains(words(it)) }
+        }?.key
     }
 
     /**
@@ -128,7 +155,7 @@ object SportsFinder {
         map.entries.filter { it.key.isNotBlank() && it.value.isNotBlank() }
             .joinToString("\n") { "${it.key.trim()}\t${it.value.trim()}" }
 
-    private suspend fun findInternal(db: IptvDatabase, aheadHours: Int, preferredNetworks: Map<String, String>): List<Game> {
+    private suspend fun findInternal(db: IptvDatabase, aheadHours: Int, preferredNetworks: Map<String, String>, teams: Map<String, Set<String>>): List<Game> {
         val nowMs = System.currentTimeMillis()
         val untilMs = nowMs + aheadHours * 3_600_000L
         data class Airing(val league: String, val title: String, val startMs: Long, var stopMs: Long, val channels: MutableList<Channel>)
@@ -139,7 +166,7 @@ object SportsFinder {
             val stop = toMs(row.stopTimestamp)
             if (stop <= nowMs || start > untilMs) continue
             val title = row.title.trim()
-            val league = leagueOf(title) ?: continue
+            val league = leagueOf(title, teams) ?: continue
             val channel = channelCache.getOrPut(row.serverIndex to row.streamId) {
                 resolveChannel(db, row.serverIndex, row.streamId)
             } ?: continue

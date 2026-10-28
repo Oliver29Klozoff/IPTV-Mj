@@ -282,6 +282,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
             SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Game alerts", 0, null, R.id.switchGameAlerts),
+            SettingSearchEntry("Live scores", 0, null, R.id.switchLiveScores),
             SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
             SettingSearchEntry("Turbo Tune", 0, null, R.id.rowTurboTune),
             SettingSearchEntry("Channel Change Speed", 0, null, R.id.rowChannelZapSpeed),
@@ -325,6 +326,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Send Debug Report", 4, null, R.id.btnSendDebugReport),
             SettingSearchEntry("Provider Health", 4, null, R.id.btnProviderHealth),
             SettingSearchEntry("Data Usage", 4, null, R.id.btnDataUsage),
+            SettingSearchEntry("Watch Stats", 4, null, R.id.btnWatchStats),
             SettingSearchEntry("LAN Export", 4, null, R.id.btnLanExport),
             SettingSearchEntry("Receive a Cast", 4, null, R.id.btnReceiveCast),
             // tvTraktStatus rather than the Trakt buttons: which of those is visible depends on
@@ -1782,6 +1784,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
         binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
         binding.btnDataUsage.setOnClickListener { showDataUsageDialog() }
+        binding.btnWatchStats.setOnClickListener { startActivity(android.content.Intent(this, com.iptvapp.ui.stats.WatchStatsActivity::class.java)) }
         binding.btnBandwidthBudget.setOnClickListener { showBandwidthBudgetDialog() }
         binding.btnProviderWeather.setOnClickListener { showProviderWeatherDialog() }
         binding.btnLanExport.setOnClickListener { showLanExportDialog() }
@@ -3048,6 +3051,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.switchSportsScore.isChecked = prefs.sportsScoreOverlay.first()
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()
+                binding.switchLiveScores.isChecked = prefs.liveScores.first()
                 binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
                 binding.tvTurboTuneValue.text = prefs.turboTune.first().replaceFirstChar { it.uppercase() }
                 binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
@@ -4321,6 +4325,10 @@ class SettingsActivity : AppCompatActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setGameAlerts(enabled) }
         }
+        binding.switchLiveScores.setOnCheckedChangeListener { _, enabled ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setLiveScores(enabled) }
+        }
         binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
         binding.rowTurboTune.setOnClickListener {
             lifecycleScope.launch {
@@ -4726,6 +4734,7 @@ class SettingsActivity : AppCompatActivity() {
             put("smartPreferHealthy", prefs.smartPreferHealthy.first())
             put("sportsPreferredNetworks", prefs.sportsPreferredNetworks.first())
             put("gameAlerts", prefs.gameAlerts.first())
+            put("liveScores", prefs.liveScores.first())
             put("mosaicLayouts", prefs.mosaicLayouts.first())
             put("timeshiftMinutes", prefs.timeshiftMinutes.first())
             put("sportsMode", prefs.sportsMode.first())
@@ -4957,6 +4966,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("smartPreferHealthy")) prefs.setSmartPreferHealthy(json.optInt("smartPreferHealthy", com.iptvapp.util.SmartChannels.PREFER_SELECTED))
         if (json.has("sportsPreferredNetworks")) prefs.setSportsPreferredNetworks(json.optString("sportsPreferredNetworks", ""))
         if (json.has("gameAlerts")) prefs.setGameAlerts(json.optBoolean("gameAlerts", true))
+        if (json.has("liveScores")) prefs.setLiveScores(json.optBoolean("liveScores", true))
         if (json.has("mosaicLayouts")) prefs.setMosaicLayouts(json.optString("mosaicLayouts", ""))
         if (json.has("timeshiftMinutes")) prefs.setTimeshiftMinutes(json.optInt("timeshiftMinutes", 30))
         if (json.has("sportsMode")) prefs.setSportsMode(json.optInt("sportsMode", 0))

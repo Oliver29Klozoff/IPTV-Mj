@@ -3328,6 +3328,28 @@ class XtreamRepository @Inject constructor(
             val row = db.feedStatsDao().get(serverIndex, streamId)
                 ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
             db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterStart(row, played, tuneMs, now))
+            logWatch(serverIndex, streamId) { it.copy(starts = it.starts + 1, failures = it.failures + if (played) 0 else 1) }
+        }
+    }
+
+    private var watchLogPrunedDay: String? = null
+
+    /** Today's watch_log row for one copy, changed by [change]. Called under feedStatsLock. */
+    private suspend fun logWatch(serverIndex: Int, streamId: Int, change: (com.iptvapp.data.local.entities.WatchLogEntity) -> com.iptvapp.data.local.entities.WatchLogEntity) {
+        try {
+            val today = com.iptvapp.util.WatchStats.day(System.currentTimeMillis())
+            if (watchLogPrunedDay != today) {
+                db.watchLogDao().pruneBefore(com.iptvapp.util.WatchStats.day(System.currentTimeMillis() - 400L * 86_400_000L))
+                watchLogPrunedDay = today
+            }
+            val row = db.watchLogDao().get(today, serverIndex, streamId)
+                ?: com.iptvapp.data.local.entities.WatchLogEntity(today, serverIndex, streamId)
+            val name = feedCatalogName(serverIndex, streamId) ?: row.name
+            db.watchLogDao().upsert(change(row).copy(name = name))
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) {
+            // Stats are a nicety; the feed record above is what playback relies on.
+            android.util.Log.w("XtreamRepository", "watch log failed: ${e.javaClass.simpleName}")
         }
     }
 
@@ -3339,6 +3361,7 @@ class XtreamRepository @Inject constructor(
             val row = db.feedStatsDao().get(serverIndex, streamId)
                 ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
             db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterLost(row, now))
+            logWatch(serverIndex, streamId) { it.copy(failures = it.failures + 1) }
         }
     }
 
@@ -3350,6 +3373,7 @@ class XtreamRepository @Inject constructor(
             val row = db.feedStatsDao().get(serverIndex, streamId)
                 ?: com.iptvapp.data.local.entities.FeedStatsEntity(serverIndex, streamId)
             db.feedStatsDao().upsert(com.iptvapp.util.FeedScore.afterWatching(row, minutes, stalls, now))
+            logWatch(serverIndex, streamId) { it.copy(minutes = it.minutes + minutes, stalls = it.stalls + stalls) }
         }
     }
 

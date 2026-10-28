@@ -1232,3 +1232,22 @@ interface FeedStatsDao {
         unoffsetServerIndices()
     }
 }
+
+@Dao
+interface WatchLogDao {
+    @Query("SELECT * FROM watch_log WHERE day = :day AND serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun get(day: String, serverIndex: Int, streamId: Int): WatchLogEntity?
+
+    @Upsert
+    suspend fun upsert(entity: WatchLogEntity)
+
+    // Days sort as text ("2026-10-28").
+    @Query("SELECT * FROM watch_log WHERE day >= :fromDay")
+    suspend fun since(fromDay: String): List<WatchLogEntity>
+
+    @Query("DELETE FROM watch_log WHERE day < :beforeDay")
+    suspend fun pruneBefore(beforeDay: String)
+
+    @Query("DELETE FROM watch_log WHERE serverIndex = :serverIndex")
+    suspend fun clearForServer(serverIndex: Int)
+}

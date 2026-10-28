@@ -173,6 +173,12 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
 
+        <!-- Watch stats: live viewing over 30 days and channels that keep dropping (WatchStats). -->
+        <activity
+            android:name=".ui.stats.WatchStatsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
         <!-- Customize Home: the rows of Home and the items of a row someone made (HomeLayout). -->
         <activity
             android:name=".ui.home.HomeCustomizeActivity"
