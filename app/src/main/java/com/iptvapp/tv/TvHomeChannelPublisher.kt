@@ -134,7 +134,7 @@ object TvHomeChannelPublisher {
                             .setType(if (recording) TvContractCompat.PreviewPrograms.TYPE_CLIP else TvContractCompat.PreviewPrograms.TYPE_CHANNEL)
                             .setTitle(card.title).setWeight(1000 - index).setInternalProviderId(card.link)
                             .setIntentUri(Uri.parse(card.link)).apply {
-                                setPosterArtUri(Uri.parse(LauncherMetadata.artwork(card.icon) ?: "android.resource://${context.packageName}/${context.applicationInfo.icon}"))
+                                setPosterArtUri(LauncherArtwork.poster(context, card.icon))
                             }.build().toContentValues()
                         val old = existing.remove(card.link)
                         if (old == null) context.contentResolver.insert(TvContractCompat.PreviewPrograms.CONTENT_URI, program)

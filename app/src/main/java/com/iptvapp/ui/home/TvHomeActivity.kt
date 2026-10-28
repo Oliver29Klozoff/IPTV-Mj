@@ -1983,7 +1983,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun setupHome() {
-        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = { HomeCustomizeActivity.open(this, tv = true) })
+        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = {
+            refocusCustomize = true
+            HomeCustomizeActivity.open(this, tv = true)
+        })
         binding.tvRvHome.adapter = homeAdapter
         binding.tvRvHome.itemAnimator = null
         binding.btnTvHome.setOnClickListener { showHome() }
@@ -2033,7 +2036,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
-                homeAdapter.submitList(rows)
+                homeAdapter.submitList(rows) { if (refocusCustomize) restoreCustomizeFocus() }
                 // New Episodes asks providers: it joins the rows when it has an answer.
                 val fresh = try { smartHome.newEpisodes(layout = layout) } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
@@ -2042,6 +2045,26 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (fresh != null) homeAdapter.submitList(smartHome.withRow(rows, fresh))
                 delay(60_000L)
             }
+        }
+    }
+
+    /** Set when Customize Home opens: the rows rebuilt on return replace the focused button. */
+    private var refocusCustomize = false
+
+    /**
+     * Back from Customize Home: focus its button again (the last row), else the first row, else
+     * the HOME item, so the remote is never left with nothing focused.
+     */
+    private fun restoreCustomizeFocus() {
+        refocusCustomize = false
+        val rv = binding.tvRvHome
+        val last = homeAdapter.itemCount - 1
+        if (last < 0 || rv.visibility != View.VISIBLE) { binding.btnTvHome.requestFocus(); return }
+        rv.scrollToPosition(last)
+        rv.post {
+            val button = rv.findViewHolderForAdapterPosition(last)?.itemView
+                ?.findViewById<View>(com.iptvapp.R.id.btnHomeCustomize)
+            if (button?.requestFocus() != true && !focusHomeRows()) binding.btnTvHome.requestFocus()
         }
     }
 

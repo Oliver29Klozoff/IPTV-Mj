@@ -326,6 +326,12 @@
                 tools:node="remove" />
         </provider>
 
+        <!-- Cached poster art for Android TV home-screen cards (read-only, hash-named files only). -->
+        <provider
+            android:name=".tv.LauncherArtworkProvider"
+            android:authorities="${applicationId}.launcherart"
+            android:exported="true" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

@@ -99,6 +99,7 @@ object WatchNextPublisher {
             withContext(Dispatchers.IO) {
                 try {
                     sync(context, if (TvHomeIntegration.enabled(context)) items(context, db, prefs) else emptyList())
+                    LauncherArtwork.prune(context)
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e
                 } catch (e: Exception) {
                     // The home screen is a nicety: never let it break MKTV.
@@ -201,7 +202,7 @@ object WatchNextPublisher {
         item.episodeTitle?.let { builder.setEpisodeTitle(it) }
         item.season?.let { builder.setSeasonNumber(it) }
         item.episode?.let { builder.setEpisodeNumber(it) }
-        builder.setPosterArtUri(Uri.parse(LauncherMetadata.artwork(item.image) ?: "android.resource://${context.packageName}/${context.applicationInfo.icon}"))
+        builder.setPosterArtUri(LauncherArtwork.poster(context, item.image))
         return builder.build()
     }
 }

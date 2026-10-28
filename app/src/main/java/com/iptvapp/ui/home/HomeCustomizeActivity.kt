@@ -96,7 +96,8 @@ class HomeCustomizeActivity : AppCompatActivity() {
             } catch (_: Exception) { emptyMap() }
             layout = HomeLayoutStore.load(prefs, tv)
             render(focus = null)
-            if (binding.rvCustomizeSections.findFocus() == null && !binding.root.hasFocus()) binding.btnCustomizeDone.requestFocus()
+            // A container (the button bar) can take first focus on TV; start on DONE instead.
+            if (currentFocus?.isClickable != true) binding.btnCustomizeDone.requestFocus()
         }
     }
 
