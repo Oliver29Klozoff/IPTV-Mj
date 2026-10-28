@@ -25,7 +25,11 @@ object LauncherArtwork {
     private val NAME = Regex("[0-9a-f]{64}")
     private const val MAX_PENDING = 50
     private const val FETCH_BUDGET_MS = 30_000L
+    private const val RETRY_MS = 6L * 3600 * 1000
+    private const val PER_DOWNLOAD_MS = 10_000L
     private val pending = LinkedHashSet<String>()
+    // Links that just failed wait before another try, so they cannot hold up the rest.
+    private val failed = HashMap<String, Long>()
 
     fun authority(context: Context) = "${context.packageName}.launcherart"
 
@@ -47,27 +51,41 @@ object LauncherArtwork {
         if (file.length() > 0 && System.currentTimeMillis() - file.lastModified() < KEEP_MS) {
             return Uri.Builder().scheme("content").authority(authority(context)).appendPath(file.name).build()
         }
-        synchronized(pending) { if (pending.size < MAX_PENDING) pending.add(url) }
+        synchronized(pending) {
+            val failedAt = failed[url]
+            if ((failedAt == null || System.currentTimeMillis() - failedAt > RETRY_MS) && pending.size < MAX_PENDING) pending.add(url)
+        }
         return fallback(context)
     }
 
-    /** Fetches queued posters, outside any catalog lock, within a total time budget. True when any arrived. */
+    /**
+     * Fetches queued posters, outside any catalog lock, within a total time budget. Links not
+     * reached stay queued. True when another publish is worth it: posters arrived or some wait.
+     */
     fun fetchPending(context: Context): Boolean {
         val urls = synchronized(pending) { pending.toList().also { pending.clear() } }
         val deadline = System.currentTimeMillis() + FETCH_BUDGET_MS
         var got = false
-        for (url in urls) {
-            if (System.currentTimeMillis() > deadline) break
-            if (runCatching { download(context, url) }.getOrNull() != null) got = true
+        for ((i, url) in urls.withIndex()) {
+            if (System.currentTimeMillis() >= deadline) {
+                synchronized(pending) { pending.addAll(urls.subList(i, urls.size)) }
+                return true
+            }
+            if (runCatching { download(context, url, deadline) }.getOrNull() != null) got = true
+            else synchronized(pending) { if (failed.size > 500) failed.clear(); failed[url] = System.currentTimeMillis() }
         }
         return got
     }
 
-    private fun download(context: Context, url: String): File? {
+    private fun download(context: Context, url: String, budgetEnd: Long): File? {
         val dir = dir(context).apply { mkdirs() }
         val file = File(dir, sha256(url))
+        // Its own deadline, checked while reading: a server that trickles bytes cannot hold the
+        // launcher sync past the budget (a blocked read still ends at readTimeout).
+        val end = minOf(budgetEnd, System.currentTimeMillis() + PER_DOWNLOAD_MS)
+        val left = (end - System.currentTimeMillis()).coerceIn(1L, 5_000L).toInt()
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 5_000; readTimeout = 5_000; instanceFollowRedirects = true
+            connectTimeout = left; readTimeout = left; instanceFollowRedirects = true
         }
         try {
             if (conn.responseCode !in 200..299) return null
@@ -82,7 +100,7 @@ object LauncherArtwork {
                         val n = input.read(buf)
                         if (n < 0) break
                         total += n
-                        if (total > MAX_BYTES) { tmp.delete(); return null }
+                        if (total > MAX_BYTES || System.currentTimeMillis() > end) { tmp.delete(); return null }
                         out.write(buf, 0, n)
                     }
                 }
