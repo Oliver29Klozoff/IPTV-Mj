@@ -65,7 +65,13 @@ class SeriesRecordingEngine @Inject constructor(
                     dao.update(candidate.copy(status = "RETAINED_HISTORY", reason = "Recording removed; duplicate history retained")); continue
                 }
                 if (epg == null) {
-                    dao.update(candidate.copy(status = "UNCERTAIN", reason = "Airing missing or cancelled in guide; existing schedule preserved for review"))
+                    // The viewer confirmed this booking after the guide dropped it: keep it as booked.
+                    if (candidate.reason == KEPT_MISSING && rec != null) {
+                        RecordingAlarms.schedule(context, rec.id, maxOf(rec.scheduledStartMs, now + 2_000L))
+                        if (candidate.status != "SCHEDULED") dao.update(candidate.copy(status = "SCHEDULED"))
+                        continue
+                    }
+                    dao.update(candidate.copy(status = "UNCERTAIN", reason = MISSING))
                     continue
                 }
                 val (start, end) = SeriesRecordingPolicy.window(rule, epg)
@@ -131,7 +137,17 @@ class SeriesRecordingEngine @Inject constructor(
     }
 
     suspend fun confirm(identity: String) = mutex.withLock {
-        dao.episode(identity)?.let { dao.update(detachCancelled(it).copy(confirmed = true, status = "PENDING", reason = "")) }
+        dao.episode(identity)?.let {
+            // Confirming an airing the guide dropped keeps its booking (refresh re-arms it) until
+            // the guide lists it again.
+            val keep = it.status == "UNCERTAIN" && it.reason == MISSING && it.recordingId != null
+            dao.update(detachCancelled(it).copy(confirmed = true, status = "PENDING", reason = if (keep) KEPT_MISSING else ""))
+        }
+    }
+
+    private companion object {
+        const val MISSING = "Airing missing or cancelled in guide; existing schedule preserved for review"
+        const val KEPT_MISSING = "Kept by you; the guide no longer lists this airing"
     }
 
     /** A retry after the viewer cancelled the episode: drop the link to the cancelled recording so

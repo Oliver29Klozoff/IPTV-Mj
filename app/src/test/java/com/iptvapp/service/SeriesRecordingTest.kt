@@ -96,6 +96,14 @@ class SeriesRecordingTest {
         assertEquals("UNCERTAIN", db.seriesRecordingDao().episodes().single().status)
         assertEquals("SCHEDULED", db.recordingDao().getById(rec.id)!!.status)
     }
+    @Test fun `confirming a dropped airing releases its hold`() = runBlocking {
+        val selected = epg(); db.epgDao().upsertEpg(listOf(selected)); engine.create(rule(), selected); engine.refresh()
+        val rec = db.recordingDao().getAll().first().single()
+        db.epgDao().deleteAllForServer(-1); engine.refresh()
+        engine.confirm(db.seriesRecordingDao().episodes().single().identity); engine.refresh(); engine.refresh()
+        assertEquals("SCHEDULED", db.seriesRecordingDao().episodes().single().status)
+        assertNull(engine.startRefusal(db.recordingDao().getById(rec.id)!!))
+    }
     @Test fun `retrying a cancelled episode books a new recording`() = runBlocking {
         val selected = epg(); db.epgDao().upsertEpg(listOf(selected)); engine.create(rule(), selected); engine.refresh()
         val episode = db.seriesRecordingDao().episodes().single()

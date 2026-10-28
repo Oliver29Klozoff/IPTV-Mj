@@ -234,7 +234,10 @@ class XtreamRepository @Inject constructor(
         db.epgRepairDao().deleteSourcesForServer(-1)
         sql.execSQL("DELETE FROM channel_reliability")
         // Feed scores belong to the old login's stream ids, which the new one reuses for other channels.
-        feedStatsLock.withLock { db.feedStatsDao().clearForServer(-1) }
+        feedStatsLock.withLock {
+            db.feedStatsDao().clearForServer(-1)
+            db.watchLogDao().retire(-1, com.iptvapp.util.WatchStats.retiredIndex(System.currentTimeMillis()))
+        }
         sql.execSQL("DELETE FROM recordings WHERE serverIndex = -1")
         sql.execSQL("DELETE FROM episode_watched")
     }
@@ -251,7 +254,10 @@ class XtreamRepository @Inject constructor(
         mergedChannelsRefreshMutex.withLock { db.mergedChannelDao().clearForServer(serverIndex) }
         mergedVodRefreshMutex.withLock { db.mergedVodDao().clearForServer(serverIndex) }
         mergedSeriesRefreshMutex.withLock { db.mergedSeriesDao().clearForServer(serverIndex) }
-        feedStatsLock.withLock { db.feedStatsDao().clearForServer(serverIndex) }
+        feedStatsLock.withLock {
+            db.feedStatsDao().clearForServer(serverIndex)
+            db.watchLogDao().retire(serverIndex, com.iptvapp.util.WatchStats.retiredIndex(System.currentTimeMillis()))
+        }
         xmltvGuideWriter.clear(serverIndex)
         db.epgRepairDao().deleteGuideChannelsForServer(serverIndex)
         db.epgRepairDao().deleteSourcesForServer(serverIndex)

@@ -14,6 +14,14 @@ object WatchStats {
 
     fun day(ms: Long): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(ms))
 
+    /** The local date [back] calendar days before [nowMs]: whole days, so a DST change can't skip or repeat one. */
+    fun daysBack(nowMs: Long, back: Int): String =
+        day(java.util.Calendar.getInstance().apply { timeInMillis = nowMs; add(java.util.Calendar.DAY_OF_YEAR, -back) }.timeInMillis)
+
+    /** Where a provider slot's history goes when the slot changes hands (WatchLogDao.retire): below
+     * -1, and new each second, so two retirements never meet on a key. */
+    fun retiredIndex(nowMs: Long): Int = -2 - ((nowMs / 1000) % 1_000_000_000L).toInt()
+
     data class ChannelTotal(
         val name: String,
         /** -1 the primary provider; null when the total spans providers. */
@@ -43,10 +51,10 @@ object WatchStats {
 
     /** Thirty days of [rows] (fetch with [firstDay]) as of [nowMs]. */
     fun summarize(rows: List<WatchLogEntity>, nowMs: Long): Summary {
-        val days = (13 downTo 0).map { day(nowMs - it * 86_400_000L) }
+        val days = (13 downTo 0).map { daysBack(nowMs, it) }
         val byDay = rows.groupBy { it.day }.mapValues { (_, list) -> list.sumOf { it.minutes.toDouble() }.toFloat() }
-        val week = (6 downTo 0).map { day(nowMs - it * 86_400_000L) }.toSet()
-        val lastWeek = (13 downTo 7).map { day(nowMs - it * 86_400_000L) }.toSet()
+        val week = days.takeLast(7).toSet()
+        val lastWeek = days.take(7).toSet()
         val month = rows.filter { it.day >= firstDay(nowMs) }
         fun total(list: List<WatchLogEntity>, server: Int?) = ChannelTotal(
             list.first().name.ifBlank { "Channel ${list.first().streamId}" }, server,
@@ -72,7 +80,7 @@ object WatchStats {
     }
 
     /** The first day the summary reads: 30 days back, today included. */
-    fun firstDay(nowMs: Long) = day(nowMs - 29 * 86_400_000L)
+    fun firstDay(nowMs: Long) = daysBack(nowMs, 29)
 
     /** "3 h 20 min", "45 min", "0 min". */
     fun duration(minutes: Float): String {

@@ -171,7 +171,11 @@ class WatchStatsActivity : AppCompatActivity() {
             val parts = mutableListOf<String>()
             if (c.failures > 0) parts += "${c.failures} failed or dropped"
             if (c.minutes >= 10f && c.stallsPerHour >= 0.1f) parts += "%.1f stalls an hour".format(c.stallsPerHour)
-            val provider = if (c.serverIndex == null || c.serverIndex == -1) "Main provider" else "Provider ${c.serverIndex + 1}"
+            val provider = when {
+                c.serverIndex == null || c.serverIndex == -1 -> "Main provider"
+                c.serverIndex < -1 -> "A provider since changed"
+                else -> "Provider ${c.serverIndex + 1}"
+            }
             row(c.name, "${c.starts} starts", "$provider · ${parts.joinToString(" · ")}", R.color.rack_text_secondary)
         }
         content.addView(text("A channel that keeps dropping often plays better from another copy: hold OK on it in a channel list, choose All Sources and pick another.",
@@ -188,6 +192,12 @@ class WatchStatsActivity : AppCompatActivity() {
             textSize = 11f * context.resources.displayMetrics.scaledDensity
         }
         private val rect = RectF()
+        private val weekdays = days.map { (day, _) ->
+            runCatching {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(day)
+                    ?.let { java.text.SimpleDateFormat("EEEEE", java.util.Locale.getDefault()).format(it) }
+            }.getOrNull() ?: ""
+        }
 
         init {
             contentDescription = days.joinToString { (d, m) -> "$d ${WatchStats.duration(m)}" }
@@ -203,16 +213,12 @@ class WatchStatsActivity : AppCompatActivity() {
             val barW = slot * 0.6f
             val bottom = height - pad - labelH
             val top = pad
-            days.forEachIndexed { i, (day, minutes) ->
+            days.forEachIndexed { i, (_, minutes) ->
                 val cx = pad + slot * i + slot / 2
                 val h = if (minutes <= 0f) 2 * d else ((bottom - top) * minutes / most).coerceAtLeast(3 * d)
                 rect.set(cx - barW / 2, bottom - h, cx + barW / 2, bottom)
                 canvas.drawRoundRect(rect, 3 * d, 3 * d, if (minutes > 0f) bar else empty)
-                val weekday = runCatching {
-                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(day)
-                        ?.let { java.text.SimpleDateFormat("EEEEE", java.util.Locale.getDefault()).format(it) }
-                }.getOrNull() ?: ""
-                canvas.drawText(weekday, cx, height - pad, label)
+                canvas.drawText(weekdays[i], cx, height - pad, label)
             }
         }
     }

@@ -1248,6 +1248,22 @@ interface WatchLogDao {
     @Query("DELETE FROM watch_log WHERE day < :beforeDay")
     suspend fun pruneBefore(beforeDay: String)
 
-    @Query("DELETE FROM watch_log WHERE serverIndex = :serverIndex")
-    suspend fun clearForServer(serverIndex: Int)
+    // A provider slot that now means another login, or was removed: its history is kept but moved to
+    // a retired index (WatchStats.retiredIndex, below -1), so its stream ids never merge with the new
+    // provider's. Later providers move down one through the same two-pass offset as feed_stats.
+    @Query("UPDATE watch_log SET serverIndex = :retired WHERE serverIndex = :serverIndex")
+    suspend fun retire(serverIndex: Int, retired: Int)
+
+    @Query("UPDATE watch_log SET serverIndex = serverIndex + 1000000 WHERE serverIndex > :removedIndex")
+    suspend fun offsetServerIndicesAfter(removedIndex: Int)
+
+    @Query("UPDATE watch_log SET serverIndex = serverIndex - 1000001 WHERE serverIndex > 1000000")
+    suspend fun unoffsetServerIndices()
+
+    @androidx.room.Transaction
+    suspend fun removeServer(removedIndex: Int, retired: Int) {
+        retire(removedIndex, retired)
+        offsetServerIndicesAfter(removedIndex)
+        unoffsetServerIndices()
+    }
 }
