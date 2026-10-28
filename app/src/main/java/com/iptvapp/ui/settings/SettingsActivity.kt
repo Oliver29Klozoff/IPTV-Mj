@@ -3582,7 +3582,7 @@ class SettingsActivity : AppCompatActivity() {
                                 db.mergedChannelDao().decrementServerIndicesAfter(i)
                                 // Feed scores are keyed the same way and move with the catalog.
                                 db.feedStatsDao().removeServer(i)
-                                db.watchLogDao().removeServer(i, com.iptvapp.util.WatchStats.retiredIndex(System.currentTimeMillis()))
+                                db.watchLogDao().removeServer(i)
                                 // Saved Mosaic layouts point at providers by index the same way.
                                 prefs.setMosaicLayouts(com.iptvapp.ui.mosaic.MosaicLayouts.encode(com.iptvapp.ui.mosaic.MosaicLayouts.afterProviderRemoved(com.iptvapp.ui.mosaic.MosaicLayouts.decode(prefs.mosaicLayouts.first()), i)))
                                 // VOD/series are always Xtream-sourced (M3U import only ever carries

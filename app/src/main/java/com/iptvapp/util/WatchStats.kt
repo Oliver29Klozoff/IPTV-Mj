@@ -18,10 +18,6 @@ object WatchStats {
     fun daysBack(nowMs: Long, back: Int): String =
         day(java.util.Calendar.getInstance().apply { timeInMillis = nowMs; add(java.util.Calendar.DAY_OF_YEAR, -back) }.timeInMillis)
 
-    /** Where a provider slot's history goes when the slot changes hands (WatchLogDao.retire): below
-     * -1, and new each second, so two retirements never meet on a key. */
-    fun retiredIndex(nowMs: Long): Int = -2 - ((nowMs / 1000) % 1_000_000_000L).toInt()
-
     data class ChannelTotal(
         val name: String,
         /** -1 the primary provider; null when the total spans providers. */
