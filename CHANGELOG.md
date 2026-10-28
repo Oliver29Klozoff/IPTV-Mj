@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.74 - 2026-10-27
+- **New**: Android TV home-screen cards now show posters and channel logos. MKTV fetches them itself, so
+  your provider links never leave the app.
+- **Fixed**: On the Shield, leaving Customize Home returns focus to its button instead of losing it.
+- **Improved**: Customize Home on TV starts with DONE selected.
+
 ## v7.73 - 2026-10-26
 - **New**: Customize Home (button at the bottom of Home). Reorder, hide or show sections, add your own rows,
   and choose which screen MKTV opens on. Phone/tablet and TV keep separate layouts. Works with touch and the remote.

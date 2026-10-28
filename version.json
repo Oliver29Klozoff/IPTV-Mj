@@ -1,7 +1,7 @@
 {
-  "versionCode": 611,
-  "versionName": "7.73",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.73/MKTV.apk",
-  "apkSha256": "e6ea94ec50a38d93f76fc723aeb987baf7550a8bdde0b8e65d271debc141925c",
-  "changelog": "Customize Home: reorder, hide and add rows on phone and TV."
+  "versionCode": 612,
+  "versionName": "7.74",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.74/MKTV.apk",
+  "apkSha256": "453beea0c3cf1c080bceaaba3149ea65744538ae29e0b69b3698abec7c45c2e9",
+  "changelog": "TV home-screen posters, and focus fixes for Customize Home on the Shield."
 }
