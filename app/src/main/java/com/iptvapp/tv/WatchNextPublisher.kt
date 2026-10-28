@@ -42,6 +42,9 @@ object WatchNextPublisher {
         val durationMs: Long,
         val engagedAtMs: Long,
         val next: Boolean = false,
+        /** The key builds before 7.72 used ("movie:<id>", "episode:<seriesId>"): a card removed
+         * under it stays removed. */
+        val legacyKey: String? = null,
     )
 
     private val lock = Mutex()
@@ -61,27 +64,34 @@ object WatchNextPublisher {
             val token = LauncherLink.token(key, LauncherLink.movieIdentity(creds.serverUrl, creds.username, vod.streamId))
             val link = runCatching { LauncherLink.buildMovie(vod.streamId, token) }.getOrNull() ?: return@mapNotNull null
             Item("movie:$token", vod.name, null, null, null, vod.streamIcon, link,
-                vod.watchedMs, vod.durationMs, vod.lastWatchedAt)
+                vod.watchedMs, vod.durationMs, vod.lastWatchedAt, legacyKey = "movie:${vod.streamId}")
         }
-        val episodes = db.seriesDao().launcherRecent().filter { it.seriesId !in missingSeries }.mapNotNull { series ->
-            val remembered = LauncherEpisodeCache.last(context, creds, series.seriesId)
-            val fallback = if (remembered == null) db.episodeWatchedDao().launcherLatest(series.seriesId) else null
-            val season = remembered?.first ?: fallback?.season ?: return@mapNotNull null
-            val episode = remembered?.second ?: fallback?.episode ?: return@mapNotNull null
-            val watched = db.episodeWatchedDao().getWatchedMs(series.seriesId, season, episode) ?: 0
-            val duration = db.episodeWatchedDao().getDurationMs(series.seriesId, season, episode) ?: 0
-            if (watched <= 0 || duration <= 0) return@mapNotNull null
-            val completed = watched.toDouble() / duration >= 0.95
-            val next = if (completed) LauncherEpisodeCache.next(LauncherEpisodeCache.read(context, creds, series.seriesId), season, episode)
-                ?: return@mapNotNull null else null
-            if (next != null && (db.episodeWatchedDao().getWatchedMs(series.seriesId, next.season, next.episode) ?: 0) > 0) return@mapNotNull null
-            val targetSeason = next?.season ?: season
-            val targetEpisode = next?.episode ?: episode
-            val token = LauncherLink.token(key, LauncherLink.episodeIdentity(creds.serverUrl, creds.username, series.seriesId, targetSeason, targetEpisode))
-            Item("series:" + LauncherLink.token(key, LauncherLink.movieIdentity(creds.serverUrl, creds.username, series.seriesId)),
-                series.name, next?.title ?: "S${season}E${episode}", targetSeason, targetEpisode, series.cover,
-                LauncherLink.buildEpisode(series.seriesId, targetSeason, targetEpisode, token), if (completed) 0 else watched,
-                if (completed) 0 else duration, series.lastWatchedAt, next = completed)
+        // Recent series with nothing to offer (finished, next episode unknown) are skipped, so the
+        // query reads well past the row's size and this stops once the row is full.
+        val episodes = ArrayList<Item>()
+        for (series in db.seriesDao().launcherRecent().filter { it.seriesId !in missingSeries }) {
+            if (episodes.size >= MAX_ITEMS) break
+            val item = run {
+                val remembered = LauncherEpisodeCache.last(context, creds, series.seriesId)
+                val fallback = if (remembered == null) db.episodeWatchedDao().launcherLatest(series.seriesId) else null
+                val season = remembered?.first ?: fallback?.season ?: return@run null
+                val episode = remembered?.second ?: fallback?.episode ?: return@run null
+                val watched = db.episodeWatchedDao().getWatchedMs(series.seriesId, season, episode) ?: 0
+                val duration = db.episodeWatchedDao().getDurationMs(series.seriesId, season, episode) ?: 0
+                if (watched <= 0 || duration <= 0) return@run null
+                val completed = watched.toDouble() / duration >= 0.95
+                val next = if (completed) LauncherEpisodeCache.next(LauncherEpisodeCache.read(context, creds, series.seriesId), season, episode)
+                    ?: return@run null else null
+                if (next != null && (db.episodeWatchedDao().getWatchedMs(series.seriesId, next.season, next.episode) ?: 0) > 0) return@run null
+                val targetSeason = next?.season ?: season
+                val targetEpisode = next?.episode ?: episode
+                val token = LauncherLink.token(key, LauncherLink.episodeIdentity(creds.serverUrl, creds.username, series.seriesId, targetSeason, targetEpisode))
+                Item("series:" + LauncherLink.token(key, LauncherLink.movieIdentity(creds.serverUrl, creds.username, series.seriesId)),
+                    series.name, next?.title ?: "S${season}E${episode}", targetSeason, targetEpisode, series.cover,
+                    LauncherLink.buildEpisode(series.seriesId, targetSeason, targetEpisode, token), if (completed) 0 else watched,
+                    if (completed) 0 else duration, series.lastWatchedAt, next = completed, legacyKey = "episode:${series.seriesId}")
+            }
+            if (item != null) episodes += item
         }
         (movies + episodes).filter { it.next || it.positionMs > 0 && it.durationMs > 0 }
             .sortedByDescending { it.engagedAtMs }
@@ -163,8 +173,16 @@ object WatchNextPublisher {
         }
         for (item in items) {
             val old = existing[item.key]
-            if (hidden.contains(item.key) && item.engagedAtMs <= hidden.getLong(item.key, 0)) continue
-            hidden.edit().remove(item.key).apply()
+            // Removed by the viewer (under this key, or the one older builds used): stays removed.
+            val removedAt = listOfNotNull(item.key, item.legacyKey).filter { hidden.contains(it) }.maxOfOrNull { hidden.getLong(it, 0) }
+            if (removedAt != null && item.engagedAtMs <= removedAt) {
+                // 7.72 brought such cards back under the new key; take them off the row again.
+                if (old != null && old.browsable) resolver.delete(TvContractCompat.buildWatchNextProgramUri(old.id), null, null)
+                continue
+            }
+            val clear = hidden.edit().remove(item.key)
+            item.legacyKey?.let { clear.remove(it) }
+            clear.apply()
             // Removed from the row by the viewer: stays removed until the title is played again.
             if (old != null && !old.browsable && item.engagedAtMs <= old.engagedAtMs) continue
             val values = program(context, item).toContentValues()

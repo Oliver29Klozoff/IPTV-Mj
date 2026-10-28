@@ -332,7 +332,7 @@ data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs
 
 @Dao
 interface SeriesDao {
-    @Query("SELECT s.* FROM series s INNER JOIN (SELECT seriesId, MAX(rowid) AS recent FROM episode_watched GROUP BY seriesId) w ON s.seriesId = w.seriesId WHERE s.isHidden = 0 AND s.dismissedFromContinueWatching = 0 ORDER BY s.lastWatchedAt DESC, w.recent DESC LIMIT 20")
+    @Query("SELECT s.* FROM series s INNER JOIN (SELECT seriesId, MAX(rowid) AS recent FROM episode_watched GROUP BY seriesId) w ON s.seriesId = w.seriesId WHERE s.isHidden = 0 AND s.dismissedFromContinueWatching = 0 ORDER BY s.lastWatchedAt DESC, w.recent DESC LIMIT 200")
     suspend fun launcherRecent(): List<SeriesEntity>
 
     @Query("SELECT * FROM series WHERE isHidden = 0 ORDER BY name ASC")

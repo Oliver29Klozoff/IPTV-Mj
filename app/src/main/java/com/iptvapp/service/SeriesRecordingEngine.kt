@@ -131,7 +131,14 @@ class SeriesRecordingEngine @Inject constructor(
     }
 
     suspend fun confirm(identity: String) = mutex.withLock {
-        dao.episode(identity)?.let { dao.update(it.copy(confirmed = true, status = "PENDING", reason = "")) }
+        dao.episode(identity)?.let { dao.update(detachCancelled(it).copy(confirmed = true, status = "PENDING", reason = "")) }
+    }
+
+    /** A retry after the viewer cancelled the episode: drop the link to the cancelled recording so
+     * refresh schedules a new one. Links to kept or finished recordings stay (duplicate protection). */
+    private suspend fun detachCancelled(episode: SeriesRecordingEpisode): SeriesRecordingEpisode {
+        val rec = episode.recordingId?.let { db.recordingDao().getById(it) } ?: return episode
+        return if (rec.status == "CANCELLED") episode.copy(recordingId = null) else episode
     }
 
     suspend fun chooseAiring(identity: String, epg: EpgEntity) = mutex.withLock {
@@ -139,7 +146,29 @@ class SeriesRecordingEngine @Inject constructor(
         val rule = dao.rule(episode.ruleId) ?: return@withLock
         require(SeriesRecordingPolicy.reliable(epg) && SeriesRecordingPolicy.identity(rule.providerKey, epg) == identity)
         val (start, end) = SeriesRecordingPolicy.window(rule, epg)
-        dao.update(episode.copy(epgId = epg.id, startMs = start, endMs = end, status = "PENDING"))
+        dao.update(detachCancelled(episode).copy(epgId = epg.id, startMs = start, endMs = end, status = "PENDING"))
+    }
+
+    /**
+     * A new preferred channel or provider. Reservations not started yet are released, so refresh
+     * books them on the new source with its own stream; finished and in-progress captures stay.
+     * Another provider means other episode identities, so the old provider's episodes are closed.
+     */
+    suspend fun changeSource(old: SeriesRecordingRule, updated: SeriesRecordingRule) = mutex.withLock {
+        val sameProvider = old.providerKey == updated.providerKey
+        db.withTransaction {
+            dao.update(updated)
+            dao.episodes().filter { it.ruleId == updated.id && it.status !in setOf("CANCELLED", "SKIPPED", "RETAINED_HISTORY") }.forEach { episode ->
+                val id = episode.recordingId
+                if (id != null) {
+                    if (db.recordingDao().cancelScheduled(id) == 0) return@forEach
+                    RecordingAlarms.cancel(context, id)
+                }
+                dao.update(episode.copy(recordingId = null,
+                    status = if (sameProvider) "PENDING" else "CANCELLED",
+                    reason = if (sameProvider) "" else "Preferred source changed"))
+            }
+        }
     }
 
     /** Explicit user action only. Completed files and in-progress captures are untouched. */
@@ -175,6 +204,9 @@ class SeriesRecordingEngine @Inject constructor(
     suspend fun startRefusal(rec: RecordingEntity): String? = mutex.withLock {
         val episode = dao.forRecording(rec.id) ?: return@withLock null
         val rule = dao.rule(episode.ruleId) ?: return@withLock "Series rule needs review"
+        // The guide dropped or changed this airing after it was booked: hold the start until the
+        // viewer confirms it, keeping the episode's own review reason on screen.
+        if (episode.status == "UNCERTAIN") return@withLock episode.reason.ifBlank { "Airing needs review" }
         val reason = when {
             rule.cancelled || rule.paused -> "Series is paused or cancelled"
             providerKey(rule.serverIndex) != rule.providerKey -> "Preferred provider changed or is disabled"
