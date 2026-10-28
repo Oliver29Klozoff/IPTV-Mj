@@ -67,7 +67,8 @@ object LauncherArtwork {
         val deadline = System.currentTimeMillis() + FETCH_BUDGET_MS
         var got = false
         for ((i, url) in urls.withIndex()) {
-            if (System.currentTimeMillis() >= deadline) {
+            // Start one only with a full window left, so a failure is the link's, not the budget's.
+            if (deadline - System.currentTimeMillis() < PER_DOWNLOAD_MS) {
                 synchronized(pending) { pending.addAll(urls.subList(i, urls.size)) }
                 return true
             }
@@ -82,7 +83,7 @@ object LauncherArtwork {
         val file = File(dir, sha256(url))
         // Its own deadline, checked while reading: a server that trickles bytes cannot hold the
         // launcher sync past the budget (a blocked read still ends at readTimeout).
-        val end = minOf(budgetEnd, System.currentTimeMillis() + PER_DOWNLOAD_MS)
+        val end = minOf(budgetEnd, System.currentTimeMillis() + PER_DOWNLOAD_MS) // budgetEnd: safety bound only
         val left = (end - System.currentTimeMillis()).coerceIn(1L, 5_000L).toInt()
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = left; readTimeout = left; instanceFollowRedirects = true
