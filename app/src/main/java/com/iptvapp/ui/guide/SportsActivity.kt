@@ -415,6 +415,9 @@ class SportsActivity : AppCompatActivity() {
             }
         }
         playJob?.cancel()
+        // The last game goes now, so a switch cut short by leaving reloads this pick, not that one.
+        mini?.stop()
+        mini?.clearMediaItems()
         playJob = lifecycleScope.launch {
             val url = try {
                 withContext(Dispatchers.IO) {
