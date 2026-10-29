@@ -163,7 +163,7 @@ class SeriesRecordingActivity : AppCompatActivity() {
         val names = sources.map { "${channelName(it.serverIndex, it.streamId)} (${if (it.serverIndex == -1) "Primary" else "Provider ${it.serverIndex + 1}"})" }
         AlertDialog.Builder(this).setTitle("Preferred source — future episodes").setItems(names.toTypedArray()) { _, index -> work {
             val epg = sources[index]; val key = engine.providerKey(epg.serverIndex) ?: error("Unavailable")
-            engine.setRule(rule.copy(providerKey = key, serverIndex = epg.serverIndex, streamId = epg.streamId, channelName = channelName(epg.serverIndex, epg.streamId)))
+            engine.changeSource(rule, rule.copy(providerKey = key, serverIndex = epg.serverIndex, streamId = epg.streamId, channelName = channelName(epg.serverIndex, epg.streamId)))
             engine.refresh()
         } }.setNegativeButton("Cancel", null).show()
     }

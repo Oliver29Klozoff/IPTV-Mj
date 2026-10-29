@@ -451,3 +451,20 @@ data class FeedStatsEntity(
     val lastFailureAt: Long = 0L,
     val updatedAt: Long = System.currentTimeMillis()
 )
+
+// Watch stats (v7.75): live viewing per local day and channel, for the Watch stats screen. Fed from
+// the same player reports as feed_stats; the name is kept as it was then, so a channel that later
+// leaves the catalog still reads right. Rows older than about a year are dropped.
+@Entity(tableName = "watch_log", primaryKeys = ["day", "serverIndex", "streamId"])
+data class WatchLogEntity(
+    /** "2026-10-28", the device's local date. */
+    val day: String,
+    val serverIndex: Int,
+    val streamId: Int,
+    val name: String = "",
+    val minutes: Float = 0f,
+    val stalls: Int = 0,
+    val starts: Int = 0,
+    /** Starts that never played, and copies that played and then failed for good. */
+    val failures: Int = 0,
+)

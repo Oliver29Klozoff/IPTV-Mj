@@ -1508,6 +1508,32 @@
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
                         <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Live scores" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="The score of the game you're watching in a corner of the player, and a heads-up when another game is close late" />
+                            </LinearLayout>
+                            <Switch
+                                android:id="@+id/switchLiveScores"
+                                style="@style/Rack.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowLiveReconnectSpeed"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"
@@ -2873,6 +2899,12 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Provider health weather map" />
+                        <Button
+                            android:id="@+id/btnWatchStats"
+                            style="@style/Rack.Button.Link"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Watch stats" />
                         <Button
                             android:id="@+id/btnDataUsage"
                             style="@style/Rack.Button.Link"

@@ -374,6 +374,8 @@ class PreferencesManager @Inject constructor(
         val HOME_LAYOUT_PHONE = stringPreferencesKey("home_layout_phone")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
+        // The player's score corner and close-game heads-up (ScoreBug). On by default.
+        val LIVE_SCORES = booleanPreferencesKey("live_scores")
         // Saved Mosaic layouts as JSON (see MosaicLayouts), and the name of the one last opened.
         val MOSAIC_LAYOUTS = stringPreferencesKey("mosaic_layouts")
         val MOSAIC_LAST_LAYOUT = stringPreferencesKey("mosaic_last_layout")
@@ -542,6 +544,10 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.GAME_ALERTS] ?: true }
     suspend fun setGameAlerts(v: Boolean) = context.dataStore.edit { it[Keys.GAME_ALERTS] = v }
+    val liveScores: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.LIVE_SCORES] ?: true }
+    suspend fun setLiveScores(v: Boolean) = context.dataStore.edit { it[Keys.LIVE_SCORES] = v }
     val mosaicLayouts: Flow<String> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.MOSAIC_LAYOUTS] ?: "" }

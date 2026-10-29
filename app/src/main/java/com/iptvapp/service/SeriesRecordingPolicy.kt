@@ -38,7 +38,19 @@ object SeriesRecordingPolicy {
     const val DEVICE_CAPTURE_LIMIT = 3
     fun conflict(start: Long, end: Long, server: Int, existing: List<RecordingEntity>, providerSlots: Int): List<RecordingEntity> {
         val overlapping = existing.filter { it.status in setOf("SCHEDULED", "RECORDING") && overlaps(start, end, it.scheduledStartMs, it.scheduledStartMs + it.durationMs) }
-        return if (overlapping.size >= DEVICE_CAPTURE_LIMIT || overlapping.count { it.serverIndex == server } >= providerSlots) overlapping else emptyList()
+        return if (peak(start, end, overlapping) >= DEVICE_CAPTURE_LIMIT ||
+            peak(start, end, overlapping.filter { it.serverIndex == server }) >= providerSlots) overlapping else emptyList()
+    }
+
+    /** Most of [recordings] running at one moment inside start..end (back-to-back ones don't stack). */
+    fun peak(start: Long, end: Long, recordings: List<RecordingEntity>): Int {
+        val edges = recordings.flatMap {
+            listOf(maxOf(start, it.scheduledStartMs) to 1, minOf(end, it.scheduledStartMs + it.durationMs) to -1)
+        }.sortedWith(compareBy<Pair<Long, Int>> { it.first }.thenBy { it.second })
+        var running = 0
+        var most = 0
+        for ((_, step) in edges) { running += step; most = maxOf(most, running) }
+        return most
     }
     fun requiredBytes(durationMs: Long): Long = durationMs.coerceAtLeast(0) * 1_000L + 512L * 1024 * 1024 // 8 Mbps estimate + reserve
     fun retention(records: List<RecordingEntity>, keep: Int): List<RecordingEntity> =

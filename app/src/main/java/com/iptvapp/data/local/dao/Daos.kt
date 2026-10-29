@@ -332,7 +332,7 @@ data class VodUserData(val streamId: Int, val isFavorite: Boolean, val watchedMs
 
 @Dao
 interface SeriesDao {
-    @Query("SELECT s.* FROM series s INNER JOIN (SELECT seriesId, MAX(rowid) AS recent FROM episode_watched GROUP BY seriesId) w ON s.seriesId = w.seriesId WHERE s.isHidden = 0 AND s.dismissedFromContinueWatching = 0 ORDER BY s.lastWatchedAt DESC, w.recent DESC LIMIT 20")
+    @Query("SELECT s.* FROM series s INNER JOIN (SELECT seriesId, MAX(rowid) AS recent FROM episode_watched GROUP BY seriesId) w ON s.seriesId = w.seriesId WHERE s.isHidden = 0 AND s.dismissedFromContinueWatching = 0 ORDER BY s.lastWatchedAt DESC, w.recent DESC LIMIT 200")
     suspend fun launcherRecent(): List<SeriesEntity>
 
     @Query("SELECT * FROM series WHERE isHidden = 0 ORDER BY name ASC")
@@ -1228,6 +1228,50 @@ interface FeedStatsDao {
     @androidx.room.Transaction
     suspend fun removeServer(removedIndex: Int) {
         clearForServer(removedIndex)
+        offsetServerIndicesAfter(removedIndex)
+        unoffsetServerIndices()
+    }
+}
+
+@Dao
+interface WatchLogDao {
+    @Query("SELECT * FROM watch_log WHERE day = :day AND serverIndex = :serverIndex AND streamId = :streamId")
+    suspend fun get(day: String, serverIndex: Int, streamId: Int): WatchLogEntity?
+
+    @Upsert
+    suspend fun upsert(entity: WatchLogEntity)
+
+    // Days sort as text ("2026-10-28").
+    @Query("SELECT * FROM watch_log WHERE day >= :fromDay")
+    suspend fun since(fromDay: String): List<WatchLogEntity>
+
+    @Query("DELETE FROM watch_log WHERE day < :beforeDay")
+    suspend fun pruneBefore(beforeDay: String)
+
+    // A provider slot that now means another login, or was removed: its history is kept but moved to
+    // a retired index below every one in use (all below -1), so its stream ids never merge with the
+    // new provider's or another retired slot's. Later providers move down one through the same
+    // two-pass offset as feed_stats.
+    @Query("UPDATE watch_log SET serverIndex = :retired WHERE serverIndex = :serverIndex")
+    suspend fun moveSlot(serverIndex: Int, retired: Int)
+
+    @Query("SELECT MIN(serverIndex) FROM watch_log")
+    suspend fun lowestIndex(): Int?
+
+    @androidx.room.Transaction
+    suspend fun retire(serverIndex: Int) {
+        moveSlot(serverIndex, minOf(lowestIndex() ?: -1, -1) - 1)
+    }
+
+    @Query("UPDATE watch_log SET serverIndex = serverIndex + 1000000 WHERE serverIndex > :removedIndex")
+    suspend fun offsetServerIndicesAfter(removedIndex: Int)
+
+    @Query("UPDATE watch_log SET serverIndex = serverIndex - 1000001 WHERE serverIndex > 1000000")
+    suspend fun unoffsetServerIndices()
+
+    @androidx.room.Transaction
+    suspend fun removeServer(removedIndex: Int) {
+        retire(removedIndex)
         offsetServerIndicesAfter(removedIndex)
         unoffsetServerIndices()
     }

@@ -88,6 +88,46 @@ class SeriesRecordingTest {
         assertEquals("SCHEDULED", db.recordingDao().getAll().first().single().status)
         assertEquals("UNCERTAIN", db.seriesRecordingDao().episodes().single().status)
     }
+    @Test fun `a booked airing the guide dropped holds its start until confirmed`() = runBlocking {
+        val selected = epg(); db.epgDao().upsertEpg(listOf(selected)); engine.create(rule(), selected); engine.refresh()
+        val rec = db.recordingDao().getAll().first().single()
+        db.epgDao().deleteAllForServer(-1); engine.refresh()
+        assertNotNull(engine.startRefusal(rec))
+        assertEquals("UNCERTAIN", db.seriesRecordingDao().episodes().single().status)
+        assertEquals("SCHEDULED", db.recordingDao().getById(rec.id)!!.status)
+    }
+    @Test fun `confirming a dropped airing releases its hold`() = runBlocking {
+        val selected = epg(); db.epgDao().upsertEpg(listOf(selected)); engine.create(rule(), selected); engine.refresh()
+        val rec = db.recordingDao().getAll().first().single()
+        db.epgDao().deleteAllForServer(-1); engine.refresh()
+        engine.confirm(db.seriesRecordingDao().episodes().single().identity); engine.refresh(); engine.refresh()
+        assertEquals("SCHEDULED", db.seriesRecordingDao().episodes().single().status)
+        assertNull(engine.startRefusal(db.recordingDao().getById(rec.id)!!))
+    }
+    @Test fun `retrying a cancelled episode books a new recording`() = runBlocking {
+        val selected = epg(); db.epgDao().upsertEpg(listOf(selected)); engine.create(rule(), selected); engine.refresh()
+        val episode = db.seriesRecordingDao().episodes().single()
+        engine.cancelEpisode(episode.identity)
+        engine.confirm(episode.identity); engine.refresh()
+        assertEquals("SCHEDULED", db.seriesRecordingDao().episodes().single().status)
+        assertEquals(1, db.recordingDao().getAll().first().count { it.status == "SCHEDULED" })
+    }
+    @Test fun `changing the preferred channel rebooks pending episodes on it`() = runBlocking {
+        val selected = epg(); db.epgDao().upsertEpg(listOf(selected, selected.copy(id = "other", streamId = 8)))
+        val id = engine.create(rule(), selected); engine.refresh()
+        val old = db.seriesRecordingDao().rule(id)!!
+        engine.changeSource(old, old.copy(streamId = 8, channelName = "Other")); engine.refresh()
+        val live = db.recordingDao().getAll().first().filter { it.status == "SCHEDULED" }
+        assertEquals(listOf(8), live.map { it.streamId })
+    }
+    @Test fun `back-to-back recordings do not stack against the connection count`() {
+        val h = 3_600_000L
+        fun rec(start: Long, len: Long) = RecordingEntity(streamId = 1, channelName = "c", scheduledStartMs = start, durationMs = len, outputPath = "x")
+        val sequential = listOf(rec(0, h), rec(h, h))
+        assertEquals(1, SeriesRecordingPolicy.peak(0, 2 * h, sequential))
+        assertTrue(SeriesRecordingPolicy.conflict(0, 2 * h, -1, sequential, 2).isEmpty())
+        assertEquals(2, SeriesRecordingPolicy.peak(0, 2 * h, listOf(rec(0, 2 * h), rec(h / 2, h))))
+    }
     @Test fun `existing reservation survives a higher priority conflict`() = runBlocking {
         available = 1
         val selected = epg(); db.epgDao().upsertEpg(listOf(selected))
