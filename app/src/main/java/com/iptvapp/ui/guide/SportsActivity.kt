@@ -66,6 +66,14 @@ class SportsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val accent = com.iptvapp.util.RackAccent.load(prefs)
             binding.tvSportsTitle.setTextColor(accent.start)
+            // Games come from the stored guide: an old one hides most of them, so say so.
+            val refreshed = prefs.lastEpgRefreshTime.first()
+            if (System.currentTimeMillis() - refreshed > 24 * 3_600_000L) {
+                binding.tvSportsSubtitle.text = if (refreshed == 0L) "The guide hasn't been refreshed yet, so games are missing. Refresh it in Settings > Stream & EPG."
+                    else "The guide was last refreshed " + SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(refreshed)) +
+                        ", so games may be missing. Refresh it in Settings > Stream & EPG, or turn on Auto refresh."
+                binding.tvSportsSubtitle.setTextColor(getColor(R.color.rack_danger_text))
+            }
             // Games start and end while this is open: look again every minute while it's on screen
             // (and on coming back to it), updating only when the list actually changed.
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
@@ -98,12 +106,14 @@ class SportsActivity : AppCompatActivity() {
         latestGames = games
         lifecycleScope.launch { bindTeamShortcuts(prefs.favoriteTeams.first(), accent) }
         val scores = games.mapNotNull { g -> LiveScores.match(g, events)?.takeIf { it.state != "pre" }?.let { g to it } }.toMap()
-        val items = buildItems(games, scores)
+        val now0 = System.currentTimeMillis()
+        val replays = games.filter { it.isLive(now0) && it !in scores && LiveScores.likelyReplay(it, events) }.toSet()
+        val items = buildItems(games, scores, replays)
         val now = System.currentTimeMillis()
         // What's on screen depends on these: which rows, in which section, live or not, the score —
         // and the date, which decides the "Tmrw" labels.
         val signature = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date(now)) + "|" + items.joinToString("|") {
-            if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.serverIndex}:${it.channel.streamId}:${it.isLive(now)}:${scores[it]?.label}" else it.toString()
+            if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.serverIndex}:${it.channel.streamId}:${it.isLive(now)}:${scores[it]?.label}:${it in replays}" else it.toString()
         }
         if (signature == shownSignature) return
         shownSignature = signature
@@ -118,9 +128,10 @@ class SportsActivity : AppCompatActivity() {
         binding.rvSports.visibility = View.VISIBLE
         val existing = binding.rvSports.adapter as? SportsAdapter
         existing?.scores = scores
+        existing?.replays = replays
         if (existing == null) {
             binding.rvSports.adapter = SportsAdapter(items, accent, onPick = { pick(current(it)) }, onHold = { gameView(current(it)) })
-                .also { it.scores = scores }
+                .also { it.scores = scores; it.replays = replays }
             binding.rvSports.post { binding.rvSports.getChildAt(1)?.requestFocus() }
             return
         }
@@ -147,11 +158,12 @@ class SportsActivity : AppCompatActivity() {
     }
 
     /** "On now" first (every league, so what you can watch right away is at the top; close games
-     * first), then what's coming up, grouped by league. */
-    private fun buildItems(games: List<SportsFinder.Game>, scores: Map<SportsFinder.Game, LiveScores.Event>): List<Any> {
+     * first, likely replays last), then what's coming up, grouped by league. */
+    private fun buildItems(games: List<SportsFinder.Game>, scores: Map<SportsFinder.Game, LiveScores.Event>, replays: Set<SportsFinder.Game>): List<Any> {
         val items = mutableListOf<Any>()
         val now = System.currentTimeMillis()
-        val live = games.filter { it.isLive(now) }.sortedByDescending { scores[it]?.close == true }
+        val live = games.filter { it.isLive(now) }
+            .sortedWith(compareBy<SportsFinder.Game> { it in replays }.thenByDescending { scores[it]?.close == true })
         if (live.isNotEmpty()) {
             items += "On now"
             items.addAll(live)
@@ -335,6 +347,8 @@ class SportsActivity : AppCompatActivity() {
 
         /** The score of each game that has started, from LiveScores. */
         var scores: Map<SportsFinder.Game, LiveScores.Event> = emptyMap()
+        /** Airings on now that are most likely reruns (LiveScores.likelyReplay). */
+        var replays: Set<SportsFinder.Game> = emptySet()
 
         fun itemAt(position: Int): Any? = items.getOrNull(position)
 
@@ -447,10 +461,16 @@ class SportsActivity : AppCompatActivity() {
             }
             v.findViewWithTag<TextView>("title").text = game.title
             val score = scores[game]
+            val replay = game in replays
             v.findViewWithTag<TextView>("score").apply {
-                visibility = if (score == null) View.GONE else View.VISIBLE
+                visibility = if (score == null && !replay) View.GONE else View.VISIBLE
                 text = score?.let { (if (it.final) "Final: " else "") + it.label + if (it.close) "  ·  CLOSE GAME" else "" }
-                setTextColor(if (score?.close == true) ctx.getColor(R.color.rack_danger_text) else accent)
+                    ?: "Likely a replay"
+                setTextColor(when {
+                    score?.close == true -> ctx.getColor(R.color.rack_danger_text)
+                    score == null -> ctx.getColor(R.color.rack_text_muted)
+                    else -> accent
+                })
             }
             // Live rows sit under "On now", so they name their league; upcoming ones are under it.
             v.findViewWithTag<TextView>("where").text = (if (game.isLive(now)) "${game.league} · " else "") +

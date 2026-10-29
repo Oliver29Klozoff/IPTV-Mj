@@ -60,10 +60,11 @@ object LiveScores {
     /** SportsFinder's leagues and the ESPN scoreboards behind them. */
     private val FEEDS: Map<String, List<String>> = mapOf(
         "NFL" to listOf("football/nfl"),
-        "College football" to listOf("football/college-football"),
+        // College boards list only featured games unless asked for the whole top division.
+        "College football" to listOf("football/college-football?groups=80"),
         "NBA" to listOf("basketball/nba"),
         "WNBA" to listOf("basketball/wnba"),
-        "College basketball" to listOf("basketball/mens-college-basketball", "basketball/womens-college-basketball"),
+        "College basketball" to listOf("basketball/mens-college-basketball?groups=50", "basketball/womens-college-basketball?groups=50"),
         "MLB" to listOf("baseball/mlb"),
         "NHL" to listOf("hockey/nhl"),
         "Soccer" to listOf("soccer/usa.1", "soccer/eng.1", "soccer/esp.1", "soccer/mex.1", "soccer/uefa.champions", "soccer/uefa.europa"),
@@ -96,7 +97,9 @@ object LiveScores {
         if (events.any { it.live || it.state == "pre" && it.startMs - nowMs < SOON_MS }) BUSY_MS else QUIET_MS
 
     private fun fetch(path: String): String {
-        val conn = (URL("https://site.api.espn.com/apis/site/v2/sports/$path/scoreboard").openConnection() as HttpURLConnection).apply {
+        val query = path.substringAfter('?', "")
+        val url = "https://site.api.espn.com/apis/site/v2/sports/${path.substringBefore('?')}/scoreboard" + if (query.isEmpty()) "" else "?$query"
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 8_000; readTimeout = 8_000
         }
         try {
@@ -182,6 +185,19 @@ object LiveScores {
         val near = candidates.filter { kotlin.math.abs(it.startMs - startMs) <= 30 * 60_000L }
         val onNetwork = near.filter { e -> e.networks.any { n -> channels.any { carries(it, n) } } }
         return onNetwork.singleOrNull() ?: near.singleOrNull()
+    }
+
+    private val LIVE_TITLE = Regex("""\blive\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * An airing that is on now but most likely a rerun: the league's scoreboard came back and has
+     * no game within three hours of it, and the guide doesn't call it live. Wednesday-night
+     * "College Football" on a conference network is last Saturday's game.
+     */
+    fun likelyReplay(game: SportsFinder.Game, events: List<Event>): Boolean {
+        if (LIVE_TITLE.containsMatchIn(game.title) || game.league !in FEEDS) return false
+        val league = events.filter { it.league == game.league }
+        return league.isNotEmpty() && league.none { kotlin.math.abs(it.startMs - game.startMs) <= 3 * 3_600_000L }
     }
 
     fun match(game: SportsFinder.Game, events: List<Event>): Event? =

@@ -87,7 +87,7 @@ object SportsFinder {
 
     // Studio and magazine shows that name a league but aren't a game.
     private val NOT_A_GAME = Regex(
-        """\b(pre-?game|post-?game|pregame|postgame|highlights|countdown|tonight|now|live:? .*show|insider|report|recap|center|centre|classics?|replay|preview|review|draft|talk|show|magazine|news|inside the|the best of|encore|rewind|films|poker|picante|central|school|academy|lessons?)\b""",
+        """\b(pre-?game|post-?game|pregame|postgame|highlights|countdown|tonight|now|live:? .*show|insider|report|recap|center|centre|classics?|replay|preview|review|draft|talk|show|magazine|news|inside|today|the best of|encore|rewind|films|poker|picante|central|school|academy|lessons?)\b""",
         RegexOption.IGNORE_CASE
     )
 
@@ -161,7 +161,7 @@ object SportsFinder {
         data class Airing(val league: String, val title: String, val startMs: Long, var stopMs: Long, val channels: MutableList<Channel>)
         val airings = linkedMapOf<String, Airing>()
         val channelCache = hashMapOf<Pair<Int, Int>, Channel?>()
-        for (row in db.epgDao().getUpcomingTitles(nowMs / 1000L)) {
+        for (row in candidateRows(db, nowMs)) {
             val start = toMs(row.startTimestamp)
             val stop = toMs(row.stopTimestamp)
             if (stop <= nowMs || start > untilMs) continue
@@ -190,6 +190,25 @@ object SportsFinder {
                 .thenByDescending { it.isLive(nowMs) }
                 .thenBy { it.startMs }
         )
+    }
+
+    private class Candidates(val atMs: Long, val rows: List<com.iptvapp.data.local.entities.EpgTitleRow>)
+    @Volatile private var candidates: Candidates? = null
+
+    /**
+     * The guide rows that could be games: a league named, or teams named ("A vs B"), which
+     * today's team names may still claim. A full guide is a big table, and the Sports screen
+     * reads it twice in a row (before and after scores arrive), so this keeps the short list
+     * for a minute.
+     */
+    private suspend fun candidateRows(db: IptvDatabase, nowMs: Long): List<com.iptvapp.data.local.entities.EpgTitleRow> {
+        candidates?.takeIf { nowMs - it.atMs in 0..60_000L }?.let { return it.rows }
+        val rows = db.epgDao().getUpcomingTitles(nowMs / 1000L).filter {
+            val title = it.title.trim()
+            leagueOf(title) != null || MATCHUP.containsMatchIn(title)
+        }
+        candidates = Candidates(nowMs, rows)
+        return rows
     }
 
     /** Feed scores for the channels carrying games, looked up a provider at a time. */

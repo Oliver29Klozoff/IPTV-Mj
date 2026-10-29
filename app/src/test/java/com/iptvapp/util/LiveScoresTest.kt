@@ -79,6 +79,19 @@ class LiveScoresTest {
         assertNull(SportsFinder.leagueOf("School of Golf"))
     }
 
+    @Test fun `an airing with no game near it on the board is likely a replay`() {
+        val events = LiveScores.parse(board(game("MIL" to "Milwaukee Brewers", "TB" to "Tampa Bay Rays", 3, 4)), "MLB")
+        fun g(title: String, at: Long) = SportsFinder.Game("MLB", title, at, at + 3 * 3_600_000L, SportsFinder.Channel(-1, 1, "US| MLB NETWORK", false), 0)
+        val dayLater = start + 24 * 3_600_000L
+        assertTrue(LiveScores.likelyReplay(g("MLB Baseball", dayLater), events))
+        assertFalse(LiveScores.likelyReplay(g("Live: MLB Baseball", dayLater), events))
+        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", start + 1_800_000L), events))
+        // No board for the league (or it failed): never call it a replay.
+        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", dayLater), emptyList()))
+        assertNull(SportsFinder.leagueOf("Inside Golf"))
+        assertNull(SportsFinder.leagueOf("Live: UEFA Women's Champions League Today"))
+    }
+
     @Test fun `team-only titles need today's teams on both sides`() {
         val teams = mapOf("NFL" to setOf("Dallas Cowboys", "Cowboys", "New York Giants", "Giants"))
         assertEquals("NFL", SportsFinder.leagueOf("Cowboys vs. Giants", teams))
