@@ -5746,7 +5746,11 @@ class HomeActivity : AppCompatActivity() {
             is CombinedFavorite.Primary -> item.channel.name
             is CombinedFavorite.Merged -> "${item.channel.name} · ${item.channel.serverNickname}"
         }
-        val options = mutableListOf("Remove from Favorites", "Add to Chip", "Pin to Genre", "Select (bulk remove from favorites)")
+        val (serverIndex, streamId) = when (item) {
+            is CombinedFavorite.Primary -> -1 to item.channel.streamId
+            is CombinedFavorite.Merged -> item.channel.serverIndex to item.channel.streamId
+        }
+        val options = mutableListOf(TopFavoritesMenu.label(serverIndex, streamId), "Remove from Favorites", "Add to Chip", "Pin to Genre", "Select (bulk remove from favorites)")
         if (canReorderFavorites()) options.add("Reorder Favorites")
         if (item is CombinedFavorite.Primary) options.add(0, "Set Reminder")
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -5754,6 +5758,7 @@ class HomeActivity : AppCompatActivity() {
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
                     "Set Reminder" -> if (item is CombinedFavorite.Primary) showReminderDialog(item.channel)
+                    TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, serverIndex, streamId, item.name)
                     "Remove from Favorites" -> {
                         viewModel.toggleCombinedFavorite(item)
                         Toast.makeText(this, "Removed from favorites", Toast.LENGTH_SHORT).show()
