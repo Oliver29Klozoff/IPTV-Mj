@@ -1,7 +1,7 @@
 {
-  "versionCode": 612,
-  "versionName": "7.74",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.74/MKTV.apk",
-  "apkSha256": "453beea0c3cf1c080bceaaba3149ea65744538ae29e0b69b3698abec7c45c2e9",
-  "changelog": "TV home-screen posters, and focus fixes for Customize Home on the Shield."
+  "versionCode": 613,
+  "versionName": "7.75",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.75/MKTV.apk",
+  "apkSha256": "7e179fb85ec82a4e3cb6b6aafed7ec9d0ae18b7ec33f716ae76ed77fbd20c5fc",
+  "changelog": "Sports Now: live scores, search, and a mini player so you stay on the list. Scores in the player, and Watch stats."
 }

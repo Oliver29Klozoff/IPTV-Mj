@@ -1,5 +1,27 @@
 # IPTV App - Changelog
 
+## v7.75 - 2026-10-28
+- **New**: Live scores. The Sports screen shows the score of each game that has started, with close games
+  first. In the player, the score of the game you're watching sits in the bottom-left corner, and a heads-up
+  appears when another game is close late. Turn both off in Settings > Live scores. Scores come from ESPN's
+  public scoreboards; nothing of yours is sent.
+- **New**: Sports Now search: type a team, league or channel to filter the games.
+- **New**: Picking a game in Sports Now plays it in a mini player and keeps you on the list, so you can try
+  another if it's the wrong one. Pick it again (or the picture, or Full screen) for full screen; Back keeps it
+  playing on Home.
+- **Improved**: Sports Now marks likely replays, says when the guide is too old to show today's games, and
+  finds midweek college games.
+- **New**: Watch stats (Settings > Watch stats): hours of live TV this week and over 30 days, a 14-day chart,
+  your most-watched channels, and channels that keep dropping or stalling.
+- **Improved**: The Sports screen finds games it used to miss: Monday, Sunday and Thursday Night Football,
+  the World Series and postseason, Champions League, boxing, IndyCar, LPGA, tennis, and titles that only
+  name the teams. College baseball and hockey get their own sections.
+- **Fixed**: Series Recording: a booked episode the guide drops waits for your OK instead of recording
+  whatever replaced it; changing a series' channel rebooks its upcoming episodes; back-to-back recordings
+  no longer count as a conflict; retrying a cancelled episode works.
+- **Fixed**: TV home screen: cards you removed stay removed after the 7.72 update, and older shows you're
+  partway through can appear in Continue Watching again.
+
 ## v7.74 - 2026-10-27
 - **New**: Android TV home-screen cards now show posters and channel logos. MKTV fetches them itself, so
   your provider links never leave the app.
