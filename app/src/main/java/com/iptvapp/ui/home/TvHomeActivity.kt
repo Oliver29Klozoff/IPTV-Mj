@@ -254,6 +254,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         catchupDurationMin = data.getIntExtra("catchup_duration_min", 0),
                         catchupChannelName = merged.name
                     )
+                } else if (data.getBooleanExtra("full_screen", false)) {
+                    // Sports Now's Full screen: it already previewed the game in its own player.
+                    openPlayer(viewModel.getMergedLiveStreamUrl(serverIndex, mergedStreamId), merged.name, -1,
+                        serverIndex = serverIndex, mergedStreamId = mergedStreamId)
                 } else {
                     playMergedChannel(merged)
                 }
@@ -272,7 +276,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     catchupChannelName = channel.name
                 )
             } else {
-                playInMiniPlayer(channel)
+                if (data.getBooleanExtra("full_screen", false)) openPlayer(viewModel.getLiveStreamUrl(streamId), channel.name, streamId)
+                else playInMiniPlayer(channel)
                 // Same bookkeeping as the old guide panel: highlights + recent / cold-boot resume.
                 viewModel.markChannelWatched(channel.streamId)
                 viewModel.setCurrentlyPlaying(channel.streamId)

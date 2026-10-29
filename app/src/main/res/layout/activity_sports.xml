@@ -55,40 +55,135 @@
         </LinearLayout>
     </LinearLayout>
 
-    <HorizontalScrollView
-        android:id="@+id/teamShortcutRow"
+    <!-- Search: filters the list by team, league, channel or score as you type. -->
+    <EditText
+        android:id="@+id/etSportsSearch"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:clipToPadding="false"
-        android:paddingHorizontal="12dp"
-        android:paddingBottom="8dp"
-        android:scrollbars="none"
-        android:visibility="gone">
-
-        <LinearLayout
-            android:id="@+id/teamShortcuts"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
-
-    <TextView
-        android:id="@+id/tvSportsEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/rack_row_bg"
         android:fontFamily="@font/barlow"
-        android:gravity="center"
-        android:padding="32dp"
-        android:text="Looking for games…"
-        android:textColor="@color/rack_text_secondary"
+        android:hint="Search teams, leagues, channels"
+        android:imeOptions="actionSearch|flagNoExtractUi"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingHorizontal="16dp"
+        android:textColor="@color/rack_text"
+        android:textColorHint="@color/rack_text_muted"
         android:textSize="15sp" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvSports"
+    <!-- The mini player and the list: stacked on a phone held upright, side by side in landscape
+         (SportsActivity sets the orientation). -->
+    <LinearLayout
+        android:id="@+id/sportsBody"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="24dp"
-        android:visibility="gone" />
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/sportsMiniPane"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/sportsMiniPlayer"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:background="#000000"
+                android:focusable="true"
+                android:contentDescription="Mini player. Select for full screen."
+                app:use_controller="false"
+                app:resize_mode="fit" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingTop="6dp">
+
+                <TextView
+                    android:id="@+id/tvSportsMiniTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/barlow"
+                    android:maxLines="2"
+                    android:textColor="@color/rack_text"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btnSportsFullScreen"
+                    style="@style/Rack.Button.Outline"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:text="Full screen" />
+
+                <ImageButton
+                    android:id="@+id/btnSportsMiniClose"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/rack_row_bg"
+                    android:contentDescription="Stop the mini player"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="@color/rack_text" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/sportsListPane"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <HorizontalScrollView
+                android:id="@+id/teamShortcutRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingHorizontal="12dp"
+                android:paddingBottom="8dp"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/teamShortcuts"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <TextView
+                android:id="@+id/tvSportsEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/barlow"
+                android:gravity="center"
+                android:padding="32dp"
+                android:text="Looking for games…"
+                android:textColor="@color/rack_text_secondary"
+                android:textSize="15sp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvSports"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="24dp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

@@ -45,13 +45,24 @@ class SportsActivity : AppCompatActivity() {
 
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var prefs: PreferencesManager
+    @Inject lateinit var repository: com.iptvapp.data.repository.XtreamRepository
+    @Inject lateinit var okHttpClient: okhttp3.OkHttpClient
 
     private lateinit var binding: ActivitySportsBinding
+
+    /** The mini player (v7.75): a pick plays here, so the list stays put if it's the wrong game. */
+    private var mini: androidx.media3.exoplayer.ExoPlayer? = null
+    private var playing: SportsFinder.Channel? = null
+    private var playJob: kotlinx.coroutines.Job? = null
+    private var query = ""
+    private var latestEvents: List<LiveScores.Event> = emptyList()
+    private var accentColor = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySportsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setUpMiniPlayer(savedInstanceState)
         // Edge-to-edge (target SDK 35): keep the header and list clear of the status bar, cutout
         // and navigation bar.
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
@@ -61,7 +72,15 @@ class SportsActivity : AppCompatActivity() {
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
-        binding.btnSportsBack.setOnClickListener { finish() }
+        binding.btnSportsBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        binding.etSportsSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                query = s?.toString().orEmpty()
+                if (accentColor != 0) show(latestGames, latestEvents, accentColor)
+            }
+        })
         binding.rvSports.layoutManager = LinearLayoutManager(this)
         lifecycleScope.launch {
             val accent = com.iptvapp.util.RackAccent.load(prefs)
@@ -102,17 +121,21 @@ class SportsActivity : AppCompatActivity() {
     private var shownTeams: String? = null
     private var latestGames: List<SportsFinder.Game> = emptyList()
 
-    private fun show(games: List<SportsFinder.Game>, events: List<LiveScores.Event>, accent: Int) {
-        latestGames = games
+    private fun show(all: List<SportsFinder.Game>, events: List<LiveScores.Event>, accent: Int) {
+        latestGames = all
+        latestEvents = events
+        accentColor = accent
         lifecycleScope.launch { bindTeamShortcuts(prefs.favoriteTeams.first(), accent) }
-        val scores = games.mapNotNull { g -> LiveScores.match(g, events)?.takeIf { it.state != "pre" }?.let { g to it } }.toMap()
+        val matched = all.mapNotNull { g -> LiveScores.match(g, events)?.let { g to it } }.toMap()
+        val games = all.filter { matchesQuery(it, matched[it]) }
+        val scores = matched.filterValues { it.state != "pre" }
         val now0 = System.currentTimeMillis()
         val replays = games.filter { it.isLive(now0) && it !in scores && LiveScores.likelyReplay(it, events) }.toSet()
         val items = buildItems(games, scores, replays)
         val now = System.currentTimeMillis()
         // What's on screen depends on these: which rows, in which section, live or not, the score —
         // and the date, which decides the "Tmrw" labels.
-        val signature = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date(now)) + "|" + items.joinToString("|") {
+        val signature = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date(now)) + "|$query|" + items.joinToString("|") {
             if (it is SportsFinder.Game) "${it.title}@${it.startMs}:${it.channel.serverIndex}:${it.channel.streamId}:${it.isLive(now)}:${scores[it]?.label}:${it in replays}" else it.toString()
         }
         if (signature == shownSignature) return
@@ -120,8 +143,8 @@ class SportsActivity : AppCompatActivity() {
         if (games.isEmpty()) {
             binding.rvSports.visibility = View.GONE
             binding.tvSportsEmpty.visibility = View.VISIBLE
-            binding.tvSportsEmpty.text =
-                "No games found in the guide right now. If the guide is empty or old, refresh it from the Guide tab and look again."
+            binding.tvSportsEmpty.text = if (all.isNotEmpty()) "No games match “${query.trim()}”."
+                else "No games found in the guide right now. If the guide is empty or old, refresh it in Settings > Stream & EPG and look again."
             return
         }
         binding.tvSportsEmpty.visibility = View.GONE
@@ -320,9 +343,148 @@ class SportsActivity : AppCompatActivity() {
         })
     }
 
+    /** All words of the search in the game's title, league, channels or teams. */
+    private fun matchesQuery(game: SportsFinder.Game, event: LiveScores.Event?): Boolean {
+        val words = query.trim().lowercase(Locale.getDefault()).split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return true
+        val hay = buildString {
+            append(game.title).append(' ').append(game.league)
+            game.feeds.forEach { append(' ').append(it.name) }
+            event?.let { e -> (listOf(e.home.abbr, e.away.abbr) + e.home.names + e.away.names).forEach { append(' ').append(it) } }
+        }.lowercase(Locale.getDefault())
+        return words.all { hay.contains(it) }
+    }
+
+    /**
+     * A pick plays in the mini player and the list stays. Picking what is already playing (or the
+     * picture, or Full screen) goes full screen through Home, which owns the full-screen player.
+     */
     private fun pick(game: SportsFinder.Game, feed: SportsFinder.Channel = game.channel) {
-        val ch = feed
+        val now = playing
+        if (now != null && now.serverIndex == feed.serverIndex && now.streamId == feed.streamId) {
+            handBack(feed, fullScreen = true)
+            return
+        }
+        preview(game, feed)
+    }
+
+    private fun setUpMiniPlayer(saved: Bundle?) {
+        if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            // Landscape (car box, TV): the picture beside the list, not above it.
+            binding.sportsBody.orientation = LinearLayout.HORIZONTAL
+            binding.sportsMiniPane.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.45f)
+            binding.sportsListPane.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.55f)
+        }
+        binding.btnSportsFullScreen.setOnClickListener { playing?.let { handBack(it, fullScreen = true) } }
+        binding.sportsMiniPlayer.setOnClickListener { playing?.let { handBack(it, fullScreen = true) } }
+        binding.btnSportsMiniClose.setOnClickListener { stopMini() }
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            // Leaving with a game on keeps it on, in Home's mini player.
+            override fun handleOnBackPressed() {
+                val now = playing
+                if (now != null) handBack(now, fullScreen = false) else finish()
+            }
+        })
+        // Turning the phone keeps the game on.
+        val server = saved?.getInt("mini_server", Int.MIN_VALUE) ?: Int.MIN_VALUE
+        if (server != Int.MIN_VALUE) {
+            val channel = SportsFinder.Channel(server, saved!!.getInt("mini_stream"), saved.getString("mini_name").orEmpty(), false)
+            preview(null, channel, saved.getString("mini_title").orEmpty())
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        playing?.let {
+            outState.putInt("mini_server", it.serverIndex)
+            outState.putInt("mini_stream", it.streamId)
+            outState.putString("mini_name", it.name)
+            outState.putString("mini_title", binding.tvSportsMiniTitle.tag as? String)
+        }
+    }
+
+    private fun preview(game: SportsFinder.Game?, feed: SportsFinder.Channel, title: String = game?.title.orEmpty()) {
+        playing = feed
+        binding.sportsMiniPane.visibility = View.VISIBLE
+        binding.tvSportsMiniTitle.tag = title
+        binding.tvSportsMiniTitle.text = if (title.isBlank()) feed.name else "$title\n${feed.name}"
+        binding.sportsMiniPlayer.post {
+            val w = binding.sportsMiniPlayer.width
+            if (w > 0) binding.sportsMiniPlayer.layoutParams = binding.sportsMiniPlayer.layoutParams.apply {
+                height = minOf(w * 9 / 16, (resources.displayMetrics.heightPixels * 0.4f).toInt())
+            }
+        }
+        playJob?.cancel()
+        playJob = lifecycleScope.launch {
+            val url = try {
+                withContext(Dispatchers.IO) {
+                    if (feed.serverIndex == -1) repository.getLiveStreamUrl(feed.streamId)
+                    else repository.getMergedLiveStreamUrl(feed.serverIndex, feed.streamId)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (_: Exception) { "" }
+            if (url.isBlank()) { miniFailed(); return@launch }
+            val player = miniPlayer()
+            player.setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+            player.prepare()
+            player.playWhenReady = true
+        }
+    }
+
+    /** Same data source as Mosaic and the home mini player: some provider CDNs refuse ExoPlayer's
+     * default User-Agent on the stream itself. */
+    private fun miniPlayer(): androidx.media3.exoplayer.ExoPlayer = mini ?: run {
+        val upstream = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android ${android.os.Build.VERSION.RELEASE}) ExoPlayerLib/1.4.1")
+        val sources = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(upstream)
+        androidx.media3.exoplayer.ExoPlayer.Builder(this).setMediaSourceFactory(sources).build().also { p ->
+            p.addListener(object : androidx.media3.common.Player.Listener {
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) = miniFailed()
+            })
+            binding.sportsMiniPlayer.player = p
+            mini = p
+        }
+    }
+
+    private fun miniFailed() {
+        val title = binding.tvSportsMiniTitle.tag as? String
+        binding.tvSportsMiniTitle.text = listOfNotNull(title?.takeIf { it.isNotBlank() }, playing?.name).joinToString("\n") +
+            "\nThis channel didn't play. Hold the game for its other channels."
+    }
+
+    private fun stopMini() {
+        playJob?.cancel()
+        playing = null
+        mini?.release()
+        mini = null
+        binding.sportsMiniPlayer.player = null
+        binding.sportsMiniPane.visibility = View.GONE
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Coming back: the game picks up at the live edge.
+        mini?.takeIf { playing != null }?.let { it.prepare(); it.playWhenReady = true }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Stopped, not paused: a paused live stream holds the provider connection.
+        mini?.stop()
+    }
+
+    override fun onDestroy() {
+        mini?.release()
+        mini = null
+        super.onDestroy()
+    }
+
+    /** Back to Home with [ch]: in its mini player, or full screen. The mini player lets go of the
+     * provider connection first, for one-connection accounts. */
+    private fun handBack(ch: SportsFinder.Channel, fullScreen: Boolean) {
+        stopMini()
         setResult(RESULT_OK, Intent().apply {
+            putExtra("full_screen", fullScreen)
             if (ch.serverIndex == -1) {
                 putExtra("stream_id", ch.streamId)
             } else {

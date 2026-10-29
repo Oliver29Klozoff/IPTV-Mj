@@ -1226,6 +1226,10 @@ class HomeActivity : AppCompatActivity() {
                             catchupDurationMin = data.getIntExtra("catchup_duration_min", 0),
                             catchupChannelName = channel.name
                         )
+                    } else if (data.getBooleanExtra("full_screen", false)) {
+                        // Sports Now's Full screen: it already previewed the game in its own player.
+                        openPlayer(viewModel.getMergedLiveStreamUrl(serverIndex, mergedStreamId), channel.name, -1,
+                            serverIndex = serverIndex, mergedStreamId = mergedStreamId)
                     } else {
                         playMergedChannel(channel)
                     }
@@ -1246,7 +1250,8 @@ class HomeActivity : AppCompatActivity() {
                         catchupChannelName = channel.name
                     )
                 } else {
-                    playInMiniPlayer(channel)
+                    if (data.getBooleanExtra("full_screen", false)) openPlayer(viewModel.getLiveStreamUrl(streamId), channel.name, streamId)
+                    else playInMiniPlayer(channel)
                     // Recently watched / view counts and cold-boot resume, as TvHomeActivity's
                     // guideLauncher does for the same picks (guide grid and search).
                     viewModel.markChannelWatched(channel.streamId)
