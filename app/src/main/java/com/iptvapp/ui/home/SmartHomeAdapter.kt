@@ -20,22 +20,26 @@ import com.iptvapp.ui.search.SearchHitUi
 
 /**
  * The Smart Home rows: a title and a sideways list of cards each, in the order the Home layout
- * gives them (HomeLayout), ending with Customize Home. Used by both home screens.
+ * gives them (HomeLayout), ending with Customize Home. Used by both home screens. Holding a card
+ * (OK on the remote, a long-press on a touch screen) calls [onLongClick] with its row.
  */
 class SmartHomeAdapter(
     private val onClick: (HomeCard) -> Unit,
     private val onCustomize: () -> Unit = {},
+    private val onLongClick: (HomeRow, HomeCard) -> Unit = { _, _ -> },
 ) : ListAdapter<HomeRow, RecyclerView.ViewHolder>(RowDiff) {
 
     // Each row keeps its own scroll position while the list refreshes.
     private val pool = RecyclerView.RecycledViewPool()
 
     inner class RowHolder(val b: ItemHomeRowBinding) : RecyclerView.ViewHolder(b.root) {
-        val cards = CardAdapter(onClick).also {
+        val cards = CardAdapter(onClick) { card -> currentRow()?.let { onLongClick(it, card) } }.also {
             b.rvHomeRowCards.layoutManager = LinearLayoutManager(b.root.context, LinearLayoutManager.HORIZONTAL, false)
             b.rvHomeRowCards.adapter = it
             b.rvHomeRowCards.setRecycledViewPool(pool)
         }
+
+        private fun currentRow() = bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }?.let { getItem(it) }
 
         init {
             // A touch screen: holding a row's title opens Customize Home, as the last row does.
@@ -64,6 +68,7 @@ class SmartHomeAdapter(
         holder.b.tvHomeRowTitle.text = row.title
         holder.b.tvHomeRowTitle.contentDescription = "${row.title}, row"
         holder.cards.style = row.style
+        holder.cards.showsNext = row.id == HomeLayout.Builtin.TOP_FAVORITES.id
         holder.cards.submitList(row.cards)
         val empty = row.cards.isEmpty()
         holder.b.rvHomeRowCards.visibility = if (empty) View.GONE else View.VISIBLE
@@ -72,8 +77,17 @@ class SmartHomeAdapter(
         holder.b.tvHomeRowEmpty.contentDescription = "${row.title}: ${row.emptyText.orEmpty()}"
     }
 
-    class CardAdapter(private val onClick: (HomeCard) -> Unit) :
+    class CardAdapter(private val onClick: (HomeCard) -> Unit, private val onLongClick: (HomeCard) -> Unit = {}) :
         ListAdapter<HomeCard, CardAdapter.CardHolder>(CardDiff) {
+
+        /** Cards keep a line for the channel's next show (blank when the guide has none), so the row lines up. */
+        var showsNext = false
+            set(value) {
+                if (field == value) return
+                field = value
+                @Suppress("NotifyDataSetChanged")
+                notifyDataSetChanged()
+            }
 
         var style = HomeLayout.Style.WIDE
             set(value) {
@@ -132,7 +146,17 @@ class SmartHomeAdapter(
             }
             holder.b.tvHomeCardTitle.text = title
             holder.b.tvHomeCardLine.text = line
-            holder.b.root.contentDescription = if (line.isBlank()) title else "$title, $line"
+            val next = card.nextTitle?.takeIf { it.isNotBlank() }?.let { t ->
+                card.nextStartMs?.let { "Next ${android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(it))} · $t" } ?: "Next: $t"
+            }
+            holder.b.tvHomeCardNext.text = next.orEmpty()
+            holder.b.tvHomeCardNext.visibility = when {
+                next != null && holder.b.tvHomeCardLine.visibility == View.VISIBLE -> View.VISIBLE
+                showsNext && holder.b.tvHomeCardLine.visibility == View.VISIBLE -> View.INVISIBLE
+                else -> View.GONE
+            }
+            val spoken = listOf(title, line, next.orEmpty()).filter { it.isNotBlank() }.joinToString(", ")
+            holder.b.root.contentDescription = spoken
             val badge = when {
                 hit is SearchHit.Program && hit.kind == SearchHit.Kind.ON_NOW -> "Live"
                 hit is SearchHit.Recording && hit.recording.status == "RECORDING" -> "Recording"
@@ -148,6 +172,7 @@ class SmartHomeAdapter(
                 .error(android.R.drawable.ic_menu_gallery)
                 .into(holder.b.ivHomeCard)
             holder.b.root.setOnClickListener { onClick(card) }
+            holder.b.root.setOnLongClickListener { onLongClick(card); true }
         }
     }
 

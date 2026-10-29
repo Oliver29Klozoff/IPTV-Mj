@@ -959,6 +959,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onResume() {
         super.onResume()
+        // Channel menus label Add/Remove Top Favorites from this copy of the list.
+        lifecycleScope.launch { runCatching { com.iptvapp.data.home.TopFavoritesStore.load(prefs) } }
         // Here rather than onNewIntent: a phone Guide press that had to recreate this screen
         // arrives through onCreate instead.
         if (intent.getBooleanExtra(EXTRA_REMOTE_GUIDE, false)) {
@@ -1412,6 +1414,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val options = mutableListOf(
                     "Play Fullscreen",
                     if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    TopFavoritesMenu.label(channel.serverIndex, channel.streamId),
                     if (bulkSelectedMergedKeys.contains(key)) "Deselect (bulk)" else "Select (bulk add to favorites)"
                 )
                 if (channel.isFavorite) options.add("Move to Folder")
@@ -1434,6 +1437,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                     Toast.makeText(this@TvHomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                                 }
                             }
+                            TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, channel.serverIndex, channel.streamId, channel.name)
                             "Add to Favorites", "Remove from Favorites" -> {
                                 viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                                 Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
@@ -1988,7 +1992,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun setupHome() {
-        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = {
+        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onLongClick = { row, card ->
+            TopFavoritesMenu.showForCard(this, prefs, tv = true, row, card) { if (homeShowing) refreshHome() }
+        }, onCustomize = {
             refocusCustomize = true
             HomeCustomizeActivity.open(this, tv = true)
         })
@@ -2610,7 +2616,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val channel = item.channel
                 val options = mutableListOf(
                     "Play Fullscreen",
-                    if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites"
+                    if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    TopFavoritesMenu.label(channel.serverIndex, channel.streamId)
                 )
                 if (channel.isFavorite) options.add("Move to Folder")
                 options.add(HomeActivity.ALL_SOURCES)
@@ -2629,6 +2636,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                                 }
                             }
                             "Add to Favorites", "Remove from Favorites" -> viewModel.toggleCombinedFavorite(item)
+                            TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, channel.serverIndex, channel.streamId, channel.name)
                             "Move to Folder" -> showMoveToFolderDialog(channel)
                         }
                     }
@@ -4521,6 +4529,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         )
         val options = mutableListOf(
             "Set Reminder",
+            TopFavoritesMenu.label(-1, channel.streamId),
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
             "Hide Channel",
             "Channels Like This",
@@ -4540,6 +4549,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     options[i] == HomeActivity.ALL_SOURCES ->
                         com.iptvapp.ui.player.ChannelSourcesDialog.show(this, homeRepository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     options[i] == "Set Reminder" -> showTvReminderDialog(channel)
+                    options[i] == TopFavoritesMenu.ADD || options[i] == TopFavoritesMenu.REMOVE ->
+                        TopFavoritesMenu.toggle(this, prefs, -1, channel.streamId, channel.name)
                     options[i].startsWith("Set Channel Number") || options[i].startsWith("Change Channel Number") ->
                         showTvSetChannelNumberDialog(channel)
                     options[i] == "Select (bulk add to favorites)" -> {

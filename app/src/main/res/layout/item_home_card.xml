@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- One Smart Home card: picture (16:9 for channels, a poster otherwise — sized in
-     SmartHomeAdapter), progress for something started, title and one line under it. -->
+     SmartHomeAdapter), progress for something started, title and one line under it (two for a channel's next show). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/homeCardRoot"
     android:layout_width="wrap_content"
@@ -71,4 +71,15 @@
         android:maxLines="1"
         android:textColor="@color/rack_text_secondary"
         android:textSize="12sp" />
+
+    <!-- A channel's next show, on rows that show it (Top Favorites). -->
+    <TextView
+        android:id="@+id/tvHomeCardNext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/rack_text_secondary"
+        android:textSize="11sp"
+        android:visibility="gone" />
 </LinearLayout>

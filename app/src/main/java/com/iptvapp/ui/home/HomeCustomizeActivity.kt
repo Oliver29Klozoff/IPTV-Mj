@@ -21,6 +21,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.R
 import com.iptvapp.data.home.HomeLayout
 import com.iptvapp.data.home.HomeLayoutStore
+import com.iptvapp.data.home.TopFavorites
+import com.iptvapp.data.home.TopFavoritesStore
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityHomeCustomizeBinding
@@ -51,6 +53,7 @@ class HomeCustomizeActivity : AppCompatActivity() {
     private var layout = HomeLayout.default()
     private var primaryName = "Primary"
     private var providerNames: Map<Int, String> = emptyMap()
+    private var topFavorites = TopFavorites.State()
     private val adapter = SectionAdapter()
     private lateinit var dragHelper: ItemTouchHelper
 
@@ -94,8 +97,10 @@ class HomeCustomizeActivity : AppCompatActivity() {
             providerNames = try {
                 repository.getMergedServerSummaries().first().associate { it.serverIndex to it.serverNickname }
             } catch (_: Exception) { emptyMap() }
+            topFavorites = TopFavoritesStore.load(prefs)
             layout = HomeLayoutStore.load(prefs, tv)
             render(focus = null)
+            refreshTopDetail()
             // A container (the button bar) can take first focus on TV; start on DONE instead.
             if (currentFocus?.isClickable != true) binding.btnCustomizeDone.requestFocus()
         }
@@ -137,6 +142,8 @@ class HomeCustomizeActivity : AppCompatActivity() {
             else -> null
         }
         when {
+            s.builtin == HomeLayout.Builtin.TOP_FAVORITES ->
+                parts += "Built in · Channels you pick · ${topFavorites.items.size} · ${topFavorites.sort.label}"
             !s.isCustom -> parts += "Built in"
             f?.gone == true -> parts += "Provider removed"
             f != null -> parts += "$what from ${f.categoryName} (${providerName(f.serverIndex)})"
@@ -146,6 +153,12 @@ class HomeCustomizeActivity : AppCompatActivity() {
         if (s.showWhenEmpty) parts += "Shown when empty"
         if (!s.visible) parts += "Hidden"
         return parts.joinToString(" · ")
+    }
+
+    /** Top Favorites' line counts its channels, which live outside the layout, so the diff can't see them change. */
+    private fun refreshTopDetail() {
+        val pos = adapter.items.indexOfFirst { it.builtin == HomeLayout.Builtin.TOP_FAVORITES }
+        if (pos >= 0) adapter.notifyItemChanged(pos)
     }
 
     private fun providerName(serverIndex: Int) =
@@ -162,6 +175,19 @@ class HomeCustomizeActivity : AppCompatActivity() {
                 labels += "Change category"; actions += { pickCategory(s.contentType, s.title.orEmpty(), s.id) }
             } else {
                 labels += "Choose ${itemsWord(s.contentType)} (${s.items.size})"; actions += { openItems(s.id) }
+            }
+        }
+        if (s.builtin == HomeLayout.Builtin.TOP_FAVORITES) {
+            labels += "Choose channels (${topFavorites.items.size})"; actions += { openItems(s.id) }
+            labels += "Order: ${topFavorites.sort.label}"
+            actions += {
+                TopFavoritesMenu.pickSort(this, prefs, topFavorites.sort) {
+                    lifecycleScope.launch {
+                        topFavorites = TopFavoritesStore.load(prefs)
+                        refreshTopDetail()
+                        render(s.id to R.id.btnSectionEdit)
+                    }
+                }
             }
         }
         val styles = HomeLayout.styles(s.contentType)

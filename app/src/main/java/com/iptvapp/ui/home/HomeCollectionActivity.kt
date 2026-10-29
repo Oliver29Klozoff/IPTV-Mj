@@ -16,6 +16,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.R
 import com.iptvapp.data.home.HomeLayout
 import com.iptvapp.data.home.HomeLayoutStore
+import com.iptvapp.data.home.TopFavorites
+import com.iptvapp.data.home.TopFavoritesStore
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
@@ -34,6 +36,9 @@ import javax.inject.Inject
  * search to add more. Order and membership live only in the Home layout, so nothing here changes
  * favorites or the catalog's order. Channels can come from any provider; movies and series from
  * the main one. An item that is no longer in the catalog stays listed, marked, until removed.
+ *
+ * Opened for Top Favorites (HomeLayout.Builtin.TOP_FAVORITES) it edits that list instead
+ * (TopFavoritesStore): channels only, its saved manual order.
  */
 @AndroidEntryPoint
 class HomeCollectionActivity : AppCompatActivity() {
@@ -45,9 +50,13 @@ class HomeCollectionActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHomeCollectionBinding
     private val tv by lazy { intent.getBooleanExtra(EXTRA_TV, false) }
     private val sectionId by lazy { intent.getStringExtra(EXTRA_SECTION).orEmpty() }
+    private val top by lazy { sectionId == HomeLayout.Builtin.TOP_FAVORITES.id }
+    private val limit get() = if (top) TopFavorites.MAX else HomeLayout.MAX_ITEMS
     private val touch by lazy { resources.configuration.touchscreen != android.content.res.Configuration.TOUCHSCREEN_NOTOUCH }
 
-    private var section: HomeLayout.Section? = null
+    /** What is listed, in order, and of what kind (Top Favorites: channels). */
+    private var picked: List<HomeLayout.ItemRef> = emptyList()
+    private var content: HomeLayout.Content? = null
     private var names: Map<HomeLayout.ItemRef, Pair<String, String>> = emptyMap()
     private var results: List<Result> = emptyList()
     private var searchJob: Job? = null
@@ -94,12 +103,22 @@ class HomeCollectionActivity : AppCompatActivity() {
     }
 
     private suspend fun load() {
+        if (top) {
+            picked = TopFavoritesStore.load(prefs).items
+            content = HomeLayout.Content.CHANNELS
+            names = describe(picked)
+            binding.tvCollectionTitle.text = HomeLayout.Builtin.TOP_FAVORITES.title
+            binding.tvCollectionHint.text = "Pick channels from any provider. The order here is the row's manual order. Your regular favorites don't change."
+            render()
+            return
+        }
         val s = HomeLayoutStore.load(prefs, tv).section(sectionId)
         if (s == null || !s.isCustom || s.isDynamic) {
             finish()
             return
         }
-        section = s
+        picked = s.items
+        content = s.contentType
         names = describe(s.items)
         binding.tvCollectionTitle.text = s.displayTitle
         binding.tvCollectionHint.text = when (s.contentType) {
@@ -111,16 +130,16 @@ class HomeCollectionActivity : AppCompatActivity() {
     }
 
     private fun render(focus: Pair<HomeLayout.ItemRef, Int>? = null) {
-        val s = section ?: return
-        binding.tvCollectionInRow.text = "IN THIS ROW · ${s.items.size}"
-        binding.tvCollectionEmpty.visibility = if (s.items.isEmpty()) View.VISIBLE else View.GONE
-        itemsAdapter.items = s.items.toMutableList()
+        if (content == null) return
+        binding.tvCollectionInRow.text = "IN THIS ROW · ${picked.size}"
+        binding.tvCollectionEmpty.visibility = if (picked.isEmpty()) View.VISIBLE else View.GONE
+        itemsAdapter.items = picked.toMutableList()
         @Suppress("NotifyDataSetChanged")
         itemsAdapter.notifyDataSetChanged()
         @Suppress("NotifyDataSetChanged")
         resultsAdapter.notifyDataSetChanged()
         if (focus != null) {
-            val pos = s.items.indexOf(focus.first)
+            val pos = picked.indexOf(focus.first)
             val rv = binding.rvCollectionItems
             if (pos >= 0) {
                 rv.scrollToPosition(pos)
@@ -129,15 +148,30 @@ class HomeCollectionActivity : AppCompatActivity() {
         }
     }
 
-    private fun change(focus: Pair<HomeLayout.ItemRef, Int>? = null, change: (HomeLayout.Layout) -> HomeLayout.Layout) {
+    /** Saves one change to the list being edited (the row's items, or Top Favorites) and redraws. */
+    private fun change(
+        focus: Pair<HomeLayout.ItemRef, Int>? = null,
+        topChange: (TopFavorites.State) -> TopFavorites.State,
+        change: (HomeLayout.Layout) -> HomeLayout.Layout,
+    ) {
         lifecycleScope.launch {
-            val saved = HomeLayoutStore.update(prefs, tv, change).section(sectionId) ?: return@launch finish()
-            val added = saved.items.filter { it !in names }
+            val saved = if (top) TopFavoritesStore.update(prefs, topChange).items
+            else HomeLayoutStore.update(prefs, tv, change).section(sectionId)?.items ?: return@launch finish()
+            val added = saved.filter { it !in names }
             if (added.isNotEmpty()) names = names + describe(added)
-            section = saved
+            picked = saved
             render(focus)
         }
     }
+
+    private fun moveItem(r: HomeLayout.ItemRef, to: Int, focus: Int? = null) =
+        change(focus?.let { r to it }, { TopFavorites.moveTo(it, r, to) }) { HomeLayout.moveItem(it, sectionId, r, to) }
+
+    private fun removeItem(r: HomeLayout.ItemRef) =
+        change(null, { TopFavorites.remove(it, r) }) { HomeLayout.removeItem(it, sectionId, r) }
+
+    private fun addItem(r: HomeLayout.ItemRef) =
+        change(null, { TopFavorites.add(it, r) }) { HomeLayout.addItem(it, sectionId, r) }
 
     /** Names and provider for each item, read by id; one missing from the catalog has no entry. */
     private suspend fun describe(items: List<HomeLayout.ItemRef>): Map<HomeLayout.ItemRef, Pair<String, String>> {
@@ -179,7 +213,7 @@ class HomeCollectionActivity : AppCompatActivity() {
             resultsAdapter.notifyDataSetChanged()
             return
         }
-        val content = section?.contentType ?: return
+        val content = content ?: return
         searchJob = lifecycleScope.launch {
             delay(300)
             results = try {
@@ -232,14 +266,14 @@ class HomeCollectionActivity : AppCompatActivity() {
             fun current() = items.getOrNull(h.bindingAdapterPosition)
             h.b.btnSectionUp.setOnClickListener {
                 val i = h.bindingAdapterPosition
-                current()?.let { r -> change(r to R.id.btnSectionUp) { HomeLayout.moveItem(it, sectionId, r, i - 1) } }
+                current()?.let { r -> moveItem(r, i - 1, R.id.btnSectionUp) }
             }
             h.b.btnSectionDown.setOnClickListener {
                 val i = h.bindingAdapterPosition
-                current()?.let { r -> change(r to R.id.btnSectionDown) { HomeLayout.moveItem(it, sectionId, r, i + 1) } }
+                current()?.let { r -> moveItem(r, i + 1, R.id.btnSectionDown) }
             }
             h.b.btnSectionVisible.setOnClickListener {
-                current()?.let { r -> change { HomeLayout.removeItem(it, sectionId, r) } }
+                current()?.let { r -> removeItem(r) }
             }
             return h
         }
@@ -255,7 +289,7 @@ class HomeCollectionActivity : AppCompatActivity() {
             h.b.btnSectionDown.alpha = if (position == items.lastIndex) 0.4f else 1f
             h.b.btnSectionUp.contentDescription = "Move $name up, now ${position + 1} of ${items.size}"
             h.b.btnSectionDown.contentDescription = "Move $name down, now ${position + 1} of ${items.size}"
-            h.b.btnSectionVisible.contentDescription = "Remove $name from this row"
+            h.b.btnSectionVisible.contentDescription = if (top) "Remove $name from Top Favorites" else "Remove $name from this row"
         }
     }
 
@@ -271,18 +305,18 @@ class HomeCollectionActivity : AppCompatActivity() {
             h.b.btnSectionEdit.visibility = View.GONE
             h.b.btnSectionVisible.setOnClickListener {
                 val r = results.getOrNull(h.bindingAdapterPosition) ?: return@setOnClickListener
-                val inRow = section?.items?.contains(r.ref) == true
-                if (inRow) change { HomeLayout.removeItem(it, sectionId, r.ref) }
-                else if ((section?.items?.size ?: 0) >= HomeLayout.MAX_ITEMS) {
-                    android.widget.Toast.makeText(this@HomeCollectionActivity, "A row holds up to ${HomeLayout.MAX_ITEMS}.", android.widget.Toast.LENGTH_SHORT).show()
-                } else change { HomeLayout.addItem(it, sectionId, r.ref) }
+                val inRow = r.ref in picked
+                if (inRow) removeItem(r.ref)
+                else if (picked.size >= limit) {
+                    android.widget.Toast.makeText(this@HomeCollectionActivity, "A row holds up to $limit.", android.widget.Toast.LENGTH_SHORT).show()
+                } else addItem(r.ref)
             }
             return h
         }
 
         override fun onBindViewHolder(h: Holder, position: Int) {
             val r = results[position]
-            val inRow = section?.items?.contains(r.ref) == true
+            val inRow = r.ref in picked
             h.b.tvSectionTitle.text = r.name
             h.b.tvSectionDetail.text = r.detail
             h.b.btnSectionVisible.text = if (inRow) "✓ ADDED" else "+ ADD"
@@ -313,7 +347,7 @@ class HomeCollectionActivity : AppCompatActivity() {
             val r = dragged ?: return
             dragged = null
             val to = itemsAdapter.items.indexOf(r)
-            if (to >= 0) change { HomeLayout.moveItem(it, sectionId, r, to) }
+            if (to >= 0) moveItem(r, to)
         }
     }
 

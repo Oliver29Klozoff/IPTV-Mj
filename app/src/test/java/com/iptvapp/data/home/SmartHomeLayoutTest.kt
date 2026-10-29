@@ -148,6 +148,54 @@ class SmartHomeLayoutTest {
     }
 
     @Test
+    fun topFavoritesShowPickedChannelsAcrossProvidersWithNowAndNextAndRankByRealViewing() = runBlocking {
+        db.channelDao().upsertChannels(listOf(channel(5, "ESPN"), channel(7, "NFL")))
+        db.mergedChannelDao().upsertAll(listOf(merged(0, 5, "FS1 on A"), merged(1, 5, "Five on B")))
+        db.epgDao().upsertEpg(listOf(
+            EpgEntity(-1, "p1", 5, "SportsCenter", "", nowSec - 60, nowSec + 3600, 0, 0),
+            EpgEntity(-1, "p2", 5, "NBA Tonight", "", nowSec + 3600, nowSec + 7200, 0, 0),
+            EpgEntity(0, "p3", 5, "Match on A", "", nowSec - 60, nowSec + 3600, 0, 0),
+        ))
+        // Nothing picked: the row stays out of the way.
+        assertFalse(ids(home.rows(now)).contains("top_favorites"))
+        val picked = listOf(TopFavorites.ref(0, 5), TopFavorites.ref(-1, 99), TopFavorites.ref(-1, 7), TopFavorites.ref(-1, 5), TopFavorites.ref(1, 5))
+        TopFavoritesStore.update(prefs) { s -> picked.fold(s) { acc, r -> TopFavorites.add(acc, r) } }
+        val row = home.rows(now).first()
+        assertEquals("top_favorites", row.id)
+        // Stream id 5 on three providers is three channels; 99 was deleted and is skipped.
+        assertEquals(listOf("FS1 on A", "NFL", "ESPN", "Five on B"), row.cards.map { it.hit.title })
+        assertEquals(listOf("Match on A", null, "SportsCenter", null), row.cards.map { it.line })
+        assertEquals("NBA Tonight", row.cards[2].nextTitle)
+        assertEquals(now + 3_600_000L, row.cards[2].nextStartMs)
+        assertNull(row.cards[0].nextTitle)
+        // Regular favorites are untouched.
+        assertTrue(db.channelDao().getAllChannels().first().none { it.isFavorite })
+
+        // Most watched: real minutes decide; a short visit doesn't count, however many times.
+        val today = com.iptvapp.util.WatchStats.day(now)
+        db.watchLogDao().upsert(com.iptvapp.data.local.entities.WatchLogEntity(today, -1, 7, minutes = 90f))
+        db.watchLogDao().upsert(com.iptvapp.data.local.entities.WatchLogEntity(today, 1, 5, minutes = 30f))
+        db.watchLogDao().upsert(com.iptvapp.data.local.entities.WatchLogEntity(today, -1, 5, minutes = 1f, starts = 40))
+        TopFavoritesStore.update(prefs) { TopFavorites.setSort(it, TopFavorites.Sort.MOST_WATCHED) }
+        assertEquals(listOf("NFL", "Five on B", "FS1 on A", "ESPN"), titles(home.rows(now), "top_favorites"))
+        // The hand-made order is still what's saved, and comes back with Manual order.
+        assertEquals(picked, TopFavorites.parse(prefs.topFavoritesJson.first()).items)
+        TopFavoritesStore.update(prefs) { TopFavorites.setSort(it, TopFavorites.Sort.MANUAL) }
+        assertEquals(listOf("FS1 on A", "NFL", "ESPN", "Five on B"), titles(home.rows(now), "top_favorites"))
+
+        // Hidden by Customize Home: the row goes, the list stays.
+        assertFalse(ids(home.rows(now, HomeLayout.setVisible(HomeLayout.default(), "top_favorites", false))).contains("top_favorites"))
+        assertEquals(picked, TopFavoritesStore.load(prefs).items)
+
+        // A provider removed: its channels go, the next one's follow it down.
+        prefs.saveExtraServersWithNick(listOf(listOf("http://b.test", "b", "pb", "Backup B", "", "true", "xtream", "")), removedIndex = 0)
+        assertEquals(listOf(TopFavorites.ref(-1, 99), TopFavorites.ref(-1, 7), TopFavorites.ref(-1, 5), TopFavorites.ref(0, 5)),
+            TopFavoritesStore.load(prefs).items)
+        TopFavoritesStore.update(prefs) { TopFavorites.State() }
+        Unit
+    }
+
+    @Test
     fun categoryRowsFollowTheCatalogAndStayBounded() = runBlocking {
         db.channelDao().upsertChannels((1..60).map { channel(it, "Sport $it", category = "sports") } + channel(100, "News", category = "news"))
         db.vodDao().upsertVod(listOf(movie(1, "Old Action", "act", added = "100"), movie(2, "New Action", "act", added = "200"), movie(3, "Comedy", "com")))

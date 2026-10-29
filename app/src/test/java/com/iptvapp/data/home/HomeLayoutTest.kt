@@ -12,7 +12,7 @@ import org.junit.Test
 class HomeLayoutTest {
 
     private fun ids(l: HomeLayout.Layout) = l.sections.map { it.id }
-    private val shipped = listOf("continue", "on_now", "favorites", "recent", "starting_soon", "new_episodes", "recordings", "recommended")
+    private val shipped = listOf("top_favorites", "continue", "on_now", "favorites", "recent", "starting_soon", "new_episodes", "recordings", "recommended")
 
     @Test
     fun firstUseIsHomeAsItShipped() {
@@ -32,7 +32,8 @@ class HomeLayoutTest {
             {"id":"favorites","visible":false,"style":"COMPACT"},
             {"id":"continue","visible":true,"style":"POSTER"}]}"""
         val l = HomeLayout.parse(old)
-        assertEquals(listOf("recordings", "favorites", "continue"), ids(l).take(3))
+        // Top Favorites is new: it goes first, where a new Home has it.
+        assertEquals(listOf("top_favorites", "recordings", "favorites", "continue"), ids(l).take(4))
         assertEquals(HomeLayout.Style.COMPACT, l.section("favorites")!!.style)
         assertFalse(l.section("favorites")!!.visible)
         // Rows it didn't know: after its own, as shipped (old ones shown, new ones hidden).
@@ -46,7 +47,7 @@ class HomeLayoutTest {
     fun movingRowsChangesOnlyTheOrderAndStopsAtTheEnds() {
         var l = HomeLayout.default()
         l = HomeLayout.move(l, "recordings", -1)
-        assertEquals(listOf("recordings", "new_episodes"), ids(l).subList(5, 7))
+        assertEquals(listOf("recordings", "new_episodes"), ids(l).subList(6, 8))
         l = HomeLayout.move(HomeLayout.default(), "continue", -1)
         assertEquals("continue", ids(l).first())
         l = HomeLayout.move(l, "favorite_series", 5)
@@ -55,6 +56,20 @@ class HomeLayoutTest {
         assertEquals("recommended", ids(l).first())
         assertEquals(HomeLayout.default().sections.toSet(), l.sections.toSet())
         assertEquals(l, HomeLayout.move(l, "no-such-row", 1))
+    }
+
+    @Test
+    fun topFavoritesKeepsWhereSomeoneMovedItAndIsHiddenOnlyWhenEmpty() {
+        val top = HomeLayout.default().section("top_favorites")!!
+        assertTrue(top.visible)
+        assertFalse(top.showWhenEmpty)
+        assertEquals(Content.CHANNELS, top.contentType)
+        val moved = HomeLayout.move(HomeLayout.default(), "top_favorites", 3)
+        assertEquals("top_favorites", ids(HomeLayout.parse(HomeLayout.toJson(moved)))[3])
+        val hidden = HomeLayout.setVisible(moved, "top_favorites", false)
+        assertFalse(HomeLayout.parse(HomeLayout.toJson(hidden)).section("top_favorites")!!.visible)
+        // Built in: hidden, never deleted.
+        assertEquals(hidden, HomeLayout.delete(hidden, "top_favorites"))
     }
 
     @Test

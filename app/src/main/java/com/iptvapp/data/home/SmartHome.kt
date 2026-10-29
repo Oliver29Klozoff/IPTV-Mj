@@ -20,8 +20,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** One card on a Smart Home row. [line] replaces the usual detail line under the title when
- * set (a channel's current show, an episode code); [progress] is 0–100 for something started. */
-data class HomeCard(val hit: SearchHit, val line: String? = null, val progress: Int? = null)
+ * set (a channel's current show, an episode code); [progress] is 0–100 for something started.
+ * [nextTitle] and [nextStartMs] are a channel's next show, on rows that show it (Top Favorites). */
+data class HomeCard(
+    val hit: SearchHit,
+    val line: String? = null,
+    val progress: Int? = null,
+    val nextTitle: String? = null,
+    val nextStartMs: Long? = null,
+)
 
 /**
  * One row. [kind] is set for the Smart Home rows MKTV has always built; rows added since, and the
@@ -76,6 +83,8 @@ class SmartHome @Inject constructor(
         const val CUSTOMIZE_ID = "customize"
         /** How far ahead Starting Soon looks. */
         const val STARTING_SOON_MS = 2 * 60 * 60_000L
+        /** How far ahead the stored guide is read for a channel's next show. */
+        private const val NEXT_MS = 4 * 60 * 60_000L
         /** Channels On Now and Starting Soon look at: favorites first, then recently watched. */
         private const val GUIDE_CHANNELS = 60
         private const val FOLLOWED_SERIES = 8
@@ -132,6 +141,7 @@ class SmartHome @Inject constructor(
         // Rows people made: their channels, films and series, looked up by id or one bounded category read.
         val custom = visible.filter { it.value.isCustom }
             .associate { (_, s) -> s.id to async { resolve(s, enabled) } }
+        val topRow = if (shows(HomeLayout.Builtin.TOP_FAVORITES)) async { topFavorites(enabled, nowMs) } else null
 
         val needShelf = shows(HomeLayout.Builtin.ON_NOW) || shows(HomeLayout.Builtin.STARTING_SOON) ||
             shows(HomeLayout.Builtin.FAVORITES) || shows(HomeLayout.Builtin.RECENT)
@@ -156,10 +166,12 @@ class SmartHome @Inject constructor(
         } else null
 
         val resolved = custom.mapValues { it.value.await() }
+        val top = topRow?.await().orEmpty()
         // One guide read per provider for every channel a row shows (On Now, Starting Soon, the
         // current show under a channel card), all from the stored guide.
-        val customPrimary = resolved.values.flatMap { r -> r.channels.mapNotNull { it.first?.streamId } }
-        val customOthers = resolved.values.flatMap { r -> r.channels.mapNotNull { it.second } }
+        val pickedChannels = resolved.values.flatMap { it.channels } + top
+        val customPrimary = pickedChannels.mapNotNull { it.first?.streamId }
+        val customOthers = pickedChannels.mapNotNull { it.second }
         val primaryIds = (guideChannels.map { it.streamId } + customPrimary).distinct()
         val otherKeys = (guideOthers.map { it.serverIndex to it.streamId } + customOthers.map { it.serverIndex to it.streamId }).distinct()
         val guide = if (primaryIds.isEmpty() && otherKeys.isEmpty()) emptyList() else {
@@ -172,6 +184,11 @@ class SmartHome @Inject constructor(
         val nowByChannel = guide.filter { ms(it.startTimestamp) <= nowMs && ms(it.stopTimestamp) > nowMs }
             .associateBy { it.serverIndex to it.streamId }
         fun nowTitle(serverIndex: Int, streamId: Int) = nowByChannel[serverIndex to streamId]?.title
+        // The first show after the one on now, per channel.
+        val nextByChannel = if (top.isEmpty()) emptyMap() else guide
+            .filter { e -> ms(e.startTimestamp) > nowMs && nowByChannel[e.serverIndex to e.streamId]?.let { ms(e.startTimestamp) >= ms(it.stopTimestamp) } != false }
+            .groupBy { it.serverIndex to it.streamId }
+            .mapValues { (_, airings) -> airings.minBy { ms(it.startTimestamp) } }
 
         val primaryById = guideChannels.associateBy { it.streamId }
         val otherByKey = guideOthers.associateBy { it.serverIndex to it.streamId }
@@ -203,9 +220,14 @@ class SmartHome @Inject constructor(
             HomeCard(SearchHit.Channel(null, m!!, m.serverNickname), line = nowTitle(m.serverIndex, m.streamId))
         }
         val favoriteCards = favorites.map { channelCard(it, null) } + otherFavorites.map { channelCard(null, it) }
+        val topCards = top.map { (c, m) ->
+            val next = nextByChannel[(c?.let { -1 } ?: m!!.serverIndex) to (c?.streamId ?: m!!.streamId)]
+            channelCard(c, m).copy(nextTitle = next?.title, nextStartMs = next?.let { ms(it.startTimestamp) })
+        }
         val recentCards = recent.take(ROW_LIMIT).map { channelCard(it, null) }
 
         val builtinCards: Map<HomeLayout.Builtin, List<HomeCard>> = mapOf(
+            HomeLayout.Builtin.TOP_FAVORITES to topCards,
             HomeLayout.Builtin.CONTINUE to (continueRow?.await() ?: emptyList()),
             HomeLayout.Builtin.ON_NOW to onNow,
             HomeLayout.Builtin.FAVORITES to favoriteCards.take(ROW_LIMIT),
@@ -270,16 +292,7 @@ class SmartHome @Inject constructor(
                     Resolved(channels = f.categoryId?.let { db.channelDao().getChannelsByCategoryLimited(it, ROW_LIMIT) }.orEmpty().map { it to null })
                 f != null -> if (f.serverIndex !in enabled) Resolved() else
                     Resolved(channels = db.mergedChannelDao().getByServerAndCategoryLimited(f.serverIndex, f.categoryId, ROW_LIMIT).map { null to it })
-                else -> {
-                    val primary = s.items.filter { it.serverIndex == -1 }.map { it.id }.chunked(500)
-                        .flatMap { db.channelDao().getChannelsByIds(it) }.filter { !it.isHidden }.associateBy { it.streamId }
-                    val others = s.items.filter { it.serverIndex >= 0 && it.serverIndex in enabled }.groupBy { it.serverIndex }
-                        .flatMap { (idx, items) -> items.map { it.id }.chunked(500).flatMap { db.mergedChannelDao().getByServerAndIds(idx, it) } }
-                        .filter { !it.isHidden }.associateBy { it.serverIndex to it.streamId }
-                    Resolved(channels = s.items.mapNotNull { i ->
-                        if (i.serverIndex == -1) primary[i.id]?.let { it to null } else others[i.serverIndex to i.id]?.let { null to it }
-                    })
-                }
+                else -> Resolved(channels = channelsOf(s.items, enabled))
             }
             HomeLayout.Content.MOVIES -> when {
                 f?.gone == true -> Resolved()
@@ -302,6 +315,42 @@ class SmartHome @Inject constructor(
         }
     }
 
+    /**
+     * Picked channels in [items]' order, read by id: anything no longer in the catalog, hidden,
+     * or on a provider that is switched off is skipped, the rest stay.
+     */
+    private suspend fun channelsOf(items: List<HomeLayout.ItemRef>, enabled: Set<Int>): List<Pair<ChannelEntity?, MergedChannelEntity?>> {
+        val primary = items.filter { it.serverIndex == -1 }.map { it.id }.chunked(500)
+            .flatMap { db.channelDao().getChannelsByIds(it) }.filter { !it.isHidden }.associateBy { it.streamId }
+        val others = items.filter { it.serverIndex >= 0 && it.serverIndex in enabled }.groupBy { it.serverIndex }
+            .flatMap { (idx, list) -> list.map { it.id }.chunked(500).flatMap { db.mergedChannelDao().getByServerAndIds(idx, it) } }
+            .filter { !it.isHidden }.associateBy { it.serverIndex to it.streamId }
+        return items.mapNotNull { i ->
+            if (i.serverIndex == -1) primary[i.id]?.let { it to null } else others[i.serverIndex to i.id]?.let { null to it }
+        }
+    }
+
+    /**
+     * Top Favorites as the row shows them: the picked channels in their saved order, or with
+     * Most Watched, by the last [TopFavorites.WINDOW_DAYS] days of real viewing. Local reads only.
+     */
+    private suspend fun topFavorites(enabled: Set<Int>, nowMs: Long): List<Pair<ChannelEntity?, MergedChannelEntity?>> {
+        val state = TopFavoritesStore.load(prefs)
+        if (state.items.isEmpty()) return emptyList()
+        val order = if (state.sort != TopFavorites.Sort.MOST_WATCHED) state.items else {
+            val since = com.iptvapp.util.WatchStats.day(nowMs - TopFavorites.WINDOW_DAYS * 86_400_000L)
+            val minutes = TopFavorites.watchedMinutes(db.watchLogDao().since(since))
+            // Copies of one channel in a confirmed Smart Channel group share their viewing time.
+            val groups = db.smartChannelDao().groups()
+                .filter { it.reviewState == com.iptvapp.util.SmartChannels.VERIFIED || it.reviewState == com.iptvapp.util.SmartChannels.MANUAL }
+                .map { it.groupId }.toSet()
+            val groupOf = db.smartChannelDao().members().filter { it.groupId in groups }
+                .associate { (it.serverIndex to it.streamId) to it.groupId }
+            TopFavorites.rank(state.items, minutes, groupOf)
+        }
+        return channelsOf(order, enabled)
+    }
+
     /** [rows] with [row] in its place (New Episodes arrives after the rest). */
     fun withRow(rows: List<HomeRow>, row: HomeRow): List<HomeRow> =
         (rows.filterNot { it.id == row.id } + row).sortedBy { it.order }
@@ -313,7 +362,7 @@ class SmartHome @Inject constructor(
     }
 
     private suspend fun programs(ids: List<Int>, serverIndex: Int, nowMs: Long): List<EpgEntity> {
-        val toMs = nowMs + STARTING_SOON_MS
+        val toMs = nowMs + NEXT_MS
         return ids.chunked(500).flatMap { db.epgDao().getProgramsBetween(it, serverIndex, nowMs, toMs) }
     }
 

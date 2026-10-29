@@ -35,9 +35,9 @@ object HomeLayout {
     }
 
     /**
-     * Rows MKTV builds itself. The first eight are the Smart Home rows as they were before
-     * customizing, in that order and shown; the rest are new and start hidden, so an upgrade
-     * leaves Home looking the same.
+     * Rows MKTV builds itself. Top Favorites leads (it stays out of sight until a channel is
+     * added). Then come the Smart Home rows as they were before customizing, in that order and
+     * shown; the rest are new and start hidden, so an upgrade leaves Home looking the same.
      */
     enum class Builtin(
         val id: String,
@@ -47,6 +47,8 @@ object HomeLayout {
         val shownByDefault: Boolean,
         val emptyText: String,
     ) {
+        TOP_FAVORITES("top_favorites", "Top Favorites", Content.CHANNELS, Style.WIDE, true,
+            "Hold OK on a channel (long-press on a phone) and choose Add to Top Favorites."),
         CONTINUE("continue", "Continue Watching", Content.MIXED, Style.POSTER, true,
             "Movies and shows you start will appear here."),
         ON_NOW("on_now", "On Now", Content.PROGRAMS, Style.WIDE, true,
@@ -304,7 +306,10 @@ object HomeLayout {
             out += s
         }
         // Built-in rows the saved layout doesn't know (it predates them): after the others, as shipped.
-        for (b in Builtin.entries) if (b.id !in seen) out += defaultSection(b)
+        // Top Favorites goes first instead, where a new Home has it.
+        for (b in Builtin.entries) if (b.id !in seen) {
+            if (b == Builtin.TOP_FAVORITES) out.add(0, defaultSection(b)) else out += defaultSection(b)
+        }
         return Layout(out, start)
     }
 

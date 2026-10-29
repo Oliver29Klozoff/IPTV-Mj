@@ -2012,6 +2012,8 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Channel menus label Add/Remove Top Favorites from this copy of the list.
+        lifecycleScope.launch { runCatching { com.iptvapp.data.home.TopFavoritesStore.load(prefs) } }
         // Here rather than onNewIntent: a phone Guide press that had to recreate this screen
         // arrives through onCreate instead.
         if (intent.getBooleanExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE, false)) {
@@ -5060,7 +5062,8 @@ class HomeActivity : AppCompatActivity() {
     @Inject lateinit var smartHome: com.iptvapp.data.home.SmartHome
     private var homeRefreshJob: kotlinx.coroutines.Job? = null
     private val homeAdapter by lazy {
-        SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = { HomeCustomizeActivity.open(this, tv = false) })
+        SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = { HomeCustomizeActivity.open(this, tv = false) },
+            onLongClick = { row, card -> TopFavoritesMenu.showForCard(this, prefs, tv = false, row, card) { refreshHome() } })
     }
     private val homeHitUi by lazy {
         com.iptvapp.ui.search.SearchHitUi(this, repository,
@@ -5682,6 +5685,7 @@ class HomeActivity : AppCompatActivity() {
         val title = if (ch != null) ch.name else "${merged!!.name} · ${merged.serverNickname}"
         val options = mutableListOf(
             "Add to Favorites".let { if (row.isFavorite) "Remove from Favorites" else it },
+            TopFavoritesMenu.label(row.serverIndex, row.streamId),
             if (bulkSelectedLiveIds.contains(row.id)) "Deselect (bulk)" else "Select (bulk add to favorites)"
         )
         if (ch != null) options.add("Hide Channel")
@@ -5695,6 +5699,7 @@ class HomeActivity : AppCompatActivity() {
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, row.name, smartChannels, currentFocus, row.serverIndex, row.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                    TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, row.serverIndex, row.streamId, row.name)
                     "Add to Favorites", "Remove from Favorites" -> {
                         viewModel.toggleLiveRowFavorite(row)
                         Toast.makeText(this, if (row.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()
@@ -5818,6 +5823,7 @@ class HomeActivity : AppCompatActivity() {
         val title = if (reliabilityLabel != null) "${channel.name}\n$reliabilityLabel" else channel.name
         val options = mutableListOf(
             "Set Reminder",
+            TopFavoritesMenu.label(-1, channel.streamId),
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
             "Hide Channel",
             "Channels Like This",
@@ -5833,6 +5839,7 @@ class HomeActivity : AppCompatActivity() {
                 when (options[i]) {
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "Set Reminder" -> showReminderDialog(channel)
+                    TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, -1, channel.streamId, channel.name)
                     "Select (bulk add to favorites)" -> {
                         bulkSelectMode = true
                         bulkSelectedIds.add(channel.streamId)
@@ -5930,6 +5937,7 @@ class HomeActivity : AppCompatActivity() {
         val options = mutableListOf(
             "Play Fullscreen",
             if (channel.isFavorite) "Remove from Favorites" else "Add to Favorites",
+            TopFavoritesMenu.label(channel.serverIndex, channel.streamId),
             if (bulkSelectedMergedKeys.contains(key)) "Deselect (bulk)" else "Select (bulk add to favorites)"
         )
         if (channel.isFavorite) options.add("Move to Folder")
@@ -5951,6 +5959,7 @@ class HomeActivity : AppCompatActivity() {
                             Toast.makeText(this@HomeActivity, "Couldn't load this channel", Toast.LENGTH_SHORT).show()
                         }
                     }
+                    TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, channel.serverIndex, channel.streamId, channel.name)
                     "Add to Favorites", "Remove from Favorites" -> {
                         viewModel.setMergedChannelFavorite(channel, !channel.isFavorite)
                         Toast.makeText(this, if (channel.isFavorite) "Removed from favorites" else "Added to favorites", Toast.LENGTH_SHORT).show()

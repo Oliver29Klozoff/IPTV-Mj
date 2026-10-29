@@ -372,6 +372,7 @@ class PreferencesManager @Inject constructor(
         // Customized Home (HomeLayout JSON), one per form factor. Arrangement only, no credentials.
         val HOME_LAYOUT_TV = stringPreferencesKey("home_layout_tv")
         val HOME_LAYOUT_PHONE = stringPreferencesKey("home_layout_phone")
+        val TOP_FAVORITES = stringPreferencesKey("top_favorites")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
         // The player's score corner and close-game heads-up (ScoreBug). On by default.
@@ -540,6 +541,11 @@ class PreferencesManager @Inject constructor(
         val key = if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE
         if (json == null) it.remove(key) else it[key] = json
     }
+    /** Top Favorites (TopFavorites), shared by TV and phone, or null before the first one is added. */
+    val topFavoritesJson: Flow<String?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.TOP_FAVORITES] }
+    suspend fun setTopFavoritesJson(json: String) = context.dataStore.edit { it[Keys.TOP_FAVORITES] = json }
     val gameAlerts: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[Keys.GAME_ALERTS] ?: true }
@@ -804,6 +810,9 @@ class PreferencesManager @Inject constructor(
                     val next = com.iptvapp.data.home.HomeLayout.reindexJson(layout, null, primaryChanged = true)
                     if (next != null && next != layout) prefs[key] = next
                 }
+                val top = prefs[Keys.TOP_FAVORITES]
+                val topNext = com.iptvapp.data.home.TopFavorites.reindexJson(top, null, primaryChanged = true)
+                if (topNext != null && topNext != top) prefs[Keys.TOP_FAVORITES] = topNext
             }
             prefs[Keys.SERVER_URL] = serverUrl
             prefs[Keys.USERNAME] = username
@@ -1192,6 +1201,9 @@ class PreferencesManager @Inject constructor(
                 val next = com.iptvapp.data.home.HomeLayout.reindexJson(layout, moved, primaryChanged = false)
                 if (next != null && next != layout) prefs[key] = next
             }
+            val top = prefs[Keys.TOP_FAVORITES]
+            val topNext = com.iptvapp.data.home.TopFavorites.reindexJson(top, moved, primaryChanged = false)
+            if (topNext != null && topNext != top) prefs[Keys.TOP_FAVORITES] = topNext
             prefs[Keys.EXTRA_SERVERS] = arr.toString()
         }
     }
