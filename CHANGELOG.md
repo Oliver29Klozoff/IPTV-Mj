@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.76 - 2026-10-29
+- **New**: Top Favorites, a row of channels you pick, first on Home. Hold OK on a channel (long-press on a
+  phone) and choose Add to Top Favorites. Each card shows what's on now and what's next. It's separate from
+  your regular Favorites, works across all your providers, and stays hidden until you add a channel.
+- **New**: Reorder Top Favorites with Move left/right on the row, or in Edit Top Favorites (drag on a phone).
+  Choose Order > Most watched to rank them by how long you've watched each over 30 days; quick flicks past a
+  channel don't count, and Manual brings your own order back.
+- **New**: Customize Home can move or hide the Top Favorites row, change its order, and pick its channels.
+
 ## v7.75 - 2026-10-28
 - **New**: Live scores. The Sports screen shows the score of each game that has started, with close games
   first. In the player, the score of the game you're watching sits in the bottom-left corner, and a heads-up

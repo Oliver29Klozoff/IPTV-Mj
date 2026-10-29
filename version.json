@@ -1,7 +1,7 @@
 {
-  "versionCode": 613,
-  "versionName": "7.75",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.75/MKTV.apk",
-  "apkSha256": "7e179fb85ec82a4e3cb6b6aafed7ec9d0ae18b7ec33f716ae76ed77fbd20c5fc",
-  "changelog": "Sports Now: live scores, search, and a mini player so you stay on the list. Scores in the player, and Watch stats."
+  "versionCode": 614,
+  "versionName": "7.76",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.76/MKTV.apk",
+  "apkSha256": "8b50037e7c95e2216fb971c9b6ec788a11b2fdca3fcac646cf0e275052a8c839",
+  "changelog": "Top Favorites: a row of channels you pick, first on Home, with what's on now and next. Hold OK (long-press on a phone) on a channel to add it."
 }

@@ -100,8 +100,8 @@ android {
         applicationId "com.iptvapp"
         minSdk 25
         targetSdk 35
-        versionCode 613
-        versionName "7.75"
+        versionCode 614
+        versionName "7.76"
 
         // Trakt.tv API app — create one free at https://trakt.tv/oauth/applications
         // (any redirect_uri works, e.g. urn:ietf:wg:oauth:2.0:oob; the device-code flow used
