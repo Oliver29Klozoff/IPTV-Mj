@@ -90,6 +90,16 @@ object LiveScores {
             }
         }
 
+    /** Every board of [league] came back in the last 20 minutes (a failed fetch keeps the old copy). */
+    fun fresh(league: String, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val paths = FEEDS[league] ?: return false
+        return synchronized(cache) { paths.all { p -> cache[p]?.let { nowMs - it.at in 0..20 * 60_000L } == true } }
+    }
+
+    /** Test hook: boards as if just fetched. */
+    internal fun prime(league: String, events: List<Event>, nowMs: Long) =
+        synchronized(cache) { FEEDS[league].orEmpty().forEachIndexed { i, p -> cache[p] = Cached(nowMs, if (i == 0) events else emptyList()) } }
+
     /** What the last fetches got, without the network: for a screen's first draw. */
     fun cached(): List<Event> = synchronized(cache) { cache.values.flatMap { it.events } }
 
@@ -194,8 +204,10 @@ object LiveScores {
      * no game within three hours of it, and the guide doesn't call it live. Wednesday-night
      * "College Football" on a conference network is last Saturday's game.
      */
-    fun likelyReplay(game: SportsFinder.Game, events: List<Event>): Boolean {
-        if (LIVE_TITLE.containsMatchIn(game.title) || game.league !in FEEDS) return false
+    fun likelyReplay(game: SportsFinder.Game, events: List<Event>, nowMs: Long = System.currentTimeMillis()): Boolean {
+        // Soccer's boards cover only some competitions; a Bundesliga game would look like a rerun.
+        if (LIVE_TITLE.containsMatchIn(game.title) || game.league !in FEEDS || game.league == "Soccer") return false
+        if (!fresh(game.league, nowMs)) return false
         val league = events.filter { it.league == game.league }
         return league.isNotEmpty() && league.none { kotlin.math.abs(it.startMs - game.startMs) <= 3 * 3_600_000L }
     }

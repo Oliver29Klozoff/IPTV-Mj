@@ -463,13 +463,18 @@ class SportsActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Coming back: the game picks up at the live edge.
-        mini?.takeIf { playing != null }?.let { it.prepare(); it.playWhenReady = true }
+        // Coming back: the game picks up at the live edge (or loads, if leaving cut that short).
+        val feed = playing ?: return
+        val player = mini
+        if (player?.currentMediaItem != null) { player.prepare(); player.playWhenReady = true }
+        else preview(null, feed, binding.tvSportsMiniTitle.tag as? String ?: "")
     }
 
     override fun onStop() {
         super.onStop()
-        // Stopped, not paused: a paused live stream holds the provider connection.
+        // Stopped, not paused: a paused live stream holds the provider connection. A pick still
+        // looking up its stream must not start it in the background.
+        playJob?.cancel()
         mini?.stop()
     }
 

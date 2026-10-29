@@ -83,11 +83,15 @@ class LiveScoresTest {
         val events = LiveScores.parse(board(game("MIL" to "Milwaukee Brewers", "TB" to "Tampa Bay Rays", 3, 4)), "MLB")
         fun g(title: String, at: Long) = SportsFinder.Game("MLB", title, at, at + 3 * 3_600_000L, SportsFinder.Channel(-1, 1, "US| MLB NETWORK", false), 0)
         val dayLater = start + 24 * 3_600_000L
-        assertTrue(LiveScores.likelyReplay(g("MLB Baseball", dayLater), events))
-        assertFalse(LiveScores.likelyReplay(g("Live: MLB Baseball", dayLater), events))
-        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", start + 1_800_000L), events))
-        // No board for the league (or it failed): never call it a replay.
-        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", dayLater), emptyList()))
+        // A board that hasn't come back lately says nothing.
+        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", dayLater), events, dayLater))
+        LiveScores.prime("MLB", events, dayLater)
+        assertTrue(LiveScores.likelyReplay(g("MLB Baseball", dayLater), events, dayLater))
+        assertFalse(LiveScores.likelyReplay(g("Live: MLB Baseball", dayLater), events, dayLater))
+        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", start + 1_800_000L), events, dayLater))
+        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", dayLater), events, dayLater + 3_600_000L))
+        // No games for the league: never call it a replay.
+        assertFalse(LiveScores.likelyReplay(g("MLB Baseball", dayLater), emptyList(), dayLater))
         assertNull(SportsFinder.leagueOf("Inside Golf"))
         assertNull(SportsFinder.leagueOf("Live: UEFA Women's Champions League Today"))
     }
