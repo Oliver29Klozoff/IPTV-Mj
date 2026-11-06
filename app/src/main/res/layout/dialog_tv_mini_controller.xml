@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/rack_surface"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/tvControllerTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Living Room TV"
+        android:textColor="@color/rack_text"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvControllerSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="16dp"
+        android:text="Connected over home Wi-Fi"
+        android:textColor="@color/rack_text_muted"
+        android:textSize="13sp" />
+
+    <!-- Playback / Channel controls row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnCtrlChDown"
+            style="@style/Rack.Button.Outline"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:text="CH -" />
+
+        <Button
+            android:id="@+id/btnCtrlPlayPause"
+            style="@style/Rack.Button.Primary"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1.2"
+            android:text="⏯ Play/Pause" />
+
+        <Button
+            android:id="@+id/btnCtrlChUp"
+            style="@style/Rack.Button.Outline"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="CH +" />
+    </LinearLayout>
+
+    <!-- Volume controls row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnCtrlVolDown"
+            style="@style/Rack.Button.Outline"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:text="VOL -" />
+
+        <Button
+            android:id="@+id/btnCtrlVolUp"
+            style="@style/Rack.Button.Outline"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="VOL +" />
+    </LinearLayout>
+
+    <!-- Actions: Wi-Fi Sync & Full Remote -->
+    <Button
+        android:id="@+id/btnCtrlSync"
+        style="@style/Rack.Button.Outline"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="12dp"
+        android:text="🔄  Sync Favorites &amp; Setup to TV" />
+
+    <Button
+        android:id="@+id/btnCtrlOpenRemote"
+        style="@style/Rack.Button.Primary"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="8dp"
+        android:text="📱  Open Full Remote" />
+
+</LinearLayout>

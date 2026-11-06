@@ -118,6 +118,15 @@ class SeriesDetailActivity : AppCompatActivity() {
             .into(binding.ivSeriesCover)
 
         binding.btnBack.setOnClickListener { finish() }
+        binding.btnPlayOnTv.setOnClickListener {
+            val nextEp = currentSeasonEpisodes.firstOrNull { (it.season to it.episodeNum) !in watchedEpisodes }
+                ?: currentSeasonEpisodes.firstOrNull()
+            if (nextEp != null) {
+                flingEpisodeToTv(nextEp)
+            } else {
+                android.widget.Toast.makeText(this, "No episode available to play", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
         // See loadFavoriteState's kdoc — no favorite wiring exists yet for a merged/secondary
         // provider's series, so the button is hidden rather than left visible-but-broken (no
         // click listener at all) for that case.
@@ -367,6 +376,10 @@ class SeriesDetailActivity : AppCompatActivity() {
             holder.binding.tvEpisodeAdded.text = ep.added ?: ""
             holder.binding.root.alpha = if (watched) 0.6f else 1f
             holder.binding.root.setOnClickListener { onEpisodeClick(ep) }
+            holder.binding.root.setOnLongClickListener {
+                showEpisodeActionsDialog(ep)
+                true
+            }
 
             holder.downloadJob?.cancel()
             val episodeStreamId = ep.id.hashCode()
@@ -446,6 +459,74 @@ class SeriesDetailActivity : AppCompatActivity() {
         override fun onViewRecycled(holder: VH) {
             holder.downloadJob?.cancel()
             holder.downloadJob = null
+        }
+    }
+
+    private fun showEpisodeActionsDialog(episode: Episode) {
+        val items = arrayOf("▶  Play on this Device", "📺  Play on TV")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("S${episode.season}E${episode.episodeNum} ${episode.title}")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> launchEpisode(episode)
+                    1 -> flingEpisodeToTv(episode)
+                }
+            }
+            .show()
+    }
+
+    private fun flingEpisodeToTv(episode: Episode) {
+        val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
+        if (peers.isEmpty()) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Play on TV")
+                .setMessage("No paired TV found.\n\nOpen MKTV on your TV, then open Remote on this phone to pair.")
+                .setPositiveButton("Open Remote") { _, _ ->
+                    startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+
+        lifecycleScope.launch {
+            val serverIndex = serverIndexField
+            val resumeMs = if (serverIndex == null && seriesIdField != -1)
+                db.episodeWatchedDao().getWatchedMs(seriesIdField, episode.season, episode.episodeNum) ?: 0L
+            else 0L
+
+            val epSource = object : com.iptvapp.ui.handoff.HandoffSource {
+                override fun unsupportedReason(): String? = null
+                override fun handoffKey(): String = "series:$seriesIdField:${episode.season}:${episode.episodeNum}"
+                override fun positionMs(): Long = resumeMs
+                override fun isPlaying(): Boolean = false
+                override fun pauseForHandoff() {}
+
+                override suspend fun descriptor(peer: com.iptvapp.handoff.Peer, txId: String): com.iptvapp.handoff.Descriptor? {
+                    val creds = prefs.credentials.first()
+                    val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, "${creds.serverUrl}|${creds.username}")
+                    return com.iptvapp.handoff.Descriptor(
+                        txId = txId,
+                        kind = com.iptvapp.handoff.ContentKind.EPISODE,
+                        providerTag = tag,
+                        providerLabel = "Primary",
+                        streamId = -1,
+                        title = episode.title.ifBlank { "S${episode.season}E${episode.episodeNum}" },
+                        seriesId = seriesIdField,
+                        seriesTitle = seriesNameField,
+                        season = episode.season,
+                        episode = episode.episodeNum,
+                        episodeId = episode.id,
+                        containerExt = episode.containerExtension,
+                        positionMs = resumeMs,
+                        durationMs = 0L,
+                        playing = false,
+                        sourceName = com.iptvapp.handoff.Handoff.selfName(this@SeriesDetailActivity)
+                    )
+                }
+            }
+
+            com.iptvapp.ui.handoff.HandoffSendUi.show(this@SeriesDetailActivity, epSource)
         }
     }
 }

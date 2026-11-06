@@ -248,7 +248,7 @@ object RemoteControlServer {
                 if (line.isEmpty()) break
                 val name = line.substringBefore(':').trim().lowercase()
                 val value = line.substringAfter(':', "").trim()
-                if (name == "content-length") contentLength = value.toIntOrNull()?.coerceIn(0, 16_384) ?: 0
+                if (name == "content-length") contentLength = value.toIntOrNull()?.coerceIn(0, 524_288) ?: 0
                 if (name == "x-mktv-time") signedAt = value
                 if (name == "x-mktv-sig") signature = value
             }
@@ -439,6 +439,27 @@ object RemoteControlServer {
         }
         return when (path) {
             "/status" -> "200 OK" to JSONObject().put("nowPlaying", nowPlaying)
+            "/sync/push" -> {
+                if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
+                val syncJson = try { JSONObject(body) } catch (_: Exception) { null }
+                    ?: return "400 Bad Request" to JSONObject().put("error", "Bad JSON")
+                val result = kotlinx.coroutines.runBlocking {
+                    com.iptvapp.sync.LocalSyncManager.get(context).applySyncPayload(syncJson)
+                }
+                RemoteControlHooks.showToast("MKTV synced from ${syncJson.optString("device", "paired phone")}")
+                "200 OK" to JSONObject().apply {
+                    put("ok", result.success)
+                    put("favoritesMerged", result.favoritesCount)
+                    put("categoriesMerged", result.categoriesCount)
+                    put("message", result.message)
+                }
+            }
+            "/sync/pull" -> {
+                val payload = kotlinx.coroutines.runBlocking {
+                    com.iptvapp.sync.LocalSyncManager.get(context).buildSyncPayload(includeCredentials = false)
+                }
+                "200 OK" to payload
+            }
             "/command" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
                 val cmd = try { JSONObject(body) } catch (_: Exception) { null }
