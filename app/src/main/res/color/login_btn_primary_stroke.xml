@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary Connect button stroke: high-contrast white ring on focus; blue accent otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#FFFFFF" />
+    <item android:color="#008CFF" />
+</selector>

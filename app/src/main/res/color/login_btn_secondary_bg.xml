@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Secondary action buttons background: solid bright blue on focus; soft off-white otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#008CFF" />
+    <item android:state_pressed="true" android:color="#0070CC" />
+    <item android:color="#F2F6FF" />
+</selector>

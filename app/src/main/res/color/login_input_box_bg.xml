@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Box fill for login text fields: light blue highlight on focus; soft off-white otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#E6F2FF" />
+    <item android:color="#F2F6FF" />
+</selector>

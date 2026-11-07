@@ -170,7 +170,37 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupUI()
+        setupTvFocusAndScroll()
         observeLoginState()
+    }
+
+    private fun setupTvFocusAndScroll() {
+        val focusableViews = listOf(
+            binding.etServerUrl,
+            binding.etNickname,
+            binding.etUsername,
+            binding.etPassword,
+            binding.etEpgUrl,
+            binding.btnLogin,
+            binding.btnImportM3u,
+            binding.btnScanQr,
+            binding.btnRestoreFromBackup,
+            binding.btnReceiveCast
+        )
+        val pad = (28 * resources.displayMetrics.density).toInt()
+        for (v in focusableViews) {
+            v.setOnFocusChangeListener { view, hasFocus ->
+                if (hasFocus) {
+                    view.post {
+                        val rect = android.graphics.Rect(0, -pad, view.width, view.height + pad)
+                        view.requestRectangleOnScreen(rect, false)
+                    }
+                }
+            }
+        }
+        if (isLargeScreenDevice()) {
+            binding.etServerUrl.requestFocus()
+        }
     }
 
     private fun setupUI() {

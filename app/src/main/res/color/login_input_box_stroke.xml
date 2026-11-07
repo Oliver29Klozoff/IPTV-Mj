@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Box stroke for login text fields: bold blue highlight on focus; subtle slate border otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#008CFF" />
+    <item android:state_hovered="true" android:color="#008CFF" />
+    <item android:color="#B0C8E8" />
+</selector>
