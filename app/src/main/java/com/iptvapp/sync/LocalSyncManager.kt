@@ -130,6 +130,8 @@ class LocalSyncManager @Inject constructor(
             put("favoriteFolders", JSONArray(folders.map { it.name }))
             put("channelFolders", JSONObject(channelFolders))
             put("favoriteOrder", JSONArray(favChannels.map { it.streamId }))
+            // The shared order value itself: extra-provider favorites interleave with these.
+            put("favoriteOrderValues", JSONObject(favChannels.associate { it.streamId.toString() to it.favOrder }))
 
             // Favorites from the other providers, named by provider tag (never a login).
             val tags = providerTags(token)
@@ -246,14 +248,19 @@ class LocalSyncManager @Inject constructor(
                 }
             }
 
-            // 4. Favorite Order
+            // 4. Favorite Order. Main and extra-provider favorites share one order (favOrder), so the
+            // sender's own values travel (favoriteOrderValues); a list position is the fallback.
             val favOrder = json.optJSONArray("favoriteOrder")
+            val orderValues = json.optJSONObject("favoriteOrderValues")
+            fun orderOf(remoteId: Int, index: Int): Int =
+                if (orderValues?.has(remoteId.toString()) == true) orderValues.optInt(remoteId.toString(), index) else index
             if (favOrder != null) {
                 val localFavs = db.channelDao().getFavoriteChannelIds().toSet()
                 for (i in 0 until favOrder.length()) {
-                    val streamId = localId(favOrder.optInt(i, -1)) ?: continue
+                    val remoteId = favOrder.optInt(i, -1)
+                    val streamId = localId(remoteId) ?: continue
                     if (streamId in localFavs) {
-                        db.channelDao().updateFavOrder(streamId, i)
+                        db.channelDao().updateFavOrder(streamId, orderOf(remoteId, i))
                     }
                 }
             }
@@ -262,7 +269,7 @@ class LocalSyncManager @Inject constructor(
             if (primaryAsExtra != null && favChannels != null) {
                 val folderIds = db.favoriteFolderDao().getAll().first().associate { it.name to it.id }
                 val position = json.optJSONArray("favoriteOrder")
-                    ?.let { a -> (0 until a.length()).associate { a.optInt(it) to it } }.orEmpty()
+                    ?.let { a -> (0 until a.length()).associate { a.optInt(it) to orderOf(a.optInt(it), it) } }.orEmpty()
                 for (i in 0 until favChannels.length()) {
                     val sid = favChannels.optInt(i, -1)
                     if (db.mergedChannelDao().getByIndexAndId(primaryAsExtra, sid) == null) continue

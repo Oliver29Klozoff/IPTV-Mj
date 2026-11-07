@@ -170,6 +170,23 @@ class LocalSyncManagerTest {
     }
 
     @Test
+    fun interleavedMainAndExtraFavoritesKeepTheirOrder() = runBlocking {
+        // Sender: main CNN (0), extra BBC (1), main ESPN (2).
+        db.channelDao().setFavorite(10, true); db.channelDao().updateFavOrder(10, 0)
+        db.channelDao().setFavorite(11, true); db.channelDao().updateFavOrder(11, 2)
+        db.mergedChannelDao().upsertAll(listOf(merged(500, "BBC", favorite = true).copy(favOrder = 1)))
+        val sent = sync.buildSyncPayload(token)
+        // Arrives on an identical device with nothing favorited yet.
+        db.channelDao().setFavorite(10, false); db.channelDao().setFavorite(11, false)
+        db.channelDao().updateFavOrder(10, 9); db.channelDao().updateFavOrder(11, 9)
+        db.mergedChannelDao().setFavorite(0, 500, false); db.mergedChannelDao().updateFavOrder(0, 500, 9)
+        assertTrue(sync.applySyncPayload(sent, token).success)
+        assertEquals(0, db.channelDao().getChannelById(10)!!.favOrder)
+        assertEquals(2, db.channelDao().getChannelById(11)!!.favOrder)
+        assertEquals(1, db.mergedChannelDao().getByIndexAndId(0, 500)!!.favOrder)
+    }
+
+    @Test
     fun noPreferenceLanguagesSyncToo() = runBlocking {
         prefs.setPreferredAudioLanguage("es")
         prefs.setPreferredSubtitleLanguage("en")
