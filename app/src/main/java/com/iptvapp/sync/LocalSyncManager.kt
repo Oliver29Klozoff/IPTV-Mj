@@ -277,18 +277,22 @@ class LocalSyncManager @Inject constructor(
                 }
             }
 
-            // 4a. The sender's main provider is an extra one here: its favorites, folders and order by id there.
-            if (primaryAsExtra != null && favChannels != null) {
+            // 4a. The sender's main-provider favorites that belong in the merged catalog here, by id:
+            // its main provider is an extra one here, or it's this main provider too and the channel
+            // is only in the Providers browser's list (slot -1). Favorites, folders and order there.
+            val mergedSlot = primaryAsExtra ?: if (samePrimary) -1 else null
+            if (mergedSlot != null && favChannels != null) {
                 val folderIds = db.favoriteFolderDao().getAll().first().associate { it.name to it.id }
                 val position = json.optJSONArray("favoriteOrder")
                     ?.let { a -> (0 until a.length()).associate { a.optInt(it) to orderOf(a.optInt(it), it) } }.orEmpty()
                 for (i in 0 until favChannels.length()) {
                     val sid = favChannels.optInt(i, -1)
-                    if (db.mergedChannelDao().getByIndexAndId(primaryAsExtra, sid) == null) continue
+                    if (mergedSlot == -1 && sid in existingIds) continue // in the main list: done in step 2
+                    if (db.mergedChannelDao().getByIndexAndId(mergedSlot, sid) == null) continue
                     val folderId = channelFolders?.optString(sid.toString(), "")?.takeIf { it.isNotEmpty() }?.let { folderIds[it] }
-                    if (folderId != null) db.mergedChannelDao().setFavoriteFolder(primaryAsExtra, sid, folderId)
-                    else db.mergedChannelDao().setFavorite(primaryAsExtra, sid, true)
-                    position[sid]?.let { db.mergedChannelDao().updateFavOrder(primaryAsExtra, sid, it) }
+                    if (folderId != null) db.mergedChannelDao().setFavoriteFolder(mergedSlot, sid, folderId)
+                    else db.mergedChannelDao().setFavorite(mergedSlot, sid, true)
+                    position[sid]?.let { db.mergedChannelDao().updateFavOrder(mergedSlot, sid, it) }
                     favCount++
                 }
             }

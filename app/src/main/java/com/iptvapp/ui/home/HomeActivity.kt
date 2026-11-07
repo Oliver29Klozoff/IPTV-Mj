@@ -935,8 +935,13 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             onPlayToDevice = if (currentChannel != null) { peer ->
-                if (currentMiniServerIndex == -1) flingLiveChannelToTv(currentChannel, -1, currentMiniStreamId, peer)
-                else flingLiveChannelToTv(currentChannel, currentMiniServerIndex, currentMiniMergedStreamId, peer)
+                // A main-provider channel played from the Providers browser keeps its id in currentMiniMergedStreamId.
+                val sid = when {
+                    currentMiniServerIndex != -1 -> currentMiniMergedStreamId
+                    currentMiniStreamId > 0 -> currentMiniStreamId
+                    else -> currentMiniMergedStreamId
+                }
+                flingLiveChannelToTv(currentChannel, currentMiniServerIndex, sid, peer)
             } else null
         )
     }

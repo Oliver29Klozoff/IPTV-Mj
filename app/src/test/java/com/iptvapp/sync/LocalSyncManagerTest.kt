@@ -275,4 +275,14 @@ class LocalSyncManagerTest {
         assertTrue(sync.applySyncPayload(p, token).success)
         assertTrue(db.mergedChannelDao().getByIndexAndId(-1, 900)!!.isFavorite)
     }
+
+    @Test
+    fun sameProviderFavoriteOnlyInTheProvidersListLandsThere() = runBlocking {
+        val main = tag("http://provider.test", "user1")
+        db.mergedChannelDao().upsertAll(listOf(merged(901, "Nat Geo").copy(serverIndex = -1)))
+        val p = payload(main, favorites = mapOf(10 to "CNN", 901 to "Nat Geo"))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertTrue(db.channelDao().getChannelById(10)!!.isFavorite)
+        assertTrue(db.mergedChannelDao().getByIndexAndId(-1, 901)!!.isFavorite)
+    }
 }
