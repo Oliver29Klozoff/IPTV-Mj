@@ -66,6 +66,8 @@ object CastDevicePickerUi {
         }
 
         activity.lifecycleScope.launch {
+            // A TV may have a new address since (router restart): look on the network first, as Send to TV does.
+            withTimeoutOrNull(3_500L) { com.iptvapp.handoff.HandoffDiscovery.refresh(activity, 2_500L) }
             val peers = Handoff.registry(activity).all().filter { it.isTv }
             val checked = peers.map { p ->
                 async {
@@ -73,7 +75,8 @@ object CastDevicePickerUi {
                         if (p.deviceId.isEmpty()) Handoff.hello(activity, p) != null
                         else Handoff.reachable(activity, p)
                     } ?: false
-                    p to reachable
+                    // The registry's copy after that: an id or address learned just now.
+                    (Handoff.registry(activity).bySecret(p.secret) ?: p) to reachable
                 }
             }.awaitAll()
 
