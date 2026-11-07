@@ -5883,14 +5883,18 @@ class HomeActivity : AppCompatActivity() {
                 .show()
             return
         }
-        val tv = chosen ?: peers.first()
-        val host = tv.lastHost
-        if (host.isNullOrBlank()) {
-            Toast.makeText(this, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val port = if (tv.lastPort > 0) tv.lastPort else com.iptvapp.remote.RemoteControlServer.PORT
-        lifecycleScope.launch(Dispatchers.IO) {
+        val picked = chosen ?: peers.first()
+        lifecycleScope.launch {
+            // A TV may have a new address since (router restart): look on the network first, as Send to TV does.
+            kotlinx.coroutines.withTimeoutOrNull(3_500L) { com.iptvapp.handoff.HandoffDiscovery.refresh(this@HomeActivity, 2_500L) }
+            val tv = com.iptvapp.handoff.Handoff.registry(this@HomeActivity).bySecret(picked.secret) ?: picked
+            val host = tv.lastHost
+            if (host.isNullOrBlank()) {
+                Toast.makeText(this@HomeActivity, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val port = if (tv.lastPort > 0) tv.lastPort else com.iptvapp.remote.RemoteControlServer.PORT
+            withContext(Dispatchers.IO) {
             try {
                 val now = System.currentTimeMillis()
                 val tag = if (streamId > 0) com.iptvapp.sync.LocalSyncManager.get(this@HomeActivity).providerTag(tv.secret, serverIndex) else null
@@ -5930,6 +5934,7 @@ class HomeActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@HomeActivity, "Can't reach ${tv.label} - is MKTV open on it?", Toast.LENGTH_SHORT).show()
                 }
+            }
             }
         }
     }

@@ -65,6 +65,9 @@ class SeriesDetailActivity : AppCompatActivity() {
     // history sync-back, since the app has no other way yet to know about episodes watched
     // outside itself (or before this device's own play history began).
     private var watchedEpisodes: Set<Pair<Int, Int>> = emptySet()
+    // Finished here (>= 95% played, as getRecentlyCompletedEpisodes counts it) or marked watched:
+    // Play on TV skips these to send the next episode.
+    private var finishedEpisodes: Set<Pair<Int, Int>> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,7 +122,7 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnPlayOnTv.setOnClickListener {
-            val nextEp = currentSeasonEpisodes.firstOrNull { (it.season to it.episodeNum) !in watchedEpisodes }
+            val nextEp = currentSeasonEpisodes.firstOrNull { (it.season to it.episodeNum) !in finishedEpisodes }
                 ?: currentSeasonEpisodes.firstOrNull()
             if (nextEp != null) {
                 flingEpisodeToTv(nextEp)
@@ -182,6 +185,9 @@ class SeriesDetailActivity : AppCompatActivity() {
                 val episodeProgress = db.episodeWatchedDao().getForSeries(seriesId)
                     .associateBy { it.season to it.episode }
                 watchedEpisodes = episodeProgress.filterValues { it.watchedAt > 0 }.keys
+                finishedEpisodes = episodeProgress.filterValues {
+                    it.watchedAt > 0 || (it.durationMs > 0 && it.watchedMs > 0 && it.watchedMs.toDouble() / it.durationMs >= 0.95)
+                }.keys
             }
             val result = if (serverIndex == null) repository.fetchSeriesInfo(seriesId)
                 else repository.fetchMergedSeriesInfo(serverIndex, seriesId)
