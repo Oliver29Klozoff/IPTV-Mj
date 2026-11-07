@@ -80,6 +80,21 @@ object HandoffSendUi {
         }
     }
 
+    /** Sends straight to [peer], already picked elsewhere (the cast device sheet). */
+    fun sendTo(activity: AppCompatActivity, source: HandoffSource, peer: Peer) {
+        source.unsupportedReason()?.let {
+            AlertDialog.Builder(activity).setTitle("Can't send this").setMessage(it).setPositiveButton("OK", null).show()
+            return
+        }
+        if (Handoff.outgoing != null) {
+            Toast.makeText(activity, "Already sending — wait for it to finish", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // The registry's current copy: the sheet's may be older (an id learned since, a new address).
+        val current = Handoff.registry(activity).bySecret(peer.secret) ?: peer
+        send(activity, source, current)
+    }
+
     private suspend fun reachable(activity: AppCompatActivity, p: Peer): Boolean {
         // A device without an id yet (paired before handoff) says hello first, which also checks it answers.
         if (p.deviceId.isEmpty()) return Handoff.hello(activity, p) != null

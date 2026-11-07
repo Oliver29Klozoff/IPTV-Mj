@@ -56,9 +56,11 @@ object RemoteControlServer {
     )
 
     sealed class Command {
-        /** Tune a channel by name — the phone and the TV may not share a provider, so ids from the
-         * phone mean nothing here; the TV finds its own copy the way voice tune does. */
-        data class Tune(val name: String) : Command()
+        /** Tune a channel by name — the phone and the TV may not share a provider, so the TV finds
+         * its own copy the way voice tune does. Play on TV also names the phone's provider by tag
+         * ([providerTag], keyed by the pairing [token]) and [streamId]: when the TV has that
+         * provider, that exact channel plays. Not a data class, so the token never reaches a log. */
+        class Tune(val name: String, val providerTag: String? = null, val streamId: Int = -1, val token: String? = null) : Command()
         /** A remote button, pressed in whichever MKTV screen is in front — exactly as if it came
          * from the TV's own remote, so the phone works on every screen. */
         data class Key(val keyCode: Int) : Command()
@@ -96,6 +98,8 @@ object RemoteControlServer {
     /** A channel picked while a screen that can't tune was in front (a movie, Settings…): the TV
      * home screen is brought back and plays it (RemoteControlHooks). */
     @Volatile var pendingTune: String? = null
+    /** The exact channel for [pendingTune], when the phone's provider is on this TV too. */
+    @Volatile var pendingTuneTarget: com.iptvapp.util.VoiceTuner.Target? = null
 
     /** The person's answer on the TV to the pairing [id] they were shown — ignored if another one has
      * taken its place since. Refusals count toward the hour-long lockout (several in a row look like
@@ -485,7 +489,12 @@ object RemoteControlServer {
                     return "409 Conflict" to JSONObject().put("error", "Update MKTV on this phone to use Power.")
                 }
                 val command = when (cmd.optString("cmd")) {
-                    "tune" -> cmd.optString("name").takeIf { it.isNotBlank() }?.let { Command.Tune(it) }
+                    "tune" -> cmd.optString("name").takeIf { it.isNotBlank() }?.let { name ->
+                        val tag = cmd.optString("p", "").takeIf { it.isNotEmpty() }
+                        val token = tag?.let { signingToken(context, method, path, signedAt, signature, body) }
+                        if (tag != null && token != null) Command.Tune(name, tag, cmd.optInt("sid", -1), token)
+                        else Command.Tune(name)
+                    }
                     // Guide opens MKTV's guide from any screen rather than pressing a key there.
                     "key" -> if (cmd.optString("key") == "guide") Command.Guide else KEYS[cmd.optString("key")]?.let { Command.Key(it) }
                     "home" -> Command.Home

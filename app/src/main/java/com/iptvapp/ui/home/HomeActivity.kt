@@ -935,7 +935,8 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             onPlayToDevice = if (currentChannel != null) { peer ->
-                flingLiveChannelToTv(currentChannel, peer)
+                if (currentMiniServerIndex == -1) flingLiveChannelToTv(currentChannel, -1, currentMiniStreamId, peer)
+                else flingLiveChannelToTv(currentChannel, currentMiniServerIndex, currentMiniMergedStreamId, peer)
             } else null
         )
     }
@@ -5735,7 +5736,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
-                    "📺 Play on TV" -> flingLiveChannelToTv(if (ch != null) ch.name else merged!!.name)
+                    "📺 Play on TV" -> flingLiveChannelToTv(row.name, row.serverIndex, row.streamId)
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, row.name, smartChannels, currentFocus, row.serverIndex, row.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, row.serverIndex, row.streamId, row.name)
                     "Add to Favorites", "Remove from Favorites" -> {
@@ -5795,7 +5796,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
-                    "📺 Play on TV" -> flingLiveChannelToTv(item.name)
+                    "📺 Play on TV" -> flingLiveChannelToTv(item.name, serverIndex, streamId)
                     "Set Reminder" -> if (item is CombinedFavorite.Primary) showReminderDialog(item.channel)
                     TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, serverIndex, streamId, item.name)
                     "Remove from Favorites" -> {
@@ -5856,13 +5857,17 @@ class HomeActivity : AppCompatActivity() {
             .show()
     }
 
-    /** [chosen] is the TV picked in the device sheet; without one, more than one paired TV asks which. */
-    private fun flingLiveChannelToTv(channelName: String, chosen: com.iptvapp.handoff.Peer? = null) {
+    /**
+     * [chosen] is the TV picked in the device sheet; without one, more than one paired TV asks which.
+     * [serverIndex]/[streamId] name the channel on this phone's provider: sent as that provider's tag
+     * (never its login), so a TV with the same provider plays this exact copy, not a namesake.
+     */
+    private fun flingLiveChannelToTv(channelName: String, serverIndex: Int, streamId: Int, chosen: com.iptvapp.handoff.Peer? = null) {
         val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
         if (chosen == null && peers.size > 1) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Play on which TV?")
-                .setItems(peers.map { it.label }.toTypedArray()) { _, i -> flingLiveChannelToTv(channelName, peers[i]) }
+                .setItems(peers.map { it.label }.toTypedArray()) { _, i -> flingLiveChannelToTv(channelName, serverIndex, streamId, peers[i]) }
                 .setNegativeButton("Cancel", null)
                 .show()
             return
@@ -5888,7 +5893,9 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val now = System.currentTimeMillis()
-                val body = org.json.JSONObject().put("cmd", "tune").put("name", channelName).toString()
+                val tag = if (streamId > 0) com.iptvapp.sync.LocalSyncManager.get(this@HomeActivity).providerTag(tv.secret, serverIndex) else null
+                val body = org.json.JSONObject().put("cmd", "tune").put("name", channelName)
+                    .apply { if (tag != null) put("p", tag).put("sid", streamId) }.toString()
                 val sig = com.iptvapp.remote.RemoteControlServer.sign(tv.secret, "POST", "/command", now, body)
                 val url = java.net.URL("http://$host:$port/command")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
@@ -5944,7 +5951,7 @@ class HomeActivity : AppCompatActivity() {
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
-                    "📺 Play on TV" -> flingLiveChannelToTv(channel.name)
+                    "📺 Play on TV" -> flingLiveChannelToTv(channel.name, -1, channel.streamId)
                     "Set Reminder" -> showReminderDialog(channel)
                     TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, -1, channel.streamId, channel.name)
                     "Select (bulk add to favorites)" -> {

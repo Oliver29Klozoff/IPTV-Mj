@@ -28,7 +28,8 @@ object RemoteControlHooks {
     /** A screen that can put a channel on. Returns false when it can't right now (the player
      * showing a movie, say), and the TV home screen is brought back to do it instead. */
     interface Tuner {
-        suspend fun remoteTune(name: String): Boolean
+        /** [exact] is the channel itself when the phone's provider is on this TV too; otherwise find [name]. */
+        suspend fun remoteTune(name: String, exact: com.iptvapp.util.VoiceTuner.Target? = null): Boolean
     }
 
     private var installed = false
@@ -75,7 +76,7 @@ object RemoteControlHooks {
                     // Not while the pairing question is up: only the TV's own remote may answer it,
                     // so an already paired phone can't let another one in.
                     is RemoteControlServer.Command.Key -> if (dialog == null) front?.get()?.let { pressKey(it, command.keyCode) }
-                    is RemoteControlServer.Command.Tune -> tune(app, command.name)
+                    is RemoteControlServer.Command.Tune -> tune(app, command)
                     is RemoteControlServer.Command.Home -> if (dialog == null) front?.get()?.let { activity ->
                         if (activity is com.iptvapp.ui.home.TvHomeActivity) {
                             // Movies / Series browsing are views inside this screen, not screens of their own.
@@ -120,10 +121,17 @@ object RemoteControlHooks {
         }
     }
 
-    private suspend fun tune(app: Application, name: String) {
+    private suspend fun tune(app: Application, command: RemoteControlServer.Command.Tune) {
+        val name = command.name
+        val exact = if (command.providerTag != null && command.token != null && command.streamId > 0) {
+            try {
+                com.iptvapp.sync.LocalSyncManager.get(app).resolveTaggedChannel(command.token, command.providerTag, command.streamId, name)
+            } catch (_: Exception) { null }
+        } else null
         val activity = front?.get()
-        if ((activity as? Tuner)?.remoteTune(name) == true) return
+        if ((activity as? Tuner)?.remoteTune(name, exact) == true) return
         // Back to the TV home screen (closing whatever is over it), which plays it on resuming.
+        RemoteControlServer.pendingTuneTarget = exact
         RemoteControlServer.pendingTune = name
         val context = activity ?: app
         context.startActivity(

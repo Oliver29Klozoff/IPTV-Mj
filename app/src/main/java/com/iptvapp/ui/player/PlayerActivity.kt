@@ -1052,7 +1052,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         .show()
                 }
             },
-            onPlayToDevice = { com.iptvapp.ui.handoff.HandoffSendUi.show(this, handoffSource) }
+            onPlayToDevice = { peer -> com.iptvapp.ui.handoff.HandoffSendUi.sendTo(this, handoffSource, peer) }
         )
     }
 
@@ -7252,9 +7252,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * tune finds it (the phone may use another provider). False for a movie, replay, recording,
      * audio only, a received cast or a channel on another provider: the TV home screen is brought
      * back to play it instead. */
-    override suspend fun remoteTune(name: String): Boolean {
+    override suspend fun remoteTune(name: String, exact: com.iptvapp.util.VoiceTuner.Target?): Boolean {
         if (isVod || isRecordingPlayback || audioOnly || castChannels.isNotEmpty()) return false
-        val target = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val target = exact ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val enabled = prefs.enabledExtraServerIndices.first()
             val merged = db.mergedChannelDao().getAll().first().filter { it.serverIndex == -1 || it.serverIndex in enabled }
             com.iptvapp.util.VoiceTuner.resolve(db, listOf(name), repository.getAllChannels().first(), merged)

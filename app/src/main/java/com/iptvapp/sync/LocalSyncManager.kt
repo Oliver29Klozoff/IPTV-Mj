@@ -90,6 +90,23 @@ class LocalSyncManager @Inject constructor(
         AppHandoffCatalog(db, repository, prefs).providers()
             .associate { it.serverIndex.toString() to HandoffCrypto.providerTag(token, it.identity) }
 
+    /** This device's tag for provider [serverIndex] under the pairing [token]; null when it isn't enabled. */
+    suspend fun providerTag(token: String, serverIndex: Int): String? = providerTags(token)[serverIndex.toString()]
+
+    /**
+     * A channel a paired device named by provider tag + stream id, on this device: only on the
+     * provider with that tag, and only when that channel is there. Null means "find it by name".
+     */
+    suspend fun resolveTaggedChannel(token: String, tag: String, streamId: Int, name: String): com.iptvapp.util.VoiceTuner.Target? =
+        withContext(Dispatchers.IO) {
+            val serverIndex = providerTags(token).entries
+                .firstOrNull { HandoffCrypto.constantTimeEquals(it.value, tag) }?.key?.toIntOrNull()
+                ?: return@withContext null
+            val exists = if (serverIndex == -1) db.channelDao().getChannelById(streamId) != null
+                else db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) != null
+            if (exists) com.iptvapp.util.VoiceTuner.Target(serverIndex, streamId, name, null) else null
+        }
+
     suspend fun buildSyncPayload(token: String): JSONObject = withContext(Dispatchers.IO) {
         val favChannelIds = db.channelDao().getFavoriteChannelIds()
         val favChannels = db.channelDao().getFavoriteChannelsBlocking()
@@ -234,20 +251,28 @@ class LocalSyncManager @Inject constructor(
                 }
             }
 
-            // 4b. Other providers' favorites: by id, only on the local provider with the same tag.
+            // 4b. Other providers' favorites: by id, only on the local provider with the same tag —
+            // which may be this device's main provider (then they go in the main channel list).
             val extras = json.optJSONArray("extraFavorites")
             if (extras != null && extras.length() > 0) {
-                val indexByTag = localTags.filterKeys { it != "-1" }.entries.associate { (k, v) -> v to k.toInt() }
+                val indexByTag = localTags.entries.associate { (k, v) -> v to k.toInt() }
                 val folderIds = db.favoriteFolderDao().getAll().first().associate { it.name to it.id }
                 for (i in 0 until extras.length()) {
                     val item = extras.optJSONObject(i) ?: continue
                     val serverIndex = indexByTag[item.optString("p")] ?: continue
                     val streamId = item.optInt("i", -1)
-                    if (db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) == null) continue
                     val folderId = item.optString("f", "").takeIf { it.isNotEmpty() }?.let { folderIds[it] }
-                    if (folderId != null) db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
-                    else db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
-                    if (item.has("o")) db.mergedChannelDao().updateFavOrder(serverIndex, streamId, item.optInt("o"))
+                    if (serverIndex == -1) {
+                        if (db.channelDao().getChannelById(streamId) == null) continue
+                        if (folderId != null) db.channelDao().setFavoriteFolder(streamId, folderId)
+                        db.channelDao().setFavorite(streamId, true)
+                        if (item.has("o")) db.channelDao().updateFavOrder(streamId, item.optInt("o"))
+                    } else {
+                        if (db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) == null) continue
+                        if (folderId != null) db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                        else db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
+                        if (item.has("o")) db.mergedChannelDao().updateFavOrder(serverIndex, streamId, item.optInt("o"))
+                    }
                     favCount++
                 }
             }

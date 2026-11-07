@@ -192,8 +192,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     /** A channel picked on the phone remote: this TV's own copy of it (found by name, as the phone
      * may use another provider), straight to full screen. */
-    override suspend fun remoteTune(name: String): Boolean {
-        val target = viewModel.resolveVoice(listOf(name))
+    override suspend fun remoteTune(name: String, exact: com.iptvapp.util.VoiceTuner.Target?): Boolean {
+        val target = exact ?: viewModel.resolveVoice(listOf(name))
         if (target == null || !tuneTarget(target)) {
             Toast.makeText(this, "Couldn't find \"$name\" on this TV", Toast.LENGTH_LONG).show()
             return true
@@ -991,12 +991,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // restart the old channel over it.
         val remotePending = com.iptvapp.remote.RemoteControlServer.pendingTune
         com.iptvapp.remote.RemoteControlServer.pendingTune = null
+        val remotePendingTarget = com.iptvapp.remote.RemoteControlServer.pendingTuneTarget
+        com.iptvapp.remote.RemoteControlServer.pendingTuneTarget = null
         if (tune != null) {
             launchReminderTune(tune.streamId, tune.serverIndex)
         } else if (launcherCard != null) {
             launchLauncherCard(launcherCard)
         } else if (remotePending != null) {
-            lifecycleScope.launch { remoteTune(remotePending) }
+            lifecycleScope.launch { remoteTune(remotePending, remotePendingTarget) }
         } else if (coldBootResumeInProgress) {
             // The tune, or cold-boot resume, owns the player until it finishes. Falling through
             // used to call play() on the paused channel and undo the switch.

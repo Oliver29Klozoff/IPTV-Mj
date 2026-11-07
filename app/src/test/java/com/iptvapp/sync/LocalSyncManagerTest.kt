@@ -135,6 +135,28 @@ class LocalSyncManagerTest {
     }
 
     @Test
+    fun extraFavoriteLandsOnThisDevicesMainProviderWhenTagsMatch() = runBlocking {
+        // On the sender this provider is an extra; here it's the main one.
+        val p = payload("someone-elses-tag", favorites = emptyMap())
+            .put("extraFavorites", JSONArray().put(JSONObject().put("p", tag("http://provider.test", "user1")).put("i", 11).put("n", "ESPN")))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertEquals(listOf(11), db.channelDao().getFavoriteChannelIds())
+    }
+
+    @Test
+    fun playOnTvResolvesTheExactChannelOnlyOnTheSameProvider() = runBlocking {
+        db.mergedChannelDao().upsertAll(listOf(merged(500, "CNN")))
+        // Main and extra provider, both by tag.
+        assertEquals(-1 to 10, sync.resolveTaggedChannel(token, tag("http://provider.test", "user1"), 10, "CNN")?.let { it.serverIndex to it.streamId })
+        assertEquals(0 to 500, sync.resolveTaggedChannel(token, tag("http://backup.test", "user2"), 500, "CNN")?.let { it.serverIndex to it.streamId })
+        // A provider this device doesn't have, or a channel it doesn't have: found by name instead.
+        assertEquals(null, sync.resolveTaggedChannel(token, "unknown", 10, "CNN"))
+        assertEquals(null, sync.resolveTaggedChannel(token, tag("http://provider.test", "user1"), 999, "CNN"))
+        // The phone side names its own provider the same way.
+        assertEquals(tag("http://backup.test", "user2"), sync.providerTag(token, 0))
+    }
+
+    @Test
     fun pullReplyMustBeSignedForThisRequest() {
         val body = JSONObject().put("device", "TV")
         val reply = LocalSyncManager.sealPullReply(token, "req-sig", body)
