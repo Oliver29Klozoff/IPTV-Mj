@@ -122,12 +122,18 @@ class SeriesDetailActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnPlayOnTv.setOnClickListener {
-            val nextEp = currentSeasonEpisodes.firstOrNull { (it.season to it.episodeNum) !in finishedEpisodes }
-                ?: currentSeasonEpisodes.firstOrNull()
-            if (nextEp != null) {
-                flingEpisodeToTv(nextEp)
-            } else {
-                android.widget.Toast.makeText(this, "No episode available to play", android.widget.Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch {
+                // Read progress now, not at page open: an episode may have just been finished here.
+                if (serverIndexField == null && seriesIdField != -1) {
+                    finishedEpisodes = finishedEpisodesOf(db.episodeWatchedDao().getForSeries(seriesIdField))
+                }
+                val nextEp = currentSeasonEpisodes.firstOrNull { (it.season to it.episodeNum) !in finishedEpisodes }
+                    ?: currentSeasonEpisodes.firstOrNull()
+                if (nextEp != null) {
+                    flingEpisodeToTv(nextEp)
+                } else {
+                    android.widget.Toast.makeText(this@SeriesDetailActivity, "No episode available to play", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
         // See loadFavoriteState's kdoc — no favorite wiring exists yet for a merged/secondary
@@ -172,6 +178,11 @@ class SeriesDetailActivity : AppCompatActivity() {
         binding.btnFavorite.text = if (isFavorite) "★  Remove from Favorites" else "☆  Add to Favorites"
     }
 
+    private fun finishedEpisodesOf(rows: Collection<com.iptvapp.data.local.entities.EpisodeWatchedEntity>): Set<Pair<Int, Int>> =
+        rows.filter {
+            it.watchedAt > 0 || (it.durationMs > 0 && it.watchedMs > 0 && it.watchedMs.toDouble() / it.durationMs >= 0.95)
+        }.map { it.season to it.episode }.toSet()
+
     private fun loadSeriesInfo(seriesId: Int) {
         binding.progressBar.visibility = View.VISIBLE
         lifecycleScope.launch {
@@ -185,9 +196,7 @@ class SeriesDetailActivity : AppCompatActivity() {
                 val episodeProgress = db.episodeWatchedDao().getForSeries(seriesId)
                     .associateBy { it.season to it.episode }
                 watchedEpisodes = episodeProgress.filterValues { it.watchedAt > 0 }.keys
-                finishedEpisodes = episodeProgress.filterValues {
-                    it.watchedAt > 0 || (it.durationMs > 0 && it.watchedMs > 0 && it.watchedMs.toDouble() / it.durationMs >= 0.95)
-                }.keys
+                finishedEpisodes = finishedEpisodesOf(episodeProgress.values)
             }
             val result = if (serverIndex == null) repository.fetchSeriesInfo(seriesId)
                 else repository.fetchMergedSeriesInfo(serverIndex, seriesId)
