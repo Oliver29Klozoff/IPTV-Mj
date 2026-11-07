@@ -159,7 +159,20 @@ object CastDevicePickerUi {
                         setRequestProperty("X-MKTV-Sig", sig)
                     }
                     conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                    conn.responseCode
+                    val code = conn.responseCode
+                    if (code !in 200..299) {
+                        // The TV says why (volume on a fixed-volume box, MKTV not on screen…).
+                        val err = try {
+                            JSONObject(conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()).optString("error")
+                        } catch (_: Exception) { "" }
+                        val message = when {
+                            code == 401 && err == "clock" -> "This phone's clock and ${peer.label}'s differ - set both to automatic time"
+                            code == 401 -> "${peer.label} doesn't know this phone any more - pair again in Remote"
+                            err.isNotBlank() -> err
+                            else -> "${peer.label} couldn't do that (HTTP $code)"
+                        }
+                        withContext(Dispatchers.Main) { Toast.makeText(activity, message, Toast.LENGTH_LONG).show() }
+                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(activity, "Can't reach ${peer.label}", Toast.LENGTH_SHORT).show()

@@ -176,13 +176,20 @@ class LocalSyncManager @Inject constructor(
             val sameProviders = localTags.isNotEmpty() && localTags.keys == remoteTags.keys &&
                 localTags.all { (k, v) -> HandoffCrypto.constantTimeEquals(v, remoteTags[k].orEmpty()) }
 
-            // Remote stream id → local stream id: the same id on the same provider, otherwise one
-            // channel with exactly that name.
+            // The sender's main provider may be one of this device's extra providers: then its
+            // favorites go there by id (4a), not to a namesake on this device's main provider.
+            val primaryAsExtra = if (samePrimary) null else remoteTags["-1"]?.takeIf { it.isNotEmpty() }?.let { rt ->
+                localTags.entries.firstOrNull { it.key != "-1" && HandoffCrypto.constantTimeEquals(it.value, rt) }?.key?.toIntOrNull()
+            }
+
+            // Remote stream id → local main-provider stream id: the same id on the same provider,
+            // otherwise one channel with exactly that name.
             val channelNames = json.optJSONObject("channelNames")
             val existingIds = if (samePrimary) db.channelDao().getAllChannelIds().toSet() else emptySet()
             val idMap = HashMap<Int, Int?>()
             suspend fun localId(remoteId: Int): Int? = idMap.getOrPut(remoteId) {
                 if (samePrimary) return@getOrPut remoteId.takeIf { it in existingIds }
+                if (primaryAsExtra != null) return@getOrPut null
                 val name = channelNames?.optString(remoteId.toString(), "")?.trim().orEmpty()
                 if (name.isBlank()) return@getOrPut null
                 db.channelDao().findByNameLike(name).firstOrNull { it.name.trim().equals(name, ignoreCase = true) }?.streamId
@@ -251,6 +258,22 @@ class LocalSyncManager @Inject constructor(
                 }
             }
 
+            // 4a. The sender's main provider is an extra one here: its favorites, folders and order by id there.
+            if (primaryAsExtra != null && favChannels != null) {
+                val folderIds = db.favoriteFolderDao().getAll().first().associate { it.name to it.id }
+                val position = json.optJSONArray("favoriteOrder")
+                    ?.let { a -> (0 until a.length()).associate { a.optInt(it) to it } }.orEmpty()
+                for (i in 0 until favChannels.length()) {
+                    val sid = favChannels.optInt(i, -1)
+                    if (db.mergedChannelDao().getByIndexAndId(primaryAsExtra, sid) == null) continue
+                    val folderId = channelFolders?.optString(sid.toString(), "")?.takeIf { it.isNotEmpty() }?.let { folderIds[it] }
+                    if (folderId != null) db.mergedChannelDao().setFavoriteFolder(primaryAsExtra, sid, folderId)
+                    else db.mergedChannelDao().setFavorite(primaryAsExtra, sid, true)
+                    position[sid]?.let { db.mergedChannelDao().updateFavOrder(primaryAsExtra, sid, it) }
+                    favCount++
+                }
+            }
+
             // 4b. Other providers' favorites: by id, only on the local provider with the same tag —
             // which may be this device's main provider (then they go in the main channel list).
             val extras = json.optJSONArray("extraFavorites")
@@ -314,7 +337,7 @@ class LocalSyncManager @Inject constructor(
             LocalSyncResult(
                 success = true,
                 message = "Synced $favCount favorites from $fromDevice" +
-                    if (samePrimary) "" else " (different provider: matched by name)",
+                    if (samePrimary || primaryAsExtra != null) "" else " (different provider: matched by name)",
                 favoritesCount = favCount,
                 categoriesCount = catCount,
                 targetDevice = fromDevice

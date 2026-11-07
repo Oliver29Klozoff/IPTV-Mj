@@ -5909,11 +5909,21 @@ class HomeActivity : AppCompatActivity() {
                 }
                 conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
+                // The TV says why it refused (MKTV not on screen there, say).
+                val err = if (code in 200..299) "" else try {
+                    org.json.JSONObject(conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()).optString("error")
+                } catch (_: Exception) { "" }
                 withContext(Dispatchers.Main) {
                     if (code in 200..299) {
                         Toast.makeText(this@HomeActivity, "Playing $channelName on ${tv.label}", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@HomeActivity, "Could not tune on ${tv.label} (HTTP $code)", Toast.LENGTH_SHORT).show()
+                        val message = when {
+                            code == 401 && err == "clock" -> "This phone's clock and ${tv.label}'s differ - set both to automatic time"
+                            code == 401 -> "${tv.label} doesn't know this phone any more - pair again in Remote"
+                            err.isNotBlank() -> err
+                            else -> "Could not tune on ${tv.label} (HTTP $code)"
+                        }
+                        Toast.makeText(this@HomeActivity, message, Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {

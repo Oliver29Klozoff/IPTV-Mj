@@ -144,6 +144,19 @@ class LocalSyncManagerTest {
     }
 
     @Test
+    fun sendersMainProviderThatIsAnExtraHereGoesThereById() = runBlocking {
+        // The sender's main provider is this device's backup. Its "CNN" (id 500) must land on the
+        // backup's id 500, not on this device's main-provider CNN (id 10) by name.
+        db.mergedChannelDao().upsertAll(listOf(merged(500, "CNN")))
+        val p = payload(tag("http://backup.test", "user2"), favorites = mapOf(500 to "CNN"))
+        val result = sync.applySyncPayload(p, token)
+        assertTrue(result.success)
+        assertEquals(emptyList<Int>(), db.channelDao().getFavoriteChannelIds())
+        assertEquals(listOf(500), db.mergedChannelDao().getAllFavorites().first().map { it.streamId })
+        assertFalse(result.message.contains("matched by name"))
+    }
+
+    @Test
     fun playOnTvResolvesTheExactChannelOnlyOnTheSameProvider() = runBlocking {
         db.mergedChannelDao().upsertAll(listOf(merged(500, "CNN")))
         // Main and extra provider, both by tag.
