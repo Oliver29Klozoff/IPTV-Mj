@@ -103,8 +103,9 @@ class LocalSyncManager @Inject constructor(
             val serverIndex = providerTags(token).entries
                 .firstOrNull { HandoffCrypto.constantTimeEquals(it.value, tag) }?.key?.toIntOrNull()
                 ?: return@withContext null
-            val exists = if (serverIndex == -1) db.channelDao().getChannelById(streamId) != null
-                else db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) != null
+            // The main provider's channel may be only in the Providers browser's list (slot -1).
+            val exists = (serverIndex == -1 && db.channelDao().getChannelById(streamId) != null) ||
+                db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) != null
             if (exists) com.iptvapp.util.VoiceTuner.Target(serverIndex, streamId, name, null) else null
         }
 

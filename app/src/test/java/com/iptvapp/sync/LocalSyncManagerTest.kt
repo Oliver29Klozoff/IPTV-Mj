@@ -285,4 +285,13 @@ class LocalSyncManagerTest {
         assertTrue(db.channelDao().getChannelById(10)!!.isFavorite)
         assertTrue(db.mergedChannelDao().getByIndexAndId(-1, 901)!!.isFavorite)
     }
+
+    @Test
+    fun playOnTvFindsAMainProviderChannelOnlyInTheProvidersList() = runBlocking {
+        val main = tag("http://provider.test", "user1")
+        db.mergedChannelDao().upsertAll(listOf(merged(902, "Bravo").copy(serverIndex = -1)))
+        assertEquals(-1, sync.resolveTaggedChannel(token, main, 902, "Bravo")?.serverIndex)
+        assertEquals(902, sync.resolveTaggedChannel(token, main, 902, "Bravo")?.streamId)
+        assertEquals(null, sync.resolveTaggedChannel(token, main, 903, "Nope"))
+    }
 }

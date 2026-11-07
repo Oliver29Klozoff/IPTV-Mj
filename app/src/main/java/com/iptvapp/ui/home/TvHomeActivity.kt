@@ -178,8 +178,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     /** Plays a voice-tune / phone-remote match in the mini player; false when it's gone. */
     private suspend fun tuneTarget(target: com.iptvapp.util.VoiceTuner.Target): Boolean {
-        if (target.serverIndex == -1) {
-            val ch = viewModel.getChannelById(target.streamId) ?: return false
+        val main = if (target.serverIndex == -1) viewModel.getChannelById(target.streamId) else null
+        if (target.serverIndex == -1 && main == null) {
+            // A main-provider channel only in the Providers browser's list (merged_channels, slot -1).
+            val ch = viewModel.getMergedChannelByIndexAndId(-1, target.streamId) ?: return false
+            playMergedChannel(ch)
+        } else if (main != null) {
+            val ch = main
             playInMiniPlayer(ch)
             viewModel.markChannelWatched(ch.streamId)
             viewModel.setCurrentlyPlaying(ch.streamId)
@@ -200,7 +205,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         miniPlayJob?.join()
         if (currentMiniUrl.isEmpty() || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return true
-        if (currentMiniServerIndex != -1) {
+        // A Providers-browser row, main provider's (slot -1, no main-list id) included: opened as one.
+        if (currentMiniServerIndex != -1 || currentMiniStreamId <= 0) {
             binding.tvMiniPlayerContainer.performClick()
             return true
         }
