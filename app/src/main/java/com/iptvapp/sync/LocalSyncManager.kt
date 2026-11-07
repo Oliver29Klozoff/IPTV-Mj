@@ -49,7 +49,8 @@ data class LocalSyncResult(
 class LocalSyncManager @Inject constructor(
     private val db: IptvDatabase,
     private val prefs: PreferencesManager,
-    private val repository: XtreamRepository
+    private val repository: XtreamRepository,
+    private val smartChannels: com.iptvapp.data.smart.SmartChannelStore
 ) {
 
     @EntryPoint
@@ -140,6 +141,17 @@ class LocalSyncManager @Inject constructor(
                 JSONObject().put("p", tag).put("i", ch.streamId).put("n", ch.name).put("o", ch.favOrder)
                     .apply { ch.favoriteFolderId?.let { folderNameById[it] }?.let { put("f", it) } }
             }))
+
+            // Smart Channel favorites: the star is on the group, not on a channel row. Each group
+            // travels as its members (provider tag + id, and the name for a different provider).
+            put("groupFavorites", JSONArray(smartChannels.playbackGroups()
+                .filter { it.groupFavorite && (it.reviewState == com.iptvapp.util.SmartChannels.VERIFIED || it.reviewState == com.iptvapp.util.SmartChannels.MANUAL) }
+                .mapNotNull { g ->
+                    val members = g.members.mapNotNull { m ->
+                        tags[m.key.serverIndex.toString()]?.let { JSONObject().put("p", it).put("i", m.key.streamId).put("n", m.displayName) }
+                    }
+                    if (members.isEmpty()) null else JSONObject().put("m", JSONArray(members))
+                }))
 
             // Top favorites if set
             val topFavJson = prefs.topFavoritesJson.first()
@@ -302,6 +314,44 @@ class LocalSyncManager @Inject constructor(
                         if (folderId != null) db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
                         else db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
                         if (item.has("o")) db.mergedChannelDao().updateFavOrder(serverIndex, streamId, item.optInt("o"))
+                    }
+                    favCount++
+                }
+            }
+
+            // 4c. Smart Channel favorites. A member resolves by id on the provider with its tag, or
+            // (main provider differs and isn't here as an extra) by exact name on the main provider.
+            // Starred as the local group holding that channel, else as the channel itself.
+            val groupFavs = json.optJSONArray("groupFavorites")
+            if (groupFavs != null && groupFavs.length() > 0) {
+                val indexByTag = localTags.entries.associate { (k, v) -> v to k.toInt() }
+                val byName = !samePrimary && primaryAsExtra == null
+                for (i in 0 until groupFavs.length()) {
+                    val members = groupFavs.optJSONObject(i)?.optJSONArray("m") ?: continue
+                    val resolved = ArrayList<Pair<Int, Int>>()
+                    for (j in 0 until members.length()) {
+                        val m = members.optJSONObject(j) ?: continue
+                        val serverIndex = indexByTag[m.optString("p")]
+                        val streamId = m.optInt("i", -1)
+                        val here = when {
+                            serverIndex == -1 -> db.channelDao().getChannelById(streamId) != null
+                            serverIndex != null -> db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) != null
+                            else -> false
+                        }
+                        if (here) { resolved += serverIndex!! to streamId; continue }
+                        val name = m.optString("n", "").trim()
+                        if (byName && serverIndex == null && name.isNotEmpty()) {
+                            db.channelDao().findByNameLike(name).firstOrNull { it.name.trim().equals(name, ignoreCase = true) }
+                                ?.let { resolved += -1 to it.streamId }
+                        }
+                    }
+                    if (resolved.isEmpty()) continue
+                    val groupId = resolved.firstNotNullOfOrNull { (s, id) -> smartChannels.playbackGroupId(s, id) }
+                    if (groupId != null) {
+                        smartChannels.favoriteGroup(groupId)
+                    } else {
+                        val (s, id) = resolved.first()
+                        if (s == -1) db.channelDao().setFavorite(id, true) else db.mergedChannelDao().setFavorite(s, id, true)
                     }
                     favCount++
                 }

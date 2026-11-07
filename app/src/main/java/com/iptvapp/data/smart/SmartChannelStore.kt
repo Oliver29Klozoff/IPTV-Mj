@@ -179,6 +179,14 @@ class SmartChannelStore @Inject constructor(
         bump()
     }
 
+    /** Wi-Fi sync: the group star on. Unlike [toggleGroupFavorite], never turns one off. */
+    suspend fun favoriteGroup(groupId: String) = withContext(Dispatchers.IO) {
+        val group = dao.group(groupId) ?: return@withContext
+        if (group.groupFavorite) return@withContext
+        dao.upsertGroup(group.copy(groupFavorite = true, updatedAt = System.currentTimeMillis()))
+        bump()
+    }
+
     /** Bulk removal asks for the group star to be off. It does not change the source star. */
     suspend fun clearGroupFavorites(groupIds: Collection<String>) = withContext(Dispatchers.IO) {
         var changed = false

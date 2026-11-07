@@ -55,7 +55,8 @@ class LocalSyncManagerTest {
             prefs.setFavoriteLiveCategoryIds(emptySet())
             prefs.setTopFavoritesJson("")
         }
-        sync = LocalSyncManager(db, prefs, XtreamRepository(api, db, prefs, client))
+        val repo = XtreamRepository(api, db, prefs, client)
+        sync = LocalSyncManager(db, prefs, repo, com.iptvapp.data.smart.SmartChannelStore(db, repo))
     }
 
     @After
@@ -221,5 +222,46 @@ class LocalSyncManagerTest {
         assertTrue(sync.applySyncPayload(p, token).success)
         assertEquals("http://provider.test", prefs.credentials.first().serverUrl)
         assertEquals(listOf("http://backup.test"), prefs.getExtraServersWithNick().map { it[0] })
+    }
+
+    private suspend fun smartGroup(id: String, favorite: Boolean, vararg members: Pair<Int, Int>) {
+        db.smartChannelDao().upsertGroup(com.iptvapp.data.local.entities.SmartChannelGroupEntity(
+            groupId = id, displayName = "CNN", preferredServerIndex = -1, preferredStreamId = -1, hasPreferred = false,
+            failoverEnabled = true, origin = "MANUAL", reviewState = com.iptvapp.util.SmartChannels.MANUAL, reason = "",
+            groupFavorite = favorite, updatedAt = 0L))
+        db.smartChannelDao().upsertMembers(members.map { (s, i) -> com.iptvapp.data.local.entities.SmartChannelMemberEntity(
+            groupId = id, serverIndex = s, streamId = i, epgChannelId = "", nameFingerprint = "cnn", displayName = "CNN",
+            eligible = true, userPriority = 0) })
+    }
+
+    private fun groupFavorites(vararg members: JSONObject) =
+        JSONArray().put(JSONObject().put("m", JSONArray(members.toList())))
+
+    @Test
+    fun smartChannelGroupFavoritesTravelAndStarTheLocalGroup() = runBlocking {
+        val main = tag("http://provider.test", "user1")
+        // Sender side: a starred group goes out as its members, by provider tag.
+        smartGroup("g1", favorite = true, -1 to 10, -1 to 11)
+        val sent = sync.buildSyncPayload(token).getJSONArray("groupFavorites")
+        assertEquals(1, sent.length())
+        assertEquals(main, sent.getJSONObject(0).getJSONArray("m").getJSONObject(0).getString("p"))
+
+        // Receiver side: the group holding that channel gets the star, not the channel row.
+        db.smartChannelDao().upsertGroup(db.smartChannelDao().group("g1")!!.copy(groupFavorite = false))
+        val p = payload(main, favorites = emptyMap())
+            .put("groupFavorites", groupFavorites(JSONObject().put("p", main).put("i", 10).put("n", "CNN")))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertTrue(db.smartChannelDao().group("g1")!!.groupFavorite)
+        assertFalse(db.channelDao().getChannelById(10)!!.isFavorite)
+    }
+
+    @Test
+    fun smartChannelFavoriteWithoutALocalGroupStarsTheChannel() = runBlocking {
+        // A different provider: matched by exact name on this device's main provider.
+        val p = payload("someone-elses-tag", favorites = emptyMap())
+            .put("groupFavorites", groupFavorites(JSONObject().put("p", "someone-elses-tag").put("i", 999).put("n", "ESPN")))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertTrue(db.channelDao().getChannelById(11)!!.isFavorite)
+        assertFalse(db.channelDao().getChannelById(10)!!.isFavorite)
     }
 }
