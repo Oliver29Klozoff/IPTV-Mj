@@ -1028,6 +1028,35 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // attachCastSessionListener) so changing the channel being cast doesn't mean pairing with a
     // brand new code every single time.
     private fun castToDeviceClicked() {
+        com.iptvapp.ui.cast.CastDevicePickerUi.show(
+            activity = this,
+            onSamsungLgCast = {
+                val remembered = castRelay.lastSentCode
+                if (remembered != null) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Cast to a Device")
+                        .setItems(arrayOf("Cast to same device", "Scan a QR code", "Enter code manually")) { _, which ->
+                            when (which) {
+                                0 -> sendCastToScannedCode(remembered)
+                                1 -> requestCastCameraAndScan()
+                                else -> showManualCastCodeDialog()
+                            }
+                        }
+                        .show()
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle("Cast to a Device")
+                        .setItems(arrayOf("Scan a QR code", "Enter code manually")) { _, which ->
+                            if (which == 0) requestCastCameraAndScan() else showManualCastCodeDialog()
+                        }
+                        .show()
+                }
+            },
+            onPlayToDevice = { com.iptvapp.ui.handoff.HandoffSendUi.show(this, handoffSource) }
+        )
+    }
+
+    private fun legacyCastToDeviceClicked() {
         val remembered = castRelay.lastSentCode
         if (remembered != null) {
             AlertDialog.Builder(this)

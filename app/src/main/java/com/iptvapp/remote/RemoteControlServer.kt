@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.net.InetSocketAddress
@@ -248,7 +249,8 @@ object RemoteControlServer {
                 if (line.isEmpty()) break
                 val name = line.substringBefore(':').trim().lowercase()
                 val value = line.substringAfter(':', "").trim()
-                if (name == "content-length") contentLength = value.toIntOrNull()?.coerceIn(0, 16_384) ?: 0
+                // Only a favorites sync needs a big body; everything else keeps the 16 KB cap.
+                if (name == "content-length") contentLength = value.toIntOrNull()?.coerceIn(0, if (path == "/sync/push") 524_288 else 16_384) ?: 0
                 if (name == "x-mktv-time") signedAt = value
                 if (name == "x-mktv-sig") signature = value
             }
@@ -346,6 +348,17 @@ object RemoteControlServer {
         return Auth.OK
     }
 
+    private val syncScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    /** The pairing token that signed an already-checked request, which keys a sync's provider tags. */
+    private fun signingToken(context: Context, method: String, path: String, signedAt: String, signature: String, body: String): String? {
+        val at = signedAt.toLongOrNull() ?: return null
+        val sig = signature.lowercase()
+        return tokens(context).firstOrNull { token ->
+            java.security.MessageDigest.isEqual(sign(token, method, path, at, body).toByteArray(), sig.toByteArray())
+        }
+    }
+
     /** One CRLF-terminated header line, read as bytes (null at end of stream, or past [deadline]). */
     private fun readLine(input: BufferedInputStream, deadline: Long): String? {
         val bytes = java.io.ByteArrayOutputStream()
@@ -439,6 +452,27 @@ object RemoteControlServer {
         }
         return when (path) {
             "/status" -> "200 OK" to JSONObject().put("nowPlaying", nowPlaying)
+            "/sync/push" -> {
+                if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
+                val syncJson = try { JSONObject(body) } catch (_: Exception) { null }
+                    ?: return "400 Bad Request" to JSONObject().put("error", "Bad JSON")
+                val token = signingToken(context, method, path, signedAt, signature, body)
+                    ?: return "401 Unauthorized" to JSONObject().put("error", "Not paired")
+                // Applied off the request worker, so a big sync can't hold up the remote.
+                syncScope.launch {
+                    val result = com.iptvapp.sync.LocalSyncManager.get(context).applySyncPayload(syncJson, token)
+                    RemoteControlHooks.showToast(result.message)
+                }
+                "202 Accepted" to JSONObject().put("ok", true).put("accepted", true)
+            }
+            "/sync/pull" -> {
+                val token = signingToken(context, method, path, signedAt, signature, body)
+                    ?: return "401 Unauthorized" to JSONObject().put("error", "Not paired")
+                val payload = kotlinx.coroutines.runBlocking {
+                    com.iptvapp.sync.LocalSyncManager.get(context).buildSyncPayload(token)
+                }
+                "200 OK" to payload
+            }
             "/command" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")
                 val cmd = try { JSONObject(body) } catch (_: Exception) { null }

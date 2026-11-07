@@ -93,6 +93,21 @@
             android:focusable="true"
             android:focusableInTouchMode="false"
             android:nextFocusUp="@id/btnFavorite"
+            android:nextFocusDown="@id/btnPlayOnTv" />
+
+        <Button
+            android:id="@+id/btnPlayOnTv"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/home_chip_bg"
+            android:text="📺  Play on TV"
+            android:textAllCaps="false"
+            android:textColor="@color/rack_text"
+            android:textSize="13sp"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:nextFocusUp="@id/btnWatchTrailer"
             android:nextFocusDown="@id/btnBack" />
 
         <Button
@@ -106,7 +121,7 @@
             android:paddingStart="4dp"
             android:focusable="true"
             android:focusableInTouchMode="false"
-            android:nextFocusUp="@id/btnWatchTrailer" />
+            android:nextFocusUp="@id/btnPlayOnTv" />
     </LinearLayout>
 
     <!-- Right: season tabs + episodes list -->

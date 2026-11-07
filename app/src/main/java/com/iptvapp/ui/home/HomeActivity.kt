@@ -53,6 +53,8 @@ import com.iptvapp.ui.player.MultiViewActivity
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.settings.SettingsActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -905,6 +907,40 @@ class HomeActivity : AppCompatActivity() {
      * isn't the only path once camera permission is granted, so this stays reachable even when
      * a scan gets cancelled or the receiver's QR won't focus. */
     private fun showMiniCastMenu() {
+        val currentChannel = if (currentMiniUrl.isNotBlank() && !currentMiniIsVod) {
+            binding.tvMiniChannelName.text.toString().takeIf { it.isNotBlank() }
+        } else null
+        com.iptvapp.ui.cast.CastDevicePickerUi.show(
+            activity = this,
+            onSamsungLgCast = {
+                val remembered = castRelay.lastSentCode
+                if (remembered != null) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Cast to a Device")
+                        .setItems(arrayOf("Cast to same device", "Scan a QR code", "Enter code manually")) { _, which ->
+                            when (which) {
+                                0 -> sendMiniCastToScannedCode(remembered)
+                                1 -> requestMiniCastCameraAndScan()
+                                else -> showManualMiniCastCodeDialog()
+                            }
+                        }
+                        .show()
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle("Cast to a Device")
+                        .setItems(arrayOf("Scan a QR code", "Enter code manually")) { _, which ->
+                            if (which == 0) requestMiniCastCameraAndScan() else showManualMiniCastCodeDialog()
+                        }
+                        .show()
+                }
+            },
+            onPlayToDevice = if (currentChannel != null) { peer ->
+                flingLiveChannelToTv(currentChannel, peer)
+            } else null
+        )
+    }
+
+    private fun legacyShowMiniCastMenu() {
         val remembered = castRelay.lastSentCode
         if (remembered != null) {
             AlertDialog.Builder(this)
@@ -2297,7 +2333,7 @@ class HomeActivity : AppCompatActivity() {
         }
         binding.btnCastMini?.setOnClickListener {
             if (currentMiniUrl.isBlank()) {
-                Toast.makeText(this, "Nothing playing to cast", Toast.LENGTH_SHORT).show()
+                showMiniCastMenu()
             } else {
                 showMiniCastMenu()
             }
@@ -5684,6 +5720,7 @@ class HomeActivity : AppCompatActivity() {
         val merged = row.mergedChannel
         val title = if (ch != null) ch.name else "${merged!!.name} · ${merged.serverNickname}"
         val options = mutableListOf(
+            "📺 Play on TV",
             "Add to Favorites".let { if (row.isFavorite) "Remove from Favorites" else it },
             TopFavoritesMenu.label(row.serverIndex, row.streamId),
             if (bulkSelectedLiveIds.contains(row.id)) "Deselect (bulk)" else "Select (bulk add to favorites)"
@@ -5698,6 +5735,7 @@ class HomeActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
+                    "📺 Play on TV" -> flingLiveChannelToTv(if (ch != null) ch.name else merged!!.name)
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, row.name, smartChannels, currentFocus, row.serverIndex, row.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, row.serverIndex, row.streamId, row.name)
                     "Add to Favorites", "Remove from Favorites" -> {
@@ -5750,13 +5788,14 @@ class HomeActivity : AppCompatActivity() {
             is CombinedFavorite.Primary -> -1 to item.channel.streamId
             is CombinedFavorite.Merged -> item.channel.serverIndex to item.channel.streamId
         }
-        val options = mutableListOf(TopFavoritesMenu.label(serverIndex, streamId), "Remove from Favorites", "Add to Chip", "Pin to Genre", "Select (bulk remove from favorites)")
+        val options = mutableListOf("📺 Play on TV", TopFavoritesMenu.label(serverIndex, streamId), "Remove from Favorites", "Add to Chip", "Pin to Genre", "Select (bulk remove from favorites)")
         if (canReorderFavorites()) options.add("Reorder Favorites")
         if (item is CombinedFavorite.Primary) options.add(0, "Set Reminder")
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
+                    "📺 Play on TV" -> flingLiveChannelToTv(item.name)
                     "Set Reminder" -> if (item is CombinedFavorite.Primary) showReminderDialog(item.channel)
                     TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, serverIndex, streamId, item.name)
                     "Remove from Favorites" -> {
@@ -5817,6 +5856,67 @@ class HomeActivity : AppCompatActivity() {
             .show()
     }
 
+    /** [chosen] is the TV picked in the device sheet; without one, more than one paired TV asks which. */
+    private fun flingLiveChannelToTv(channelName: String, chosen: com.iptvapp.handoff.Peer? = null) {
+        val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
+        if (chosen == null && peers.size > 1) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Play on which TV?")
+                .setItems(peers.map { it.label }.toTypedArray()) { _, i -> flingLiveChannelToTv(channelName, peers[i]) }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        if (chosen == null && peers.isEmpty()) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Play on TV")
+                .setMessage("No paired TV found.\n\nOpen MKTV on your TV, then open Remote on this phone to pair.")
+                .setPositiveButton("Open Remote") { _, _ ->
+                    startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        val tv = chosen ?: peers.first()
+        val host = tv.lastHost
+        if (host.isNullOrBlank()) {
+            Toast.makeText(this, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val port = if (tv.lastPort > 0) tv.lastPort else com.iptvapp.remote.RemoteControlServer.PORT
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val now = System.currentTimeMillis()
+                val body = org.json.JSONObject().put("cmd", "tune").put("name", channelName).toString()
+                val sig = com.iptvapp.remote.RemoteControlServer.sign(tv.secret, "POST", "/command", now, body)
+                val url = java.net.URL("http://$host:$port/command")
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 4000
+                    readTimeout = 4000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    setRequestProperty("X-MKTV-Time", now.toString())
+                    setRequestProperty("X-MKTV-Sig", sig)
+                }
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                withContext(Dispatchers.Main) {
+                    if (code in 200..299) {
+                        Toast.makeText(this@HomeActivity, "Playing $channelName on ${tv.label}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@HomeActivity, "Could not tune on ${tv.label} (HTTP $code)", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@HomeActivity, "Can't reach ${tv.label} - is MKTV open on it?", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private fun showChannelActionsMenu(channel: ChannelEntity) {
         lifecycleScope.launch {
             val label = viewModel.getReliabilityLabel(channel.streamId)
@@ -5827,6 +5927,7 @@ class HomeActivity : AppCompatActivity() {
     private fun showChannelActionsMenuDialog(channel: ChannelEntity, reliabilityLabel: String?) {
         val title = if (reliabilityLabel != null) "${channel.name}\n$reliabilityLabel" else channel.name
         val options = mutableListOf(
+            "📺 Play on TV",
             "Set Reminder",
             TopFavoritesMenu.label(-1, channel.streamId),
             if (bulkSelectedIds.contains(channel.streamId)) "Deselect (bulk)" else "Select (bulk add to favorites)",
@@ -5843,6 +5944,7 @@ class HomeActivity : AppCompatActivity() {
             .setItems(options.toTypedArray()) { _, i ->
                 when (options[i]) {
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
+                    "📺 Play on TV" -> flingLiveChannelToTv(channel.name)
                     "Set Reminder" -> showReminderDialog(channel)
                     TopFavoritesMenu.ADD, TopFavoritesMenu.REMOVE -> TopFavoritesMenu.toggle(this, prefs, -1, channel.streamId, channel.name)
                     "Select (bulk add to favorites)" -> {

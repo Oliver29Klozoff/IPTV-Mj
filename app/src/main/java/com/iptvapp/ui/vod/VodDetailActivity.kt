@@ -37,6 +37,7 @@ class VodDetailActivity : AppCompatActivity() {
     private var streamId: Int = -1
     private var vodName: String = ""
     private var containerExtension: String = "mp4"
+    private var resumePositionMs: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +66,7 @@ class VodDetailActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnPlay.setOnClickListener { launchPlayer() }
+        binding.btnPlayOnTv.setOnClickListener { flingMovieToTv() }
         if (savedInstanceState == null && intent.hasExtra("launcher_link")) lifecycleScope.launch {
             val link = com.iptvapp.tv.LauncherLink.parse(Intent.ACTION_VIEW, intent.getStringExtra("launcher_link"))
             val credentials = prefs.credentials.first()
@@ -175,6 +177,7 @@ class VodDetailActivity : AppCompatActivity() {
     private fun loadResumeProgress(streamId: Int) {
         lifecycleScope.launch {
             val (watchedMs, durationMs) = repository.getVodProgress(streamId)
+            resumePositionMs = watchedMs
             if (watchedMs > 0 && durationMs > 0) {
                 val pct = ((watchedMs * 100) / durationMs).coerceIn(0, 100).toInt()
                 binding.progressVod.progress = pct
@@ -250,5 +253,52 @@ class VodDetailActivity : AppCompatActivity() {
                 else -> {}
             }
         }
+    }
+
+    private fun flingMovieToTv() {
+        val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
+        if (peers.isEmpty()) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Play on TV")
+                .setMessage("No paired TV found.\n\nOpen MKTV on your TV, then open Remote on this phone to pair.")
+                .setPositiveButton("Open Remote") { _, _ ->
+                    startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+
+        val movieSource = object : com.iptvapp.ui.handoff.HandoffSource {
+            override fun unsupportedReason(): String? = null
+            override fun handoffKey(): String = "vod:$streamId"
+            override fun positionMs(): Long = resumePositionMs
+            override fun isPlaying(): Boolean = false
+            override fun pauseForHandoff() {}
+
+            override suspend fun descriptor(peer: com.iptvapp.handoff.Peer, txId: String): com.iptvapp.handoff.Descriptor? {
+                // This screen shows main-provider movies (slot -1), named the way the receiver names its own.
+                val d = com.iptvapp.handoff.Handoff.deps(this@VodDetailActivity)
+                val provider = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences())
+                    .providers().firstOrNull { it.serverIndex == -1 } ?: return null
+                val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, provider.identity)
+                return com.iptvapp.handoff.Descriptor(
+                    txId = txId,
+                    kind = com.iptvapp.handoff.ContentKind.MOVIE,
+                    providerTag = tag,
+                    providerLabel = com.iptvapp.handoff.HandoffProtocol.safeText(provider.label, 40),
+                    streamId = streamId,
+                    title = vodName.ifBlank { "Movie" },
+                    year = com.iptvapp.handoff.AppHandoffCatalog.yearOf(vodName),
+                    containerExt = containerExtension,
+                    positionMs = resumePositionMs,
+                    durationMs = 0L,
+                    playing = false,
+                    sourceName = com.iptvapp.handoff.Handoff.selfName(this@VodDetailActivity)
+                )
+            }
+        }
+
+        com.iptvapp.ui.handoff.HandoffSendUi.show(this, movieSource)
     }
 }

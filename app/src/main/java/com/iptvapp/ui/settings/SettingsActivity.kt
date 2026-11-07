@@ -1781,6 +1781,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupBackupRestore() {
         binding.btnBackupSettings.setOnClickListener { backupSettings() }
         binding.btnRestoreSettings.setOnClickListener { showRestoreDialog() }
+        binding.btnSyncTvSettings.setOnClickListener { showSyncTvDialog() }
         binding.btnSendDebugReport.setOnClickListener { sendDebugReport() }
         binding.btnProviderHealth.setOnClickListener { showProviderHealthDialog() }
         binding.btnDataUsage.setOnClickListener { showDataUsageDialog() }
@@ -4907,6 +4908,68 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showRestoreDialog() {
         openBackupLauncher.launch(arrayOf("application/json"))
+    }
+
+    private fun showSyncTvDialog() {
+        val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
+        if (peers.isEmpty()) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Sync with TV")
+                .setMessage("No paired TV found.\n\nTo sync over Wi-Fi, open MKTV on your TV, then open Remote on this phone to pair.")
+                .setPositiveButton("Open Remote") { _, _ ->
+                    startActivity(Intent(this, com.iptvapp.ui.remote.RemoteActivity::class.java))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+
+        val options = arrayOf(
+            "Push Favorites & Settings to TV",
+            "Pull Favorites from TV"
+        )
+
+        val targetTv = peers.first()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sync with ${targetTv.label} (Wi-Fi)")
+            .setItems(options) { _, which ->
+                val host = targetTv.lastHost
+                if (host.isNullOrBlank()) {
+                    Toast.makeText(this, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_LONG).show()
+                    return@setItems
+                }
+                val port = if (targetTv.lastPort > 0) targetTv.lastPort else com.iptvapp.remote.RemoteControlServer.PORT
+                if (which == 0) {
+                    val progress = androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Syncing to ${targetTv.label}")
+                        .setMessage("Sending favorites and settings over your home network...")
+                        .setCancelable(false)
+                        .show()
+                    lifecycleScope.launch {
+                        val res = com.iptvapp.sync.LocalSyncManager.get(this@SettingsActivity)
+                            .pushToTv(host = host, port = port, token = targetTv.secret)
+                        progress.dismiss()
+                        binding.tvBackupStatus.text = if (res.success) "✓ ${res.message}" else "✗ ${res.message}"
+                        Toast.makeText(this@SettingsActivity, res.message, Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    val progress = androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Pulling from ${targetTv.label}")
+                        .setMessage("Pulling favorites over your home network...")
+                        .setCancelable(false)
+                        .show()
+                    lifecycleScope.launch {
+                        val res = com.iptvapp.sync.LocalSyncManager.get(this@SettingsActivity)
+                            .pullFromTv(host = host, port = port, token = targetTv.secret)
+                        progress.dismiss()
+                        binding.tvBackupStatus.text = if (res.success) "✓ ${res.message}" else "✗ ${res.message}"
+                        Toast.makeText(this@SettingsActivity, res.message, Toast.LENGTH_LONG).show()
+                        if (res.success) loadSettings()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private suspend fun restoreBackupFromUri(uri: Uri) {

@@ -40,6 +40,14 @@ object RemoteControlHooks {
     /** True while an MKTV screen is in front on the TV, so the phone can be told when it isn't. */
     val isInFront: Boolean get() = front?.get() != null
 
+    fun showToast(message: String) {
+        front?.get()?.let { activity ->
+            activity.runOnUiThread {
+                android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     /** Main thread, once (RemoteControlServer.start). */
     fun install(app: Application) {
         if (installed) return

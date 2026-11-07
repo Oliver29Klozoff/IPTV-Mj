@@ -2473,6 +2473,13 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="8dp"
                                 android:text="" />
+                            <Button
+                                android:id="@+id/btnSyncTvSettings"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:text="Sync with TV (Wi-Fi)" />
                         </LinearLayout>
                         <LinearLayout
                             style="@style/Rack.Row.Toggle"
