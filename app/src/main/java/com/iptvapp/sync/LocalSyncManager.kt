@@ -310,8 +310,9 @@ class LocalSyncManager @Inject constructor(
             val prefJson = json.optJSONObject("preferences")
             if (prefJson != null) {
                 prefJson.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
-                prefJson.optString("preferredAudioLanguage", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredAudioLanguage(it) }
-                prefJson.optString("preferredSubtitleLanguage", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredSubtitleLanguage(it) }
+                // "" is a real choice here: No preference.
+                if (prefJson.has("preferredAudioLanguage")) prefs.setPreferredAudioLanguage(prefJson.optString("preferredAudioLanguage", ""))
+                if (prefJson.has("preferredSubtitleLanguage")) prefs.setPreferredSubtitleLanguage(prefJson.optString("preferredSubtitleLanguage", ""))
                 if (prefJson.has("usaOnlyChannels")) prefs.setUsaOnlyChannels(prefJson.optBoolean("usaOnlyChannels", true))
                 if (prefJson.has("showMovies")) prefs.setShowMovies(prefJson.optBoolean("showMovies", true))
                 if (prefJson.has("showSeries")) prefs.setShowSeries(prefJson.optBoolean("showSeries", true))

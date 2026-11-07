@@ -170,6 +170,17 @@ class LocalSyncManagerTest {
     }
 
     @Test
+    fun noPreferenceLanguagesSyncToo() = runBlocking {
+        prefs.setPreferredAudioLanguage("es")
+        prefs.setPreferredSubtitleLanguage("en")
+        val p = payload("someone-elses-tag", favorites = emptyMap())
+            .put("preferences", JSONObject().put("preferredAudioLanguage", "").put("preferredSubtitleLanguage", ""))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertEquals("", prefs.preferredAudioLanguage.first())
+        assertEquals("", prefs.preferredSubtitleLanguage.first())
+    }
+
+    @Test
     fun pullReplyMustBeSignedForThisRequest() {
         val body = JSONObject().put("device", "TV")
         val reply = LocalSyncManager.sealPullReply(token, "req-sig", body)
