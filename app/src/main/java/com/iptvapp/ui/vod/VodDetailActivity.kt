@@ -277,6 +277,8 @@ class VodDetailActivity : AppCompatActivity() {
             override fun pauseForHandoff() {}
 
             override suspend fun descriptor(peer: com.iptvapp.handoff.Peer, txId: String): com.iptvapp.handoff.Descriptor? {
+                // The saved spot now, not when this page opened (Clear Progress, or watched more since).
+                resumePositionMs = repository.getVodProgress(streamId).first
                 // This screen shows main-provider movies (slot -1), named the way the receiver names its own.
                 val d = com.iptvapp.handoff.Handoff.deps(this@VodDetailActivity)
                 val provider = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences())

@@ -367,7 +367,7 @@ class LocalSyncManager @Inject constructor(
             val now = System.currentTimeMillis()
             val sig = RemoteControlServer.sign(token, "POST", "/sync/push", now, bodyStr)
 
-            val url = URL("http://$host:$port/sync/push")
+            val url = URL("http://${RemoteControlServer.hostForUrl(host)}:$port/sync/push")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 6000
@@ -410,7 +410,7 @@ class LocalSyncManager @Inject constructor(
             val now = System.currentTimeMillis()
             val sig = RemoteControlServer.sign(token, "GET", "/sync/pull", now, "")
 
-            val url = URL("http://$host:$port/sync/pull")
+            val url = URL("http://${RemoteControlServer.hostForUrl(host)}:$port/sync/pull")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 6000

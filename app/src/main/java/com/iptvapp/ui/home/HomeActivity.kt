@@ -5897,7 +5897,7 @@ class HomeActivity : AppCompatActivity() {
                 val body = org.json.JSONObject().put("cmd", "tune").put("name", channelName)
                     .apply { if (tag != null) put("p", tag).put("sid", streamId) }.toString()
                 val sig = com.iptvapp.remote.RemoteControlServer.sign(tv.secret, "POST", "/command", now, body)
-                val url = java.net.URL("http://$host:$port/command")
+                val url = java.net.URL("http://${com.iptvapp.remote.RemoteControlServer.hostForUrl(host)}:$port/command")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 4000

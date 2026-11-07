@@ -149,7 +149,7 @@ object CastDevicePickerUi {
                     val now = System.currentTimeMillis()
                     val body = cmdJson.toString()
                     val sig = RemoteControlServer.sign(peer.secret, "POST", "/command", now, body)
-                    val conn = (URL("http://$host:$port/command").openConnection() as HttpURLConnection).apply {
+                    val conn = (URL("http://${RemoteControlServer.hostForUrl(host)}:$port/command").openConnection() as HttpURLConnection).apply {
                         requestMethod = "POST"
                         connectTimeout = 3000
                         readTimeout = 3000

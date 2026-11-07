@@ -286,6 +286,9 @@ object RemoteControlServer {
     const val SIGNATURE_WINDOW_MS = 2 * 60_000L
     private val recentSignatures = LinkedHashMap<String, Long>()
 
+    /** [host] for a URL: an IPv6 literal goes in brackets. */
+    fun hostForUrl(host: String) = if (host.contains(':') && !host.startsWith("[")) "[$host]" else host
+
     /** HMAC-SHA256 of the request with [token], in hex. Shared with the phone side. */
     fun sign(token: String, method: String, path: String, signedAt: Long, body: String): String {
         val mac = javax.crypto.Mac.getInstance("HmacSHA256")
