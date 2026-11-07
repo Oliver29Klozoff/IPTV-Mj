@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.iptvapp.data.api.XtreamApiService
+import com.iptvapp.data.home.TopFavorites
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -73,7 +74,8 @@ class LocalSyncManagerTest {
         put("favoriteChannelIds", JSONArray(favorites.keys.toList()))
         put("channelNames", JSONObject(favorites.mapKeys { it.key.toString() }))
         put("favoriteCategoryIds", JSONArray(listOf("77")))
-        put("topFavorites", """{"items":[{"t":"channels","s":-1,"i":10}]}""")
+        // Slot 3 is a provider disabled on the sender: no tag, so it can't be trusted here.
+        put("topFavorites", TopFavorites.toJson(TopFavorites.State(listOf(TopFavorites.ref(-1, 10), TopFavorites.ref(0, 500), TopFavorites.ref(3, 77)))))
     }
 
     @Test
@@ -95,7 +97,8 @@ class LocalSyncManagerTest {
         assertTrue(result.success)
         assertEquals(listOf(11), db.channelDao().getFavoriteChannelIds())
         assertTrue("77" in prefs.favoriteLiveCategoryIds.first())
-        assertEquals(p.getString("topFavorites"), prefs.topFavoritesJson.first())
+        // Top Favorites on verified providers only: the disabled slot 3 entry is dropped.
+        assertEquals(listOf(TopFavorites.ref(-1, 10), TopFavorites.ref(0, 500)), TopFavorites.parse(prefs.topFavoritesJson.first()).items)
     }
 
     @Test

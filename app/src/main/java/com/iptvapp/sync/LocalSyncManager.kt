@@ -310,7 +310,11 @@ class LocalSyncManager @Inject constructor(
             // 5. Top Favorites: its items name provider slots, so only between identical setups
             val topFav = json.optString("topFavorites", "")
             if (topFav.isNotEmpty() && sameProviders) {
-                prefs.setTopFavoritesJson(topFav)
+                // Only items on a slot verified as the same provider on both sides: a disabled
+                // provider has no tag, so its slot may hold a different provider here.
+                val state = com.iptvapp.data.home.TopFavorites.parse(topFav)
+                val kept = state.copy(items = state.items.filter { it.serverIndex.toString() in localTags })
+                prefs.setTopFavoritesJson(com.iptvapp.data.home.TopFavorites.toJson(kept))
             }
 
             // 6. Preferences
