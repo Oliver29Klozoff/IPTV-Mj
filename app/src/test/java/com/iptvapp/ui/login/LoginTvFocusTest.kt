@@ -151,4 +151,31 @@ class LoginTvFocusTest {
             secondaryStroke.getColorForState(focusedState, 0)
         )
     }
+
+    @Test
+    fun textInputLayoutBoxBackgroundColorStateListIsSupported() {
+        val inputBg = ContextCompat.getColorStateList(context, R.color.login_input_box_bg)
+        assertNotNull(inputBg)
+        val focusedColor = inputBg!!.getColorForState(
+            intArrayOf(android.R.attr.state_focused, android.R.attr.state_enabled),
+            0
+        )
+        val defaultColor = inputBg.defaultColor
+        assertNotEquals("Focused input color must differ from default", defaultColor, focusedColor)
+
+        val inputLayouts = listOf(
+            binding.tilServerUrl,
+            binding.tilNickname,
+            binding.tilUsername,
+            binding.tilPassword,
+            binding.tilEpgUrl
+        )
+        inputLayouts.forEach { til ->
+            til.setBoxBackgroundColorStateList(inputBg)
+            til.setBoxBackgroundColor(focusedColor)
+            assertEquals(focusedColor, til.boxBackgroundColor)
+            til.setBoxBackgroundColor(defaultColor)
+            assertEquals(defaultColor, til.boxBackgroundColor)
+        }
+    }
 }
