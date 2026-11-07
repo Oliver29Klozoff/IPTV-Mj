@@ -503,13 +503,16 @@ class SeriesDetailActivity : AppCompatActivity() {
                 override fun pauseForHandoff() {}
 
                 override suspend fun descriptor(peer: com.iptvapp.handoff.Peer, txId: String): com.iptvapp.handoff.Descriptor? {
-                    val creds = prefs.credentials.first()
-                    val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, "${creds.serverUrl}|${creds.username}")
+                    // The provider this series came from, named the way the receiver names its own (as PlayerActivity does).
+                    val d = com.iptvapp.handoff.Handoff.deps(this@SeriesDetailActivity)
+                    val provider = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences())
+                        .providers().firstOrNull { it.serverIndex == (serverIndex ?: -1) } ?: return null
+                    val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, provider.identity)
                     return com.iptvapp.handoff.Descriptor(
                         txId = txId,
                         kind = com.iptvapp.handoff.ContentKind.EPISODE,
                         providerTag = tag,
-                        providerLabel = "Primary",
+                        providerLabel = com.iptvapp.handoff.HandoffProtocol.safeText(provider.label, 40),
                         streamId = -1,
                         title = episode.title.ifBlank { "S${episode.season}E${episode.episodeNum}" },
                         seriesId = seriesIdField,

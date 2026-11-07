@@ -935,7 +935,7 @@ class HomeActivity : AppCompatActivity() {
                 }
             },
             onPlayToDevice = if (currentChannel != null) { peer ->
-                flingLiveChannelToTv(currentChannel)
+                flingLiveChannelToTv(currentChannel, peer)
             } else null
         )
     }
@@ -5856,9 +5856,18 @@ class HomeActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun flingLiveChannelToTv(channelName: String) {
+    /** [chosen] is the TV picked in the device sheet; without one, more than one paired TV asks which. */
+    private fun flingLiveChannelToTv(channelName: String, chosen: com.iptvapp.handoff.Peer? = null) {
         val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
-        if (peers.isEmpty()) {
+        if (chosen == null && peers.size > 1) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Play on which TV?")
+                .setItems(peers.map { it.label }.toTypedArray()) { _, i -> flingLiveChannelToTv(channelName, peers[i]) }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        if (chosen == null && peers.isEmpty()) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Play on TV")
                 .setMessage("No paired TV found.\n\nOpen MKTV on your TV, then open Remote on this phone to pair.")
@@ -5869,7 +5878,7 @@ class HomeActivity : AppCompatActivity() {
                 .show()
             return
         }
-        val tv = peers.first()
+        val tv = chosen ?: peers.first()
         val host = tv.lastHost
         if (host.isNullOrBlank()) {
             Toast.makeText(this, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_SHORT).show()

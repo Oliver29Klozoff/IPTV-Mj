@@ -6,7 +6,9 @@ import android.util.Log
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.FavoriteFolderEntity
-import com.iptvapp.remote.RemoteControlHooks
+import com.iptvapp.data.repository.XtreamRepository
+import com.iptvapp.handoff.AppHandoffCatalog
+import com.iptvapp.handoff.HandoffCrypto
 import com.iptvapp.remote.RemoteControlServer
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -33,13 +35,21 @@ data class LocalSyncResult(
 /**
  * Direct Local Network (LAN) Sync between paired MKTV devices.
  * Zero cloud dependency: transfers and merges favorites, custom folders, channel order,
- * top favorites, preferences, and optionally provider accounts over the local home Wi-Fi.
+ * top favorites and preferences over the local home Wi-Fi.
  * Authenticated using the HMAC-SHA256 pairing token from RemoteControlServer.
+ *
+ * The request is signed, not encrypted, so the payload never carries provider logins, server
+ * addresses or stream URLs. Providers are named only by HandoffCrypto.providerTag, keyed by the
+ * pairing token, so the other side can tell "same account" without learning the account.
+ * Stream ids, categories and watch progress belong to one provider: they're applied by id only
+ * when both sides' main provider tags match; otherwise favorites are matched by exact name and
+ * the rest is skipped.
  */
 @Singleton
 class LocalSyncManager @Inject constructor(
     private val db: IptvDatabase,
-    private val prefs: PreferencesManager
+    private val prefs: PreferencesManager,
+    private val repository: XtreamRepository
 ) {
 
     @EntryPoint
@@ -55,8 +65,12 @@ class LocalSyncManager @Inject constructor(
             EntryPointAccessors.fromApplication(context.applicationContext, LocalSyncEntryPoint::class.java).localSyncManager()
     }
 
-    suspend fun buildSyncPayload(includeCredentials: Boolean = true): JSONObject = withContext(Dispatchers.IO) {
-        val creds = prefs.credentials.first()
+    /** serverIndex → provider tag for every enabled provider, keyed by the pairing [token]. */
+    private suspend fun providerTags(token: String): Map<String, String> =
+        AppHandoffCatalog(db, repository, prefs).providers()
+            .associate { it.serverIndex.toString() to HandoffCrypto.providerTag(token, it.identity) }
+
+    suspend fun buildSyncPayload(token: String): JSONObject = withContext(Dispatchers.IO) {
         val favChannelIds = db.channelDao().getFavoriteChannelIds()
         val favChannels = db.channelDao().getFavoriteChannelsBlocking()
         val favCategoryIds = prefs.favoriteLiveCategoryIds.first().toList()
@@ -69,9 +83,10 @@ class LocalSyncManager @Inject constructor(
         val channelNames = favChannels.associate { it.streamId.toString() to it.name }
 
         JSONObject().apply {
-            put("version", 1)
+            put("version", 2)
             put("syncedAt", System.currentTimeMillis())
             put("device", Build.MODEL)
+            put("providers", JSONObject(providerTags(token)))
             put("favoriteChannelIds", JSONArray(favChannelIds))
             put("favoriteCategoryIds", JSONArray(favCategoryIds))
             put("channelNames", JSONObject(channelNames))
@@ -100,66 +115,52 @@ class LocalSyncManager @Inject constructor(
             val vodWatched = db.vodDao().getUserData().filter { it.watchedMs > 0 }
                 .map { JSONObject().apply { put("streamId", it.streamId); put("watchedMs", it.watchedMs); put("durationMs", it.durationMs) } }
             put("vodProgress", JSONArray(vodWatched))
-
-            // Credentials (optional, included by default for phone->TV fast setup)
-            if (includeCredentials && creds.isLoggedIn && creds.serverUrl.isNotBlank()) {
-                put("credentials", JSONObject().apply {
-                    put("serverUrl", creds.serverUrl)
-                    put("username", creds.username)
-                    put("password", creds.password)
-                    put("epgUrl", prefs.epgUrl.first())
-                    val extraServersList = prefs.getExtraServersWithNick()
-                    put("extraServers", JSONArray(extraServersList.map { s ->
-                        JSONObject().apply {
-                            put("url", s[0]); put("user", s[1]); put("pass", s[2])
-                            put("nick", s.getOrElse(3) { "" }); put("epg", s.getOrElse(4) { "" })
-                            put("enabled", s.getOrElse(5) { "true" })
-                        }
-                    }))
-                })
-            }
         }
     }
 
-    suspend fun applySyncPayload(json: JSONObject): LocalSyncResult = withContext(Dispatchers.IO) {
+    suspend fun applySyncPayload(json: JSONObject, token: String): LocalSyncResult = withContext(Dispatchers.IO) {
         var favCount = 0
         var catCount = 0
         val fromDevice = json.optString("device", "paired device")
 
         try {
-            // 1. Credentials (if present and target device is unconfigured or extra servers exist)
-            val credsJson = json.optJSONObject("credentials")
-            if (credsJson != null) {
-                val serverUrl = credsJson.optString("serverUrl", "")
-                val username = credsJson.optString("username", "")
-                val password = credsJson.optString("password", "")
-                val current = prefs.credentials.first()
-                if (!current.isLoggedIn && serverUrl.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
-                    prefs.saveCredentials(serverUrl, username, password)
-                    credsJson.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let { prefs.setEpgUrl(it) }
-                }
-                val extra = credsJson.optJSONArray("extraServers")
-                if (extra != null && extra.length() > 0) {
-                    val list = mutableListOf<List<String>>()
-                    for (i in 0 until extra.length()) {
-                        val o = extra.optJSONObject(i) ?: continue
-                        list.add(listOf(
-                            o.optString("url", ""), o.optString("user", ""), o.optString("pass", ""),
-                            o.optString("nick", ""), o.optString("epg", ""), o.optString("enabled", "true")
-                        ))
-                    }
-                    if (list.isNotEmpty()) prefs.saveExtraServersWithNick(list)
-                }
+            // Older builds sent provider logins here; they are never applied.
+            val localTags = providerTags(token)
+            val remoteTags = json.optJSONObject("providers")?.let { o -> o.keys().asSequence().associateWith { o.optString(it) } }.orEmpty()
+            val samePrimary = localTags["-1"]?.let { HandoffCrypto.constantTimeEquals(it, remoteTags["-1"].orEmpty()) } == true
+            val sameProviders = localTags.isNotEmpty() && localTags.keys == remoteTags.keys &&
+                localTags.all { (k, v) -> HandoffCrypto.constantTimeEquals(v, remoteTags[k].orEmpty()) }
+
+            // Remote stream id → local stream id: the same id on the same provider, otherwise one
+            // channel with exactly that name.
+            val channelNames = json.optJSONObject("channelNames")
+            val existingIds = if (samePrimary) db.channelDao().getAllChannelIds().toSet() else emptySet()
+            val idMap = HashMap<Int, Int?>()
+            suspend fun localId(remoteId: Int): Int? = idMap.getOrPut(remoteId) {
+                if (samePrimary) return@getOrPut remoteId.takeIf { it in existingIds }
+                val name = channelNames?.optString(remoteId.toString(), "")?.trim().orEmpty()
+                if (name.isBlank()) return@getOrPut null
+                db.channelDao().findByNameLike(name).firstOrNull { it.name.trim().equals(name, ignoreCase = true) }?.streamId
             }
 
-            // 2. Favorite Categories
+            // 1. Favorite Categories (category ids belong to one provider)
             val favCats = json.optJSONArray("favoriteCategoryIds")
-            if (favCats != null) {
+            if (favCats != null && samePrimary) {
                 val remoteCats = (0 until favCats.length()).map { favCats.getString(it) }.toSet()
                 val localCats = prefs.favoriteLiveCategoryIds.first()
                 val mergedCats = localCats + remoteCats
                 prefs.setFavoriteLiveCategoryIds(mergedCats)
                 catCount = remoteCats.size
+            }
+
+            // 2. Favorite Channels
+            val favChannels = json.optJSONArray("favoriteChannelIds")
+            if (favChannels != null) {
+                for (i in 0 until favChannels.length()) {
+                    val id = localId(favChannels.optInt(i, -1)) ?: continue
+                    db.channelDao().setFavorite(id, true)
+                    favCount++
+                }
             }
 
             // 3. Folders
@@ -183,7 +184,7 @@ class LocalSyncManager @Inject constructor(
                     while (keys.hasNext()) {
                         val streamIdStr = keys.next()
                         val folderName = channelFolders.optString(streamIdStr)
-                        val streamId = streamIdStr.toIntOrNull()
+                        val streamId = streamIdStr.toIntOrNull()?.let { localId(it) }
                         if (streamId != null && folderName.isNotEmpty()) {
                             idByName[folderName]?.let { folderId ->
                                 db.channelDao().setFavoriteFolder(streamId, folderId)
@@ -193,55 +194,25 @@ class LocalSyncManager @Inject constructor(
                 }
             }
 
-            // 4. Favorite Channels
-            val favChannels = json.optJSONArray("favoriteChannelIds")
-            val channelNames = json.optJSONObject("channelNames")
-            if (favChannels != null) {
-                val remoteIds = (0 until favChannels.length()).map { favChannels.getInt(it) }
-                val existingIds = db.channelDao().getAllChannelIds().toSet()
-
-                // Apply direct ID matches
-                remoteIds.filter { it in existingIds }.forEach {
-                    db.channelDao().setFavorite(it, true)
-                    favCount++
-                }
-
-                // If some IDs weren't found locally, fallback to matching by channel name
-                val missingIds = remoteIds.filter { it !in existingIds }
-                if (missingIds.isNotEmpty() && channelNames != null) {
-                    for (id in missingIds) {
-                        val name = channelNames.optString(id.toString(), "")
-                        if (name.isNotBlank()) {
-                            val matches = db.channelDao().findByNameLike("%${name.trim()}%")
-                            val exact = matches.firstOrNull { it.name.trim().equals(name.trim(), ignoreCase = true) } ?: matches.firstOrNull()
-                            if (exact != null && !exact.isFavorite) {
-                                db.channelDao().setFavorite(exact.streamId, true)
-                                favCount++
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 5. Favorite Order
+            // 4. Favorite Order
             val favOrder = json.optJSONArray("favoriteOrder")
             if (favOrder != null) {
                 val localFavs = db.channelDao().getFavoriteChannelIds().toSet()
                 for (i in 0 until favOrder.length()) {
-                    val streamId = favOrder.getInt(i)
+                    val streamId = localId(favOrder.optInt(i, -1)) ?: continue
                     if (streamId in localFavs) {
                         db.channelDao().updateFavOrder(streamId, i)
                     }
                 }
             }
 
-            // 6. Top Favorites
+            // 5. Top Favorites: its items name provider slots, so only between identical setups
             val topFav = json.optString("topFavorites", "")
-            if (topFav.isNotEmpty()) {
+            if (topFav.isNotEmpty() && sameProviders) {
                 prefs.setTopFavoritesJson(topFav)
             }
 
-            // 7. Preferences
+            // 6. Preferences
             val prefJson = json.optJSONObject("preferences")
             if (prefJson != null) {
                 prefJson.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
@@ -253,9 +224,9 @@ class LocalSyncManager @Inject constructor(
                 if (prefJson.has("combineDuplicates")) prefs.setCombineDuplicates(prefJson.optBoolean("combineDuplicates", true))
             }
 
-            // 8. VOD Progress
+            // 7. VOD Progress (movie ids belong to one provider)
             val vodProgress = json.optJSONArray("vodProgress")
-            if (vodProgress != null) {
+            if (vodProgress != null && samePrimary) {
                 for (i in 0 until vodProgress.length()) {
                     val item = vodProgress.optJSONObject(i) ?: continue
                     val sid = item.optInt("streamId", -1)
@@ -271,25 +242,25 @@ class LocalSyncManager @Inject constructor(
             prefs.setLastSyncTime(System.currentTimeMillis())
             LocalSyncResult(
                 success = true,
-                message = "Synced $favCount favorites and $catCount categories from $fromDevice",
+                message = "Synced $favCount favorites from $fromDevice" +
+                    if (samePrimary) "" else " (different provider: matched by name)",
                 favoritesCount = favCount,
                 categoriesCount = catCount,
                 targetDevice = fromDevice
             )
         } catch (e: Exception) {
             Log.e(TAG, "applySyncPayload error", e)
-            LocalSyncResult(success = false, message = "Sync apply error: ${e.message}")
+            LocalSyncResult(success = false, message = "Sync from $fromDevice failed")
         }
     }
 
     suspend fun pushToTv(
         host: String,
         port: Int = RemoteControlServer.PORT,
-        token: String,
-        includeCredentials: Boolean = true
+        token: String
     ): LocalSyncResult = withContext(Dispatchers.IO) {
         try {
-            val payload = buildSyncPayload(includeCredentials)
+            val payload = buildSyncPayload(token)
             val bodyStr = payload.toString()
             val now = System.currentTimeMillis()
             val sig = RemoteControlServer.sign(token, "POST", "/sync/push", now, bodyStr)
@@ -308,16 +279,13 @@ class LocalSyncManager @Inject constructor(
             conn.outputStream.use { it.write(bodyStr.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             if (code in 200..299) {
-                val responseText = conn.inputStream.bufferedReader().use { it.readText() }
-                val resJson = JSONObject(responseText)
-                val favs = resJson.optInt("favoritesMerged", payload.optJSONArray("favoriteChannelIds")?.length() ?: 0)
-                val cats = resJson.optInt("categoriesMerged", payload.optJSONArray("favoriteCategoryIds")?.length() ?: 0)
+                conn.inputStream.bufferedReader().use { it.readText() }
                 prefs.setLastSyncTime(System.currentTimeMillis())
+                // The TV applies it in the background and shows its own "Synced" message.
                 LocalSyncResult(
                     success = true,
-                    message = "Synced $favs favorites & settings to TV",
-                    favoritesCount = favs,
-                    categoriesCount = cats
+                    message = "Sent ${payload.optJSONArray("favoriteChannelIds")?.length() ?: 0} favorites and settings to the TV. It shows a message when they're in.",
+                    favoritesCount = payload.optJSONArray("favoriteChannelIds")?.length() ?: 0
                 )
             } else {
                 val errText = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
@@ -353,7 +321,7 @@ class LocalSyncManager @Inject constructor(
             if (code in 200..299) {
                 val responseText = conn.inputStream.bufferedReader().use { it.readText() }
                 val payload = JSONObject(responseText)
-                applySyncPayload(payload)
+                applySyncPayload(payload, token)
             } else {
                 val errText = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
                 val errJson = try { JSONObject(errText) } catch (_: Exception) { null }

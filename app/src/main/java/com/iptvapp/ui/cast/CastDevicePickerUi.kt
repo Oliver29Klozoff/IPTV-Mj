@@ -98,7 +98,7 @@ object CastDevicePickerUi {
                     if (onPlayToDevice != null) {
                         AlertDialog.Builder(activity)
                             .setTitle(peer.label)
-                            .setItems(arrayOf("▶  Play on TV", "🎮  TV Remote & Volume", "🔄  Sync Favorites & Setup")) { _, which ->
+                            .setItems(arrayOf("▶  Play on TV", "🎮  TV Remote & Volume", "🔄  Sync Favorites & Settings")) { _, which ->
                                 when (which) {
                                     0 -> onPlayToDevice(peer)
                                     1 -> showTvControllerDialog(activity, peer)
@@ -206,7 +206,7 @@ object CastDevicePickerUi {
             .show()
         activity.lifecycleScope.launch {
             val res = LocalSyncManager.get(activity)
-                .pushToTv(host = host, port = port, token = peer.secret, includeCredentials = true)
+                .pushToTv(host = host, port = port, token = peer.secret)
             progress.dismiss()
             Toast.makeText(activity, res.message, Toast.LENGTH_LONG).show()
         }

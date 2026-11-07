@@ -277,13 +277,16 @@ class VodDetailActivity : AppCompatActivity() {
             override fun pauseForHandoff() {}
 
             override suspend fun descriptor(peer: com.iptvapp.handoff.Peer, txId: String): com.iptvapp.handoff.Descriptor? {
-                val creds = prefs.credentials.first()
-                val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, "${creds.serverUrl}|${creds.username}")
+                // This screen shows main-provider movies (slot -1), named the way the receiver names its own.
+                val d = com.iptvapp.handoff.Handoff.deps(this@VodDetailActivity)
+                val provider = com.iptvapp.handoff.AppHandoffCatalog(d.database(), d.repository(), d.preferences())
+                    .providers().firstOrNull { it.serverIndex == -1 } ?: return null
+                val tag = com.iptvapp.handoff.HandoffCrypto.providerTag(peer.secret, provider.identity)
                 return com.iptvapp.handoff.Descriptor(
                     txId = txId,
                     kind = com.iptvapp.handoff.ContentKind.MOVIE,
                     providerTag = tag,
-                    providerLabel = "Primary",
+                    providerLabel = com.iptvapp.handoff.HandoffProtocol.safeText(provider.label, 40),
                     streamId = streamId,
                     title = vodName.ifBlank { "Movie" },
                     year = com.iptvapp.handoff.AppHandoffCatalog.yearOf(vodName),

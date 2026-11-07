@@ -70,7 +70,7 @@ object PairedDevicesUi {
         val actions = mutableListOf<() -> Unit>()
 
         if (p.isTv) {
-            options.add("Push Setup & Favorites to ${p.label}")
+            options.add("Push Favorites & Settings to ${p.label}")
             actions.add { pushSync(activity, p) }
 
             options.add("Pull from ${p.label}")
@@ -119,7 +119,7 @@ object PairedDevicesUi {
 
         activity.lifecycleScope.launch {
             val port = if (p.lastPort > 0) p.lastPort else RemoteControlServer.PORT
-            val res = LocalSyncManager.get(activity).pushToTv(host = host, port = port, token = p.secret, includeCredentials = true)
+            val res = LocalSyncManager.get(activity).pushToTv(host = host, port = port, token = p.secret)
             progress.dismiss()
             AlertDialog.Builder(activity)
                 .setTitle(if (res.success) "Sync Complete" else "Sync Failed")

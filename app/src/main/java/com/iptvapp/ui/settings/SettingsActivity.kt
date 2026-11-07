@@ -4925,7 +4925,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val options = arrayOf(
-            "Push Setup & Favorites to TV",
+            "Push Favorites & Settings to TV",
             "Pull Favorites from TV"
         )
 
@@ -4942,12 +4942,12 @@ class SettingsActivity : AppCompatActivity() {
                 if (which == 0) {
                     val progress = androidx.appcompat.app.AlertDialog.Builder(this)
                         .setTitle("Syncing to ${targetTv.label}")
-                        .setMessage("Pushing favorites and setup over your home network...")
+                        .setMessage("Sending favorites and settings over your home network...")
                         .setCancelable(false)
                         .show()
                     lifecycleScope.launch {
                         val res = com.iptvapp.sync.LocalSyncManager.get(this@SettingsActivity)
-                            .pushToTv(host = host, port = port, token = targetTv.secret, includeCredentials = true)
+                            .pushToTv(host = host, port = port, token = targetTv.secret)
                         progress.dismiss()
                         binding.tvBackupStatus.text = if (res.success) "✓ ${res.message}" else "✗ ${res.message}"
                         Toast.makeText(this@SettingsActivity, res.message, Toast.LENGTH_LONG).show()
