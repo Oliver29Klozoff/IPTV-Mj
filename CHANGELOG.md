@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v7.77 - 2026-11-07
+- **New**: Play on TV. On a phone, a movie or episode page has a Play on TV button, and a channel's
+  long-press menu has Play on TV. It starts playing on your paired MKTV TV. With more than one TV
+  paired, you pick which one.
+- **New**: Sync favorites over Wi-Fi. Settings can push your favorites and settings to a paired TV, or pull
+  them from it, without the cloud. No provider logins are sent. If the TV uses a different provider,
+  channels are matched by exact name.
+- **New**: Cast picker. Cast to a Device now lists your paired TVs, with a small remote for the TV that's
+  playing.
+
 ## v7.76 - 2026-10-29
 - **New**: Top Favorites, a row of channels you pick, first on Home. Hold OK on a channel (long-press on a
   phone) and choose Add to Top Favorites. Each card shows what's on now and what's next. It's separate from

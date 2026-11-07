@@ -1,7 +1,7 @@
 {
-  "versionCode": 614,
-  "versionName": "7.76",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.76/MKTV.apk",
-  "apkSha256": "8b50037e7c95e2216fb971c9b6ec788a11b2fdca3fcac646cf0e275052a8c839",
-  "changelog": "Top Favorites: a row of channels you pick, first on Home, with what's on now and next. Hold OK (long-press on a phone) on a channel to add it."
+  "versionCode": 615,
+  "versionName": "7.77",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.77/MKTV.apk",
+  "apkSha256": "a1dc761a36fb7a2918493a4e14fc5505a1d86a299633ebc6a981cc309a97eb5f",
+  "changelog": "Play on TV from your phone, Wi-Fi sync of favorites and settings with a paired TV (no logins sent), and a Cast picker that lists your paired TVs with a small remote."
 }
