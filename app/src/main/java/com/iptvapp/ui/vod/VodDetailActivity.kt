@@ -290,7 +290,7 @@ class VodDetailActivity : AppCompatActivity() {
                     providerTag = tag,
                     providerLabel = com.iptvapp.handoff.HandoffProtocol.safeText(provider.label, 40),
                     streamId = streamId,
-                    title = vodName.ifBlank { "Movie" },
+                    title = com.iptvapp.handoff.HandoffProtocol.safeText(vodName, 200).ifBlank { "Movie" },
                     year = com.iptvapp.handoff.AppHandoffCatalog.yearOf(vodName),
                     containerExt = containerExtension,
                     positionMs = resumePositionMs,
