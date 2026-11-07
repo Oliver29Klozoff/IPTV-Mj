@@ -264,4 +264,15 @@ class LocalSyncManagerTest {
         assertTrue(db.channelDao().getChannelById(11)!!.isFavorite)
         assertFalse(db.channelDao().getChannelById(10)!!.isFavorite)
     }
+
+    @Test
+    fun mainProviderFavoriteOnlyInTheProvidersListStillLands() = runBlocking {
+        val main = tag("http://provider.test", "user1")
+        // Channel 900 is on the main provider, but only in the Providers browser's list (slot -1).
+        db.mergedChannelDao().upsertAll(listOf(merged(900, "Discovery").copy(serverIndex = -1)))
+        val p = payload(main, favorites = emptyMap())
+            .put("extraFavorites", JSONArray().put(JSONObject().put("p", main).put("i", 900).put("n", "Discovery").put("o", 4)))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertTrue(db.mergedChannelDao().getByIndexAndId(-1, 900)!!.isFavorite)
+    }
 }

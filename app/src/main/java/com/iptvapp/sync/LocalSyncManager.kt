@@ -304,8 +304,8 @@ class LocalSyncManager @Inject constructor(
                     val serverIndex = indexByTag[item.optString("p")] ?: continue
                     val streamId = item.optInt("i", -1)
                     val folderId = item.optString("f", "").takeIf { it.isNotEmpty() }?.let { folderIds[it] }
-                    if (serverIndex == -1) {
-                        if (db.channelDao().getChannelById(streamId) == null) continue
+                    // A main-provider channel may be only in the Providers browser's list (merged_channels, slot -1).
+                    if (serverIndex == -1 && db.channelDao().getChannelById(streamId) != null) {
                         if (folderId != null) db.channelDao().setFavoriteFolder(streamId, folderId)
                         db.channelDao().setFavorite(streamId, true)
                         if (item.has("o")) db.channelDao().updateFavOrder(streamId, item.optInt("o"))
@@ -333,11 +333,9 @@ class LocalSyncManager @Inject constructor(
                         val m = members.optJSONObject(j) ?: continue
                         val serverIndex = indexByTag[m.optString("p")]
                         val streamId = m.optInt("i", -1)
-                        val here = when {
-                            serverIndex == -1 -> db.channelDao().getChannelById(streamId) != null
-                            serverIndex != null -> db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) != null
-                            else -> false
-                        }
+                        val here = serverIndex != null && (
+                            (serverIndex == -1 && db.channelDao().getChannelById(streamId) != null) ||
+                                db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) != null)
                         if (here) { resolved += serverIndex!! to streamId; continue }
                         val name = m.optString("n", "").trim()
                         if (byName && serverIndex == null && name.isNotEmpty()) {
@@ -351,7 +349,8 @@ class LocalSyncManager @Inject constructor(
                         smartChannels.favoriteGroup(groupId)
                     } else {
                         val (s, id) = resolved.first()
-                        if (s == -1) db.channelDao().setFavorite(id, true) else db.mergedChannelDao().setFavorite(s, id, true)
+                        if (s == -1 && db.channelDao().getChannelById(id) != null) db.channelDao().setFavorite(id, true)
+                        else db.mergedChannelDao().setFavorite(s, id, true)
                     }
                     favCount++
                 }
