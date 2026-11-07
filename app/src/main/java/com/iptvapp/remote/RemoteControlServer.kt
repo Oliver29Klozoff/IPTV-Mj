@@ -471,7 +471,7 @@ object RemoteControlServer {
                 val payload = kotlinx.coroutines.runBlocking {
                     com.iptvapp.sync.LocalSyncManager.get(context).buildSyncPayload(token)
                 }
-                "200 OK" to payload
+                "200 OK" to com.iptvapp.sync.LocalSyncManager.sealPullReply(token, signature, payload)
             }
             "/command" -> {
                 if (method != "POST") return "405 Method Not Allowed" to JSONObject().put("error", "POST only")

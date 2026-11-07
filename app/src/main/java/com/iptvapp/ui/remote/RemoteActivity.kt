@@ -80,8 +80,39 @@ class RemoteActivity : AppCompatActivity() {
     private val pairedPort get() = store.getInt("port", RemoteControlServer.PORT)
     private val token get() = store.getString("token", null)
 
+    /**
+     * Opened for one paired TV (cast picker, Paired devices): that TV becomes the one this remote
+     * drives. Its pairing secret is the remote token, so it comes from the registry, never the intent.
+     */
+    private fun useChosenTv() {
+        val id = intent.getStringExtra(EXTRA_PEER_ID)
+        val host = intent.getStringExtra(EXTRA_HOST)
+        val name = intent.getStringExtra(EXTRA_NAME)
+        if (id.isNullOrEmpty() && host.isNullOrEmpty()) return
+        val tvs = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
+        val peer = tvs.firstOrNull { !id.isNullOrEmpty() && it.deviceId == id }
+            ?: tvs.firstOrNull { it.lastHost == host && it.label == name }
+            ?: return
+        store.edit().putString("name", peer.label).putString("host", peer.lastHost)
+            .putInt("port", if (peer.lastPort > 0) peer.lastPort else RemoteControlServer.PORT)
+            .putString("token", peer.secret).apply()
+    }
+
+    companion object {
+        const val EXTRA_PEER_ID = "tv_peer_id"
+        const val EXTRA_HOST = "tv_host"
+        const val EXTRA_NAME = "tv_name"
+
+        fun forPeer(context: Context, peer: com.iptvapp.handoff.Peer): android.content.Intent =
+            android.content.Intent(context, RemoteActivity::class.java)
+                .putExtra(EXTRA_PEER_ID, peer.deviceId)
+                .putExtra(EXTRA_HOST, peer.lastHost)
+                .putExtra(EXTRA_NAME, peer.label)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) useChosenTv()
         binding = ActivityRemoteBinding.inflate(layoutInflater)
         setContentView(binding.root)
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->

@@ -63,6 +63,26 @@ class LocalSyncManager @Inject constructor(
 
         fun get(context: Context): LocalSyncManager =
             EntryPointAccessors.fromApplication(context.applicationContext, LocalSyncEntryPoint::class.java).localSyncManager()
+
+        /**
+         * The TV's answer to /sync/pull, signed with the pairing token and tied to the phone's
+         * request signature, so nobody else on the Wi-Fi can swap in their own favorites.
+         */
+        fun sealPullReply(token: String, requestSig: String, payload: JSONObject): JSONObject {
+            val text = payload.toString()
+            return JSONObject().put("payload", text).put("sig", replySig(token, requestSig, text))
+        }
+
+        /** The payload inside a [sealPullReply] answer, or null when it isn't signed by the paired TV for this request. */
+        fun openPullReply(token: String, requestSig: String, reply: JSONObject): JSONObject? {
+            val text = reply.optString("payload", "")
+            val sig = reply.optString("sig", "")
+            if (text.isEmpty() || !HandoffCrypto.constantTimeEquals(sig, replySig(token, requestSig, text))) return null
+            return try { JSONObject(text) } catch (_: Exception) { null }
+        }
+
+        private fun replySig(token: String, requestSig: String, text: String) =
+            RemoteControlServer.sign(token, "REPLY", "/sync/pull", 0L, "$requestSig\n$text")
     }
 
     /** serverIndex → provider tag for every enabled provider, keyed by the pairing [token]. */
@@ -93,6 +113,14 @@ class LocalSyncManager @Inject constructor(
             put("favoriteFolders", JSONArray(folders.map { it.name }))
             put("channelFolders", JSONObject(channelFolders))
             put("favoriteOrder", JSONArray(favChannels.map { it.streamId }))
+
+            // Favorites from the other providers, named by provider tag (never a login).
+            val tags = providerTags(token)
+            put("extraFavorites", JSONArray(db.mergedChannelDao().getAllFavorites().first().mapNotNull { ch ->
+                val tag = tags[ch.serverIndex.toString()] ?: return@mapNotNull null
+                JSONObject().put("p", tag).put("i", ch.streamId).put("n", ch.name).put("o", ch.favOrder)
+                    .apply { ch.favoriteFolderId?.let { folderNameById[it] }?.let { put("f", it) } }
+            }))
 
             // Top favorites if set
             val topFavJson = prefs.topFavoritesJson.first()
@@ -203,6 +231,24 @@ class LocalSyncManager @Inject constructor(
                     if (streamId in localFavs) {
                         db.channelDao().updateFavOrder(streamId, i)
                     }
+                }
+            }
+
+            // 4b. Other providers' favorites: by id, only on the local provider with the same tag.
+            val extras = json.optJSONArray("extraFavorites")
+            if (extras != null && extras.length() > 0) {
+                val indexByTag = localTags.filterKeys { it != "-1" }.entries.associate { (k, v) -> v to k.toInt() }
+                val folderIds = db.favoriteFolderDao().getAll().first().associate { it.name to it.id }
+                for (i in 0 until extras.length()) {
+                    val item = extras.optJSONObject(i) ?: continue
+                    val serverIndex = indexByTag[item.optString("p")] ?: continue
+                    val streamId = item.optInt("i", -1)
+                    if (db.mergedChannelDao().getByIndexAndId(serverIndex, streamId) == null) continue
+                    val folderId = item.optString("f", "").takeIf { it.isNotEmpty() }?.let { folderIds[it] }
+                    if (folderId != null) db.mergedChannelDao().setFavoriteFolder(serverIndex, streamId, folderId)
+                    else db.mergedChannelDao().setFavorite(serverIndex, streamId, true)
+                    if (item.has("o")) db.mergedChannelDao().updateFavOrder(serverIndex, streamId, item.optInt("o"))
+                    favCount++
                 }
             }
 
@@ -320,7 +366,8 @@ class LocalSyncManager @Inject constructor(
             val code = conn.responseCode
             if (code in 200..299) {
                 val responseText = conn.inputStream.bufferedReader().use { it.readText() }
-                val payload = JSONObject(responseText)
+                val payload = openPullReply(token, sig, JSONObject(responseText))
+                    ?: return@withContext LocalSyncResult(success = false, message = "The TV's answer wasn't signed by your paired TV, so nothing was changed")
                 applySyncPayload(payload, token)
             } else {
                 val errText = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""

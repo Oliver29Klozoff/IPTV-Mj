@@ -181,12 +181,7 @@ object CastDevicePickerUi {
 
         btnOpenRemote.setOnClickListener {
             dialog.dismiss()
-            activity.startActivity(
-                Intent(activity, com.iptvapp.ui.remote.RemoteActivity::class.java)
-                    .putExtra("tv_host", peer.lastHost)
-                    .putExtra("tv_port", if (peer.lastPort > 0) peer.lastPort else RemoteControlServer.PORT)
-                    .putExtra("tv_name", peer.label)
-            )
+            activity.startActivity(com.iptvapp.ui.remote.RemoteActivity.forPeer(activity, peer))
         }
 
         dialog.show()

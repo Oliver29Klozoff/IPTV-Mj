@@ -78,12 +78,7 @@ object PairedDevicesUi {
 
             options.add("Open Remote Control")
             actions.add {
-                activity.startActivity(
-                    Intent(activity, com.iptvapp.ui.remote.RemoteActivity::class.java)
-                        .putExtra("tv_host", p.lastHost)
-                        .putExtra("tv_port", if (p.lastPort > 0) p.lastPort else RemoteControlServer.PORT)
-                        .putExtra("tv_name", p.label)
-                )
+                activity.startActivity(com.iptvapp.ui.remote.RemoteActivity.forPeer(activity, p))
             }
         }
 

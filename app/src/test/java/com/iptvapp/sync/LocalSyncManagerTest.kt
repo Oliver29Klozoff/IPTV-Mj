@@ -110,6 +110,43 @@ class LocalSyncManagerTest {
         assertEquals("", prefs.topFavoritesJson.first())
     }
 
+    private fun merged(id: Int, name: String, favorite: Boolean = false) = com.iptvapp.data.local.entities.MergedChannelEntity(
+        serverIndex = 0, streamId = id, name = name, streamIcon = null, num = id, serverNickname = "Backup",
+        categoryId = "1", categoryName = "News", isFavorite = favorite
+    )
+
+    @Test
+    fun otherProvidersFavoritesTravelByProviderTag() = runBlocking {
+        db.mergedChannelDao().upsertAll(listOf(merged(500, "BBC", favorite = true), merged(501, "Sky")))
+        val sent = sync.buildSyncPayload(token)
+        val extras = sent.getJSONArray("extraFavorites")
+        assertEquals(1, extras.length())
+        assertEquals(tag("http://backup.test", "user2"), extras.getJSONObject(0).getString("p"))
+        assertFalse(sent.toString().contains("backup-pass"))
+
+        // Arrives on a device with the same backup provider: favorited by id there.
+        db.mergedChannelDao().setFavorite(0, 500, false)
+        val p = payload(tag("http://provider.test", "user1"), tag("http://backup.test", "user2"), emptyMap())
+            .put("extraFavorites", JSONArray()
+                .put(JSONObject().put("p", tag("http://backup.test", "user2")).put("i", 501).put("n", "Sky"))
+                .put(JSONObject().put("p", "unknown-provider").put("i", 500).put("n", "BBC")))
+        assertTrue(sync.applySyncPayload(p, token).success)
+        assertEquals(listOf(501), db.mergedChannelDao().getAllFavorites().first().map { it.streamId })
+    }
+
+    @Test
+    fun pullReplyMustBeSignedForThisRequest() {
+        val body = JSONObject().put("device", "TV")
+        val reply = LocalSyncManager.sealPullReply(token, "req-sig", body)
+        assertEquals("TV", LocalSyncManager.openPullReply(token, "req-sig", reply)?.optString("device"))
+        // Another request, another token, or an edited payload: refused.
+        assertEquals(null, LocalSyncManager.openPullReply(token, "other-sig", reply))
+        assertEquals(null, LocalSyncManager.openPullReply("b".repeat(64), "req-sig", reply))
+        val forged = JSONObject(reply.toString()).put("payload", JSONObject().put("device", "Evil").toString())
+        assertEquals(null, LocalSyncManager.openPullReply(token, "req-sig", forged))
+        assertEquals(null, LocalSyncManager.openPullReply(token, "req-sig", body))
+    }
+
     @Test
     fun loginsFromOlderBuildsAreIgnored() = runBlocking {
         val p = payload(tag("http://provider.test", "user1"), favorites = emptyMap()).put("credentials", JSONObject()
