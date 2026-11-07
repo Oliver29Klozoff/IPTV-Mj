@@ -127,7 +127,13 @@ class SeriesDetailActivity : AppCompatActivity() {
                 if (serverIndexField == null && seriesIdField != -1) {
                     finishedEpisodes = finishedEpisodesOf(db.episodeWatchedDao().getForSeries(seriesIdField))
                 }
-                val nextEp = currentSeasonEpisodes.firstOrNull { (it.season to it.episodeNum) !in finishedEpisodes }
+                fun unfinished(e: Episode) = (e.season to e.episodeNum) !in finishedEpisodes
+                // This season's next episode, else the first unfinished one in a later season, else a replay.
+                val season = currentSeasonEpisodes.firstOrNull()?.season
+                val nextEp = currentSeasonEpisodes.firstOrNull(::unfinished)
+                    ?: allEpisodes.values.flatten()
+                        .filter { season != null && it.season > season && unfinished(it) }
+                        .minWithOrNull(compareBy<Episode>({ it.season }, { it.episodeNum }))
                     ?: currentSeasonEpisodes.firstOrNull()
                 if (nextEp != null) {
                     flingEpisodeToTv(nextEp)

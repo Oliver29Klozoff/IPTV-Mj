@@ -4910,9 +4910,18 @@ class SettingsActivity : AppCompatActivity() {
         openBackupLauncher.launch(arrayOf("application/json"))
     }
 
-    private fun showSyncTvDialog() {
+    /** [chosen] is the TV picked when more than one is paired. */
+    private fun showSyncTvDialog(chosen: com.iptvapp.handoff.Peer? = null) {
         val peers = com.iptvapp.handoff.Handoff.registry(this).all().filter { it.isTv }
-        if (peers.isEmpty()) {
+        if (chosen == null && peers.size > 1) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Sync with which TV?")
+                .setItems(peers.map { it.label }.toTypedArray()) { _, i -> showSyncTvDialog(peers[i]) }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        if (chosen == null && peers.isEmpty()) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Sync with TV")
                 .setMessage("No paired TV found.\n\nTo sync over Wi-Fi, open MKTV on your TV, then open Remote on this phone to pair.")
@@ -4929,18 +4938,21 @@ class SettingsActivity : AppCompatActivity() {
             "Pull Favorites from TV"
         )
 
-        val targetTv = peers.first()
+        val pickedTv = chosen ?: peers.first()
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Sync with ${targetTv.label} (Wi-Fi)")
-            .setItems(options) { _, which ->
+            .setTitle("Sync with ${pickedTv.label} (Wi-Fi)")
+            .setItems(options) { _, which -> lifecycleScope.launch {
+                // A TV may have a new address since (router restart): look on the network first, as Send to TV does.
+                kotlinx.coroutines.withTimeoutOrNull(3_500L) { com.iptvapp.handoff.HandoffDiscovery.refresh(this@SettingsActivity, 2_500L) }
+                val targetTv = com.iptvapp.handoff.Handoff.registry(this@SettingsActivity).bySecret(pickedTv.secret) ?: pickedTv
                 val host = targetTv.lastHost
                 if (host.isNullOrBlank()) {
-                    Toast.makeText(this, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_LONG).show()
-                    return@setItems
+                    Toast.makeText(this@SettingsActivity, "TV address unknown - open Remote first to reconnect", Toast.LENGTH_LONG).show()
+                    return@launch
                 }
                 val port = if (targetTv.lastPort > 0) targetTv.lastPort else com.iptvapp.remote.RemoteControlServer.PORT
                 if (which == 0) {
-                    val progress = androidx.appcompat.app.AlertDialog.Builder(this)
+                    val progress = androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity)
                         .setTitle("Syncing to ${targetTv.label}")
                         .setMessage("Sending favorites and settings over your home network...")
                         .setCancelable(false)
@@ -4953,7 +4965,7 @@ class SettingsActivity : AppCompatActivity() {
                         Toast.makeText(this@SettingsActivity, res.message, Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    val progress = androidx.appcompat.app.AlertDialog.Builder(this)
+                    val progress = androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity)
                         .setTitle("Pulling from ${targetTv.label}")
                         .setMessage("Pulling favorites over your home network...")
                         .setCancelable(false)
@@ -4967,7 +4979,7 @@ class SettingsActivity : AppCompatActivity() {
                         if (res.success) loadSettings()
                     }
                 }
-            }
+            } }
             .setNegativeButton("Cancel", null)
             .show()
     }
