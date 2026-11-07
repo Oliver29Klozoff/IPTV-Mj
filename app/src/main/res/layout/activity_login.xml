@@ -76,6 +76,7 @@
                     app:boxStrokeColor="@color/login_input_box_stroke"
                     app:boxStrokeWidth="1.5dp"
                     app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
                     app:hintTextColor="#5880B0">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -106,6 +107,7 @@
                     app:boxStrokeColor="@color/login_input_box_stroke"
                     app:boxStrokeWidth="1.5dp"
                     app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
                     app:hintTextColor="#5880B0">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -137,6 +139,7 @@
                     app:boxStrokeColor="@color/login_input_box_stroke"
                     app:boxStrokeWidth="1.5dp"
                     app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
                     app:hintTextColor="#5880B0">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -168,8 +171,10 @@
                     app:boxStrokeColor="@color/login_input_box_stroke"
                     app:boxStrokeWidth="1.5dp"
                     app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
                     app:hintTextColor="#5880B0"
-                    app:passwordToggleEnabled="true">
+                    app:passwordToggleEnabled="true"
+                    app:passwordToggleTint="#3F6699">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etPassword"
@@ -200,6 +205,7 @@
                     app:boxStrokeColor="@color/login_input_box_stroke"
                     app:boxStrokeWidth="1.5dp"
                     app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
                     app:hintTextColor="#5880B0">
 
                     <com.google.android.material.textfield.TextInputEditText

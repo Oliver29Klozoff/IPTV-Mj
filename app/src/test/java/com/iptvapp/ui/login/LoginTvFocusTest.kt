@@ -178,4 +178,13 @@ class LoginTvFocusTest {
             assertEquals(defaultColor, til.boxBackgroundColor)
         }
     }
+
+    @Test
+    fun unfocusedFieldLabelsAreReadableOnTheLightBoxes() {
+        // The label of an empty, unfocused field is the hint drawn by TextInputLayout itself
+        // (android:textColorHint on the layout, not on the EditText).
+        val label = android.graphics.Color.parseColor("#3F6699")
+        listOf(binding.tilServerUrl, binding.tilNickname, binding.tilUsername, binding.tilPassword, binding.tilEpgUrl)
+            .forEach { til -> assertEquals(label, til.defaultHintTextColor?.defaultColor) }
+    }
 }
