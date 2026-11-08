@@ -17,4 +17,7 @@
     <string name="search_today_at">today %1$s</string>
     <string name="search_until">until %1$s</string>
     <string name="search_aired">aired %1$s</string>
+    <string name="search_voice_description">Search by voice</string>
+    <string name="search_voice_prompt">Say a channel, show, movie or series</string>
+    <string name="search_voice_unavailable">Voice search isn\'t available on this device.</string>
 </resources>

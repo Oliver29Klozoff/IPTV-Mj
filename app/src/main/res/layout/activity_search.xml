@@ -30,6 +30,7 @@
             android:insetBottom="0dp"
             android:fontFamily="@font/barlow_condensed_bold"
             android:letterSpacing="0.12"
+            android:nextFocusRight="@+id/etSearch"
             android:text="←  SEARCH"
             android:textColor="@color/rack_text"
             android:textSize="20sp" />
@@ -45,11 +46,28 @@
             android:imeOptions="actionSearch"
             android:importantForAutofill="no"
             android:inputType="text"
+            android:nextFocusLeft="@id/btnSearchBack"
+            android:nextFocusRight="@+id/btnVoiceSearch"
             android:paddingHorizontal="12dp"
             android:singleLine="true"
             android:textColor="@color/rack_text"
             android:textColorHint="@color/rack_text_muted"
             android:textSize="16sp" />
+
+        <!-- Voice search: hidden when the device has no speech recognizer (SearchActivity). -->
+        <ImageButton
+            android:id="@+id/btnVoiceSearch"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/home_tab_bg"
+            android:contentDescription="@string/search_voice_description"
+            android:focusable="true"
+            android:nextFocusLeft="@id/etSearch"
+            android:nextFocusRight="@id/btnVoiceSearch"
+            android:scaleType="center"
+            android:src="@drawable/ic_mic"
+            app:tint="@color/rack_text" />
 
         <ProgressBar
             android:id="@+id/searchProgress"

@@ -3175,6 +3175,24 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 }
             }
 
+            // The touch Quick Bar: on full-screen live TV, a quick swipe right from the left edge
+            // opens Quick Peek, as D-pad Left does on a remote. Not with the controls showing,
+            // where a swipe may be on the replay bar.
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                val start = e1 ?: return false
+                if (isVod || isOverlayVisible || isAdjustingGesture) return false
+                if (!::quickPeek.isInitialized || quickPeek.isOpen || !quickPeekAvailable()) return false
+                if (velocityX <= 0f) return false
+                val swipe = com.iptvapp.util.QuickBarInput.isEdgeSwipe(
+                    start.x, start.y, e2.x, e2.y,
+                    width = binding.root.width.toFloat(),
+                    minDistancePx = resources.displayMetrics.density * 48f,
+                )
+                if (!swipe) return false
+                quickPeek.open()
+                return true
+            }
+
         })
 
         binding.root.setOnTouchListener { _, event ->
@@ -7382,22 +7400,32 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // Left/Right while the overlay (and its own focusable seek bar) was open made it
             // impossible to D-pad over to Back/CC/Stats without also skipping the movie.
             // For Live TV (not VOD), Left/Right never opens the overlay either — only OK/Enter
-            // does that; a bare Left/Right with the overlay hidden is simply swallowed.
-            KeyEvent.KEYCODE_DPAD_LEFT -> when {
-                isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
-                isVod -> {
+            // does that. A bare Left on live TV opens Quick Peek (the Quick Bar: many Fire TV
+            // remotes have no GUIDE or MENU key); with replay controls it still goes back 10 s.
+            KeyEvent.KEYCODE_DPAD_LEFT -> when (
+                com.iptvapp.util.QuickBarInput.leftAction(
+                    overlayVisible = isOverlayVisible,
+                    isVod = isVod,
+                    timeshiftControlsOpen = !isVod && !isOverlayVisible && timeshiftControlsOpen(),
+                    repeatCount = event?.repeatCount ?: 0,
+                    quickPeekAvailable = ::quickPeek.isInitialized && quickPeekAvailable(),
+                )
+            ) {
+                com.iptvapp.util.QuickBarInput.LeftAction.MOVE_FOCUS -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
+                com.iptvapp.util.QuickBarInput.LeftAction.VOD_SKIP -> {
                     resetHideTimer()
                     if (seekPreviewApplies()) nudgeSeekPreview(forward = false)
                     else { vodSeekTo(vodPositionMs() - nextVodSkipAmountMs()); notifyPartyStateChange() }
                     true
                 }
-                timeshiftControlsOpen() && (event?.repeatCount ?: 0) == 0 -> {
+                com.iptvapp.util.QuickBarInput.LeftAction.TIMESHIFT_REPLAY -> {
                     event?.startTracking()
                     liveSkipPendingMs = -TimeshiftNavigator.REPLAY_10_MS
                     liveSkipLong = false
                     true
                 }
-                else -> true
+                com.iptvapp.util.QuickBarInput.LeftAction.OPEN_QUICK_PEEK -> { quickPeek.open(); true }
+                com.iptvapp.util.QuickBarInput.LeftAction.IGNORE -> true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> when {
                 isOverlayVisible -> { resetHideTimer(); super.onKeyDown(keyCode, event) }
