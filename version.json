@@ -1,7 +1,7 @@
 {
-  "versionCode": 616,
-  "versionName": "7.78",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.78/MKTV.apk",
-  "apkSha256": "4d2e48525e03321a965afe6c343622fe931a1a088d89ba5bc85d311f08d18ad9",
-  "changelog": "The login screen now works with a TV remote: the whole form scrolls, every field and button can be reached, and the selected item is clearly highlighted."
+  "versionCode": 617,
+  "versionName": "7.79",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.79/MKTV.apk",
+  "apkSha256": "5382ab2b7230ac2a711df3f88c2eb7d8bf80ecffc24e2a58d3f3a7ca1ba20d14",
+  "changelog": "Press Left on live TV (or swipe right from near the left edge on a phone) to open the mini guide, and search by voice with the new mic button in Search."
 }

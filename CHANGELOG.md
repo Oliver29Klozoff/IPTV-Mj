@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.79 - 2026-11-08
+- **New**: Quick Bar. On live TV, press Left on the remote to open the mini guide. You no longer need a
+  GUIDE or MENU key. On a phone, swipe right from near the left edge. With replay controls on, Left still
+  goes back 10 seconds.
+- **New**: Voice search. Search has a mic button: say a channel, show, movie or series, and it searches
+  right away. The remote's search key works there too. The button is hidden on devices without voice input.
+
 ## v7.78 - 2026-11-08
 - **Fixed**: The login screen on a TV or Fire Stick. The whole form now scrolls, so the remote can reach
   every field and button, including the ones below Connect. The item you're on has a bold blue highlight.
