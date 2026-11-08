@@ -27,6 +27,9 @@
     <queries>
         <provider android:authorities="android.media.tv" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.HOME" /></intent>
+        <!-- Voice search (SearchActivity): seeing the speech recognizer and its screen. -->
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
     </queries>
 
     <application

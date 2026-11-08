@@ -10,6 +10,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
@@ -97,7 +98,50 @@ class SearchActivity : AppCompatActivity() {
         })
         val initial = intent.getStringExtra(EXTRA_QUERY)
         if (initial != null) binding.etSearch.setText(initial) else runSearch("", debounce = false)
+        setupVoiceSearch()
         binding.etSearch.requestFocus()
+    }
+
+    // ── Voice search: the mic button, or the remote's search / mic key (see VoiceSearch) ──
+
+    private var voiceAvailable = false
+
+    private val voiceLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        // Cancelled or nothing heard: the search stays as it was.
+        val spoken = VoiceSearch.spokenQuery(result.resultCode, result.data) ?: return@registerForActivityResult
+        onVoiceResult(spoken)
+    }
+
+    private fun setupVoiceSearch() {
+        voiceAvailable = VoiceSearch.isAvailable(this)
+        binding.btnVoiceSearch.visibility = if (voiceAvailable) View.VISIBLE else View.GONE
+        // Right from the box stops there when there is no mic to move to.
+        if (!voiceAvailable) binding.etSearch.nextFocusRightId = View.NO_ID
+        binding.btnVoiceSearch.setOnClickListener { startVoiceSearch() }
+    }
+
+    private fun startVoiceSearch() {
+        try {
+            voiceLauncher.launch(VoiceSearch.intent(getString(R.string.search_voice_prompt)))
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(this, R.string.search_voice_unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** The heard words become the search, run at once. */
+    internal fun onVoiceResult(spoken: String) {
+        binding.etSearch.setText(spoken)
+        binding.etSearch.setSelection(binding.etSearch.text.length)
+        runSearch(spoken, debounce = false)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // A remote's SEARCH key (a mic button on many TV remotes) starts listening here.
+        if (keyCode == KeyEvent.KEYCODE_SEARCH && voiceAvailable && (event?.repeatCount ?: 0) == 0) {
+            startVoiceSearch()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun runSearch(query: String, debounce: Boolean) {
