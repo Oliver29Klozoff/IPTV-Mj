@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Secondary action buttons stroke: bold white ring on focus; subtle slate border otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#FFFFFF" />
+    <item android:color="#C8DAF2" />
+</selector>

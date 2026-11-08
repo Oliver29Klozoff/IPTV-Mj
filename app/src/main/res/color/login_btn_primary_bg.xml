@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary Connect button background: solid bright blue on focus; deep navy otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#008CFF" />
+    <item android:state_pressed="true" android:color="#0070CC" />
+    <item android:color="#1A3A6A" />
+</selector>

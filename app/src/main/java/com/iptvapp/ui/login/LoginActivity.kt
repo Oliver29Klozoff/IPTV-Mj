@@ -19,6 +19,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import com.iptvapp.R
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
@@ -170,7 +171,67 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupUI()
+        setupTvFocusAndScroll()
         observeLoginState()
+    }
+
+    private fun setupTvFocusAndScroll() {
+        val inputBoxes = listOf(
+            binding.etServerUrl to binding.tilServerUrl,
+            binding.etNickname to binding.tilNickname,
+            binding.etUsername to binding.tilUsername,
+            binding.etPassword to binding.tilPassword,
+            binding.etEpgUrl to binding.tilEpgUrl
+        )
+        val boxBgColorStateList = ContextCompat.getColorStateList(this, R.color.login_input_box_bg)
+        if (boxBgColorStateList != null) {
+            inputBoxes.forEach { (_, til) ->
+                til.setBoxBackgroundColorStateList(boxBgColorStateList)
+            }
+        }
+
+        val pad = (28 * resources.displayMetrics.density).toInt()
+        val focusedBg = boxBgColorStateList?.getColorForState(
+            intArrayOf(android.R.attr.state_focused, android.R.attr.state_enabled),
+            0
+        )
+        val defaultBg = boxBgColorStateList?.defaultColor
+
+        for ((et, til) in inputBoxes) {
+            et.setOnFocusChangeListener { view, hasFocus ->
+                if (focusedBg != null && defaultBg != null) {
+                    til.setBoxBackgroundColor(if (hasFocus) focusedBg else defaultBg)
+                }
+                if (hasFocus) {
+                    view.post {
+                        val rect = android.graphics.Rect(0, -pad, view.width, view.height + pad)
+                        view.requestRectangleOnScreen(rect, false)
+                    }
+                }
+            }
+        }
+
+        val buttonViews = listOf(
+            binding.btnLogin,
+            binding.btnImportM3u,
+            binding.btnScanQr,
+            binding.btnRestoreFromBackup,
+            binding.btnReceiveCast
+        )
+        for (v in buttonViews) {
+            v.setOnFocusChangeListener { view, hasFocus ->
+                if (hasFocus) {
+                    view.post {
+                        val rect = android.graphics.Rect(0, -pad, view.width, view.height + pad)
+                        view.requestRectangleOnScreen(rect, false)
+                    }
+                }
+            }
+        }
+
+        if (isLargeScreenDevice()) {
+            binding.etServerUrl.requestFocus()
+        }
     }
 
     private fun setupUI() {

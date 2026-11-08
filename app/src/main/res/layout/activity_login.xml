@@ -1,244 +1,328 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/scrollLogin"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fillViewport="true"
     android:background="#1A3A6A"
-    android:padding="32dp">
+    android:isScrollContainer="true">
 
-    <TextView
-        android:id="@+id/tvAppName"
-        android:layout_width="wrap_content"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="MKTV"
-        android:textColor="#008CFF"
-        android:textSize="48sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.2"
-        app:layout_constraintBottom_toTopOf="@id/tvSubtitle"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed" />
+        android:padding="32dp">
 
-    <TextView
-        android:id="@+id/tvSubtitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="Connect to your server"
-        android:textColor="#008CFF"
-        android:textSize="16sp"
-        app:layout_constraintBottom_toTopOf="@id/cardLogin"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvAppName" />
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/cardLogin"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="40dp"
-        app:cardBackgroundColor="#FFFFFF"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-        app:layout_constraintWidth_max="480dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp">
+            android:text="MKTV"
+            android:textColor="#008CFF"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.2"
+            app:layout_constraintBottom_toTopOf="@id/tvSubtitle"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="packed" />
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/tilServerUrl"
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Connect to your server"
+            android:textColor="#008CFF"
+            android:textSize="16sp"
+            app:layout_constraintBottom_toTopOf="@id/cardLogin"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvAppName" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardLogin"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="32dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="12dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+            app:layout_constraintWidth_max="480dp">
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Server URL"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#008CFF"
-                app:hintTextColor="#5880B0"
-                app:boxBackgroundColor="#F2F6FF">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etServerUrl"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilServerUrl"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textUri"
-                    android:textColor="#008CFF"
-                    android:imeOptions="actionNext"
-                    app:backgroundTint="#1A3A6A"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:hint="Server URL"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/login_input_box_stroke"
+                    app:boxStrokeWidth="1.5dp"
+                    app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
+                    app:hintTextColor="#5880B0">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/tilNickname"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Server Nickname (optional)"
-                android:layout_marginTop="8dp"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#008CFF"
-                app:hintTextColor="#5880B0"
-                app:boxBackgroundColor="#F2F6FF">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etNickname"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etServerUrl"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:imeOptions="actionNext"
+                        android:inputType="textUri"
+                        android:nextFocusDown="@id/etNickname"
+                        android:textColor="#1A3A6A"
+                        android:textColorHint="#5880B0"
+                        android:textSize="15sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilNickname"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textColor="#008CFF"
-                    android:imeOptions="actionNext"
-                    app:backgroundTint="#1A3A6A"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:layout_marginTop="8dp"
+                    android:hint="Server Nickname (optional)"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/login_input_box_stroke"
+                    app:boxStrokeWidth="1.5dp"
+                    app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
+                    app:hintTextColor="#5880B0">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/tilUsername"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:hint="Username"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#008CFF"
-                app:hintTextColor="#5880B0"
-                app:boxBackgroundColor="#F2F6FF">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etUsername"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etNickname"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:imeOptions="actionNext"
+                        android:inputType="text"
+                        android:nextFocusDown="@id/etUsername"
+                        android:nextFocusUp="@id/etServerUrl"
+                        android:textColor="#1A3A6A"
+                        android:textColorHint="#5880B0"
+                        android:textSize="15sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilUsername"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textColor="#008CFF"
-                    android:imeOptions="actionNext"
-                    app:backgroundTint="#1A3A6A"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:layout_marginTop="16dp"
+                    android:hint="Username"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/login_input_box_stroke"
+                    app:boxStrokeWidth="1.5dp"
+                    app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
+                    app:hintTextColor="#5880B0">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/tilPassword"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:hint="Password"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="#4A6FA5"
-                app:hintTextColor="#8899BB"
-                app:boxBackgroundColor="#ffffff"
-                app:passwordToggleEnabled="true">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etPassword"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etUsername"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:imeOptions="actionNext"
+                        android:inputType="text"
+                        android:nextFocusDown="@id/etPassword"
+                        android:nextFocusUp="@id/etNickname"
+                        android:textColor="#1A3A6A"
+                        android:textColorHint="#5880B0"
+                        android:textSize="15sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilPassword"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textPassword"
-                    android:textColor="#008CFF"
-                    android:imeOptions="actionNext"
-                    app:backgroundTint="#1A3A6A"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:layout_marginTop="16dp"
+                    android:hint="Password"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/login_input_box_stroke"
+                    app:boxStrokeWidth="1.5dp"
+                    app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
+                    app:hintTextColor="#5880B0"
+                    app:passwordToggleEnabled="true"
+                    app:passwordToggleTint="#3F6699">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/tilEpgUrl"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:hint="EPG URL"
-                app:boxStrokeColor="#008CFF"
-                app:hintTextColor="#5880B0"
-                app:boxBackgroundColor="#F2F6FF">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etEpgUrl"
-                    app:backgroundTint="#1A3A6A"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:imeOptions="actionNext"
+                        android:inputType="textPassword"
+                        android:nextFocusDown="@id/etEpgUrl"
+                        android:nextFocusUp="@id/etUsername"
+                        android:textColor="#1A3A6A"
+                        android:textColorHint="#5880B0"
+                        android:textSize="15sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilEpgUrl"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:imeOptions="actionDone"
-                    android:inputType="textUri"
-                    android:textColor="#008CFF"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:layout_marginTop="16dp"
+                    android:hint="EPG URL"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp"
+                    app:boxStrokeColor="@color/login_input_box_stroke"
+                    app:boxStrokeWidth="1.5dp"
+                    app:boxStrokeWidthFocused="3.5dp"
+                    android:textColorHint="#3F6699"
+                    app:hintTextColor="#5880B0">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLogin"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="24dp"
-                app:backgroundTint="#1A3A6A"
-                android:text="Connect"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                app:strokeColor="#008CFF"
-                app:strokeWidth="1dp"
-                app:cornerRadius="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etEpgUrl"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:imeOptions="actionDone"
+                        android:inputType="textUri"
+                        android:nextFocusDown="@id/btnLogin"
+                        android:nextFocusUp="@id/etPassword"
+                        android:textColor="#1A3A6A"
+                        android:textColorHint="#5880B0"
+                        android:textSize="15sp" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnImportM3u"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:text="Import M3U Playlist"
-                android:textSize="14sp"
-                app:backgroundTint="#1A3A6A"
-                app:strokeColor="#008CFF"
-                app:strokeWidth="1dp"
-                app:cornerRadius="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnLogin"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginTop="24dp"
+                    android:focusable="true"
+                    android:nextFocusDown="@id/btnImportM3u"
+                    android:nextFocusUp="@id/etEpgUrl"
+                    android:text="Connect"
+                    android:textColor="@color/login_btn_primary_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    app:backgroundTint="@color/login_btn_primary_bg"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/login_btn_primary_stroke"
+                    app:strokeWidth="2.5dp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnScanQr"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:text="Scan QR from TV"
-                android:textSize="14sp"
-                app:backgroundTint="#1A3A6A"
-                app:strokeColor="#008CFF"
-                app:strokeWidth="1dp"
-                app:cornerRadius="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnImportM3u"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:focusable="true"
+                    android:nextFocusDown="@id/btnScanQr"
+                    android:nextFocusUp="@id/btnLogin"
+                    android:text="Import M3U Playlist"
+                    android:textColor="@color/login_btn_secondary_text"
+                    android:textSize="14sp"
+                    app:backgroundTint="@color/login_btn_secondary_bg"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/login_btn_secondary_stroke"
+                    app:strokeWidth="2dp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnRestoreFromBackup"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:text="Restore from Backup File"
-                android:textSize="14sp"
-                app:backgroundTint="#1A3A6A"
-                app:strokeColor="#008CFF"
-                app:strokeWidth="1dp"
-                app:cornerRadius="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnScanQr"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:focusable="true"
+                    android:nextFocusDown="@id/btnRestoreFromBackup"
+                    android:nextFocusUp="@id/btnImportM3u"
+                    android:text="Scan QR from TV"
+                    android:textColor="@color/login_btn_secondary_text"
+                    android:textSize="14sp"
+                    app:backgroundTint="@color/login_btn_secondary_bg"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/login_btn_secondary_stroke"
+                    app:strokeWidth="2dp" />
 
-            <!-- No IPTV account needed — a friend/family member with nothing configured can land
-                 here, tap this, and receive whatever someone else casts to them (see
-                 CastRelayManager kdoc) without ever touching the login form above. -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnReceiveCast"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:text="Receive a Cast (no account needed)"
-                android:textSize="14sp"
-                app:backgroundTint="#1A3A6A"
-                app:strokeColor="#008CFF"
-                app:strokeWidth="1dp"
-                app:cornerRadius="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRestoreFromBackup"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:focusable="true"
+                    android:nextFocusDown="@id/btnReceiveCast"
+                    android:nextFocusUp="@id/btnScanQr"
+                    android:text="Restore from Backup File"
+                    android:textColor="@color/login_btn_secondary_text"
+                    android:textSize="14sp"
+                    app:backgroundTint="@color/login_btn_secondary_bg"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/login_btn_secondary_stroke"
+                    app:strokeWidth="2dp" />
 
-            <ProgressBar
-                android:id="@+id/progressBar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="16dp"
-                android:visibility="gone"
-                android:indeterminateTint="#008CFF" />
+                <!-- No IPTV account needed — a friend/family member with nothing configured can land
+                     here, tap this, and receive whatever someone else casts to them (see
+                     CastRelayManager kdoc) without ever touching the login form above. -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnReceiveCast"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:focusable="true"
+                    android:nextFocusUp="@id/btnRestoreFromBackup"
+                    android:text="Receive a Cast (no account needed)"
+                    android:textColor="@color/login_btn_secondary_text"
+                    android:textSize="14sp"
+                    app:backgroundTint="@color/login_btn_secondary_bg"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="@color/login_btn_secondary_stroke"
+                    app:strokeWidth="2dp" />
 
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="16dp"
+                    android:indeterminateTint="#008CFF"
+                    android:visibility="gone" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</ScrollView>
