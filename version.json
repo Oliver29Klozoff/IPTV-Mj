@@ -1,7 +1,7 @@
 {
-  "versionCode": 618,
-  "versionName": "7.80",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.80/MKTV.apk",
-  "apkSha256": "9696a04e579592840ffaba654c47db5859d86c3cb9df73f3d9c8a4847270569a",
-  "changelog": "On live TV with replay on, tap Left to open the mini guide; hold Left to go back 30 seconds."
+  "versionCode": 619,
+  "versionName": "7.81",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.81/MKTV.apk",
+  "apkSha256": "827fc60bbf63490be6fd0590461974e413b85bd4e7db7d16d6f8e9e83495ca83",
+  "changelog": "Recent Channels: tap the new Recents button during live TV (or hold OK on the remote) to jump back to one of the last 5 channels you watched."
 }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.81 - 2026-11-08
+- **New**: Recent Channels. During live TV, tap the new Recents button (the clock with an arrow) or hold
+  OK on the remote. A strip slides up with the last 5 channels you watched, with what's on now. Pick
+  one to jump straight to it. Pressing LAST twice quickly opens it too.
+- **Changed**: On live TV, a quick press of OK now shows the controls when you let go of the button.
+
 ## v7.80 - 2026-11-08
 - **Fixed**: On live TV with replay on, tapping Left now opens the mini guide instead of going back
   10 seconds. Hold Left to go back 30 seconds. Right still goes forward 10 seconds.
