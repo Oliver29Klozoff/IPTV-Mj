@@ -201,6 +201,9 @@ class RecentChannelsDrawer(
                 repository.getChannelById(r.streamId)
                     ?: if (repository.getMergedChannelByIndexAndId(-1, r.streamId) != null) continue else null
             } else repository.getMergedChannelByIndexAndId(r.serverIndex, r.streamId)
+            // A channel the viewer hid stays hidden here too (kept, in case it is shown again).
+            val hidden = (entity as? ChannelEntity)?.isHidden == true || (entity as? MergedChannelEntity)?.isHidden == true
+            if (hidden) continue
             if (entity == null) gone += r.serverIndex to r.streamId else found += r to entity
         }
         // The provider dropped these since: they leave the list for good.
