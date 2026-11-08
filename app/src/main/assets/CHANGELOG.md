@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.80 - 2026-11-08
+- **Fixed**: On live TV with replay on, tapping Left now opens the mini guide instead of going back
+  10 seconds. Hold Left to go back 30 seconds. Right still goes forward 10 seconds.
+
 ## v7.79 - 2026-11-08
 - **New**: Quick Bar. On live TV, press Left on the remote to open the mini guide. You no longer need a
   GUIDE or MENU key. On a phone, swipe right from near the left edge. With replay controls on, Left still

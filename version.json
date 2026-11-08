@@ -1,7 +1,7 @@
 {
-  "versionCode": 617,
-  "versionName": "7.79",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.79/MKTV.apk",
-  "apkSha256": "5382ab2b7230ac2a711df3f88c2eb7d8bf80ecffc24e2a58d3f3a7ca1ba20d14",
-  "changelog": "Press Left on live TV (or swipe right from near the left edge on a phone) to open the mini guide, and search by voice with the new mic button in Search."
+  "versionCode": 618,
+  "versionName": "7.80",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.80/MKTV.apk",
+  "apkSha256": "9696a04e579592840ffaba654c47db5859d86c3cb9df73f3d9c8a4847270569a",
+  "changelog": "On live TV with replay on, tap Left to open the mini guide; hold Left to go back 30 seconds."
 }
