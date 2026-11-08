@@ -104,6 +104,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var player: ExoPlayer? = null
     private val hideHandler = Handler(Looper.getMainLooper())
     private lateinit var quickPeek: QuickPeekPanel
+    // Recent Channels: the quick-switcher drawer (RecentChannelsDrawer).
+    private lateinit var recents: RecentChannelsDrawer
+    // OK held on bare live TV opens Recent Channels; a tap still opens the controls (on key up).
+    private var okPendingTap = false
+    private var okLongPressed = false
+    // LAST twice within 400 ms opens Recent Channels.
+    private var lastRecallPressMs = 0L
     // Opened the full guide from Quick Peek: on coming back, onStart holds the stream until the
     // guide's answer arrives, so a pick doesn't open the old channel first (one connection).
     private var fullGuidePending = false
@@ -131,6 +138,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.epgOverlay.visibility = View.GONE
         binding.btnBack.visibility = View.GONE
         binding.btnGuide.visibility = View.GONE
+        binding.btnRecents.visibility = View.GONE
         binding.btnPlayPause.visibility = View.GONE
         binding.bottomControls.visibility = View.GONE
         binding.btnDvrRewind.visibility = View.GONE
@@ -602,6 +610,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         }
         setupFavoritesGuide()
+        setupRecentChannels()
         setupResizeButton()
         setupActionButtons()
         observeRecordingState()
@@ -714,6 +723,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             lifecycleScope.launch { prefs.setLivePlaybackActive(serverIndex) }
             lifecycleScope.launch { liveReconnectSpeed = prefs.liveReconnectSpeed.first() }
             reportLiveChannelForHandoff()
+            // The channel the player opened with is the newest Recent Channel.
+            recentKey()?.let { (server, id) -> noteRecentChannelById(server, id) }
         }
 
         val streamIds = intent.getIntArrayExtra("stream_ids")
@@ -2909,6 +2920,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun enterAudioOnly() {
         if (isVod || audioOnly || castSession != null || streamUrl.isEmpty()) return
         quickPeek.stop()
+        if (::recents.isInitialized) recents.stop()
         audioOnly = true
         // The listen service opens the channel itself. Drop the timeshift connection first.
         clearDisplayMode()
@@ -3225,7 +3237,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Quick Peek open: a tap on the picture beside it closes it, and goes no further; a touch
         // that starts on it is the panel's alone (scrolling its list is not a volume swipe, and a
         // double tap there is not LAST).
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::quickPeek.isInitialized && quickPeek.isOpen) {
+        // Recent Channels the same way: a tap above the drawer closes it; a touch on it is its own.
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::recents.isInitialized && recents.isOpen) {
+            if (recents.touchOutside(ev.rawX, ev.rawY)) {
+                peekSwallowGesture = true
+                return true
+            }
+            peekOwnsGesture = true
+        }
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN && !peekOwnsGesture && ::quickPeek.isInitialized && quickPeek.isOpen) {
             if (quickPeek.touchOutside(ev.rawX, ev.rawY)) {
                 peekSwallowGesture = true
                 return true
@@ -6814,6 +6834,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.epgOverlay.visibility = View.VISIBLE
         binding.btnBack.visibility = View.VISIBLE
         binding.btnGuide.visibility = if (quickPeekAvailable()) View.VISIBLE else View.GONE
+        binding.btnRecents.visibility = if (quickPeekAvailable()) View.VISIBLE else View.GONE
         binding.btnPlayPause.visibility = View.VISIBLE
         binding.bottomControls.visibility = View.VISIBLE
         // Mirrors hideRunnable's isVod branch — the seek bar auto-hides with the rest of the
@@ -6951,6 +6972,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             hideHandler.removeCallbacks(hideRunnable)
             hideRunnable.run()
             quickPeek.stop()
+            if (::recents.isInitialized) recents.stop()
             flashUnlock()
         } else {
             binding.btnUnlock.visibility = View.GONE
@@ -7109,6 +7131,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val idx = channels.indexOfFirst { it.streamId == requested.streamId }
                 if (idx >= 0) currentIndex = idx
                 loadStream(url)
+                noteRecentChannel(com.iptvapp.util.RecentChannel(-1, channel.streamId, channel.name, channel.streamIcon))
                 notifyPartyChannelChange()
                 reportLiveChannelForHandoff()
             } catch (error: Exception) {
@@ -7158,6 +7181,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val idx = mergedChannels.indexOfFirst { it.streamId == channel.streamId && it.serverIndex == channel.serverIndex }
                 if (idx >= 0) mergedCurrentIndex = idx
                 loadStream(url)
+                noteRecentChannel(com.iptvapp.util.RecentChannel(
+                    channel.serverIndex, channel.streamId, channel.name, channel.streamIcon,
+                    channel.serverNickname.takeIf { channel.serverIndex >= 0 }
+                ))
                 notifyPartyChannelChange()
                 reportLiveChannelForHandoff()
             } catch (_: Exception) {
@@ -7260,6 +7287,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (idx >= 0) mergedCurrentIndex = idx
             }
             loadStream(url)
+            noteRecentChannelById(targetServerIndex, targetStreamId)
             notifyPartyChannelChange()
             reportLiveChannelForHandoff()
             showChannelOsd()
@@ -7348,6 +7376,10 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
                 keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
             ) return super.onKeyDown(keyCode, event)
+        }
+        // Recent Channels open: it takes the D-pad, OK and Back; CH +/-, volume and media carry on below.
+        if (::recents.isInitialized && recents.isOpen) {
+            if (recents.onKeyDown(keyCode, event)) return true
         }
         // Choosing a place to jump to: OK jumps, Back stays put, Left/Right keep choosing (below).
         // Anything else (Play/Pause, Up/Down, CH +/-, ...) jumps first, then does what it always did.
@@ -7480,7 +7512,18 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (!isOverlayVisible && binding.btnSkipBreak.visibility == View.VISIBLE && binding.btnSkipBreak.hasFocus()) {
                     skipCurrentCommercial(); return true
                 }
-                if (!isOverlayVisible) { showOverlay(); true }
+                if (!isOverlayVisible) {
+                    // Live TV: OK is decided on key up, so holding it can open Recent Channels
+                    // (onKeyLongPress); a tap still brings up the controls (onKeyUp).
+                    if (recentKey() != null && ::recents.isInitialized) {
+                        if ((event?.repeatCount ?: 0) == 0) {
+                            event?.startTracking()
+                            okPendingTap = true
+                            okLongPressed = false
+                        }
+                        true
+                    } else { showOverlay(); true }
+                }
                 else { resetHideTimer(); super.onKeyDown(keyCode, event) }
             }
             // GUIDE on live TV opens Quick Peek; pressed again there, the full guide. Android TV keeps
@@ -7498,7 +7541,20 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // is shown from inside recallLastChannel itself (after its async swap actually
             // updates streamTitle/streamId), not here — calling showChannelOsd() synchronously
             // right after would race the coroutine and show the OUTGOING channel's title.
-            KeyEvent.KEYCODE_LAST_CHANNEL -> { if (!isOverlayVisible) recallLastChannel(); true }
+            // Pressed twice within 400 ms, LAST opens Recent Channels instead of flipping back again.
+            KeyEvent.KEYCODE_LAST_CHANNEL -> {
+                if (!isOverlayVisible && (event?.repeatCount ?: 0) == 0) {
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (now - lastRecallPressMs < 400 && ::recents.isInitialized && recentKey() != null) {
+                        lastRecallPressMs = 0L
+                        recents.open()
+                    } else {
+                        lastRecallPressMs = now
+                        recallLastChannel()
+                    }
+                }
+                true
+            }
             // Yellow / X / F key cycles aspect ratio without opening the overlay
             KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_BUTTON_X,
             KeyEvent.KEYCODE_PROG_YELLOW, KeyEvent.KEYCODE_F -> { cycleResizeMode(); true }
@@ -7507,6 +7563,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent?): Boolean {
+        // OK held on bare live TV: Recent Channels.
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) && okPendingTap) {
+            okPendingTap = false
+            okLongPressed = true
+            if (!isOverlayVisible && ::recents.isInitialized) recents.open()
+            return true
+        }
         if (!audioOnly && !isVod && !isOverlayVisible && timeshiftControlsOpen()) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -7527,6 +7590,20 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (okPendingTap) {
+                // A tap of OK on bare live TV: the controls, as before (now on key up).
+                okPendingTap = false
+                if (!isOverlayVisible && !(::recents.isInitialized && recents.isOpen) &&
+                    !(::quickPeek.isInitialized && quickPeek.isOpen)) showOverlay()
+                return true
+            }
+            if (okLongPressed) {
+                // The hold already opened Recent Channels; letting go must not also click a card.
+                okLongPressed = false
+                return true
+            }
+        }
         if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && liveSkipPendingMs != 0L) {
             val delta = liveSkipPendingMs
             liveSkipPendingMs = 0L
@@ -7654,9 +7731,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.playerTopScrim.visibility = View.GONE
             binding.playerBottomScrim.visibility = View.GONE
             quickPeek.stop()
+            if (::recents.isInitialized) recents.stop()
             binding.epgOverlay.visibility = View.GONE
             binding.btnBack.visibility = View.GONE
             binding.btnGuide.visibility = View.GONE
+            binding.btnRecents.visibility = View.GONE
             binding.btnPlayPause.visibility = View.GONE
             binding.bottomControls.visibility = View.GONE
             binding.btnCast.visibility = View.GONE
@@ -7711,10 +7790,66 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             override fun onOpening() {
                 hideHandler.removeCallbacks(hideRunnable)
                 hideRunnable.run()
+                if (::recents.isInitialized) recents.close()
             }
         })
         quickPeek.setAccent(playerAccent)
         binding.btnGuide.setOnClickListener { if (quickPeekAvailable()) quickPeek.toggle() }
+    }
+
+    // ─── Recent Channels (the quick-switcher drawer; see RecentChannelsDrawer) ───
+
+    /** The channel on now as Recent Channels keys it, or null when the drawer doesn't apply. */
+    private fun recentKey(): Pair<Int, Int>? {
+        if (!quickPeekAvailable()) return null
+        // A main-provider channel played from the Providers list keeps its id in mergedStreamId.
+        val id = if (serverIndex == -1) (if (streamId != -1) streamId else mergedStreamId) else mergedStreamId
+        return if (id == -1) null else serverIndex to id
+    }
+
+    private fun setupRecentChannels() {
+        recents = RecentChannelsDrawer(this, binding, repository, db, prefs, object : RecentChannelsDrawer.Host {
+            override fun playing() = recentKey()
+
+            override fun tune(primary: ChannelEntity?, merged: com.iptvapp.data.local.entities.MergedChannelEntity?) {
+                // Each goes back to its own provider: a main-provider id is never played on another one.
+                suppressOverlayOnReady = true
+                if (primary != null) playChannel(primary) else if (merged != null) playMergedChannel(merged)
+            }
+
+            override fun onOpening() {
+                hideHandler.removeCallbacks(hideRunnable)
+                hideRunnable.run()
+                if (::quickPeek.isInitialized) quickPeek.close()
+            }
+        })
+        binding.btnRecents.setOnClickListener { if (quickPeekAvailable()) recents.toggle() }
+    }
+
+    /** Live TV started playing [channel]: it goes to the front of Recent Channels (saved on the device). */
+    private fun noteRecentChannel(channel: com.iptvapp.util.RecentChannel) {
+        if (isVod || isCatchup || audioOnly || isRecordingPlayback || castChannels.isNotEmpty()) return
+        lifecycleScope.launch { runCatching { prefs.pushRecentChannel(channel) } }
+    }
+
+    /** As [noteRecentChannel], for a tune that only knows the ids (LAST, the channel the player opened with). */
+    private fun noteRecentChannelById(server: Int, id: Int) {
+        if (id == -1 || isVod || isCatchup || audioOnly || isRecordingPlayback || castChannels.isNotEmpty()) return
+        lifecycleScope.launch {
+            val recent = runCatching {
+                withContext(Dispatchers.IO) {
+                    if (server == -1) {
+                        repository.getChannelById(id)?.let { com.iptvapp.util.RecentChannel(-1, it.streamId, it.name, it.streamIcon) }
+                            ?: repository.getMergedChannelByIndexAndId(-1, id)?.let { com.iptvapp.util.RecentChannel(-1, it.streamId, it.name, it.streamIcon) }
+                    } else {
+                        repository.getMergedChannelByIndexAndId(server, id)?.let {
+                            com.iptvapp.util.RecentChannel(server, it.streamId, it.name, it.streamIcon, it.serverNickname)
+                        }
+                    }
+                }
+            }.getOrNull() ?: return@launch
+            runCatching { prefs.pushRecentChannel(recent) }
+        }
     }
 
     private val fullGuideLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -7921,6 +8056,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // the sender must hear it isn't playing (it keeps playing itself).
         handoffTx?.let { com.iptvapp.handoff.Handoff.receiver(this).onPlayerClosed(it) }
         if (::quickPeek.isInitialized) quickPeek.stop()
+        if (::recents.isInitialized) recents.stop()
         // Out of sight: no place is being chosen, and no picture is being made for a player that's gone.
         cancelSeekPreview()
         thumbnailSourceUrl = null

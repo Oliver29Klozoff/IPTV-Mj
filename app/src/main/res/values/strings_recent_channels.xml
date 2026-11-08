@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recent_channels_title">RECENT CHANNELS</string>
+    <string name="recent_channels_empty">No recent channels yet</string>
+    <string name="recent_channels_live">Live</string>
+    <string name="recent_channels_button">Recent channels</string>
+    <string name="recent_channels_gone">%1$s is no longer available</string>
+    <string name="recent_channels_card_description">%1$s, %2$s</string>
+</resources>

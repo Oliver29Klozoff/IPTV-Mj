@@ -308,6 +308,8 @@ class PreferencesManager @Inject constructor(
         val SYNC_ENABLED = booleanPreferencesKey("sync_enabled")
         val SYNC_GIST_ID = stringPreferencesKey("sync_gist_id")
         val SAVED_PAIRING_CODES = stringPreferencesKey("saved_pairing_codes")
+        // Recent Channels drawer (util/RecentChannels): newest first, ids + names + logos only.
+        val RECENT_CHANNELS = stringPreferencesKey("recent_channels")
         val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         val EXTERNAL_PLAYER = stringPreferencesKey("external_player")
         val DOH_ENABLED = booleanPreferencesKey("doh_enabled")
@@ -1338,6 +1340,28 @@ class PreferencesManager @Inject constructor(
 
     suspend fun setSyncGistId(id: String) {
         context.dataStore.edit { it[Keys.SYNC_GIST_ID] = id }
+    }
+
+    // ── Recent Channels (the player's quick-switcher drawer; see util/RecentChannels) ──
+
+    suspend fun getRecentChannels(): List<com.iptvapp.util.RecentChannel> =
+        com.iptvapp.util.RecentChannels.fromJson(context.dataStore.data.first()[Keys.RECENT_CHANNELS])
+
+    /** Puts [channel] first. Read and written in one edit, so two quick tunes can't lose one. */
+    suspend fun pushRecentChannel(channel: com.iptvapp.util.RecentChannel) {
+        context.dataStore.edit {
+            val list = com.iptvapp.util.RecentChannels.fromJson(it[Keys.RECENT_CHANNELS])
+            it[Keys.RECENT_CHANNELS] = com.iptvapp.util.RecentChannels.toJson(com.iptvapp.util.RecentChannels.push(list, channel))
+        }
+    }
+
+    suspend fun removeRecentChannels(gone: List<Pair<Int, Int>>) {
+        if (gone.isEmpty()) return
+        context.dataStore.edit {
+            var list = com.iptvapp.util.RecentChannels.fromJson(it[Keys.RECENT_CHANNELS])
+            gone.forEach { (server, id) -> list = com.iptvapp.util.RecentChannels.remove(list, server, id) }
+            it[Keys.RECENT_CHANNELS] = com.iptvapp.util.RecentChannels.toJson(list)
+        }
     }
 
     // Every code the user successfully pairs with is remembered here (most-recent first, capped

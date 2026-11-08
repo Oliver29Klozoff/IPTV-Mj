@@ -483,6 +483,19 @@
             android:src="@drawable/ic_player_zap"
             android:visibility="gone" />
 
+        <!-- Recent Channels: opens the quick-switcher drawer -->
+        <ImageButton
+            android:id="@+id/btnRecents"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/player_chip_bg"
+            android:contentDescription="@string/recent_channels_button"
+            android:padding="9dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_player_recents"
+            android:visibility="gone" />
+
         </LinearLayout>
 
         </HorizontalScrollView>
@@ -1349,5 +1362,16 @@
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Recent Channels drawer (RecentChannelsDrawer): last so it draws over everything else. -->
+    <include
+        android:id="@+id/recentDrawer"
+        layout="@layout/layout_recent_channels_drawer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
