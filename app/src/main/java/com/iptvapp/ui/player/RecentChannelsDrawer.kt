@@ -196,8 +196,10 @@ class RecentChannelsDrawer(
         val gone = ArrayList<Pair<Int, Int>>()
         for (r in candidates) {
             val entity: Any? = if (r.serverIndex == -1) {
-                // A main-provider channel can live only in the merged table's slot -1 (the Providers list).
-                repository.getChannelById(r.streamId) ?: repository.getMergedChannelByIndexAndId(-1, r.streamId)
+                // Main-provider channels play from the main list only (the player's CH +/- and LAST
+                // follow those); one still in the Providers list (slot -1) is kept but not shown.
+                repository.getChannelById(r.streamId)
+                    ?: if (repository.getMergedChannelByIndexAndId(-1, r.streamId) != null) continue else null
             } else repository.getMergedChannelByIndexAndId(r.serverIndex, r.streamId)
             if (entity == null) gone += r.serverIndex to r.streamId else found += r to entity
         }

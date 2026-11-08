@@ -7072,11 +7072,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         osdHandler.removeCallbacks(hideOsdRunnable)
         osdHandler.postDelayed(hideOsdRunnable, 2500)
     }
-    private fun playChannel(channel: ChannelEntity) {
+    private fun playChannel(channel: ChannelEntity, fromRecentsPick: Boolean = false) {
         showTuneSelection(channel.name, channel.streamIcon)
         // Changing channel from a Start Over replay: the replay ends here, the new channel plays live.
         exitStartOverState()
         channelSwitchJob?.cancel()
+        // Any other change of channel overtakes a Recent Channels pick still loading its list.
+        if (!fromRecentsPick) recentsZapJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             try {
                 // Off preserves Channel Change Speed; Turbo Tune coalesces rapid presses. This
@@ -7148,10 +7150,12 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * against that channel's own server (getMergedLiveStreamUrl) and tracks serverIndex/
      * mergedStreamId instead of streamId, matching every other merged-aware code path in this
      * Activity (saveVodProgress's serverIndex/mergedStreamId branch, MediaInfo cast metadata). */
-    private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
+    private fun playMergedChannel(channel: com.iptvapp.data.local.entities.MergedChannelEntity, fromRecentsPick: Boolean = false) {
         showTuneSelection(channel.name, channel.streamIcon)
         exitStartOverState()
         channelSwitchJob?.cancel()
+        // Any other change of channel overtakes a Recent Channels pick still loading its list.
+        if (!fromRecentsPick) recentsZapJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             try {
                 val debounceMs = TurboTune.debounceMs(prefs.turboTuneNow(), prefs.channelZapDebounceMs.first())
@@ -7183,10 +7187,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val idx = mergedChannels.indexOfFirst { it.streamId == channel.streamId && it.serverIndex == channel.serverIndex }
                 if (idx >= 0) mergedCurrentIndex = idx
                 loadStream(url)
-                noteRecentChannel(com.iptvapp.util.RecentChannel(
-                    channel.serverIndex, channel.streamId, channel.name, channel.streamIcon,
-                    channel.serverNickname.takeIf { channel.serverIndex >= 0 }
-                ))
+                // A main-provider channel found only in the Providers list (slot -1) is left out:
+                // the player's CH +/- and LAST can't follow it as a main-provider channel.
+                if (channel.serverIndex >= 0) {
+                    noteRecentChannel(com.iptvapp.util.RecentChannel(
+                        channel.serverIndex, channel.streamId, channel.name, channel.streamIcon, channel.serverNickname
+                    ))
+                }
                 notifyPartyChannelChange()
                 reportLiveChannelForHandoff()
             } catch (_: Exception) {
@@ -7214,6 +7221,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         streamTitle = ch.name
         binding.tvChannelTitle.text = ch.name
         channelSwitchJob?.cancel()
+        recentsZapJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             // Same debounce as playChannel, so holding the button settles on one load.
             val debounceMs = TurboTune.debounceMs(prefs.turboTuneNow(), prefs.channelZapDebounceMs.first())
@@ -7255,6 +7263,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val targetZapStreamId = previousZapStreamId
         showTuneSelection(targetTitle, null)
         channelSwitchJob?.cancel()
+        recentsZapJob?.cancel()
         channelSwitchJob = lifecycleScope.launch {
             val url = try {
                 TurboTune.resolveLatest {
@@ -7830,7 +7839,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                             channels = all
                             currentIndex = all.indexOfFirst { it.streamId == primary.streamId }
                         }
-                        playChannel(primary)
+                        playChannel(primary, fromRecentsPick = true)
                     }
                 } else if (merged != null) {
                     if (mergedChannels.any { it.serverIndex == merged.serverIndex && it.streamId == merged.streamId }) {
@@ -7847,7 +7856,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                             mergedChannels = list
                             mergedCurrentIndex = list.indexOfFirst { it.streamId == merged.streamId }
                         }
-                        playMergedChannel(merged)
+                        playMergedChannel(merged, fromRecentsPick = true)
                     }
                 }
             }
@@ -7874,8 +7883,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             val recent = runCatching {
                 withContext(Dispatchers.IO) {
                     if (server == -1) {
+                        // Main-provider channels in the main list only (see playMergedChannel's note).
                         repository.getChannelById(id)?.let { com.iptvapp.util.RecentChannel(-1, it.streamId, it.name, it.streamIcon) }
-                            ?: repository.getMergedChannelByIndexAndId(-1, id)?.let { com.iptvapp.util.RecentChannel(-1, it.streamId, it.name, it.streamIcon) }
                     } else {
                         repository.getMergedChannelByIndexAndId(server, id)?.let {
                             com.iptvapp.util.RecentChannel(server, it.streamId, it.name, it.streamIcon, it.serverNickname)
@@ -8087,6 +8096,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         tuneTrace.cancel()
         osdEpgJob?.cancel()
         channelSwitchJob?.cancel()
+        recentsZapJob?.cancel()
         // A handoff player put away before its sender confirmed: the player is released here, so
         // the sender must hear it isn't playing (it keeps playing itself).
         handoffTx?.let { com.iptvapp.handoff.Handoff.receiver(this).onPlayerClosed(it) }
