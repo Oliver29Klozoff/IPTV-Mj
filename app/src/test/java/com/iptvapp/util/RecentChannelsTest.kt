@@ -67,6 +67,19 @@ class RecentChannelsTest {
         assertEquals(listOf(3), RecentChannels.fromJson(mixed).map { it.streamId })
     }
 
+    @Test fun extraProvidersFollowTheirNewIndexOrGo() {
+        val list = listOf(ch(1, server = 0), ch(2, server = 1), ch(3, server = 2), ch(4))
+        // Provider 1 removed: 2 moves down to 1.
+        val after = RecentChannels.reindexProviders(list, mapOf(0 to 0, 2 to 1), primaryChanged = false)
+        assertEquals(listOf(0 to 1, 1 to 3, -1 to 4), after.map { it.serverIndex to it.streamId })
+    }
+
+    @Test fun aNewMainAccountDropsItsChannels() {
+        val list = listOf(ch(1, server = 0), ch(4))
+        assertEquals(listOf(0), RecentChannels.reindexProviders(list, null, primaryChanged = true).map { it.serverIndex })
+        assertEquals(null, RecentChannels.reindexJson(null, null, primaryChanged = true))
+    }
+
     @Test fun initialsForCardsWithoutALogo() {
         assertEquals("E2", RecentChannels.initials("ESPN 2"))
         assertEquals("FN", RecentChannels.initials("fox news"))

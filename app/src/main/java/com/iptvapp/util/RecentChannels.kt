@@ -35,6 +35,28 @@ object RecentChannels {
     fun available(list: List<RecentChannel>, playingServer: Int, playingStream: Int, max: Int = SHOWN): List<RecentChannel> =
         list.filterNot { it.sameChannel(playingServer, playingStream) }.take(max)
 
+    /**
+     * After the provider list changes, as TopFavorites.reindexProviders: an extra provider's
+     * channels follow it to its new index ([moved]: old → new) or go with it; a new main account
+     * drops the main provider's. A stream id never lands on another provider's channel.
+     */
+    fun reindexProviders(list: List<RecentChannel>, moved: Map<Int, Int>?, primaryChanged: Boolean): List<RecentChannel> =
+        list.mapNotNull { r ->
+            when {
+                r.serverIndex == -1 -> if (primaryChanged) null else r
+                moved == null -> r
+                else -> moved[r.serverIndex]?.let { r.copy(serverIndex = it) }
+            }
+        }.distinctBy { it.serverIndex to it.streamId }
+
+    /** [reindexProviders] on a stored list. Null (never used) stays null. */
+    fun reindexJson(json: String?, moved: Map<Int, Int>?, primaryChanged: Boolean): String? {
+        if (json == null) return null
+        val before = fromJson(json)
+        val after = reindexProviders(before, moved, primaryChanged)
+        return if (after == before) json else toJson(after)
+    }
+
     private val gson = Gson()
 
     fun toJson(list: List<RecentChannel>): String = gson.toJson(list)

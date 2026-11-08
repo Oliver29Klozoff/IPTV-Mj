@@ -815,6 +815,9 @@ class PreferencesManager @Inject constructor(
                 val top = prefs[Keys.TOP_FAVORITES]
                 val topNext = com.iptvapp.data.home.TopFavorites.reindexJson(top, null, primaryChanged = true)
                 if (topNext != null && topNext != top) prefs[Keys.TOP_FAVORITES] = topNext
+                val recent = prefs[Keys.RECENT_CHANNELS]
+                val recentNext = com.iptvapp.util.RecentChannels.reindexJson(recent, null, primaryChanged = true)
+                if (recentNext != null && recentNext != recent) prefs[Keys.RECENT_CHANNELS] = recentNext
             }
             prefs[Keys.SERVER_URL] = serverUrl
             prefs[Keys.USERNAME] = username
@@ -1206,6 +1209,9 @@ class PreferencesManager @Inject constructor(
             val top = prefs[Keys.TOP_FAVORITES]
             val topNext = com.iptvapp.data.home.TopFavorites.reindexJson(top, moved, primaryChanged = false)
             if (topNext != null && topNext != top) prefs[Keys.TOP_FAVORITES] = topNext
+            val recent = prefs[Keys.RECENT_CHANNELS]
+            val recentNext = com.iptvapp.util.RecentChannels.reindexJson(recent, moved, primaryChanged = false)
+            if (recentNext != null && recentNext != recent) prefs[Keys.RECENT_CHANNELS] = recentNext
             prefs[Keys.EXTRA_SERVERS] = arr.toString()
         }
     }

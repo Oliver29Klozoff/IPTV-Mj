@@ -111,6 +111,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private var okLongPressed = false
     // LAST twice within 400 ms opens Recent Channels.
     private var lastRecallPressMs = 0L
+    // Loading the CH +/- list for a Recent Channels pick on another list; a newer pick replaces it.
+    private var recentsZapJob: Job? = null
     // Opened the full guide from Quick Peek: on coming back, onStart holds the stream until the
     // guide's answer arrives, so a pick doesn't open the old channel first (one connection).
     private var fullGuidePending = false
@@ -7813,8 +7815,41 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
             override fun tune(primary: ChannelEntity?, merged: com.iptvapp.data.local.entities.MergedChannelEntity?) {
                 // Each goes back to its own provider: a main-provider id is never played on another one.
+                // CH +/- then carries on through a list holding that channel: the one already loaded
+                // when it is in there, otherwise the list the player would have opened it with.
                 suppressOverlayOnReady = true
-                if (primary != null) playChannel(primary) else if (merged != null) playMergedChannel(merged)
+                recentsZapJob?.cancel()
+                if (primary != null) {
+                    if (channels.any { it.streamId == primary.streamId }) { playChannel(primary); return }
+                    recentsZapJob = lifecycleScope.launch {
+                        val all = try { repository.getAllChannels().first() } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            emptyList()
+                        }
+                        if (all.any { it.streamId == primary.streamId }) {
+                            channels = all
+                            currentIndex = all.indexOfFirst { it.streamId == primary.streamId }
+                        }
+                        playChannel(primary)
+                    }
+                } else if (merged != null) {
+                    if (mergedChannels.any { it.serverIndex == merged.serverIndex && it.streamId == merged.streamId }) {
+                        playMergedChannel(merged); return
+                    }
+                    recentsZapJob = lifecycleScope.launch {
+                        val list = try {
+                            repository.getMergedChannelsByCategory(merged.serverIndex, merged.categoryId).first()
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            emptyList()
+                        }
+                        if (list.any { it.serverIndex == merged.serverIndex && it.streamId == merged.streamId }) {
+                            mergedChannels = list
+                            mergedCurrentIndex = list.indexOfFirst { it.streamId == merged.streamId }
+                        }
+                        playMergedChannel(merged)
+                    }
+                }
             }
 
             override fun onOpening() {
