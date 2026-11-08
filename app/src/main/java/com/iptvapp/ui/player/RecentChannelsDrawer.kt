@@ -26,6 +26,7 @@ import com.iptvapp.util.RecentChannels
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -194,7 +195,13 @@ class RecentChannelsDrawer(
         val candidates = RecentChannels.available(saved, playing.first, playing.second, max = RecentChannels.CAPACITY)
         val found = ArrayList<Pair<RecentChannel, Any>>()
         val gone = ArrayList<Pair<Int, Int>>()
+        // A provider switched off in Settings is left out (its history is kept for when it's back).
+        val enabled = try { prefs.enabledExtraServerIndices.first() } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptySet()
+        }
         for (r in candidates) {
+            if (r.serverIndex >= 0 && r.serverIndex !in enabled) continue
             val entity: Any? = if (r.serverIndex == -1) {
                 // Main-provider channels play from the main list only (the player's CH +/- and LAST
                 // follow those); one still in the Providers list (slot -1) is kept but not shown.
