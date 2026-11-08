@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.78 - 2026-11-08
+- **Fixed**: The login screen on a TV or Fire Stick. The whole form now scrolls, so the remote can reach
+  every field and button, including the ones below Connect. The item you're on has a bold blue highlight.
+- **Fixed**: Field labels such as Server URL and Password are now easy to read on the login screen.
+
 ## v7.77 - 2026-11-07
 - **New**: Play on TV. On a phone, a movie or episode page has a Play on TV button, and a channel's
   long-press menu has Play on TV. It starts playing on your paired MKTV TV. With more than one TV

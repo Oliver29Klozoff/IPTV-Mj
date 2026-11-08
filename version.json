@@ -1,7 +1,7 @@
 {
-  "versionCode": 615,
-  "versionName": "7.77",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.77/MKTV.apk",
-  "apkSha256": "a1dc761a36fb7a2918493a4e14fc5505a1d86a299633ebc6a981cc309a97eb5f",
-  "changelog": "Play on TV from your phone, Wi-Fi sync of favorites and settings with a paired TV (no logins sent), and a Cast picker that lists your paired TVs with a small remote."
+  "versionCode": 616,
+  "versionName": "7.78",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.78/MKTV.apk",
+  "apkSha256": "4d2e48525e03321a965afe6c343622fe931a1a088d89ba5bc85d311f08d18ad9",
+  "changelog": "The login screen now works with a TV remote: the whole form scrolls, every field and button can be reached, and the selected item is clearly highlighted."
 }
